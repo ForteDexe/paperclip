@@ -77,10 +77,10 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("uses Coordinator while a person's Classic choice is loading", async () => {
+  it("keeps Coordinator retired while an old preference is loading", async () => {
     mocks.get.mockReturnValue(new Promise(() => {}));
     await mount();
-    expect(current).toMatchObject({ userId: "a", enabled: true, loaded: false });
+    expect(current).toMatchObject({ userId: "a", enabled: false, loaded: false });
   });
 
   it("defaults off in detached hosts without fetching", async () => {
@@ -97,10 +97,10 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     expect(mocks.update).toHaveBeenCalledTimes(1);
     await flush(); expect(current.enabled).toBe(false);
     resolve(preference("a", true)); expect(await pending).toEqual(preference("a", true)); await flush();
-    expect(current.enabled).toBe(true);
+    expect(current.enabled).toBe(false);
     mocks.update.mockRejectedValueOnce(new Error("Save failed"));
     await expect(current.setEnabled("company", false)).rejects.toThrow("Save failed"); await flush();
-    expect(current.enabled).toBe(true);
+    expect(current.enabled).toBe(false);
   });
   it("isolates cached choices and delayed save responses when accounts change", async () => {
     await mount();
@@ -126,30 +126,30 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     try {
       client.setQueryData(queryKeys.auth.session, session("b"));
-      await vi.waitFor(() => expect(current).toMatchObject({ userId: "b", enabled: true, loaded: true }));
+      await vi.waitFor(() => expect(current).toMatchObject({ userId: "b", enabled: false, loaded: true }));
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/workspace-preferences/me", "/api/workspace-preferences/me"]);
     } finally {
       resolvePrevious(Response.json(preference("a", false)));
       await flush();
     }
-    expect(current).toMatchObject({ userId: "b", enabled: true });
+    expect(current).toMatchObject({ userId: "b", enabled: false });
     expect(client.getQueryData(queryKeys.workspacePreferences.mine("a"))).toMatchObject(preference("a", false));
     expect(client.getQueryData(queryKeys.workspacePreferences.mine("b"))).toMatchObject(preference("b", true));
   });
   it("does not treat anonymous sessions as local board, even with an enabled cached local choice", async () => {
     mocks.session.mockResolvedValue(null);
     client.setQueryData(queryKeys.workspacePreferences.mine("local-board"), preference("local-board", true));
-    await mount(); expect(current).toMatchObject({ userId: null, enabled: true, loaded: true });
+    await mount(); expect(current).toMatchObject({ userId: null, enabled: false, loaded: true });
     expect(mocks.get).not.toHaveBeenCalled();
   });
   it("recognizes a local-trusted instance and keeps the standard workspace on a read error", async () => {
     mocks.session.mockResolvedValue(null);
     mocks.health.mockResolvedValue({ status: "ok", deploymentMode: "local_trusted" });
     mocks.get.mockResolvedValue(preference("local-board", true));
-    await mount(); expect(current).toMatchObject({ userId: "local-board", enabled: true });
+    await mount(); expect(current).toMatchObject({ userId: "local-board", enabled: false });
     mocks.get.mockRejectedValue(new Error("Unavailable"));
     await client.invalidateQueries({ queryKey: queryKeys.workspacePreferences.mine("local-board") }); await flush();
-    expect(current).toMatchObject({ enabled: true, loaded: true });
+    expect(current).toMatchObject({ enabled: false, loaded: true });
   });
 });

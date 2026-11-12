@@ -19,7 +19,6 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ClassicWorkspaceSetting } from "@/components/ClassicWorkspaceSetting";
 import { describeError } from "@/api/errors";
 
 type WorktreeRunExecutionDisplayState =
@@ -183,7 +182,6 @@ export function InstanceExperimentalSettings() {
   if (experimentalQuery.isLoading || experimentalView.kind === "reconnecting") {
     return (
       <div className="max-w-6xl space-y-6">
-        <ClassicWorkspaceSetting key="personal-workspace" />
         <div className="text-sm text-muted-foreground">Loading experimental settings...</div>
       </div>
     );
@@ -191,14 +189,15 @@ export function InstanceExperimentalSettings() {
 
   if (experimentalView.kind === "error") {
     return (
-<div className="max-w-6xl space-y-6"><ClassicWorkspaceSetting key="personal-workspace" />      <QueryErrorState
-        size="page"
-        error={experimentalQuery.error}
-        action="load experimental settings"
-        onRetry={experimentalView.retry}
-        retrying={experimentalView.isFetching}
-      />
-</div>
+      <div className="max-w-6xl space-y-6">
+        <QueryErrorState
+          size="page"
+          error={experimentalQuery.error}
+          action="load experimental settings"
+          onRetry={experimentalView.retry}
+          retrying={experimentalView.isFetching}
+        />
+      </div>
     );
   }
 
@@ -219,9 +218,6 @@ export function InstanceExperimentalSettings() {
   const enableIsolatedWorkspaces = experimentalQuery.data?.enableIsolatedWorkspaces === true;
   const enableIsolatedWorkspacesByDefault =
     experimentalQuery.data?.enableIsolatedWorkspacesByDefault === true;
-  // Streamlined left navigation is now the standard sidebar (PAP-12472); the
-  // experimental opt-out was retired, so it no longer surfaces a toggle here.
-  const enableStreamlinedUi = experimentalQuery.data?.enableStreamlinedUi !== false;
   const enableConferenceRoomChat = experimentalQuery.data?.enableConferenceRoomChat === true;
   const enableClassicTaskInterface = experimentalQuery.data?.enableClassicTaskInterface === true;
   const enableIssuePlanDecompositions =
@@ -271,8 +267,6 @@ export function InstanceExperimentalSettings() {
           Opt into features that are still being evaluated before they become default behavior.
         </p>
       </div>
-
-      <ClassicWorkspaceSetting key="personal-workspace" />
 
       <div
         role="alert"
@@ -559,18 +553,6 @@ export function InstanceExperimentalSettings() {
           settingKey="enableStatusCards"
           managed={managedKeys.enableStatusCards}
           ariaLabel="Toggle status cards experimental setting"
-        />
-
-        <ExperimentalToggleCard
-          title="Streamlined UI"
-          description="Use the simplified main sidebar, shared Tasks and Inbox presentation, focused task detail layout, and contextual navigation across Agents, Routines, Skills, and Settings."
-          footnote="Turning this off restores the legacy shell and navigation. Task and page data are unchanged."
-          checked={enableStreamlinedUi}
-          onCheckedChange={(checked) => toggleMutation.mutate({ enableStreamlinedUi: checked })}
-          disabled={toggleMutation.isPending}
-          settingKey="enableStreamlinedUi"
-          managed={managedKeys.enableStreamlinedUi}
-          ariaLabel="Toggle Streamlined UI experimental setting"
         />
 
         <ExperimentalToggleCard

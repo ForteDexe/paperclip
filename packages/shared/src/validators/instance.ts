@@ -47,6 +47,8 @@ export const instanceExperimentalSettingsSchema = z.object({
   remoteWorkspaceStorageEnabled: z.boolean().default(true),
   enableIsolatedWorkspacesByDefault: z.boolean().default(false),
   enableStreamlinedLeftNavigation: z.boolean().default(true),
+  // Deprecated compatibility key. Outpost has one streamlined shell; old
+  // stored false values are accepted but ignored by the UI.
   enableStreamlinedUi: z.boolean().default(true),
   // Deprecated compatibility key. Apps is a standard product surface and is
   // always enabled; this remains accepted so older stored rows and managed

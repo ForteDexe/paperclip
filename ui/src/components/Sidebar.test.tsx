@@ -302,7 +302,7 @@ describe("Sidebar", () => {
     });
   });
 
-  it("restores legacy agent and organization navigation when Streamlined UI is off", async () => {
+  it("ignores a retired Streamlined UI opt-out", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableStreamlinedUi: false,
       enableApps: true,
@@ -310,16 +310,14 @@ describe("Sidebar", () => {
     const root = await renderSidebar();
 
     const labels = [...container.querySelectorAll("nav a")].map((anchor) => anchor.textContent?.trim());
-    expect(container.querySelector('[data-testid="sidebar-recent-tasks"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sidebar-recent-tasks"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="sidebar-projects"]')).toBeNull();
-    expect(container.querySelector('[data-testid="sidebar-agents"]')?.getAttribute("data-streamlined")).toBe("undefined");
+    expect(container.querySelector('[data-testid="sidebar-agents"]')?.getAttribute("data-streamlined")).toBe("true");
     expect(container.textContent).toContain("Space");
-    expect(labels).toEqual(expect.arrayContaining(["Spaces", "Crew map", "Timeline", "Activity", "Commentary", "Settings"]));
+    expect(labels).toEqual(expect.arrayContaining(["Spaces", "Agents", "Skills", "Audit"]));
     expect(labels).not.toContain("Connectors");
-    expect(labels).not.toContain("Audit");
     expect(labels).not.toContain("Projects");
-    expect(container.querySelector('a[href="/agents"]')).toBeNull();
-    expect(container.querySelector("aside")?.classList).toContain("border-r");
+    expect(container.querySelector('a[href="/agents"]')).not.toBeNull();
 
     flushSync(() => {
       root.unmount();
@@ -415,13 +413,16 @@ describe("Sidebar", () => {
       });
     });
 
-    it("keeps Chat in the top group in the legacy shell, which has no Work-group Chat row", async () => {
+    it("keeps Chat in the Work group when an old shell opt-out is stored", async () => {
       mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableAgentChat: true, enableStreamlinedUi: false });
       const root = await renderSidebar();
 
       const chatLinks = [...container.querySelectorAll("a")].filter((anchor) => anchor.getAttribute("href") === "/chats");
       expect(chatLinks).toHaveLength(1);
-      expect(chatLinks[0]?.closest("[class*=\"group/sidebar-section\"]")).toBeNull();
+      const primaryNavText = container.querySelector("nav > div:first-child")?.textContent ?? "";
+      expect(primaryNavText).not.toContain("Chat");
+      const navText = container.querySelector("nav")?.textContent ?? "";
+      expect(navText.indexOf("Chat")).toBeLessThan(navText.indexOf("Tasks"));
 
       flushSync(() => {
         root.unmount();
@@ -430,15 +431,15 @@ describe("Sidebar", () => {
   });
 
   describe("with Combined Inbox + Task List on (PAP-670)", () => {
-    it("keeps the Inbox row in the legacy shell, which has no merged Tasks page", async () => {
+    it("ignores an old shell opt-out and keeps the merged Tasks page", async () => {
       mockInboxBadge.inbox = 7;
       mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableCombinedInboxTasks: true, enableStreamlinedUi: false });
       const root = await renderSidebar();
 
       const inboxLink = [...container.querySelectorAll("a")].find((anchor) => anchor.getAttribute("href") === "/inbox");
-      expect(inboxLink?.textContent).toContain("7");
+      expect(inboxLink).toBeUndefined();
       const tasksLink = [...container.querySelectorAll("a")].find((anchor) => anchor.getAttribute("href") === "/issues");
-      expect(tasksLink?.textContent).not.toContain("7");
+      expect(tasksLink?.textContent).toContain("7");
 
       flushSync(() => {
         root.unmount();

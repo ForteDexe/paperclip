@@ -15,7 +15,7 @@ Agent access: [companion](../agent-access-map/navigation-preferences.md).
 ## Sub-features
 
 - `navigation`: `navigation-preferences/navigation` — use current sidebar links, favorites, recents, and available layout controls.
-- `preferences`: `navigation-preferences/preferences` — persist supported ordering/collapse choices for the intended user/company, and the personal experimental workspace choice.
+- `preferences`: `navigation-preferences/preferences` — persist supported ordering/collapse choices for the intended user/company.
 - `profile`: `navigation-preferences/profile` — edit personal identity and inspect public profile links.
 - `announcements`: `navigation-preferences/announcements` — inspect and dismiss an announcement with its intended instance-wide user scope.
 - `fallbacks`: `navigation-preferences/fallbacks` — handle missing resources and old deep links without presenting another resource as the target.
@@ -69,7 +69,7 @@ Sources: [Command palette](../../ui/src/components/CommandPalette.tsx), [shortcu
 - Cmd/Ctrl+B is not a supported global sidebar shortcut. Use the current shortcut help and verify that typing and modal focus suppress navigation chords.
 
 - Announcement dismissals are intentionally instance-wide user preferences, unlike company-scoped domain data.
-- Legacy/production shells need their own navigation check when affected.
+- Outpost has one streamlined shell; legacy shell preferences are compatibility data only.
 - A route redirect is part of the journey; do not document a removed screen as if it still renders.
 
 ### Storybook verification
@@ -100,35 +100,15 @@ Successful omissions remove unavailable entries; failed reads preserve history.
 Verify rename, inbox archive, pause/restart, reload, cross-tab updates and account
 switches. Inbox archive does not remove the task from recent history.
 
-### Personal workspace choice
+### Single Outpost workspace
 
-Coordinator is the standard workspace. Settings → Experimental → Classic workspace
-opts the current person into the previous workspace; it defaults off. Historical
-Coordinator experiment values do not enable Classic. The server saves the choice
-by user across companies, separate from instance feature flags. The local-trusted
-identity is shared Local Board, not evidence of multi-user isolation.
-Agent Chat is available to everyone independently of this personal workspace
-choice. Its retired instance flag and historical managed off values are ignored.
+Outpost always renders the streamlined application shell. Historical
+`coordinatorWorkspaceEnabled` and `enableStreamlinedUi` values remain readable so
+old databases and upstream payloads stay compatible, but neither value may select
+another shell. There is no user-facing workspace-mode toggle.
 
-Automated: [preference hook](../../ui/src/hooks/useCoordinatorWorkspaceEnabled.test.tsx),
-[Classic settings card](../../ui/src/components/ClassicWorkspaceSetting.test.tsx),
-[authorization](../../server/src/__tests__/workspace-preferences-routes.test.ts), and
-[database persistence](../../server/src/__tests__/workspace-preferences.test.ts).
-Manual: toggle on/off, reload, switch companies/accounts, and simulate failed reads
-and saves. Confirm existing work is unchanged and a failed save keeps the current
-choice. The [Settings card story](../../ui/storybook/stories/navigation-preferences/coordinator-workspace-setting.stories.tsx)
-uses the production component with simulated API responses; it does not establish
-real persistence or permission behavior.
-
-Coordinator More exposes a pin/unpin button beside every destination.
-Pinned pages appear above More in pinning order and retain the
-existing company-aware routes.
-Unpin from either the flyout or the pinned row. The list is personal to the current
-user in this browser, shared across companies; it does not sync across devices.
-Only known route names are rendered. Storage failures show a save error.
-The [pin hook](../../ui/src/hooks/usePinnedNavigation.ts) owns browser persistence;
-[sidebar tests](../../ui/src/components/CoordinatorSidebar.test.tsx) cover pin/unpin,
-remount persistence, account separation, unknown routes and cross-tab updates.
-Manual: pin with mouse and keyboard, reload, follow a pinned link, unpin from both
-locations, and check the mobile drawer. Local-trusted checks do not prove two-user
-authenticated browser isolation.
+Automated: [streamlined-shell invariant](../../ui/src/hooks/useStreamlinedUiEnabled.test.tsx),
+[retired Coordinator preference](../../ui/src/hooks/useCoordinatorWorkspaceEnabled.test.tsx),
+and [sidebar behavior](../../ui/src/components/Sidebar.test.tsx) verify that old
+stored values cannot change navigation. Server preference tests continue to cover
+compatibility reads and identity-scoped persistence.

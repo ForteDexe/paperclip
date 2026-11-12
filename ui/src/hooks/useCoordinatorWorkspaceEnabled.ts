@@ -42,11 +42,11 @@ export function useCoordinatorWorkspaceEnabled() {
       client.setQueryData(queryKeys.workspacePreferences.mine(result.userId), result);
     },
   }, client);
-  const classicWorkspaceEnabled = !!userId && preference.isSuccess
-    && preference.data.userId === userId && preference.data.coordinatorWorkspaceEnabled === false;
   const identityLoaded = session.isFetched && (!!sessionUserId || session.isError || health.isFetched);
   return {
-    enabled: !!contextClient && !classicWorkspaceEnabled,
+    // Outpost retired the Coordinator workspace as an alternate shell. The
+    // preference remains in the API for old databases, but cannot affect UI.
+    enabled: false,
     loaded: !contextClient || (identityLoaded && (!userId || preference.isFetched)),
     userId,
     error: session.error ?? (!sessionUserId ? health.error : null) ?? preference.error

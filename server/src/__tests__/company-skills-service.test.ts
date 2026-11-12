@@ -904,6 +904,50 @@ describeEmbeddedPostgres("companySkillService.list", () => {
     expect(repairedSquat?.slug).toMatch(/^bundled-[a-f0-9]{8}$/);
   });
 
+  it("refreshes an installed bundled skill when its shipped package changes", async () => {
+    const companyId = randomUUID();
+    const skillId = randomUUID();
+    const staleSkillDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-stale-bundled-skill-"));
+    cleanupDirs.add(staleSkillDir);
+    const staleMarkdown = "---\nname: paperclip\ndescription: Stale bundled skill\n---\n\n# Stale\n";
+    await fs.writeFile(path.join(staleSkillDir, "SKILL.md"), staleMarkdown, "utf8");
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(companySkills).values({
+      id: skillId,
+      companyId,
+      key: "paperclipai/paperclip/paperclip",
+      slug: "paperclip",
+      name: "paperclip",
+      description: "Stale bundled skill",
+      markdown: staleMarkdown,
+      sourceType: "local_path",
+      sourceLocator: staleSkillDir,
+      trustLevel: "markdown_only",
+      compatibility: "compatible",
+      fileInventory: [{ path: "SKILL.md", kind: "skill" }],
+      metadata: { sourceKind: "paperclip_bundled" },
+    });
+    const staleVersion = await svc.createVersion(companyId, skillId, {}, null, {
+      skipInventoryRefresh: true,
+      fileInventory: [{ path: "SKILL.md", kind: "skill", content: staleMarkdown }],
+    });
+
+    const refreshed = (await svc.list(companyId)).find((skill) => skill.id === skillId);
+    expect(refreshed).toBeDefined();
+    expect(refreshed?.currentVersionId).not.toBe(staleVersion.id);
+    expect(refreshed?.sourceLocator).not.toBe(staleSkillDir);
+    expect(refreshed?.description).toContain("assigned Outpost task");
+    expect(refreshed?.fileInventory.map((entry) => entry.path)).not.toContain("references/company-skills.md");
+
+    const expectedMarkdown = await fs.readFile(path.join(refreshed!.sourceLocator!, "SKILL.md"), "utf8");
+    expect((await svc.readFile(companyId, skillId, "SKILL.md"))?.content).toBe(expectedMarkdown);
+  });
+
   it("does not retouch bundled skills with stale missing-source metadata during list refresh", async () => {
     const companyId = randomUUID();
     await db.insert(companies).values({

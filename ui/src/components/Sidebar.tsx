@@ -1,5 +1,3 @@
-import { CoordinatorSidebar } from "./CoordinatorSidebar";
-import { useCoordinatorWorkspaceEnabled } from "@/hooks/useCoordinatorWorkspaceEnabled";
 import {
   Inbox,
   ListChecks,
@@ -50,8 +48,7 @@ import { SidebarCompanyMenu } from "./SidebarCompanyMenu";
 import { primarySidebarStyles } from "./primary-sidebar-styles";
 
 export function Sidebar({ children }: { children?: ReactNode }) {
-  const { enabled } = useCoordinatorWorkspaceEnabled();
-  return enabled ? <CoordinatorSidebar>{children}</CoordinatorSidebar> : <ClassicSidebar>{children}</ClassicSidebar>;
+  return <ClassicSidebar>{children}</ClassicSidebar>;
 }
 
 function ClassicSidebar({ children }: { children?: ReactNode }) {

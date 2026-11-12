@@ -6373,10 +6373,6 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
       const incomingOwner = asString(incomingMeta.owner);
       const incomingRepo = asString(incomingMeta.repo);
       const incomingKind = asString(incomingMeta.sourceKind);
-      if (existing?.currentVersionId && incomingKind === "paperclip_bundled") {
-        out.push(existing);
-        continue;
-      }
       if (
         existing
         && existingMeta.sourceKind === "paperclip_bundled"
@@ -6435,6 +6431,15 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
         ? await collectVersionFileInventoryFromDirectory(normalizeSourceLocatorDirectory(skill.sourceLocator)!) : undefined);
       if (files) {
         const candidate = await managedContent.prepare(companyId, files);
+        if (existing && incomingKind === "paperclip_bundled" && existing.currentVersionId
+          && importedSkillPersistValuesMatchExisting(existing, values)) {
+          const installedVersion = await packages.version(companyId, existing.id, existing.currentVersionId);
+          if (installedVersion
+            && skillSnapshotHash(await packages.versionFiles(installedVersion)) === candidate.contentHash) {
+            out.push(existing);
+            continue;
+          }
+        }
         const saved = existing
           ? await managedContent.publish(existing, candidate, values, { type: "system" }, {
             ...options.publication, reuseCurrentVersion: true, validate: async tx => {

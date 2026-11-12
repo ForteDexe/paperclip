@@ -106,8 +106,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   },
   enableStreamlinedUi: {
     title: "Streamlined UI",
-    description:
-      "Use the streamlined application shell, shared task collections, focused task detail layout, contextual navigation, and simplified main sidebar.",
+    description: "Deprecated compatibility key. Outpost always uses the streamlined application shell.",
     tier: "preference",
     cloudDefault: true,
     selfHostedDefault: true,
