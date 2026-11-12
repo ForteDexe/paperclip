@@ -327,8 +327,8 @@ class LiveConsoleScriptedSession implements HarnessSession {
     this.#emit("item.completed", {
       kind: this.#goal === null ? "goal_cleared" : "goal",
       text: this.#goal === null
-        ? "Goal cleared."
-        : `Goal ${input.action === "set" ? "set" : input.action}: ${this.#goal.objective}`,
+        ? "North Star cleared."
+        : `North Star ${input.action === "set" ? "set" : input.action}: ${this.#goal.objective}`,
       operation: input.action,
       ...(this.#goal === null ? {} : { goal: structuredClone(this.#goal) }),
     }, { itemId: `goal-${this.#sequence + 1}` });

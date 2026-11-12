@@ -7,7 +7,6 @@ import { BrowserRouter } from "@/lib/router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { SentryGate } from "./components/SentryGate";
 import { CompanyProvider, useCompany } from "./context/CompanyContext";
 import { LinkPreviewProvider } from "./context/LinkPreviewContext";
 import { LiveUpdatesProvider } from "./context/LiveUpdatesProvider";
@@ -118,13 +117,12 @@ function CompanyLinkPreviews({ children }: { children: React.ReactNode }) {
 }
 
 const rootElement = document.getElementById("root");
-if (!rootElement) throw new Error("Paperclip root element is missing");
+if (!rootElement) throw new Error("Outpost root element is missing");
 
 getOrCreatePaperclipReactRoot(window, rootElement).render(
   <StrictMode>
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <SentryGate />
         <ThemeProvider>
           <BrowserRouter>
             <CompanyProvider>

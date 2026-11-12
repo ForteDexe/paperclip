@@ -332,7 +332,7 @@ export function companyArtifactsService(db: Db, storage?: StorageService) {
         .from(companies)
         .where(eq(companies.id, companyId))
         .then((rows) => rows[0] ?? null);
-      if (!company) throw notFound("Company not found");
+      if (!company) throw notFound("Outpost not found");
 
       if (query.starred && !options.userId) {
         return { artifacts: [], nextCursor: null };

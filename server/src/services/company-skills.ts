@@ -332,7 +332,7 @@ function assertImportedSkillKeyAllowed(skill: ImportedSkill) {
   const sourceKind = asString(metadata?.sourceKind);
   if (sourceKind === "paperclip_bundled") return;
   throw unprocessable(
-    `Reserved Paperclip skill key "${skill.key}" cannot be imported from unbundled sources.`,
+    `Reserved Outpost skill key "${skill.key}" cannot be imported from unbundled sources.`,
     {
       skillKey: skill.key,
       sourceKind: sourceKind ?? skill.sourceType,
@@ -2000,7 +2000,7 @@ const BUILT_IN_SKILL_TEST_RUN_TEMPLATE_DATE = new Date("2026-01-01T00:00:00.000Z
 const BUILT_IN_SKILL_TEST_RUN_TEMPLATE_BODY = [
   "You are running a Skills Studio test for `{{skillName}}` (`{{skillKey}}`), skill version v{{skillVersion}}.",
   "",
-  "Invoke and use the selected skill under test: `{{skillInvocation}}`. Use the pinned skill revision supplied by Paperclip as the source of truth, regardless of any other runtime skills.",
+  "Invoke and use the selected skill under test: `{{skillInvocation}}`. Use the pinned skill revision supplied by Outpost as the source of truth, regardless of any other runtime skills.",
   "",
   "This is a test run. Do not make durable changes outside this test task. Do not mutate unrelated issues, push, publish, send external messages, or affect real work.",
   "",
@@ -2014,7 +2014,7 @@ function builtInSkillTestRunTemplate(companyId: string): CompanySkillTestRunTemp
     id: BUILT_IN_SKILL_TEST_RUN_TEMPLATE_ID,
     companyId,
     name: "Default test template",
-    description: "Paperclip's read-only default harness instructions for Skills Studio runs.",
+    description: "Outpost's read-only default harness instructions for Skills Studio runs.",
     body: BUILT_IN_SKILL_TEST_RUN_TEMPLATE_BODY,
     builtIn: true,
     createdByAgentId: null,
@@ -2417,9 +2417,9 @@ function buildMissingRuntimeSourceDetail(skill: Pick<CompanySkill, "name" | "sou
   const marker = getMissingSourceMarker(skill.metadata);
   const sourcePath = asString(marker?.sourcePath) ?? normalizeSourceLocatorDirectory(skill.sourceLocator);
   if (sourcePath) {
-    return `Company skill "${skill.name}" is in the library, but Paperclip cannot find its local source at ${sourcePath}.`;
+    return `Outpost skill "${skill.name}" is in the library, but Outpost cannot find its local source at ${sourcePath}.`;
   }
-  return `Company skill "${skill.name}" is in the library, but Paperclip cannot find a valid local runtime source for it.`;
+  return `Outpost skill "${skill.name}" is in the library, but Outpost cannot find a valid local runtime source for it.`;
 }
 
 export async function findMissingLocalSkillIds(
@@ -2736,14 +2736,14 @@ function deriveSkillSourceInfo(skill: SkillSourceInfoTarget): {
 } {
   const metadata = getSkillMeta(skill);
   if (skill.sourceType === "managed") return {
-    editable: true, editableReason: null, sourceLabel: "Paperclip", sourceBadge: "paperclip", sourcePath: null,
+    editable: true, editableReason: null, sourceLabel: "Outpost", sourceBadge: "paperclip", sourcePath: null,
   };
   const localSkillDir = normalizeSkillDirectory(skill);
   if (metadata.sourceKind === "paperclip_bundled") {
     return {
       editable: false,
-      editableReason: "Bundled Paperclip skills are read-only.",
-      sourceLabel: "Paperclip bundled",
+      editableReason: "Bundled Outpost skills are read-only.",
+      sourceLabel: "Outpost bundled",
       sourceBadge: "paperclip",
       sourcePath: null,
     };
@@ -2792,7 +2792,7 @@ function deriveSkillSourceInfo(skill: SkillSourceInfoTarget): {
       return {
         editable: true,
         editableReason: null,
-        sourceLabel: "Paperclip workspace",
+        sourceLabel: "Outpost workspace",
         sourceBadge: "paperclip",
         sourcePath: managedRoot,
       };
@@ -3032,7 +3032,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
     if (!allowed) {
       throw forbidden("Local skill source is outside approved company workspace roots", {
         code: "skill_workspace_boundary_denied",
-        remediation: "Import from a configured Paperclip workspace or the company managed-skill directory.",
+        remediation: "Import from a configured Outpost workspace or the company managed-skill directory.",
       });
     }
     // A filesystem import cannot discard the provenance of installed private
@@ -3292,7 +3292,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
         .where(eq(companies.id, companyId))
         .then((rows) => rows.length > 0);
       if (!companyExists) {
-        throw notFound("Company not found");
+        throw notFound("Outpost not found");
       }
       const bundledSkills = await measureRunPhase("skills.inventory.bundled", () => ensureBundledSkills(companyId));
       await measureRunPhase("skills.inventory.releases", () => ensureBundledSkillReleases(companyId, bundledSkills));
@@ -3778,7 +3778,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
       });
       return { ...toCompanySkillVersion(saved.version), fileInventory: inventory };
     }
-    if (input.sourceVersionId) throw unprocessable("Only Paperclip-managed skills can restore a saved version.");
+    if (input.sourceVersionId) throw unprocessable("Only Outpost-managed skills can restore a saved version.");
     const fileInventory = serializeVersionFileInventory(
       options.fileInventory ?? await collectVersionFileInventory(companyId, skill),
     );
@@ -4208,7 +4208,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
         result = await withSkillFileMutation(companyId, skillId, async (skill, tx) => {
           if (!isPaperclipManagedRenameTarget(skill)) {
             throw unprocessable(
-              "Only Paperclip-managed skills can be renamed. Catalog, external, project-scanned, and unmanaged local skills are read-only.",
+              "Only Outpost-managed skills can be renamed. Catalog, external, project-scanned, and unmanaged local skills are read-only.",
               { skillId: skill.id, sourceType: skill.sourceType, sourceKind: getSkillMeta(skill).sourceKind ?? null },
             );
           }
@@ -5904,7 +5904,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
       iconUrl: storeMetadata.iconUrl ?? existingByKey?.iconUrl ?? null,
       color: storeMetadata.color ?? existingByKey?.color ?? null,
       tagline: storeMetadata.tagline ?? existingByKey?.tagline ?? catalogSkill.description.slice(0, 120),
-      authorName: storeMetadata.authorName ?? existingByKey?.authorName ?? "Paperclip",
+      authorName: storeMetadata.authorName ?? existingByKey?.authorName ?? "Outpost",
       homepageUrl: storeMetadata.homepageUrl ?? existingByKey?.homepageUrl ?? catalogSkill.source?.url ?? null,
       categories: storeMetadata.categories.length > 0 ? storeMetadata.categories : normalizeCategoryList([catalogSkill.category, ...catalogSkill.tags]),
       sharingScope: existingByKey?.sharingScope ?? "company",
@@ -5955,7 +5955,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
 
     if (!wroteSkillFile) {
       await fs.rm(skillDir, { recursive: true, force: true });
-      throw unprocessable("Company skill could not be materialized because its stored SKILL.md copy is missing.");
+      throw unprocessable("Outpost skill could not be materialized because its stored SKILL.md copy is missing.");
     }
 
     return skillDir;

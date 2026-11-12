@@ -54,7 +54,7 @@ export function registerProjectCommands(program: Command): void {
     project
       .command("list")
       .description("List projects for a company")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: ProjectListOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -89,7 +89,7 @@ export function registerProjectCommands(program: Command): void {
       .command("get")
       .description("Get one project by ID or shortname")
       .argument("<project>", "Project ID or shortname")
-      .option("-C, --company-id <id>", "Company ID for shortname lookup")
+      .option("-C, --company-id <id>", "Outpost ID for shortname lookup")
       .action(async (projectRef: string, opts: ProjectListOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -107,12 +107,12 @@ export function registerProjectCommands(program: Command): void {
     project
       .command("create")
       .description("Create a project")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--name <name>", "Project name")
       .option("--description <text>", "Project description")
       .option("--status <status>", "Project status")
-      .option("--goal-id <id>", "Deprecated single goal ID")
-      .option("--goal-ids <csv>", "Comma-separated goal IDs")
+      .option("--goal-id <id>", "Deprecated single north star ID")
+      .option("--goal-ids <csv>", "Comma-separated north star IDs")
       .option("--lead-agent-id <id>", "Lead agent ID")
       .option("--target-date <date>", "Target date")
       .option("--color <value>", "Project color")
@@ -147,12 +147,12 @@ export function registerProjectCommands(program: Command): void {
       .command("update")
       .description("Update a project")
       .argument("<project>", "Project ID or shortname")
-      .option("-C, --company-id <id>", "Company ID for shortname lookup")
+      .option("-C, --company-id <id>", "Outpost ID for shortname lookup")
       .option("--name <name>", "Project name")
       .option("--description <text|null>", "Project description")
       .option("--status <status>", "Project status")
-      .option("--goal-id <id|null>", "Deprecated single goal ID")
-      .option("--goal-ids <csv>", "Comma-separated goal IDs")
+      .option("--goal-id <id|null>", "Deprecated single north star ID")
+      .option("--goal-ids <csv>", "Comma-separated north star IDs")
       .option("--lead-agent-id <id|null>", "Lead agent ID")
       .option("--target-date <date|null>", "Target date")
       .option("--color <value|null>", "Project color")
@@ -190,7 +190,7 @@ export function registerProjectCommands(program: Command): void {
       .command("delete")
       .description("Delete a project")
       .argument("<project>", "Project ID or shortname")
-      .option("-C, --company-id <id>", "Company ID for shortname lookup")
+      .option("-C, --company-id <id>", "Outpost ID for shortname lookup")
       .option("--yes", "Confirm deletion")
       .action(async (projectRef: string, opts: ProjectDeleteOptions) => {
         try {

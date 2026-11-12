@@ -12,7 +12,7 @@ export function bundledImageFixture(manifestOverrides: Partial<PaperclipPluginMa
   const packageRoot = path.join(root, "distribution", "fixture");
   const manifest: PaperclipPluginManifestV1 = {
     id: "paperclip.image-fixture", apiVersion: 1, version: "1.0.0", displayName: "Image Fixture",
-    description: "Image package relocation fixture", author: "Paperclip", categories: ["automation"], capabilities: ["issues.read"],
+    description: "Image package relocation fixture", author: "Outpost", categories: ["automation"], capabilities: ["issues.read"],
     entrypoints: { worker: "dist/worker.js", ui: "dist/ui" }, ...manifestOverrides,
   };
   mkdirSync(path.join(packageRoot, "dist", "ui"), { recursive: true });

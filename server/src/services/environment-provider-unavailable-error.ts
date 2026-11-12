@@ -155,9 +155,9 @@ export class EnvironmentProviderUnavailableError extends Error {
       phase: "startup",
       category: category(input.evidence),
       message: (status
-        ? `The provider for "${input.environmentName}" was temporarily unavailable while Paperclip was starting it (${status}). `
+        ? `The provider for "${input.environmentName}" was temporarily unavailable while Outpost was starting it (${status}). `
         : `The sandbox for "${input.environmentName}" did not finish starting in time. `)
-        + "No agent work had started. Paperclip retries automatically; if those retries are used up, use Retry once the provider is available.",
+        + "No agent work had started. Outpost retries automatically; if those retries are used up, use Retry once the provider is available.",
       ...(input.evidence.httpStatus !== undefined ? { httpStatus: input.evidence.httpStatus } : {}),
       ...(providerCode !== undefined ? { providerCode } : {}),
       retryability: "transient",

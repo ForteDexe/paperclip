@@ -44,7 +44,7 @@ export function buildSkillLibraryManifestMarkdown(input: {
       return `- ${key} — ${enabled ? "enabled" : "installed, not enabled for you"}`;
     });
   return [
-    "## Company skill library",
+    "## Outpost skill library",
     "",
     'Skills marked "enabled" are loaded into your runtime. Skills marked',
     '"installed, not enabled for you" exist in this company\'s skill library but',

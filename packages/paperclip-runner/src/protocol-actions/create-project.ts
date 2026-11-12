@@ -165,12 +165,12 @@ export const createProjectAction = {
               "string",
               "null"
             ],
-            "description": "Goal ID.",
+            "description": "North Star ID.",
             "maxLength": 20000
           },
           "goalIds": {
             "type": "array",
-            "description": "Goal IDs.",
+            "description": "North Star IDs.",
             "items": {
               "type": "string",
               "minLength": 1

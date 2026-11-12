@@ -272,7 +272,7 @@ describe("GatewaysTab", () => {
     expect(container.textContent).toContain("Dotta's MacBook");
 
     listGatewaysMock.mockRejectedValue(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await act(async () => {
       await client.invalidateQueries();
@@ -281,7 +281,7 @@ describe("GatewaysTab", () => {
 
     expect(container.textContent).toContain("Dotta's MacBook");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
 
   it("shows readable copy and a Retry button for a real error", async () => {

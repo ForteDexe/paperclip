@@ -170,7 +170,7 @@ vi.mock("@/lib/router", () => ({
 vi.mock("@/context/CompanyContext", () => ({
   useCompany: () => ({
     selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", name: "Paperclip" },
+    selectedCompany: { id: "company-1", name: "Outpost" },
   }),
 }));
 
@@ -729,14 +729,14 @@ describe("AppDetail", () => {
     const client = await renderAppDetail();
     expect(container.textContent).toContain("Which agents can use this connection?");
 
-    getConnectionMock.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    getConnectionMock.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.tools.connection("conn-1") }); });
     await flushReact();
 
     expect(container.textContent).toContain("GitHub");
     expect(container.textContent).toContain("Which agents can use this connection?");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
   });
 
@@ -1499,7 +1499,7 @@ describe("AppDetail", () => {
 
   it("links a failed GitHub refresh to the suspended installation's settings", async () => {
     mockParams.tab = "permissions";
-    const message = "The Paperclip GitHub installation is suspended. Unsuspend it on GitHub before refreshing access.";
+    const message = "The Outpost GitHub installation is suspended. Unsuspend it on GitHub before refreshing access.";
     getConnectionMock.mockResolvedValue(connection({
       authKind: "oauth", healthStatus: "error", requiresReauthorization: false, healthMessage: message,
     }));

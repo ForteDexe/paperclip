@@ -297,13 +297,13 @@ describe("GitHub bot management", () => {
   it("keeps loaded repositories on screen when a refetch fails transiently", async () => {
     await render("access");
     await vi.waitFor(() => expect(container.querySelectorAll('[role="region"] [role="switch"]')).toHaveLength(1));
-    mocks.repositoryPage.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    mocks.repositoryPage.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await act(async () => {
       await client.refetchQueries({ queryKey: ["github-bot-repository-pages", "bot"] });
     });
     expect(container.querySelectorAll('[role="region"] [role="switch"]')).toHaveLength(1);
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
   });
   it("saves repository task defaults with explicit, cleared, and inherited values without changing access", async () => {

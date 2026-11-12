@@ -11,8 +11,8 @@ import { auditScopeFromSearchParams } from "./audit-navigation";
 
 /**
  * Canonical `/:company/activity` entrypoint for the Audit hub. It retains the
- * shared all-actors and privileged Agent Actions modes while Runs, Costs,
- * Budgets, and Timeline live as peer sections. The mode lives in `?mode=` so `/audit` deep
+ * shared all-actors and privileged Agent Actions modes while Runs and Timeline
+ * live as peer sections. The mode lives in `?mode=` so `/audit` deep
  * links can preset it and links stay shareable. The server enforces both tiers.
  */
 export function CompanyActivity() {
@@ -32,7 +32,6 @@ export function CompanyActivity() {
     "project.",
     "goal.",
     "tool_",
-    "cost.",
     "company.",
   ].includes(actionParam ?? "") ? actionParam! : "__all";
 
@@ -99,7 +98,7 @@ export function CompanyActivity() {
   if (streamlinedUiEnabled) return <AuditHub section="activity" />;
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={History} message="Select an organization to view activity." />;
+    return <EmptyState icon={History} message="Select an outpost to view activity." />;
   }
 
   return (

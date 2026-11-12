@@ -64,7 +64,7 @@ Use the manifest list. Run these flows:
 4. Run each interrupt flow. Confirm that the visible outcome names the race.
 5. Run **Command and file approvals**. Resolve one request. Confirm that the
    card locks after the first click and later shows the canonical result.
-6. Run **Goal lifecycle**. Set and clear the goal from the Goal menu.
+6. Run **North Star lifecycle**. Set and clear the goal from the North Star menu.
 7. Press **Drop connection**. Watch reconnect and gap recovery use the same
    session.
 8. Enter replay. Step with Left and Right. Confirm the inspector says the

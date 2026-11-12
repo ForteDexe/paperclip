@@ -302,7 +302,7 @@ export function companyService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       const row = await getCompanyQuery(db)
         .where(eq(companies.id, created.id))
         .then((rows) => rows[0] ?? null);
-      if (!row) throw notFound("Company not found after creation");
+      if (!row) throw notFound("Outpost not found after creation");
       const [hydrated] = await hydrateCompanySpend([row], db);
       return enrichCompany(hydrated);
     },

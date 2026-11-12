@@ -5,7 +5,7 @@ import type { CompanyDeletionParticipant } from "../../../lib/company-deletion.j
 /** Removes every admission, settled or not, before the company's runs and projects are deleted. */
 export const executionAdmissionCompanyDeletion: CompanyDeletionParticipant = {
   async deleteCompanyData(tx, companyId) {
-    if (!("nestedIndex" in tx)) throw new Error("Company deletion requires a database transaction");
+    if (!("nestedIndex" in tx)) throw new Error("Outpost deletion requires a database transaction");
     await tx.delete(executionAdmissions).where(eq(executionAdmissions.companyId, companyId));
   },
 };

@@ -40,7 +40,7 @@ function memberOf(account: AiManagedConnectionSummary): AiConnectionPoolMember {
 /** Native connector surface shared by all plugins implementing the pool contract. */
 export function AiConnectionPoolConnector({ pluginKey, connection }: { pluginKey: string; connection?: ToolConnection }) {
   const { selectedCompanyId } = useCompany();
-  return selectedCompanyId ? <PoolConnector key={`${selectedCompanyId}:${connection?.id ?? pluginKey}`} companyId={selectedCompanyId} pluginKey={pluginKey} connection={connection} /> : <p>Select a company to continue.</p>;
+  return selectedCompanyId ? <PoolConnector key={`${selectedCompanyId}:${connection?.id ?? pluginKey}`} companyId={selectedCompanyId} pluginKey={pluginKey} connection={connection} /> : <p>Select a outpost to continue.</p>;
 }
 function PoolConnector({ companyId, pluginKey, connection }: { companyId: string; pluginKey: string; connection?: ToolConnection }) {
   const navigate = useNavigate();

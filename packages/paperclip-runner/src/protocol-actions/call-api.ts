@@ -27,8 +27,8 @@ export const callApiAction = {
     "legacyAliases": []
   },
   "documentation": {
-    "title": "Call the Paperclip API",
-    "description": "Fallback only: call a discovered Paperclip API operation when dedicated tools lack the required operation or parameters. Uses the same route permissions as agent REST access. Prefer dedicated tools for common workflows; route denials still apply. For lossless helper input, use saveResponse:true on a non-sensitive GET to save nonempty responses as artifacts. Empty responses return empty:true without an artifact. Use download_artifact for artifacts up to 10 MiB; larger text artifacts require paged content reads. For large text responses, read the returned artifact with GET /api/assets/{assetId}/content and responseText; follow nextOffsetBytes until null.",
+    "title": "Call the Outpost API",
+    "description": "Fallback only: call a discovered Outpost API operation when dedicated tools lack the required operation or parameters. Uses the same route permissions as agent REST access. Prefer dedicated tools for common workflows; route denials still apply. For lossless helper input, use saveResponse:true on a non-sensitive GET to save nonempty responses as artifacts. Empty responses return empty:true without an artifact. Use download_artifact for artifacts up to 10 MiB; larger text artifacts require paged content reads. For large text responses, read the returned artifact with GET /api/assets/{assetId}/content and responseText; follow nextOffsetBytes until null.",
     "note": "Production HTTP fallback; does not grant privileges or replace dedicated tools."
   },
   "examples": {
@@ -50,8 +50,8 @@ export const callApiAction = {
       "schema": "paperclip.semantic-tool.v1",
       "operationId": "call_api",
       "version": 1,
-      "title": "Call the Paperclip API",
-      "description": "Fallback only: call a discovered Paperclip API operation when dedicated tools lack the required operation or parameters. Uses the same route permissions as agent REST access. Prefer dedicated tools for common workflows; route denials still apply. For lossless helper input, use saveResponse:true on a non-sensitive GET to save nonempty responses as artifacts. Empty responses return empty:true without an artifact. Use download_artifact for artifacts up to 10 MiB; larger text artifacts require paged content reads. For large text responses, read the returned artifact with GET /api/assets/{assetId}/content and responseText; follow nextOffsetBytes until null.",
+      "title": "Call the Outpost API",
+      "description": "Fallback only: call a discovered Outpost API operation when dedicated tools lack the required operation or parameters. Uses the same route permissions as agent REST access. Prefer dedicated tools for common workflows; route denials still apply. For lossless helper input, use saveResponse:true on a non-sensitive GET to save nonempty responses as artifacts. Empty responses return empty:true without an artifact. Use download_artifact for artifacts up to 10 MiB; larger text artifacts require paged content reads. For large text responses, read the returned artifact with GET /api/assets/{assetId}/content and responseText; follow nextOffsetBytes until null.",
       "exposure": "optional",
       "requiredClaims": [
         "api:call"

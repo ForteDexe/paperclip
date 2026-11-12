@@ -24,7 +24,7 @@ import "./index.css";
  * that ships.
  */
 
-const COMPANY = { id: "company-preview", name: "Initech", issuePrefix: "INI" };
+const COMPANY = { id: "outpost-preview", name: "Initech", issuePrefix: "INI" };
 const SESSION_ID = "preview-session";
 const AUTH_URL = "https://claude.ai/oauth/authorize?code=true&client=paperclip";
 const OPENAI_URL = "https://auth.openai.com/codex/device";

@@ -206,12 +206,12 @@ describe("chat setup and identity-link clipboard actions", () => {
   it("keeps the loaded people list on screen when a refetch fails transiently", async () => {
     await render("slack", true);
     expect(peopleList()?.textContent).toContain("Test person");
-    mocks.listPrincipals.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    mocks.listPrincipals.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await client.refetchQueries({ queryKey: queryKeys.chatEndpoints.principals("endpoint-a") });
     await settle();
     expect(peopleList()?.textContent).toContain("Test person");
     expect(peopleError()).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
   });
 
@@ -237,12 +237,12 @@ describe("chat setup and identity-link clipboard actions", () => {
     ]);
     await render("slack", true);
     expect(container.textContent).toContain("#general");
-    mocks.listResources.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    mocks.listResources.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await client.refetchQueries({ queryKey: queryKeys.chatEndpoints.resources("endpoint-a") });
     await settle();
     expect(container.textContent).toContain("#general");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
 
   it.each(["slack", "microsoft-teams"] as const)(

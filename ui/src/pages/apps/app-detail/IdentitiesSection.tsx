@@ -255,12 +255,12 @@ export function IdentitiesSection({
             ) : null
           ) : (
             <IdentityRow
-              title="Organization account"
+              title="Outpost account"
               status={null}
-              detail="Organization identity"
+              detail="Outpost identity"
               actions={capabilities?.canCreateOrganizationGrant ? (
                   <Button size="sm" disabled={connectPending} onClick={onConnectOrganization}>
-                    Connect organization identity
+                    Connect outpost identity
                   </Button>
                 ) : null}
             />
@@ -371,7 +371,7 @@ function GitHubConnectionSummary({
           <p className="text-sm text-muted-foreground">Refresh access to load the current repository list.</p>
         )}
         {configurationUrl ? <p className="text-xs text-muted-foreground">
-          Missing an organization or repository? <a href={configurationUrl} target="_blank" rel="noreferrer" className="text-foreground hover:underline">Configure access on GitHub</a>, then refresh this list.
+          Missing an outpost or repository? <a href={configurationUrl} target="_blank" rel="noreferrer" className="text-foreground hover:underline">Configure access on GitHub</a>, then refresh this list.
         </p> : null}
       </div>
     </div>
@@ -423,14 +423,14 @@ function HumanAccessCards({
           {
             value: "selected",
             title: "Humans I pick",
-            description: "Only selected people in your company.",
+            description: "Only selected people in your outpost.",
             icon: <UserRound className="h-4 w-4" />,
             disabled: !canEditAudience,
           },
           {
             value: "company",
-            title: "Any human in the company",
-            description: "Anyone in your company can use this connection.",
+            title: "Any human in the outpost",
+            description: "Anyone in your outpost can use this connection.",
             icon: <Building2 className="h-4 w-4" />,
             disabled: !canEditAudience,
           },
@@ -524,8 +524,8 @@ export function AudienceDialog({
             options={[
               {
                 value: "all",
-                title: "All organization members",
-                description: "Anyone in this organization can have work use this identity.",
+                title: "All outpost members",
+                description: "Anyone in this outpost can have work use this identity.",
               },
               {
                 value: "selected",
@@ -611,7 +611,7 @@ export function RevokeGrantDialog({
     ? isOwnIdentity
       ? `Revoke your ${providerName} identity?`
       : `Revoke this ${providerName} identity?`
-    : "Revoke the organization identity?";
+    : "Revoke the outpost identity?";
   const body = personal
     ? isOwnIdentity
       ? "Agents will stop acting as you. Work that needs this identity can ask you to connect again."

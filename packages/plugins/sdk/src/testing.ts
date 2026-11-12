@@ -2374,7 +2374,7 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
       async update(goalId, patch, companyId) {
         requireCapability(manifest, capabilitySet, "goals.update");
         const record = goals.get(goalId);
-        if (!isInCompany(record, companyId)) throw new Error(`Goal not found: ${goalId}`);
+        if (!isInCompany(record, companyId)) throw new Error(`North Star not found: ${goalId}`);
         const updated: Goal = {
           ...record,
           ...patch,

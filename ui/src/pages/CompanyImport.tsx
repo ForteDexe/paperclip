@@ -775,7 +775,7 @@ async function readLocalPackageZip(file: File): Promise<{
   files: Record<string, CompanyPortabilityFileEntry>;
 }> {
   if (!/\.zip$/i.test(file.name)) {
-    throw new Error("Select a .zip organization package.");
+    throw new Error("Select a .zip outpost package.");
   }
   const archive = await readZipArchive(await file.arrayBuffer());
   if (Object.keys(archive.files).length === 0) {
@@ -1117,11 +1117,11 @@ export function CompanyImport() {
   );
 
   const localZipHelpText =
-    "Upload a .zip exported directly from Paperclip. Re-zipped archives created by Finder, Explorer, or other zip tools may not import correctly.";
+    "Upload a .zip exported directly from Outpost. Re-zipped archives created by Finder, Explorer, or other zip tools may not import correctly.";
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Company", href: "/dashboard" },
+      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
       { label: "Settings", href: "/company/settings" },
       { label: "Import" },
     ]);
@@ -1273,7 +1273,7 @@ export function CompanyImport() {
       sourceMode === "local"
         ? localPackage?.name ?? "package"
         : importUrl.trim() || "package";
-    return importJobStorageKey(selectedCompanyId ?? "unknown-company", packageName);
+    return importJobStorageKey(selectedCompanyId ?? "unknown-outpost", packageName);
   }
 
   // Apply mutation. The preview the import was started from and the
@@ -1364,7 +1364,7 @@ export function CompanyImport() {
         pushToast({
           tone: "success",
           title: "Import completed",
-          body: "Open the organization to view it.",
+          body: "Open the outpost to view it.",
         });
         return;
       }
@@ -1693,8 +1693,8 @@ export function CompanyImport() {
         const available = nativeHarness ? runnerInstalled : adapterChoice === "openai_dot" ? dotAvailable : adapterChoice === "muse" ? museAvailable : nativeRunnerAvailable;
         if (!available && (availableAdapterTypes || !nativeHarness)) {
           availabilityWarning = nativeHarness
-            ? "Paperclip Runner is unavailable here. Choose another harness."
-            : `Paperclip Runner provider ${String(a.adapterConfig?.provider)} requires its experimental feature to be enabled. This import keeps its saved harness until you choose another one.`;
+            ? "Outpost Runner is unavailable here. Choose another harness."
+            : `Outpost Runner provider ${String(a.adapterConfig?.provider)} requires its experimental feature to be enabled. This import keeps its saved harness until you choose another one.`;
         }
       } else if (availableAdapterTypes && !availableAdapterTypes.has(a.adapterType)) {
         // The fallback must itself be installed: the CEO's adapter when it is,
@@ -1745,7 +1745,7 @@ export function CompanyImport() {
       if (configVals && (selectedType !== agent.adapterChoice || adapterConfigEditedSlugs.has(agent.slug))) {
         const provider = configVals.adapterSchemaValues?.provider;
         if (configVals.adapterType === "paperclip_runner" && provider !== undefined && !isPaperclipRunnerProvider(provider)) {
-          throw new Error(`Unknown Paperclip Runner provider ${String(provider)}. Keep the package configuration or explicitly choose another harness.`);
+          throw new Error(`Unknown Outpost Runner provider ${String(provider)}. Keep the package configuration or explicitly choose another harness.`);
         }
         if (selectedType === "openai_dot" && configVals.adapterSchemaValues?.allowUnmeteredProvider !== true) {
           throw new Error("OpenAI Dot requires acknowledgement of external billing. Configure the Dot adapter and enable Allow externally billed provider.");
@@ -1828,11 +1828,11 @@ export function CompanyImport() {
           <p className="text-xs text-muted-foreground mt-1">
             {importOutcome.companyName
               ? <>The import finished and <span className="font-medium text-foreground">{importOutcome.companyName}</span> is ready. Its detailed summary is no longer available.</>
-              : "The import finished and your organization is ready. Its detailed summary is no longer available, but the organization has been added — select it from the organization switcher to view it."}
+              : "The import finished and your outpost is ready. Its detailed summary is no longer available, but the outpost has been added — select it from the outpost switcher to view it."}
           </p>
           {importOutcome.pausedAutomations ? (
             <p className="text-xs text-muted-foreground mt-1">
-              Imported agents arrived paused — resume them from the company's Agents page so assigned tasks can start.
+              Imported agents arrived paused — resume them from the outpost's Agents page so assigned tasks can start.
             </p>
           ) : null}
         </div>
@@ -1841,12 +1841,12 @@ export function CompanyImport() {
             <Button
               size="sm"
               variant="outline"
-              data-testid="import-expired-open-company"
+              data-testid="import-expired-open-outpost"
               // Force a fresh dashboard load so newly imported agents are
               // immediately visible (same reason as the full-outcome CTA).
               onClick={() => window.location.assign(importOutcome.dashboardPath!)}
             >
-              Open organization dashboard
+              Open outpost dashboard
             </Button>
           </div>
         ) : null}
@@ -1953,7 +1953,7 @@ export function CompanyImport() {
 
         {importOutcome.pausedAutomations ? (
           <p className="text-xs text-muted-foreground">
-            Anything left paused here stays visible on the company's Agents and Routines pages, which offer the same resume actions — nothing is lost if you leave this page.
+            Anything left paused here stays visible on the outpost's Agents and Routines pages, which offer the same resume actions — nothing is lost if you leave this page.
           </p>
         ) : null}
 
@@ -1994,7 +1994,7 @@ export function CompanyImport() {
   }
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Download} message="Select an organization to import into." />;
+    return <EmptyState icon={Download} message="Select an outpost to import into." />;
   }
 
   return (
@@ -2004,7 +2004,7 @@ export function CompanyImport() {
         <div>
           <h2 className="text-base font-semibold">Import source</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Choose a GitHub repo or upload a local Paperclip zip package.
+            Choose a GitHub repo or upload a local Outpost zip package.
           </p>
         </div>
 
@@ -2075,7 +2075,7 @@ export function CompanyImport() {
         ) : (
           <Field
             label="GitHub URL"
-            hint="Repo tree path or blob URL to COMPANY.md (e.g. github.com/owner/repo/tree/main/company)."
+            hint="Repo tree path or blob URL to COMPANY.md (e.g. github.com/owner/repo/tree/main/outpost)."
           >
             <input
               className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
@@ -2091,7 +2091,7 @@ export function CompanyImport() {
           </Field>
         )}
 
-        <Field label="Target" hint="Import into this organization or create a new one.">
+        <Field label="Target" hint="Import into this outpost or create a new one.">
           <select
             className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
             value={targetMode}
@@ -2101,16 +2101,16 @@ export function CompanyImport() {
               resetImportFlowState();
             }}
           >
-            <option value="new">Create new organization</option>
+            <option value="new">Create new outpost</option>
             <option value="existing">
-              Existing company: {selectedCompany?.name}
+              Existing outpost: {selectedCompany?.name}
             </option>
           </select>
         </Field>
 
         {targetMode === "new" && (
           <Field
-            label="New organization name"
+            label="New outpost name"
             hint="Optional override. Leave blank to use the package name."
           >
             <input
@@ -2121,14 +2121,14 @@ export function CompanyImport() {
                 setNewCompanyName(e.target.value);
                 resetMutationState();
               }}
-              placeholder="Imported Organization"
+              placeholder="Imported Outpost"
             />
           </Field>
         )}
 
         <Field
           label="Collision strategy"
-          hint="Board imports can rename, skip, or replace matching organization content."
+          hint="Board imports can rename, skip, or replace matching outpost content."
         >
           <select
             className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
@@ -2280,7 +2280,7 @@ export function CompanyImport() {
               <p className="text-xs text-destructive">
                 Import failed:{" "}
                 {describeError(importMutation.error).body}{" "}
-                Nothing may have been created, or the import stopped partway — check the target company
+                Nothing may have been created, or the import stopped partway — check the target outpost
                 before retrying.
               </p>
             </div>

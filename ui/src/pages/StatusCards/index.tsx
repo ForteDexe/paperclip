@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { InlineBanner } from "@/components/InlineBanner";
-import { formatCents, formatTokens } from "./format";
+import { formatTokens } from "./format";
 import { StatusCardTile } from "./StatusCardTile";
 import { ArchivedStatusCardRow } from "./ArchivedStatusCardRow";
 import { CreateStatusCardDialog } from "./CreateStatusCardDialog";
@@ -108,11 +108,10 @@ export function StatusCards() {
   const todayTotals = activeCards.reduce(
     (acc, card) => ({
       tokens: acc.tokens + (card.todayTokens ?? 0),
-      cents: acc.cents + (card.todayCostCents ?? 0),
     }),
-    { tokens: 0, cents: 0 },
+    { tokens: 0 },
   );
-  const showCostMeter = todayTotals.tokens > 0 || todayTotals.cents > 0;
+  const showUsageMeter = todayTotals.tokens > 0;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -126,9 +125,9 @@ export function StatusCards() {
           </Badge>
         </div>
         <div className="flex items-center gap-4">
-          {showCostMeter ? (
+          {showUsageMeter ? (
             <span className="text-xs text-muted-foreground">
-              Today: {formatTokens(todayTotals.tokens)} · ~{formatCents(todayTotals.cents)}
+              Today: {formatTokens(todayTotals.tokens)}
             </span>
           ) : null}
           <Button onClick={() => setCreateOpen(true)} disabled={!selectedCompanyId}>

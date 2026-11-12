@@ -57,7 +57,7 @@ export function createCopilotToolEvidence(binding: {
     binding.emit({ eventType: "provider.notice.recorded", itemId, payload: redactPaperclipSemanticValue({
       schema: "paperclip.provider.notice.v1", noticeId: itemId, severity: "info",
       category, scope: "turn", recoverable: true, userActionable: false,
-      summary: stage === "semantic_result" ? "Paperclip returned a semantic tool result." : stage === "evidence_incomplete" ? "Some Copilot activity details are unavailable."
+      summary: stage === "semantic_result" ? "Outpost returned a semantic tool result." : stage === "evidence_incomplete" ? "Some Copilot activity details are unavailable."
         : stage === "permission_requested" ? "Copilot requested permission."
         : stage === "permission_delivered" ? (fields.outcome === "reject_once" ? "Copilot received your denial." : "Copilot received your permission decision.")
         : fields.shellState === "started" ? (fields.detach === false ? "Copilot started an attached command." : "Copilot started a background command.")

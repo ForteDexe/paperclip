@@ -291,7 +291,7 @@ async function listCatalogTeamStatusRows(
   opts: TeamListOptions,
 ): Promise<CatalogTeamStatusRow[]> {
   if (!ctx.companyId) {
-    throw new Error("Company ID is required.");
+    throw new Error("Outpost ID is required.");
   }
 
   const [teams, installed] = await Promise.all([
@@ -344,7 +344,7 @@ async function getCatalogTeamFile(
 }
 
 function catalogTeamCompanyPath(companyId: string | undefined, catalogRef: string, action: "preview" | "install") {
-  if (!companyId) throw new Error("Company ID is required.");
+  if (!companyId) throw new Error("Outpost ID is required.");
   const params = new URLSearchParams({ ref: catalogRef.trim() });
   return `/api/companies/${encodeURIComponent(companyId)}/teams/catalog/ref/${action}?${params.toString()}`;
 }
@@ -393,7 +393,7 @@ async function requestInstallApproval(
   opts: TeamInstallOptions,
   error: ApiRequestError,
 ): Promise<TeamInstallApprovalFallbackResult> {
-  if (!ctx.companyId) throw new Error("Company ID is required.");
+  if (!ctx.companyId) throw new Error("Outpost ID is required.");
   const trimmedRef = catalogRef.trim();
   const issueIds = resolveApprovalIssueIds(opts);
   const approvalInstallOptions = omitInstallSecretValues(installOptions);
@@ -404,7 +404,7 @@ async function requestInstallApproval(
     payload: {
       title: `Approve catalog team install: ${trimmedRef}`,
       summary:
-        `A Paperclip CLI agent-run attempted to install catalog team "${trimmedRef}" into company "${ctx.companyId}", ` +
+        `An Outpost CLI agent-run attempted to install catalog team "${trimmedRef}" into company "${ctx.companyId}", ` +
         `but the API denied the install with: ${error.message}.`,
       recommendedAction:
         "Approve the catalog team source and rerun the install with a board or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",

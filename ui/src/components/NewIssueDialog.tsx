@@ -1642,7 +1642,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
                           <span className="font-medium">{selectedAssigneeAgent.name}</span> is paused and will not start
                           work on this task until it is resumed
                           {selectedAssigneeAgent.pauseReason === "import"
-                            ? " — it arrived paused from an organization import"
+                            ? " — it arrived paused from an outpost import"
                             : ""}
                           . You can resume it from the task page after creating the task.
                         </InlineBanner>

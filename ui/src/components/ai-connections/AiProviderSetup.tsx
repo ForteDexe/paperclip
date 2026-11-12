@@ -149,7 +149,7 @@ export function AiProviderSetup({
         : (provider ?? "openai");
   const name =
     reconnect?.name ??
-    `${ownership === "personal" ? "My" : "Company"} ${
+    `${ownership === "personal" ? "My" : "Outpost"} ${
       provider === "gateway" && baseUrl
         ? (() => {
             try {

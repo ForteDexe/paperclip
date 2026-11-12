@@ -209,10 +209,10 @@ function GitHubPassingScore({
       <p id={`${id}-help`} className="text-xs text-muted-foreground">
         {value === null
           ? "Publishes a neutral check without a score requirement. GitHub can accept neutral checks for merging."
-          : "Paperclip passes the check when a complete review of the latest commit meets this score. Lower scores fail. This does not approve the PR."}
+          : "Outpost passes the check when a complete review of the latest commit meets this score. Lower scores fail. This does not approve the PR."}
       </p>
       <p className="text-xs text-muted-foreground">
-        To block merging, require the <strong>Paperclip Review</strong> check from this App in your GitHub branch rules.{" "}
+        To block merging, require the <strong>Outpost Review</strong> check from this App in your GitHub branch rules.{" "}
         <a className="underline hover:text-foreground"
           href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository"
           target="_blank" rel="noreferrer">Configure on GitHub</a>
@@ -703,7 +703,7 @@ export function GitHubAccessEditor({
               <p className="text-xs text-muted-foreground">
                 {person.kind === "guest"
                   ? `Sponsored by ${memberName(person.sponsorUserId)}`
-                  : (identity?.paperclipUserLabel ?? "Company member")}
+                  : (identity?.paperclipUserLabel ?? "Outpost member")}
               </p>
               {!linked && (
                 <p className="mt-1 text-xs text-destructive">
@@ -777,9 +777,9 @@ export function GitHubAccessEditor({
           automatically.
         </p>
       </div>
-      <section className="space-y-2" aria-label="Company members">
+      <section className="space-y-2" aria-label="Outpost members">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Company members</h3>
+          <h3 className="text-sm font-semibold">Outpost members</h3>
           <Button
             variant="outline"
             size="sm"
@@ -797,7 +797,7 @@ export function GitHubAccessEditor({
           label="Allow mentions from all linked members"
           description={
             configuration.memberAccess === "all_linked"
-              ? `Includes members from ${company?.name ?? "this company"} who link their GitHub account later.`
+              ? `Includes members from ${company?.name ?? "this outpost"} who link their GitHub account later.`
               : "Only members you enable below can mention this bot."
           }
           checked={configuration.memberAccess === "all_linked"}
@@ -865,7 +865,7 @@ export function GitHubAccessEditor({
         </div>
         <p className="text-xs text-muted-foreground">
           Allow specific GitHub users with a member as their sponsor. They
-          receive restricted access, without company membership or the sponsor’s
+          receive restricted access, without outpost membership or the sponsor’s
           personal credentials.
         </p>
         {peopleRows(guests)}
@@ -927,7 +927,7 @@ export function GitHubAccessEditor({
             </>
           )}
           <p className="text-xs text-muted-foreground">
-            The member accountable for automatically created Paperclip tasks.
+            The member accountable for automatically created Outpost tasks.
             GitHub authors remain recorded separately. This grants no access to
             the member’s personal credentials.
           </p>
@@ -959,13 +959,13 @@ export function GitHubAccessEditor({
           <DialogHeader>
             <DialogTitle>
               {dialog === "member"
-                ? "Link a company member"
+                ? "Link a outpost member"
                 : "Add external contributor"}
             </DialogTitle>
             <DialogDescription>
               {dialog === "member"
-                ? "Each member confirms their own GitHub identity. Share this link with an existing company member, or link your own account."
-                : "Allow a GitHub user to mention this bot. A company member must sponsor their restricted access."}
+                ? "Each member confirms their own GitHub identity. Share this link with an existing outpost member, or link your own account."
+                : "Allow a GitHub user to mention this bot. A outpost member must sponsor their restricted access."}
             </DialogDescription>
           </DialogHeader>
           {dialog === "member" ? (

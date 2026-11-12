@@ -51,7 +51,7 @@ function definition(overrides: Partial<UserSecretDefinition> = {}): UserSecretDe
 }
 
 const transientError = () =>
-  new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" });
+  new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" });
 
 async function act(callback: () => void | Promise<void>) {
   let result: void | Promise<void> = undefined;
@@ -124,7 +124,7 @@ describe("MyUserSecretsTab", () => {
     expect(mockSecretsApi.listMyUserSecrets).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain("Personal GitHub token");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
 
   it("shows readable copy and a Retry button when the list fails to load", async () => {

@@ -65,7 +65,7 @@ export function registerAccessCommands(program: Command): void {
       .command("company-user")
       .description("Get a user profile within a company")
       .argument("<userSlug>", "User slug")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (userSlug: string, opts: CompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -169,7 +169,7 @@ export function registerAccessCommands(program: Command): void {
     join
       .command("list")
       .description("List join requests")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--status <status>", "Filter by status (pending_approval, approved, rejected; pending alias accepted)")
       .option("--request-type <type>", "Filter by request type")
       .action(async (opts: QueryOptions) => {
@@ -205,7 +205,7 @@ export function registerAccessCommands(program: Command): void {
       }),
   );
 
-  const member = program.command("member").description("Company member operations");
+  const member = program.command("member").description("Outpost member operations");
   addCompanyList(member, "list", "List company members", "members");
   addCompanyList(member, "user-directory", "List company user directory", "user-directory");
   addMemberPatch(member, "update", "members");
@@ -420,7 +420,7 @@ function addJsonPut(parent: Command, name: string, description: string, path: st
 
 function addCompanyList(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
-    parent.command(name).description(description).option("-C, --company-id <id>", "Company ID").action(async (opts: CompanyOptions) => {
+    parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").action(async (opts: CompanyOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`), { json: ctx.json });
@@ -434,7 +434,7 @@ function addCompanyList(parent: Command, name: string, description: string, path
 
 function addCompanyPut(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
-    parent.command(name).description(description).option("-C, --company-id <id>", "Company ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonPayloadOptions) => {
+    parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonPayloadOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         printOutput(await ctx.api.put(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
@@ -448,7 +448,7 @@ function addCompanyPut(parent: Command, name: string, description: string, path:
 
 function addCompanyPost(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
-    parent.command(name).description(description).option("-C, --company-id <id>", "Company ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonPayloadOptions) => {
+    parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonPayloadOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
@@ -462,7 +462,7 @@ function addCompanyPost(parent: Command, name: string, description: string, path
 
 function addJoinAction(parent: Command, action: "approve" | "reject"): void {
   addCommonClientOptions(
-    parent.command(action).description(`${action} a join request`).argument("<requestId>", "Join request ID").option("-C, --company-id <id>", "Company ID").action(async (requestId: string, opts: CompanyOptions) => {
+    parent.command(action).description(`${action} a join request`).argument("<requestId>", "Join request ID").option("-C, --company-id <id>", "Outpost ID").action(async (requestId: string, opts: CompanyOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}/join-requests/${requestId}`}/${action}`, {}), { json: ctx.json });
@@ -476,7 +476,7 @@ function addJoinAction(parent: Command, action: "approve" | "reject"): void {
 
 function addMemberPatch(parent: Command, name: string, path: string, suffix?: string): void {
   addCommonClientOptions(
-    parent.command(name).description(`${name} a member`).argument("<memberId>", "Member ID").option("-C, --company-id <id>", "Company ID").requiredOption("--payload-json <json>", "JSON payload").action(async (memberId: string, opts: JsonPayloadOptions) => {
+    parent.command(name).description(`${name} a member`).argument("<memberId>", "Member ID").option("-C, --company-id <id>", "Outpost ID").requiredOption("--payload-json <json>", "JSON payload").action(async (memberId: string, opts: JsonPayloadOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         const route = `${apiPath`/api/companies/${ctx.companyId}`}/${path}/${encodeURIComponent(memberId)}${suffix ? `/${suffix}` : ""}`;
@@ -491,7 +491,7 @@ function addMemberPatch(parent: Command, name: string, path: string, suffix?: st
 
 function addMemberPost(parent: Command, name: string, path: string, suffix: string): void {
   addCommonClientOptions(
-    parent.command(name).description(`${name} a member`).argument("<memberId>", "Member ID").option("-C, --company-id <id>", "Company ID").option("--payload-json <json>", "JSON payload", "{}").action(async (memberId: string, opts: JsonPayloadOptions) => {
+    parent.command(name).description(`${name} a member`).argument("<memberId>", "Member ID").option("-C, --company-id <id>", "Outpost ID").option("--payload-json <json>", "JSON payload", "{}").action(async (memberId: string, opts: JsonPayloadOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}/${encodeURIComponent(memberId)}/${suffix}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });

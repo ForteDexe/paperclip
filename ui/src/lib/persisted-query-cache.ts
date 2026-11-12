@@ -96,7 +96,7 @@ export function persistedQueryScope(key: readonly unknown[], data: unknown, user
   if (root === "access" && second === "current-board-access" && third === userId && key.length === 3 && object(data)?.userId === userId) return null;
   if (root === "instance" && key.length === 2 && ["experimental-settings", "general-settings"].includes(String(second))) return null;
   if (root === "workspace-preferences" && second === userId && key.length === 2 && object(data)?.userId === userId) return null;
-  if (root === "sidebar-preferences" && second === "company-order" && third === userId && key.length === 3) return null;
+  if (root === "sidebar-preferences" && second === "outpost-order" && third === userId && key.length === 3) return null;
   if (root === "plugins" && second === "ui-contributions" && key.length === 2) return null;
   if (root === "issues" && second === "detail" && (key.length === 3 || (key.length === 4 && key[3] === "core"))) {
     const companyId = object(data)?.companyId;

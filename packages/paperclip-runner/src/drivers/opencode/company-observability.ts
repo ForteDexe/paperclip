@@ -48,7 +48,7 @@ export function createOpenCodeCompanyObservability(input: {
 }) {
   const env = input.environment;
   if (env?.PAPERCLIP_OBSERVABILITY_OPENCODE !== "1") return undefined;
-  const diagnostic = (reason: string) => input.onDiagnostic?.(`Company observability export unavailable (${reason}).`);
+  const diagnostic = (reason: string) => input.onDiagnostic?.(`Outpost observability export unavailable (${reason}).`);
   let endpoint: string, headers: Record<string, string>, resource: Attributes;
   try {
     const url = new URL(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ?? "");

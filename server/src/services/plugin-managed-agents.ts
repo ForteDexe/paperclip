@@ -486,7 +486,7 @@ export function pluginManagedAgentService(
       .from(companies)
       .where(eq(companies.id, companyId))
       .then((rows) => rows[0] ?? null);
-    if (!company) throw notFound("Company not found");
+    if (!company) throw notFound("Outpost not found");
 
     const requiresApproval = company.requireBoardApprovalForNewAgents;
     const adapterType = await resolveManagedAdapterType(companyId, declaration);

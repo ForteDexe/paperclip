@@ -67,7 +67,7 @@ export async function bootstrapCeoInvite(opts: {
   }
 
   if (config.server.deploymentMode !== "authenticated") {
-    p.log.info("Deployment mode is local_trusted. Bootstrap CEO invite is only required for authenticated mode.");
+    p.log.info("Deployment mode is local_trusted. Bootstrap Outpost Lead invite is only required for authenticated mode.");
     return;
   }
 
@@ -126,12 +126,12 @@ export async function bootstrapCeoInvite(opts: {
 
     const baseUrl = resolveBaseUrl(configPath, opts.baseUrl);
     const inviteUrl = `${baseUrl}/invite/${token}`;
-    p.log.success("Created bootstrap CEO invite.");
+    p.log.success("Created bootstrap Outpost Lead invite.");
     p.log.message(`Invite URL: ${pc.cyan(inviteUrl)}`);
     p.log.message(`Expires: ${pc.dim(created.expiresAt.toISOString())}`);
   } catch (err) {
     p.log.error(`Could not create bootstrap invite: ${err instanceof Error ? err.message : String(err)}`);
-    p.log.info("If using embedded-postgres, start the Paperclip server and run this command again.");
+    p.log.info("If using embedded-postgres, start the Outpost server and run this command again.");
   } finally {
     await closableDb.$client?.end?.({ timeout: 5 }).catch(() => undefined);
   }

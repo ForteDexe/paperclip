@@ -56,7 +56,7 @@ export async function createFinanceEventInTransaction(tx: Db, publications: Acti
       if (data.agentId) await assertBelongsToCompany(db, agents, data.agentId, companyId, "Agent");
       if (data.issueId) await assertBelongsToCompany(db, issues, data.issueId, companyId, "Issue");
       if (data.projectId) await assertBelongsToCompany(db, projects, data.projectId, companyId, "Project");
-      if (data.goalId) await assertBelongsToCompany(db, goals, data.goalId, companyId, "Goal");
+      if (data.goalId) await assertBelongsToCompany(db, goals, data.goalId, companyId, "North Star");
       if (data.heartbeatRunId) await assertBelongsToCompany(db, heartbeatRuns, data.heartbeatRunId, companyId, "Heartbeat run");
       if (data.costEventId) await assertBelongsToCompany(db, costEvents, data.costEventId, companyId, "Cost event");
 

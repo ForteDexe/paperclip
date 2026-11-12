@@ -294,7 +294,7 @@ describe("managed plugin environments under managed-sandbox-only", () => {
   });
   const sandbox = makeEnvironment({
     id: "sandbox-env",
-    name: "Paperclip Sandbox",
+    name: "Outpost Sandbox",
     metadata: { managedByPaperclip: true, managedSandboxProvider: "daytona" },
   });
   const environments = [local, pluginEnvironment, sandbox];

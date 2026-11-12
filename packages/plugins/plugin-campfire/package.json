@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "Persistent multi-agent group chat for Paperclip development teams.",
+  "description": "Persistent multi-agent group chat for Outpost crews.",
   "files": [
     "dist",
     "migrations",

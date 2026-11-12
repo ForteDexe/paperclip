@@ -614,7 +614,7 @@ const sheetsToolActionBase: RequestConfirmationToolActionPayload = {
   risk: "write" as const,
   previewMarkdown:
     "Add **1 row** to the **Q3 Growth Leads** sheet:\n\n"
-    + "| Column | Value |\n| --- | --- |\n| Name | Priya Anand |\n| Company | Northwind |\n| Stage | Qualified |\n| Owner | growth-bot |",
+    + "| Column | Value |\n| --- | --- |\n| Name | Priya Anand |\n| Outpost | Northwind |\n| Stage | Qualified |\n| Owner | growth-bot |",
   argumentsSummaryJson: JSON.stringify(
     {
       spreadsheetId: "1AbC…xyz",

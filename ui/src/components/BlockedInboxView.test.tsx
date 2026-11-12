@@ -417,7 +417,7 @@ describe("BlockedInboxView", () => {
 
     // A refetch during a deploy fails: the loaded rows stay, no error banner.
     mockIssuesApi.list.mockRejectedValueOnce(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await act(async () => {
       await queryClient.invalidateQueries({ refetchType: "active" });

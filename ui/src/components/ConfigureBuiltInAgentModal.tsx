@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Field } from "@/components/agent-config-primitives";
 import { AdapterTypeDropdown, ModelDropdown } from "@/components/AgentConfigForm";
 import { InlineBanner } from "@/components/InlineBanner";
@@ -35,13 +34,6 @@ function defaultAdapterType(state: BuiltInAgentState): string {
   return state.definition.defaultAdapterType ?? state.definition.allowedAdapterTypes?.[0] ?? "codex_local";
 }
 
-function parseBudgetMonthlyCents(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const cents = Math.round(Number(trimmed) * 100);
-  return Number.isFinite(cents) && cents >= 0 ? cents : undefined;
-}
-
 export interface ConfigureBuiltInAgentModalProps {
   companyId: string;
   state: BuiltInAgentState;
@@ -53,8 +45,8 @@ export interface ConfigureBuiltInAgentModalProps {
 
 /**
  * Configure-on-first-use modal for a built-in agent. Reuses the shared
- * `AdapterTypeDropdown` + `ModelDropdown` (ux-spec D6 — no second model picker),
- * plus an optional monthly budget, and submits to the provision endpoint.
+ * `AdapterTypeDropdown` + `ModelDropdown` (ux-spec D6 — no second model picker)
+ * and submits to the provision endpoint.
  */
 export function ConfigureBuiltInAgentModal({
   companyId,
@@ -79,10 +71,6 @@ export function ConfigureBuiltInAgentModal({
     return typeof defaultModel === "string" ? defaultModel : "";
   });
   const [modelOpen, setModelOpen] = useState(false);
-  const [budgetDollars, setBudgetDollars] = useState<string>(() => {
-    const cents = definition.defaultBudgetMonthlyCents ?? 0;
-    return cents > 0 ? String(cents / 100) : "";
-  });
   const [error, setError] = useState<string | null>(null);
 
   // Restrict adapter choices to the registry's allow-list. Non-model adapters
@@ -115,10 +103,7 @@ export function ConfigureBuiltInAgentModal({
   const modelError = modelKnown
     ? null
     : `Model “${normalizedModel}” is not available for ${adapterType}. Choose a known model.`;
-  const budgetMonthlyCents = parseBudgetMonthlyCents(budgetDollars);
-  const budgetValid = !budgetDollars.trim() || budgetMonthlyCents !== undefined;
   const canSubmit =
-    budgetValid &&
     modelKnown &&
     (setupSupportedInModal ? !modelRequired || normalizedModel.length > 0 : true);
   const submitLabel = setupSupportedInModal
@@ -138,7 +123,6 @@ export function ConfigureBuiltInAgentModal({
         : { adapterType, adapterConfig };
       const result = await builtInAgentsApi.provision(companyId, definition.key, {
         ...adapterInput,
-        ...(budgetMonthlyCents !== undefined ? { budgetMonthlyCents } : {}),
       });
       return result;
     },
@@ -167,7 +151,7 @@ export function ConfigureBuiltInAgentModal({
         <div className="space-y-4">
           <InlineBanner tone="info" compact>
             Creates <strong>{definition.displayName}</strong> in your roster, badged{" "}
-            <strong>Built-in</strong>. Organizations that require hire approval will queue this for the
+            <strong>Built-in</strong>. Outposts that require hire approval will queue this for the
             board.
           </InlineBanner>
 
@@ -210,23 +194,6 @@ export function ConfigureBuiltInAgentModal({
               built-in row now, then finish those fields from the full agent configuration.
             </InlineBanner>
           )}
-
-          <Field label="Monthly budget (optional)" hint="Leave blank for no cap.">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">$</span>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                inputMode="decimal"
-                placeholder="0"
-                value={budgetDollars}
-                onChange={(event) => setBudgetDollars(event.target.value)}
-                className="w-32"
-              />
-              <span className="text-sm text-muted-foreground">/ month</span>
-            </div>
-          </Field>
 
           {error && (
             <p className="text-sm text-destructive" role="alert">

@@ -111,7 +111,7 @@ export function ProjectAccessMembers({ project, canManage }: { project: Project;
           </DialogHeader>
           <div className="space-y-3">
             {directoryView.kind === "error" || agentsView.kind === "error" ? (
-              <p className="text-sm text-destructive">Couldn&apos;t load the company access directory.</p>
+              <p className="text-sm text-destructive">Couldn&apos;t load the outpost access directory.</p>
             ) : null}
             <div className="flex items-end gap-2">
               <SearchableSelect
@@ -122,7 +122,7 @@ export function ProjectAccessMembers({ project, canManage }: { project: Project;
                 onValueChange={(value) => setSelection(value)}
                 placeholder="Add a person or agent"
                 searchPlaceholder="Search people and agents"
-                emptyMessage="No more company members to add"
+                emptyMessage="No more outpost members to add"
                 loading={[directoryView.kind, agentsView.kind].some(kind => ["loading", "reconnecting"].includes(kind))}
                 className="min-w-0 flex-1"
               />

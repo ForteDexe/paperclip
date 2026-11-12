@@ -90,7 +90,7 @@ const NON_PAPERCLIP_ISOLATED_ENV_KEYS = [
 
 function requiredApiResult<T>(value: T | null, action: string): T {
   if (value === null) {
-    throw new Error(`Paperclip returned no result while ${action}.`);
+    throw new Error(`Outpost returned no result while ${action}.`);
   }
   return value;
 }
@@ -245,8 +245,8 @@ export function resolveTestDriveBootstrap(
     throw new Error(`Unsupported test-drive harness: ${String(harness)}.`);
   }
 
-  const companyName = (options.companyName ?? "Test Company").trim();
-  const agentName = (options.agentName ?? "CEO").trim();
+  const companyName = (options.companyName ?? "Test Outpost").trim();
+  const agentName = (options.agentName ?? "Outpost Lead").trim();
   if (!companyName) throw new Error("--company-name cannot be empty.");
   if (!agentName) throw new Error("--agent-name cannot be empty.");
 
@@ -321,7 +321,7 @@ export async function reconcileTestDriveWorktreeExecution(
   );
   if (!worktreeExecutionArmed(verified, instanceId)) {
     throw new Error(
-      `Could not arm “Run tasks in this worktree” for Paperclip instance ${instanceId}. ` +
+      `Could not arm “Run tasks in this worktree” for Outpost instance ${instanceId}. ` +
         "Check that PAPERCLIP_IN_WORKTREE=true and retry the command.",
     );
   }
@@ -384,7 +384,7 @@ export async function bootstrapTestDrive(input: {
         adapterType: resolved.adapterType,
         adapterConfig,
       }),
-      "creating the CEO agent",
+      "creating the Outpost Lead agent",
     );
 
     if (input.linkedWorktree) {
@@ -436,7 +436,7 @@ export async function testDriveCommand(
   ];
 
   p.log.message(pc.dim(`Data directory: ${dataDir}`));
-  p.log.message(pc.dim("The data directory is retained when Paperclip exits."));
+  p.log.message(pc.dim("The data directory is retained when Outpost exits."));
   if (options.apiKey !== undefined) {
     p.log.warn("A key passed with --api-key may be visible in process arguments and shell history.");
   }
@@ -467,7 +467,7 @@ export async function testDriveCommand(
           );
         } else {
           p.log.success(
-            `Created ${pc.cyan(result.company.name)} with agent ${pc.cyan(result.agent?.name ?? "CEO")}.`,
+            `Created ${pc.cyan(result.company.name)} with agent ${pc.cyan(result.agent?.name ?? "Outpost Lead")}.`,
           );
         }
         if (linkedWorktree) {
@@ -475,14 +475,14 @@ export async function testDriveCommand(
         }
 
         if (options.browser === false) {
-          p.log.success(`Paperclip is ready at ${pc.cyan(url)}.`);
+          p.log.success(`Outpost is ready at ${pc.cyan(url)}.`);
           return;
         }
         const opened = await dependencies.openBrowser(url);
         if (opened) {
-          p.log.success(`Paperclip is ready and opened at ${pc.cyan(url)}.`);
+          p.log.success(`Outpost is ready and opened at ${pc.cyan(url)}.`);
         } else {
-          p.log.warn(`Paperclip is ready, but the browser could not be opened. Visit ${url}.`);
+          p.log.warn(`Outpost is ready, but the browser could not be opened. Visit ${url}.`);
         }
       },
     });
@@ -494,10 +494,10 @@ export async function testDriveCommand(
 export function registerTestDriveCommand(program: Command): void {
   program
     .command("test-drive")
-    .description("Start an isolated, initialized Paperclip instance for manual testing")
-    .option("-d, --data-dir <path>", "Paperclip data directory to create or reuse")
-    .option("--company-name <name>", "Initial company name", "Test Company")
-    .option("--agent-name <name>", "Initial CEO agent name", "CEO")
+    .description("Start an isolated, initialized Outpost instance for manual testing")
+    .option("-d, --data-dir <path>", "Outpost data directory to create or reuse")
+    .option("--company-name <name>", "Initial company name", "Test Outpost")
+    .option("--agent-name <name>", "Initial Outpost Lead agent name", "Outpost Lead")
     .addOption(
       new Option("--harness <harness>", "Initial agent harness")
         .choices(TEST_DRIVE_HARNESSES)

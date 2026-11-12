@@ -20,7 +20,7 @@ const PAPERCLIP_MARK_PATH =
  */
 export function PaperclipLockup({
   decorative = false,
-  title = "Paperclip",
+  title = "Outpost",
   className,
   ...rest
 }: PaperclipLockupProps) {
@@ -52,7 +52,7 @@ export function PaperclipLockup({
 /** The mark alone, cropped square from the same geometry as the lockup. */
 export function PaperclipMark({
   decorative = false,
-  title = "Paperclip",
+  title = "Outpost",
   className,
   ...rest
 }: PaperclipLockupProps) {

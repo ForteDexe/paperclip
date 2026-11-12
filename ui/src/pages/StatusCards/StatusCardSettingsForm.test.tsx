@@ -33,25 +33,21 @@ function render(value: StatusCardSettingsValue) {
   );
 }
 
-describe("StatusCardSettingsForm cost preview", () => {
-  it("renders a one-line manual estimate by default", () => {
+describe("StatusCardSettingsForm usage controls", () => {
+  it("does not render monetary estimates in manual mode", () => {
     render(defaultSettingsValue());
-    // The label + bare cost render inline; the descriptive detail moves to a
-    // hover tooltip (portalled, only mounted while open) so it is not in the DOM.
-    expect(container.textContent).toContain("Estimated cost");
-    expect(container.textContent).toContain("4.5k tok");
-    expect(container.textContent).not.toContain("per refresh");
+    expect(container.textContent).not.toContain("Estimated cost");
+    expect(container.textContent).not.toContain("$");
   });
 
-  it("shows the bare cost for an interval policy", () => {
+  it("keeps token controls without rendering monetary estimates", () => {
     render({
       ...defaultSettingsValue(),
       refreshPolicy: { mode: "interval", intervalMinutes: 30, triggers: defaultSettingsValue().refreshPolicy.triggers },
     });
-    // "updates/day" / "every 30 min" now live in the tooltip; only the cost shows inline.
-    expect(container.textContent).toContain("Estimated cost");
-    expect(container.textContent).toContain("tok");
-    expect(container.textContent).not.toContain("updates/day");
+    expect(container.textContent).toContain("Advanced");
+    expect(container.textContent).not.toContain("Estimated cost");
+    expect(container.textContent).not.toContain("$");
   });
 });
 

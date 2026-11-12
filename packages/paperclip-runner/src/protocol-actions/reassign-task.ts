@@ -97,7 +97,7 @@ export const reassignTaskAction = {
             "minLength": 1,
             "description": "Existing task ID from search_tasks."
           },
-          "assigneeUserId": { "type": ["string", "null"], "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId." },
+          "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
             "type": ["string", "null"],
             "description": "New company agent ID from list_agents; null when assigning a person."
@@ -198,7 +198,7 @@ export const reassignTaskAction = {
             "minLength": 1,
             "description": "Existing task ID from search_tasks."
           },
-          "assigneeUserId": { "type": ["string", "null"], "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId." },
+          "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
             "type": ["string", "null"],
             "description": "New company agent ID from list_agents; null when assigning a person."

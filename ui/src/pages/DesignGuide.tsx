@@ -232,7 +232,7 @@ function sampleOutput(
   const contentPath = `/api/attachments/${attachmentId}/content`;
   return {
     id,
-    companyId: "demo-company",
+    companyId: "demo-outpost",
     projectId: null,
     issueId: "demo-issue",
     executionWorkspaceId: null,
@@ -536,7 +536,7 @@ export function DesignGuide() {
       <div>
         <h2 className="text-xl font-bold">Design Guide</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Every component, style, and pattern used across Paperclip.
+          Every component, style, and pattern used across Outpost.
         </p>
       </div>
 
@@ -1257,7 +1257,7 @@ export function DesignGuide() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink href="#">Paperclip App</BreadcrumbLink>
+              <BreadcrumbLink href="#">Outpost App</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
@@ -1282,7 +1282,7 @@ export function DesignGuide() {
                   status, adapterType: "codex_local", invocationSource: "on_demand", triggerDetail: "manual",
                   startedAt: null, finishedAt: null, createdAt: "2026-09-11T12:00:00Z", issueId: "design-guide-task",
                 }}
-                issue={{ identifier: "PAP-559", title: "Recreate this wireframe on pages Paperclip", status: status === "succeeded" ? "done" : "in_progress" }}
+                issue={{ identifier: "PAP-559", title: "Recreate this wireframe on pages Outpost", status: status === "succeeded" ? "done" : "in_progress" }}
               />
             ))}
           </div>
@@ -1308,7 +1308,7 @@ export function DesignGuide() {
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
             <MetricCard icon={Bot} value={12} label="Active Agents" description="+3 this week" />
             <MetricCard icon={CircleDot} value={48} label="Open Issues" />
-            <MetricCard icon={DollarSign} value="$1,234" label="Monthly Cost" description="Under budget" />
+            <MetricCard icon={History} value="1,234" label="Monthly Runs" description="Within normal range" />
             <MetricCard icon={Zap} value="99.9%" label="Uptime" />
           </div>
         </SubSection>
@@ -1324,7 +1324,7 @@ export function DesignGuide() {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="runs">Runs</TabsTrigger>
               <TabsTrigger value="config">Config</TabsTrigger>
-              <TabsTrigger value="costs">Costs</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             <TabsContent value="overview">
               <p className="text-sm text-muted-foreground py-4">Overview tab content.</p>
@@ -1335,8 +1335,8 @@ export function DesignGuide() {
             <TabsContent value="config">
               <p className="text-sm text-muted-foreground py-4">Config tab content.</p>
             </TabsContent>
-            <TabsContent value="costs">
-              <p className="text-sm text-muted-foreground py-4">Costs tab content.</p>
+            <TabsContent value="history">
+              <p className="text-sm text-muted-foreground py-4">History tab content.</p>
             </TabsContent>
           </Tabs>
         </SubSection>
@@ -1650,12 +1650,12 @@ export function DesignGuide() {
       {/* ============================================================ */}
       {/*  PROGRESS BARS                                                */}
       {/* ============================================================ */}
-      <Section title="Progress Bars (Budget)">
+      <Section title="Progress Bars">
         <div className="space-y-3">
           {[
-            { label: "Under budget (40%)", pct: 40, color: "bg-green-400" },
+            { label: "Healthy (40%)", pct: 40, color: "bg-green-400" },
             { label: "Warning (75%)", pct: 75, color: "bg-yellow-400" },
-            { label: "Over budget (95%)", pct: 95, color: "bg-red-400" },
+            { label: "Critical (95%)", pct: 95, color: "bg-red-400" },
           ].map(({ label, pct, color }) => (
             <div key={label} className="space-y-1">
               <div className="flex items-center justify-between">
@@ -1754,7 +1754,7 @@ export function DesignGuide() {
           <p className="text-sm text-muted-foreground">
             Layout accepts sidebarSections to compose additional SidebarSection groups inside the shared sidebar.
             Use SidebarNavItem for each row, with sibling action buttons for starring or menus.
-            The Chats section shows starred agents, the earliest-created agent when unstarred, then four recent agents without duplicates. Compose and star controls share a vertical column. Compose appears on hover or keyboard focus and remains visible on touch; starred icons remain visible. The picker searches all company agents by name or role without a subtitle, count, continuation labels, or footer. Task breadcrumbs support leading identity and trailing actions beside the label, including single-item task headers; see the Agent chat Storybook.
+            The Chats section shows starred agents, the earliest-created agent when unstarred, then four recent agents without duplicates. Compose and star controls share a vertical column. Compose appears on hover or keyboard focus and remains visible on touch; starred icons remain visible. The picker searches all outpost agents by name or role without a subtitle, count, continuation labels, or footer. Task breadcrumbs support leading identity and trailing actions beside the label, including single-item task headers; see the Agent chat Storybook.
           </p>
           <Card className="block w-60 p-3 space-y-0.5">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-accent text-accent-foreground">
@@ -1814,7 +1814,7 @@ export function DesignGuide() {
             <EntityRow
               leading={SHOW_TASK_PRIORITY_UI ? <PriorityIcon priority="medium" /> : undefined}
               identifier="PAP-102"
-              title="Add cost tracking dashboard"
+              title="Add runtime health dashboard"
               onClick={() => {}}
             />
           </div>
@@ -2259,7 +2259,7 @@ export function DesignGuide() {
         </SubSection>
         <SubSection title="Selected and searchable">
           <RepositoryEditor selected={[{ id: "1", fullName: "paperclipai/paperclip", url: "https://github.com/paperclipai/paperclip", connections: ["Your GitHub"] }]}
-            available={[{ id: "2", fullName: "paperclipai/docs", url: "https://github.com/paperclipai/docs", connections: ["Company GitHub"] }]}
+            available={[{ id: "2", fullName: "paperclipai/docs", url: "https://github.com/paperclipai/docs", connections: ["Outpost GitHub"] }]}
             onChange={() => {}} onConnect={() => {}} onRetry={() => {}} />
         </SubSection>
         <p className="text-sm text-muted-foreground">Loading, errors, empty search, mobile, and short viewports are covered in the Project repos Storybook stories.</p>
@@ -2335,9 +2335,9 @@ export function DesignGuide() {
 
       <Section title="Voice conversations">
         <div className="flex flex-col gap-6">
-          <VoiceControls state="working" agentName="Company Phone Agent" onStart={() => {}} onMute={() => {}} onEnd={() => {}} onResumeAudio={() => {}} />
-          <VoiceControls state="failed" agentName="Company Phone Agent" error="Microphone access was denied. Allow access in your browser, then try again." onStart={() => {}} onMute={() => {}} onEnd={() => {}} onResumeAudio={() => {}} />
-          <VoiceTranscript agentName="Company Phone Agent" entries={[
+          <VoiceControls state="working" agentName="Outpost Phone Agent" onStart={() => {}} onMute={() => {}} onEnd={() => {}} onResumeAudio={() => {}} />
+          <VoiceControls state="failed" agentName="Outpost Phone Agent" error="Microphone access was denied. Allow access in your browser, then try again." onStart={() => {}} onMute={() => {}} onEnd={() => {}} onResumeAudio={() => {}} />
+          <VoiceTranscript agentName="Outpost Phone Agent" entries={[
             { id: "ack", source: "agent", text: "I’m checking that now.", final: true },
             { id: "followup", source: "user", text: "Include the revised delivery address too.", final: true },
           ]} />
@@ -2353,7 +2353,7 @@ export function DesignGuide() {
         </div>
         <SpekoPhoneLineForm onRefresh={() => {}} onSave={() => {}} />
         <SpekoIncomingCallCard call={{id: "demo", state: "awaiting_approval", approvalCode: "123456", createdAt: "2026-10-07T17:00:00Z", expiresAt: "2026-10-07T17:02:00Z", sessionId: null}} onDecide={() => {}} />
-        <SpekoProviderSetup agentName="Company Phone Agent" callbackUrl="https://paperclip.example/api/voice-webhooks/example/tools" credentials={{}} onChange={() => {}} onConnect={() => {}} />
+        <SpekoProviderSetup agentName="Outpost Phone Agent" callbackUrl="https://paperclip.example/api/voice-webhooks/example/tools" credentials={{}} onChange={() => {}} onConnect={() => {}} />
       </Section>
 
       <Section title="External agent invitation">
@@ -2465,7 +2465,7 @@ export function DesignGuide() {
             title="Built-in agent"
             actions={<Button variant="outline" size="sm">Reset to defaults</Button>}
           >
-            Ships with Paperclip and powers <strong>Briefs</strong>. It can be paused but not deleted.
+            Ships with Outpost and powers <strong>Briefs</strong>. It can be paused but not deleted.
           </InlineBanner>
           <InlineBanner
             tone="warning"
@@ -2513,7 +2513,7 @@ export function DesignGuide() {
       </Section>
 
       <Section title="Browser session footer">
-        <p className="text-sm text-muted-foreground">Fit to pane follows the visible panel. Fixed viewport presets and session actions live in the footer menu. Costs stay in task reporting. The idle countdown appears only in the final five minutes. Full panel, activity, and settings states are in Storybook under Browser Use.</p>
+        <p className="text-sm text-muted-foreground">Fit to pane follows the visible panel. Fixed viewport presets and session actions live in the footer menu. The idle countdown appears only in the final five minutes. Full panel, activity, and settings states are in Storybook under Browser Use.</p>
         {(["running", "idle", "closing-soon", "closed"] as const).map((state) => (
           <SubSection key={state} title={state === "closing-soon" ? "Closing soon" : state}>
             <TaskBrowserFooter

@@ -36,7 +36,7 @@ export function dashboardService(db: Db) {
         .where(eq(companies.id, companyId))
         .then((rows) => rows[0] ?? null));
 
-      if (!company) throw notFound("Company not found");
+      if (!company) throw notFound("Outpost not found");
 
       const agentRows = await retryIdempotentDatabaseOperation(() => db
         .select({ status: agents.status, count: sql<number>`count(*)` })

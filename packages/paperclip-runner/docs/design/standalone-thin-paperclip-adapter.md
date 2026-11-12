@@ -1,19 +1,19 @@
-# Standalone Thin Paperclip Adapter Boundary
+# Standalone Thin Outpost Adapter Boundary
 
-> **Scope correction — 2026-08-09:** The board superseded real Paperclip
+> **Scope correction — 2026-08-09:** The board superseded real Outpost
 > installation and live-instance execution for the current checkpoint. Active
 > Standalone work is limited to the standalone demo runner and demo page under
 > `packages/paperclip-runner/`. Product/server/database sections below are
 > retained as historical design context, not current execution instructions.
 
-Status: design approved; remediation 8 documentation reconciliation complete; final CTO gate pending
+Status: design approved; remediation 8 documentation reconciliation complete; final Engineering Lead gate pending
 Date: 2026-08-09
-Decision scope: the first feature-flagged Paperclip native run, including the
+Decision scope: the first feature-flagged Outpost native run, including the
 normative native finalizer and server-owned Section 18 status arbitration
 
 ## Decision
 
-Paperclip will integrate the native runner through two public package ports:
+Outpost will integrate the native runner through two public package ports:
 
 - `NativeSessionBackend` owns a normalized native session and hides the
   package's concrete `HarnessDriver` and Codex implementation.
@@ -21,10 +21,10 @@ Paperclip will integrate the native runner through two public package ports:
   package and exposes durable acknowledgement and replay cursors.
 
 The two ports are complementary, not two core implementations. The runner
-package supplies the `NativeSessionBackend` implementation; Paperclip supplies
+package supplies the `NativeSessionBackend` implementation; Outpost supplies
 the server-bound `ControlPlanePort` implementation. The core adapter only
 composes those public contracts and translates the final result into existing
-Paperclip types. It does not implement a native backend or contain runner
+Outpost types. It does not implement a native backend or contain runner
 behavior.
 
 The dependency direction is one way:
@@ -34,12 +34,12 @@ server heartbeat orchestration
   -> PaperclipNativeRuntimeAdapter (core seam)
       -> @paperclipai/paperclip-runner public contracts
           -> NativeSessionBackend -> package-owned driver/runner logic
-          -> ControlPlanePort      -> server-bound Paperclip implementation
+          -> ControlPlanePort      -> server-bound Outpost implementation
 ```
 
 `packages/paperclip-runner/` never imports `server/`, `packages/db/`,
-`packages/shared/`, or a Paperclip service. The server may import the public
-package. The core seam may translate company-scoped Paperclip records into the
+`packages/shared/`, or an Outpost service. The server may import the public
+package. The core seam may translate company-scoped Outpost records into the
 public input types, persist protocol records, and convert one terminal native
 result into the existing `AdapterExecutionResult`. It must not contain driver,
 provider, reducer, outbox, reconnect, or process-supervision logic.
@@ -56,7 +56,7 @@ The original `ControlPlanePort` and `NativeRunEvent` sketch proves the Conforman
 lifecycle, while the accepted Replay-5 path uses `PrpEvent`,
 `PrpStructuredRunResult`, durable source sequences, and replay. Before the real
 adapter is added, the package contract must be reconciled without importing
-Paperclip types:
+Outpost types:
 
 ```ts
 interface ControlPlanePort {
@@ -87,7 +87,7 @@ inside the package; no production adapter may invent a second event type.
 
 `NativeSessionBackend` remains the control-plane-facing session contract. A
 package-local backend adapts `HarnessDriver`/`HarnessSession` into it, including
-the accepted semantic result stored in the harness snapshot. Paperclip core
+the accepted semantic result stored in the harness snapshot. Outpost core
 must not construct `CodexAppServerDriver` or inspect provider notifications.
 
 ## Core branch point
@@ -107,7 +107,7 @@ const adapterResult = mode.kind === "native"
   : await adapter.execute(existingLegacyExecutionContext);
 ```
 
-Everything before the branch remains Paperclip-owned preparation. Shared
+Everything before the branch remains Outpost-owned preparation. Shared
 cleanup after either branch still owns usage/cost accounting, session and agent
 state, audit/live events, environment lease release, runtime service release,
 and scratch cleanup. Native mode replaces only the legacy terminal heuristic:
@@ -246,7 +246,7 @@ Turning `enableNativeRunner` off is the kill switch:
 
 This gives rollback without dual execution or ambiguous event history.
 
-## Company, authentication, and threat boundary
+## Outpost, authentication, and threat boundary
 
 The real `ControlPlanePort` is constructed inside the server with a bound
 `companyId`, `runId`, `issueId`, `agentId`, and `sourceInstanceId` loaded from
@@ -315,7 +315,7 @@ The runner, package driver, and model/harness never receive:
 - the local agent JWT, `PAPERCLIP_API_KEY`, a board session, or a board API key;
 - managed MCP gateway credentials, runner-lease/bootstrap credentials, or
   credential-broker secret material;
-- rendered Paperclip wake text, Paperclip skill instructions, the Paperclip API
+- rendered Outpost wake text, Outpost skill instructions, the Outpost API
   manual, or run-scoped skill material;
 - raw `process.env`, agent/project/routine env maps, `runtimeConfig.env`, or the
   legacy adapter's generic execution context;
@@ -389,7 +389,7 @@ superseding assessment instead of overwriting organizational authority.
 
 ## Existing lifecycle mapping
 
-| Paperclip concern | Standalone mapping | Owner |
+| Outpost concern | Standalone mapping | Owner |
 |---|---|---|
 | Checkout and issue execution lock | Unchanged; resolved before native selection | Existing issue/heartbeat services |
 | Budget and pause gate | Unchanged pre-dispatch check | Existing budget/invokability services |
@@ -530,7 +530,7 @@ Required shared cases:
 
 ## Test matrix
 
-| ID | Concern | Mock | Real Paperclip | Legacy assertion |
+| ID | Concern | Mock | Real Outpost | Legacy assertion |
 |---|---|---:|---:|---|
 | P6-01 | Default flag off | — | yes | `adapter.execute` called exactly once; no native rows |
 | P6-02 | Per-agent opt-in absent | — | yes | Same as current path |
@@ -602,7 +602,7 @@ Required shared cases:
     terminal replay, and legacy regression proofs, then disable new dispatch.
 12. Add the package-local tracer/tutorial/evidence and run one safe local Codex
     task only after deterministic tests pass. Stop for mandatory Security and
-    CTO implementation review before QA or wider opt-in.
+    Engineering Lead implementation review before QA or wider opt-in.
 
 ## Exact files that may change
 
@@ -630,7 +630,7 @@ packages/paperclip-runner/docs/architecture.md
 packages/paperclip-runner/.paperclip-local/log.md
 ```
 
-### Paperclip storage, adapter, finalizer, and read seam
+### Outpost storage, adapter, finalizer, and read seam
 
 ```text
 server/package.json
@@ -691,7 +691,7 @@ Standalone does not scatter versioning edits across unrelated writers. The nativ
 committer calls transaction-aware existing issue, blocker, review, interaction,
 recovery, wake, activity, and live-event entry points; if one of those files
 must change to expose such an entry point, implementation pauses for an
-allowlist amendment and CTO review. In particular, Standalone must not change a
+allowlist amendment and Engineering Lead review. In particular, Standalone must not change a
 concrete legacy adapter, approval authority, browser UI, workspace policy,
 budget policy, or activity semantics merely to make the tracer pass.
 
@@ -1041,7 +1041,7 @@ pnpm --filter @paperclipai/paperclip-runner trace:standalone -- \
   --target mock --scenario happy-path
 ```
 
-First real Paperclip tracer and inspection (against an isolated local dev
+First real Outpost tracer and inspection (against an isolated local dev
 instance with the five `PAPERCLIP_*` identifiers/auth variables already set):
 
 ```sh
@@ -1161,7 +1161,7 @@ separately approved Section 18.12 operator UX gate.
 
 ## Approval questions
 
-The CTO can approve or reject this record by deciding these five points:
+The Engineering Lead can approve or reject this record by deciding these five points:
 
 1. Is the one-way package dependency and single heartbeat branch narrow enough?
 2. Is the default-off instance flag plus per-agent opt-in an acceptable first

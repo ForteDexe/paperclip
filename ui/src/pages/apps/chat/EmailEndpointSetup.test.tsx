@@ -585,14 +585,14 @@ describe("AgentMail two-step setup", () => {
     await mount(false);
     await fill('input[type="password"]', "private-test-key");
     await vi.waitFor(() => expect(button("Continue").disabled).toBe(false));
-    mocks.listInboxes.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    mocks.listInboxes.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await act(async () => {
       await client.refetchQueries({ queryKey: ["email-inboxes", "company"] });
     });
     expect(mocks.listInboxes).toHaveBeenCalledTimes(2);
     expect(button("Continue").disabled).toBe(false);
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
   });
 

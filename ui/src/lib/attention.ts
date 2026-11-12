@@ -240,7 +240,7 @@ export function attentionDetailLine(item: AttentionItem): string | null {
       return b.title ? `Blocked by ${id}${b.title}` : b.identifier ? `Blocked by ${b.identifier}` : null;
     }
     case "budget":
-      return `${Math.round(detail.observedPercent)}% of budget used ($${detail.amountObserved} / $${detail.amountLimit})`;
+      return "A legacy policy threshold was reached";
     case "generic":
       return quote(detail.summaryExcerpt);
     default:

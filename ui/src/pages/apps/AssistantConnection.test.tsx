@@ -168,27 +168,27 @@ describe("assistant setup from Connections", () => {
     mocks.connections.mockResolvedValue([grant]);
     await render(<AssistantConnectionCard onNavigate={vi.fn()} />);
     expect(container.querySelector('[aria-label="Manage Assistant Connection (MCP)"]')).not.toBeNull();
-    mocks.connections.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    mocks.connections.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await act(async () => { await client.invalidateQueries({ queryKey: ["mcp-connections"] }); });
     await flush();
     expect(container.querySelector('[aria-label="Manage Assistant Connection (MCP)"]')).not.toBeNull();
     expect(container.querySelector('[data-connected]')?.getAttribute("data-connected")).toBe("true");
     expect(container.textContent).toContain("Dotta’s OpenCode connection");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
   it("keeps connected assistants listed when the page's refetch fails transiently", async () => {
     mocks.connections.mockResolvedValue([grant]);
     await render();
     expect(container.textContent).toContain("Dotta’s OpenCode connection");
-    mocks.connections.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+    mocks.connections.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
     await act(async () => { await client.invalidateQueries({ queryKey: ["mcp-connections"] }); });
     await flush();
     expect(container.textContent).toContain("Dotta’s OpenCode connection");
     expect(container.querySelector('[aria-label="Revoke Dotta’s OpenCode connection"]')).not.toBeNull();
     expect(container.textContent).not.toContain("No assistants connected");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
   it("shows readable copy and a Retry when the connection list fails for real", async () => {
     mocks.connections.mockRejectedValueOnce(new ApiError("Boom", 500, { error: "Boom" }));

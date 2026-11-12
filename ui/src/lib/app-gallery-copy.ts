@@ -80,7 +80,7 @@ const APP_COPY: Record<string, AppCopy> = {
   },
   gauge: {
     tagline: "Track your brand in AI answers and run content workflows.",
-    short: "Sign in with Gauge and pick an organization. API keys are optional.",
+    short: "Sign in with Gauge and pick an outpost. API keys are optional.",
   },
   neon: {
     tagline: "Manage Postgres projects, branches, and queries.",

@@ -5,9 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { estimateStatusCardCost } from "./format";
 
 export interface StatusCardSettingsValue {
   refreshPolicy: StatusCardRefreshPolicy;
@@ -90,7 +88,6 @@ export function StatusCardSettingsForm({
   // *automatic* updates. In Manual mode none of them apply, so the whole
   // "Advanced" group is hidden rather than shown-but-dimmed.
   const autoUpdating = policy.mode !== "manual";
-  const costEstimate = estimateStatusCardCost(policy);
 
   const setPolicy = (patch: Partial<StatusCardRefreshPolicy>) =>
     onChange({ ...value, refreshPolicy: { ...policy, ...patch } });
@@ -275,22 +272,6 @@ export function StatusCardSettingsForm({
         </Collapsible>
       ) : null}
 
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-semibold">Estimated cost</span>
-        <span className="text-muted-foreground">=</span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="cursor-default font-medium text-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">
-              {costEstimate.cost}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-(--sz-18rem) text-left">
-            <p>{costEstimate.primary}</p>
-            {costEstimate.note ? <p className="mt-1 opacity-80">{costEstimate.note}</p> : null}
-            <p className="mt-1 opacity-80">Rough estimate from typical update sizes; actual cost is tracked per update.</p>
-          </TooltipContent>
-        </Tooltip>
-      </div>
     </div>
   );
 }

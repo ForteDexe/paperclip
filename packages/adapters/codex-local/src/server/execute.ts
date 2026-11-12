@@ -494,7 +494,7 @@ function buildCodexTransientHandoffNote(input: {
   continuationSummaryBody: string | null;
 }): string {
   return [
-    "Paperclip session handoff:",
+    "Outpost session handoff:",
     input.previousSessionId ? `- Previous session: ${input.previousSessionId}` : "",
     "- Rotation reason: repeated Codex transient remote-compaction failures",
     `- Fallback mode: ${input.fallbackMode}`,
@@ -791,9 +791,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
             launch: ctx.observability, sourceProfile: selectedCodexProfile(buildCodexExecArgs(config).args) });
         } catch {
           observabilityPreparationFailed = true;
-          await onLog("stderr", "[paperclip] Company observability configuration could not be prepared; execution continues with export disabled.\n");
+          await onLog("stderr", "[paperclip] Outpost observability configuration could not be prepared; execution continues with export disabled.\n");
         }
-      } else await onLog("stderr", "[paperclip] Company observability is unavailable for a caller-owned Codex home.\n");
+      } else await onLog("stderr", "[paperclip] Outpost observability is unavailable for a caller-owned Codex home.\n");
     }
     for (const note of preparedRuntimeConfig.notes) {
       await onLog("stdout", `[paperclip] ${note}\n`);
@@ -1102,7 +1102,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       if (!qualified) {
         await observabilityProfile.cleanup();
         observabilityProfile = null;
-        await onLog("stderr", "[paperclip] Company observability was not applied: this Codex executable is not the qualified 0.160.0 release.\n");
+        await onLog("stderr", "[paperclip] Outpost observability was not applied: this Codex executable is not the qualified 0.160.0 release.\n");
       }
     }
     const loggedEnv = buildInvocationEnvForLogs(env, {
@@ -1165,7 +1165,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
     const repoAgentsNote =
-      "Codex exec automatically applies repo-scoped AGENTS.md instructions from the current workspace; Paperclip does not currently suppress that discovery.";
+      "Codex exec automatically applies repo-scoped AGENTS.md instructions from the current workspace; Outpost does not currently suppress that discovery.";
     const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
     const templateData = {
       agentId: agent.id,

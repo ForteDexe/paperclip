@@ -286,7 +286,7 @@ function sourceMeta(sourceBadge: CompanySkillSourceBadge, sourceLabel: string | 
     case "local":
       return { icon: Folder, label: sourceLabel ?? "Folder", managedLabel: "Folder managed" };
     case "paperclip":
-      return { icon: Paperclip, label: sourceLabel ?? "Paperclip", managedLabel: "Paperclip managed" };
+      return { icon: Paperclip, label: sourceLabel ?? "Outpost", managedLabel: "Outpost managed" };
     default:
       return { icon: Boxes, label: sourceLabel ?? "Catalog", managedLabel: "Catalog managed" };
   }
@@ -336,7 +336,7 @@ type SourceFilter = "all" | "company" | "bundled" | "optional" | "external";
 
 const SOURCE_FILTER_LABELS: Record<SourceFilter, string> = {
   all: "All",
-  company: "Organization",
+  company: "Outpost",
   bundled: "Bundled",
   optional: "Optional",
   external: "External",
@@ -517,7 +517,7 @@ function CompatChip({ compatibility }: { compatibility: CompanySkillCompatibilit
     unknown: {
       icon: HelpCircle,
       label: "Unknown format",
-      tooltip: "Paperclip could not validate this skill as Agent Skills markdown. Install at your own risk.",
+      tooltip: "Outpost could not validate this skill as Agent Skills markdown. Install at your own risk.",
       className: "border-yellow-500/40 bg-yellow-500/10 text-yellow-800 dark:text-yellow-200",
     },
     invalid: {
@@ -649,7 +649,7 @@ function categorySetKey(categories: string[]) {
 }
 
 function skillSettingsToastBody(skill: Pick<CompanySkillDetail, "categories" | "sharingScope">) {
-  const sharing = skill.sharingScope === "private" ? "Sharing: private" : "Sharing: organization";
+  const sharing = skill.sharingScope === "private" ? "Sharing: private" : "Sharing: outpost";
   const categories = skill.categories.length ? `Categories: ${skill.categories.join(", ")}` : "Categories: none";
   return `${sharing} | ${categories}`;
 }
@@ -725,7 +725,7 @@ export function buildDiscoveryCards(
       catalogRef: entry.id,
       name: entry.name,
       slug: entry.slug,
-      author: entry.packageName ?? "Paperclip",
+      author: entry.packageName ?? "Outpost",
       version: discoveryVersionLabel({ packageVersion: entry.packageVersion ?? null, sourceRef: null }, required),
       tagline: null,
       description: entry.description,
@@ -1141,7 +1141,7 @@ export function DiscoveryGrid({
   const viewDescription = authoredView
     ? "Skills you can open, edit and test in Studio."
     : installedView
-    ? "Skills available to this organization."
+    ? "Skills available to this outpost."
     : "Browse skills from every available source.";
   const searchLabel = authoredView ? "Search my skills" : installedView ? "Search installed skills" : "Search discoverable skills";
   // Source filter (github / skills.sh / local / …) lives in the grid so it
@@ -1570,7 +1570,7 @@ function NewSkillWizard({
             <span className="text-muted-foreground">Slug</span>
             <span className="font-mono">{effectiveSlug || "skill"}</span>
             <span className="text-muted-foreground">Scope</span>
-            <span>{draft.sharingScope === "private" ? "Private" : "Organization"}</span>
+            <span>{draft.sharingScope === "private" ? "Private" : "Outpost"}</span>
             <span className="text-muted-foreground">Categories</span>
             <span>{draft.categories.length ? draft.categories.join(", ") : "none"}</span>
           </div>
@@ -1587,9 +1587,9 @@ function NewSkillWizard({
                     draft.sharingScope === scope ? "border-foreground bg-accent/50" : "border-border",
                   )}
                 >
-                  <span className="block font-medium">{scope === "company" ? "Organization" : "Private"}</span>
+                  <span className="block font-medium">{scope === "company" ? "Outpost" : "Private"}</span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    {scope === "company" ? "Visible inside this organization." : "Only visible in your library."}
+                    {scope === "company" ? "Visible inside this outpost." : "Only visible in your library."}
                   </span>
                 </button>
               ))}
@@ -1831,7 +1831,7 @@ function CatalogDetailPane({
     cta = (
       <Button onClick={onInstall} disabled={loadingPrimaryAction}>
         {skill.trustLevel === "scripts_executables" ? <AlertTriangle className="mr-1.5 h-3.5 w-3.5" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-        {loadingPrimaryAction ? "Preparing..." : "Install skill in this organization"}
+        {loadingPrimaryAction ? "Preparing..." : "Install skill in this outpost"}
       </Button>
     );
   } else if (hashOutOfSync) {
@@ -2102,7 +2102,7 @@ export function InstallPreviewDialog({
             <div className="rounded-md border border-border p-3">
               <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Enable for agents</div>
               <p className="mb-2 text-xs text-muted-foreground">
-                Installing adds the skill to the organization library. Agents can only use it once it is enabled for them.
+                Installing adds the skill to the outpost library. Agents can only use it once it is enabled for them.
               </p>
               <AgentMultiSelect
                 agents={agents}
@@ -2112,7 +2112,7 @@ export function InstallPreviewDialog({
                   setSelectedAgentIds(next);
                 }}
                 showSelectionPreview={false}
-                emptyMessage="No agents in this organization support skills yet."
+                emptyMessage="No agents in this outpost support skills yet."
                 isAgentDisabled={(agent) => {
                   const option = agent as AttachAgentOption;
                   return option.required || !option.supportsSkills;
@@ -2242,7 +2242,7 @@ function AttachAgentsPopover({
           </select>
         </div>
       ) : null}
-      emptyMessage={eligible.length === 0 ? "No agents in this organization support skills yet." : "No agents yet."}
+      emptyMessage={eligible.length === 0 ? "No agents in this outpost support skills yet." : "No agents yet."}
       isAgentDisabled={(agent) => {
         const option = agent as AttachAgentOption;
         return option.required || !option.supportsSkills;
@@ -3314,7 +3314,7 @@ export function SkillDetailPage({
                     <span className="hidden sm:inline">{detail.attachedAgentCount === 1 ? "install" : "installs"}</span>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Agents in this organization that currently have this skill installed.</TooltipContent>
+                <TooltipContent>Agents in this outpost that currently have this skill installed.</TooltipContent>
               </Tooltip>
               <button
                 type="button"
@@ -3572,7 +3572,7 @@ export function SkillDetailPage({
                 disabled={updateSettingsPending}
                 className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
               >
-                <option value="company">Organization — visible inside this organization</option>
+                <option value="company">Outpost — visible inside this outpost</option>
                 <option value="private">Private — only visible in your library</option>
               </select>
               <p className="text-xs text-muted-foreground">Public link sharing is coming later.</p>
@@ -3604,7 +3604,7 @@ export function SkillDetailPage({
               <div className="rounded-md border border-destructive/40 p-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-destructive">Danger zone</div>
                 <div className="mt-2 flex items-center justify-between gap-3">
-                  <p className="min-w-0 text-xs text-muted-foreground">Remove this skill from the organization library.</p>
+                  <p className="min-w-0 text-xs text-muted-foreground">Remove this skill from the outpost library.</p>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -4407,7 +4407,7 @@ export function CompanySkills({ collectionView }: { collectionView?: "authored" 
       pushToast({
         tone: "success",
         title: skill.forkedFromSkillId ? "Skill fork created" : "Skill created",
-        body: `${skill.name} is now editable in the Paperclip workspace.`,
+        body: `${skill.name} is now editable in the Outpost workspace.`,
       });
     },
     onError: (error) => {
@@ -5058,7 +5058,7 @@ export function CompanySkills({ collectionView }: { collectionView?: "authored" 
       pushToast({
         tone: "success",
         title: "Skill removed",
-        body: `${skill.name} was removed from the organization skill library.`,
+        body: `${skill.name} was removed from the Outpost skill library.`,
       });
     },
     onError: (error) => {
@@ -5103,7 +5103,7 @@ export function CompanySkills({ collectionView }: { collectionView?: "authored" 
   );
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Boxes} message="Select an organization to manage skills." />;
+    return <EmptyState icon={Boxes} message="Select an outpost to manage skills." />;
   }
 
   function handleAddSkillSource() {
@@ -5143,8 +5143,8 @@ export function CompanySkills({ collectionView }: { collectionView?: "authored" 
   const studioBackHref = studioForkDetailQuery.data ? routeForSkill(studioForkDetailQuery.data) : "/skills";
   const studioTitle = studioForkFromId ? "Fork skill" : "Create a new skill";
   const studioDescription = studioForkFromId
-    ? "Review the fork metadata and create an editable organization copy."
-    : "Create an editable organization skill in the Paperclip workspace.";
+    ? "Review the fork metadata and create an editable outpost copy."
+    : "Create an editable outpost skill in the Outpost workspace.";
   return (
     <>
       {policyDenial.denial ? (
@@ -5157,7 +5157,7 @@ export function CompanySkills({ collectionView }: { collectionView?: "authored" 
           <DialogHeader>
             <DialogTitle>Remove skill</DialogTitle>
             <DialogDescription>
-              Remove this skill from the organization library. If any agents still use it, removal will be blocked until it is detached.
+              Remove this skill from the outpost library. If any agents still use it, removal will be blocked until it is detached.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
@@ -5271,7 +5271,7 @@ export function CompanySkills({ collectionView }: { collectionView?: "authored" 
           <DialogHeader>
             <DialogTitle>Import a skill</DialogTitle>
             <DialogDescription>
-              Paste a local path, GitHub URL, or `skills.sh` command to import a skill into this organization.
+              Paste a local path, GitHub URL, or `skills.sh` command to import a skill into this outpost.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

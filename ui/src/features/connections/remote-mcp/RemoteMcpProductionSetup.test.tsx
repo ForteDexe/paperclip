@@ -70,7 +70,7 @@ it("keeps saved access on screen when a refetch fails during an outage", async (
   await vi.waitFor(() => expect(container.querySelector('[data-testid="remote-mcp-setup"]')?.textContent).toBe("agent-1"));
 
   vi.mocked(toolsApi.getConnectionInstalls).mockRejectedValue(
-    new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+    new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
   );
   await act(async () => {
     await client.invalidateQueries();
@@ -78,7 +78,7 @@ it("keeps saved access on screen when a refetch fails during an outage", async (
 
   expect(container.querySelector('[data-testid="remote-mcp-setup"]')?.textContent).toBe("agent-1");
   expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-  expect(container.textContent).not.toContain("Paperclip is restarting.");
+  expect(container.textContent).not.toContain("Outpost is restarting.");
   expect(container.textContent).not.toContain("Loading saved access");
 });
 

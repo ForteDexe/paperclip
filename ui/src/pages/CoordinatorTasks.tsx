@@ -265,7 +265,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   const enrichItem = (item: TaskListItem): TaskListItem => ({ ...item, issue: enrichIssueRow(item.issue) });
   const narrowed = query || collection.activeFilterCount || view === "inbox" || view === "unread";
   const empty = <EmptyState icon={narrowed ? SearchX : ListChecks}
-    message={narrowed ? "No tasks match this view" : needsAttention ? "No tasks need a decision." : "No tasks in this organization"}
+    message={narrowed ? "No tasks match this view" : needsAttention ? "No tasks need a decision." : "No tasks in this outpost"}
     action={narrowed ? "Clear filters" : needsAttention ? undefined : "New Task"}
     onAction={narrowed ? clearFilters : () => openNewIssue()} />;
   const issueLinkState = createIssueDetailLocationState("Tasks", `${location.pathname}${location.search}`, "issues");
@@ -278,7 +278,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     if (collection.filters.liveOnly) void liveRuns.refetch();
   };
 
-  if (!companyId) return <EmptyState icon={ListChecks} message="Select an organization to view tasks." />;
+  if (!companyId) return <EmptyState icon={ListChecks} message="Select an outpost to view tasks." />;
   return <FlyoutAppearanceProvider><TruncatedTextMarqueeProvider><section ref={listRef} className="coordinator-task-list task-row-design-preview flex min-w-0 flex-col gap-8" aria-label="Tasks">
     <TaskListToolbar view={view} onViewChange={setView} viewControl={viewControl}
       query={collection.query} onQueryChange={collection.setQuery} layout={collection.layout} onLayoutChange={collection.setLayout}

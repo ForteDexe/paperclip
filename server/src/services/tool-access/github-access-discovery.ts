@@ -5,7 +5,7 @@ import { readGitHubRepositoryCatalogFailure } from "./github-repository-catalog-
 
 function gitHubRepositoryOwnerType(repository: Record<string, unknown>) {
   const type = recordValue(repository.owner) ? repository.owner.type : undefined;
-  return type === "Organization" ? "organization" as const
+  return type === "Outpost" ? "organization" as const
     : type === "User" ? "personal" as const : undefined;
 }
 
@@ -26,7 +26,7 @@ export async function loadGitHubTokenRepositories(
         headers: {
           ...headers,
           accept: "application/vnd.github+json",
-          "user-agent": "Paperclip",
+          "user-agent": "Outpost",
           "x-github-api-version": "2022-11-28",
         },
         signal: AbortSignal.timeout(15_000),
@@ -102,7 +102,7 @@ export async function loadGitHubGrantMetadata(
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${accessToken}`,
-        "user-agent": "Paperclip",
+        "user-agent": "Outpost",
         "x-github-api-version": "2022-11-28",
       },
       signal: AbortSignal.timeout(15_000),
@@ -244,7 +244,7 @@ export async function loadGitHubGrantMetadata(
       : "https://github.com/settings/installations";
     if (installationIds.length === 0 && suspendedCount > 0) {
       throw unprocessable(
-        "The Paperclip GitHub installation is suspended. Unsuspend it on GitHub before refreshing access.",
+        "The Outpost GitHub installation is suspended. Unsuspend it on GitHub before refreshing access.",
         {
           code: "github_installation_required",
           installationUrl,
@@ -256,7 +256,7 @@ export async function loadGitHubGrantMetadata(
       );
     }
     throw unprocessable(
-      "GitHub access is required. Install Paperclip and grant at least one repository before refreshing access.",
+      "GitHub access is required. Install Outpost and grant at least one repository before refreshing access.",
       {
         code: "github_installation_required",
         installationUrl,

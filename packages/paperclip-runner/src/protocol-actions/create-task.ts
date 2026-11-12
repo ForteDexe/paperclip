@@ -113,7 +113,7 @@ export const createTaskAction = {
             "description": "Self-contained task instructions with actual required inputs, exact payloads or accessible authorized source references, constraints, and requested outputs. The new task does not inherit this conversation. Do not use unresolved references such as provided above, or copy credentials or secrets.",
             "maxLength": 20000
           },
-          "assigneeUserId": { "type": ["string", "null"], "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId." },
+          "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
             "type": [
               "string",
@@ -239,7 +239,7 @@ export const createTaskAction = {
                 "type": "string",
                 "minLength": 1
               },
-              "assigneeUserId": { "type": ["string", "null"], "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId." },
+              "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
                 "type": [
                   "string",
@@ -287,7 +287,7 @@ export const createTaskAction = {
             "type": "string",
             "description": "Self-contained task instructions with actual required inputs, exact payloads or accessible authorized source references, constraints, and requested outputs. The new task does not inherit this conversation. Do not use unresolved references such as provided above, or copy credentials or secrets."
           },
-          "assigneeUserId": { "type": ["string", "null"], "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId." },
+          "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
             "type": "string"
           },

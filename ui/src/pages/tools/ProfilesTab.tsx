@@ -68,7 +68,7 @@ const SELECTOR_TYPES: Array<{ value: ToolProfileEntrySelectorType; label: string
 ];
 
 const TARGET_TYPES: Array<{ value: ToolProfileBindingTargetType; label: string }> = [
-  { value: "company", label: "Company" },
+  { value: "company", label: "Outpost" },
   { value: "agent", label: "Agent" },
   { value: "project", label: "Project" },
   { value: "routine", label: "Routine" },
@@ -156,7 +156,7 @@ function bindingLabel(
     routinesById: Map<string, string>;
   },
 ) {
-  if (targetType === "company") return targetId === labels.companyId ? "Company" : targetId;
+  if (targetType === "company") return targetId === labels.companyId ? "Outpost" : targetId;
   if (targetType === "agent") return labels.agentsById.get(targetId) ?? targetId;
   if (targetType === "project") return labels.projectsById.get(targetId) ?? targetId;
   if (targetType === "routine") return labels.routinesById.get(targetId) ?? targetId;
@@ -533,7 +533,7 @@ export function EffectiveAgentPanel({ companyId, agentOptions }: { companyId: st
                   <div key={profile.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <span className="min-w-0 truncate text-sm font-medium text-foreground">{profile.name}</span>
                     {profile.summary.isCompanyDefault ? (
-                      <Badge variant="secondary">Organization default</Badge>
+                      <Badge variant="secondary">Outpost default</Badge>
                     ) : null}
                   </div>
                 ))}
@@ -941,7 +941,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
         <EmptyState
           icon={Layers}
           message="No access profiles yet"
-          description="Create a profile to group tool selectors, then bind it to the organization or a specific agent."
+          description="Create a profile to group tool selectors, then bind it to the outpost or a specific agent."
           action="New profile"
           onAction={() => setCreateOpen(true)}
         />

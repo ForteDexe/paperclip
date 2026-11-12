@@ -11,14 +11,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -168,8 +160,8 @@ export function AgentBubbleActionRow({
 }
 
 /**
- * 👍/👎 feedback buttons with downvote-reason popover and a sharing-preference
- * prompt. Self-contained (no IssueChatCtx) so it is reused by both the task
+ * 👍/👎 feedback buttons with a local downvote-reason popover. Outpost keeps
+ * votes local and does not offer vendor sharing controls. Self-contained so it is reused by both the task
  * thread and the conference room via {@link AgentBubbleActionRow}.
  */
 export function IssueChatFeedbackButtons({
@@ -183,14 +175,12 @@ export function IssueChatFeedbackButtons({
   termsUrl: string | null;
   onVote: (vote: FeedbackVoteValue, options?: { allowSharing?: boolean; reason?: string }) => Promise<void>;
 }) {
+  void sharingPreference;
+  void termsUrl;
   const [isSaving, setIsSaving] = useState(false);
   const [optimisticVote, setOptimisticVote] = useState<FeedbackVoteValue | null>(null);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [downvoteReason, setDownvoteReason] = useState("");
-  const [pendingSharingDialog, setPendingSharingDialog] = useState<{
-    vote: FeedbackVoteValue;
-    reason?: string;
-  } | null>(null);
   const visibleVote = optimisticVote ?? activeVote ?? null;
 
   useEffect(() => {
@@ -213,13 +203,7 @@ export function IssueChatFeedbackButtons({
 
   function handleVote(vote: FeedbackVoteValue, reason?: string) {
     setOptimisticVote(vote);
-    if (sharingPreference === "prompt") {
-      setPendingSharingDialog({ vote, ...(reason ? { reason } : {}) });
-      return;
-    }
-    const allowSharing = sharingPreference === "allowed";
     void doVote(vote, {
-      ...(allowSharing ? { allowSharing: true } : {}),
       ...(reason ? { reason } : {}),
     });
   }
@@ -238,15 +222,7 @@ export function IssueChatFeedbackButtons({
   function handleSubmitReason() {
     if (!downvoteReason.trim()) return;
     // Re-submit with reason attached
-    if (sharingPreference === "prompt") {
-      setPendingSharingDialog({ vote: "down", reason: downvoteReason });
-    } else {
-      const allowSharing = sharingPreference === "allowed";
-      void doVote("down", {
-        ...(allowSharing ? { allowSharing: true } : {}),
-        reason: downvoteReason,
-      });
-    }
+    void doVote("down", { reason: downvoteReason });
     setReasonOpen(false);
     setDownvoteReason("");
   }
@@ -319,75 +295,6 @@ export function IssueChatFeedbackButtons({
           </div>
         </PopoverContent>
       </Popover>
-
-      <Dialog
-        open={Boolean(pendingSharingDialog)}
-        onOpenChange={(open) => {
-          if (!open && !isSaving) {
-            setPendingSharingDialog(null);
-            setOptimisticVote(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save your feedback sharing preference</DialogTitle>
-            <DialogDescription>
-              Choose whether voted AI outputs can be shared with Paperclip Labs. This
-              answer becomes the default for future thumbs up and thumbs down votes.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>This vote is always saved locally.</p>
-            <p>
-              Choose <span className="font-medium text-foreground">Always allow</span> to share
-              this vote and future voted AI outputs. Choose{" "}
-              <span className="font-medium text-foreground">Don't allow</span> to keep this vote
-              and future votes local.
-            </p>
-            <p>You can change this later in Settings &gt; General.</p>
-            {termsUrl ? (
-              <a
-                href={termsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex text-sm text-foreground underline underline-offset-4"
-              >
-                Read our terms of service
-              </a>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!pendingSharingDialog || isSaving}
-              onClick={() => {
-                if (!pendingSharingDialog) return;
-                void doVote(
-                  pendingSharingDialog.vote,
-                  pendingSharingDialog.reason ? { reason: pendingSharingDialog.reason } : undefined,
-                ).then(() => setPendingSharingDialog(null));
-              }}
-            >
-              {isSaving ? "Saving..." : "Don't allow"}
-            </Button>
-            <Button
-              type="button"
-              disabled={!pendingSharingDialog || isSaving}
-              onClick={() => {
-                if (!pendingSharingDialog) return;
-                void doVote(pendingSharingDialog.vote, {
-                  allowSharing: true,
-                  ...(pendingSharingDialog.reason ? { reason: pendingSharingDialog.reason } : {}),
-                }).then(() => setPendingSharingDialog(null));
-              }}
-            >
-              {isSaving ? "Saving..." : "Always allow"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

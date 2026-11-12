@@ -24,7 +24,7 @@ const FIELD_LABELS: Record<string, string> = {
   labelIds: "Labels",
   parentId: "Parent",
   projectId: "Project",
-  goalId: "Goal",
+  goalId: "North Star",
   workMode: "Work mode",
   reviewPolicy: "Who can approve",
   billingCode: "Billing code",

@@ -1,7 +1,7 @@
 {
   "name": "@paperclipai/plugin-createos",
   "version": "0.1.0",
-  "description": "CreateOS sandbox provider plugin for Paperclip environments",
+  "description": "CreateOS sandbox provider plugin for Outpost environments",
   "license": "MIT",
   "homepage": "https://github.com/paperclipai/paperclip",
   "bugs": {

@@ -39,7 +39,8 @@ import { checkExactPeerVersions } from "./peer-version-check.js";
 
 export { checkExactPeerVersions } from "./peer-version-check.js";
 
-const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+// Outpost keeps local tracing helpers but never starts a hosted exporter.
+const endpoint: string | undefined = undefined;
 
 let sdkShutdown: (() => Promise<void>) | null = null;
 let shutdownPromise: Promise<void> | null = null;

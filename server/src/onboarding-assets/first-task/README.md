@@ -4,8 +4,8 @@ Everything the very first agent is told during onboarding lives here as plain
 markdown so the board can edit the wording without touching TypeScript. The
 server loads these files (see `server/src/services/onboarding-first-task-assets.ts`
 and `server/src/services/onboarding-greeting.ts`) when it creates a new
-organization's first task and when it hires the first agent. The first agent
-also receives the bundled `first-task` skill through the normal company skill
+Outpost's first task and when it hires the first agent. The first agent
+also receives the bundled `first-task` skill through the normal Outpost skill
 inventory and agent skill assignment flow.
 
 ## Files
@@ -46,7 +46,8 @@ decide how an internal task continues.
 - `{{agentName}}` → the agent's chosen name. When the agent has no name the
   greeting drops the name gracefully ("I'm your first agent teammate"), matching
   the historical behaviour. Used in `greeting.md` and `chief-of-staff/AGENTS.md`.
-- `{{organizationName}}` → the organization (company) name. Used in
+- `{{organizationName}}` → the Outpost name. The compatibility placeholder name
+  is unchanged. Used in
   `chief-of-staff/AGENTS.md`.
 - `{{proposalMode}}` (in `brief.md` only) → `confirmation` or `plan`, chosen by
   the `enableFirstTaskPlanProposal` toggle. The skill contains the policy for
@@ -64,11 +65,11 @@ change an existing first task.
 
 ## Skill assignment and invocation
 
-The company skill service imports `skills/first-task/SKILL.md` with canonical
+The Outpost skill service imports `skills/first-task/SKILL.md` with canonical
 key `paperclipai/paperclip/first-task` and runtime name `first-task`. The agent
 create and hire routes add it alongside the five core skills for board-created
 `onboardingFirstAgent` agents on skills-capable adapters, including Codex and
-Claude. Ordinary CEOs and other agents do not receive it automatically.
+Claude. Other agents do not receive it automatically.
 
 The hidden description asks the agent to read and follow the skill before
 responding, including subsequent wakes on that task. The user does not need to
@@ -93,5 +94,5 @@ opening card, and initial no-wake behavior are unchanged.
    not migrate existing first tasks or assign the skill to existing agents.
 3. **Skill text follows normal bundled-skill refresh.** Agents assigned the
    unpinned `first-task` skill receive its current bundled contents through the
-   company inventory. Its policy can therefore update independently of the
+   Outpost inventory. Its policy can therefore update independently of the
    saved invocation; the proposal mode remains the one stored on the task.

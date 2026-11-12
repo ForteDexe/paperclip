@@ -113,7 +113,7 @@ export function useLocalAiLogin(companyId: string | null, intent: AiConnectionLo
       }
     },
     connect: (input = intent) => {
-      if (!companyId) throw new Error("Choose a company before connecting.");
+      if (!companyId) throw new Error("Choose a outpost before connecting.");
       if (isolated && !attempt) throw new Error("Prepare local sign-in before connecting.");
       return aiConnectionsApi.connectLocal(companyId, { ...input, ...(attempt ? { localSessionId: attempt.sessionId } : {}) });
     },

@@ -3184,7 +3184,7 @@ export function buildHostServices(
       async update(params) {
         const companyId = ensureCompanyId(params.companyId);
         await ensurePluginAvailableForCompany(companyId);
-        requireInCompany("Goal", await goals.getById(params.goalId), companyId);
+        requireInCompany("North Star", await goals.getById(params.goalId), companyId);
         return (await goals.update(params.goalId, params.patch as any)) as Goal;
       },
     },
@@ -3442,8 +3442,8 @@ export function buildHostServices(
           });
         } else {
           const company = await companies.getById(params.resourceId);
-          if (!company || company.id !== companyId) throw new Error("Company not found");
-          throw new Error("Company authorization policy updates are not supported by the current core schema");
+          if (!company || company.id !== companyId) throw new Error("Outpost not found");
+          throw new Error("Outpost authorization policy updates are not supported by the current core schema");
         }
         await logPluginActivity({
           companyId,

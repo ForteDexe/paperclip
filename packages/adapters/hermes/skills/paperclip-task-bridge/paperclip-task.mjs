@@ -16,9 +16,9 @@ Usage:
   paperclip-task.mjs update-status --issue <id|identifier> --status <status> [--comment <text>|--comment-file <path|->]
 
 Environment:
-  PAPERCLIP_API_URL    Paperclip base URL, with or without /api.
+  PAPERCLIP_API_URL    Outpost base URL, with or without /api.
   PAPERCLIP_BRIDGE_API_KEY
-                       Task-bridge Paperclip API key with kind=task_bridge scope.
+                       Task-bridge Outpost API key with kind=task_bridge scope.
   PAPERCLIP_API_KEY    Fallback bridge key env var. Do not use a full agent key.
   PAPERCLIP_COMPANY_ID Optional company id override.
   PAPERCLIP_AGENT_ID   Optional agent id override.
@@ -28,7 +28,7 @@ create-task options:
   --assignee-agent-id <uuid|self>  Assign to an agent. Defaults to self.
   --unassigned                    Create backlog/unassigned work.
   --parent-id <uuid>              Parent issue id.
-  --goal-id <uuid>                Goal id.
+  --goal-id <uuid>                North Star id.
   --project-id <uuid>             Project id.
   --priority <critical|high|medium|low>
   --status <backlog|todo|in_progress|in_review|done|blocked|cancelled>
@@ -45,7 +45,7 @@ class UsageError extends Error {
 
 class ApiError extends Error {
   constructor(status, body) {
-    const message = typeof body?.error === "string" ? body.error : `Paperclip API request failed with status ${status}`;
+    const message = typeof body?.error === "string" ? body.error : `Outpost API request failed with status ${status}`;
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -166,7 +166,7 @@ async function resolveIdentity(config) {
   const agent = await apiFetch(config, "/agents/me");
   const companyId = config.companyId || agent.companyId;
   const agentId = config.agentId || agent.id;
-  if (!companyId || !agentId) throw new ApiError(500, { error: "Paperclip identity response did not include companyId and agent id" });
+  if (!companyId || !agentId) throw new ApiError(500, { error: "Outpost identity response did not include companyId and agent id" });
   return { companyId, agentId, agent };
 }
 

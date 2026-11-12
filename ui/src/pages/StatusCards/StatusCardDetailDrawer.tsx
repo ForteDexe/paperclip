@@ -33,7 +33,6 @@ import {
 } from "./StatusCardSettingsForm";
 import { SummarizerAgentSelect } from "./SummarizerAgentSelect";
 import {
-  formatCents,
   formatTokens,
   formatTokenSplit,
   rollupUpdatesToday,
@@ -378,7 +377,7 @@ export function StatusCardDetailDrawer({
             </TabsContent>
 
             <TabsContent value="history" className="mt-0 space-y-3">
-              {/* History and cost live together: the today rollup up top, then
+              {/* History includes the today token rollup, then
                   every recorded update (each update is one summary revision). */}
               {updatesQuery.isLoading || updatesView.kind === "reconnecting" ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -391,7 +390,7 @@ export function StatusCardDetailDrawer({
                   <div className="text-xs text-muted-foreground">
                     Today: {todayRollup.updateCount}{" "}
                     {todayRollup.updateCount === 1 ? "update" : "updates"} ·{" "}
-                    {formatTokens(todayRollup.totalTokens)} · {formatCents(todayRollup.totalCostCents)}
+                    {formatTokens(todayRollup.totalTokens)}
                     {card.refreshPolicy.dailyTokenCap ? ` · daily cap ${formatTokens(card.refreshPolicy.dailyTokenCap)}` : ""}
                   </div>
                   <div className="divide-y divide-border">
@@ -409,7 +408,7 @@ export function StatusCardDetailDrawer({
                           </span>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {formatTokenSplit(update.inputTokens, update.outputTokens)} · {formatCents(update.costCents)}
+                          {formatTokenSplit(update.inputTokens, update.outputTokens)}
                           {update.model ? ` · ${update.model}` : ""}
                           {update.changes.length > 0 ? ` · ${update.changes.length} changes` : ""}
                         </p>

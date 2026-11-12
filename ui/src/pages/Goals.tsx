@@ -18,7 +18,7 @@ export function Goals() {
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Goals" }]);
+    setBreadcrumbs([{ label: "North Stars" }]);
   }, [setBreadcrumbs]);
 
   const goalsQuery = useQuery({
@@ -30,7 +30,7 @@ export function Goals() {
   const goalsView = useQueryView(goalsQuery);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Target} message="Select an organization to view goals." />;
+    return <EmptyState icon={Target} message="Select an outpost to view north stars." />;
   }
 
   // Keep a loaded list on screen through a failed refetch; only a real
@@ -43,7 +43,7 @@ export function Goals() {
       <QueryErrorState
         size="page"
         error={goalsView.error}
-        action="load goals"
+        action="load north stars"
         onRetry={goalsView.retry}
         retrying={goalsView.isFetching}
       />
@@ -55,8 +55,8 @@ export function Goals() {
       {goals && goals.length === 0 && (
         <EmptyState
           icon={Target}
-          message="No goals yet."
-          action="Add Goal"
+          message="No north stars yet."
+          action="Add North Star"
           onAction={() => openNewGoal()}
         />
       )}
@@ -66,7 +66,7 @@ export function Goals() {
           <div className="flex items-center justify-start">
             <Button size="sm" variant="outline" onClick={() => openNewGoal()}>
               <Plus className="h-3.5 w-3.5 mr-1.5" />
-              New Goal
+              New North Star
             </Button>
           </div>
           <GoalTree goals={goals} goalLink={(goal) => `/goals/${goal.id}`} />

@@ -42,7 +42,6 @@ import { withAccountingReadSnapshot, withAccountingTransaction, withOperationAcc
 import { logActivity, type LogActivityInput, type ActivityPublication } from "./activity-log.js";
 import { computeObservedSpend, computeObservedSpends, type ObservedSpend } from "./budget-exposure.js";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "./delivery-work-notifications.js";
-import { listPendingBudgetCancellationScopes } from "./heartbeat/budget-cancellation.js";
 import { withBudgetSpan } from "./budget-tracing.js";
 import { queueBudgetEvaluation } from "./budget-evaluation-work.js";
 export { computeObservedSpend, computeObservedSpends } from "./budget-exposure.js";
@@ -55,6 +54,13 @@ type ScopeRecord = {
   pauseReason: PauseReason | null;
   budgetHeld: boolean;
 };
+
+type BudgetAdmissionBlock = {
+  scopeType: BudgetScopeType;
+  scopeId: string;
+  scopeName: string;
+  reason: string;
+} | null;
 
 type PolicyRow = typeof budgetPolicies.$inferSelect;
 type IncidentRow = typeof budgetIncidents.$inferSelect;
@@ -122,7 +128,7 @@ async function resolveScopeRecord(db: Db, scopeType: BudgetScopeType, scopeId: s
       .from(companies)
       .where(eq(companies.id, scopeId))
       .then((rows) => rows[0] ?? null);
-    if (!row) throw notFound("Company not found");
+    if (!row) throw notFound("Outpost not found");
     return {
       companyId: row.companyId,
       name: row.name,
@@ -227,7 +233,7 @@ async function readAdmissionScopes(db: Db, companyId: string, agentId: string | 
 
 function scopePauseBlock(scopeType: BudgetScopeType, scopeId: string, scope: ScopeRecord, hasPolicies: boolean) {
   if (scopeType !== "agent" && scope.paused && scope.pauseReason !== "budget") {
-    return { scopeType, scopeId, scopeName: scope.name, reason: `${scopeType === "company" ? "Company" : "Project"} is paused and cannot start new work.` };
+    return { scopeType, scopeId, scopeName: scope.name, reason: `${scopeType === "company" ? "Outpost" : "Project"} is paused and cannot start new work.` };
   }
   if (scope.paused && scope.pauseReason === "budget" && !hasPolicies) {
     return { scopeType, scopeId, scopeName: scope.name, reason: "Budget pause requires a policy or an explicit operator resume." };
@@ -679,142 +685,35 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
   }
 
   async function reconcileScope(companyId: string, scopeType: BudgetScopeType, scopeId: string,
-    prepared?: { scope: ScopeRecord; policies: PolicyRow[]; observations: ObservedSpend[] }) {
-    const scope = prepared?.scope ?? await resolveScopeRecord(db, scopeType, scopeId);
-    if (scope.companyId !== companyId) throw notFound("Budget scope not found");
-    const policies = prepared?.policies ?? await db.select().from(budgetPolicies).where(and(
-      eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.scopeType, scopeType), eq(budgetPolicies.scopeId, scopeId),
-    ));
-    const observations = prepared?.observations ?? await computeObservedSpends(db, policies, now);
-    const title = scopeType === "company" ? "Company" : scopeType === "agent" ? "Agent" : "Project";
-    for (const [index, policy] of policies.entries()) {
-      const observed = observations[index];
-      if (hardStopReached(policy, observed)) {
-        await createIncidentIfNeeded(policy, "hard", observed);
-        await pauseAndCancelScopeForBudget(policy, !scope.budgetHeld);
-        if (unpricedUsageBlocks(policy, observed)) {
-          return { scopeType, scopeId, scopeName: scope.name, reason: `${title} cannot start work because recorded usage has no reliable price.` };
-        }
-        return { scopeType, scopeId, scopeName: scope.name, reason: scopeType === "project"
-          ? "Project cannot start work because its budget hard-stop is still exceeded."
-          : `${title} is paused because its budget hard-stop was reached.` };
-      }
-      // A closed UTC window, inactive policy, or budget raise releases only
-      // budget-owned pauses. Manual pauses remain operator decisions.
-      await resolveOpenIncidentsForPolicy(policy.id, policy.companyId, "approved", "budget_service", "hard");
-      if (shouldResolveSoftIncident(policy, observed)) {
-        await resolveOpenIncidentsForPolicy(policy.id, policy.companyId, "approved", "budget_service", "soft");
-      }
-    }
-    const pauseBlock = scopePauseBlock(scopeType, scopeId, scope, policies.length > 0);
-    if (pauseBlock) return pauseBlock;
-    if (scope.budgetHeld && policies[0]) await resumeScopeFromBudget(policies[0]);
+    prepared?: { scope: ScopeRecord; policies: PolicyRow[]; observations: ObservedSpend[] }): Promise<BudgetAdmissionBlock> {
+    // Monetary policy storage is retained for data compatibility, but Outpost
+    // does not enforce those policies or create new budget-owned pauses.
+    void companyId;
+    void scopeType;
+    void scopeId;
+    void prepared;
     return null;
   }
 
   async function evaluateAffectedScopes(companyId: string, agentId: string | null, projectId: string | null,
     prepared?: { policies: PolicyRow[]; observations: ObservedSpend[] }) {
-    const candidatePolicies = prepared?.policies ?? await db
-      .select()
-      .from(budgetPolicies)
-      .where(
-        and(
-          eq(budgetPolicies.companyId, companyId),
-          eq(budgetPolicies.isActive, true),
-          budgetPoliciesForRun(companyId, agentId, projectId),
-        ),
-      );
-
-    const policies = candidatePolicies.filter(policy => policy.isActive && policy.metric === "billed_cents" && policy.amount > 0);
-    const observations = prepared ? policies.map(policy => prepared.observations[prepared.policies.findIndex(row => row.id === policy.id)])
-      : await computeObservedSpends(db, policies, now);
-    for (const [index, policy] of policies.entries()) {
-      const observed = observations[index];
-      const observedAmount = observed.total;
-      const softThreshold = Math.ceil((policy.amount * policy.warnPercent) / 100);
-
-      if (policy.notifyEnabled && compareCents(observed.totalExact, softThreshold) >= 0 && (!policy.hardStopEnabled || compareCents(observed.totalExact, policy.amount) < 0)) {
-        const softIncident = await createIncidentIfNeeded(policy, "soft", observed);
-        if (softIncident?.created) {
-          await recordActivity({
-            companyId: policy.companyId,
-            actorType: "system",
-            actorId: "budget_service",
-            action: "budget.soft_threshold_crossed",
-            entityType: "budget_incident",
-            entityId: softIncident.incident.id,
-            details: {
-              scopeType: policy.scopeType,
-              scopeId: policy.scopeId,
-              amountObserved: observedAmount,
-              amountLimit: policy.amount,
-            },
-          });
-        }
-      }
-
-      if (hardStopReached(policy, observed)) {
-        await resolveOpenSoftIncidents(policy.id, policy.companyId);
-        const hardIncident = await createIncidentIfNeeded(policy, "hard", observed);
-        await pauseAndCancelScopeForBudget(policy);
-        if (hardIncident?.created) {
-          await recordActivity({
-            companyId: policy.companyId,
-            actorType: "system",
-            actorId: "budget_service",
-            action: "budget.hard_threshold_crossed",
-            entityType: "budget_incident",
-            entityId: hardIncident.incident.id,
-            details: {
-              scopeType: policy.scopeType,
-              scopeId: policy.scopeId,
-              amountObserved: observedAmount,
-              amountLimit: policy.amount,
-              approvalId: hardIncident.incident.approvalId ?? null,
-            },
-          });
-        }
-      }
-    }
-    // A final receipt or price correction can reduce a partial observation.
-    // Release only this scope's budget-owned hold after all its policies agree.
-    const healthyScopes = new Map<string, PolicyRow>();
-    for (const [index, policy] of policies.entries()) {
-      if (!hardStopReached(policy, observations[index])) healthyScopes.set(`${policy.scopeType}:${policy.scopeId}`, policy);
-    }
-    for (const policy of healthyScopes.values()) {
-      const scope = await resolveScopeRecord(db, policy.scopeType as BudgetScopeType, policy.scopeId);
-      if (scope.budgetHeld) await resumeScopeFromBudget(policy);
-    }
+    void companyId;
+    void agentId;
+    void projectId;
+    void prepared;
+    return;
   }
 
   async function evaluateAdmissionInTransaction(companyId: string, agentId: string | null,
-    context?: AdmissionContext) {
-    const { scopes, records, policies } = await readAdmissionScopes(db, companyId, agentId, context);
-    const observations = await computeObservedSpends(db, policies, now);
-    const reservationIndexes = policies.map((policy, i) => policy.isActive && policy.hardStopEnabled && policy.metric === "billed_cents" && policy.amount > 0 ? i : -1).filter(i => i >= 0);
-    const admission = (block: Awaited<ReturnType<typeof reconcileScope>>) => ({ block,
-      policies: reservationIndexes.map(i => policies[i]), observations: reservationIndexes.map(i => observations[i]) });
-    for (const [index, { scopeType, scopeId }] of scopes.entries()) {
-      const scope = records[index];
-      const scoped = policies.map((policy, i) => ({ policy, observed: observations[i] }))
-        .filter(({ policy }) => policy.scopeType === scopeType && policy.scopeId === scopeId);
-      const pause = scopePauseBlock(scopeType, scopeId, scope, scoped.length > 0);
-      if (pause) return admission(pause);
-      // Admission is independent of cleanup (SPEC 11.6, invariant 3): only a
-      // reached hard stop or an explicit pause refuses work. Unfinished
-      // accounting adds its bounded estimate to exposure, never a gate, and a
-      // budget-owned scope hold with no reached hard stop is stale: the budget
-      // worker releases it, admission does not wait for that.
-      for (const { policy, observed } of scoped) {
-        const title = scopeType === "company" ? "Company" : scopeType === "agent" ? "Agent" : "Project";
-        if (hardStopReached(policy, observed)) return admission({ scopeType, scopeId, scopeName: scope.name,
-          reason: unpricedUsageBlocks(policy, observed) ? `${title} cannot start work because recorded usage has no reliable price.`
-            : scopeType === "project" ? "Project cannot start work because its budget hard-stop is still exceeded."
-              : `${title} is paused because its budget hard-stop was reached.` });
-      }
-    }
-    return admission(null);
+    context?: AdmissionContext): Promise<{
+      block: BudgetAdmissionBlock;
+      policies: PolicyRow[];
+      observations: ObservedSpend[];
+    }> {
+    void companyId;
+    void agentId;
+    void context;
+    return { block: null, policies: [], observations: [] };
   }
 
   const evaluateAdmission = (...args: Parameters<typeof evaluateAdmissionInTransaction>) =>
@@ -864,9 +763,8 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       const amount = Math.max(0, Math.floor(input.amount ?? existing!.amount));
       // A saved zero disables enforcement. Raising it is an explicit limit
       // setting; editing a disabled positive policy must preserve that choice.
-      const nextIsActive = amount > 0 && (input.isActive ?? (existing?.amount === 0 ? true : existing?.isActive) ?? true);
+      const nextIsActive = false;
       const now = new Date();
-      await notifyDeliveryWork(db, DELIVERY_QUEUES.budgetEnforcement, companyId);
       const row = existing
         ? await db
           .update(budgetPolicies)
@@ -908,9 +806,6 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
 
       // A newly created policy can race a no-policy batch that already consumed
       // its charge. Its own committed input must trigger a fresh evaluation.
-      await queueBudgetEvaluation(db, { companyId,
-        agentId: input.scopeType === "agent" ? input.scopeId : null,
-        projectId: input.scopeType === "project" ? input.scopeId : null });
 
       if (input.scopeType === "company" && windowKind === "calendar_month_utc") {
         await db
@@ -995,11 +890,9 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       };
     },
 
-    evaluateAffectedScopes: options.evaluate ? evaluateAffectedScopes
-      : (companyId: string, agentId: string | null, projectId: string | null) => queueBudgetEvaluation(db, { companyId, agentId, projectId }),
-    evaluateCostEvent: (event: typeof costEvents.$inferSelect) => options.evaluate
-      ? evaluateAffectedScopes(event.companyId, event.agentId, event.projectId)
-      : queueBudgetEvaluation(db, { companyId: event.companyId, agentId: event.agentId, projectId: event.projectId }),
+    evaluateAffectedScopes,
+    evaluateCostEvent: (event: typeof costEvents.$inferSelect) =>
+      evaluateAffectedScopes(event.companyId, event.agentId, event.projectId),
 
     evaluateAdmission,
     getInvocationBlock: async (companyId: string, agentId: string | null, context?: AdmissionContext) =>
@@ -1153,59 +1046,18 @@ export async function withCurrentBudgetEnforcement<T>(db: Db, scope: BudgetEnfor
   });
 }
 
-async function deliverScopes<T>(items: T[], deliver: (item: T) => Promise<void>) {
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
-    while (next < items.length) await deliver(items[next++]);
-  }));
-}
-
-/** Cancellation is an at-least-once external effect. Only the delivery worker
- * invokes this: request paths commit intent and return without awaiting it. */
+/** Compatibility export retained for existing imports. Outpost does not
+ * deliver monetary cancellation intents. */
 export async function deliverBudgetEnforcement(db: Db, hooks: BudgetServiceHooks, companyId?: string, _agentId?: string | null) {
-  if (!hooks.cancelWorkForScope) return;
-  const attempted = new Set<string>();
-  const scopeKey = (scope: BudgetEnforcementScope) => `${scope.companyId}:${scope.scopeType}:${scope.scopeId}`;
-  const pending = await db.select().from(budgetPolicies).where(and(
-    sql`${budgetPolicies.enforcementVersion} > ${budgetPolicies.enforcementDeliveredVersion}`,
-    companyId ? eq(budgetPolicies.companyId, companyId) : undefined,
-  )).orderBy(budgetPolicies.updatedAt, budgetPolicies.id).limit(100);
-  await deliverScopes(pending, policy => withBudgetSpan("budget.enforcement.scope", async () => {
-      try {
-        const cancellation = await withOperationAccountingTransaction(db, policy.companyId, async tx => {
-          const [current] = await tx.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.id));
-          if (!current || current.enforcementVersion !== policy.enforcementVersion || !(await policyBlocks(tx, current))) return null;
-          return { companyId: policy.companyId, scopeType: policy.scopeType as BudgetScopeType, scopeId: policy.scopeId,
-            createdBefore: new Date(), enforcement: { policyId: policy.id, version: policy.enforcementVersion } };
-        });
-        if (cancellation) {
-          attempted.add(scopeKey(cancellation));
-          await hooks.cancelWorkForScope!(cancellation);
-        }
-        await db.update(budgetPolicies).set({ enforcementDeliveredVersion: policy.enforcementVersion })
-          .where(and(eq(budgetPolicies.id, policy.id), eq(budgetPolicies.enforcementVersion, policy.enforcementVersion)));
-      } catch (error) {
-        logger.warn({ err: error, policyId: policy.id }, "Budget cancellation delivery pending; accounting is committed");
-        // Rotate a failed scope behind other pending work. A poisoned delivery
-        // must not monopolize the bounded batch on every retry.
-        await db.update(budgetPolicies).set({ updatedAt: new Date() }).where(and(eq(budgetPolicies.id, policy.id),
-          eq(budgetPolicies.enforcementVersion, policy.enforcementVersion))).catch(() => undefined);
-      }
-    }, { "budget.enforcement.queue_delay_ms": Math.max(0, Date.now() - policy.updatedAt.getTime()) }));
-  // A committed run Stop outlives a policy edit or deletion. It remains owed
-  // even if no policy generation now authorizes a fresh cancellation.
-  const committed = (await listPendingBudgetCancellationScopes(db))
-    .filter(scope => (!companyId || scope.companyId === companyId) && !attempted.has(scopeKey(scope)));
-  await deliverScopes(committed, async scope => {
-    try { await hooks.cancelWorkForScope!(scope); }
-    catch (error) { logger.warn({ err: error, companyId: scope.companyId, scopeType: scope.scopeType, scopeId: scope.scopeId }, "Committed budget Stop remains pending"); }
-  });
+  void db;
+  void hooks;
+  void companyId;
+  void _agentId;
 }
 
 export async function hasPendingBudgetEnforcement(db: Db): Promise<boolean> {
-  const [pending] = await db.select({ id: budgetPolicies.id }).from(budgetPolicies)
-    .where(sql`${budgetPolicies.enforcementVersion} > ${budgetPolicies.enforcementDeliveredVersion}`).limit(1);
-  return Boolean(pending) || (await listPendingBudgetCancellationScopes(db, 1)).length > 0;
+  void db;
+  return false;
 }
 
 /** Policy-only coordination, off the financial path. RR detects a policy edit
@@ -1244,58 +1096,9 @@ export async function flushBudgetEvaluationWork(db: Db, options: { companyId?: s
 /** The cursor rotates bounded company pages; it is a scheduling hint only.
  * Pending inputs remain durable across retries, lower-ID arrivals and restart. */
 export async function flushBudgetEvaluationWorkPage(db: Db, options: { companyId?: string; cursor?: string | null } = {}): Promise<{ consumed: number; nextCursor: string | null }> {
-  const pending = await db.selectDistinct({ companyId: budgetEvaluationWork.companyId }).from(budgetEvaluationWork)
-    .where(and(options.companyId ? eq(budgetEvaluationWork.companyId, options.companyId) : undefined,
-      options.cursor ? sql`${budgetEvaluationWork.companyId} > ${options.cursor}::uuid` : undefined))
-    .orderBy(budgetEvaluationWork.companyId).limit(100);
-  let consumed = 0;
-  for (const { companyId } of pending) {
-    try {
-      consumed += await withOperationAccountingTransaction(db, companyId, async (tx, publications) => {
-        const now = new Date();
-        const inputs = await tx.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.companyId, companyId))
-          .orderBy(budgetEvaluationWork.createdAt, budgetEvaluationWork.id).limit(500);
-        if (!inputs.length) return 0;
-        const agents = new Set(inputs.map(input => input.agentId));
-        const projects = new Set(inputs.map(input => input.projectId));
-        const policies = (await fenceBudgetPolicies(tx, companyId)).filter(policy => policy.scopeType === "company"
-          || (policy.scopeType === "agent" ? agents : projects).has(policy.scopeId));
-        const existing: PolicyRow[] = [];
-        const scopes = new Map<string, ScopeRecord>();
-        for (const policy of policies) {
-          const key = `${policy.scopeType}:${policy.scopeId}`;
-          try {
-            if (!scopes.has(key)) scopes.set(key, await resolveScopeRecord(tx, policy.scopeType as BudgetScopeType, policy.scopeId));
-            existing.push(policy);
-          } catch (error) {
-            if (!(error instanceof HttpError) || error.status !== 404) throw error;
-            // Archived charges outlive deleted scope resources; they still affect
-            // the company policy, without resurrecting the deleted scope.
-          }
-        }
-        const observations = await computeObservedSpends(tx, existing, now);
-        const service = budgetServiceInTransaction(tx, publications, { evaluate: true, now });
-        await service.evaluateAffectedScopes(companyId, null, null, { policies: existing, observations });
-        for (const [key, scope] of scopes) {
-          const scoped = existing.map((policy, index) => ({ policy, observed: observations[index] }))
-            .filter(({ policy }) => `${policy.scopeType}:${policy.scopeId}` === key);
-          if (!scoped.length) continue;
-          await service.reconcileScope(companyId, scoped[0].policy.scopeType as BudgetScopeType, scoped[0].policy.scopeId,
-            { scope, policies: scoped.map(row => row.policy), observations: scoped.map(row => row.observed) });
-        }
-        if (existing.some(policy => policy.windowKind === "calendar_month_utc") && Date.now() >= currentUtcMonthWindow(now).end.getTime())
-          throw Object.assign(new Error("Budget window changed during evaluation"), { code: "40001" });
-        await tx.delete(budgetEvaluationWork).where(inArray(budgetEvaluationWork.id, inputs.map(input => input.id)));
-        return inputs.length;
-      });
-    } catch (error) {
-      // One company's control contention or malformed retained input must not
-      // suppress another company's evaluations or already-committed Stops.
-      // The rolled-back input IDs stay pending for the coordinator's retry.
-      logger.warn({ err: error, companyId }, "Budget evaluation remains pending");
-    }
-  }
-  return { consumed, nextCursor: pending.length === 100 ? pending[pending.length - 1].companyId : null };
+  void db;
+  void options;
+  return { consumed: 0, nextCursor: null };
 }
 
 const budgetOwnedScope = or(
@@ -1313,41 +1116,16 @@ const unfinishedRunScope = sql`exists (select 1 from ${heartbeatRuns}
       or (${budgetPolicies.scopeType} = 'project' and ${heartbeatRuns.usageJson}->'ledgerScope'->>'projectId' = ${budgetPolicies.scopeId}::text)))`;
 
 export async function nextBudgetReconciliationAt(db: Db): Promise<Date | null> {
-  const [held] = await db.select({ id: budgetPolicies.id }).from(budgetPolicies)
-    .where(and(eq(budgetPolicies.windowKind, "calendar_month_utc"), or(budgetOwnedScope, openIncidentScope))).limit(1);
-  return held ? currentUtcMonthWindow().end : null;
+  void db;
+  return null;
 }
 
 /** Startup repairs configured policy scopes, not every agent. Afterwards only
  * held monthly scopes owe a timed reevaluation; writes reconcile their own scopes. */
 export async function reconcileDueBudgetPolicies(db: Db, options: { startup?: boolean; cursor?: string | null } = {}): Promise<{ nextCursor: string | null; hadFailures?: boolean }> {
-  const actionable = options.startup ? or(budgetOwnedScope, openIncidentScope,
-    sql`${budgetPolicies.enforcementVersion} > ${budgetPolicies.enforcementDeliveredVersion}`,
-    and(eq(budgetPolicies.isActive, true), eq(budgetPolicies.hardStopEnabled, true), sql`${budgetPolicies.amount} > 0`, unfinishedRunScope))
-    : and(eq(budgetPolicies.windowKind, "calendar_month_utc"), or(budgetOwnedScope, openIncidentScope));
-  const rows = await db.select({ id: budgetPolicies.id, companyId: budgetPolicies.companyId, scopeType: budgetPolicies.scopeType, scopeId: budgetPolicies.scopeId })
-    .from(budgetPolicies).where(and(actionable, options.cursor ? sql`${budgetPolicies.id} > ${options.cursor}::uuid` : undefined))
-    .orderBy(budgetPolicies.id).limit(100);
-  const scopes = new Map(rows.map(scope => [`${scope.companyId}:${scope.scopeType}:${scope.scopeId}`, scope]));
-  let hadFailures = false;
-  for (const scope of scopes.values()) {
-    try {
-      await withOperationAccountingTransaction(db, scope.companyId, async (tx, publications) => {
-        const now = new Date();
-        await fenceBudgetPolicies(tx, scope.companyId, scope);
-        const result = await budgetServiceInTransaction(tx, publications, { evaluate: true, now })
-          .reconcileScope(scope.companyId, scope.scopeType as BudgetScopeType, scope.scopeId);
-        if (Date.now() >= currentUtcMonthWindow(now).end.getTime())
-          throw Object.assign(new Error("Budget window changed during reconciliation"), { code: "40001" });
-        return result;
-      });
-    } catch (error) {
-      if (error instanceof HttpError && error.status === 404) continue;
-      hadFailures = true;
-      logger.warn({ err: error, companyId: scope.companyId, policyId: scope.id }, "Budget scope reconciliation remains pending");
-    }
-  }
-  return { nextCursor: rows.length === 100 ? rows[rows.length - 1].id : null, ...(hadFailures ? { hadFailures: true } : {}) };
+  void db;
+  void options;
+  return { nextCursor: null };
 }
 
 export function budgetService(db: Db, _hooks: BudgetServiceHooks = {}) {
@@ -1367,14 +1145,19 @@ export function budgetService(db: Db, _hooks: BudgetServiceHooks = {}) {
       tx => budgetServiceInTransaction(tx).overview(companyId)),
     evaluateAdmission: (companyId: string, agentId: string | null, context?: AdmissionContext) =>
       withAccountingReadSnapshot(db, companyId, tx => budgetServiceInTransaction(tx).evaluateAdmission(companyId, agentId, context)),
-    evaluateAffectedScopes: (companyId: string, agentId: string | null, projectId: string | null) =>
-      withOperationAccountingTransaction(db, companyId, tx => queueBudgetEvaluation(tx, { companyId, agentId, projectId })),
+    evaluateAffectedScopes: async (companyId: string, agentId: string | null, projectId: string | null) => {
+      void companyId;
+      void agentId;
+      void projectId;
+    },
     reconcileScope: (companyId: string, scopeType: BudgetScopeType, scopeId: string) =>
       mutate(companyId, service => service.reconcileScope(companyId, scopeType, scopeId), { scopeType, scopeId }),
     reconcilePolicies: () => reconcileDueBudgetPolicies(db, { startup: true }),
     upsertPolicy: (companyId: string, input: BudgetPolicyUpsertInput, actorUserId: string | null) =>
       mutate(companyId, service => service.upsertPolicy(companyId, input, actorUserId), input),
-    evaluateCostEvent: (event: typeof costEvents.$inferSelect) => withOperationAccountingTransaction(db, event.companyId, tx => queueBudgetEvaluation(tx, { companyId: event.companyId, agentId: event.agentId, projectId: event.projectId })),
+    evaluateCostEvent: async (event: typeof costEvents.$inferSelect) => {
+      void event;
+    },
     getInvocationBlock: (companyId: string, agentId: string | null, context?: AdmissionContext) =>
       withBudgetSpan("budget.admission.inspect", () => withAccountingReadSnapshot(db, companyId,
         tx => budgetServiceInTransaction(tx).getInvocationBlock(companyId, agentId, context))),

@@ -16,13 +16,13 @@ const inviteRoleOptions = [
   {
     value: "viewer",
     label: "Viewer",
-    description: "Can view organization work and follow along.",
-    gets: "View-only organization membership.",
+    description: "Can view outpost work and follow along.",
+    gets: "View-only outpost membership.",
   },
   {
     value: "operator",
     label: "Operator",
-    description: "Can edit organization work and invite people.",
+    description: "Can edit outpost work and invite people.",
     gets: "Full editing and audit access. Cannot approve join requests or manage member permissions.",
   },
   {
@@ -34,7 +34,7 @@ const inviteRoleOptions = [
   {
     value: "owner",
     label: "Owner",
-    description: "Full organization access, including membership management.",
+    description: "Full outpost access, including membership management.",
     gets: "Everything in Admin, plus managing members.",
   },
 ] as const;
@@ -153,7 +153,7 @@ export function InvitesSection() {
   });
 
   if (!selectedCompanyId) {
-    return <div className="text-sm text-muted-foreground">Select an organization to manage invites.</div>;
+    return <div className="text-sm text-muted-foreground">Select an outpost to manage invites.</div>;
   }
 
   if (invitesQuery.isLoading || invitesView.kind === "reconnecting") {
@@ -162,7 +162,7 @@ export function InvitesSection() {
 
   if (invitesView.kind === "error") {
     if (invitesView.errorKind === "forbidden") {
-      return <div className="text-sm text-destructive">You do not have permission to manage organization invites.</div>;
+      return <div className="text-sm text-destructive">You do not have permission to manage outpost invites.</div>;
     }
     return (
       <QueryErrorState
@@ -178,7 +178,7 @@ export function InvitesSection() {
   return (
     <div className="max-w-6xl space-y-8">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Invite people to request access to this organization. New invite links are copied to your clipboard when they are
+        Invite people to request access to this outpost. New invite links are copied to your clipboard when they are
         generated.
       </p>
 
@@ -250,7 +250,7 @@ export function InvitesSection() {
                 ) : null}
               </div>
               <div className="text-sm text-muted-foreground">
-                This URL includes the current Paperclip domain returned by the server.
+                This URL includes the current Outpost domain returned by the server.
               </div>
             </div>
             <label className="block space-y-1">
@@ -298,7 +298,7 @@ export function InvitesSection() {
 
         {inviteHistory.length === 0 ? (
           <div className="border-t border-border px-5 py-8 text-sm text-muted-foreground">
-            No invites have been created for this organization yet.
+            No invites have been created for this outpost yet.
           </div>
         ) : (
           <div className="border-t border-border">

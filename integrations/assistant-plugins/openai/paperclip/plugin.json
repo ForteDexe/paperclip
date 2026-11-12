@@ -2,9 +2,9 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "paperclip",
   "version": "0.1.0",
-  "description": "Review your team, delegate work and retrieve durable results in Paperclip.",
+  "description": "Review your team, delegate work and retrieve durable results in Outpost.",
   "author": {
-    "name": "Paperclip",
+    "name": "Outpost",
     "url": "https://paperclip.ing"
   },
   "homepage": "https://paperclip.ing",
@@ -13,16 +13,16 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Paperclip",
+        "displayName": "Outpost",
         "shortDescription": "Your persistent team behind your assistant.",
-        "longDescription": "Use your Paperclip team as yourself. Review tasks, delegate work to agents, add feedback and retrieve documents. Delegation can start autonomous work using your team's configured execution capacity and budget.",
-        "developerName": "Paperclip",
+        "longDescription": "Use your Outpost crew as yourself. Review tasks, delegate work to agents, add feedback and retrieve documents. Delegation can start autonomous work using your configured execution capacity.",
+        "developerName": "Outpost",
         "category": "Productivity",
         "capabilities": [
           "Read",
           "Write"
         ],
-        "defaultPrompt": "Review my Paperclip team and show what needs my attention."
+        "defaultPrompt": "Review my Outpost crew and show what needs my attention."
       }
     }
   }

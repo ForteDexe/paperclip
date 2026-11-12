@@ -21,7 +21,7 @@ export function JoinRequestQueue() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Organization", href: "/dashboard" },
+      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
       { label: "Inbox", href: "/inbox" },
       { label: "Join Requests" },
     ]);
@@ -58,7 +58,7 @@ export function JoinRequestQueue() {
   });
 
   if (!selectedCompanyId) {
-    return <div className="text-sm text-muted-foreground">Select an organization to review join requests.</div>;
+    return <div className="text-sm text-muted-foreground">Select an outpost to review join requests.</div>;
   }
 
   if (requestsQuery.isLoading || requestsView.kind === "reconnecting") {
@@ -69,7 +69,7 @@ export function JoinRequestQueue() {
     if (requestsView.errorKind === "forbidden") {
       return (
         <div className="text-sm text-destructive">
-          You do not have permission to review join requests for this organization.
+          You do not have permission to review join requests for this outpost.
         </div>
       );
     }

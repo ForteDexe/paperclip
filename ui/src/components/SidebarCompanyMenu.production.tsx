@@ -297,7 +297,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
       >
         <div className="flex h-(--organization-popover-header-height) items-center justify-between gap-2 px-3.5">
           <DropdownMenuLabel className="p-0 text-(length:--text-compact) font-semibold text-foreground">
-            Organizations
+            Outposts
           </DropdownMenuLabel>
           <button
             type="button"
@@ -339,7 +339,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
             // offer the way back.
             companyListUnavailable ? (
               <>
-                <DropdownMenuItem disabled>Couldn&apos;t load companies</DropdownMenuItem>
+                <DropdownMenuItem disabled>Couldn&apos;t load Outposts</DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(event) => {
                     // Keep the menu open so the result of the retry is visible.
@@ -352,7 +352,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
                 </DropdownMenuItem>
               </>
             ) : (
-              <DropdownMenuItem disabled>No companies</DropdownMenuItem>
+              <DropdownMenuItem disabled>No Outposts</DropdownMenuItem>
             )
           ) : null}
         </div>
@@ -366,7 +366,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
               <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
                 <Plus className="size-4" />
               </span>
-              <span className="min-w-0 flex-1 truncate">Create organization</span>
+              <span className="min-w-0 flex-1 truncate">Create Outpost</span>
             </DropdownMenuItem>
           )}
           {showInvitePeople ? (

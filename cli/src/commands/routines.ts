@@ -242,7 +242,7 @@ export async function disableAllRoutinesInConfig(
     ?? nonEmpty(process.env.PAPERCLIP_COMPANY_ID)
     ?? null;
   if (!companyId) {
-    throw new Error("Company ID is required. Pass --company-id or set PAPERCLIP_COMPANY_ID.");
+    throw new Error("Outpost ID is required. Pass --company-id or set PAPERCLIP_COMPANY_ID.");
   }
 
   const config = readConfig(configPath);
@@ -339,8 +339,8 @@ export function registerRoutineCommands(program: Command): void {
     .command("disable-all")
     .description("Pause all non-archived routines in the configured local instance for one company")
     .option("-c, --config <path>", "Path to config file")
-    .option("-d, --data-dir <path>", "Paperclip data directory root (isolates state from ~/.paperclip)")
-    .option("-C, --company-id <id>", "Company ID")
+    .option("-d, --data-dir <path>", "Outpost data directory root (isolates state from ~/.paperclip)")
+    .option("-C, --company-id <id>", "Outpost ID")
     .option("--json", "Output raw JSON")
     .action(async (opts: RoutinesDisableAllOptions) => {
       try {

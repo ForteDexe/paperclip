@@ -216,7 +216,7 @@ export function CrossIssueCollaborationUxLab() {
             </ActivityRow>
           </Frame>
           <Frame label="Reassignment, blockers, and work mode in one write">
-            <ActivityRow actorName="CTO" verb="updated the issue">
+            <ActivityRow actorName="Engineering Lead" verb="updated the issue">
               <IssueFieldChangeReceipt
                 event={{
                   action: "issue.updated",

@@ -1,8 +1,8 @@
 <!-- GENERATED FILE — DO NOT EDIT. Run `pnpm --filter @paperclipai/paperclip-runner exec tsx scripts/generate-operation-groups.ts`. -->
 
-# Paperclip agent operation groups
+# Outpost agent operation groups
 
-Status: canonical explanatory contract for the Paperclip runner V1 surface.
+Status: canonical explanatory contract for the Outpost runner V1 surface.
 
 This document keeps three independent meanings of **group** separate. PRP families describe wire evidence and controller commands; capability placement decides who owns an operation; behavioral eval groups organize the 106 scenario corpus. None of the three axes can be used as a substitute for another.
 
@@ -10,7 +10,7 @@ The generated totals are **108 PRP events in 32 event families**, **18 controlle
 
 ## Axis 1: PRP v1 event and command families
 
-PRP records ordered, replayable execution evidence. It is not the model's Paperclip tool API. Events are ordered per `sourceInstanceId`; duplicate `sourceEventId` values are idempotent; source-sequence gaps remain evidence; replay is side-effect free; unknown required versions fail closed.
+PRP records ordered, replayable execution evidence. It is not the model's Outpost tool API. Events are ordered per `sourceInstanceId`; duplicate `sourceEventId` values are idempotent; source-sequence gaps remain evidence; replay is side-effect free; unknown required versions fail closed.
 
 ### Event families
 
@@ -22,14 +22,14 @@ PRP records ordered, replayable execution evidence. It is not the model's Paperc
 | `workspace` | Workspace readiness. | `workspace.ready`<br>`workspace.change.updated`<br>`workspace.diff.recorded`<br>`workspace.file.referenced` | 4 |
 | `auth` | Content-free harness credential changes observed by the runner. | `auth.credentials.updated` | 1 |
 | `harness` | Provider harness startup, readiness, exit, and diagnostics. | `harness.starting`<br>`harness.ready`<br>`harness.exited`<br>`harness.diagnostic` | 4 |
-| `plan` | Complete provider-authored within-turn checklist snapshots, and provider-proposed plan documents that Paperclip may synchronize into the durable Plan document for approval. | `plan.updated`<br>`plan.proposed` | 2 |
+| `plan` | Complete provider-authored within-turn checklist snapshots, and provider-proposed plan documents that Outpost may synchronize into the durable Plan document for approval. | `plan.updated`<br>`plan.proposed` | 2 |
 | `tool` | Provider-neutral process, MCP, dynamic, and built-in execution activity. | `tool.execution.started`<br>`tool.execution.progressed`<br>`tool.execution.completed` | 3 |
 | `research` | Provider-reported search, page-open, and in-page research activity. | `research.started`<br>`research.progressed`<br>`research.completed` | 3 |
 | `delegation` | Child-agent delegation lifecycle and aggregate status. | `delegation.started`<br>`delegation.updated`<br>`delegation.completed` | 3 |
 | `model` | Requested/effective model routing and verification state. | `model.route.changed`<br>`model.verification.updated` | 2 |
 | `context` | Context-window compaction markers without hidden summaries. | `context.compacted` | 1 |
 | `artifact` | Authorized artifact viewing and structured generated outputs. | `artifact.viewed`<br>`artifact.generated` | 2 |
-| `review` | Provider review-mode state, separate from Paperclip authority. | `review.mode.changed` | 1 |
+| `review` | Provider review-mode state, separate from Outpost authority. | `review.mode.changed` | 1 |
 | `hook` | Bounded provider hook lifecycle and blocking outcomes. | `hook.started`<br>`hook.completed` | 2 |
 | `memory` | Authorized or unavailable memory citation references. | `memory.citation.referenced` | 1 |
 | `safety` | Provider safety review state attached to governed work. | `safety.review.started`<br>`safety.review.completed` | 2 |
@@ -40,7 +40,7 @@ PRP records ordered, replayable execution evidence. It is not the model's Paperc
 | `turn` | Model turn submission through terminal turn disposition. | `turn.submitted`<br>`turn.accepted`<br>`turn.started`<br>`turn.completed`<br>`turn.failed`<br>`turn.interrupted`<br>`turn.cancelled` | 7 |
 | `item` | Provider-neutral model/tool item lifecycle. | `item.started`<br>`item.delta`<br>`item.completed`<br>`item.failed` | 4 |
 | `usage` | Provider/model-attributed usage and accounting boundaries. | `usage.reported` | 1 |
-| `semantic_tool` | Canonical authorized Paperclip tool input and result evidence. | `semantic_tool.input`<br>`semantic_tool.result`<br>`semantic_tool.reconciled` | 3 |
+| `semantic_tool` | Canonical authorized Outpost tool input and result evidence. | `semantic_tool.input`<br>`semantic_tool.result`<br>`semantic_tool.reconciled` | 3 |
 | `mcp_app` | MCP App discovery, initialization, tool, action, host-context, and teardown evidence. | `mcp_app.discovered`<br>`mcp_app.resource.resolved`<br>`mcp_app.initializing`<br>`mcp_app.ready`<br>`mcp_app.tool_input`<br>`mcp_app.tool_result`<br>`mcp_app.action.requested`<br>`mcp_app.action.resolved`<br>`mcp_app.host_context.changed`<br>`mcp_app.failed`<br>`mcp_app.teardown` | 11 |
 | `runtime_request` | Runtime permission/input request lifecycle. | `runtime_request.created`<br>`runtime_request.resolved`<br>`runtime_request.expired`<br>`runtime_request.cancelled` | 4 |
 | `interaction` | Issue-thread interaction proposal, materialization, response, delivery, and rejection. | `interaction.request.proposed`<br>`interaction.request.materialized`<br>`interaction.request.rejected`<br>`interaction.response.progressed`<br>`interaction.response.resolved`<br>`interaction.response.delivered` | 6 |
@@ -58,14 +58,14 @@ PRP records ordered, replayable execution evidence. It is not the model's Paperc
 | `turn` | Start, steer, interrupt, or stop a model turn. | `turn.start`<br>`turn.steer`<br>`turn.interrupt`<br>`turn.stop` | 4 |
 | `request` | Resolve a pending runtime request. | `request.resolve` | 1 |
 | `interaction` | Acknowledge delivery of an interaction response. | `interaction.receipt` | 1 |
-| `semantic_tool` | Returns an authorized, correlated Paperclip tool result to the provider through runnerd. | `semantic_tool.result` | 1 |
+| `semantic_tool` | Returns an authorized, correlated Outpost tool result to the provider through runnerd. | `semantic_tool.result` | 1 |
 | `runner` | Drain or shut down the runner process. | `runner.drain`<br>`runner.suspend`<br>`runner.shutdown` | 3 |
 
 ## Axis 2: capability placement
 
 Placement has exactly three outcomes:
 
-- `control_plane_owned`: Paperclip or the runner performs the operation; it is absent from the model tool catalog.
+- `control_plane_owned`: Outpost or the runner performs the operation; it is absent from the model tool catalog.
 - `always_agent_tool`: every eligible active-task run receives the operation after task-mode and actor checks.
 - `optional_agent_tool`: the operation is exposed only when every declared claim, task-mode, role, and policy condition passes.
 
@@ -95,7 +95,7 @@ Grant groups are documentation/exposure bundles, not additional authority. The o
 | Grant group | Operations | Required claims represented | Purpose |
 | --- | --- | --- | --- |
 | `feedback` | `submit_complaint`<br>`submit_suggestion` | none | Internally attributed complaints and improvement suggestions; no additional grant required beyond active run authority. |
-| `discovery` | `search_tasks`<br>`list_agents`<br>`get_agent`<br>`list_projects`<br>`list_goals`<br>`set_task_title` | `discovery:agents:read`<br>`discovery:goals:read`<br>`discovery:projects:read`<br>`discovery:tasks:read` | Company-visible task, agent, project, and goal discovery. |
+| `discovery` | `search_tasks`<br>`list_agents`<br>`get_agent`<br>`list_projects`<br>`list_goals`<br>`set_task_title` | `discovery:agents:read`<br>`discovery:goals:read`<br>`discovery:projects:read`<br>`discovery:tasks:read` | Outpost-visible task, agent, project, and goal discovery. |
 | `projects` | `create_project`<br>`list_project_repositories` | none | Project creation and authorized repository discovery through the live company/run authority. |
 | `delegation_dependencies` | `create_task`<br>`reassign_task`<br>`set_dependencies`<br>`hire_agent` | `delegation:agents:create`<br>`delegation:tasks:assign`<br>`delegation:tasks:create`<br>`dependencies:write` | Create or reassign delegated work and maintain dependency edges. |
 | `governance` | `list_approvals`<br>`get_approval`<br>`get_approval_context`<br>`request_approval`<br>`decide_approval`<br>`comment_on_approval` | `governance:approvals:comment`<br>`governance:approvals:decide`<br>`governance:approvals:read`<br>`governance:approvals:request` | Read, request, comment on, and decide approvals under governed-action checks. |
@@ -111,7 +111,7 @@ Grant groups are documentation/exposure bundles, not additional authority. The o
 
 ### Reconciled semantic-operation ledger
 
-`live_codex` means a live provider dispatcher exists. Production binding is tracked separately: `bound` rows are advertised by Paperclip's run-scoped authority over the shared PRP route, while `audit_pending` rows remain unavailable to production agents. `generic_api_request` is test-only and cannot satisfy product coverage.
+`live_codex` means a live provider dispatcher exists. Production binding is tracked separately: `bound` rows are advertised by Outpost's run-scoped authority over the shared PRP route, while `audit_pending` rows remain unavailable to production agents. `generic_api_request` is test-only and cannot satisfy product coverage.
 
 | Operation | Placement | Claims | Modes / roles | Side effect | Idempotency | Redacts | Mock | Catalogs / current runner | Production / PRP evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -192,13 +192,13 @@ Behavior groups describe expected outcomes and trajectories. They do not grant t
 
 ### Coverage matrix
 
-| Group | Owner | Semantic operations | Control-plane operations | Real Paperclip surface | Mock state | Scenarios | PRP evidence | Gap / disposition |
+| Group | Owner | Semantic operations | Control-plane operations | Real Outpost surface | Mock state | Scenarios | PRP evidence | Gap / disposition |
 | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- |
 | [`hb` — Heartbeat](#behavior-group-hb-heartbeat) | control plane + always tools | `get_task_context`<br>`set_task_title` | `select_work`<br>`enforce_budget` | agent identity, inbox-lite, heartbeat context, budget and active-issue services | `company`<br>`actor`<br>`wake`<br>`task`<br>`budget`<br>`run` | 5 | runner/session/run context plus bounded task-context tool results | Production semantic binding is unbound; identity and work selection remain injected/control-plane-owned. |
 | [`co` — Checkout](#behavior-group-co-checkout) | control plane | none | `checkout_task` | POST /api/issues/:id/checkout and execution-lock services | `task`<br>`actor`<br>`run`<br>`idempotency`<br>`fault` | 6 | run preparation and issue-status decision evidence with checkout receipt | Intentionally no model tool; the production checkout receipt still needs the additive semantic-receipt envelope. |
 | [`st` — Status](#behavior-group-st-status) | always tools + control-plane arbitration | `answer_status_question`<br>`finish_task`<br>`block_task`<br>`request_review` | `reconcile_run`<br>`append_audit_record` | issue PATCH, review/liveness policy, and native finalization arbitration | `task`<br>`comments`<br>`interactions`<br>`blockers`<br>`audit`<br>`run` | 8 | semantic operation receipt, work assessment, issue-status decision, and terminal causality | Production semantic binding and additive typed operation/conflict receipts remain unimplemented. |
 | [`cm` — Comments](#behavior-group-cm-comments) | always tools | `get_task_history`<br>`report_progress`<br>`send_chat_message` | `append_audit_record` | issue comment list/get/create routes and own-agent chat messaging service | `task`<br>`comments`<br>`actor`<br>`idempotency`<br>`audit` | 6 | bounded read result, idempotent progress receipt, or persisted proactive chat comment with source task/run provenance | Proactive chat delivery is bound to the running agent and responsible human; arbitrary chat destinations are unsupported. Other comment/history binding gaps remain recorded per operation. |
-| [`se` — Search](#behavior-group-se-search) | optional discovery tools | `search_tasks`<br>`list_agents`<br>`get_agent`<br>`list_projects`<br>`list_goals`<br>`list_project_repositories` | none | company issue search and agent/project/goal list/get routes | `company`<br>`task`<br>`actor`<br>`project`<br>`goal` | 4 | bounded redacted read projections through tool-result item events | Goal operations remain scenario-only. Project and repository discovery contracts are delivered by the live server authority; they are not implemented by the mock command dispatcher. |
+| [`se` — Search](#behavior-group-se-search) | optional discovery tools | `search_tasks`<br>`list_agents`<br>`get_agent`<br>`list_projects`<br>`list_goals`<br>`list_project_repositories` | none | company issue search and agent/project/goal list/get routes | `company`<br>`task`<br>`actor`<br>`project`<br>`goal` | 4 | bounded redacted read projections through tool-result item events | North Star operations remain scenario-only. Project and repository discovery contracts are delivered by the live server authority; they are not implemented by the mock command dispatcher. |
 | [`su` — Subtasks](#behavior-group-su-subtasks) | optional delegation tools | `create_task`<br>`reassign_task`<br>`hire_agent`<br>`handoff_case` | `route_wake` | company issue create, child issue, guarded reassignment, and wake services | `company`<br>`task`<br>`actor`<br>`blockers`<br>`wake`<br>`audit` | 4 | company/task state diff, audit reference, and continuation wake evidence | create_task is production-bound to ordinary active-issue child creation with assignment, dependency-ready wake, company checks, child limits, and durable source-scoped idempotency. handoff_case is live-only: the dedicated case service moves the same primary task after source execution settles, or records completion intent subject to ordinary completion gates; legacy scenarios do not claim that coverage. |
 | [`bl` — Blockers](#behavior-group-bl-blockers) | always/optional tools + control plane | `block_task`<br>`set_dependencies` | `schedule_blocker_wake`<br>`route_wake` | issue relations, blocker projection, liveness validation, and blocker wake services | `task`<br>`blockers`<br>`wake`<br>`actor`<br>`audit`<br>`fault` | 5 | dependency diff, block receipt, attention routing, and issue-status decision | set_dependencies is production-bound for the active issue; block_task remains unbound, and cancelled-blocker receipts still need typed additive evidence. |
 | [`dp` — Documents and plans](#behavior-group-dp-documents-and-plans) | always task-document tools; restore optional; destructive lifecycle control-plane-only | `list_documents`<br>`read_document`<br>`list_document_revisions`<br>`write_document` | `append_audit_record` | issue document list/read/upsert/revision/restore/lock/unlock/delete routes | `task`<br>`documents`<br>`interactions`<br>`idempotency`<br>`audit`<br>`fault` | 3 | bounded reads and revision-safe write/conflict/denial receipts with revision lineage | restore_document_revision is an approved optional-tool gap; lock/unlock/delete are intentionally control-plane-only. Case kickoff initialDocuments become ordinary task documents in the same transaction. Case reads roll up authorized task document metadata; historical case-document REST storage remains readable without dedicated native document tools. |
@@ -350,7 +350,7 @@ Behavior groups describe expected outcomes and trajectories. They do not grant t
 - [`rf-api-cancel-obsolete-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-api-cancel-obsolete-01.yaml) — Obsolete work is cancelled, not marked done and not deleted
 - [`rf-api-mention-discipline-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-api-mention-discipline-01.yaml) — Status notes don't @-mention teammates who have nothing to act on
 - [`rf-api-mgr-heartbeat-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-api-mgr-heartbeat-01.yaml) — Manager-style heartbeat — team roster, workload read, summary comment
-- [`rf-api-review-changes-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-api-review-changes-01.yaml) — Reviewer requests changes with a non-done status and lets Paperclip reassign
+- [`rf-api-review-changes-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-api-review-changes-01.yaml) — Reviewer requests changes with a non-done status and lets Outpost reassign
 - [`rf-art-attachment-wp-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-art-attachment-wp-01.yaml) — Deliverable upload is registered as a primary attachment-backed work product
 - [`rf-case-child-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-case-child-01.yaml) — Bounded sub-output becomes a child case under the parent record
 - [`rf-case-lifecycle-link-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-case-lifecycle-link-01.yaml) — Move a case to in_progress and link its driving issue as reference context
@@ -365,7 +365,7 @@ Behavior groups describe expected outcomes and trajectories. They do not grant t
 - [`rf-routine-pause-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-routine-pause-01.yaml) — Pause a routine reversibly instead of archiving or deleting its trigger
 - [`rf-routine-policy-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-routine-policy-01.yaml) — Set routine concurrency and catch-up policies by their enum names
 - [`rf-routine-webhook-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-routine-webhook-01.yaml) — Add an HMAC-signed webhook trigger with a bounded replay window
-- [`rf-wf-export-preview-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-wf-export-preview-01.yaml) — Company export previews first, narrows with selectedFiles, keeps tasks out
+- [`rf-wf-export-preview-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-wf-export-preview-01.yaml) — Outpost export previews first, narrows with selectedFiles, keeps tasks out
 - [`rf-wf-invite-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-wf-invite-01.yaml) — OpenClaw invite — generate the prompt and post it paste-ready with the ws URL
 - [`rf-wf-project-setup-01`](https://github.com/paperclipai/paperclip-evals/blob/master/paperclip-skill-optimization/skills/paperclip/tests/cases/rf-wf-project-setup-01.yaml) — New project with a repo-only workspace (repoUrl, no cwd)
 
@@ -401,7 +401,7 @@ Behavior groups describe expected outcomes and trajectories. They do not grant t
 
 ## Authorization and execution invariants
 
-### Company and actor authorization
+### Outpost and actor authorization
 
 - Every entity read and write is resolved inside the authenticated actor's company; cross-company identifiers fail without disclosing protected facts.
 - Board actors use active membership and role permissions. Agent writes require a company-scoped run JWT and X-Paperclip-Run-Id; active-task tools cannot accept a caller-selected company or arbitrary task.

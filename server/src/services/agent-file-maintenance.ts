@@ -73,7 +73,7 @@ export async function collectAgentFileObjects(db: Db, provider: Pick<StorageProv
 }) {
   if (provider.id !== "s3" || storage.provider !== "s3" || !provider.listObjects) throw new Error("Shared object storage is required");
   const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-  if (!uuid.test(input.companyId) || !uuid.test(input.agentId)) throw new Error("Company and agent UUIDs are required");
+  if (!uuid.test(input.companyId) || !uuid.test(input.agentId)) throw new Error("Outpost and agent UUIDs are required");
   const prefix = `${input.companyId}/agent-files/${input.agentId}/`;
   const signal = AbortSignal.timeout(30_000);
   const page = await provider.listObjects({ prefix, continuationToken: input.continuationToken, signal });

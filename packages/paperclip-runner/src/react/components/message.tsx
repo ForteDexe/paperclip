@@ -11,7 +11,7 @@ const ROLE_LABELS: Record<TranscriptRole, string> = {
   tool: "Tool",
   steering: "Steering acknowledged",
   interrupt: "Interrupt acknowledged",
-  goal: "Goal",
+  goal: "North Star",
   lineage: "Child thread",
   system: "System",
 };

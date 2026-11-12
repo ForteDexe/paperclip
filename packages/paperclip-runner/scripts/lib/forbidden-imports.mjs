@@ -181,7 +181,7 @@ function violationReason({ file, packageRoot, specifier, publicRunnerImports, re
     !publicRunnerImports.has(specifier) &&
     !(specifier === REVIEWED_EVAL_KERNEL && reviewedEvalHarness && relativeFile === REVIEWED_EVAL_HARNESS)
   ) {
-    return "Paperclip workspace packages are outside the standalone boundary";
+    return "Outpost workspace packages are outside the standalone boundary";
   }
 
   if (
@@ -192,7 +192,7 @@ function violationReason({ file, packageRoot, specifier, publicRunnerImports, re
   }
 
   if (["server", "ui", "cli"].some((root) => specifier === root || specifier.startsWith(`${root}/`))) {
-    return "Paperclip application internals are outside the standalone boundary";
+    return "Outpost application internals are outside the standalone boundary";
   }
 
   if (specifier.startsWith(".") || specifier.startsWith("/")) {

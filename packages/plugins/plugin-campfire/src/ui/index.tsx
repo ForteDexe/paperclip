@@ -279,7 +279,7 @@ export function CampfirePage({ context }: PluginPageProps) {
             </div>
             {availableAgents.length > 0 ? (
               <details className="mt-3">
-                <summary className="cursor-pointer text-sm text-muted-foreground">Invite Paperclip agent</summary>
+                <summary className="cursor-pointer text-sm text-muted-foreground">Invite Outpost agent</summary>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {availableAgents.map((agent) => (
                     <button

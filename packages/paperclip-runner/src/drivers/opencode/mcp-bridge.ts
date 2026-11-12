@@ -462,9 +462,9 @@ function withCancellationAndTimeout<T>(
       controller.signal.removeEventListener("abort", onAbort);
       callback();
     };
-    const onAbort = () => finish(() => reject(new Error("Paperclip tool call cancelled")));
+    const onAbort = () => finish(() => reject(new Error("Outpost tool call cancelled")));
     const timer = timeoutMs === null ? undefined : setTimeout(() => {
-      finish(() => reject(new Error("Paperclip tool call timed out")));
+      finish(() => reject(new Error("Outpost tool call timed out")));
       controller.abort();
     }, timeoutMs);
     timer?.unref?.();

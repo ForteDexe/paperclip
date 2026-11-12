@@ -378,7 +378,7 @@ export interface GoalOperationAvailability {
 }
 
 const GOAL_UNSUPPORTED_FALLBACK =
-  "Goal operations unsupported: this app-server does not advertise the goals capability";
+  "North Star operations unsupported: this app-server does not advertise the goals capability";
 
 /**
  * Capability gating for the goal menu. An unsupported verb is disabled with

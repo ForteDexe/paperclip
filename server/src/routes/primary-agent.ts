@@ -24,7 +24,7 @@ export function primaryAgentRoutes(db: Db) {
       throw forbidden("User does not have active company access");
     }
     if (!await db.query.companies.findFirst({ where: eq(companies.id, req.params.companyId as string) })) {
-      throw notFound("Company not found");
+      throw notFound("Outpost not found");
     }
     next();
   });

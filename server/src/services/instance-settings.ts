@@ -34,7 +34,6 @@ export type InstanceSettingsWriteDb = Pick<
   "select" | "insert" | "update"
 >;
 import {
-  DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
   DEFAULT_BACKUP_RETENTION,
   PAPERCLIP_CLOUD_MANAGED_BY,
   instanceGeneralSettingsSchema,
@@ -227,8 +226,7 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
   if (parsed.success) {
     return {
       censorUsernameInLogs: parsed.data.censorUsernameInLogs ?? false,
-      feedbackDataSharingPreference:
-        parsed.data.feedbackDataSharingPreference ?? DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
+      feedbackDataSharingPreference: "not_allowed",
       backupRetention: parsed.data.backupRetention ?? DEFAULT_BACKUP_RETENTION,
       // Absent => unrestricted; only carry through an explicit policy.
       ...(parsed.data.executionMode ? { executionMode: parsed.data.executionMode } : {}),
@@ -236,7 +234,7 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
   }
   return {
     censorUsernameInLogs: false,
-    feedbackDataSharingPreference: DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
+    feedbackDataSharingPreference: "not_allowed",
     backupRetention: DEFAULT_BACKUP_RETENTION,
   };
 }
@@ -621,7 +619,7 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
     updateExperimental: async (patch: PatchInstanceExperimentalSettings): Promise<InstanceSettings> => {
       for (const [key, enabled] of Object.entries(managedConfig?.features ?? {})) {
         if (enabled && patch[key as ManagedExperimentalFeatureKey] === false) {
-          throw forbidden(`${key} is enabled by Paperclip Cloud and cannot be disabled on this instance`, {
+          throw forbidden(`${key} is enabled by Outpost Cloud and cannot be disabled on this instance`, {
             code: "settings_operator_managed",
           });
         }

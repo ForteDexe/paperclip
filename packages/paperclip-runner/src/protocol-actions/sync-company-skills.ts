@@ -26,8 +26,8 @@ export const syncCompanySkillsAction = {
     "note": "Scenario/eval-only mock extension."
   },
   "documentation": {
-    "title": "Sync Company Skills",
-    "description": "Sync Company Skills through the Capability company skills capability set.",
+    "title": "Sync Outpost Skills",
+    "description": "Sync Outpost Skills through the Capability company skills capability set.",
     "note": "Scenario/eval-only mock extension."
   },
   "examples": {
@@ -60,8 +60,8 @@ export const syncCompanySkillsAction = {
     "descriptor": {
       "operationId": "sync_company_skills",
       "version": 1,
-      "title": "Sync Company Skills",
-      "description": "Sync Company Skills through the Capability company skills capability set.",
+      "title": "Sync Outpost Skills",
+      "description": "Sync Outpost Skills through the Capability company skills capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {},

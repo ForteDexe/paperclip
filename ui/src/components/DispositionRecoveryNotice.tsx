@@ -58,7 +58,7 @@ export function dispositionRetryUnavailableReason(snapshot: DispositionRecoveryS
 
 function descriptionFor(snapshot: DispositionRecoverySnapshot) {
   const start = "The agent stopped without recording an outcome or a next step.";
-  if (snapshot.reason === "owner_budget_blocked") return `${start} Automatic recovery stopped because a spending or pause limit prevents the agent from running.`;
+  if (snapshot.reason === "owner_budget_blocked") return `${start} Automatic recovery stopped because a legacy policy hold or pause prevents the agent from running.`;
   if (snapshot.reason === "owner_not_invokable") return `${start} Automatic recovery stopped because the assigned agent is unavailable.`;
   if (snapshot.reason === "unchanged_source_state_exhausted") {
     const attempts = snapshot.attemptCount === 2 ? "Two" : String(snapshot.attemptCount);

@@ -54,7 +54,7 @@ export function AssistantConnectionCard({ onNavigate }: { onNavigate: (href: str
       <Paperclip className="size-9 shrink-0 p-1 text-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <h2 className="text-sm font-semibold text-foreground">Assistant Connection (MCP)</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">Use your Paperclip organization from Codex, Claude, OpenCode, or another assistant.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Use your Outpost from Codex, Claude, OpenCode, or another assistant.</p>
       </div>
       <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${action} Assistant Connection (MCP)`}>{action}</Button>
     </div>
@@ -87,7 +87,7 @@ function CopyValue({ value, label }: { value: string; label: string }) {
 
 /** Setup copy that depends on the instance, not on the request: signed out, or no public URL configured. */
 function setupUnavailableCopy(errorKind: "auth" | "not_found"): string {
-  if (errorKind === "auth") return "Sign in to connect an assistant. This requires a Paperclip instance with authenticated user accounts.";
+  if (errorKind === "auth") return "Sign in to connect an assistant. This requires an Outpost instance with authenticated user accounts.";
   return "Assistant connections need an authenticated instance with a public HTTPS URL. Ask your instance administrator to configure the public URL, then try again.";
 }
 
@@ -107,7 +107,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
     setBreadcrumbs([{ label: "Connectors", href: "/apps" }, { label: "Assistant Connection (MCP)" }]);
     return () => setBreadcrumbs([]);
   }, [setBreadcrumbs]);
-  if (!selectedCompanyId || !selectedCompany) return <p className="text-sm text-muted-foreground">Select an organization to connect an assistant.</p>;
+  if (!selectedCompanyId || !selectedCompany) return <p className="text-sm text-muted-foreground">Select an outpost to connect an assistant.</p>;
   const serverUrl = setup.data?.serverUrl ?? "";
   const invitation = serverUrl ? mcpInvitation(serverUrl, { id: selectedCompanyId, name: selectedCompany.name }) : "";
   return <div className="max-w-3xl space-y-6 pb-8">
@@ -115,7 +115,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
       <div className="flex items-center gap-3"><Paperclip className="size-7 shrink-0" /><h1 className="text-xl font-semibold">Assistant Connection (MCP)</h1></div>
       <div className="flex items-center gap-3">
         <CompanyPatternIcon companyName={selectedCompany.name} logoUrl={selectedCompany.logoUrl} className="size-12 shrink-0 rounded-lg" />
-        <div className="space-y-1"><p className="font-medium">{selectedCompany.name}</p><p className="text-sm text-muted-foreground">Connect your assistant to Paperclip. Review work, create tasks, and follow up using your account’s access to this organization.</p></div>
+        <div className="space-y-1"><p className="font-medium">{selectedCompany.name}</p><p className="text-sm text-muted-foreground">Connect your assistant to Outpost. Review work, create tasks, and follow up using your account’s access to this outpost.</p></div>
       </div>
     </header>
     {(setup.isPending || setupView.kind === "reconnecting") && <p className="text-sm text-muted-foreground">Loading assistant setup…</p>}
@@ -129,9 +129,9 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
     </section>}
     {setup.data?.enabled && <>
       <section className="space-y-4" aria-label="Invite your assistant">
-        <p className="text-sm text-muted-foreground">Paste this invitation into your assistant. It will help set up the connection and ask you to approve access in Paperclip.</p>
+        <p className="text-sm text-muted-foreground">Paste this invitation into your assistant. It will help set up the connection and ask you to approve access in Outpost.</p>
         <div className="flex justify-end">
-          <AgentSetupPrompt prompt={invitation} label="Copy invitation" title="Invite your assistant" description="Paste this invitation into your assistant. It will help set up the connection and ask you to approve access in Paperclip." side="bottom" align="end" />
+          <AgentSetupPrompt prompt={invitation} label="Copy invitation" title="Invite your assistant" description="Paste this invitation into your assistant. It will help set up the connection and ask you to approve access in Outpost." side="bottom" align="end" />
         </div>
       </section>
       <details className="space-y-4 text-sm">
@@ -140,8 +140,8 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
         <section className="space-y-4" aria-label={`Set up ${assistants[assistant]}`}>
           {mcpSetupSteps(serverUrl, assistant).map((step, index) => <div key={`${assistant}-${index}`} className="space-y-2"><p className="text-sm text-muted-foreground">{step.text}</p>{step.code && <CopyValue value={step.code} label={`${assistants[assistant]} setup step ${index + 1}`} />}</div>)}
           {assistant !== "browser" && <p className="text-sm text-muted-foreground">{mcpAuthorizationHandoffInstructions}</p>}
-          <p className="text-sm">Choose <strong>{selectedCompany.name}</strong>, review access, then click <strong>Connect organization</strong>.</p>
-          <p className="text-xs text-muted-foreground">Creating tasks and adding comments may start agent work using the organization’s configured execution budget.</p>
+          <p className="text-sm">Choose <strong>{selectedCompany.name}</strong>, review access, then click <strong>Connect outpost</strong>.</p>
+          <p className="text-xs text-muted-foreground">Creating tasks and adding comments may start agent work using the Outpost&apos;s execution policy.</p>
         </section>
         <CopyValue value={serverUrl} label="MCP server URL" />
       </details>

@@ -149,7 +149,6 @@ import { setupEnvironmentCustomImageTerminalWebSocketServer } from "./realtime/e
 import { setupLiveEventsWebSocketServer } from "./realtime/live-events-ws.js";
 import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "./middleware/auth.js";
 import {
-  feedbackService,
   applyManagedEnvironments,
   createManagedEnvironmentRecovery,
   backfillPrincipalAccessCompatibility,
@@ -192,7 +191,6 @@ import {
   parseAdapterRegistryEnv,
   reconcileAdapterAvailability,
 } from "./services/adapter-registry-bootstrap.js";
-import { createFeedbackTraceShareClientFromConfig } from "./services/feedback-share-client.js";
 import { buildRuntimeApiCandidateUrls, choosePrimaryRuntimeApiUrl, resolveLocalRuntimeApiUrl } from "./runtime-api.js";
 import { isLoopbackHost, rewriteLoopbackUrlPort } from "./url-utils.js";
 import { createPluginWorkerManager } from "./services/plugin-worker-manager.js";
@@ -915,9 +913,6 @@ async function startServerWithDatabaseTeardown(
 
   const uiMode = config.uiDevMiddleware ? "vite-dev" : config.serveUi ? "static" : "none";
   const storageService = createStorageServiceFromConfig(config);
-  const feedback = feedbackService(db as any, {
-    shareClient: createFeedbackTraceShareClientFromConfig(config),
-  });
   const backupSettingsSvc = instanceSettingsService(db);
   const databaseBackupMaxAgeHours = Math.max(
     1,
@@ -970,7 +965,6 @@ async function startServerWithDatabaseTeardown(
     uiMode,
     serverPort: listenPort,
     storageService,
-    feedbackExportService: feedback,
     databaseBackupService: {
       runManualBackup: async () => {
         const result = await runServerDatabaseBackup("manual");
@@ -1736,7 +1730,7 @@ async function startServerWithDatabaseTeardown(
         }
 
         const recoveredGoalActions = await timeStartupRecovery("goal_actions", () => heartbeat.recoverPendingSessionGoalActions()).catch(err => {
-          logger.error({ err }, "startup session-goal action recovery failed");
+          logger.error({ err }, "startup session-north star action recovery failed");
           return { enqueued: 0, invalid: 0 };
         });
         if (
@@ -1745,17 +1739,17 @@ async function startServerWithDatabaseTeardown(
         ) {
           logger.warn(
             recoveredGoalActions,
-            "startup session-goal action outbox recovery reconciled pending controls",
+            "startup session-north star action outbox recovery reconciled pending controls",
           );
         }
         const recoveredGoals = await timeStartupRecovery("active_goals", () => heartbeat.recoverActiveSessionGoals()).catch(err => {
-          logger.error({ err }, "startup active session-goal recovery failed");
+          logger.error({ err }, "startup active session-north star recovery failed");
           return { enqueued: 0 };
         });
         if (recoveredGoals.enqueued > 0) {
           logger.warn(
             recoveredGoals,
-            "startup session-goal recovery resumed durable agent goals",
+            "startup session-north star recovery resumed durable agent north stars",
           );
         }
       })().catch((err) => {
@@ -2016,7 +2010,7 @@ async function startServerWithDatabaseTeardown(
   deploymentHints?.markReady();
   logger.info(`Server startup recovery complete on ${config.host}:${listenPort}`);
   void systemdNotify(["--ready", `--status=Listening on ${config.host}:${listenPort}`]).then((notified) => {
-    if (notified) logger.info("Notified systemd that Paperclip is ready");
+    if (notified) logger.info("Notified systemd that Outpost is ready");
   });
   if (process.env.PAPERCLIP_OPEN_ON_LISTEN === "true") {
     const openHost = config.host === "0.0.0.0" || config.host === "::" ? "127.0.0.1" : config.host;
@@ -2307,7 +2301,7 @@ function isMainModule(metaUrl: string): boolean {
 
 if (isMainModule(import.meta.url)) {
   void startServer().catch(async (err) => {
-    logger.error({ err }, "Paperclip server failed to start");
+    logger.error({ err }, "Outpost server failed to start");
     // Supervised-transient refusals in managed-cloud deployments are an
     // expected provisioning phase (see startup-refusals.ts) — they log
     // and exit nonzero but do not page Sentry.

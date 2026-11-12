@@ -67,7 +67,7 @@ function ManagedByCloudBadge() {
   return (
     <Badge variant="outline" className="text-muted-foreground">
       <Lock aria-hidden="true" />
-      Managed by Paperclip Cloud
+      Managed by Outpost Cloud
     </Badge>
   );
 }
@@ -205,7 +205,7 @@ export function InstanceExperimentalSettings() {
 
   const inWorktree = isWorktreeRuntime();
   // Present only on cloud-managed instances: keys the managed overlay controls
-  // render locked with the "Managed by Paperclip Cloud" badge. Self-hosted
+  // render locked with the "Managed by Outpost Cloud" badge. Self-hosted
   // responses carry no `managedKeys`, so every card stays editable.
   const managedKeys = experimentalQuery.data?.managedKeys ?? {};
   const enableWorktreeRunExecution = experimentalQuery.data?.enableWorktreeRunExecution === true;
@@ -310,7 +310,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="Assistant connections (MCP)"
-          description="Connect Codex, Claude, and other assistants to your Paperclip organization. People sign in, select an organization once, and approve access to review work, delegate tasks, and add feedback."
+          description="Connect Codex, Claude, and other assistants to this Outpost. People sign in, select an outpost once, and approve access to review work, delegate tasks, and add feedback."
           footnote={<>Requires an authenticated instance with a configured public URL. Takes effect immediately. Turning this off blocks assistant calls and event delivery; work already delegated continues.{experimentalQuery.data?.enablePublicMcp && <> <Link className="underline" to="/apps/assistant-connection">Set up an assistant connection</Link></>}</>}
           checked={experimentalQuery.data?.enablePublicMcp === true}
           onCheckedChange={(checked) => toggleMutation.mutate({ enablePublicMcp: checked })}
@@ -322,7 +322,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="Beta skills"
-          description="Allow agents to pin beta releases of the Paperclip core skill. Disabling this returns every agent to the default live skill without removing saved pins."
+          description="Allow agents to pin beta releases of the Outpost core skill. Disabling this returns every agent to the default live skill without removing saved pins."
           checked={enableBetaSkills}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableBetaSkills: checked })}
           disabled={toggleMutation.isPending}
@@ -333,7 +333,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="Built-in Agents"
-          description="Show Paperclip-managed built-in agent surfaces, including built-in roster badges, the Built-in agents tab, and built-in agent setup controls."
+          description="Show Outpost-managed built-in agent surfaces, including built-in roster badges, the Built-in agents tab, and built-in agent setup controls."
           checked={enableBuiltInAgents}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableBuiltInAgents: checked })}
           disabled={toggleMutation.isPending}
@@ -368,7 +368,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="Combined Inbox + Task List"
-          description="In the Classic workspace, fold Inbox into Tasks. One Tasks row carries the unread badge, and a Views menu reaches every personal and organization task view."
+          description="In the Classic workspace, fold Inbox into Tasks. One Tasks row carries the unread badge, and a Views menu reaches every personal and outpost task view."
           footnote="Coordinator always includes personal views in Tasks. For Classic, turning this off restores its separate Inbox. No data changes."
           checked={experimentalQuery.data?.enableCombinedInboxTasks ?? false}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableCombinedInboxTasks: checked })}
@@ -416,7 +416,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="Enable Environments"
-          description="Show environment management in company settings and allow project and agent environment assignment controls."
+          description="Show environment management in outpost settings and allow project and agent environment assignment controls."
           checked={enableEnvironments}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableEnvironments: checked })}
           disabled={toggleMutation.isPending}
@@ -471,7 +471,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="First task: propose with a plan document"
-          description="When the user's first request is a single task, the chief of staff writes a short plan document and a checkbox card instead of a one-card confirmation. Applies to organizations created after the toggle is flipped."
+          description="When the user's first request is a single task, the chief of staff writes a short plan document and a checkbox card instead of a one-card confirmation. Applies to outposts created after the toggle is flipped."
           checked={enableFirstTaskPlanProposal}
           onCheckedChange={(checked) =>
             toggleMutation.mutate({ enableFirstTaskPlanProposal: checked })
@@ -495,7 +495,7 @@ export function InstanceExperimentalSettings() {
         />
 
         <ExperimentalToggleCard
-          title="Google Workspace connector (Paperclip)"
+          title="Google Workspace connector (Outpost)"
           description="Show the built-in Google Workspace connector for Gmail, Drive, and Calendar while Google verification is pending."
           footnote="Off by default. While off, Google apps are offered through Composio and Arcade instead, and the built-in connector cannot be set up or run."
           checked={experimentalQuery.data?.enableGoogleWorkspaceConnector === true}
@@ -503,13 +503,13 @@ export function InstanceExperimentalSettings() {
           disabled={toggleMutation.isPending}
           settingKey="enableGoogleWorkspaceConnector"
           managed={managedKeys.enableGoogleWorkspaceConnector}
-          ariaLabel="Toggle Paperclip Google Workspace connector experimental setting"
+          ariaLabel="Toggle Outpost Google Workspace connector experimental setting"
         />
 
         <ExperimentalToggleCard
           title="Grok Bot"
           description="Connect an existing Grok Bot as an agent. Verify routine delivery and an authenticated reply before assigning work."
-          footnote="Requires Assistant connections (MCP), Paperclip Runner, and authenticated public HTTPS. Usage is not reported. Turning this off blocks Grok calls and new dispatch."
+          footnote="Requires Assistant connections (MCP), Outpost Runner, and authenticated public HTTPS. Usage is not reported. Turning this off blocks Grok calls and new dispatch."
           checked={experimentalQuery.data?.enableGrokBot === true}
           onCheckedChange={checked => toggleMutation.mutate({ enableGrokBot: checked })}
           disabled={toggleMutation.isPending}
@@ -533,7 +533,7 @@ export function InstanceExperimentalSettings() {
         <ExperimentalToggleCard
           title="Muse — Personal agent"
           description="Connect your personal Meta Muse. Pair it, detect its receiver, and verify an independent background reply before assigning tasks."
-          footnote="Requires Paperclip Runner and an authenticated instance with a public HTTPS URL. Turning this off blocks new work; cleanup and stop evidence remain available. Provider usage and cost are unavailable."
+          footnote="Requires Outpost Runner and an authenticated instance with a public HTTPS URL. Turning this off blocks new work; cleanup and stop evidence remain available. Provider usage details are not imported."
           checked={experimentalQuery.data?.enableMuse === true}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableMuse: checked })}
           disabled={toggleMutation.isPending}
@@ -556,8 +556,8 @@ export function InstanceExperimentalSettings() {
 
 
         <ExperimentalToggleCard
-          title="Paperclip Runner"
-          description="Allow agents to select Paperclip Runner, including authenticated runner ingress when a sandbox requires it. First-run setup offers qualified GitHub Copilot. Turning this off hides the choice without affecting existing native runs."
+          title="Outpost Runner"
+          description="Allow agents to select Outpost Runner, including authenticated runner ingress when a sandbox requires it. First-run setup offers qualified GitHub Copilot. Turning this off hides the choice without affecting existing native runs."
           checked={enableNativeRunner}
           onCheckedChange={(checked) =>
             toggleMutation.mutate({ enableNativeRunner: checked })
@@ -565,7 +565,7 @@ export function InstanceExperimentalSettings() {
           disabled={toggleMutation.isPending}
           settingKey="enableNativeRunner"
           managed={managedKeys.enableNativeRunner}
-          ariaLabel="Toggle Paperclip Runner experimental setting"
+          ariaLabel="Toggle Outpost Runner experimental setting"
         />
 
         <ExperimentalToggleCard
@@ -649,10 +649,10 @@ export function InstanceExperimentalSettings() {
         <section className="space-y-3" aria-labelledby="developer-mode-heading">
           <div className="space-y-1">
             <h2 id="developer-mode-heading" className="text-sm font-semibold">
-              Paperclip Developer Mode
+              Outpost Developer Mode
             </h2>
             <p className="text-sm text-muted-foreground">
-              Internal tools for developing, testing, and debugging Paperclip.
+              Internal tools for developing, testing, and debugging Outpost.
             </p>
           </div>
 
@@ -683,8 +683,8 @@ export function InstanceExperimentalSettings() {
           />
 
           <ExperimentalToggleCard
-            title="Paperclip Developer Mode"
-            description="Show internal Paperclip maintainer tools and observability links, including Honeycomb trace queries on run pages."
+            title="Outpost Developer Mode"
+            description="Show internal Outpost maintainer tools and observability links, including Honeycomb trace queries on run pages."
             checked={enablePaperclipDeveloperMode}
             onCheckedChange={(checked) =>
               toggleMutation.mutate({ enablePaperclipDeveloperMode: checked })
@@ -692,7 +692,7 @@ export function InstanceExperimentalSettings() {
             disabled={toggleMutation.isPending}
             settingKey="enablePaperclipDeveloperMode"
             managed={managedKeys.enablePaperclipDeveloperMode}
-            ariaLabel="Toggle Paperclip developer mode experimental setting"
+            ariaLabel="Toggle Outpost developer mode experimental setting"
           />
 
           {showWorktreeRunExecution ? (
@@ -815,8 +815,8 @@ export function InstanceExperimentalSettings() {
           />
 
           <ExperimentalToggleCard
-            title="Goals Sidebar Link"
-            description="Restore the Goals item in the main sidebar while the goals surface is being evaluated."
+            title="North Stars Sidebar Link"
+            description="Restore the North Stars item in the main sidebar while the north stars surface is being evaluated."
             checked={enableGoalsSidebarLink}
             onCheckedChange={(checked) =>
               toggleMutation.mutate({ enableGoalsSidebarLink: checked })
@@ -824,7 +824,7 @@ export function InstanceExperimentalSettings() {
             disabled={toggleMutation.isPending}
             settingKey="enableGoalsSidebarLink"
             managed={managedKeys.enableGoalsSidebarLink}
-            ariaLabel="Toggle goals sidebar link experimental setting"
+            ariaLabel="Toggle north stars sidebar link experimental setting"
           />
         </section>
       ) : null}

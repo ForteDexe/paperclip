@@ -98,7 +98,7 @@ interface PluginCompanyOptions extends PluginJsonOptions {
 function requireCompanyId(ctx: { companyId?: string }): string {
   if (!ctx.companyId) {
     throw new Error(
-      "Company ID is required. Pass --company-id, set PAPERCLIP_COMPANY_ID, or set context profile companyId via `paperclipai context set`.",
+      "Outpost ID is required. Pass --company-id, set PAPERCLIP_COMPANY_ID, or set context profile companyId via `paperclipai context set`.",
     );
   }
   return ctx.companyId;
@@ -177,7 +177,7 @@ export function buildPluginInstallRequest(
 export function renderLocalPluginInstallHint(packagePath: string): string {
   return [
     pc.dim("Local plugin installs run trusted local code from your machine."),
-    pc.dim(`Keep ${pc.cyan("pnpm dev")} running in ${packagePath}; Paperclip watches rebuilt dist output and reloads the plugin worker.`),
+    pc.dim(`Keep ${pc.cyan("pnpm dev")} running in ${packagePath}; Outpost watches rebuilt dist output and reloads the plugin worker.`),
   ].join("\n");
 }
 
@@ -213,7 +213,7 @@ export async function probeTargetDiagnostics(
  * unit-tested without a live server.
  */
 export function formatTargetDiagnostics(diag: TargetDiagnostics): string {
-  const lines = [pc.dim(`Target Paperclip: ${pc.cyan(diag.apiBase)}`)];
+  const lines = [pc.dim(`Target Outpost: ${pc.cyan(diag.apiBase)}`)];
 
   if (!diag.reachable) {
     lines.push(pc.yellow(`  health: unreachable${diag.error ? ` (${diag.error.split("\n")[0]})` : ""}`));
@@ -327,7 +327,7 @@ export function registerPluginCommands(program: Command): void {
   addCommonClientOptions(
     plugin
       .command("init <packageName>")
-      .description("Scaffold a local Paperclip plugin project")
+      .description("Scaffold a local Outpost plugin project")
       .option("--output <dir>", "Directory to create the plugin folder in")
       .addOption(
         new Option("--template <template>", "Starter template")
@@ -409,7 +409,7 @@ export function registerPluginCommands(program: Command): void {
       .option("--version <version>", "Specific npm version to install (npm packages only)")
       .option(
         "--no-verify-target",
-        "Skip the pre-install probe that reports which Paperclip instance the plugin installs into",
+        "Skip the pre-install probe that reports which Outpost instance the plugin installs into",
       )
       .action(async (packageArg: string, opts: PluginInstallOptions) => {
         try {
@@ -480,7 +480,7 @@ export function registerPluginCommands(program: Command): void {
     plugin
       .command("target")
       .description(
-        "Show which Paperclip instance plugin commands will talk to.\n" +
+        "Show which Outpost instance plugin commands will talk to.\n" +
           "  Reports the resolved API URL plus the server status/version/mode from\n" +
           "  GET /api/health so you can confirm you are installing into the branch\n" +
           "  runtime and not a stale control-plane host.",
@@ -766,7 +766,7 @@ function addPluginConfigGet(parent: Command, name: string, description: string):
       .command(name)
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (pluginId: string, opts: PluginCompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -789,7 +789,7 @@ function addPluginConfigPost(parent: Command, name: string, description: string,
       .command(name)
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--payload-json <json>", "JSON payload", "{}")
       .action(async (pluginId: string, opts: PluginCompanyOptions) => {
         try {
@@ -849,7 +849,7 @@ function addPluginLocalFolderGet(parent: Command, name: string, description: str
       .command(name)
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .action(async (pluginId: string, opts: PluginCompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -869,7 +869,7 @@ function addPluginLocalFolderKeyGet(parent: Command, name: string, description: 
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
       .argument("<folderKey>", "Local folder key")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .action(async (pluginId: string, folderKey: string, opts: PluginCompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -892,7 +892,7 @@ function addPluginLocalFolderKeyPost(parent: Command, name: string, description:
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
       .argument("<folderKey>", "Local folder key")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .option("--payload-json <json>", "JSON payload", "{}")
       .action(async (pluginId: string, folderKey: string, opts: PluginCompanyOptions) => {
         try {
@@ -919,7 +919,7 @@ function addPluginLocalFolderKeyPut(parent: Command, name: string, description: 
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
       .argument("<folderKey>", "Local folder key")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
       .action(async (pluginId: string, folderKey: string, opts: PluginCompanyOptions) => {
         try {

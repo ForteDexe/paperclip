@@ -2,8 +2,7 @@ import { useShowAgentCreatedTasks } from "../hooks/useShowAgentCreatedTasks";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Link, useParams, useNavigate, useLocation, Navigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PROJECT_COLORS, PROJECT_ICON_NAMES, isUuidLike, type BudgetPolicySummary } from "@paperclipai/shared";
-import { budgetsApi } from "../api/budgets";
+import { PROJECT_COLORS, PROJECT_ICON_NAMES, isUuidLike } from "@paperclipai/shared";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { projectsApi } from "../api/projects";
@@ -20,7 +19,6 @@ import { ProjectProperties, type ProjectConfigFieldKey, type ProjectFieldSaveSta
 import { InlineEditor } from "../components/InlineEditor";
 import { StatusBadge } from "../components/StatusBadge";
 import { ProjectTile } from "../components/ProjectTile";
-import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { IssuesList } from "../components/IssuesList";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
@@ -52,7 +50,7 @@ import { companyProjectsQuery } from "@/lib/company-projects-query";
 
 /* ── Top-level tab types ── */
 
-type ProjectBaseTab = "list" | "plugin-operations" | "workspaces" | "configuration" | "budget";
+type ProjectBaseTab = "list" | "plugin-operations" | "workspaces" | "configuration";
 type ProjectPluginTab = `plugin:${string}`;
 type ProjectTab = ProjectBaseTab | ProjectPluginTab;
 
@@ -67,7 +65,7 @@ function resolveProjectTab(pathname: string, projectId: string): ProjectTab | nu
   const tab = segments[projectsIdx + 2];
   if (tab === "overview") return "configuration";
   if (tab === "configuration") return "configuration";
-  if (tab === "budget") return "budget";
+  if (tab === "budget") return "list";
   if (tab === "issues") return "list";
   if (tab === "plugin-operations") return "plugin-operations";
   if (tab === "workspaces") return "workspaces";
@@ -500,17 +498,9 @@ export function ProjectDetail() {
 
   const uploadImage = useMutation({
     mutationFn: async (file: File) => {
-      if (!resolvedCompanyId) throw new Error("No organization selected");
+      if (!resolvedCompanyId) throw new Error("No outpost selected");
       return assetsApi.uploadImage(resolvedCompanyId, file, `projects/${projectLookupRef || "draft"}`);
     },
-  });
-
-  const { data: budgetOverview } = useQuery({
-    queryKey: queryKeys.budgets.overview(resolvedCompanyId ?? "__none__"),
-    queryFn: () => budgetsApi.overview(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId,
-    refetchInterval: 30_000,
-    staleTime: 5_000,
   });
 
   useEffect(() => {
@@ -529,10 +519,6 @@ export function ProjectDetail() {
     }
     if (activeTab === "configuration") {
       navigate(`/projects/${canonicalProjectRef}/configuration`, { replace: true });
-      return;
-    }
-    if (activeTab === "budget") {
-      navigate(`/projects/${canonicalProjectRef}/budget`, { replace: true });
       return;
     }
     if (activeTab === "plugin-operations") {
@@ -613,55 +599,6 @@ export function ProjectDetail() {
     }
   }, [invalidateProject, lookupCompanyId, projectLookupRef, queryClient, resolvedCompanyId, scheduleFieldReset, setFieldState]);
 
-  const projectBudgetSummary = useMemo(() => {
-    const matched = budgetOverview?.policies.find(
-      (policy) => policy.scopeType === "project" && policy.scopeId === (project?.id ?? routeProjectRef),
-    );
-    if (matched) return matched;
-    return {
-      policyId: "",
-      companyId: resolvedCompanyId ?? "",
-      scopeType: "project",
-      scopeId: project?.id ?? routeProjectRef,
-      scopeName: project?.name ?? "Project",
-      metric: "billed_cents",
-      windowKind: "lifetime",
-      amount: 0,
-      unpricedEventCount: 0, pendingRunCount: 0,
-      unpricedUsagePolicy: "block",
-      observedAmount: 0,
-      remainingAmount: 0,
-      utilizationPercent: 0,
-      warnPercent: 80,
-      hardStopEnabled: true,
-      notifyEnabled: true,
-      isActive: false,
-      status: "ok",
-      paused: Boolean(project?.pausedAt),
-      pauseReason: project?.pauseReason ?? null,
-      windowStart: new Date(),
-      windowEnd: new Date(),
-    } satisfies BudgetPolicySummary;
-  }, [budgetOverview?.policies, project, resolvedCompanyId, routeProjectRef]);
-
-  const budgetMutation = useMutation({
-    mutationFn: (amount: number) =>
-      budgetsApi.upsertPolicy(resolvedCompanyId!, {
-        scopeType: "project",
-        scopeId: project?.id ?? routeProjectRef,
-        amount,
-        windowKind: "lifetime",
-      }),
-    onSuccess: () => {
-      if (!resolvedCompanyId) return;
-      queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(resolvedCompanyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(routeProjectRef) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectLookupRef) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(resolvedCompanyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(resolvedCompanyId) });
-    },
-  });
-
   if (pluginTabFromSearch && !activePluginTab && !error) {
     if (!pluginTabDecisionLoaded) {
       return <PageSkeleton variant="detail" />;
@@ -685,9 +622,7 @@ export function ProjectDetail() {
     if (cachedTab === "configuration") {
       return <Navigate to={`/projects/${canonicalProjectRef}/configuration`} replace />;
     }
-    if (cachedTab === "budget") {
-      return <Navigate to={`/projects/${canonicalProjectRef}/budget`} replace />;
-    }
+    if (cachedTab === "budget") return <Navigate to={`/projects/${canonicalProjectRef}/issues`} replace />;
     if (cachedTab === "plugin-operations" && project?.managedByPlugin) {
       return <Navigate to={`/projects/${canonicalProjectRef}/plugin-operations`} replace />;
     }
@@ -729,8 +664,6 @@ export function ProjectDetail() {
     }
     if (tab === "workspaces") {
       navigate(`/projects/${canonicalProjectRef}/workspaces`);
-    } else if (tab === "budget") {
-      navigate(`/projects/${canonicalProjectRef}/budget`);
     } else if (tab === "plugin-operations") {
       navigate(`/projects/${canonicalProjectRef}/plugin-operations`);
     } else if (tab === "configuration") {
@@ -792,12 +725,6 @@ export function ProjectDetail() {
             as="h2"
             className="text-xl font-bold"
           />
-          {project.pauseReason === "budget" ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-(length:--text-micro) font-medium uppercase tracking-(--tracking-caps) text-red-800 dark:text-red-200">
-              <span className="h-2 w-2 rounded-full bg-red-400" />
-              Paused by budget hard stop
-            </div>
-          ) : null}
           {project.managedByPlugin ? (
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-(length:--text-micro) font-medium text-muted-foreground">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: project.color ?? "var(--project-seed)" }} />
@@ -868,7 +795,6 @@ export function ProjectDetail() {
             ...(project.managedByPlugin ? [{ value: "plugin-operations", label: "Plugin operations" }] : []),
             ...(showWorkspacesTab ? [{ value: "workspaces", label: "Workspaces" }] : []),
             { value: "configuration", label: "Configuration" },
-            { value: "budget", label: "Budget" },
             ...pluginTabItems.map((item) => ({
               value: item.value,
               label: item.label,
@@ -928,17 +854,6 @@ export function ProjectDetail() {
           />
         </div>
       )}
-
-      {activeTab === "budget" && resolvedCompanyId ? (
-        <div className="max-w-3xl">
-          <BudgetPolicyCard
-            summary={projectBudgetSummary}
-            variant="plain"
-            isSaving={budgetMutation.isPending}
-            onSave={(amount) => budgetMutation.mutate(amount)}
-          />
-        </div>
-      ) : null}
 
       {activePluginTab && (
         <PluginSlotMount

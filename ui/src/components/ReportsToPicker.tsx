@@ -16,7 +16,7 @@ export function ReportsToPicker({
   onChange,
   disabled = false,
   excludeAgentIds = [],
-  disabledEmptyLabel = "Reports to: N/A (CEO)",
+  disabledEmptyLabel = "Reports to: N/A (Outpost Lead)",
   chooseLabel = "Reports to...",
   trigger,
   disabledAgentIds = [],
@@ -108,7 +108,7 @@ export function ReportsToPicker({
         )}
         {unknownManager && (
           <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-0.5">
-            Saved manager is missing from this organization. Choose a new manager or clear.
+            Saved manager is missing from this outpost. Choose a new manager or clear.
           </div>
         )}
         {rows.map((a) => (

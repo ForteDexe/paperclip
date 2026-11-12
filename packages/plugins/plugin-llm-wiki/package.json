@@ -33,7 +33,7 @@
     "wiki",
     "knowledge"
   ],
-  "author": "Paperclip",
+  "author": "Outpost",
   "license": "MIT",
   "devDependencies": {
     "@paperclipai/plugin-sdk": "workspace:*",

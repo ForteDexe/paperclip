@@ -78,7 +78,7 @@ export function cloudControlMiddleware(): RequestHandler {
     req.actor = {
       type: "board",
       userId: "paperclip-cloud",
-      userName: "Paperclip Cloud",
+      userName: "Outpost Cloud",
       userEmail: null,
       isInstanceAdmin: true,
       source: "cloud_control",

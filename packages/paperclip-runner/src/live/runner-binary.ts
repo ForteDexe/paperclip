@@ -95,7 +95,7 @@ function packagedRunnerBinaryCandidates(outputRoot: string, platform: string, ar
 }
 
 const packagedRunnerMismatch = (target: string) =>
-  new Error(`runner_runtime_incompatible: packaged daemon does not match ${target}; install the matching Paperclip release`);
+  new Error(`runner_runtime_incompatible: packaged daemon does not match ${target}; install the matching Outpost release`);
 
 export function resolvePackagedRunnerBinary(outputRoot: string, platform = process.platform, architecture = process.arch): string | null {
   const { target, binaries } = packagedRunnerBinaryCandidates(outputRoot, platform, architecture);

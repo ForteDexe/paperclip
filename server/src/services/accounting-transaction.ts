@@ -14,7 +14,7 @@ export async function withAccountingTransaction<T>(db: Db, companyId: string, wo
     const tx = transaction as unknown as Db;
     const [company] = await withBudgetSpan("budget.accounting.lock_wait", () => tx.select({ id: companies.id }).from(companies)
       .where(eq(companies.id, companyId)).for("no key update"));
-    if (!company) throw notFound("Company not found");
+    if (!company) throw notFound("Outpost not found");
     return work(tx, publications);
   }));
   publishAccountingActivities(companyId, publications);
@@ -36,7 +36,7 @@ export async function withOperationAccountingTransaction<T>(db: Db, companyId: s
       const result = await withBudgetSpan("budget.accounting.transaction", () => db.transaction(async transaction => {
         const tx = transaction as unknown as Db;
         const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
-        if (!company) throw notFound("Company not found");
+        if (!company) throw notFound("Outpost not found");
         return work(tx, publications);
       }, { isolationLevel: options.isolationLevel ?? "repeatable read" }));
       publishAccountingActivities(companyId, publications);
@@ -54,7 +54,7 @@ export async function withOperationAccountingTransaction<T>(db: Db, companyId: s
   }
 }
 
-export const ACCOUNTING_CONTENTION_MESSAGE = "Paperclip could not save this run's budget or usage records because other "
+export const ACCOUNTING_CONTENTION_MESSAGE = "Outpost could not save this run's budget or usage records because other "
   + "updates to the same run kept conflicting with them. Retry the run.";
 
 /** Bounded, SQL-free failure for exhausted serialization retries. `code`
@@ -99,7 +99,7 @@ export function withAccountingReadSnapshot<T>(db: Db, companyId: string, work: (
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
     const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
-    if (!company) throw notFound("Company not found");
+    if (!company) throw notFound("Outpost not found");
     return work(tx);
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

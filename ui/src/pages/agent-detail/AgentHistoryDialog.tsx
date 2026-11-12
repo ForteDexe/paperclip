@@ -31,7 +31,7 @@ const KEY_LABELS: Record<string, string> = {
   adapterType: "harness",
   adapterConfig: "harness settings",
   runtimeConfig: "runtime settings",
-  budgetMonthlyCents: "budget",
+  budgetMonthlyCents: "legacy policy",
   permissions: "permissions",
   metadata: "metadata",
 };

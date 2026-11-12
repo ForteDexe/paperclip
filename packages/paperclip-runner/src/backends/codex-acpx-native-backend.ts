@@ -64,7 +64,7 @@ export function createAcpxNativeSessionBackend(
   const systemInstructions = [
     nativeSystemInstructions(input),
     "",
-    "Paperclip Runner constraints:",
+    "Outpost Runner constraints:",
     ...constraints.map((constraint) => `- ${constraint}`),
   ].join("\n");
 

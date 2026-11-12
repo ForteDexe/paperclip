@@ -48,7 +48,7 @@ export function ComposerAddMenu({
   const actions: Array<{ id: string; label: string; detail?: string; Icon: LucideIcon; select: () => void; disabled?: boolean; selected?: boolean }> = [
     ...(onAttachFile ? [{ id: "composer-add-file", label: "Files and images", Icon: Paperclip, select: onAttachFile, disabled: attachDisabled }] : []),
     ...(privacy ? [{ id: "composer-add-private", label: "Private task", detail: privacy.inherited, Icon: Lock, select: () => privacy.onChange(!privacy.private), selected: privacy.private, disabled: Boolean(privacy.inherited) }] : []),
-    ...(onGoal ? [{ id: "composer-add-goal", label: "Goal", detail: "Keep pursuing", Icon: Target, select: onGoal }] : []),
+    ...(onGoal ? [{ id: "composer-add-goal", label: "North Star", detail: "Keep pursuing", Icon: Target, select: onGoal }] : []),
     ...(onModeChange ? [
       { id: "composer-add-plan", label: "Plan mode", detail: "Plan before acting", Icon: ClipboardList, select: () => onModeChange(mode === "planning" ? "standard" : "planning"), selected: mode === "planning" },
       { id: "composer-add-ask", label: "Ask mode", detail: "Answer without changes", Icon: MessageCircleQuestion, select: () => onModeChange(mode === "ask" ? "standard" : "ask"), selected: mode === "ask" },

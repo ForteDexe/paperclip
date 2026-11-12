@@ -39,10 +39,9 @@ const ACTION_DOMAINS: { value: string; label: string }[] = [
   { value: "heartbeat.", label: "Runs" },
   { value: "approval.", label: "Approvals" },
   { value: "project.", label: "Projects" },
-  { value: "goal.", label: "Goals" },
+  { value: "goal.", label: "North Stars" },
   { value: "tool_gateway.", label: "Tools" },
-  { value: "cost.", label: "Costs" },
-  { value: "company.", label: "Company" },
+  { value: "company.", label: "Outpost" },
 ];
 
 /** Entity types offered in the filter (server does an exact match). */
@@ -51,8 +50,8 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "issue", label: "Task" },
   { value: "agent", label: "Agent" },
   { value: "project", label: "Project" },
-  { value: "goal", label: "Goal" },
-  { value: "company", label: "Company" },
+  { value: "goal", label: "North Star" },
+  { value: "company", label: "Outpost" },
 ];
 
 /**
@@ -245,7 +244,7 @@ function AuditUpsell() {
       <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
         <ShieldAlert className="h-10 w-10 text-muted-foreground/50" />
         <div>
-          <p className="text-sm font-medium text-foreground">Agent audit is a Paperclip Enterprise view</p>
+          <p className="text-sm font-medium text-foreground">Agent audit is an Outpost Enterprise view</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             The agent audit log gives you a searchable, exportable record of everything your agents
             did — every comment, task change, approval, and run — with the responsible person for
@@ -472,7 +471,7 @@ export function AuditFeed({
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               {resolvedMode === "agents"
                 ? "Every recorded agent action, newest first — with the responsible person and run behind each one."
-                : "Everything happening in your company, newest first — people, agents, and the system. Each line is one recorded action."}
+                : "Everything happening in your Outpost, newest first — people, agents, and the system. Each line is one recorded action."}
             </p>
           </div>
         </div>
@@ -606,7 +605,7 @@ export function AuditFeed({
                   ? "Try a wider date range or different filters."
                   : resolvedMode === "agents"
                     ? "As soon as your agents start doing things, their actions show up here."
-                    : "As soon as anyone in your company does something, it shows up here."}
+                    : "As soon as anyone in your Outpost does something, it shows up here."}
               </p>
             </div>
             {hasActiveFilters ? (
@@ -647,7 +646,7 @@ export function AuditFeed({
       ) : null}
 
       <p className="text-xs text-muted-foreground">
-        Recorded by Paperclip — entries can't be edited. Sensitive values are never stored.
+        Recorded by Outpost — entries can't be edited. Sensitive values are never stored.
       </p>
     </div>
   );

@@ -61,10 +61,10 @@ export const TASK_VIEW_GROUPS: TaskViewGroup[] = [
     ],
   },
   {
-    label: "Organization",
+    label: "Outpost",
     views: [
       { key: "needs_attention", label: "Needs attention", surface: "issues", statuses: [], hint: "Tasks with pending decisions", coordinatorOnly: true },
-      { key: "all", label: "All tasks", surface: "issues", statuses: [], hint: "Every task in the organization" },
+      { key: "all", label: "All tasks", surface: "issues", statuses: [], hint: "Every task in the outpost" },
       { key: "active", label: "Active", surface: "issues", statuses: ["todo", "in_progress", "monitoring", "in_review", "blocked"], hint: "Open tasks, running or not" },
       { key: "backlog", label: "Backlog", surface: "issues", statuses: ["backlog"], hint: "Not started yet" },
       { key: "done", label: "Done", surface: "issues", statuses: ["done", "cancelled"], hint: "Completed and cancelled" },

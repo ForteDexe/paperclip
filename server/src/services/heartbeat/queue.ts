@@ -1790,7 +1790,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
   ) {
     const now = new Date();
     const reason =
-      "Cancelled because issue dependencies are still blocked; Paperclip will wake the assignee when blockers resolve";
+      "Cancelled because issue dependencies are still blocked; Outpost will wake the assignee when blockers resolve";
     const cancelled = await setRunStatus(run.id, "cancelled", {
       finishedAt: now,
       error: reason,
@@ -2801,8 +2801,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (opts.requestedByActorType === "user") {
         // A paused company is a temporary hold; an archived one is not.
         if (companyStatus === "paused" && (await canSaveDeferredMessage()))
-          throw await saveDeferredMessage("company.inactive", "Company is not active", { status: companyStatus });
-        throw conflict("Company is not active", { status: companyStatus });
+          throw await saveDeferredMessage("company.inactive", "Outpost is not active", { status: companyStatus });
+        throw conflict("Outpost is not active", { status: companyStatus });
       }
       await writeSkippedRequest("company.inactive", {
         error: `Wake suppressed because company status is ${companyStatus}`,
@@ -4169,7 +4169,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 issue.id,
               );
               const blockedComment = [
-                `Paperclip blocked ${issueLabel} before dispatch because its workspace settings are not runnable.`,
+                `Outpost blocked ${issueLabel} before dispatch because its workspace settings are not runnable.`,
                 "",
                 `- Code: \`${WORKSPACE_WORKTREE_REQUIRES_PROJECT_CODE}\``,
                 `- Reason: ${WORKSPACE_WORKTREE_REQUIRES_PROJECT_MESSAGE}`,

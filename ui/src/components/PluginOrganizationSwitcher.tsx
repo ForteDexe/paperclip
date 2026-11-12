@@ -11,7 +11,7 @@ import { Skeleton } from "./ui/skeleton";
 
 /** Reserve the trigger's space until its owner is known. Never flash another name. */
 function OrganizationSwitcherLoading({ collapsed }: { collapsed: boolean }) {
-  return <div role="status" aria-label="Loading organization" aria-busy="true"
+  return <div role="status" aria-label="Loading outpost" aria-busy="true"
     className="flex h-9 min-w-0 flex-1 items-center gap-2 px-4">
     <Skeleton className="size-5 shrink-0" />
     {!collapsed && <>
@@ -72,7 +72,7 @@ function OrganizationSwitcher({ children, settled, loading, companyId, company, 
       onNavigate: closeNavigation, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending,
       renderIcon: (name, logoUrl, inMenu) => <CompanyPatternIcon companyName={name} logoUrl={logoUrl}
         className={inMenu
-          ? "size-(--organization-popover-avatar-size) shrink-0 rounded-lg text-(length:--text-micro)"
+          ? "size-(--outpost-popover-avatar-size) shrink-0 rounded-lg text-(length:--text-micro)"
           : "size-5 shrink-0 rounded-md text-(length:--text-micro)"} />,
     },
   };

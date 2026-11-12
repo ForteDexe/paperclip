@@ -35,7 +35,7 @@ export function bundledRemoteRunnerRelease(moduleUrl = import.meta.url, target: 
   const artifact = release?.platforms?.[target];
   if (release?.schema !== "paperclip.runner.release-binaries.v1" || !/^[a-f0-9]{40}$/.test(release.sourceRevision ?? "") ||
       artifact?.path !== `${target}/paperclip-runnerd` || !/^sha256:[a-f0-9]{64}$/.test(artifact.sha256 ?? "")) {
-    throw new Error("runner_remote_artifact_unavailable: install the complete Paperclip release with its Linux daemon");
+    throw new Error("runner_remote_artifact_unavailable: install the complete Outpost release with its Linux daemon");
   }
   return { binary: join(outputRoot, "bin", artifact.path), sha256: artifact.sha256 };
 }

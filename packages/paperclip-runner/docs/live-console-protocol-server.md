@@ -4,12 +4,12 @@
 
 This is the lowest Live console layer. It extends the package-local Codex driver,
 typed harness contract, deterministic fixtures, and mock-core demo server. It
-does not import or change Paperclip server, UI, database, or production routes.
+does not import or change Outpost server, UI, database, or production routes.
 
 The browser boundary is HTTP plus server-sent events. The browser sends typed
 actions to the demo server. Only the server starts `codex app-server`, reads
 the existing Codex login, owns the working directory, and resumes provider
-threads. No provider or Paperclip credential is serialized to browser state.
+threads. No provider or Outpost credential is serialized to browser state.
 
 ## Deterministic fixture
 
@@ -61,7 +61,7 @@ further steering or interruption returns `already_terminal`. A successful
 interrupt request emits an `interrupt_acknowledgement` item without replacing
 the session.
 
-## Goals and lineage
+## North Stars and lineage
 
 The driver probes `thread/goal/get` after create or resume. Success enables
 get, set, pause, resume, and clear. A method-not-found response disables goals
@@ -106,7 +106,7 @@ Important routes:
 - `POST /api/liveConsole/sessions/:id/close`
 
 The server chooses the working directory. A create body cannot override it.
-Provider, Paperclip, cookie, and bearer credential fields in create bodies are
+Provider, Outpost, cookie, and bearer credential fields in create bodies are
 rejected. Runtime-request resolution must match the pending request, its turn,
 and the session named by the route; stale, cross-scope, and duplicate responses
 fail with `409` before reaching the driver.

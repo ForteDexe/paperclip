@@ -3,12 +3,12 @@ import { Gauge } from "lucide-react";
 import type { TaskChatUsageItem } from "./task-chat-model";
 
 /**
- * Second-tier live token/cost readout (ACP UsageUpdate). Concrete progress —
- * context fill %, tokens, and cost — rather than an indeterminate spinner.
+ * Second-tier live token readout (ACP UsageUpdate). Concrete progress —
+ * context fill and tokens — rather than an indeterminate spinner.
  * Recedes to metadata weight so it never competes with message content.
  */
 export function TaskChatUsageReadout({ item }: { item: TaskChatUsageItem }) {
-  const { used, size, inputTokens, outputTokens, costUsd } = item.usage;
+  const { used, size, inputTokens, outputTokens } = item.usage;
   const contextWindowSize = typeof size === "number" && size > 0 ? size : null;
   const pct = contextWindowSize ? Math.min(100, Math.round((used / contextWindowSize) * 100)) : 0;
   return (
@@ -26,7 +26,6 @@ export function TaskChatUsageReadout({ item }: { item: TaskChatUsageItem }) {
             · ↑{(inputTokens ?? 0).toLocaleString()} ↓{(outputTokens ?? 0).toLocaleString()}
           </span>
         ) : null}
-        {costUsd != null ? <span>· ${costUsd.toFixed(4)}</span> : null}
       </div>
       {item.detail ? <div>{item.detail}</div> : null}
       {contextWindowSize ? (

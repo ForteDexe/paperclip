@@ -342,7 +342,7 @@ export function UserSecretDefinitionsTab({ companyId }: { companyId: string }) {
             <DialogTitle>Remove user secret?</DialogTitle>
             <DialogDescription>
               This removes the definition <span className="font-mono">{deleteTarget?.key}</span> for
-              the whole company. Existing member values become unreferenced. This cannot be undone.
+              the whole outpost. Existing member values become unreferenced. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

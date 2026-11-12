@@ -59,14 +59,14 @@ interface BoardKeyRow {
 }
 
 export function registerTokenCommands(program: Command): void {
-  const token = program.command("token").description("Manage Paperclip API tokens");
+  const token = program.command("token").description("Manage Outpost API tokens");
   const agent = token.command("agent").description("Manage agent API keys");
 
   addCommonClientOptions(
     agent
       .command("create")
       .description("Create an agent API key")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--agent <agent>", "Agent ID, shortname, or unambiguous name")
       .option("--name <name>", "API key label", "cli-agent")
       .action(async (opts: AgentTokenOptions) => {
@@ -96,7 +96,7 @@ export function registerTokenCommands(program: Command): void {
     agent
       .command("list")
       .description("List agent API keys")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--agent <agent>", "Agent ID, shortname, or unambiguous name")
       .action(async (opts: AgentTokenOptions) => {
         try {
@@ -123,7 +123,7 @@ export function registerTokenCommands(program: Command): void {
       .command("revoke")
       .description("Revoke an agent API key")
       .argument("<keyId>", "Agent API key ID")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--agent <agent>", "Agent ID, shortname, or unambiguous name")
       .action(async (keyId: string, opts: AgentTokenOptions) => {
         try {
@@ -144,7 +144,7 @@ export function registerTokenCommands(program: Command): void {
     board
       .command("create")
       .description("Create a named board API key")
-      .option("-C, --company-id <id>", "Company ID used for audit context")
+      .option("-C, --company-id <id>", "Outpost ID used for audit context")
       .option("--name <name>", "API key label", "cli-board")
       .option("--expires-at <iso8601>", "Expiration timestamp")
       .option("--ttl-days <days>", "Expiration in days from now")

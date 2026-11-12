@@ -232,7 +232,7 @@ export function SidebarAccountMenu({
               {showInvite && inviteHref ? (
                 <MenuAction
                   label="Invite"
-                  description="Invite people to your organization."
+                  description="Invite people to your Outpost."
                   icon={UserPlus}
                   href={inviteHref}
                   topLevel={isCloud}
@@ -241,7 +241,7 @@ export function SidebarAccountMenu({
               ) : null}
               <MenuAction
                 label="Documentation"
-                description="Open Paperclip docs in a new tab."
+                description="Open Outpost docs in a new tab."
                 icon={BookOpen}
                 href={DOCS_URL}
                 external

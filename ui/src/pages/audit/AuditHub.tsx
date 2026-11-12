@@ -6,7 +6,6 @@ import { Tabs } from "@/components/ui/tabs";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useCompany } from "@/context/CompanyContext";
 import { useNavigate, useSearchParams } from "@/lib/router";
-import { Costs } from "@/pages/Costs";
 import { Timeline } from "@/pages/Timeline";
 import { AuditFeed, type AuditFeedMode } from "./AuditFeed";
 import { AuditRuns } from "./AuditRuns";
@@ -37,7 +36,6 @@ export function AuditHub({ section }: { section: AuditSection }) {
     "project.",
     "goal.",
     "tool_",
-    "cost.",
     "company.",
   ].includes(actionParam ?? "") ? actionParam! : "__all";
 
@@ -109,7 +107,7 @@ export function AuditHub({ section }: { section: AuditSection }) {
   }, [setSearchParams]);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={History} message="Select an organization to view Audit." />;
+    return <EmptyState icon={History} message="Select an outpost to view Audit." />;
   }
 
   return (
@@ -155,12 +153,10 @@ export function AuditHub({ section }: { section: AuditSection }) {
         />
       ) : section === "runs" ? (
         <AuditRuns companyId={selectedCompanyId} routineId={routineId} />
-      ) : section === "budgets" ? (
-        <Costs embedded initialTab="budgets" lockTab />
       ) : section === "timeline" ? (
         <Timeline embedded />
       ) : (
-        <Costs embedded initialTab="overview" hideBudgetsTab />
+        <AuditFeed companyId={selectedCompanyId} hideHeader />
       )}
     </div>
   );

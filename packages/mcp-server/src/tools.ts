@@ -62,7 +62,7 @@ async function callRuntimeConnectionTool(
   const endpoint = process.env[endpointEnv]?.trim();
   const token = process.env.PAPERCLIP_RUNTIME_TOOLS_TOKEN?.trim();
   if (!endpoint || !token) {
-    throw new Error("Connection intent tools are available only inside an active Paperclip heartbeat run");
+    throw new Error("Connection intent tools are available only inside an active Outpost heartbeat run");
   }
   const response = await fetch(endpoint, {
     method: "POST",
@@ -289,7 +289,7 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
     ),
     makeTool(
       "paperclipMe",
-      "Get the current authenticated Paperclip actor details",
+      "Get the current authenticated Outpost actor details",
       z.object({}),
       async () => client.requestJson("GET", "/agents/me"),
     ),
@@ -301,13 +301,13 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
     ),
     makeTool(
       "paperclipListAgents",
-      "List agents in a company",
+      "List agents in an Outpost",
       z.object({ companyId: companyIdOptional }),
       async ({ companyId }) => client.requestJson("GET", `/companies/${client.resolveCompanyId(companyId)}/agents`),
     ),
     makeTool(
       "paperclipListSkills",
-      "List the company skill library (all installed skills, independent of which agents have them enabled)",
+      "List the Outpost skill library (all installed skills, independent of which agents have them enabled)",
       z.object({ companyId: companyIdOptional }),
       async ({ companyId }) => client.requestJson("GET", `/companies/${client.resolveCompanyId(companyId)}/skills`),
     ),
@@ -322,7 +322,7 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
     ),
     makeTool(
       "paperclipListIssues",
-      "List issues for a company with optional filters",
+      "List issues for an Outpost with optional filters",
       listIssuesSchema,
       async (input) => {
         const companyId = client.resolveCompanyId(input.companyId);
@@ -401,13 +401,13 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
     ),
     makeTool(
       "paperclipListProjects",
-      "List projects in a company",
+      "List projects in an Outpost",
       z.object({ companyId: companyIdOptional }),
       async ({ companyId }) => client.requestJson("GET", `/companies/${client.resolveCompanyId(companyId)}/projects`),
     ),
     makeTool(
       "paperclipGetProject",
-      "Get a project by id or company-scoped short reference",
+      "Get a project by id or Outpost-scoped short reference",
       z.object({ projectId: projectIdSchema, companyId: companyIdOptional }),
       async ({ projectId, companyId }) => {
         const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
@@ -465,19 +465,19 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
     ),
     makeTool(
       "paperclipListGoals",
-      "List goals in a company",
+      "List North Stars in an Outpost",
       z.object({ companyId: companyIdOptional }),
       async ({ companyId }) => client.requestJson("GET", `/companies/${client.resolveCompanyId(companyId)}/goals`),
     ),
     makeTool(
       "paperclipGetGoal",
-      "Get a goal by id",
+      "Get a North Star by id",
       z.object({ goalId: goalIdSchema }),
       async ({ goalId }) => client.requestJson("GET", `/goals/${encodeURIComponent(goalId)}`),
     ),
     makeTool(
       "paperclipListApprovals",
-      "List approvals in a company",
+      "List approvals in an Outpost",
       z.object({ companyId: companyIdOptional, status: z.string().optional() }),
       async ({ companyId, status }) => {
         const qs = status ? `?status=${encodeURIComponent(status)}` : "";
@@ -676,7 +676,7 @@ export function createToolDefinitions(client: PaperclipApiClient): ToolDefinitio
     ),
     makeTool(
       "paperclipApiRequest",
-      "Make a JSON request to an existing Paperclip /api endpoint for unsupported operations",
+      "Make a JSON request to an existing Outpost /api endpoint for unsupported operations",
       apiRequestSchema,
       async ({ method, path, jsonBody }) => {
         if (!path.startsWith("/") || path.includes("..")) {

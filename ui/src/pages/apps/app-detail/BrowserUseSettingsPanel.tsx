@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   ConnectionGrantsResponse,
@@ -7,7 +7,6 @@ import type {
 import { browserUseApi } from "@/api/browser-use";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -18,7 +17,6 @@ function CredentialSettings({
   companyId: string;
   grantId: string;
 }) {
-  const id = useId();
   const saved = useQuery({
     queryKey: ["browser-use-cloud-settings", grantId],
     queryFn: () => browserUseApi.settings(companyId, grantId),
@@ -30,18 +28,16 @@ function CredentialSettings({
   const savedView = useQueryView(saved);
   const profilesView = useQueryView(profiles);
   const [allowed, setAllowed] = useState<string[]>([]);
-  const [limit, setLimit] = useState("");
   useEffect(() => {
     if (saved.data) {
       setAllowed(saved.data.allowedProfileIds);
-      setLimit(saved.data.maxCostUsd?.toString() ?? "");
     }
   }, [saved.data]);
   const save = useMutation({
     mutationFn: () =>
       browserUseApi.saveSettings(companyId, grantId, {
         allowedProfileIds: allowed,
-        maxCostUsd: limit ? Number(limit) : null,
+        maxCostUsd: null,
       }),
     onSuccess: () => {
       void saved.refetch();
@@ -49,24 +45,6 @@ function CredentialSettings({
   });
   return (
     <div className="space-y-3">
-      <div className="space-y-2">
-        <Label htmlFor={`${id}-limit`}>
-          Maximum cost per browser run (USD)
-        </Label>
-        <Input
-          id={`${id}-limit`}
-          type="number"
-          min="0"
-          step="0.01"
-          value={limit}
-          placeholder="Use the remaining Paperclip budget"
-          onChange={(e) => setLimit(e.target.value)}
-        />
-        <p className="text-sm text-muted-foreground">
-          The agent can choose a lower limit. Paperclip also applies any
-          remaining hard budget limit.
-        </p>
-      </div>
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Allowed saved profiles</legend>
         <p className="text-sm text-muted-foreground">
@@ -135,13 +113,7 @@ function CredentialSettings({
       <div className="flex justify-end">
         <Button
           size="sm"
-          disabled={
-            !saved.data ||
-            save.isPending ||
-            Boolean(
-              limit && (!Number.isFinite(Number(limit)) || Number(limit) <= 0),
-            )
-          }
+          disabled={!saved.data || save.isPending}
           onClick={() => save.mutate()}
         >
           Save browser settings
@@ -195,7 +167,7 @@ export function BrowserUseSettingsPanel({
       ) : (
         <p className="text-sm text-muted-foreground">
           The credential owner or a shared connection manager can configure
-          saved profiles and cost limits.
+          saved profiles.
         </p>
       )}
     </section>

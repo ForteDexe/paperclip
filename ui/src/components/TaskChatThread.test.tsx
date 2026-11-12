@@ -5786,7 +5786,7 @@ describe("TaskChatThread live transcript", () => {
           agentId: "agent-1",
           agentName: "Runner",
           // Reproduces the lag that caused DOT-202: the transcript already has
-          // a Paperclip request while the linked-run adapter classification is
+          // a Outpost request while the linked-run adapter classification is
           // still stale.
           adapterType: "codex_local",
         }}
@@ -6087,6 +6087,6 @@ it("explains a missing provider runtime with an installation repair", () => {
   expect(container.textContent).toContain("Runtime missing");
   const toggle = container.querySelector<HTMLButtonElement>('[data-testid="task-chat-collapsible-marker"] button[aria-expanded]')!;
   flushSync(() => toggle.click());
-  expect(container.textContent).toContain("Reinstall or rebuild Paperclip");
+  expect(container.textContent).toContain("Reinstall or rebuild Outpost");
   expect(container.textContent).toContain("test the agent's runtime");
 });

@@ -209,10 +209,6 @@ import { recordRecentTask } from "../lib/recent-tasks";
 import {
   relativeTime,
   cn,
-  formatDurationMs,
-  formatTokens,
-  visibleRunCostUsd,
-  visibleRunTokenTotal,
 } from "../lib/utils";
 import { liveBlueBadge } from "../lib/status-colors";
 import { ApprovalCard } from "../components/ApprovalCard";
@@ -585,15 +581,6 @@ function extractWorkspaceFileRefFromWorkProduct(workProduct: {
   if (!metadata) return null;
   const parsed = workspaceFileRefSchema.safeParse(metadata.resourceRef);
   return parsed.success ? parsed.data : null;
-}
-
-function usageNumber(usage: Record<string, unknown> | null, ...keys: string[]) {
-  if (!usage) return 0;
-  for (const key of keys) {
-    const value = usage[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-  }
-  return 0;
 }
 
 function truncate(text: string, max: number): string {
@@ -2555,7 +2542,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
         if (code === "queued_comment_already_dispatching") {
           pushToast({
             title: "Message is already being sent",
-            body: "The continuation started before the discard was confirmed, so Paperclip could not unsend it.",
+            body: "The continuation started before the discard was confirmed, so Outpost could not unsend it.",
             tone: "error",
             ttlMs: 15_000,
             dedupeKey: `queued-comment-already-dispatching:${issueId}:${commentId}`,
@@ -2790,8 +2777,8 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
                   }
                 : undefined
             }
-            stopRunLabel={grokWork ? "Stop Paperclip work" : "Pause work"}
-            stoppingRunLabel={grokWork ? "Stopping Paperclip work…" : "Pausing..."}
+            stopRunLabel={grokWork ? "Stop Outpost work" : "Pause work"}
+            stoppingRunLabel={grokWork ? "Stopping Outpost work…" : "Pausing..."}
             stopRunVariant={grokWork ? "stop" : "pause"}
             runFinalizationActions={runFinalizationActions}
             onAcceptInteraction={onAcceptInteraction}
@@ -2823,7 +2810,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
               tryAgainNoLiveExecutionPathPending
             }
             footer={grokWork || stopGrokWork.error || classicQueuedDeliveryError ? <>
-              {grokWork && <p className="text-xs text-muted-foreground">Runs in Grok Bot · Usage not reported. Stop Paperclip work revokes this session’s authority; remote execution may continue. Open the Grok Bot desktop app to inspect it.</p>}
+              {grokWork && <p className="text-xs text-muted-foreground">Runs in Grok Bot · Usage not reported. Stop Outpost work revokes this session’s authority; remote execution may continue. Open the Grok Bot desktop app to inspect it.</p>}
               {stopGrokWork.error && <p role="alert" className="text-sm text-destructive">{describeError(stopGrokWork.error).body}</p>}
               {classicQueuedDeliveryError && <p role="status" className="text-sm text-destructive">{classicQueuedDeliveryError}</p>}
               {footer}
@@ -2928,91 +2915,9 @@ function IssueDetailActivityTab({
       ReturnType<typeof issuesApi.getDocument>
     > | null>(issueId),
   });
-  const { data: issueTreeCostSummary } = useQuery({
-    queryKey: queryKeys.issues.costSummary(issueId),
-    queryFn: () => issuesApi.getCostSummary(issueId),
-    placeholderData:
-      keepPreviousDataForSameQueryTail<
-        Awaited<ReturnType<typeof issuesApi.getCostSummary>>
-      >(issueId),
-  });
   const initialLoading =
     (activityLoading && activity === undefined) ||
     (linkedRunsLoading && linkedRuns === undefined);
-  const issueCostSummary = useMemo(() => {
-    let input = 0;
-    let output = 0;
-    let cached = 0;
-    let totalTokens = 0;
-    let cost = 0;
-    let runtimeMs = 0;
-    let runCount = 0;
-    let hasCost = false;
-    let hasTokens = false;
-    const nowMs = Date.now();
-
-    for (const run of linkedRuns ?? []) {
-      const usage = asRecord(run.usageJson);
-      const result = asRecord(run.resultJson);
-      const runInput = usageNumber(usage, "inputTokens", "input_tokens");
-      const runOutput = usageNumber(usage, "outputTokens", "output_tokens");
-      const runCached = usageNumber(
-        usage,
-        "cachedInputTokens",
-        "cached_input_tokens",
-        "cache_read_input_tokens",
-      );
-      const runCost = visibleRunCostUsd(usage, result);
-      if (runCost > 0) hasCost = true;
-      if (runInput + runOutput + runCached > 0) hasTokens = true;
-      input += runInput;
-      output += runOutput;
-      cached += runCached;
-      totalTokens += visibleRunTokenTotal(usage);
-      cost += runCost;
-
-      if (run.startedAt) {
-        const startMs = new Date(run.startedAt).getTime();
-        const endMs = run.finishedAt
-          ? new Date(run.finishedAt).getTime()
-          : nowMs;
-        if (
-          Number.isFinite(startMs) &&
-          Number.isFinite(endMs) &&
-          endMs >= startMs
-        ) {
-          runtimeMs += endMs - startMs;
-          runCount += 1;
-        }
-      }
-    }
-
-    return {
-      input,
-      output,
-      cached,
-      cost,
-      totalTokens,
-      hasCost,
-      hasTokens,
-      runtimeMs,
-      runCount,
-      hasRuntime: runtimeMs > 0,
-    };
-  }, [linkedRuns]);
-  const issueTreeCostTokens =
-    (issueTreeCostSummary?.inputTokens ?? 0) +
-    (issueTreeCostSummary?.cachedInputTokens ?? 0) +
-    (issueTreeCostSummary?.outputTokens ?? 0);
-  const hasIssueTreeCost =
-    !!issueTreeCostSummary &&
-    (issueTreeCostSummary.costCents > 0 ||
-      issueTreeCostTokens > 0 ||
-      issueTreeCostSummary.cachedInputTokens > 0 ||
-      issueTreeCostSummary.runtimeMs > 0 ||
-      issueTreeCostSummary.issueCount > 1);
-  const shouldShowCostSummary =
-    (linkedRuns && linkedRuns.length > 0) || hasIssueTreeCost;
 
   if (initialLoading) {
     return <IssueSectionSkeleton titleWidth="w-20" rows={4} />;
@@ -3020,82 +2925,6 @@ function IssueDetailActivityTab({
 
   return (
     <>
-      {shouldShowCostSummary && (
-        <div className="mb-3 px-3 py-2 rounded-lg border border-border">
-          <div className="text-sm font-medium text-muted-foreground mb-1">
-            Cost Summary
-          </div>
-          {!issueCostSummary.hasCost &&
-          !issueCostSummary.hasTokens &&
-          !hasIssueTreeCost ? (
-            <div className="text-xs text-muted-foreground">
-              No cost data yet.
-            </div>
-          ) : (
-            <div className="space-y-1 text-xs text-muted-foreground tabular-nums">
-              <div className="flex flex-wrap gap-3">
-                <span className="font-medium text-foreground">This task</span>
-                {issueCostSummary.hasCost ? (
-                  <span className="font-medium text-foreground">
-                    ${issueCostSummary.cost.toFixed(4)}
-                  </span>
-                ) : null}
-                {issueCostSummary.hasTokens ? (
-                  <span>
-                    Tokens {formatTokens(issueCostSummary.totalTokens)}
-                    {issueCostSummary.cached > 0
-                      ? ` (in ${formatTokens(issueCostSummary.input)}, out ${formatTokens(issueCostSummary.output)}, cached ${formatTokens(issueCostSummary.cached)})`
-                      : ` (in ${formatTokens(issueCostSummary.input)}, out ${formatTokens(issueCostSummary.output)})`}
-                  </span>
-                ) : null}
-                {issueCostSummary.hasRuntime ? (
-                  <span>
-                    Runtime {formatDurationMs(issueCostSummary.runtimeMs)}
-                    {` (${issueCostSummary.runCount} run${issueCostSummary.runCount === 1 ? "" : "s"})`}
-                  </span>
-                ) : null}
-                {!issueCostSummary.hasCost &&
-                !issueCostSummary.hasTokens &&
-                !issueCostSummary.hasRuntime ? (
-                  <span>No direct cost data.</span>
-                ) : null}
-              </div>
-              {hasIssueTreeCost && issueTreeCostSummary ? (
-                <div className="flex flex-wrap gap-3">
-                  <span className="font-medium text-foreground">
-                    Including sub-tasks{" "}
-                    {(issueTreeCostSummary.costCents / 100).toLocaleString(
-                      undefined,
-                      {
-                        style: "currency",
-                        currency: "USD",
-                        minimumFractionDigits: 4,
-                        maximumFractionDigits: 4,
-                      },
-                    )}
-                  </span>
-                  <span>
-                    Tokens {formatTokens(issueTreeCostTokens)}
-                    {issueTreeCostSummary.cachedInputTokens > 0
-                      ? ` (in ${formatTokens(issueTreeCostSummary.inputTokens)}, out ${formatTokens(issueTreeCostSummary.outputTokens)}, cached ${formatTokens(issueTreeCostSummary.cachedInputTokens)})`
-                      : ` (in ${formatTokens(issueTreeCostSummary.inputTokens)}, out ${formatTokens(issueTreeCostSummary.outputTokens)})`}
-                  </span>
-                  {issueTreeCostSummary.runCount > 0 ? (
-                    <span>
-                      Runtime {formatDurationMs(issueTreeCostSummary.runtimeMs)}
-                      {` (${issueTreeCostSummary.runCount} run${issueTreeCostSummary.runCount === 1 ? "" : "s"})`}
-                    </span>
-                  ) : null}
-                  <span>
-                    {issueTreeCostSummary.issueCount} task
-                    {issueTreeCostSummary.issueCount === 1 ? "" : "s"}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      )}
       <div className="mb-3">
         <IssueRunLedger
           issueId={issueId}
@@ -7632,7 +7461,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         </span>
       </nav>
     ) : null;
-  // Creation provenance ("Created from PAP-168 by Paperclip QA"). Distinct from
+  // Creation provenance ("Created from PAP-168 by Outpost QA"). Distinct from
   // the parent chain above; the streamlined Tasks tab renders it instead.
   const createdFromNote =
     !streamlinedTaskDetailEnabled && issue.createdFrom ? (

@@ -14,7 +14,7 @@ export function CompanyConnections() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Company", href: "/dashboard" },
+      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
       { label: "Settings", href: "/company/settings" },
       { label: "Connections" },
     ]);
@@ -23,7 +23,7 @@ export function CompanyConnections() {
   if (!selectedCompanyId) {
     return (
       <div className="text-sm text-muted-foreground">
-        No organization selected. Select an organization from the switcher above.
+        No outpost selected. Select an outpost from the switcher above.
       </div>
     );
   }

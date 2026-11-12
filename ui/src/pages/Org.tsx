@@ -90,7 +90,7 @@ export function Org() {
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Org Chart" }]);
+    setBreadcrumbs([{ label: "Crew map" }]);
   }, [setBreadcrumbs]);
 
   const orgQuery = useQuery({
@@ -102,7 +102,7 @@ export function Org() {
   const orgView = useQueryView(orgQuery);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={GitBranch} message="Select an organization to view org chart." />;
+    return <EmptyState icon={GitBranch} message="Select an outpost to view the crew map." />;
   }
 
   // Keep a loaded chart on screen through a failed refetch; only a real
@@ -115,7 +115,7 @@ export function Org() {
       <QueryErrorState
         size="page"
         error={orgView.error}
-        action="load the org chart"
+        action="load the crew map"
         onRetry={orgView.retry}
         retrying={orgView.isFetching}
       />
@@ -127,7 +127,7 @@ export function Org() {
       {data && data.length === 0 && (
         <EmptyState
           icon={GitBranch}
-          message="No agents in the organization. Create agents to build your org chart."
+          message="No agents in this outpost. Create agents to build your crew map."
         />
       )}
 

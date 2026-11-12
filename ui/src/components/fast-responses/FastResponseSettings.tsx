@@ -99,20 +99,10 @@ export function FastResponseSettingsView({
     draft.allowSponsored !== settings.allowSponsored;
   return (
     <section className="max-w-2xl space-y-4" aria-label="Fast response">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">
-          Fast response
-        </h2>
-        <Link
-          to="/activity/costs?tab=fast-responses"
-          className="text-sm underline underline-offset-4"
-        >
-          View usage
-        </Link>
-      </div>
+      <h2 className="text-lg font-semibold">Fast response</h2>
       <p className="text-sm text-muted-foreground">
-        Send a short acknowledgement while your agent starts work. Usage is
-        charged to the selected shared API connection.
+        Send a short acknowledgement while your agent starts work using the
+        selected shared API connection.
       </p>
       <ConnectionChoiceList
         selectedId={draft.grantId ?? undefined}
@@ -193,7 +183,7 @@ export function FastResponseSettingsView({
           />
           <div className="space-y-2">
             <ToggleField
-              label="Allow company-sponsored fast responses"
+              label="Allow outpost-sponsored fast responses"
               checked={draft.allowSponsored}
               onChange={(allowSponsored) =>
                 setDraft((d) => ({ ...d, allowSponsored }))
@@ -201,7 +191,7 @@ export function FastResponseSettingsView({
             />
             <p className="text-xs text-muted-foreground">
               Covers accepted external messages from people without a linked
-              Paperclip account.
+              Outpost account.
             </p>
           </div>
         </fieldset>
@@ -219,8 +209,7 @@ export function FastResponseSettingsView({
             <p className="text-xs text-muted-foreground">
               {(result.durationMs / 1000).toFixed(2)} seconds ·{" "}
               {result.usage.inputTokens ?? "—"} input /{" "}
-              {result.usage.outputTokens ?? "—"} output tokens · Usage recorded
-              in Costs.
+              {result.usage.outputTokens ?? "—"} output tokens
             </p>
           </div>
         ) : (

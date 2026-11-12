@@ -161,7 +161,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         if (install.targetType === "company") {
           if (install.targetId !== connection.companyId)
             throw unprocessable(
-              "Company installs must target the connection company",
+              "Outpost installs must target the connection company",
             );
         } else {
           await assertOptionalAgent(

@@ -238,7 +238,7 @@ export async function probeQualifiedAcpxEnvironment(
     permissionMode: "deny-all",
     providerPolicy: { readOnly: true },
     systemInstructions:
-      "Paperclip Runner environment qualification probe. Do not execute a provider turn.",
+      "Outpost Runner environment qualification probe. Do not execute a provider turn.",
     ...(options.environment === undefined
       ? {}
       : { environment: options.environment }),
@@ -1133,7 +1133,7 @@ class CodexAcpxSession implements HarnessSession {
     const cleanup = Promise.resolve()
       .then(() =>
         this.#host.interruptActiveTurn(
-          "Paperclip parked the ACPX input on a durable wait.",
+          "Outpost parked the ACPX input on a durable wait.",
         ),
       )
       .catch((error: unknown) => {
@@ -1262,7 +1262,7 @@ class CodexAcpxSession implements HarnessSession {
       return { accepted: true, feedback };
     }
     if (!this.#dynamicToolHandler) {
-      throw new Error(`Unsupported Paperclip operation ${tool}`);
+      throw new Error(`Unsupported Outpost operation ${tool}`);
     }
     return await this.#dynamicToolHandler({
       tool,

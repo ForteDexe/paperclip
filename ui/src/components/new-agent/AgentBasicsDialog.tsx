@@ -120,7 +120,7 @@ export function AgentBasicsDialog({
     setSaving(true);
     setSaveError(null);
     try {
-      if (!companyId) throw new Error("Select an organization to create an agent.");
+      if (!companyId) throw new Error("Select an outpost to create an agent.");
       let agent = saved.current;
       if (!agent && setupAgentId) agent = await agentsApi.get(setupId.current, companyId);
       const creatingRecord = !agent;
@@ -325,8 +325,8 @@ export function AgentBasicsDialog({
                       placeholder="Choose a native harness…"
                       onValueChange={provider => { setRunnerProvider(provider); setAdapterType("paperclip_runner"); }}
                       options={[
-                        { value: "grok", label: "Grok Build (Paperclip Runner)" },
-                        { value: "opencode", label: "OpenCode (Paperclip Runner)" },
+                        { value: "grok", label: "Grok Build (Outpost Runner)" },
+                        { value: "opencode", label: "OpenCode (Outpost Runner)" },
                       ]} />
                   </div>
                 </details>}

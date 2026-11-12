@@ -15,7 +15,7 @@ import type {
  * card cannot drift into three different names for the same thing.
  */
 
-export type ConnectionTypeLabel = "Personal" | "Dedicated agent" | "Organization";
+export type ConnectionTypeLabel = "Personal" | "Dedicated agent" | "Outpost";
 
 /** The two connection types shown throughout the product. */
 export function connectionTypeLabel(
@@ -25,10 +25,10 @@ export function connectionTypeLabel(
     ? "Personal"
     : credentialPolicy === "per_agent"
       ? "Dedicated agent"
-      : "Organization";
+      : "Outpost";
 }
 
-const ORGANIZATION_NAME_SUFFIX = " for the organization";
+const ORGANIZATION_NAME_SUFFIX = " for the outpost";
 
 /**
  * Connections created before the rename persisted the old suffix. Treat it as
@@ -36,7 +36,7 @@ const ORGANIZATION_NAME_SUFFIX = " for the organization";
  * "Slack for the company for the organization" — the setup flow persists this
  * name when a draft resumes, so a doubled suffix would outlive the render.
  */
-const LEGACY_ORGANIZATION_NAME_SUFFIX = " for the company";
+const LEGACY_ORGANIZATION_NAME_SUFFIX = " for the outpost";
 
 /** Keep organization-owned connections unmistakable anywhere their name appears. */
 export function connectionNameForGrantKind(name: string, grantKind: ConnectionGrantKind): string {
@@ -61,7 +61,7 @@ export function connectionNameForCredentialPolicy(
 ): string {
   return connectionNameForGrantKind(
     name,
-    connectionTypeLabel(credentialPolicy) === "Organization" ? "organization" : "user",
+    connectionTypeLabel(credentialPolicy) === "Outpost" ? "organization" : "user",
   );
 }
 
@@ -124,7 +124,7 @@ export function grantAccountLabel(
  */
 export function audienceSummary(grant: Pick<ConnectionGrant, "members"> | null): string {
   const count = grant?.members?.length ?? 0;
-  if (count === 0) return "All organization members";
+  if (count === 0) return "All outpost members";
   return `${count} selected ${count === 1 ? "member" : "members"}`;
 }
 

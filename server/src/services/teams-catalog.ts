@@ -908,7 +908,7 @@ export function teamsCatalogService(db: Db) {
     options: CatalogTeamImportOptions = {},
   ): Promise<CatalogTeamInstallResult> {
     const [company] = await db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId)).limit(1);
-    if (!company) throw notFound("Company not found");
+    if (!company) throw notFound("Outpost not found");
     const prepared = await prepareCatalogTeamSource(companyId, catalogRef, options);
     if (prepared.errors.length > 0) {
       throw unprocessable(`Catalog team source preparation failed: ${prepared.errors.join("; ")}`);

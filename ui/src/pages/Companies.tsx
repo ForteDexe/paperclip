@@ -7,7 +7,7 @@ import { useCloudInstance } from "../hooks/useCloudInstance";
 import { companiesApi } from "../api/companies";
 import { queryKeys } from "../lib/queryKeys";
 import { QueryErrorState } from "../components/QueryView";
-import { formatCents, relativeTime } from "../lib/utils";
+import { relativeTime } from "../lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,7 +28,6 @@ import {
   Trash2,
   Users,
   CircleDot,
-  DollarSign,
   Calendar,
   ArchiveRestore,
 } from "lucide-react";
@@ -91,7 +90,7 @@ export function Companies() {
   });
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Organizations" }]);
+    setBreadcrumbs([{ label: "Outposts" }]);
   }, [setBreadcrumbs]);
 
   function startEdit(companyId: string, currentName: string) {
@@ -115,15 +114,15 @@ export function Companies() {
         {isCloud ? null : (
           <Button size="sm" onClick={() => openOnboarding()}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            New Organization
+            New Outpost
           </Button>
         )}
       </div>
 
       <div className="min-h-6">
-        {loading && <p className="text-sm text-muted-foreground">Loading organizations...</p>}
+        {loading && <p className="text-sm text-muted-foreground">Loading outposts...</p>}
         {error ? (
-          <QueryErrorState size="inline" error={error} action="load organizations" onRetry={() => void retryCompanies()} />
+          <QueryErrorState size="inline" error={error} action="load outposts" onRetry={() => void retryCompanies()} />
         ) : null}
       </div>
 
@@ -135,12 +134,6 @@ export function Companies() {
           const companyStats = stats?.[company.id];
           const agentCount = companyStats?.agentCount ?? 0;
           const issueCount = companyStats?.issueCount ?? 0;
-          const budgetPct =
-            company.budgetMonthlyCents > 0
-              ? Math.round(
-                  (company.spentMonthlyCents / company.budgetMonthlyCents) * 100,
-                )
-              : 0;
 
           return (
             <Card
@@ -257,7 +250,7 @@ export function Companies() {
                         onClick={() => setConfirmDeleteId(company.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete Organization
+                        Delete Outpost
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -278,15 +271,6 @@ export function Companies() {
                     {issueCount} {issueCount === 1 ? "task" : "tasks"}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 tabular-nums">
-                  <DollarSign className="h-3.5 w-3.5" />
-                  <span>
-                    {formatCents(company.spentMonthlyCents)}
-                    {company.budgetMonthlyCents > 0
-                      ? <> / {formatCents(company.budgetMonthlyCents)} <span className="text-xs">({budgetPct}%)</span></>
-                      : <span className="text-xs ml-1">Unlimited budget</span>}
-                  </span>
-                </div>
                 <div className="flex items-center gap-1.5 ml-auto">
                   <Calendar className="h-3.5 w-3.5" />
                   <span>Created {relativeTime(company.createdAt)}</span>
@@ -300,7 +284,7 @@ export function Companies() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <p className="text-sm text-destructive font-medium">
-                    Delete this organization and all its data? This cannot be undone.
+                    Delete this outpost and all its data? This cannot be undone.
                   </p>
                   <div className="flex items-center gap-2 ml-4 shrink-0">
                     <Button

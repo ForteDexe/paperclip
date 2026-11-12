@@ -22,7 +22,7 @@ export async function preparationFailureFixture(db: Db, agentId: string) {
   await db.insert(plugins).values({ id: pluginId, pluginKey: key, packageName: `@fixture/${key}`, version: "1.0.0",
     apiVersion: 1, categories: ["automation"], status: "ready", installOrder: 1,
     manifestJson: { id: key, apiVersion: 1, version: "1.0.0", displayName: "Controlled unavailable preparation worker",
-      description: "Pre-dispatch worker refusal fixture", author: "Paperclip", categories: ["automation"],
+      description: "Pre-dispatch worker refusal fixture", author: "Outpost", categories: ["automation"],
       capabilities: ["environment.drivers.register"], entrypoints: { worker: "dist/worker.js" },
       environmentDrivers: [{ driverKey: key, kind: "sandbox_provider", displayName: "Controlled unavailable worker",
         configSchema: { type: "object" } }] } });

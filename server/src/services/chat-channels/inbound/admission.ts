@@ -205,7 +205,7 @@ export function createInboundAdmission(db: Db, options: InboundAdmissionOptions)
             ? "Message did not @mention the bot"
           : endpoint.provider === "telegram" && !thread.isDM && !addressed
             ? "Message did not address the agent"
-            : "Destination is not enabled in Paperclip";
+            : "Destination is not enabled in Outpost";
       let candidate = admittedDeliveryId
         ? await tx
             .select()

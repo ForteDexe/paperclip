@@ -177,7 +177,7 @@ export function TrustPresetSection({
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
-                      CE saves one containment boundary at a time. Saved policies include this organization id.
+                      CE saves one containment boundary at a time. Saved policies include this outpost id.
                     </p>
                     {boundaryTarget ? (
                       <Button
@@ -209,7 +209,7 @@ export function TrustPresetSection({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Get Paperclip EE.
+                  Get Outpost EE.
                 </a>
               </p>}
               <CollapsibleSection
@@ -286,7 +286,7 @@ export function TrustPresetSection({
     <div>
       <h3 className="mb-3 text-sm font-medium">Trust</h3>
       <div className="rounded-lg border border-border p-4 space-y-3">
-        <Field label="Trust preset" hint="Choose how broadly this agent can read and act on Paperclip work objects.">
+        <Field label="Trust preset" hint="Choose how broadly this agent can read and act on Outpost work objects.">
           <select
             className={inputClass}
             value={preset}

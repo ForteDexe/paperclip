@@ -1,4 +1,4 @@
-import { recoveryActionAttentionCondition, ATTENTION_BUDGET_WARNING_PERCENT, ATTENTION_AGENT_ERROR_STATUS, collapsePendingConfirmationsToNewest, loadNewestSettledConfirmationAt, readRunIssueId, listFailedRunsWithNewerRun, requiresReviewAttention, terminalBlockerRequiresAttention } from "./attention-source-eligibility.js";
+import { recoveryActionAttentionCondition, ATTENTION_AGENT_ERROR_STATUS, collapsePendingConfirmationsToNewest, loadNewestSettledConfirmationAt, readRunIssueId, listFailedRunsWithNewerRun, requiresReviewAttention, terminalBlockerRequiresAttention } from "./attention-source-eligibility.js";
 import { approvalExecutionIssueCondition, firstApprovalIssueId } from "./approval-visibility.js";
 import { and, asc, desc, eq, inArray, isNull, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
@@ -54,7 +54,6 @@ import type {
 import { withoutSqlStatementText } from "@paperclipai/shared";
 import { badRequest } from "../errors.js";
 import { listAttentionExhaustedRuns } from "./attention-exhausted-runs.js";
-import { budgetService } from "./budgets.js";
 import {
   BLOCKER_ATTENTION_MAX_DEPTH,
   BLOCKER_ATTENTION_MAX_NODES,
@@ -764,10 +763,6 @@ export function interactionResolverAudience(
     createdByAgentId: row.createdByAgentId,
     createdByAgentName: row.createdByAgentId ? agentName(row.createdByAgentId) : null,
   };
-}
-
-function budgetObservedPercent(amountObserved: number, amountLimit: number) {
-  return amountLimit > 0 ? Math.round((amountObserved / amountLimit) * 10_000) / 100 : 0;
 }
 
 async function companyPrefix(db: Db, companyId: string) {
@@ -1758,60 +1753,6 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
             // Rows saved before SQL text was kept out of run errors still carry it.
             failureReasonExcerpt: excerpt((run.error ? withoutSqlStatementText(run.error) : null) ?? run.exhaustionMessage ?? run.errorCode),
             images: issueImages(failedImageMap, issueId),
-          },
-        }));
-      }
-
-      const budgetOverview = await budgetService(db).overview(companyId);
-      for (const incident of budgetOverview.activeIncidents) {
-        const observedPercent = budgetObservedPercent(incident.amountObserved, incident.amountLimit);
-        if (incident.thresholdType !== "hard" && observedPercent < ATTENTION_BUDGET_WARNING_PERCENT) continue;
-        const dedupKey = `budget:${incident.policyId}:${toIso(incident.windowStart)}:${incident.thresholdType}`;
-        add(createItem({
-          companyId,
-          sourceKind: "budget_alert",
-          subject: {
-            kind: "budget_incident",
-            id: incident.id,
-            companyId,
-            title: `${incident.scopeName} budget ${incident.thresholdType === "hard" ? "hard stop" : "warning"}`,
-            identifier: null,
-            status: incident.status,
-            href: `/${prefix}/costs`,
-            metadata: {
-              policyId: incident.policyId,
-              scopeType: incident.scopeType,
-              scopeId: incident.scopeId,
-              thresholdType: incident.thresholdType,
-              amountObserved: incident.amountObserved,
-              amountLimit: incident.amountLimit,
-              observedPercent,
-              approvalId: incident.approvalId,
-              approvalStatus: incident.approvalStatus,
-            },
-          },
-          whyNow: incident.thresholdType === "hard"
-            ? "Budget hard stop was reached."
-            : "Budget crossed the 85% warning threshold.",
-          decisionVerbs: decisionVerbs(
-            { id: "raise_budget_and_resume", label: "Raise budget", description: "Raise the budget and resume paused work." },
-            { id: "keep_paused", label: "Keep paused", description: "Dismiss or keep the budget stop in place." },
-          ),
-          inlineResolvable: true,
-          entryRule: "open budget incident is hard, or soft with observed spend >= 85% of limit.",
-          exitRule: "Budget incident is resolved or dismissed.",
-          dedupKey,
-          severity: incident.thresholdType === "hard" ? "high" : "medium",
-          activityAt: toIso(incident.updatedAt),
-          createdAt: toIso(incident.createdAt),
-          updatedAt: toIso(incident.updatedAt),
-          relatedIssue: null,
-          detail: {
-            kind: "budget",
-            observedPercent,
-            amountObserved: incident.amountObserved,
-            amountLimit: incident.amountLimit,
-            images: [],
           },
         }));
       }

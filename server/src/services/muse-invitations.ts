@@ -36,14 +36,14 @@ export function museInvitationService(db: Db) {
       return agent ? describe(agent) : null;
     },
     async create(companyId: string, operatorId: string, input: { name: string; role: string }) {
-      if (!await museRunnerBroker(db).enabled()) throw unprocessable("Enable Muse and Paperclip Runner in experimental settings.");
+      if (!await museRunnerBroker(db).enabled()) throw unprocessable("Enable Muse and Outpost Runner in experimental settings.");
       const database = db;
       const lockKey = `paperclip:muse-invitation:${companyId}:${operatorId}`;
       return withDedicatedDbConnection(db, lockDb => lockDb.transaction(async lock => {
         await lock.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
         // SQL locking also serializes retries on different control-plane replicas.
         const [company] = await database.select().from(companies).where(eq(companies.id, companyId));
-        if (!company) throw notFound("Company not found");
+        if (!company) throw notFound("Outpost not found");
         if (company.status !== "active") throw unprocessable("Activate this company before inviting Muse.");
         const existing = await pending(database, companyId, operatorId, true);
         if (existing) {

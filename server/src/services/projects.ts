@@ -518,7 +518,7 @@ async function assertGoalsBelongToCompany(db: Db, companyId: string, goalIds: st
   const unknown = unique.filter((goalId) => !foundIds.has(goalId));
   if (unknown.length > 0) {
     throw unprocessable(
-      `Unknown goal id(s) for this company: ${unknown.join(", ")}`,
+      `Unknown north star id(s) for this company: ${unknown.join(", ")}`,
       { unknownGoalIds: unknown },
     );
   }

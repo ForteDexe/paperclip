@@ -214,7 +214,7 @@ export class NativeSessionCleanupQuarantinedError extends Error {
 
   constructor() {
     super(
-      "native_session_cleanup_quarantined: the previous session is still shutting down; Paperclip finishes the cleanup automatically and the saved work is kept.",
+      "native_session_cleanup_quarantined: the previous session is still shutting down; Outpost finishes the cleanup automatically and the saved work is kept.",
     );
     this.name = "NativeSessionCleanupQuarantinedError";
   }

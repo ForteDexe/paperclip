@@ -28,7 +28,7 @@ export function registerAssetCommands(program: Command): void {
       .command("image:upload")
       .description("Upload a company image asset")
       .requiredOption("--file <path>", "Image file path")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--namespace <value>", "Asset namespace suffix")
       .option("--alt <text>", "Alt text metadata")
       .option("--title <text>", "Title metadata")
@@ -49,7 +49,7 @@ export function registerAssetCommands(program: Command): void {
       .command("logo:upload")
       .description("Upload a company logo")
       .requiredOption("--file <path>", "Logo file path")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: AssetOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });

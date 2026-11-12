@@ -20,7 +20,7 @@ export function goalRoutes(db: Db) {
 
   router.get("/goals/:id", async (req, res) => {
     const id = req.params.id as string;
-    const goal = await getAccessibleResource(req, res, svc.getById(id), "Goal not found");
+    const goal = await getAccessibleResource(req, res, svc.getById(id), "North Star not found");
     if (!goal) return;
     res.json(goal);
   });
@@ -49,11 +49,11 @@ export function goalRoutes(db: Db) {
 
   router.patch("/goals/:id", validate(updateGoalSchema), async (req, res) => {
     const id = req.params.id as string;
-    const existing = await getAccessibleResource(req, res, svc.getById(id), "Goal not found");
+    const existing = await getAccessibleResource(req, res, svc.getById(id), "North Star not found");
     if (!existing) return;
     const goal = await svc.update(id, req.body);
     if (!goal) {
-      res.status(404).json({ error: "Goal not found" });
+      res.status(404).json({ error: "North Star not found" });
       return;
     }
 
@@ -74,11 +74,11 @@ export function goalRoutes(db: Db) {
 
   router.delete("/goals/:id", async (req, res) => {
     const id = req.params.id as string;
-    const existing = await getAccessibleResource(req, res, svc.getById(id), "Goal not found");
+    const existing = await getAccessibleResource(req, res, svc.getById(id), "North Star not found");
     if (!existing) return;
     const goal = await svc.remove(id);
     if (!goal) {
-      res.status(404).json({ error: "Goal not found" });
+      res.status(404).json({ error: "North Star not found" });
       return;
     }
 

@@ -1,13 +1,13 @@
 # Scenario chat Tutorial: Chat With the Mock Control Plane
 
 **Time to first success: about 3 minutes.** One command opens a chat where you
-send prompts to a Capability scenario and watch exactly how the mock Paperclip
+send prompts to a Capability scenario and watch exactly how the mock Outpost
 control plane was used on every turn. The tutorial runs from the repository
-root. It starts no Paperclip service, contacts no Paperclip control plane, and
+root. It starts no Outpost service, contacts no Outpost control plane, and
 holds no provider credential.
 
 Scenario chat extends the Capability browser surface; it does not integrate the runner
-into Paperclip. Real integration is future upload integration and requires separate approval. See
+into Outpost. Real integration is future upload integration and requires separate approval. See
 [the future binding boundary reference](../capability-future-binding-boundary.md).
 
 ## What you need

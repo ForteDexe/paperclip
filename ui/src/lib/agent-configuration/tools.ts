@@ -18,7 +18,7 @@ export function planToolChanges(snapshot: AgentConfigurationSnapshot, document: 
     const installed = next.connections.find(row => row.connectionId === previous.connectionId)?.installed ?? false;
     if (installed === previous.installed) continue;
     const connection = snapshot.connections.find(row => row.id === previous.connectionId)!;
-    if (connection.installs?.some(row => row.targetType === "company")) throw new Error(`${connection.name} is installed organization-wide. Its inherited installation cannot be overridden for one agent.`);
+    if (connection.installs?.some(row => row.targetType === "company")) throw new Error(`${connection.name} is installed across the Outpost. Its inherited installation cannot be overridden for one agent.`);
     add(`Tool installation: ${connection.name}`, async () => {
       const current = await toolsApi.getConnectionInstalls(connection.id);
       if (current.installs.some(row => row.targetType === "company") || current.installs.some(row => row.targetType === "agent" && row.targetId === agentId) !== previous.installed) {

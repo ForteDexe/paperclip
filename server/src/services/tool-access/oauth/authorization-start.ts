@@ -212,7 +212,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         });
       }
       const [company] = await db.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
-      if (!company) throw notFound("Company not found");
+      if (!company) throw notFound("Outpost not found");
       const destination = new URL(input.redirectUri);
       destination.pathname = `/${encodeURIComponent(company.prefix)}/apps/${connection.credentialSource === "vercel_connect" ? "vercel-connect" : "connect"}`;
       destination.search = new URLSearchParams({ [connection.status === "draft" ? "resume" : "reconnect"]: connection.id,
@@ -351,7 +351,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
       const cloudConnector = currentCloudConnector();
       if (!cloudConnector) {
         throw unprocessable(
-          `${providerName} connections through Paperclip are not available on this instance yet`,
+          `${providerName} connections through Outpost are not available on this instance yet`,
           {
             code: "paperclip_cloud_connector_unavailable",
           },

@@ -1,6 +1,6 @@
 ---
-name: Core Exec Team
-description: Default leadership and engineering team for bootstrapping a Paperclip company with a CEO, CTO, QA Engineer, starter project, and a recurring CEO heartbeat review task.
+name: Core Crew
+description: Default crew for bootstrapping an Outpost with an Outpost Lead, Engineering Lead, QA Engineer, starter project, and a recurring lead heartbeat review task.
 schema: agentcompanies/v1
 slug: core-exec-team
 category: company-defaults
@@ -21,23 +21,23 @@ tags:
   - engineering
   - qa
 requiredSkills:
-  - paperclipai/bundled/paperclip-operations/task-planning
-  - paperclipai/bundled/paperclip-operations/issue-triage
+  - paperclipai/bundled/Outpost-operations/task-planning
+  - paperclipai/bundled/Outpost-operations/issue-triage
   - paperclipai/bundled/software-development/github-pr-workflow
   - paperclipai/bundled/quality/qa-acceptance
 ---
 
-# Core Exec Team
+# Core Crew
 
-The Core Exec Team is the bundled default install for a new Paperclip company. It boots the smallest org that can take a board prompt, plan it, implement it, and verify it.
+The Core Crew is the bundled default install for a new Outpost. It boots the smallest crew that can take a prompt, plan it, implement it, and verify it.
 
 ## Contents
 
-- `CEO` — strategy, prioritization, delegation. Uses `task-planning` and `issue-triage` to keep the inbox moving.
-- `CTO` — technical execution and engineering oversight. Reports to CEO. Uses `github-pr-workflow` for code review and merge hygiene.
-- `QA` — verifies fixes and captures evidence. Reports to CTO. Uses `qa-acceptance` for structured acceptance reports.
-- `first-project` — starter project under the CTO for converting the company goal into the first implementation task.
-- `first-heartbeat` — recurring CEO heartbeat to review priorities and confirm the next useful task.
+- `Outpost Lead` — direction, prioritization, delegation. Uses `task-planning` and `issue-triage` to keep the inbox moving.
+- `Engineering Lead` — technical execution and engineering oversight. Reports to the Outpost Lead. Uses `github-pr-workflow` for code review and merge hygiene.
+- `QA` — verifies fixes and captures evidence. Reports to the Engineering Lead. Uses `qa-acceptance` for structured acceptance reports.
+- `first-project` — starter project under the Engineering Lead for converting the outpost North Star into the first implementation task.
+- `first-heartbeat` — recurring lead heartbeat to review priorities and confirm the next useful task.
 
 ## Migration notes
 

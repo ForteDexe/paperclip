@@ -98,7 +98,7 @@ export function splitTranscriptAtAnchors(
  * The live parent row's nesting rule (PAP-354, narrowed by PAP-361): only tool
  * calls, provider-supplied reasoning summaries, and usage readouts nest inside
  * the expandable live turn. The classic parent-row surface may flatten a live
- * interstitial into its status line; the Paperclip Runner task surface instead
+ * interstitial into its status line; the Outpost Runner task surface instead
  * projects commentary as durable chronological phase boundaries. The run's
  * final reply is resolved separately into the turn's durable response slot or
  * its posted comment bubble. Markers, statuses and interaction cards stay in
@@ -1413,7 +1413,7 @@ export function paperclipRunnerHistoryItems(
 }
 
 /**
- * Semantic rows for the Paperclip runner's Codex-style activity disclosure.
+ * Semantic rows for the Outpost runner's Codex-style activity disclosure.
  *
  * This is intentionally narrower than the stored transcript and the runner
  * inspector: it keeps work a person can understand or act on while excluding
@@ -1902,12 +1902,12 @@ function phaseSummary(
         case "paperclip_read":
           text =
             count === 1
-              ? "Read from Paperclip"
-              : `Read from Paperclip ${count} times`;
+              ? "Read from Outpost"
+              : `Read from Outpost ${count} times`;
           break;
         case "task_operation":
           text =
-            count === 1 ? "Used Paperclip" : `Used Paperclip ${count} times`;
+            count === 1 ? "Used Outpost" : `Used Outpost ${count} times`;
           break;
         default:
           text = count === 1 ? "Used a tool" : `Used ${count} tools`;

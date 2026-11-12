@@ -104,7 +104,7 @@ export function registerAdapterCommands(program: Command): void {
       .command("models")
       .description("List adapter models for a company")
       .argument("<type>", "Adapter type")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--refresh", "Refresh provider model list", false)
       .option("--environment-id <id>", "Environment ID for environment-aware adapters")
       .action(async (type: string, opts: AdapterOptions) => {
@@ -181,7 +181,7 @@ function addCompanyAdapterGet(parent: Command, name: string, description: string
       .command(name)
       .description(description)
       .argument("<type>", "Adapter type")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (type: string, opts: AdapterOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -200,7 +200,7 @@ function addCompanyAdapterPost(parent: Command, name: string, description: strin
       .command(name)
       .description(description)
       .argument("<type>", "Adapter type")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--payload-json <json>", "JSON payload", "{}")
       .action(async (type: string, opts: AdapterOptions) => {
         try {

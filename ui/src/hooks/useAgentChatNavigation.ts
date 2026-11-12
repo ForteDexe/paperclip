@@ -39,7 +39,7 @@ export function useOpenAgentChat(companyId: string | null, userId: string | null
     return () => { current.mounted = false; };
   }, [companyId, userId]);
   return useCallback(async (agent: Agent, signal?: AbortSignal) => {
-    if (!companyId || agent.companyId !== companyId) throw new Error("Choose an agent from this company.");
+    if (!companyId || agent.companyId !== companyId) throw new Error("Choose an agent from this outpost.");
     const current = scope.current;
     const chat = await agentChatsApi.ensure(companyId, agent.id);
     client.setQueryData(queryKeys.agentChats.detail(companyId, userId, agent.id), chat);

@@ -152,7 +152,7 @@ export function CompanySettings() {
       // still makes sense (another active company, the Cloud portfolio, or
       // the companies list), with a toast naming what happened.
       const archived = companies.find((company) => company.id === companyId);
-      const archivedName = archived?.name ?? "Organization";
+      const archivedName = archived?.name ?? "Outpost";
       const departure = resolveCompanyArchiveDeparture({
         archivedCompanyId: companyId,
         companies,
@@ -194,7 +194,7 @@ export function CompanySettings() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Company", href: "/dashboard" },
+      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
       { label: "Settings" }
     ]);
   }, [setBreadcrumbs, selectedCompany?.name]);
@@ -202,7 +202,7 @@ export function CompanySettings() {
   if (!selectedCompany) {
     return (
       <div className="text-sm text-muted-foreground">
-        No organization selected. Select an organization from the switcher above.
+        No outpost selected. Select an outpost from the switcher above.
       </div>
     );
   }
@@ -227,7 +227,7 @@ export function CompanySettings() {
           General
         </div>
         <div className="space-y-3">
-          <Field label="Organization name" hint="The display name for your organization.">
+          <Field label="Outpost name" hint="The display name for your outpost.">
             <input
               className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
               type="text"
@@ -236,20 +236,20 @@ export function CompanySettings() {
             />
             {isCloudManaged && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Renaming can change this company's task ID prefix. Existing task IDs are
+                Renaming can change this outpost's task ID prefix. Existing task IDs are
                 renumbered and old task links stop resolving.
               </p>
             )}
           </Field>
           <Field
             label="Description"
-            hint="Optional description shown in the organization profile."
+            hint="Optional description shown in the outpost profile."
           >
             <input
               className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
               type="text"
               value={description}
-              placeholder="Optional organization description"
+              placeholder="Optional outpost description"
               onChange={(e) => setDescription(e.target.value)}
             />
           </Field>
@@ -336,7 +336,7 @@ export function CompanySettings() {
       )}
 
       {/* Hiring */}
-      <div className="max-w-2xl space-y-4" data-testid="company-settings-team-section">
+      <div className="max-w-2xl space-y-4" data-testid="outpost-settings-team-section">
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Hiring
         </div>
@@ -346,7 +346,7 @@ export function CompanySettings() {
             hint="New agent hires stay pending until approved by board."
             checked={!!selectedCompany.requireBoardApprovalForNewAgents}
             onChange={(v) => settingsMutation.mutate(v)}
-            toggleTestId="company-settings-team-approval-toggle"
+            toggleTestId="outpost-settings-team-approval-toggle"
           />
         </div>
       </div>
@@ -370,7 +370,7 @@ export function CompanySettings() {
         </div>
         <div className="space-y-3 bg-destructive/5 px-4 py-4">
           <p className="text-sm text-muted-foreground">
-            Archive this organization to hide it from the sidebar. This persists in
+            Archive this outpost to hide it from the sidebar. This persists in
             the database.
           </p>
           <div className="flex items-center gap-2">
@@ -384,7 +384,7 @@ export function CompanySettings() {
               onClick={() => {
                 if (!selectedCompanyId) return;
                 const confirmed = window.confirm(
-                  `Archive organization "${selectedCompany.name}"? It will be hidden from the sidebar.`
+                  `Archive outpost "${selectedCompany.name}"? It will be hidden from the sidebar.`
                 );
                 if (!confirmed) return;
                 archiveMutation.mutate({ companyId: selectedCompanyId });
@@ -394,7 +394,7 @@ export function CompanySettings() {
                 ? "Archiving..."
                 : selectedCompany.status === "archived"
                 ? "Already archived"
-                : "Archive organization"}
+                : "Archive outpost"}
             </Button>
             {archiveMutation.error && (
               <span className="text-xs text-destructive">

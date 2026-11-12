@@ -56,9 +56,9 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     tier: "managed", cloudDefault: false, selfHostedDefault: false,
   },
   enableNativeRunner: {
-    title: "Paperclip Runner",
+    title: "Outpost Runner",
     description:
-      "Allow explicitly configured local Codex, OpenCode, and qualified ACPX agents to use the experimental Rust Paperclip Runner, including authenticated sandbox ingress when required. Onboarding remains on legacy adapters.",
+      "Allow explicitly configured local Codex, OpenCode, and qualified ACPX agents to use the experimental Rust Outpost Runner, including authenticated sandbox ingress when required. Onboarding remains on legacy adapters.",
     tier: "managed",
     cloudDefault: false,
     // On by default for self-hosted instances. Requires a Rust toolchain (or
@@ -143,14 +143,14 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   },
   enableGrokBot: {
     title: "Grok Bot",
-    description: "Connect an existing Grok Bot as an experimental Paperclip agent. Requires Assistant connections (MCP), Paperclip Runner, and an authenticated public HTTPS instance. Provider spending is not reported.",
+    description: "Connect an existing Grok Bot as an experimental Outpost agent. Requires Assistant connections (MCP), Outpost Runner, and an authenticated public HTTPS instance. Provider spending is not reported.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
   },
   enableMuse: {
     title: "Muse — Personal agent",
-    description: "Connect your personal Meta Muse through its managed background receiver and the external Paperclip Runner. Experimental; requires authenticated public HTTPS and Paperclip Runner.",
+    description: "Connect your personal Meta Muse through its managed background receiver and the external Outpost Runner. Experimental; requires authenticated public HTTPS and Outpost Runner.",
     tier: "managed", cloudDefault: false, selfHostedDefault: false,
   },
   enableChatConnectors: {
@@ -169,14 +169,14 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     selfHostedDefault: false,
   },
   enablePaperclipNotebook: {
-    title: "Paperclip Notebook",
-    description: "Allow Paperclip Notebook connections and publishing through an explicitly enabled instance rollout.",
+    title: "Outpost Notebook",
+    description: "Allow Outpost Notebook connections and publishing through an explicitly enabled instance rollout.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
   },
   enableGoogleWorkspaceConnector: {
-    title: "Google Workspace connector (Paperclip)",
+    title: "Google Workspace connector (Outpost)",
     description: "Show and allow the built-in Google Workspace connector while its Google app verification is pending. When off, Google apps are offered through Composio and Arcade instead.",
     tier: "managed",
     cloudDefault: false,
@@ -286,14 +286,14 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   enableBuiltInAgents: {
     title: "Built-in Agents",
     description:
-      "Show Paperclip-managed built-in agent surfaces, including roster badges, the Built-in agents tab, and setup controls.",
+      "Show Outpost-managed built-in agent surfaces, including roster badges, the Built-in agents tab, and setup controls.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
   },
   enableBetaSkills: {
     title: "Beta skills",
-    description: "Allow agents to pin beta releases of the Paperclip core skill.",
+    description: "Allow agents to pin beta releases of the Outpost core skill.",
     tier: "preference",
     cloudDefault: false,
     selfHostedDefault: false,
@@ -323,8 +323,8 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     selfHostedDefault: false,
   },
   enableGoalsSidebarLink: {
-    title: "Goals Sidebar Link",
-    description: "Restore the Goals item in the main sidebar while the goals surface is being evaluated.",
+    title: "North Stars Sidebar Link",
+    description: "Restore the North Stars item in the main sidebar while the goals surface is being evaluated.",
     tier: "preference",
     cloudDefault: false,
     selfHostedDefault: false,
@@ -346,9 +346,9 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     selfHostedDefault: false,
   },
   enablePaperclipDeveloperMode: {
-    title: "Paperclip Developer Mode",
+    title: "Outpost Developer Mode",
     description:
-      "Show internal Paperclip maintainer tools and observability links, including Honeycomb trace queries on run pages.",
+      "Show internal Outpost maintainer tools and observability links, including Honeycomb trace queries on run pages.",
     tier: "preference",
     cloudDefault: false,
     selfHostedDefault: false,
@@ -396,7 +396,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   enableRunnerPreviewIngress: {
     title: "Runner Preview Ingress (Deprecated)",
     description:
-      "Compatibility-only key retained for older managed configs. Runner ingress follows the Paperclip Runner setting.",
+      "Compatibility-only key retained for older managed configs. Runner ingress follows the Outpost Runner setting.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,

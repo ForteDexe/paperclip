@@ -29,13 +29,13 @@ export function AiConnectionAccountDetails({ account, grant }: {
         <dt className="text-muted-foreground">{AI_PROVIDERS[account.provider].name} account</dt>
         <dd className="break-words">{accountLabel ?? "Not available"}</dd>
         {identity.data?.organizationLabel && <>
-          <dt className="text-muted-foreground">Organization</dt>
+          <dt className="text-muted-foreground">Outpost</dt>
           <dd className="break-words">{identity.data.organizationLabel}</dd>
         </>}
         <dt className="text-muted-foreground">Sign-in method</dt>
         <dd>{aiMethodLabel(account.provider, account.method)}</dd>
         <dt className="text-muted-foreground">Access</dt>
-        <dd>{account.ownership === "shared" ? "Company shared" : `Personal · ${account.ownerName ?? "Account owner"}`}</dd>
+        <dd>{account.ownership === "shared" ? "Outpost shared" : `Personal · ${account.ownerName ?? "Account owner"}`}</dd>
       </dl>
       {canLookUp && identity.isPending && <p role="status" className="text-xs text-muted-foreground">Checking account details…</p>}
       {message && <p role={retryable ? "alert" : undefined} className="text-xs text-muted-foreground">{message}</p>}

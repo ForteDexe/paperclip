@@ -87,7 +87,7 @@ export const GIT_ARCHIVE_EXCLUDES = [".git", ".git/*"] as const;
  */
 export const GIT_SYNC_COMMIT_IDENTITY_ARGS = [
   "-c",
-  "user.name=Paperclip",
+  "user.name=Outpost",
   "-c",
   "user.email=noreply@paperclip.ing",
 ] as const;
@@ -1130,7 +1130,7 @@ export async function integrateImportedGitHead(input: {
         localDir: input.localDir,
         currentHead,
         importedHead: input.importedHead,
-        syncLabel: "Paperclip remote git sync",
+        syncLabel: "Outpost remote git sync",
       });
       try {
         await updateLocalGitHead({
@@ -1171,7 +1171,7 @@ export async function integrateImportedGitHead(input: {
         "-p",
         input.importedHead,
         "-m",
-        `Paperclip remote git sync merge ${input.importedHead.slice(0, 12)}`,
+        `Outpost remote git sync merge ${input.importedHead.slice(0, 12)}`,
       ],
       {
         timeout: 60_000,

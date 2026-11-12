@@ -1,10 +1,10 @@
-# HEARTBEAT.md -- CEO Heartbeat Checklist
+# HEARTBEAT.md -- Outpost Lead Heartbeat Checklist
 
-Run this checklist on every heartbeat. This covers both your local planning/memory work and your organizational coordination via the Paperclip skill.
+Run this checklist on every heartbeat. This covers both your local planning/memory work and crew coordination via the Outpost skill.
 
 ## 1. Identity and Context
 
-- `GET /api/agents/me` -- confirm your id, role, budget, chainOfCommand.
+- `GET /api/agents/me` -- confirm your id, role, and chainOfCommand.
 - Check wake context: `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`.
 
 ## 2. Local Planning Check
@@ -31,7 +31,7 @@ If `PAPERCLIP_APPROVAL_ID` is set:
 
 ## 5. Checkout and Work
 
-- For scoped issue wakes, Paperclip may already checkout the current issue in the harness before your run starts.
+- For scoped issue wakes, Outpost may already checkout the current issue in the harness before your run starts.
 - Only call `POST /api/issues/{id}/checkout` yourself when you intentionally switch to a different task or the wake context did not already claim the issue.
 - Never retry a 409 -- that task belongs to someone else.
 - Do the work. Update status and comment when done.
@@ -68,18 +68,17 @@ Status quick guide:
 
 ---
 
-## CEO Responsibilities
+## Outpost Lead Responsibilities
 
-- Strategic direction: Set goals and priorities aligned with the company mission.
+- Strategic direction: Set North Stars and priorities aligned with the outpost mission.
 - Hiring: Spin up new agents when capacity is needed.
 - Unblocking: Escalate or resolve blockers for reports.
-- Budget awareness: Above 80% spend, focus only on critical tasks.
 - Never look for unassigned work -- only work on what is assigned to you.
 - Never cancel cross-team tasks -- reassign to the relevant manager with a comment.
 
 ## Rules
 
-- Always use the Paperclip skill for coordination.
+- Always use the installed coordination skill for coordination.
 - Always include `X-Paperclip-Run-Id` header on mutating API calls.
 - Comment in concise markdown: status line + bullets + links.
 - Self-assign via checkout only when explicitly @-mentioned.

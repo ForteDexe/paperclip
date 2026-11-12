@@ -25,7 +25,7 @@ import { api, detachInflightGet, type RequestOptions } from "./client";
 
 // The board navigates only into companies the user can enter. The unscoped
 // directory also includes companies visible solely through instance admin.
-const COMPANIES_LIST_PATH = "/companies?scope=accessible";
+const COMPANIES_LIST_PATH = "/outposts?scope=accessible";
 const COMPANIES_DIRECTORY_PATH = "/companies";
 
 export type CompanyStats = Record<string, { agentCount: number; issueCount: number }>;
@@ -143,10 +143,10 @@ export const companiesApi = {
   // `x-paperclip-cloud-*` header a browser would otherwise use, so that header
   // never survives to engage the async path.
   importBundleAsync: (data: CompanyPortabilityImportRequest) =>
-    api.post<CompanyImportJobAccepted>("/companies/import?async=1", data),
+    api.post<CompanyImportJobAccepted>("/outposts/import?async=1", data),
   /** Submit a local .zip package as an async import job by uploading the raw compressed zip as multipart. */
   importBundlePackageAsync: (file: File, meta: CompanyPortabilityImportMeta) =>
-    api.postForm<CompanyImportJobAccepted>("/companies/import?async=1", importPackageForm(file, meta)),
+    api.postForm<CompanyImportJobAccepted>("/outposts/import?async=1", importPackageForm(file, meta)),
   getImportJob: (jobId: string) =>
     api.get<CompanyImportJobStatus>(`/companies/import/jobs/${encodeURIComponent(jobId)}`),
   // Chunked resumable transfer for large local .zip packages: declare the

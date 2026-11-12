@@ -110,19 +110,19 @@ function formatVerb(
     case "project.deleted":
       return "deleted project";
     case "goal.created":
-      return "created goal";
+      return "created north star";
     case "goal.updated":
-      return "updated goal";
+      return "updated north star";
     case "goal.deleted":
-      return "deleted goal";
+      return "deleted north star";
     case "company.created":
-      return "created organization";
+      return "created outpost";
     case "company.updated":
-      return "updated organization";
+      return "updated outpost";
     case "company.archived":
-      return "archived organization";
+      return "archived outpost";
     case "company.budget_updated":
-      return "updated organization budget";
+      return "updated a legacy policy";
 
     default:
       return action.replace(/[._]/g, " ");

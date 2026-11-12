@@ -1691,7 +1691,7 @@ function buildLegacyRoutineTriggerFromRecurrence(
   }
 
   if (issue.legacyRecurrence.until != null || issue.legacyRecurrence.count != null) {
-    warnings.push(`Recurring task ${issue.slug} uses legacy recurrence end bounds; Paperclip will import the routine trigger without those limits.`);
+    warnings.push(`Recurring task ${issue.slug} uses legacy recurrence end bounds; Outpost will import the routine trigger without those limits.`);
   }
 
   let cronExpression: string | null = null;
@@ -2603,12 +2603,12 @@ function applySelectedFilesToSource(source: ResolvedSource, selectedFiles?: stri
     ? ensureMarkdownPath(source.manifest.company.path)
     : Object.keys(source.files).find((entry) => entry.endsWith("/COMPANY.md") || entry === "COMPANY.md") ?? null;
   if (!companyPath) {
-    throw unprocessable("Company package is missing COMPANY.md");
+    throw unprocessable("Outpost package is missing COMPANY.md");
   }
 
   const companyMarkdown = source.files[companyPath];
   if (typeof companyMarkdown !== "string") {
-    throw unprocessable("Company package is missing COMPANY.md");
+    throw unprocessable("Outpost package is missing COMPANY.md");
   }
 
   const effectiveFiles: Record<string, CompanyPortabilityFileEntry> = {};
@@ -3122,12 +3122,12 @@ function buildManifestFromPackageFiles(
     ? "COMPANY.md"
     : Object.keys(normalizedFiles).find((entry) => entry.endsWith("/COMPANY.md") || entry === "COMPANY.md");
   if (!resolvedCompanyPath) {
-    throw unprocessable("Company package is missing COMPANY.md");
+    throw unprocessable("Outpost package is missing COMPANY.md");
   }
 
   const companyMarkdown = readPortableTextFile(normalizedFiles, resolvedCompanyPath);
   if (typeof companyMarkdown !== "string") {
-    throw unprocessable(`Company package file is not readable as text: ${resolvedCompanyPath}`);
+    throw unprocessable(`Outpost package file is not readable as text: ${resolvedCompanyPath}`);
   }
   const companyDoc = parseFrontmatterMarkdown(companyMarkdown);
   const companyFrontmatter = companyDoc.frontmatter;
@@ -3140,7 +3140,7 @@ function buildManifestFromPackageFiles(
     ? declaredSchemaVersion
     : UNSTAMPED_BUNDLE_SCHEMA_VERSION;
   if (bundleSchemaVersion > BUNDLE_SCHEMA_VERSION) {
-    throw unprocessable(`Company package declares schemaVersion ${bundleSchemaVersion}, which was produced by a newer Paperclip; this board reads up to schemaVersion ${BUNDLE_SCHEMA_VERSION}.`);
+    throw unprocessable(`Outpost package declares schemaVersion ${bundleSchemaVersion}, which was produced by a newer Outpost; this board reads up to schemaVersion ${BUNDLE_SCHEMA_VERSION}.`);
   }
   const paperclipCompany = isPlainRecord(paperclipExtension.company) ? paperclipExtension.company : {};
   const paperclipSidebar = normalizePortableSidebarOrder(paperclipExtension.sidebar);
@@ -3154,7 +3154,7 @@ function buildManifestFromPackageFiles(
   const companyName =
     asString(companyFrontmatter.name)
     ?? opts?.sourceLabel?.companyName
-    ?? "Imported Company";
+    ?? "Imported Outpost";
   const companySlug =
     asString(companyFrontmatter.slug)
     ?? normalizeAgentUrlKey(companyName)
@@ -3903,7 +3903,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
       skills: input.skills && input.skills.length > 0 ? true : input.include?.skills,
     });
     const company = await companies.getById(companyId);
-    if (!company) throw notFound("Company not found");
+    if (!company) throw notFound("Outpost not found");
 
     const files: Record<string, CompanyPortabilityFileEntry> = {};
     const warnings: string[] = [];
@@ -5382,7 +5382,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         for (const agent of runnerSelections) {
           const config = input.adapterOverrides?.[agent.slug]?.adapterConfig ?? agent.adapterConfig;
           if (config.provider === "muse") {
-            if (experimental.enableMuse !== true || experimental.enableNativeRunner !== true) throw unprocessable("Muse and Paperclip Runner must be enabled before importing a Muse agent.", {code:"paperclip_runner_muse_disabled"});
+            if (experimental.enableMuse !== true || experimental.enableNativeRunner !== true) throw unprocessable("Muse and Outpost Runner must be enabled before importing a Muse agent.", {code:"paperclip_runner_muse_disabled"});
           } else if (config.provider === "openai_dot") {
             if (experimental.enableOpenAiDot !== true) throw unprocessable(
               "OpenAI Dot is experimental and disabled on this instance.",
@@ -5390,7 +5390,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
             );
           } else if (config.provider !== "codex" && config.provider !== "opencode" && config.provider !== undefined && !["claude_local", "pi_local", "grok_local"].includes(agentHarnessType("paperclip_runner", config)) && experimental.enableNativeRunner !== true) {
             throw unprocessable(
-              "Paperclip Runner is experimental and disabled on this instance.",
+              "Outpost Runner is experimental and disabled on this instance.",
               { code: "paperclip_runner_rollout_disabled" },
             );
           }
@@ -5429,7 +5429,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
       }
       const requestedCompanyName = asString(input.target.newCompanyName);
       const manifestCompanyName =
-        sourceManifest.company?.name ?? sourceManifest.source?.companyName ?? "Imported Company";
+        sourceManifest.company?.name ?? sourceManifest.source?.companyName ?? "Imported Outpost";
       // De-duplicate only for board-driven imports. The lookup reads every
       // company name in the instance, and reflecting a collision back through
       // the numeric suffix would let a company-scoped agent (agent_safe mode)

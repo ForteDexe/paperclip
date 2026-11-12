@@ -64,7 +64,7 @@ const DECISIONS_TOGGLE_SELECTOR =
 const SERVER_INFO_TOGGLE_SELECTOR =
   'button[aria-label="Toggle server info debug view experimental setting"]';
 const PAPERCLIP_DEVELOPER_MODE_TOGGLE_SELECTOR =
-  'button[aria-label="Toggle Paperclip developer mode experimental setting"]';
+  'button[aria-label="Toggle Outpost developer mode experimental setting"]';
 const BUILT_IN_AGENTS_TOGGLE_SELECTOR =
   'button[aria-label="Toggle built-in agents experimental setting"]';
 const BETA_SKILLS_TOGGLE_SELECTOR =
@@ -74,7 +74,7 @@ const SUMMARIES_TOGGLE_SELECTOR =
 const STATUS_CARDS_TOGGLE_SELECTOR =
   'button[aria-label="Toggle status cards experimental setting"]';
 const PAPERCLIP_RUNNER_TOGGLE_SELECTOR =
-  'button[aria-label="Toggle Paperclip Runner experimental setting"]';
+  'button[aria-label="Toggle Outpost Runner experimental setting"]';
 
 function defaultExperimentalSettings(): InstanceExperimentalSettingsPayload {
   return {
@@ -247,9 +247,9 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     }
   });
 
-  it("defaults the Paperclip Google Workspace connector off and persists an explicit toggle in both directions", async () => {
+  it("defaults the Outpost Google Workspace connector off and persists an explicit toggle in both directions", async () => {
     await renderPage();
-    const selector = 'button[aria-label="Toggle Paperclip Google Workspace connector experimental setting"]';
+    const selector = 'button[aria-label="Toggle Outpost Google Workspace connector experimental setting"]';
     expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe("false");
     for (const enabled of [true, false]) {
       await act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
@@ -409,10 +409,10 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     )).toBeNull();
   });
 
-  it("keeps Paperclip Runner default-off and exposes an explicit opt-in", async () => {
+  it("keeps Outpost Runner default-off and exposes an explicit opt-in", async () => {
     await renderPage();
 
-    expect(container.textContent).toContain("Paperclip Runner");
+    expect(container.textContent).toContain("Outpost Runner");
     expect(container.textContent).toContain("First-run setup offers qualified GitHub Copilot");
     const toggle = container.querySelector<HTMLButtonElement>(
       PAPERCLIP_RUNNER_TOGGLE_SELECTOR,
@@ -722,7 +722,7 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     await renderPage();
 
     expect(container.textContent).toContain("Built-in Agents");
-    expect(container.textContent).toContain("Show Paperclip-managed built-in agent surfaces");
+    expect(container.textContent).toContain("Show Outpost-managed built-in agent surfaces");
 
     const toggle = container.querySelector<HTMLButtonElement>(BUILT_IN_AGENTS_TOGGLE_SELECTOR);
     expect(toggle?.getAttribute("aria-checked")).toBe("false");
@@ -742,7 +742,7 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     await renderPage();
 
     expect(container.textContent).toContain("Beta skills");
-    expect(container.textContent).toContain("pin beta releases of the Paperclip core skill");
+    expect(container.textContent).toContain("pin beta releases of the Outpost core skill");
 
     const toggle = container.querySelector<HTMLButtonElement>(BETA_SKILLS_TOGGLE_SELECTOR);
     expect(toggle?.getAttribute("aria-checked")).toBe("false");
@@ -848,10 +848,10 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     expect(toggle?.getAttribute("aria-checked")).toBe("true");
   });
 
-  it("renders and patches Paperclip Developer Mode", async () => {
+  it("renders and patches Outpost Developer Mode", async () => {
     await renderPage();
 
-    expect(container.textContent).toContain("Paperclip Developer Mode");
+    expect(container.textContent).toContain("Outpost Developer Mode");
     expect(container.textContent).toContain("including Honeycomb trace queries on run pages");
 
     const toggle = container.querySelector<HTMLButtonElement>(
@@ -873,7 +873,7 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
 });
 
 describe("InstanceExperimentalSettings — cloud-managed keys", () => {
-  const MANAGED_BADGE_TEXT = "Managed by Paperclip Cloud";
+  const MANAGED_BADGE_TEXT = "Managed by Outpost Cloud";
 
   let container: HTMLDivElement;
   let root: Root | null = null;
@@ -1080,7 +1080,7 @@ describe("InstanceExperimentalSettings — card ordering and headings (PAP-393)"
     );
     expect(headings).toEqual([
       "Experimental features",
-      "Paperclip Developer Mode",
+      "Outpost Developer Mode",
       "Legacy",
     ]);
 
@@ -1196,8 +1196,8 @@ describe("InstanceExperimentalSettings — operator-hidden cards", () => {
       managedKeys: { enablePaperclipNotebook: { managed: true, managedBy: "paperclip-cloud" } },
     });
     expect(container.textContent).toContain("Experimental features");
-    expect(container.textContent).not.toContain("Paperclip Notebook");
-    expect(container.querySelector('button[aria-label="Toggle Paperclip Notebook experimental setting"]')).toBeNull();
+    expect(container.textContent).not.toContain("Outpost Notebook");
+    expect(container.querySelector('button[aria-label="Toggle Outpost Notebook experimental setting"]')).toBeNull();
     expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
   });
 
@@ -1246,7 +1246,7 @@ describe("InstanceExperimentalSettings — operator-hidden cards", () => {
   it("retains a section when one of its controls is visible", async () => {
     const visible = new Set(["enablePaperclipDeveloperMode", "enableGoalsSidebarLink"]);
     await renderPage(INSTANCE_FEATURE_KEYS.filter((key) => !visible.has(key)).map((key) => `instance.experimental.${key}`));
-    expect(container.querySelector('[aria-labelledby="developer-mode-heading"] h3')?.textContent).toBe("Paperclip Developer Mode");
+    expect(container.querySelector('[aria-labelledby="developer-mode-heading"] h3')?.textContent).toBe("Outpost Developer Mode");
     expect(container.querySelector('[aria-labelledby="legacy-heading"] h3')?.textContent).toBe("Goals Sidebar Link");
   });
 
@@ -1299,7 +1299,7 @@ describe("InstanceExperimentalSettings — read resilience", () => {
     expect(container.textContent).toContain("Enable Environments");
 
     mockInstanceSettingsApi.getExperimental.mockRejectedValue(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await queryClient.invalidateQueries({ queryKey: queryKeys.instance.experimentalSettings });
     await flushReact();
@@ -1308,7 +1308,7 @@ describe("InstanceExperimentalSettings — read resilience", () => {
     expect(queryClient.getQueryState(queryKeys.instance.experimentalSettings)?.status).toBe("error");
     expect(container.textContent).toContain("Enable Environments");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
   });
 

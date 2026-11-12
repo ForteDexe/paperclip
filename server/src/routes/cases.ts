@@ -401,7 +401,7 @@ async function nextCaseIdentity(db: CaseRouteDb, companyId: string) {
     .from(companies)
     .where(eq(companies.id, companyId))
     .limit(1);
-  if (!company) throw notFound("Company not found");
+  if (!company) throw notFound("Outpost not found");
   const [maxRow] = await db
     .select({ maxNum: sql<number>`coalesce(max(${cases.caseNumber}), 0)` })
     .from(cases)

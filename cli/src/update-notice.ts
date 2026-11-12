@@ -3,11 +3,10 @@ import path from "node:path";
 import { packageVersion } from "./version.js";
 import { compareVersions } from "./commands/update.js";
 import { readInstallManifest, resolveInstallStorePaths } from "./install-store.js";
-import { resolveConfigPath } from "./config/store.js";
 const NOTICE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export function isUpdateNoticeEnabled(configPath?: string): boolean {
-  if (process.env.PAPERCLIP_UPDATE_CHECK === "0") return false;
-  try { const raw = JSON.parse(fs.readFileSync(resolveConfigPath(configPath), "utf8")) as { updates?: { checkEnabled?: boolean } }; return raw.updates?.checkEnabled !== false; } catch { return true; }
+  void configPath;
+  return false;
 }
 export async function checkForUpdateNotice(options: { configPath?: string; now?: number; fetchImpl?: typeof fetch; cachePath?: string } = {}): Promise<string | null> {
   if (!isUpdateNoticeEnabled(options.configPath)) return null;

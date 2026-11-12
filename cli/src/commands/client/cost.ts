@@ -69,7 +69,7 @@ export function registerCostCommands(program: Command): void {
     budget
       .command("company:update")
       .description("Update company budget")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "UpdateBudget JSON payload")
       .action(async (opts: JsonPayloadOptions) => {
         try {
@@ -105,7 +105,7 @@ export function registerCostCommands(program: Command): void {
       .command("incident:resolve")
       .description("Resolve a budget incident")
       .argument("<incidentId>", "Budget incident ID")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--payload-json <json>", "ResolveBudgetIncident JSON payload", "{}")
       .action(async (incidentId: string, opts: IncidentOptions) => {
         try {
@@ -128,7 +128,7 @@ function addCompanyGet(parent: Command, name: string, description: string, path:
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: CompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -147,7 +147,7 @@ function addCompanyPostJson(parent: Command, name: string, description: string, 
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
       .action(async (opts: JsonPayloadOptions) => {
         try {

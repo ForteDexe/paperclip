@@ -368,7 +368,7 @@ export function caseHandoffService(db: Db) {
       beforeAccept?: (tx: Db) => Promise<void>;
     } = {}): Promise<HandoffCaseResult> {
       await assertEnabled(db);
-      if (!companyAllowed(actor, companyId)) throw notFound("Company not found");
+      if (!companyAllowed(actor, companyId)) throw notFound("Outpost not found");
       const who = identity(actor), input = handoffCaseSchema.parse(rawInput);
       const fingerprint = createHash("sha256").update(canonical(input)).digest("hex");
       const publications: ActivityPublication[] = [];
@@ -486,7 +486,7 @@ export function caseHandoffService(db: Db) {
           if (!create) throw notFound("Case not found");
           await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`paperclip:cases:${companyId}`}))`);
           const [company] = await tx.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
-          if (!company) throw notFound("Company not found");
+          if (!company) throw notFound("Outpost not found");
           const [max] = await tx.select({ number: sql<number>`coalesce(max(${cases.caseNumber}), 0)` }).from(cases).where(eq(cases.companyId, companyId));
           const caseNumber = Number(max?.number ?? 0) + 1;
           [caseRow] = await tx.insert(cases).values({ companyId, ...create, projectId, caseNumber, identifier: `${company.prefix.toUpperCase()}-C${caseNumber}`,

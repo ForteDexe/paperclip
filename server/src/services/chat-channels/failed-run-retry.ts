@@ -311,7 +311,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       // This known warning is written by configuration preparation, before
       // workspace allocation. It is not evidence that a provider executed.
       if (warning.seq !== 1 || warning.agentId !== run.agentId || warning.stream !== "system" || warning.level !== "warn" ||
-          warning.message !== "Company observability was not applied: this harness is not supported." ||
+          warning.message !== "Outpost observability was not applied: this harness is not supported." ||
           warning.payload?.reason !== "unsupported_harness" || (typeof warning.payload.revision !== "string" || !isUuidLike(warning.payload.revision)) ||
           Object.keys(warning.payload).some(key => !["reason", "revision"].includes(key)) ||
           warning.sourceInstanceId !== null || warning.sourceEventId !== null || warning.sourceSeq !== null ||

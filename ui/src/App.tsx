@@ -93,7 +93,6 @@ const Approvals = lazy(() => import("./pages/Approvals").then((module) => ({ def
 const ApprovalDetail = lazy(() => import("./pages/ApprovalDetail").then((module) => ({ default: module.ApprovalDetail })));
 const CompanyActivity = lazy(() => import("./pages/audit/CompanyActivity").then((module) => ({ default: module.CompanyActivity })));
 const AuditHub = lazy(() => import("./pages/audit/AuditHub").then((module) => ({ default: module.AuditHub })));
-const Costs = lazy(() => import("./pages/Costs").then((module) => ({ default: module.Costs })));
 const WhatNeedsMe = lazy(() => import("./pages/WhatNeedsMe").then((module) => ({ default: module.WhatNeedsMe })));
 const DecisionQueuePage = lazy(() => import("./pages/DecisionQueuePage").then((module) => ({ default: module.DecisionQueuePage })));
 const BoardChat = lazy(() => import("./pages/BoardChat").then((module) => ({ default: module.BoardChat })));
@@ -376,24 +375,24 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="activity" element={streamlinedUiEnabled ? <CompanyActivity /> : <ProductionSurface><ProductionCompanyActivity /></ProductionSurface>} />
       <Route path="activity/commentary" element={<AuditHub section="commentary" />} />
       <Route path="activity/runs" element={<AuditHub section="runs" />} />
-      <Route path="activity/costs" element={<AuditHub section="costs" />} />
-      <Route path="activity/budgets" element={<AuditHub section="budgets" />} />
+      <Route path="activity/costs" element={<AuditCompatibilityRedirect to="/activity" />} />
+      <Route path="activity/budgets" element={<AuditCompatibilityRedirect to="/activity" />} />
       <Route path="activity/timeline" element={<AuditHub section="timeline" />} />
       {streamlinedUiEnabled ? (
         <>
           <Route path="audit" element={<AuditCompatibilityRedirect to="/activity" forceAgentMode />} />
           <Route path="audit/activity" element={<AuditCompatibilityRedirect to="/activity" />} />
           <Route path="audit/runs" element={<AuditCompatibilityRedirect to="/activity/runs" />} />
-          <Route path="audit/costs" element={<AuditCompatibilityRedirect to="/activity/costs" />} />
-          <Route path="audit/budgets" element={<AuditCompatibilityRedirect to="/activity/budgets" />} />
+          <Route path="audit/costs" element={<AuditCompatibilityRedirect to="/activity" />} />
+          <Route path="audit/budgets" element={<AuditCompatibilityRedirect to="/activity" />} />
           <Route path="audit/timeline" element={<AuditCompatibilityRedirect to="/activity/timeline" />} />
           <Route path="runs" element={<AuditCompatibilityRedirect to="/activity/runs" />} />
-          <Route path="costs" element={<AuditCompatibilityRedirect to="/activity/costs" />} />
-          <Route path="budgets" element={<AuditCompatibilityRedirect to="/activity/budgets" />} />
+          <Route path="costs" element={<AuditCompatibilityRedirect to="/activity" />} />
+          <Route path="budgets" element={<AuditCompatibilityRedirect to="/activity" />} />
         </>
       ) : (
         <>
-          <Route path="costs" element={<Costs />} />
+          <Route path="costs" element={<Navigate to="/activity" replace />} />
           <Route path="audit" element={<Navigate to="/activity?mode=agents" replace />} />
         </>
       )}
@@ -590,13 +589,13 @@ export function OnboardingRoutePage() {
   const title = matchedCompany
     ? `Add another agent to ${matchedCompany.name}`
     : companies.length > 0
-      ? "Create another organization"
-      : "Create your first organization";
+      ? "Create another outpost"
+      : "Create your first outpost";
   const description = matchedCompany
-    ? "Run onboarding again to add an agent and a starter task for this organization."
+    ? "Run onboarding again to add an agent and a starter task for this outpost."
     : companies.length > 0
-      ? "Run onboarding again to create another organization and seed its first agent."
-      : "Get started by creating an organization and your first agent.";
+      ? "Run onboarding again to create another outpost and seed its first agent."
+      : "Get started by creating an outpost and your first agent.";
 
   return (
     <div className="mx-auto max-w-xl py-10">
@@ -612,7 +611,7 @@ export function OnboardingRoutePage() {
             <p className="text-sm text-muted-foreground">
               {t("app.cloudCreateUnavailable", {
                 defaultValue:
-                  "Organizations are created in Paperclip Cloud. This instance can't reach it right now — try again from your Cloud portfolio.",
+                  "Outposts are created in Outpost Cloud. This instance can't reach it right now — try again from your Cloud portfolio.",
               })}
             </p>
           ) : (
@@ -729,10 +728,10 @@ function NoCompaniesStartPage() {
     <div className="mx-auto max-w-xl py-10">
       <div className="rounded-lg border border-border bg-card p-6">
         <h1 className="text-xl font-semibold">
-          {t("app.noCompanies.title", { defaultValue: "Create your first organization" })}
+          {t("app.noCompanies.title", { defaultValue: "Create your first outpost" })}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {t("app.noCompanies.description", { defaultValue: "Get started by creating an organization." })}
+          {t("app.noCompanies.description", { defaultValue: "Get started by creating an outpost." })}
         </p>
         <div className="mt-4">
           {/* Same as the onboarding route: no Cloud origin means nowhere to
@@ -741,7 +740,7 @@ function NoCompaniesStartPage() {
             <p className="text-sm text-muted-foreground">
               {t("app.cloudCreateUnavailable", {
                 defaultValue:
-                  "Organizations are created in Paperclip Cloud. This instance can't reach it right now — try again from your Cloud portfolio.",
+                  "Outposts are created in Outpost Cloud. This instance can't reach it right now — try again from your Cloud portfolio.",
               })}
             </p>
           ) : (
@@ -752,7 +751,7 @@ function NoCompaniesStartPage() {
                   : openOnboarding()
               }
             >
-              {t("app.noCompanies.newCompany", { defaultValue: "New Organization" })}
+              {t("app.noCompanies.newCompany", { defaultValue: "New Outpost" })}
             </Button>
           )}
         </div>

@@ -18,10 +18,9 @@ const recoveryStepText: Record<NonNullable<TaskInterruptionPresentation["recover
   finishing_recovery: "Finishing recovery of saved work",
 };
 
-/** A budget hard stop holds saved work. Only a task that already ran has an
- * attempt to report; a task refused before its first run just waits. */
+/** Legacy policy stops can remain in old records even though enforcement is retired. */
 function budgetWaitText(presentation: TaskInterruptionPresentation) {
-  const wait = "It is waiting for the budget to allow new work. Raise the budget in Costs.";
+  const wait = "A retired policy paused this task. Retry to continue under the current Outpost policy.";
   return presentation.observedRunId || presentation.sourceRunIds.length
     ? `Couldn’t finish this attempt. Your message is saved. ${wait}`
     : `This task has not started. ${wait}`;
@@ -65,8 +64,8 @@ export function ExecutionBlockerNotice({ presentation, canRetry, onRetry, optimi
     // generic automatic-retry line while keeping the provider explanation.
     return <ProviderFailureNotice failure={presentation.providerFailure} className={className}
       actions={canRetry && presentation.canRetry ? <Button variant="outline" size="sm" onClick={onRetry} data-testid="task-execution-retry">Retry</Button> : undefined}>
-      {presentation.state === "retry_scheduled" && <p>{step ? `${step}. ${retryIn}` : "Paperclip will retry automatically."}</p>}
-      {isBudgetWait(presentation) && <p data-testid="task-execution-waiting">It is waiting for the budget to allow new work. Raise the budget in Costs.</p>}
+      {presentation.state === "retry_scheduled" && <p>{step ? `${step}. ${retryIn}` : "Outpost will retry automatically."}</p>}
+      {isBudgetWait(presentation) && <p data-testid="task-execution-waiting">A retired policy paused this task. Retry to continue.</p>}
     </ProviderFailureNotice>;
   }
   if (step && presentation?.state === "working") return <div role="status" aria-label="Task status"
@@ -96,7 +95,7 @@ export function ExecutionBlockerNotice({ presentation, canRetry, onRetry, optimi
     const runId = presentation.observedRunId;
     return <PreviousServerStopConfirmation key={`${issueId}:${runId}`} runId={runId} formId={runId} issueId={issueId} companyId={companyId}
       className={className} confirmStop={stopEvidence => issuesApi.confirmRunStopped(issueId, { runId, stopEvidence })}
-      copy={{ waiting: presentation.retryWait?.message ?? "Paperclip can't confirm that the previous run stopped. Your message is saved.",
+      copy={{ waiting: presentation.retryWait?.message ?? "Outpost can't confirm that the previous run stopped. Your message is saved.",
         question: "How did you confirm that no agent is still working on this task?",
         placeholder: "For example: no codex or claude process for this task is running on the server host.",
         resuming: "Starting your Retry…", confirm: "Confirm it stopped" }} />;

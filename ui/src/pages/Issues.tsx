@@ -333,8 +333,8 @@ function OrganizationIssues({
       <EmptyState
         icon={CircleDot}
         message={streamlinedUiEnabled
-          ? "Select an organization to view tasks."
-          : "Select a company to view tasks."}
+          ? "Select an outpost to view tasks."
+          : "Select a outpost to view tasks."}
       />
     );
   }

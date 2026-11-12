@@ -38,7 +38,7 @@ export function CloudAccessError({
       <RefreshCw className="size-6 text-muted-foreground" aria-hidden="true" />
       <div className="flex flex-col gap-2" role="status">
         <h1 className="text-xl font-semibold">
-          {temporary ? "Reconnecting to Paperclip" : "Unable to load Paperclip"}
+          {temporary ? "Reconnecting to Outpost" : "Unable to load Outpost"}
         </h1>
         <p className="text-sm text-muted-foreground">
           {temporary
@@ -59,13 +59,13 @@ function NoBoardAccessPage() {
   return (
     <div className="mx-auto max-w-xl py-10">
       <Card className="block p-6">
-        <h1 className="text-xl font-semibold">No organization access</h1>
+        <h1 className="text-xl font-semibold">No outpost access</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This account is signed in, but it does not have an active organization membership or instance-admin access on
-          this Paperclip instance.
+          This account is signed in, but it does not have an active outpost membership or instance-admin access on
+          this Outpost instance.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Use an organization invite or sign in with an account that already belongs to this org.
+          Use an outpost invite or sign in with an account that already belongs to this org.
         </p>
       </Card>
     </div>

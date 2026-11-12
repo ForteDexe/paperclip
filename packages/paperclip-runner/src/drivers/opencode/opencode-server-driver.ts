@@ -161,7 +161,7 @@ export function resolvePinnedOpenCodeCommand(
     throw new Error("OpenCode qualified platform dependency is missing");
   } catch (error) {
     throw new Error(
-      `Pinned OpenCode runtime unavailable: ${(error as Error).message}. Restore Paperclip's runtime dependencies.`,
+      `Pinned OpenCode runtime unavailable: ${(error as Error).message}. Restore Outpost's runtime dependencies.`,
       { cause: error },
     );
   }
@@ -436,7 +436,7 @@ export class OpenCodeServerDriver implements HarnessDriver {
         } else {
           const created = await api(fetcher, runtime, "/session", {
             method: "POST",
-            body: JSON.stringify({ title: `Paperclip ${input.runId}` }),
+            body: JSON.stringify({ title: `Outpost ${input.runId}` }),
           });
           providerSessionId = text(record(created).id);
           if (!providerSessionId)
@@ -683,7 +683,7 @@ class OpenCodeHarnessSession implements HarnessSession {
           revision: contract.revision.trim(),
           criteria: contract.criterionIds.map((id) => ({
             id: id.trim(),
-            requirement: `Satisfy the Paperclip completion criterion ${id.trim()}.`,
+            requirement: `Satisfy the Outpost completion criterion ${id.trim()}.`,
           })),
         },
       };
@@ -1310,7 +1310,7 @@ class OpenCodeHarnessSession implements HarnessSession {
       }
     }
     if (!this.#dynamicToolHandler)
-      throw new Error("Unsupported Paperclip operation");
+      throw new Error("Unsupported Outpost operation");
     try {
       const result = await this.#dynamicToolHandler({
         tool,
@@ -2622,7 +2622,7 @@ async function startRuntime(input: {
           ...(modelProvider === "openrouter" ? { options: { headers: OPENROUTER_ATTRIBUTION_HEADERS } } : {}),
           ...(providerProxy ? {
             npm: "@ai-sdk/openai-compatible",
-            name: modelProvider === "openrouter" ? "OpenRouter" : "Paperclip connection",
+            name: modelProvider === "openrouter" ? "OpenRouter" : "Outpost connection",
             options: {
               ...(modelProvider === "openrouter" ? { headers: OPENROUTER_ATTRIBUTION_HEADERS } : {}),
               baseURL: providerProxy.baseURL,
@@ -3082,7 +3082,7 @@ async function ensurePaperclipMcpConnected(
     current = await status();
     for (let attempt = 1; current.status !== "connected" && attempt <= PAPERCLIP_MCP_RECONNECT_ATTEMPTS; attempt += 1) {
       onDiagnostic?.(redact(
-        `OpenCode reported the Paperclip tools as ${current.status}${current.error ? ` (${current.error})` : ""}; reconnecting (attempt ${attempt}).`,
+        `OpenCode reported the Outpost tools as ${current.status}${current.error ? ` (${current.error})` : ""}; reconnecting (attempt ${attempt}).`,
         runtime.sensitiveValues,
       ));
       await api(fetcher, runtime, `/mcp/${PAPERCLIP_MCP_SERVER}/connect`, { method: "POST" });
@@ -3093,7 +3093,7 @@ async function ensurePaperclipMcpConnected(
   }
   if (current.status !== "connected") {
     throw new Error(redact(
-      `${PAPERCLIP_TOOLS_UNAVAILABLE}: OpenCode could not load the Paperclip tools (${current.status}${current.error ? `: ${current.error}` : ""})`,
+      `${PAPERCLIP_TOOLS_UNAVAILABLE}: OpenCode could not load the Outpost tools (${current.status}${current.error ? `: ${current.error}` : ""})`,
       runtime.sensitiveValues,
     ));
   }

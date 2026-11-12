@@ -89,7 +89,7 @@ export const STATUS_CARD_LIFECYCLE_PRESENTATION: Record<
     keepsLastSummary: true,
   },
   paused_budget: {
-    label: "Paused — budget",
+    label: "Paused — policy",
     dotClassName: "bg-orange-400",
     description: "The daily token cap was hit; auto-updates are suspended.",
     dashedBorder: false,

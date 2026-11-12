@@ -70,7 +70,7 @@ import { ScrollToBottom } from "../components/ScrollToBottom";
 import { SourceResolvedFoldCallout } from "../components/SourceResolvedFoldCallout";
 import { SourceResolvedFoldBadge } from "../components/SourceResolvedFoldBadge";
 import { readSourceResolvedWatchdogFold } from "../lib/source-resolved-watchdog-fold";
-import { formatCents, formatDate, relativeTime, formatTokens, visibleRunCostUsd, visibleRunTokenTotal, hasUnavailableProviderAccounting, supportsRawProviderTrace } from "../lib/utils";
+import { formatDate, relativeTime, formatTokens, visibleRunTokenTotal, hasUnavailableProviderAccounting, supportsRawProviderTrace } from "../lib/utils";
 import { cn } from "../lib/utils";
 import { RunRetryDetails } from "../components/RunRetryDetails";
 import { Button } from "@/components/ui/button";
@@ -101,8 +101,6 @@ import {
   History as HistoryIcon,
   Activity as ActivityIcon,
   PlayCircle,
-  ReceiptText,
-  Gauge,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -239,7 +237,6 @@ const LEGACY_AGENT_DETAIL_TABS = [
   { value: "tools", label: "Tools" },
   { value: "runs", label: "Runs" },
   { value: "audit", label: "Audit" },
-  { value: "budget", label: "Budget" },
 ] as const;
 
 export const DISCARD_AGENT_CONFIG_CHANGES_MESSAGE = "Discard unsaved agent configuration changes?";
@@ -307,8 +304,6 @@ function runMetrics(run: HeartbeatRun) {
     "cached_input_tokens",
     "cache_read_input_tokens",
   );
-  const cost =
-    visibleRunCostUsd(usage, result);
   const provider = asNonEmptyString(usage?.provider) ?? null;
   const model = asNonEmptyString(usage?.model) ?? null;
   return {
@@ -316,7 +311,6 @@ function runMetrics(run: HeartbeatRun) {
     input: usageUnavailable ? null : input,
     output: usageUnavailable ? null : output,
     cached: usageUnavailable ? null : cached,
-    cost: usageUnavailable ? null : cost,
     totalTokens: usageUnavailable ? null : visibleRunTokenTotal(usage),
     provider,
     model,
@@ -329,7 +323,7 @@ export function runDetailRefetchIntervalMs(status: HeartbeatRun["status"]): 5000
   return false;
 }
 
-const UNTITLED_AGENT_VIEWS: ReadonlySet<AgentDetailView> = new Set(["overview", "instructions", "budgets"]);
+const UNTITLED_AGENT_VIEWS: ReadonlySet<AgentDetailView> = new Set(["overview", "instructions"]);
 const OVERVIEW_ACTIVITY_LIMIT = 200;
 
 function agentViewDescription(view: AgentDetailView, name: string): string | null {
@@ -344,8 +338,6 @@ function agentViewDescription(view: AgentDetailView, name: string): string | nul
       return `Everything ${name} did and everything done to ${name}.`;
     case "runs":
       return `Every execution of ${name}, newest first.`;
-    case "costs":
-      return `What ${name} spent, by model.`;
     default:
       return null;
   }
@@ -375,9 +367,7 @@ export function AgentDetail() {
       ? "runs"
       : legacyAuditSection === "activity"
         ? "audit"
-        : legacyAuditSection === "costs" || legacyAuditSection === "budgets"
-          ? "budget"
-          : activeView === "overview"
+        : activeView === "overview"
             ? "dashboard"
             : activeView === "runtime"
               ? "configuration"
@@ -1017,8 +1007,8 @@ export function AgentDetail() {
             </Button>
           }
         >
-          Ships with Paperclip and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
-          any agent — model, instructions, budget. It can be paused but not deleted; pausing it
+          Ships with Outpost and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
+          any agent — model and instructions. It can be paused but not deleted; pausing it
           pauses {builtInFeatureLabel}.
         </InlineBanner>
       )}
@@ -1458,9 +1448,6 @@ export function AgentOverview({
   const activityThisWeek = countSince(activity.data ?? [], weekAgo, OVERVIEW_ACTIVITY_LIMIT);
   const runsThisWeek = countSince(runs, weekAgo, HEARTBEAT_RUN_LIST_DEFAULT_LIMIT);
   const recentFailures = countSince(runs, twoDaysAgo, HEARTBEAT_RUN_LIST_DEFAULT_LIMIT, (run) => run.status === "failed");
-  const budget = agent.budgetMonthlyCents ?? 0;
-  const spent = agent.spentMonthlyCents ?? 0;
-  const budgetPercent = budget > 0 ? Math.round((spent / budget) * 100) : null;
   return (
     <div className="flex flex-col gap-(--agent-detail-band-gap)">
       <div className="grid grid-cols-1 gap-(--agent-detail-module-gap) sm:grid-cols-2 lg:grid-cols-4">
@@ -1477,20 +1464,6 @@ export function AgentOverview({
           label="Runs"
           description={`${formatWindowCount(recentFailures)} failed in the last 2 days`}
           to={agentDetailHref(agentRef, "runs")}
-        />
-        <AgentMetricTile
-          icon={ReceiptText}
-          value={formatCents(spent)}
-          label="Costs"
-          description="Month to date"
-          to={agentDetailHref(agentRef, "costs")}
-        />
-        <AgentMetricTile
-          icon={Gauge}
-          value={budgetPercent === null ? "–" : `${budgetPercent}%`}
-          label="Budget used"
-          description={budgetPercent === null ? "No monthly budget set" : `of ${formatCents(budget)} this month`}
-          to={agentDetailHref(agentRef, "budgets")}
         />
         <AgentPanel title="Profile" className="min-h-(--agent-detail-tile-min-h) sm:col-span-2" aria-label="Profile"
           meta={<span className={creatorFailed ? "text-destructive" : undefined}>
@@ -1726,13 +1699,13 @@ export function ConfigurationTab({
   const taskAssignLocked = agent.role === "ceo" || canCreateAgents;
   const taskAssignHint =
     taskAssignSource === "ceo_role"
-      ? "Enabled automatically for CEO agents."
+      ? "Enabled automatically for Outpost Lead agents."
       : taskAssignSource === "agent_creator"
         ? "Enabled automatically while this agent can create new agents."
         : taskAssignSource === "explicit_grant"
-          ? "Enabled via explicit organization permission grant."
+          ? "Enabled via explicit outpost permission grant."
           : taskAssignSource === "simple_default"
-            ? "Enabled by simple organization-wide task assignment defaults."
+            ? "Enabled by simple outpost-wide task assignment defaults."
             : "Disabled unless explicitly granted.";
 
   return (
@@ -1810,7 +1783,7 @@ export function ConfigurationTab({
             <div className="space-y-1">
               <div>Can create/import skills</div>
               <p className="text-xs text-muted-foreground">
-                Lets this agent install, import, create, and scan organization skills without creating agents.
+                Lets this agent install, import, create, and scan outpost skills without creating agents.
               </p>
             </div>
             <ToggleSwitch
@@ -2111,7 +2084,7 @@ export function PromptsTab({
 
   const uploadMarkdownImage = useMutation({
     mutationFn: async ({ file, namespace }: { file: File; namespace: string }) => {
-      if (!selectedCompanyId) throw new Error("Select an organization to upload images");
+      if (!selectedCompanyId) throw new Error("Select an outpost to upload images");
       return assetsApi.uploadImage(selectedCompanyId, file, namespace);
     },
   });
@@ -2806,11 +2779,10 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
           {summary.slice(0, 60)}
         </span>
       )}
-      {(metrics.usageUnavailable || (metrics.totalTokens ?? 0) > 0 || (metrics.cost ?? 0) > 0) && (
+      {(metrics.usageUnavailable || (metrics.totalTokens ?? 0) > 0) && (
         <div className="flex items-center gap-2 pl-5.5 text-(length:--text-micro) text-muted-foreground tabular-nums">
-          {metrics.usageUnavailable && <span>Usage and cost unavailable</span>}
+          {metrics.usageUnavailable && <span>Usage unavailable</span>}
           {metrics.totalTokens !== null && metrics.totalTokens > 0 && <span>{formatTokens(metrics.totalTokens)} tok</span>}
-          {metrics.cost !== null && metrics.cost > 0 && <span>${metrics.cost.toFixed(3)}</span>}
         </div>
       )}
     </Link>
@@ -2922,12 +2894,11 @@ export function AgentFileRunNotice({ resultJson }: { resultJson: HeartbeatRun["r
 
 export function RunAccountingMetrics({ run }: { run: HeartbeatRun }) {
   const metrics = runMetrics(run);
-  if (!metrics.usageUnavailable && ![metrics.input, metrics.output, metrics.cached, metrics.cost].some(value => (value ?? 0) > 0)) return null;
+  if (!metrics.usageUnavailable && ![metrics.input, metrics.output, metrics.cached].some(value => (value ?? 0) > 0)) return null;
   const values = [
     ["Input", metrics.input === null ? "Unavailable" : formatTokens(metrics.input)],
     ["Output", metrics.output === null ? "Unavailable" : formatTokens(metrics.output)],
     ["Cached", metrics.cached === null ? "Unavailable" : formatTokens(metrics.cached)],
-    ["Cost", metrics.cost === null ? "Unavailable" : metrics.cost > 0 ? `$${metrics.cost.toFixed(4)}` : "-"],
   ];
   return (
     <div className="border-t sm:border-t-0 sm:border-l border-border p-4 grid grid-cols-2 gap-x-4 sm:gap-x-8 gap-y-3 content-center tabular-nums">
@@ -3156,7 +3127,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
           break-glass handlers as the task detail page. */}
       <RunWorkspaceRecoverySurface run={run} />
       <AiConnectionPoolRunDetails context={run.contextSnapshot} />
-      {grokWork && <p className="text-sm text-muted-foreground">Runs in Grok Bot. Usage not reported. Stopping this session revokes Paperclip authority; remote execution may continue. Open the Grok Bot desktop app to inspect it. This view contains Paperclip-reported activity.</p>}
+      {grokWork && <p className="text-sm text-muted-foreground">Runs in Grok Bot. Usage not reported. Stopping this session revokes Outpost authority; remote execution may continue. Open the Grok Bot desktop app to inspect it. This view contains Outpost-reported activity.</p>}
       {/* Run summary card */}
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="flex flex-col sm:flex-row">
@@ -3609,7 +3580,7 @@ export function KeysTab({ agentId, companyId }: { agentId: string; companyId?: s
           Create API Key
         </h3>
         <p className="text-xs text-muted-foreground">
-          API keys allow this agent to authenticate calls to the Paperclip server.
+          API keys allow this agent to authenticate calls to the Outpost server.
         </p>
         <div className="flex items-center gap-2">
           <Input

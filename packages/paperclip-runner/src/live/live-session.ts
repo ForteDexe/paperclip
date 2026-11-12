@@ -72,10 +72,10 @@ const LIVE_COMPLETION_ENVELOPE = createCodexTaskEnvelope({
   criteria: LIVE_COMPLETION_CONTRACT.criterionIds.map((id) => ({ id, requirement: "Complete the current requested action." })),
 });
 const LIVE_BASE_INSTRUCTIONS = [
-  "You are operating one mock Paperclip issue through typed semantic tools.",
-  "Use only the tools exposed in this thread; never call a Paperclip REST API.",
+  "You are operating one mock Outpost issue through typed semantic tools.",
+  "Use only the tools exposed in this thread; never call an Outpost REST API.",
   "Treat every tool result as authoritative mock state and use it in your next response.",
-  "The user conversation and provider are real, but all Paperclip records are mock records.",
+  "The user conversation and provider are real, but all Outpost records are mock records.",
   "Do not discover skills, credentials, endpoints, or hidden control-plane capabilities.",
 ].join(" ");
 const CODEX_PERMISSION_PROFILE = "paperclip-runner-workspace-only";
@@ -2446,7 +2446,7 @@ export class CapabilityLiveSession {
     const initialized = await this.#transport.request("initialize", {
       clientInfo: {
         name: "paperclip-runner",
-        title: "Paperclip Runner Capability",
+        title: "Outpost Runner Capability",
         version: "capability-v1",
       },
       capabilities: { experimentalApi: true, requestAttestation: false },

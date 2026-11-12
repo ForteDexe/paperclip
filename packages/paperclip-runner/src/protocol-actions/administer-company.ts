@@ -31,8 +31,8 @@ export const administerCompanyAction = {
     "note": "Scenario/eval-only mock extension."
   },
   "documentation": {
-    "title": "Administer Company",
-    "description": "Administer Company through the Capability portability admin capability set.",
+    "title": "Administer Outpost",
+    "description": "Administer Outpost through the Capability portability admin capability set.",
     "note": "Scenario/eval-only mock extension."
   },
   "examples": {
@@ -69,8 +69,8 @@ export const administerCompanyAction = {
     "descriptor": {
       "operationId": "administer_company",
       "version": 1,
-      "title": "Administer Company",
-      "description": "Administer Company through the Capability portability admin capability set.",
+      "title": "Administer Outpost",
+      "description": "Administer Outpost through the Capability portability admin capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {

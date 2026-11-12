@@ -96,22 +96,19 @@ describe("cli telemetry", () => {
     expect(fs.existsSync(path.join(root, "home", "instances", "telemetry-test", "telemetry", "state.json"))).toBe(false);
   });
 
-  it("creates telemetry state only after the first event is tracked", async () => {
+  it("stays disabled even when legacy configuration requests telemetry", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cli-telemetry-"));
     process.env.PAPERCLIP_HOME = path.join(root, "home");
     process.env.PAPERCLIP_INSTANCE_ID = "telemetry-test";
 
-    const { initTelemetry, flushTelemetry } = await import("../telemetry.js");
+    const { initTelemetry, flushTelemetry, getTelemetryClient } = await import("../telemetry.js");
     const client = initTelemetry({ enabled: true });
     const statePath = path.join(root, "home", "instances", "telemetry-test", "telemetry", "state.json");
 
-    expect(client).not.toBeNull();
+    expect(client).toBeNull();
+    expect(getTelemetryClient()).toBeNull();
     expect(fs.existsSync(statePath)).toBe(false);
-
-    client!.track("install.started", { setupMode: "quickstart" });
-
-    expect(fs.existsSync(statePath)).toBe(true);
-
     await flushTelemetry();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

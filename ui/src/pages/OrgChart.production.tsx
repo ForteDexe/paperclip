@@ -207,7 +207,7 @@ export function OrgChart() {
   }, [agents]);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Org Chart" }]);
+    setBreadcrumbs([{ label: "Crew Map" }]);
   }, [setBreadcrumbs]);
 
   // Layout computation
@@ -442,7 +442,7 @@ export function OrgChart() {
   }, [pan, zoom]);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Network} message="Select a company to view the org chart." />;
+    return <EmptyState icon={Network} message="Select an Outpost to view the crew map." />;
   }
 
   // Keep a loaded chart on screen through a failed refetch; only a real
@@ -456,7 +456,7 @@ export function OrgChart() {
       <QueryErrorState
         size="page"
         error={orgTreeView.error}
-        action="load the org chart"
+        action="load the crew map"
         onRetry={orgTreeView.retry}
         retrying={orgTreeView.isFetching}
       />
@@ -474,7 +474,7 @@ export function OrgChart() {
           <Link to="/company/import">
             <Button variant="outline" size="sm">
               <Upload className="mr-1.5 h-3.5 w-3.5" />
-              Import company
+              Import Outpost
             </Button>
           </Link>
         )}
@@ -482,7 +482,7 @@ export function OrgChart() {
           <Link to="/company/export">
             <Button variant="outline" size="sm">
               <Download className="mr-1.5 h-3.5 w-3.5" />
-              Export company
+              Export Outpost
             </Button>
           </Link>
         )}

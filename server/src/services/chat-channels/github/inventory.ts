@@ -21,7 +21,7 @@ export async function prepareGitHubInventory(credentials: Record<string,string>,
   });
   return {
     credentials: preparedCredentials,
-    managementUrl: installation.accountType === "Organization" && installation.accountLabel
+    managementUrl: installation.accountType === "Outpost" && installation.accountLabel
       ? `https://github.com/organizations/${encodeURIComponent(installation.accountLabel)}/settings/installations/${installation.installationId}`
       : `https://github.com/settings/installations/${installation.installationId}`,
     inventory: {

@@ -672,7 +672,7 @@ describe("RunnerInspector disconnect handling", () => {
   let root: Root;
   let store: ConnectivityStore;
   let probe: ReturnType<typeof vi.fn<() => Promise<{ reachable: boolean; retryAfterMs: number | null }>>>;
-  const unavailable = () => new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" });
+  const unavailable = () => new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" });
   const event = (runId: string, seq: number) => ({
     id: seq,
     companyId: "company-1",

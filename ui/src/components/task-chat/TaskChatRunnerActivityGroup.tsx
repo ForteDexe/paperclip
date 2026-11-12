@@ -192,7 +192,7 @@ function presentation(item: Activity, active: boolean, taskLabel?: string): Acti
       mono: false,
       running: false,
     };
-  const { used, size, inputTokens, outputTokens, costUsd } = item.usage;
+  const { used, size, inputTokens, outputTokens } = item.usage;
   const usage = [
     size > 0
       ? `${used.toLocaleString()}/${size.toLocaleString()} ctx`
@@ -200,7 +200,6 @@ function presentation(item: Activity, active: boolean, taskLabel?: string): Acti
     inputTokens != null || outputTokens != null
       ? `↑${(inputTokens ?? 0).toLocaleString()} ↓${(outputTokens ?? 0).toLocaleString()}`
       : undefined,
-    costUsd != null ? `$${costUsd.toFixed(4)}` : undefined,
   ]
     .filter(Boolean)
     .join(" · ");

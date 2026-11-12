@@ -1737,7 +1737,7 @@ function applyDocumentFixups(document: any): any {
       in: "cookie",
       name: "paperclip_session",
       description:
-        "Board session cookie in authenticated mode. Paperclip uses Better Auth; cookie transport may vary by deployment.",
+        "Board session cookie in authenticated mode. Outpost uses Better Auth; cookie transport may vary by deployment.",
     },
     [BOARD_API_KEY_AUTH_SCHEME]: {
       type: "http",
@@ -1751,7 +1751,7 @@ function applyDocumentFixups(document: any): any {
       scheme: "bearer",
       bearerFormat: "Agent API Key or Agent JWT",
       description:
-        "Agent API key or Paperclip-issued local agent JWT presented in the Authorization bearer header.",
+        "Agent API key or Outpost-issued local agent JWT presented in the Authorization bearer header.",
     },
     [RUNTIME_TOOLS_BEARER_AUTH_SCHEME]: {
       type: "http",
@@ -1764,7 +1764,7 @@ function applyDocumentFixups(document: any): any {
       type: "http",
       scheme: "bearer",
       bearerFormat: "Task-bound agent JWT",
-      description: "Paperclip-issued JWT bound to an active task run. Agent API keys, board sessions, and connection-only tokens are rejected.",
+      description: "Outpost-issued JWT bound to an active task run. Agent API keys, board sessions, and connection-only tokens are rejected.",
     },
   };
   document.security = AUTHENTICATED_SECURITY;
@@ -2092,7 +2092,7 @@ registry.registerPath({
   method: "get",
   path: "/api/companies/stats",
   tags: ["companies"],
-  summary: "Company stats",
+  summary: "Outpost stats",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2116,7 +2116,7 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "Company artifact projection",
+      description: "Outpost artifact projection",
       content: {
         "application/json": {
           schema: companyArtifactsResponseSchema,
@@ -2377,7 +2377,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Create a chat endpoint",
   description:
-    "Creates one provider bot endpoint bound permanently to one Paperclip agent. Provider setup and verification happen in later calls. "
+    "Creates one provider bot endpoint bound permanently to one Outpost agent. Provider setup and verification happen in later calls. "
     + "Chat providers need Chat connectors, and GitHub needs GitHub review bots, turned on by an instance admin in Experimental settings at /<prefix>/company/settings/instance/experimental. "
     + "While that setting is off, connections_search shows the provider as unavailable and this call is refused; agents cannot change it. Link that page as [Experimental settings](/<prefix>/company/settings/instance/experimental) and reply.",
   request: {
@@ -2474,8 +2474,8 @@ const githubBotOperations: Array<{
     response: chatEndpointResponseSchema,
   },
   {
-    method: "get", suffix: "reviews", summary: "List review evidence attached to Paperclip tasks",
-    description: "Returns up to 100 newest review records for this endpoint. Each review references ordinary Paperclip tasks and runs; it is not an independent scheduler.",
+    method: "get", suffix: "reviews", summary: "List review evidence attached to Outpost tasks",
+    description: "Returns up to 100 newest review records for this endpoint. Each review references ordinary Outpost tasks and runs; it is not an independent scheduler.",
     response: z.array(githubReviewResponseSchema),
   },
   {
@@ -2513,7 +2513,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "post", suffix: "repositories/refresh", summary: "Refresh repositories available to the bot installation",
-    description: "Fetches current installation access from GitHub and reconciles resources while preserving Paperclip repository enablement. Return parameters alone never prove installation access.",
+    description: "Fetches current installation access from GitHub and reconciles resources while preserving Outpost repository enablement. Return parameters alone never prove installation access.",
     response: z.array(chatEndpointResourceResponseSchema),
   },
   {
@@ -2523,7 +2523,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "get", suffix: "repositories", summary: "Search a page of GitHub bot repositories",
-    description: "Company and endpoint-scoped repository access. Counts cover the whole connection; the search limits only returned rows.",
+    description: "Outpost and endpoint-scoped repository access. Counts cover the whole connection; the search limits only returned rows.",
     query: gitHubRepositoryPageQuerySchema,
     response: z.object({ items: z.array(chatEndpointResourceResponseSchema), nextOffset: z.number().int().nullable(), totalCount: z.number().int(), enabledCount: z.number().int(), availableCount: z.number().int() }),
   },
@@ -2596,7 +2596,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Configure or change chat endpoint lifecycle state",
   description:
-    "Runs a setup or lifecycle action. `configure` and `reconnect` accept provider credentials (Slack: `botToken`, `signingSecret`; GitHub: `appId`, `privateKey` after Paperclip generates the webhook secret; Discord: `applicationId`, `guildId`, `botToken`; Microsoft Teams: `clientId`, `tenantId`, `clientSecret`; Telegram: `botToken`; iMessage Photon: `projectSecret`, with nonsecret `photon.projectId` and `photon.lineId` configuration). Agent-supplied signing secrets, webhook secrets, private keys, client secrets, and project secrets return a saved human credential-entry handoff without changing credentials. Authorized write-only bot tokens and API keys remain supported. Credentials are stored as Paperclip secret references and are never returned. Other actions do not require credentials.",
+    "Runs a setup or lifecycle action. `configure` and `reconnect` accept provider credentials (Slack: `botToken`, `signingSecret`; GitHub: `appId`, `privateKey` after Outpost generates the webhook secret; Discord: `applicationId`, `guildId`, `botToken`; Microsoft Teams: `clientId`, `tenantId`, `clientSecret`; Telegram: `botToken`; iMessage Photon: `projectSecret`, with nonsecret `photon.projectId` and `photon.lineId` configuration). Agent-supplied signing secrets, webhook secrets, private keys, client secrets, and project secrets return a saved human credential-entry handoff without changing credentials. Authorized write-only bot tokens and API keys remain supported. Credentials are stored as Outpost secret references and are never returned. Other actions do not require credentials.",
   request: {
     params: z.object({ endpointId: z.string().uuid() }),
     body: jsonBody(configureChatEndpointSchema),
@@ -2668,7 +2668,7 @@ for (const action of ["registration", "install", "resume"] as const) {
 registry.registerPath({
   method: "get", path: "/api/chat-slack/oauth/callback", tags: ["chat-channels"],
   summary: "Complete Slack bot installation and return to the saved wizard",
-  description: "Authenticated, actor/session-bound OAuth callback. State is claimed once before exchanging the code. Installation links the Slack installer to the initiating Paperclip account; reauthorization preserves an established account link. Cross-site browser navigation may receive a same-origin continuation before exchange.",
+  description: "Authenticated, actor/session-bound OAuth callback. State is claimed once before exchanging the code. Installation links the Slack installer to the initiating Outpost account; reauthorization preserves an established account link. Cross-site browser navigation may receive a same-origin continuation before exchange.",
   request: { query: z.object({ state: z.string(), code: z.string().optional(), error: z.string().optional() }) },
   responses: { 200: { description: "Same-origin continuation page" }, 303: { description: "Return to saved Slack setup" }, 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 409: r.conflict },
 });
@@ -2764,7 +2764,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Complete a chat endpoint setup test",
   description:
-    "Activates a verifying endpoint only after Paperclip has received a real provider event since the server-issued setup test boundary. iMessage Photon additionally requires a fresh linked sender's task and a successful outbound agent publication.",
+    "Activates a verifying endpoint only after Outpost has received a real provider event since the server-issued setup test boundary. iMessage Photon additionally requires a fresh linked sender's task and a successful outbound agent publication.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(chatEndpointResponseSchema),
@@ -2825,7 +2825,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "List external identities seen by a chat endpoint",
   description:
-    "Lists provider identities and their explicit Paperclip identity-link status for this endpoint's provider account.",
+    "Lists provider identities and their explicit Outpost identity-link status for this endpoint's provider account.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(z.array(chatPrincipalLinkResponseSchema)),
@@ -2843,7 +2843,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Create an external identity-link intent",
   description:
-    "Creates a short-lived confirmation URL for a human external identity belonging to this endpoint. The signed-in Paperclip user must confirm the link separately.",
+    "Creates a short-lived confirmation URL for a human external identity belonging to this endpoint. The signed-in Outpost user must confirm the link separately.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -2910,7 +2910,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Confirm an external identity link",
   description:
-    "Links the token's external identity to the currently signed-in Paperclip user after rechecking active company membership and canonical-link conflicts.",
+    "Links the token's external identity to the currently signed-in Outpost user after rechecking active company membership and canonical-link conflicts.",
   request: { body: jsonBody(confirmChatIdentityLinkSchema) },
   responses: {
     200: r.ok(chatIdentityLinkConfirmationResponseSchema),
@@ -2930,7 +2930,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "List external conversations and bound tasks",
   description:
-    "Lists each durable provider conversation-to-Paperclip-task binding for the endpoint, including provider and task links and the latest publication state.",
+    "Lists each durable provider conversation-to-Outpost-task binding for the endpoint, including provider and task links and the latest publication state.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(z.array(chatConversationResponseSchema)),
@@ -3034,7 +3034,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Resolve an unconfirmed provider action",
   description:
-    "After checking the provider, an operator may mark an ambiguous durable provider reply delivered, retry it while accepting duplicate risk, or cancel it. Slack slash-command task starts support explicit retry or cancel only. Paperclip never replays an ambiguous provider action automatically, and every resolution is audited.",
+    "After checking the provider, an operator may mark an ambiguous durable provider reply delivered, retry it while accepting duplicate risk, or cancel it. Slack slash-command task starts support explicit retry or cancel only. Outpost never replays an ambiguous provider action automatically, and every resolution is audited.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -3057,9 +3057,9 @@ registry.registerPath({
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/conversations/{conversationId}/publications",
   tags: ["chat-channels"],
-  summary: "Publish a Paperclip task comment to an external conversation",
+  summary: "Publish an Outpost task comment to an external conversation",
   description:
-    "Explicitly projects an eligible comment from the bound Paperclip task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Board send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
+    "Explicitly projects an eligible comment from the bound Outpost task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Board send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -3161,9 +3161,9 @@ registry.registerPath({
 /** Ready-made teams are found here, so these entries must match how people ask for them. */
 const TEAM_CATALOG_DESCRIPTIONS: Record<string, string> = {
   "/api/teams/catalog":
-    "Lists Paperclip's ready-made teams: installable team packages, not agents already in a company. Each entry gives its name, description, roles (agentSlugs), project and routine counts, required skills (requiredSkills) and configuration inputs (envInputs). This catalog is the only source of ready-made teams; choose by description and roles rather than an exact name. Optional q filters by text in names, descriptions and tags. The web app has no teams catalog page; people browse it with the paperclipai teams browse CLI command.",
+    "Lists Outpost's ready-made teams: installable team packages, not agents already in a company. Each entry gives its name, description, roles (agentSlugs), project and routine counts, required skills (requiredSkills) and configuration inputs (envInputs). This catalog is the only source of ready-made teams; choose by description and roles rather than an exact name. Optional q filters by text in names, descriptions and tags. The web app has no teams catalog page; people browse it with the paperclipai teams browse CLI command.",
   "/api/companies/{companyId}/teams/catalog/{catalogId}/preview":
-    "Shows what installing a catalog team would add to this company: planned agents, projects, routines and skills, and any name or slug conflicts with existing resources. Creates no resources, so it is also allowed in Ask and Plan modes. Company members and agents in the company can preview.",
+    "Shows what installing a catalog team would add to this company: planned agents, projects, routines and skills, and any name or slug conflicts with existing resources. Creates no resources, so it is also allowed in Ask and Plan modes. Outpost members and agents in the company can preview.",
 };
 
 for (const route of [
@@ -3238,7 +3238,7 @@ registry.registerPath({
   path: "/api/agent-avatars/{version}/{palette}/{file}",
   tags: ["agents"],
   summary: "Render or retrieve a public preset agent portrait",
-  description: "On-demand PNG artwork; no agent or company lookup. Logical size determines face detail independently of density. Background defaults to transparent; paperclip-dark supplies the opaque Paperclip dark-mode background for Slack exports. Successful URLs are immutable for one year and return a content-derived ETag. Cache entries regenerate after deletion.",
+  description: "On-demand PNG artwork; no agent or company lookup. Logical size determines face detail independently of density. Background defaults to transparent; paperclip-dark supplies the opaque Outpost dark-mode background for Slack exports. Successful URLs are immutable for one year and return a content-derived ETag. Cache entries regenerate after deletion.",
   request: {
     params: z.object({
       version: z.literal("cap-v1"),
@@ -4136,7 +4136,7 @@ registry.registerPath({
   tags: ["agents"],
   summary: "Wake up an agent",
   description:
-    "Board failed-run retries supply failedRunId with reason retry_failed_run. Paperclip derives the exact request and current authorization; a chat retry may return a durable queued/deferred receipt before a run exists. Caller task/comment markers and fresh-session overrides do not authorize replay.",
+    "Board failed-run retries supply failedRunId with reason retry_failed_run. Outpost derives the exact request and current authorization; a chat retry may return a durable queued/deferred receipt before a run exists. Caller task/comment markers and fresh-session overrides do not authorize replay.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(wakeAgentSchema),
@@ -4539,7 +4539,7 @@ registry.registerPath({
   method: "get",
   path: "/api/issues/{id}/runner-goal",
   tags: ["issues"],
-  summary: "Get the effective agent session goal for an issue",
+  summary: "Get the effective agent session north star for an issue",
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({ agentId: z.string().optional() }),
@@ -4556,13 +4556,13 @@ registry.registerPath({
   method: "post",
   path: "/api/issues/{id}/runner-goal/actions",
   tags: ["issues"],
-  summary: "Queue a control action for an agent session goal",
+  summary: "Queue a control action for an agent session north star",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(runnerGoalActionRequestSchema),
   },
   responses: {
-    202: { description: "Goal control accepted" },
+    202: { description: "North Star control accepted" },
     400: r.badRequest,
     401: r.unauthorized,
     403: r.forbidden,
@@ -5274,7 +5274,7 @@ registry.registerPath({
   path: "/api/projects/{id}",
   tags: ["projects"],
   summary: "Update project properties and defaults",
-  description: "Save project properties and defaults. The description holds shared project context and guidance, including checklists; goalIds links the project to its goals. Read the project back to verify the saved fields. Updating description or goalIds does not rewrite existing tasks or the inputs already admitted to active native runs; changing existing work is a separate operation. Environment and executionWorkspacePolicy fields configure separate project settings and are not required to save description or goalIds.",
+  description: "Save project properties and defaults. The description holds shared project context and guidance, including checklists; goalIds links the project to its north stars. Read the project back to verify the saved fields. Updating description or goalIds does not rewrite existing tasks or the inputs already admitted to active native runs; changing existing work is a separate operation. Environment and executionWorkspacePolicy fields configure separate project settings and are not required to save description or goalIds.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(updateProjectSchema),
@@ -5419,7 +5419,7 @@ const PLUGIN_MANAGED_ROUTINE_GUIDANCE =
 const PLUGIN_MANAGED_ROUTINE_OPERATOR_GUIDANCE =
   "A routine with a non-null `managedByPlugin` is a plugin-managed routine: that plugin created it and owns its definition "
   + "(title, instructions, schedule, assignee), and the plugin can reset it to its manifest defaults. "
-  + "On this instance the hosting operator manages plugins, so no Paperclip page offers that change. "
+  + "On this instance the hosting operator manages plugins, so no Outpost page offers that change. "
   + "Do not rewrite, detach or duplicate a plugin-managed routine to imitate a change, and do not search for another route: "
   + "reply now that the hosting operator controls this plugin's settings, with the routine's page link.";
 
@@ -5550,7 +5550,7 @@ registry.registerPath({
   request: {
     params: z.object({ publicId: z.string() }),
     headers: z.object({
-      "X-Paperclip-Source-Run-Token": z.string().optional().describe("Optional current Paperclip run JWT. It establishes creation provenance only; the trigger still requires its own authentication."),
+      "X-Paperclip-Source-Run-Token": z.string().optional().describe("Optional current Outpost run JWT. It establishes creation provenance only; the trigger still requires its own authentication."),
       "X-Paperclip-Idempotency-Scope": z.enum(["trigger", "routine"]).optional().describe("Scope of a stable Idempotency-Key. Default: trigger. Timestamped HMAC always uses trigger scope."),
       "Idempotency-Key": z.string().optional().describe("Stable sender event identity, reused on retries."),
     }),
@@ -5566,7 +5566,7 @@ registry.registerPath({
   method: "get",
   path: "/api/companies/{companyId}/goals",
   tags: ["goals"],
-  summary: "List goals in a company",
+  summary: "List north stars in a company",
   request: { params: z.object({ companyId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -5575,7 +5575,7 @@ registry.registerPath({
   method: "post",
   path: "/api/companies/{companyId}/goals",
   tags: ["goals"],
-  summary: "Create a goal",
+  summary: "Create a north star",
   request: {
     params: z.object({ companyId: z.string() }),
     body: jsonBody(createGoalSchema),
@@ -5587,7 +5587,7 @@ registry.registerPath({
   method: "get",
   path: "/api/goals/{id}",
   tags: ["goals"],
-  summary: "Get a goal",
+  summary: "Get a north star",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
@@ -5596,7 +5596,7 @@ registry.registerPath({
   method: "patch",
   path: "/api/goals/{id}",
   tags: ["goals"],
-  summary: "Update a goal",
+  summary: "Update a north star",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(updateGoalSchema),
@@ -5608,7 +5608,7 @@ registry.registerPath({
   method: "delete",
   path: "/api/goals/{id}",
   tags: ["goals"],
-  summary: "Delete a goal",
+  summary: "Delete a north star",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -5751,7 +5751,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/user-secret-definitions",
   tags: ["secrets"],
   summary: "List personal credential definitions (user secrets)",
-  description: "Board-only company-admin metadata for personal credential definitions, not their values. Agents cannot read this list using the human's identity. For an existing required personal credential, direct the current person to the company-prefixed /company/settings/secrets page, My secrets, then Set my value for the matching definition. Company admins can also open definition details with ?definition=<definitionId> when its ID is already known; other members use My secrets and Set my value. Only that signed-in person's value is set; another person's value cannot satisfy it. Never request values in chat. Storing a credential for an existing definition does not require choosing or connecting a new external provider.",
+  description: "Board-only company-admin metadata for personal credential definitions, not their values. Agents cannot read this list using the human's identity. For an existing required personal credential, direct the current person to the company-prefixed /company/settings/secrets page, My secrets, then Set my value for the matching definition. Outpost admins can also open definition details with ?definition=<definitionId> when its ID is already known; other members use My secrets and Set my value. Only that signed-in person's value is set; another person's value cannot satisfy it. Never request values in chat. Storing a credential for an existing definition does not require choosing or connecting a new external provider.",
   request: { params: z.object({ companyId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
@@ -6043,7 +6043,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/api/agents/me/chat/messages", tags: ["agents"],
   summary: "Send a task message to the agent's own chat",
-  description: "Requires the assigned agent's active standard task run, standard credentials and an active responsible human. Resolves or creates that agent's conversation automatically. Company visibility, task permissions, Stop and the shared cross-issue run cap apply. Equivalent retries do not spend another slot. Does not wake the chat agent or change task status.",
+  description: "Requires the assigned agent's active standard task run, standard credentials and an active responsible human. Resolves or creates that agent's conversation automatically. Outpost visibility, task permissions, Stop and the shared cross-issue run cap apply. Equivalent retries do not spend another slot. Does not wake the chat agent or change task status.",
   request: { body: jsonBody(sendChatMessageSchema) },
   responses: { 200: r.ok(), 201: { ...r.ok(), description: "Message saved" }, 400: r.badRequest,
     401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 429: r.tooManyRequests },
@@ -6183,7 +6183,7 @@ for (const [suffix, summary] of [
 ] as const) {
   registry.registerPath({
     method: "get", path: `/api/companies/{companyId}/accounting/${suffix}`, tags: ["costs"], summary,
-    description: "Company-scoped board access is required. Board viewers may inspect; agents cannot access operator accounting evidence.",
+    description: "Outpost-scoped board access is required. Board viewers may inspect; agents cannot access operator accounting evidence.",
     request: { params: z.object({ companyId: z.string(),
       ...(suffix.includes("invoiceId") ? { invoiceId: z.string() } : {}),
       ...(suffix.includes("eventId") ? { eventId: z.string() } : {}),
@@ -6201,7 +6201,7 @@ for (const operation of [
 ] as const) {
   registry.registerPath({
     method: "post", path: `/api/companies/{companyId}/accounting/${operation.suffix}`, tags: ["costs"],
-    summary: operation.summary, description: `${operation.description} Company-scoped board write access is required; viewers and agents cannot mutate accounting.`,
+    summary: operation.summary, description: `${operation.description} Outpost-scoped board write access is required; viewers and agents cannot mutate accounting.`,
     request: { params: z.object({ companyId: z.string(), ...(operation.suffix.includes("eventId") ? { eventId: z.string() } : {}) }), body: jsonBody(operation.schema) },
     responses: { [operation.status]: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
   });
@@ -6405,7 +6405,7 @@ registry.registerPath({
   path: "/api/issues/{id}/context/compact",
   tags: ["issues"],
   summary: "Ask the assignee agent to compact its context window",
-  description: "Board only. Queues a short run that resumes the assignee's runner session and compacts it (Codex and Claude on the Paperclip runner). Unavailable while the agent is running on the task.",
+  description: "Board only. Queues a short run that resumes the assignee's runner session and compacts it (Codex and Claude on the Outpost runner). Unavailable while the agent is running on the task.",
   request: { params: z.object({ id: z.string() }) },
   responses: { 202: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
 });
@@ -7282,7 +7282,7 @@ const EXPERIMENTAL_SETTINGS_PAGE = "Instance experimental features (for example 
   + "so do not claim a change: link that page as [Experimental settings](/<prefix>/company/settings/instance/experimental), name the feature's setting, and reply.";
 // When the hosting operator hides the Experimental page, it redirects away, so name the operator instead.
 const EXPERIMENTAL_SETTINGS_OPERATOR_GUIDANCE = "Instance experimental features (for example Cases via enableCases) are controlled by the hosting operator on this instance, "
-  + "so no Paperclip page offers that change. Agent credentials cannot read or change these settings, "
+  + "so no Outpost page offers that change. Agent credentials cannot read or change these settings, "
   + "so do not claim a change or search for another route: reply that the hosting operator controls it.";
 
 registry.registerPath({
@@ -7638,8 +7638,8 @@ registry.registerPath({
   method: "post",
   path: "/api/cli-auth/challenges",
   tags: ["access"],
-  summary: "Connect a person's terminal to Paperclip: create a CLI auth challenge for terminal login",
-  description: "Called by the Paperclip CLI in a person's own terminal, never by an agent on their behalf. To connect someone's terminal to Paperclip as themselves, tell them to run `npx paperclipai auth login --api-base <this Paperclip URL>` in that terminal (add `--company-id <companyId>` to name the company). The URL is the address the person already opens Paperclip at in their browser; leave it as that placeholder instead of looking it up, because addresses an agent can see (such as a runner-local API URL) may not be reachable from the person's machine. The CLI prints an approval link; they open it in a browser where they are signed in, review the requesting command, company and Board access, and approve. Only that CLI receives the resulting Board credential. `npx paperclipai auth whoami` confirms who it is signed in as and `npx paperclipai auth logout` revokes it. Agent API keys are a separate identity: never hand out an agent key, create or approve a challenge yourself, or ask for the person's password in chat.",
+  summary: "Connect a person's terminal to Outpost: create a CLI auth challenge for terminal login",
+  description: "Called by the Outpost CLI in a person's own terminal, never by an agent on their behalf. To connect someone's terminal to Outpost as themselves, tell them to run `npx paperclipai auth login --api-base <this Outpost URL>` in that terminal (add `--company-id <companyId>` to name the company). The URL is the address the person already opens Outpost at in their browser; leave it as that placeholder instead of looking it up, because addresses an agent can see (such as a runner-local API URL) may not be reachable from the person's machine. The CLI prints an approval link; they open it in a browser where they are signed in, review the requesting command, company and Board access, and approve. Only that CLI receives the resulting Board credential. `npx paperclipai auth whoami` confirms who it is signed in as and `npx paperclipai auth logout` revokes it. Agent API keys are a separate identity: never hand out an agent key, create or approve a challenge yourself, or ask for the person's password in chat.",
   request: { body: jsonBody(createCliAuthChallengeSchema) },
   responses: { 200: r.ok(), 400: r.badRequest },
 });
@@ -8176,7 +8176,7 @@ registry.registerPath({
   method: "post",
   path: "/api/heartbeat-runs/{runId}/runtime-requests/{requestId}/resolve",
   tags: ["runs"],
-  summary: "Resolve a pending Paperclip runner runtime request",
+  summary: "Resolve a pending Outpost runner runtime request",
   request: {
     params: z.object({ runId: heartbeatRunIdParamSchema, requestId: z.string() }),
     body: jsonBody(
@@ -8820,7 +8820,7 @@ registry.registerPath({
   method: "post",
   path: "/api/companies/{companyId}/onboarding-seed",
   tags: ["companies"],
-  summary: "Apply the onboarding seed Paperclip Cloud collected at signup",
+  summary: "Apply the onboarding seed Outpost Cloud collected at signup",
   request: { params: z.object({ companyId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 422: r.unprocessable },
 });
@@ -9122,7 +9122,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/skills/import",
   tags: ["skills"],
   summary: "Import an existing skill from a source",
-  description: "Import existing SKILL.md content from an allowed local skill directory or a supported remote source. Retain its source provenance instead of authoring new content with create_skill. Local paths must satisfy the company workspace and managed-root boundary checks. Remote imports keep their source access checks. Importing does not assign the skill to an agent. Company skill policy still applies.",
+  description: "Import existing SKILL.md content from an allowed local skill directory or a supported remote source. Retain its source provenance instead of authoring new content with create_skill. Local paths must satisfy the company workspace and managed-root boundary checks. Remote imports keep their source access checks. Importing does not assign the skill to an agent. Outpost skill policy still applies.",
   request: {
     params: z.object({ companyId: z.string() }),
     body: jsonBody(companySkillImportSchema),
@@ -10116,7 +10116,7 @@ registry.registerPath({
   path: "/api/instance/database-backups",
   tags: ["instance"],
   summary: "Trigger a database backup",
-  description: "Instance admins only: agent credentials receive 403, and cloud-managed instances run backups for you. Automatic gzip-compressed backups run about hourly by default; instance admins set how long they are kept in the Backup retention section of the company-prefixed /company/settings page. The web UI has no control that creates or restores a backup. For a backup now, an instance admin calls this endpoint, or an operator with shell access to the server runs `paperclipai db:backup` (add --json for metadata). The result names a gzip-compressed SQL file (backupFile) on the server host and its size. Paperclip has no restore endpoint or command: to check a backup, an operator restores the file with psql into a separate, empty PostgreSQL database, never over the live one, and then checks the restored data.",
+  description: "Instance admins only: agent credentials receive 403, and cloud-managed instances run backups for you. Automatic gzip-compressed backups run about hourly by default; instance admins set how long they are kept in the Backup retention section of the company-prefixed /company/settings page. The web UI has no control that creates or restores a backup. For a backup now, an instance admin calls this endpoint, or an operator with shell access to the server runs `paperclipai db:backup` (add --json for metadata). The result names a gzip-compressed SQL file (backupFile) on the server host and its size. Outpost has no restore endpoint or command: to check a backup, an operator restores the file with psql into a separate, empty PostgreSQL database, never over the live one, and then checks the restored data.",
   responses: { 201: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
@@ -10181,7 +10181,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/link-preview",
   tags: ["companies"],
   summary: "Read optional link metadata for the current board user",
-  description: "Company access and board authentication are required. This read uses a viewer-scoped cache and returns a quiet null preview when provider access is unavailable. It does not change tasks or schedule background work.",
+  description: "Outpost access and board authentication are required. This read uses a viewer-scoped cache and returns a quiet null preview when provider access is unavailable. It does not change tasks or schedule background work.",
   request: { params: z.object({ companyId: z.string() }), query: z.object({ url: z.string().max(2048) }) },
   responses: {
     200: r.ok(z.object({
@@ -10738,7 +10738,7 @@ registerCurrentRoute({
   path: "/api/health/dev-server/restart",
   tags: ["health"],
   summary: "Request a managed dev-server instance restart",
-  description: "Request a restart of this Paperclip instance through its managed development-server supervisor. In authenticated deployments this requires a board identity; an agent credential does not inherit board access from its responsible user or from a chat request. Hand that operation to an authorized board/operator when the route denies the current agent. Returns 404 when no managed supervisor is available and 409 when no restart is required. Acceptance is not proof that the restart completed. This operation does not delete stored conversations or task comments.",
+  description: "Request a restart of this Outpost instance through its managed development-server supervisor. In authenticated deployments this requires a board identity; an agent credential does not inherit board access from its responsible user or from a chat request. Hand that operation to an authorized board/operator when the route denies the current agent. Returns 404 when no managed supervisor is available and 409 when no restart is required. Acceptance is not proof that the restart completed. This operation does not delete stored conversations or task comments.",
   responses: {
     202: r.ok(),
     403: r.forbidden,
@@ -12437,28 +12437,28 @@ registerCurrentRoute({
   method: "get",
   path: "/api/tools/oauth/cloud-connector/callback",
   tags: ["tool-access"],
-  summary: "Handle a brokered Paperclip Cloud OAuth callback",
+  summary: "Handle a brokered Outpost Cloud OAuth callback",
 });
 
 registerCurrentRoute({
   method: "get",
   path: "/api/tools/oauth/paperclip-id/callback",
   tags: ["tool-access"],
-  summary: "Handle a legacy brokered Paperclip ID OAuth callback",
+  summary: "Handle a legacy brokered Outpost ID OAuth callback",
 });
 
 registerCurrentRoute({
   method: "get",
   path: "/api/tools/oauth/cloud-connector/enrollment",
   tags: ["tool-access"],
-  summary: "Get Paperclip Cloud connector enrollment status",
+  summary: "Get Outpost Cloud connector enrollment status",
 });
 
 registerCurrentRoute({
   method: "post",
   path: "/api/tools/oauth/cloud-connector/enrollment",
   tags: ["tool-access"],
-  summary: "Start Paperclip Cloud connector enrollment",
+  summary: "Start Outpost Cloud connector enrollment",
   body: z
     .object({ companyId: z.string().min(1), label: z.string().optional() })
     .strict(),
@@ -12475,7 +12475,7 @@ registerCurrentRoute({
   method: "get",
   path: "/api/tools/oauth/cloud-connector/enrollment-callback",
   tags: ["tool-access"],
-  summary: "Complete Paperclip Cloud connector enrollment",
+  summary: "Complete Outpost Cloud connector enrollment",
   query: z
     .object({
       enrollment_id: z.string().min(1),
@@ -13130,7 +13130,7 @@ registerCurrentRoute({
 });
 registerCurrentRoute({
   method: "delete", path: "/api/companies/{companyId}/agents/{agentId}/dot-binding", tags: ["agents"],
-  summary: "Revoke a Dot connection and fence its active Paperclip assignments",
+  summary: "Revoke a Dot connection and fence its active Outpost assignments",
   responses: { 204: { description: "Dot connection revoked; external stop is unconfirmed" },
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -13184,7 +13184,7 @@ registerCurrentRoute({
 });
 registerCurrentRoute({
   method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/stop", tags: ["agents"],
-  summary: "Revoke Paperclip work-session authority without confirming remote termination",
+  summary: "Revoke Outpost work-session authority without confirming remote termination",
   body: stopGrokWorkSchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
@@ -13205,7 +13205,7 @@ registerCurrentRoute({
 
 const ASSISTANT_CONNECTION_SETUP_PERSON_ONLY = "Person-only: a person connects their own assistant, such as Claude, ChatGPT or another MCP client, in their browser on "
   + "[Assistant connections](/<prefix>/apps/assistant-connection), with this conversation's company prefix as <prefix>. "
-  + "That page gives the invitation and server URL to paste into the assistant; the assistant then opens a Paperclip consent screen where the person picks the company and approves access. "
+  + "That page gives the invitation and server URL to paste into the assistant; the assistant then opens an Outpost consent screen where the person picks the company and approves access. "
   + "The consent screen offers only access within that person's own role: a read-only member can grant read access but not writes. "
   + "An agent cannot read this setup or approve consent for anyone: these routes accept only the person's own signed-in browser session. "
   + "Do not search for another route; link that page, say the person approves access there themselves, and reply.";
@@ -13536,9 +13536,9 @@ export function buildOpenApiDocument(): any {
   return applyPluginSettingsVisibility(applyDocumentFixups({
     openapi: "3.0.0",
     info: {
-      title: "Paperclip API",
+      title: "Outpost API",
       version: "1.0.0",
-      description: "REST API for the Paperclip AI agent management platform",
+      description: "REST API for the Outpost AI agent management platform",
     },
     servers: [{ url: "/" }],
     components: registry.buildComponents(),

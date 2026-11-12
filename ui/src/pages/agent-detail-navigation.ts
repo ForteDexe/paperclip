@@ -1,6 +1,6 @@
 import { auditSectionHref, type AuditSection } from "./audit/audit-navigation";
 
-export type AgentAuditView = Extract<AuditSection, "activity" | "runs" | "costs" | "budgets">;
+export type AgentAuditView = Extract<AuditSection, "activity" | "runs">;
 
 export type AgentDetailView =
   | "overview"
@@ -39,8 +39,6 @@ export const AGENT_DETAIL_NAVIGATION: ReadonlyArray<{
     items: [
       { value: "activity", label: "Activity" },
       { value: "runs", label: "Runs" },
-      { value: "costs", label: "Costs" },
-      { value: "budgets", label: "Budgets" },
     ],
   },
 ] as const;
@@ -53,7 +51,7 @@ const HIDDEN_VIEW_LABELS: Partial<Record<AgentLocalDetailView, string>> = {
   revisions: "Agent history",
 };
 
-export const AGENT_AUDIT_VIEWS: ReadonlySet<AgentLocalDetailView> = new Set(["activity", "runs", "costs", "budgets"]);
+export const AGENT_AUDIT_VIEWS: ReadonlySet<AgentLocalDetailView> = new Set(["activity", "runs"]);
 
 export function isAgentAuditView(view: AgentDetailView): view is AgentAuditView {
   return AGENT_AUDIT_VIEWS.has(view as AgentLocalDetailView);
@@ -91,8 +89,7 @@ export function agentDetailHref(agentRef: string, view: AgentLocalDetailView = "
 export function agentLegacyAuditSection(value: string | null): AgentAuditView | null {
   if (value === "runs") return "runs";
   if (value === "audit" || value === "activity") return "activity";
-  if (value === "cost" || value === "costs") return "costs";
-  if (value === "budget" || value === "budgets") return "budgets";
+  if (value === "cost" || value === "costs" || value === "budget" || value === "budgets") return "activity";
   return null;
 }
 

@@ -97,7 +97,7 @@ export function GoalDetail() {
 
   const uploadImage = useMutation({
     mutationFn: async (file: File) => {
-      if (!resolvedCompanyId) throw new Error("No organization selected");
+      if (!resolvedCompanyId) throw new Error("No outpost selected");
       return assetsApi.uploadImage(
         resolvedCompanyId,
         file,
@@ -116,8 +116,8 @@ export function GoalDetail() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: "Goals", href: "/goals" },
-      { label: goal?.title ?? goalId ?? "Goal" }
+      { label: "North Stars", href: "/goals" },
+      { label: goal?.title ?? goalId ?? "North Star" }
     ]);
   }, [setBreadcrumbs, goal, goalId]);
 
@@ -135,7 +135,7 @@ export function GoalDetail() {
 
   if (isLoading || goalView.kind === "reconnecting") return <PageSkeleton variant="detail" />;
   if (goalView.kind === "error") {
-    return <QueryErrorState size="page" error={error} action="load this goal" onRetry={goalView.retry} retrying={goalView.isFetching} />;
+    return <QueryErrorState size="page" error={error} action="load this north star" onRetry={goalView.retry} retrying={goalView.isFetching} />;
   }
   if (!goal) return null;
 
@@ -179,7 +179,7 @@ export function GoalDetail() {
       <Tabs defaultValue="children">
         <TabsList>
           <TabsTrigger value="children">
-            Sub-Goals ({childGoals.length})
+            Child North Stars ({childGoals.length})
           </TabsTrigger>
           <TabsTrigger value="projects">
             Projects ({linkedProjects.length})
@@ -194,11 +194,11 @@ export function GoalDetail() {
               onClick={() => openNewGoal({ parentId: goalId })}
             >
               <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Sub Goal
+              Child North Star
             </Button>
           </div>
           {childGoals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No sub-goals.</p>
+            <p className="text-sm text-muted-foreground">No child north stars.</p>
           ) : (
             <GoalTree goals={childGoals} goalLink={(g) => `/goals/${g.id}`} />
           )}

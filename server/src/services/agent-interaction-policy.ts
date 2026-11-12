@@ -40,7 +40,7 @@ export async function agentInteractionDenial(
 ): Promise<AgentInteractionDenial | null> {
   const origin = currentPluginInteractionOrigin();
   const actorCompanyId = input.actorCompanyId ?? input.companyId;
-  if (origin && origin.companyId !== actorCompanyId) throw notFound("Company resource not found");
+  if (origin && origin.companyId !== actorCompanyId) throw notFound("Outpost resource not found");
   const actorAgentId = origin?.agentId ?? input.actorAgentId;
   if (!actorAgentId) return null;
 

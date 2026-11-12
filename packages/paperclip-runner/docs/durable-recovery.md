@@ -2,7 +2,7 @@
 
 Durable recovery adds a real outbound WebSocket path to the standalone package. The
 Rust `paperclip-runnerd` process is the client. The TypeScript mock core is the
-remote peer. Neither side imports Paperclip server, UI, database, or shared
+remote peer. Neither side imports Outpost server, UI, database, or shared
 control-plane code.
 
 This is a local reliability and authenticated-transport proof. The mock keeps
@@ -301,12 +301,12 @@ restart neither journal says whether Codex created the turn, and the resumed
 thread reports no active turn either way. Codex records a turn in the thread
 before it runs anything, so the restored runner reads the newest turn of the
 thread history (`thread/turns/list`, one turn, metadata only). If there is none,
-or it is a turn Paperclip already settled, the start never created a turn: the
+or it is a turn Outpost already settled, the start never created a turn: the
 runner clears the ambiguity, emits the `ambiguous_turn_start_not_created`
 diagnostic and restores an idle session. The old `turn.start` stays settled as
 `execution_indeterminate` and never runs again; the same-run resume then starts
 the run's turn once, as for any recovered session without an active turn. If
-the newest turn is one Paperclip never settled, Codex did create the turn and it
+the newest turn is one Outpost never settled, Codex did create the turn and it
 may have done work. The runner still fails closed and never starts that work
 again by itself; continuing is a person's decision (Retry or a new message).
 

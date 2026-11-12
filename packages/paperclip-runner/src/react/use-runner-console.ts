@@ -473,7 +473,7 @@ export function useRunnerConsole(options: RunnerClientOptions = {}): RunnerConso
       if (sessionId === null) return;
       await guard(async () => {
         adopt(await runnerClient.goalOperation(sessionId, operation, body));
-        setAnnouncement(`Goal ${operation}`);
+        setAnnouncement(`North Star ${operation}`);
       });
     },
     [adopt, guard, runnerClient],

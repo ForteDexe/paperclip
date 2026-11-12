@@ -16,7 +16,7 @@ export function savedManagedProviderAccounts(
       return [{ id: `ai:${account.grantId}`, label: `${account.name} (Your default)`, aiConnection: { provider, method: account.method, mode: "responsible_user" as const } }];
     }
     if (account.ownership === "shared") {
-      return [{ id: `ai:${account.grantId}`, label: `${account.name} (Company shared)`, aiConnection: { provider, method: account.method, mode: "shared" as const, connectionId: account.id, grantId: account.grantId } }];
+      return [{ id: `ai:${account.grantId}`, label: `${account.name} (Outpost shared)`, aiConnection: { provider, method: account.method, mode: "shared" as const, connectionId: account.id, grantId: account.grantId } }];
     }
     return [];
   });
@@ -60,7 +60,7 @@ export function savedProviderKeys(
         ? [
             {
               id: `company:${secret.id}`,
-              label: `${secret.name} (Organization key)`,
+              label: `${secret.name} (Outpost key)`,
               binding: {
                 type: "secret_ref" as const,
                 secretId: secret.id,

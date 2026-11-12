@@ -14,7 +14,7 @@ export function BoardDialogs() {
   return <>
     <DeferredOverlay requested={newIssueOpen} title="New task" onClose={closeNewIssue}><NewIssueDialog /></DeferredOverlay>
     <DeferredOverlay requested={newProjectOpen} title="New project" onClose={closeNewProject}><NewProjectDialog /></DeferredOverlay>
-    <DeferredOverlay requested={newGoalOpen} title="New goal" onClose={closeNewGoal}><NewGoalDialog /></DeferredOverlay>
+    <DeferredOverlay requested={newGoalOpen} title="New north star" onClose={closeNewGoal}><NewGoalDialog /></DeferredOverlay>
     <DeferredOverlay requested={newAgentOpen} title="New agent" onClose={closeNewAgent}><NewAgentDialog /></DeferredOverlay>
     <GitHubStarPrompt />
   </>;

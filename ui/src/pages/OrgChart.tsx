@@ -241,7 +241,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
   }, [agents]);
 
   useEffect(() => {
-    if (!embedded) setBreadcrumbs([{ label: "Org Chart" }]);
+    if (!embedded) setBreadcrumbs([{ label: "Crew map" }]);
   }, [embedded, setBreadcrumbs]);
 
   // Layout computation
@@ -468,7 +468,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
   }, [pan, zoom]);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Network} message="Select an organization to view the org chart." />;
+    return <EmptyState icon={Network} message="Select an outpost to view the crew map." />;
   }
 
   // Keep a loaded chart on screen through a failed refetch; only a real
@@ -482,7 +482,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
       <QueryErrorState
         size="page"
         error={orgTreeView.error}
-        action="load the org chart"
+        action="load the crew map"
         onRetry={orgTreeView.retry}
         retrying={orgTreeView.isFetching}
       />
@@ -490,7 +490,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
   }
 
   if (orgTree && orgTree.length === 0) {
-    return <EmptyState icon={Network} message="No organizational hierarchy defined." />;
+    return <EmptyState icon={Network} message="No crew hierarchy defined." />;
   }
 
   return (
@@ -505,7 +505,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
           <Link to="/company/import">
             <Button variant="outline" size="sm">
               <Upload className="mr-1.5 h-3.5 w-3.5" />
-              Import organization
+              Import outpost
             </Button>
           </Link>
         ) : null}
@@ -513,7 +513,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
           <Link to="/company/export">
             <Button variant="outline" size="sm">
               <Download className="mr-1.5 h-3.5 w-3.5" />
-              Export organization
+              Export outpost
             </Button>
           </Link>
         ) : null}

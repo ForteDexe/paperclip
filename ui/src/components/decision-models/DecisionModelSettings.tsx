@@ -17,10 +17,10 @@ const failureMessages: Record<string, string> = {
   connection_unavailable: "The connection is unavailable. Reconnect it and try again.",
   access_denied: "This connection is not shared with you. Review its permissions.",
   incompatible_connection: "Choose a supported OpenAI or OpenRouter API connection.",
-  budget_blocked: "The company or task budget prevents this request. Review Costs and Budgets.",
+  budget_blocked: "A legacy policy prevented this request. Save the settings and try again.",
   provider_auth_failed: "The provider rejected the connection. Reconnect it and try again.",
   provider_rate_limited: "The provider is rate limited. Try again later.",
-  timeout: "The provider did not respond in time. Billing is unresolved; review Costs.",
+  timeout: "The provider did not respond in time. Try again later.",
   refused: "The model declined the test. Review the connection and try again.",
 };
 export function DecisionModelSettingsView({ settings, choices, saving, testing, error, result, newlyConnectedId, onSave, onTest, onAdd }: {
@@ -42,13 +42,10 @@ export function DecisionModelSettingsView({ settings, choices, saving, testing, 
   }, [newlyConnectedId, choices]);
   const selected = choices.find(row => row.grantId === draft.grantId);
   const dirty = draft.enabled !== settings.enabled || draft.allowBackground !== settings.allowBackground || draft.grantId !== settings.grantId;
-  const unavailable = result && result.status !== "succeeded" ? failureMessages[result.status === "unavailable" ? result.reason : result.errorCode] ?? "The decision could not be completed. Review its entry in Costs." : null;
+  const unavailable = result && result.status !== "succeeded" ? failureMessages[result.status === "unavailable" ? result.reason : result.errorCode] ?? "The decision could not be completed. Review the connection and try again." : null;
   return <section aria-labelledby="decision-model-heading" className="max-w-2xl space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 id="decision-model-heading" className="text-lg font-semibold">Decision model</h2>
-      <Link to="/activity/costs?tab=decisions" className="text-sm underline underline-offset-4">View usage</Link>
-    </div>
-    <p className="text-sm text-muted-foreground">Choose the shared connection Paperclip uses for optional decision features. API usage is charged to this connection.</p>
+    <h2 id="decision-model-heading" className="text-lg font-semibold">Decision model</h2>
+    <p className="text-sm text-muted-foreground">Choose the shared connection Outpost uses for optional decision features.</p>
     <ConnectionChoiceList selectedId={draft.grantId ?? undefined} disabled={saving || testing}
       choices={choices.map(row => ({ id: row.grantId, name: row.name,
         description: `${row.decisionModel} · ${row.status === "connected" ? "Connected" : "Needs attention"}`,
@@ -64,8 +61,8 @@ export function DecisionModelSettingsView({ settings, choices, saving, testing, 
     {draft.connectionId && <fieldset disabled={saving || testing} className="space-y-4">
       <ToggleField label="Enable decisions" checked={draft.enabled} onChange={enabled => setDraft(value => ({ ...value, enabled }))} />
       <div className="space-y-2">
-        <ToggleField label="Allow company-sponsored background decisions" checked={draft.allowBackground} onChange={allowBackground => setDraft(value => ({ ...value, allowBackground }))} />
-        <p className="text-xs text-muted-foreground">Background features can charge this connection without a responsible person. These requests appear as Paperclip services.</p>
+        <ToggleField label="Allow outpost-sponsored background decisions" checked={draft.allowBackground} onChange={allowBackground => setDraft(value => ({ ...value, allowBackground }))} />
+        <p className="text-xs text-muted-foreground">Background features can charge this connection without a responsible person. These requests appear as Outpost services.</p>
       </div>
     </fieldset>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -116,7 +113,7 @@ export function DecisionModelSettingsSection({ companyId }: { companyId: string 
       onSave={value => save.mutate(value)} onTest={() => test.mutate(settingsRevision)} onAdd={() => { setProvider(null); setAdding(true); }} />
     <Dialog open={adding} onOpenChange={setAdding}>
       <DialogContent className="sm:max-w-2xl max-h-(--sz-85vh) overflow-y-auto">
-        <DialogHeader><DialogTitle>Add a decision connection</DialogTitle><DialogDescription>Use a shared API connection for company decisions.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Add a decision connection</DialogTitle><DialogDescription>Use a shared API connection for outpost decisions.</DialogDescription></DialogHeader>
         {provider ? <ConnectionSetupFlow host="dialog" serviceSlug={provider} forceNewConnection
           aiConnection={{ provider, method: "api_key", mode: "shared" }} requiredAiOwnership="shared"
           onCancel={() => setAdding(false)} onComplete={async result => {

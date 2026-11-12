@@ -26,8 +26,8 @@ export const exportCompanyAction = {
     "note": "Scenario/eval-only mock extension."
   },
   "documentation": {
-    "title": "Export Company",
-    "description": "Export Company through the Capability portability admin capability set.",
+    "title": "Export Outpost",
+    "description": "Export Outpost through the Capability portability admin capability set.",
     "note": "Scenario/eval-only mock extension."
   },
   "examples": {
@@ -60,8 +60,8 @@ export const exportCompanyAction = {
     "descriptor": {
       "operationId": "export_company",
       "version": 1,
-      "title": "Export Company",
-      "description": "Export Company through the Capability portability admin capability set.",
+      "title": "Export Outpost",
+      "description": "Export Outpost through the Capability portability admin capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {},

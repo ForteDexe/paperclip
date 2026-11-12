@@ -388,7 +388,7 @@ describe("ConnectionIntentInteractionBody dialog behavior", () => {
     ).not.toBeNull();
 
     setupOptionsMock.mockRejectedValue(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await act(async () => {
       await queryClient.invalidateQueries();
@@ -399,7 +399,7 @@ describe("ConnectionIntentInteractionBody dialog behavior", () => {
       document.querySelector('[data-testid="shared-connection-setup"]'),
     ).not.toBeNull();
     expect(document.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(document.body.textContent).not.toContain("Paperclip is restarting.");
+    expect(document.body.textContent).not.toContain("Outpost is restarting.");
     expect(document.body.textContent).not.toContain("Couldn't load connection setup");
   });
 

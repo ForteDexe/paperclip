@@ -134,7 +134,7 @@ describe("AuditTab", () => {
     expect(container.textContent).toContain("Send Email");
     expect(container.textContent).toContain("Gmail");
     expect(container.textContent).toContain("Blocked");
-    expect(container.textContent).not.toContain("Recorded by Paperclip — entries can't be edited.");
+    expect(container.textContent).not.toContain("Recorded by Outpost — entries can't be edited.");
     expect(listActivityMock).toHaveBeenCalledWith("company-1", expect.objectContaining({ window: "all" }));
     // Vocabulary gate: no raw tool ID or ops terms in the sentence list.
     expect(container.textContent).not.toContain("mail:send_email");
@@ -277,7 +277,7 @@ describe("AuditTab", () => {
     expect(container.textContent).toContain("Send Email");
 
     listActivityMock.mockRejectedValue(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await act(async () => {
       await client.invalidateQueries();
@@ -286,7 +286,7 @@ describe("AuditTab", () => {
 
     expect(container.textContent).toContain("Send Email");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
 
   it("shows readable copy and a Retry button for a real error", async () => {

@@ -470,39 +470,39 @@ export const runnerApiReference: Record<string, { section: string; description?:
     "description": "Stop workspace runtime services"
   },
   "GET /api/companies": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "List all companies"
   },
   "POST /api/companies": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Create company"
   },
   "GET /api/companies/{}": {
-    "section": "Companies, Projects, Goals",
-    "description": "Company details"
+    "section": "Outposts, Projects, North Stars",
+    "description": "Outpost details"
   },
   "PATCH /api/companies/{}": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Update company fields"
   },
   "POST /api/companies/{}/logo": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Upload company logo (multipart)"
   },
   "POST /api/companies/{}/archive": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Archive company"
   },
   "GET /api/companies/{}/projects": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "List projects"
   },
   "GET /api/projects/{}": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Project details"
   },
   "POST /api/companies/{}/projects": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Create project (`repositoryIds`/`repositoryUrls` arrays or inline `workspace`; optional `idempotencyKey`)",
     "examples": [
       {
@@ -517,7 +517,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
       },
       {
         "body": {
-          "name": "Paperclip Mobile App",
+          "name": "Outpost Mobile App",
           "description": "Ship iOS + Android client",
           "status": "planned",
           "goalIds": [
@@ -534,7 +534,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
       },
       {
         "body": {
-          "name": "Paperclip Mobile App",
+          "name": "Outpost Mobile App",
           "description": "Ship iOS + Android client",
           "status": "planned"
         }
@@ -542,15 +542,15 @@ export const runnerApiReference: Record<string, { section: string; description?:
     ]
   },
   "PATCH /api/projects/{}": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Update project"
   },
   "GET /api/projects/{}/workspaces": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "List project workspaces"
   },
   "POST /api/projects/{}/workspaces": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Create project workspace",
     "examples": [
       {
@@ -564,32 +564,32 @@ export const runnerApiReference: Record<string, { section: string; description?:
     ]
   },
   "PATCH /api/projects/{}/workspaces/{}": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Update project workspace"
   },
   "DELETE /api/projects/{}/workspaces/{}": {
-    "section": "Companies, Projects, Goals",
+    "section": "Outposts, Projects, North Stars",
     "description": "Delete project workspace"
   },
   "GET /api/companies/{}/goals": {
-    "section": "Companies, Projects, Goals",
-    "description": "List goals"
+    "section": "Outposts, Projects, North Stars",
+    "description": "List north stars"
   },
   "GET /api/goals/{}": {
-    "section": "Companies, Projects, Goals",
-    "description": "Goal details"
+    "section": "Outposts, Projects, North Stars",
+    "description": "North Star details"
   },
   "POST /api/companies/{}/goals": {
-    "section": "Companies, Projects, Goals",
-    "description": "Create goal"
+    "section": "Outposts, Projects, North Stars",
+    "description": "Create north star"
   },
   "PATCH /api/goals/{}": {
-    "section": "Companies, Projects, Goals",
-    "description": "Update goal"
+    "section": "Outposts, Projects, North Stars",
+    "description": "Update north star"
   },
   "POST /api/companies/{}/openclaw/invite-prompt": {
-    "section": "Companies, Projects, Goals",
-    "description": "Generate OpenClaw invite prompt (CEO/board only)",
+    "section": "Outposts, Projects, North Stars",
+    "description": "Generate OpenClaw invite prompt (Outpost Lead/board only)",
     "examples": [
       {
         "body": {
@@ -692,7 +692,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
           "instructionsBundle": {
             "entryFile": "AGENTS.md",
             "files": {
-              "AGENTS.md": "# Marketing Analyst\nResearch markets and competitors. Report findings with sources to your manager. Follow the Paperclip operational skill.\n"
+              "AGENTS.md": "# Marketing Analyst\nResearch markets and competitors. Report findings with sources to your manager. Follow the Outpost operational skill.\n"
             }
           },
           "runtimeConfig": {
@@ -743,7 +743,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
   },
   "GET /api/companies/{}/costs/summary": {
     "section": "Approvals, Costs, Activity, Dashboard",
-    "description": "Company cost summary"
+    "description": "Outpost cost summary"
   },
   "GET /api/companies/{}/costs/by-agent": {
     "section": "Approvals, Costs, Activity, Dashboard",
@@ -759,7 +759,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
   },
   "GET /api/companies/{}/dashboard": {
     "section": "Approvals, Costs, Activity, Dashboard",
-    "description": "Company health summary"
+    "description": "Outpost health summary"
   },
   "GET /api/companies/{}/secrets": {
     "section": "Secrets",

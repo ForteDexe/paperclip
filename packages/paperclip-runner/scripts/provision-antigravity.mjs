@@ -25,7 +25,7 @@ export async function provisionAntigravityRuntime(options = {}) {
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   provisionAntigravityRuntime().then(result => {
     console.log(`Verified Google Antigravity ${result.version} (${result.platform}-${result.architecture}), ${result.patchVersion}`);
-    console.log(`Runtime: ${result.destination}. Run setup as the same OS user that runs Paperclip.`);
+    console.log(`Runtime: ${result.destination}. Run setup as the same OS user that runs Outpost.`);
     console.log("Native Runner execution remains pending acceptance in this build.");
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

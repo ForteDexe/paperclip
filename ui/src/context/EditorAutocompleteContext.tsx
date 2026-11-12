@@ -65,7 +65,7 @@ export function EditorAutocompleteProvider({ children }: { children: ReactNode }
   const { data: companySkills = [] } = useQuery({
     queryKey: selectedCompanyId
       ? queryKeys.companySkills.list(selectedCompanyId)
-      : ["company-skills", "__none__"],
+      : ["outpost-skills", "__none__"],
     queryFn: () => companySkillsApi.list(selectedCompanyId!),
     enabled: requested && Boolean(selectedCompanyId),
   });

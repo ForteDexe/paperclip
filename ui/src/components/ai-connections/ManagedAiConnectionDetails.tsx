@@ -30,7 +30,7 @@ export function ManagedAiConnectionRow({
       {metadata.routing ? metadata.routing.kind === "bedrock" ? `Bedrock · ${metadata.routing.region}` : metadata.routing.kind === "openrouter" ? "OpenRouter" : metadata.routing.baseUrl : aiMethodLabel(metadata.provider, metadata.method)} ·{" "}
       {connection.credentialPolicy === "per_user"
         ? "Personal"
-        : "Company shared"}
+        : "Outpost shared"}
     </p>
   );
 }

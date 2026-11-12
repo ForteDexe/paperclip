@@ -89,8 +89,8 @@ function capabilityForAgent(agent: AgentBinding): RunnerGoalCapability {
     const reason = provider === "opencode"
       ? "Unsupported by OpenCode."
       : provider === "acpx"
-        ? "This ACP agent does not advertise a structured session goal extension."
-        : "This Paperclip runner provider does not expose a durable session goal lifecycle.";
+        ? "This ACP agent does not advertise a structured session north star extension."
+        : "This Outpost runner provider does not expose a durable session north star lifecycle.";
     return {
       availability: "unsupported",
       verified: true,
@@ -111,14 +111,14 @@ function capabilityForAgent(agent: AgentBinding): RunnerGoalCapability {
   const reason = agent.adapterType === "opencode_local"
     ? "Unsupported by OpenCode."
     : directAcp
-      ? "This direct ACP adapter has no live session goal controller. Use Paperclip Runner with a supported provider."
+      ? "This direct ACP adapter has no live session north star controller. Use Outpost Runner with a supported provider."
     : (agent.adapterType === "claude_local" || agent.adapterType === "codex_local") && sessionMode === "oneshot"
-      ? "Session goals require a persistent ACP session."
+      ? "Session north stars require a persistent ACP session."
     : agent.adapterType === "claude_local"
       ? "Requires persistent Claude ACP."
       : agent.adapterType === "codex_local"
         ? "Requires persistent Codex ACP."
-        : "This runner does not expose a durable session goal lifecycle.";
+        : "This runner does not expose a durable session north star lifecycle.";
   return {
     availability: "unsupported",
     verified: true,
@@ -293,7 +293,7 @@ export function runnerGoalService(
           tokenBudgetControl: false,
           usageReporting: false,
           reasonCode: "no_agent_selected",
-          reason: "Select an agent to use session goals.",
+          reason: "Select an agent to use session north stars.",
         },
         goal: null,
         workingNow: false,
@@ -366,7 +366,7 @@ export function runnerGoalService(
     if (initialProjection.capability.availability !== "available") {
       throw new RunnerGoalActionError(
         initialProjection.capability.reasonCode ?? "session_goals_unsupported",
-        initialProjection.capability.reason ?? "Session goals are unsupported.",
+        initialProjection.capability.reason ?? "Session north stars are unsupported.",
       );
     }
 
@@ -431,14 +431,14 @@ export function runnerGoalService(
       if (request.tokenBudget != null && !capability.tokenBudgetControl) {
         throw new RunnerGoalActionError(
           "goal_token_budget_unsupported",
-          "This agent session does not support goal token budgets.",
+          "This agent session does not support north star token budgets.",
         );
       }
       if (request.action === "create" && currentGoal && currentGoal.status !== "complete") {
         throw new RunnerGoalConflictError("replacement_required", currentProjection);
       }
       if (["edit", "replace", "pause", "resume", "clear"].includes(request.action) && !currentGoal) {
-        throw new RunnerGoalActionError("goal_not_found", "There is no current session goal.");
+        throw new RunnerGoalActionError("goal_not_found", "There is no current session north star.");
       }
 
       const nextRevision = session.goalRevision + 1;
@@ -971,7 +971,7 @@ export async function settleLiveRunnerGoalBeforeInterrupt(
   if (!action) {
     throw new RunnerGoalActionError(
       "runner_goal_stop_unsupported",
-      "The live agent goal cannot be stopped safely.",
+      "The live agent north star cannot be stopped safely.",
     );
   }
 
@@ -991,7 +991,7 @@ export async function settleLiveRunnerGoalBeforeInterrupt(
   if (!completion) {
     throw new RunnerGoalActionError(
       "runner_goal_live_controller_unavailable",
-      "The live agent goal controller is unavailable; the run was not interrupted.",
+      "The live agent north star controller is unavailable; the run was not interrupted.",
     );
   }
   await completion;
@@ -1005,6 +1005,6 @@ export async function settleLiveRunnerGoalBeforeInterrupt(
   }
   throw new RunnerGoalActionError(
     "runner_goal_stop_unconfirmed",
-    "The provider did not confirm that the live agent goal stopped.",
+    "The provider did not confirm that the live agent north star stopped.",
   );
 }

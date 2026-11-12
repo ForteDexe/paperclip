@@ -44,7 +44,7 @@ export function SessionTimeline({
     <section data-slot="session-timeline" className="pcr-panel" aria-labelledby={headingId}>
       <h2 id={headingId} className="pcr-panel-title">Session timeline</h2>
       <dl className="pcr-identity-grid">
-        <div><dt>Goal</dt><dd>{state?.goal?.objective ?? "No goal set"}</dd></div>
+        <div><dt>North Star</dt><dd>{state?.goal?.objective ?? "No goal set"}</dd></div>
         <div><dt>State</dt><dd>{snapshot?.sessionState ?? "not started"}</dd></div>
       </dl>
       <ol className="pcr-timeline" data-testid="session-timeline">
@@ -232,11 +232,11 @@ export function GoalBlock({
     <section data-slot="goal-block" className="pcr-panel" aria-labelledby="goal-heading">
       <div className="pcr-panel-header">
         <h2 id="goal-heading" className="pcr-panel-title">
-          Goal
+          North Star
         </h2>
         <Menu
           triggerId={triggerId}
-          label="Goal"
+          label="North Star"
           disabled={unsupported || state === null}
           disabledReason={
             state === null ? "Start a session before changing the goal." : unsupportedReason
@@ -255,7 +255,7 @@ export function GoalBlock({
       </div>
       {state === null ? null : state.goal === null ? (
         <p className="pcr-goal-empty" data-testid="goal-banner">
-          {unsupported ? "Goal operations are unsupported here." : "No goal set"}
+          {unsupported ? "North Star operations are unsupported here." : "No goal set"}
         </p>
       ) : (
         <div className="pcr-goal-banner" data-testid="goal-banner">

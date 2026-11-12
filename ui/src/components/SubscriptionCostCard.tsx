@@ -47,7 +47,7 @@ function SubscriptionEditor({ account, accounts, companyId, onDone }: {
         <div className="space-y-2"><Label htmlFor="subscription-price">Price per billing period</Label><Input id="subscription-price" type="number" min="0" step="any" value={amount} placeholder="Unknown" onChange={event => setAmount(event.target.value)} /></div>
         <div className="space-y-2"><Label htmlFor="subscription-currency">Currency</Label><select id="subscription-currency" className={selectClass} value={currency} onChange={event => setCurrency(event.target.value)}>{SUBSCRIPTION_CURRENCIES.map(code => <option key={code}>{code}</option>)}</select></div>
         <div className="space-y-2"><Label htmlFor="subscription-cadence">Billed</Label><select id="subscription-cadence" className={selectClass} value={cadence} onChange={event => setCadence(event.target.value as typeof cadence)}><option value="month">Monthly</option><option value="year">Annually</option></select></div>
-        <div className="space-y-2"><Label htmlFor="subscription-status">Tracking</Label><select id="subscription-status" className={selectClass} value={status} onChange={event => setStatus(event.target.value as typeof status)}><option value="active">Active</option><option value="ended">Subscription ended</option><option value="excluded">Exclude from this organization</option></select></div>
+        <div className="space-y-2"><Label htmlFor="subscription-status">Tracking</Label><select id="subscription-status" className={selectClass} value={status} onChange={event => setStatus(event.target.value as typeof status)}><option value="active">Active</option><option value="ended">Subscription ended</option><option value="excluded">Exclude from this outpost</option></select></div>
       </div>
       <p className="text-xs text-muted-foreground">Enter the full amount for one account or seat. Annual prices are divided by 12. Changes apply from now. Ending tracking here does not cancel your provider subscription.</p>
       {save.error && <p role="alert" className="text-sm text-destructive">Could not save this price. Check the amount, or reopen the account if another person updated it.</p>}
@@ -56,7 +56,7 @@ function SubscriptionEditor({ account, accounts, companyId, onDone }: {
     {targets.length > 0 && <div className="space-y-2 border-t border-border pt-4">
       <Label htmlFor="subscription-link">Same subscription as another account?</Label>
       <select id="subscription-link" className={selectClass} value={targetId} onChange={event => setTargetId(event.target.value)}><option value="">Choose an account</option>{targets.map(row => <option key={row.id} value={row.id}>{row.name} · {row.price.plan}</option>)}</select>
-      <p className="text-xs text-muted-foreground">Linking counts these accounts once, combines their Paperclip usage, and keeps the selected account’s price. Only link the same subscription or paid seat.</p>
+      <p className="text-xs text-muted-foreground">Linking counts these accounts once, combines their Outpost usage, and keeps the selected account’s price. Only link the same subscription or paid seat.</p>
       {link.error && <p role="alert" className="text-sm text-destructive">Could not link these accounts. Reopen their details and try again.</p>}
       <Button type="button" variant="outline" disabled={!targetId || busy} onClick={() => link.mutate()}>Link accounts</Button>
     </div>}
@@ -92,7 +92,7 @@ export function SubscriptionCostCard({ companyId, report, error, onChanged }: {
     </Card>
     <Dialog open={open} onOpenChange={value => { setOpen(value); if (!value) setEditing(null); }}>
       <DialogContent className="max-h-(--sz-80vh) overflow-y-auto sm:max-w-3xl">
-        <DialogHeader><DialogTitle>{editing ? "Subscription price" : "Subscriptions"}</DialogTitle><DialogDescription>Current monthly costs for accounts visible to you. Token totals cover company work in the selected period.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{editing ? "Subscription price" : "Subscriptions"}</DialogTitle><DialogDescription>Current monthly costs for accounts visible to you. Token totals cover outpost work in the selected period.</DialogDescription></DialogHeader>
         {editing ? <SubscriptionEditor key={editing.id} companyId={companyId} account={editing} accounts={report?.accounts ?? []} onDone={closeEditor} /> : <div className="space-y-4">
           {report?.accounts.length === 0 && <p className="text-sm text-muted-foreground">No subscriptions are visible to you yet. Connect an AI account or run an agent with a connected subscription.</p>}
           {report?.accounts.map(account => <div key={account.id} className="space-y-2 border-b border-border pb-4 last:border-0">
@@ -109,7 +109,7 @@ export function SubscriptionCostCard({ companyId, report, error, onChanged }: {
             {account.canEdit && <div><Button variant="outline" size="sm" onClick={() => setEditing(account)}>Edit price</Button></div>}
           </div>)}
           {!!report?.unattributedSubscription.eventCount && <p className="text-xs text-muted-foreground">Some subscription usage has no recorded account. It is included in the subscription token total.</p>}
-          <p className="text-xs text-muted-foreground">Monthly fees cover the whole account, including use outside Paperclip. They are separate from recorded charges and agent budgets. Currencies are totaled separately.</p>
+          <p className="text-xs text-muted-foreground">Monthly fees cover the whole account, including use outside Outpost. They are separate from recorded charges and agent budgets. Currencies are totaled separately.</p>
         </div>}
       </DialogContent>
     </Dialog>

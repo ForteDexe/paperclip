@@ -405,7 +405,7 @@ function FrontmatterCard({
 // ── Client-side README generation ────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
-  ceo: "CEO", cto: "CTO", cmo: "CMO", cfo: "CFO", coo: "COO",
+  ceo: "Outpost Lead", cto: "Engineering Lead", cmo: "CMO", cfo: "CFO", coo: "COO",
   vp: "VP", manager: "Manager", engineer: "Engineer", agent: "Agent",
 };
 
@@ -438,13 +438,13 @@ function generateReadmeFromSelection(
   }
   // Org chart image (generated during export as images/org-chart.png)
   if (agents.length > 0) {
-    lines.push("![Org Chart](images/org-chart.png)");
+    lines.push("![CREW MAP](images/org-chart.png)");
     lines.push("");
   }
 
   lines.push("## What's Inside");
   lines.push("");
-  lines.push("This is an [Agent Company](https://paperclip.ing) package.");
+  lines.push("This is an [Agent Outpost](https://paperclip.ing) package.");
   lines.push("");
 
   const counts: Array<[string, number]> = [];
@@ -488,13 +488,13 @@ function generateReadmeFromSelection(
   lines.push("## Getting Started");
   lines.push("");
   lines.push("```bash");
-  lines.push("npx paperclipai company import this-github-url-or-folder");
+  lines.push("npx paperclipai outpost import this-github-url-or-folder");
   lines.push("```");
   lines.push("");
-  lines.push("See [Paperclip](https://paperclip.ing) for more information.");
+  lines.push("See [Outpost](https://paperclip.ing) for more information.");
   lines.push("");
   lines.push("---");
-  lines.push(`Exported from [Paperclip](https://paperclip.ing) on ${new Date().toISOString().split("T")[0]}`);
+  lines.push(`Exported from [Outpost](https://paperclip.ing) on ${new Date().toISOString().split("T")[0]}`);
   lines.push("");
 
   return lines.join("\n");
@@ -733,7 +733,7 @@ export function CompanyExport() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Organization", href: "/dashboard" },
+      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
       { label: "Settings", href: "/company/settings" },
       { label: "Export" },
     ]);
@@ -915,7 +915,7 @@ export function CompanyExport() {
 
     // Regenerate README.md based on checked selection
     if (typeof exportData.files["README.md"] === "string") {
-      const companyName = exportData.manifest.company?.name ?? selectedCompany?.name ?? "Company";
+      const companyName = exportData.manifest.company?.name ?? selectedCompany?.name ?? "Outpost";
       const companyDescription = exportData.manifest.company?.description ?? null;
       filtered["README.md"] = generateReadmeFromSelection(
         exportData.manifest,
@@ -1024,7 +1024,7 @@ export function CompanyExport() {
   }
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Package} message="Select an organization to export." />;
+    return <EmptyState icon={Package} message="Select an outpost to export." />;
   }
 
   if (exportPreviewMutation.isPending && !exportData) {
@@ -1084,7 +1084,7 @@ export function CompanyExport() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span className="font-medium">
-              {selectedCompany?.name ?? "Organization"} export
+              {selectedCompany?.name ?? "Outpost"} export
             </span>
             <span className="text-muted-foreground">
               Exporting {selectedCount.toLocaleString()} of {totalFiles.toLocaleString()} file{totalFiles === 1 ? "" : "s"}

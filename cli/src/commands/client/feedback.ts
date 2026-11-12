@@ -80,7 +80,7 @@ export function registerFeedbackCommands(program: Command): void {
     feedback
       .command("report")
       .description("Render a terminal report for company feedback traces")
-      .option("-C, --company-id <id>", "Company ID (overrides context default)")
+      .option("-C, --company-id <id>", "Outpost ID (overrides context default)")
       .option("--target-type <type>", "Filter by target type")
       .option("--vote <vote>", "Filter by vote value")
       .option("--status <status>", "Filter by trace status")
@@ -126,7 +126,7 @@ export function registerFeedbackCommands(program: Command): void {
     feedback
       .command("export")
       .description("Export feedback votes and raw trace bundles into a folder plus zip archive")
-      .option("-C, --company-id <id>", "Company ID (overrides context default)")
+      .option("-C, --company-id <id>", "Outpost ID (overrides context default)")
       .option("--target-type <type>", "Filter by target type")
       .option("--vote <vote>", "Filter by vote value")
       .option("--status <status>", "Filter by trace status")
@@ -210,7 +210,7 @@ export async function resolveFeedbackCompanyId(
   const companyId = companies[0]?.id?.trim();
   if (!companyId) {
     throw new Error(
-      "Company ID is required. Pass --company-id, set PAPERCLIP_COMPANY_ID, or configure a CLI context default.",
+      "Outpost ID is required. Pass --company-id, set PAPERCLIP_COMPANY_ID, or configure a CLI context default.",
     );
   }
   return companyId;
@@ -298,11 +298,11 @@ export function renderFeedbackReport(input: {
 }): string {
   const lines: string[] = [];
   lines.push("");
-  lines.push(pc.bold(pc.magenta("Paperclip Feedback Report")));
+  lines.push(pc.bold(pc.magenta("Outpost Feedback Report")));
   lines.push(pc.dim(new Date().toISOString()));
   lines.push(horizontalRule());
   lines.push(`${pc.dim("Server:")}  ${input.apiBase}`);
-  lines.push(`${pc.dim("Company:")} ${input.companyId}`);
+  lines.push(`${pc.dim("Outpost:")} ${input.companyId}`);
   lines.push("");
 
   if (input.traces.length === 0) {
@@ -470,10 +470,10 @@ export async function writeFeedbackExportBundle(input: {
 export function renderFeedbackExportSummary(exported: FeedbackExportResult): string {
   const lines: string[] = [];
   lines.push("");
-  lines.push(pc.bold(pc.magenta("Paperclip Feedback Export")));
+  lines.push(pc.bold(pc.magenta("Outpost Feedback Export")));
   lines.push(pc.dim(exported.manifest.exportedAt));
   lines.push(horizontalRule());
-  lines.push(`${pc.dim("Company:")} ${exported.manifest.companyId}`);
+  lines.push(`${pc.dim("Outpost:")} ${exported.manifest.companyId}`);
   lines.push(`${pc.dim("Output:")}  ${exported.outputDir}`);
   lines.push(`${pc.dim("Archive:")} ${exported.zipPath}`);
   lines.push("");

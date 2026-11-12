@@ -854,8 +854,8 @@ async function registerToolHandlers(ctx: PluginContext): Promise<void> {
   ctx.tools.register(
     TOOL_NAMES.companySummary,
     {
-      displayName: "Kitchen Sink Company Summary",
-      description: "Summarizes current company counts from the Paperclip APIs.",
+      displayName: "Kitchen Sink Outpost Summary",
+      description: "Summarizes current company counts from the Outpost APIs.",
       parametersSchema: { type: "object", properties: {} },
     },
     async (_params, runCtx): Promise<ToolResult> => {
@@ -864,7 +864,7 @@ async function registerToolHandlers(ctx: PluginContext): Promise<void> {
       const goals = await ctx.goals.list({ companyId: runCtx.companyId, limit: 50, offset: 0 });
       const agents = await ctx.agents.list({ companyId: runCtx.companyId, limit: 50, offset: 0 });
       return {
-        content: `Company has ${projects.length} projects, ${issues.length} issues, ${goals.length} goals, and ${agents.length} agents.`,
+        content: `Outpost has ${projects.length} projects, ${issues.length} issues, ${goals.length} goals, and ${agents.length} agents.`,
         data: {
           companyId: runCtx.companyId,
           projects: projects.length,

@@ -256,7 +256,7 @@ describe("InstanceGeneralSettings operator-hidden sections", () => {
     expect(container.textContent).not.toContain("Censor username in logs");
     expect(container.textContent).not.toContain("Deployment and auth");
     expect(container.textContent).toContain("Backup retention");
-    expect(container.textContent).toContain("AI feedback sharing");
+    expect(container.textContent).not.toContain("AI feedback sharing");
     expect(container.textContent).toContain("Sign out");
   });
 
@@ -311,7 +311,7 @@ describe("InstanceGeneralSettings read resilience", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Backup retention"));
 
     mockInstanceSettingsApi.getGeneral.mockRejectedValue(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await queryClient.invalidateQueries({ queryKey: queryKeys.instance.generalSettings });
     await vi.waitFor(() =>
@@ -322,7 +322,7 @@ describe("InstanceGeneralSettings read resilience", () => {
     expect(mockInstanceSettingsApi.getGeneral).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain("Backup retention");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
   });
 

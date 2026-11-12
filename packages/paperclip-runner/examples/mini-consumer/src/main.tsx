@@ -83,7 +83,7 @@ function MiniConsumer() {
         <button data-testid="mini-toggle-replay" type="button" disabled={console_.events.length === 0} onClick={console_.replay.active ? console_.replay.exit : console_.replay.enter}>{console_.replay.active ? "Exit replay" : "Enter replay"}</button>
       </nav>
       <p data-testid="mini-goal-state">
-        Goal: {console_.state?.goal?.objective ?? "none"}
+        North Star: {console_.state?.goal?.objective ?? "none"}
       </p>
       {console_.replay.active ? <ReplayControls replay={console_.replay} /> : null}
       <p className="pcr-mini-parity" data-testid="mini-replay-parity">Replay parity: {console_.replayParity === null ? "waiting" : console_.replayParity ? "match" : "mismatch"}</p>

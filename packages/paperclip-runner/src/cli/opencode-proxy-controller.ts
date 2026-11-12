@@ -4,7 +4,7 @@ type Waiter = { resolve(value: unknown): void; reject(error: Error): void; retai
 
 export function abandonedToolCallError(): Error {
   return new Error(
-    "Paperclip tool call was abandoned by the MCP client before it was dispatched; it did not run.",
+    "Outpost tool call was abandoned by the MCP client before it was dispatched; it did not run.",
   );
 }
 

@@ -64,7 +64,7 @@ async function connectWizard(opts: ConnectOptions) {
   const resolvedProfile = resolveProfile(context, opts.profile);
   const initialApiBase = resolveApiBase(opts, resolvedProfile.profile);
   const apiBaseInput = await p.text({
-    message: "Paperclip API base",
+    message: "Outpost API base",
     initialValue: initialApiBase,
     placeholder: "http://localhost:3100",
   });
@@ -123,9 +123,9 @@ async function connectWizard(opts: ConnectOptions) {
   const company = await chooseCompany(companies, opts.companyId ?? resolvedProfile.profile.companyId, {
     optional: false,
   });
-  if (!company) throw new Error("Company is required for agent profiles");
+  if (!company) throw new Error("Outpost is required for agent profiles");
   const agents = (await boardApi.get<Agent[]>(apiPath`/api/companies/${company.id}/agents`)) ?? [];
-  if (agents.length === 0) throw new Error(`Company '${company.name}' has no agents to connect.`);
+  if (agents.length === 0) throw new Error(`Outpost '${company.name}' has no agents to connect.`);
   const agent = await chooseAgent(agents, resolvedProfile.profile.agentId);
   const tokenName = opts.tokenName?.trim() || `cli-agent-${new Date().toISOString()}`;
   const key = await boardApi.post<CreatedAgentKey>(apiPath`/api/agents/${agent.id}/keys`, createAgentKeySchema.parse({ name: tokenName }));

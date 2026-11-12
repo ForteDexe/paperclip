@@ -203,11 +203,11 @@ export function GoalBlock({
     <section className="ui-panel" aria-labelledby="goal-heading">
       <div className="ui-panel-header">
         <h2 id="goal-heading" className="ui-panel-title">
-          Goal
+          North Star
         </h2>
         <Menu
           triggerId="goal-menu"
-          label="Goal"
+          label="North Star"
           disabled={unsupported || state === null}
           disabledReason={
             state === null ? "Start a session before changing the goal." : unsupportedReason
@@ -226,7 +226,7 @@ export function GoalBlock({
       </div>
       {state === null ? null : state.goal === null ? (
         <p className="ui-goal-empty" data-testid="goal-banner">
-          {unsupported ? "Goal operations are unsupported here." : "No goal set"}
+          {unsupported ? "North Star operations are unsupported here." : "No goal set"}
         </p>
       ) : (
         <div className="ui-goal-banner" data-testid="goal-banner">

@@ -8,7 +8,7 @@ const manifest: PaperclipPluginManifestV1 = {
   apiVersion: 1,
   version: "0.1.0",
   displayName: "Campfire",
-  description: "Persistent rooms where people and Paperclip agents coordinate development work.",
+  description: "Persistent rooms where people and Outpost agents coordinate development work.",
   author: "ForteD",
   categories: ["automation", "ui"],
   capabilities: [

@@ -1060,8 +1060,8 @@ export function routineService(
       .from(goals)
       .where(eq(goals.id, goalId))
       .then((rows) => rows[0] ?? null);
-    if (!goal) throw notFound("Goal not found");
-    if (goal.companyId !== companyId) throw unprocessable("Goal must belong to same company");
+    if (!goal) throw notFound("North Star not found");
+    if (goal.companyId !== companyId) throw unprocessable("North Star must belong to same company");
   }
 
   async function assertParentIssue(companyId: string, issueId: string) {

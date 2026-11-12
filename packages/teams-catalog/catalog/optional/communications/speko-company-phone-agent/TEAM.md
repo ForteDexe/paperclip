@@ -1,6 +1,6 @@
 ---
-name: Speko Company Phone Agent
-description: Optional company voice receptionist for greeting, intake, clarification, delegation, and concise task follow-up through Speko.
+name: Speko Outpost Phone Agent
+description: Optional Outpost voice receptionist for greeting, intake, clarification, delegation, and concise task follow-up through Speko.
 schema: agentcompanies/v1
 slug: speko-company-phone-agent
 category: communications
@@ -19,8 +19,8 @@ tags:
 license: MIT
 ---
 
-# Speko Company Phone Agent
+# Speko Outpost Phone Agent
 
-An optional single-agent template for the company's voice connection. Install it when a dedicated receptionist is useful, or select any existing Paperclip agent instead. Installing this template does not configure Speko, purchase a number, place a call, or change existing task assignments.
+An optional single-agent template for the Outpost's voice connection. Install it when a dedicated receptionist is useful, or select any existing Outpost agent instead. Installing this template does not configure Speko, purchase a number, place a call, or change existing task assignments.
 
-Speko handles live audio and telephony. This Paperclip agent performs authorized work with the runtime and tools chosen during installation. Work arrives on a bound task, and progress and results return through that task's approved publications.
+Speko handles live audio and telephony. This Outpost agent performs authorized work with the runtime and tools chosen during installation. Work arrives on a bound task, and progress and results return through that task's approved publications.

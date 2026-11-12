@@ -87,10 +87,10 @@ export function DesignSandboxTasks() {
   });
   const error = tasks.error ?? agents.error ?? projects.error ?? directory.error ?? labels.error ?? unread.error ?? update.error;
   const empty = collection.companyItems.length === 0
-    ? <EmptyState icon={ListChecks} message="No tasks in this organization" action="New Task" onAction={() => openNewIssue()} />
+    ? <EmptyState icon={ListChecks} message="No tasks in this outpost" action="New Task" onAction={() => openNewIssue()} />
     : <EmptyState icon={SearchX} message="No tasks match this view" action="Clear filters" hideActionIcon onAction={collection.clear} />;
 
-  if (!companyId) return <EmptyState icon={ListChecks} message="Select an organization to view tasks." />;
+  if (!companyId) return <EmptyState icon={ListChecks} message="Select an outpost to view tasks." />;
   return <TruncatedTextMarqueeProvider><div className="task-row-design-preview flex flex-col gap-8" data-testid="design-sandbox-tasks">
     <TaskListToolbar view={collection.view} onViewChange={collection.setView} query={collection.query} onQueryChange={collection.setQuery}
       layout={collection.layout} onLayoutChange={collection.setLayout} allExpanded={collection.allExpanded} onToggleExpanded={collection.toggleExpanded}

@@ -3619,7 +3619,7 @@ export function issueRoutes(
       if (!run) {
         throw new RunnerGoalActionError(
           "goal_control_wake_skipped",
-          "Goal execution did not start. Check that task execution is enabled for this instance and agent, then retry.",
+          "North Star execution did not start. Check that task execution is enabled for this instance and agent, then retry.",
         );
       }
     },
@@ -3636,7 +3636,7 @@ export function issueRoutes(
     );
     if (current?.pendingAction) {
       throw conflict(
-        "The current agent goal has a control action still in progress",
+        "The current agent north star has a control action still in progress",
         { code: "runner_goal_action_pending", projection: current },
       );
     }
@@ -3648,7 +3648,7 @@ export function issueRoutes(
         : null;
     if (!action) {
       throw conflict(
-        "The current agent goal cannot be stopped safely before reassignment",
+        "The current agent north star cannot be stopped safely before reassignment",
         { code: "runner_goal_stop_unsupported", projection: current },
       );
     }
@@ -3672,14 +3672,14 @@ export function issueRoutes(
       if (observed && stopped && observed.pendingAction === null) return action;
       if (observed && observed.pendingAction === null && !stopped) {
         throw conflict(
-          "The current agent goal failed to stop before reassignment",
+          "The current agent north star failed to stop before reassignment",
           { code: "runner_goal_stop_failed", projection: observed },
         );
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
     }
     throw conflict(
-      "Timed out stopping the current agent goal before reassignment",
+      "Timed out stopping the current agent north star before reassignment",
       {
         code: "runner_goal_stop_timeout",
         projection: await runnerGoals.projection(
@@ -8513,7 +8513,7 @@ export function issueRoutes(
     });
     if (!companyScopeDecision.allowed) {
       res.status(403).json({
-        error: "Company search is outside this actor's authorization boundary",
+        error: "Outpost search is outside this actor's authorization boundary",
       });
       return;
     }
@@ -8555,7 +8555,7 @@ export function issueRoutes(
     });
     if (!companyScopeDecision.allowed) {
       res.status(403).json({
-        error: "Company search is outside this actor's authorization boundary",
+        error: "Outpost search is outside this actor's authorization boundary",
       });
       return;
     }
@@ -9504,7 +9504,7 @@ export function issueRoutes(
         req.actor.agentId !== req.body.agentId
       ) {
         res.status(403).json({
-          error: "Agent can only control its own assigned session goal",
+          error: "Agent can only control its own assigned session north star",
         });
         return;
       }
@@ -10641,7 +10641,7 @@ export function issueRoutes(
         }
 
         if ((outcome === "restored" || outcome === "false_positive") && activeRecoveryAction.cause === "native_workspace_finalization_owner_unverified") {
-          throw conflict("Paperclip is still confirming that the previous server stopped. Saving resumes without repeating the agent's work.", { code: "workspace_owner_stop_required" });
+          throw conflict("Outpost is still confirming that the previous server stopped. Saving resumes without repeating the agent's work.", { code: "workspace_owner_stop_required" });
         }
 
         if (outcome === "restored" && isNativeWorkspaceExportRepairCause(activeRecoveryAction.cause)) {
@@ -14567,13 +14567,13 @@ export function issueRoutes(
 
   async function assertMcpTaskParticipation(query: IssueQueueDb, issue: { id: string; companyId: string; checkoutRunId?: string | null; executionRunId?: string | null; status: string; executionState?: { status?: string } | null }) {
     if (issue.status === "in_review" || issue.executionState?.status === "pending") {
-      throw forbidden("Review decisions must be made in Paperclip", { code: "MCP_REVIEW_REQUIRED" });
+      throw forbidden("Review decisions must be made in Outpost", { code: "MCP_REVIEW_REQUIRED" });
     }
     const [active] = await query.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
       eq(heartbeatRuns.companyId, issue.companyId), inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry"]),
       sql`(${heartbeatRuns.id} = ${issue.checkoutRunId ?? null}::uuid or ${heartbeatRuns.id} = ${issue.executionRunId ?? null}::uuid or ${heartbeatRuns.nativeIssueId} = ${issue.id}::uuid or ${heartbeatRuns.contextSnapshot}->>'issueId' = ${issue.id})`,
     )).limit(1);
-    if (active) throw conflict("An agent currently owns execution. Wait for it to finish, or manage execution in Paperclip.", { code: "MCP_ACTIVE_EXECUTION" });
+    if (active) throw conflict("An agent currently owns execution. Wait for it to finish, or manage execution in Outpost.", { code: "MCP_ACTIVE_EXECUTION" });
   }
 
   /**
@@ -14634,7 +14634,7 @@ export function issueRoutes(
     return conflict(
       "This run owns the task's execution, so it cannot change the task status directly; doing so would end its access to the task before it reports. " +
         "Report the outcome with paperclip_finish instead: reportedWorkDisposition \"needs_review\" for review, \"done\" when complete, or \"yielded\" with continuation.kind \"monitor\" to wait on a scheduled monitor. " +
-        "Use paperclip_block for a blocker. Paperclip sets the task status from that report.",
+        "Use paperclip_block for a blocker. Outpost sets the task status from that report.",
       { code: "native_run_status_reported_by_finish", requestedStatus },
     );
   }
@@ -14945,7 +14945,7 @@ export function issueRoutes(
       ) {
         res.status(400).json({
           error:
-            "Deferring the goal wake requires an assignment-only agent handoff",
+            "Deferring the north star wake requires an assignment-only agent handoff",
         });
         return;
       }
@@ -16582,7 +16582,7 @@ export function issueRoutes(
                     commentId: comment.id,
                     runId: steer.runId,
                   },
-                  "failed to steer an active session goal; falling back to a boundary wake",
+                  "failed to steer an active session north star; falling back to a boundary wake",
                 );
               }
             }
@@ -20390,7 +20390,7 @@ export function issueRoutes(
                   commentId: comment.id,
                   runId: steer.runId,
                 },
-                "failed to steer an active session goal; falling back to a boundary wake",
+                "failed to steer an active session north star; falling back to a boundary wake",
               );
             }
           }

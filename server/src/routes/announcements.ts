@@ -50,9 +50,9 @@ export function announcementRoutes(db: Db, options: AnnouncementFeedOptions) {
     const { companyId } = req.body;
     // This writes the caller's personal preference. Viewers may dismiss it;
     // company read membership supplies audit context, not write authority.
-    if (!hasCompanyAccess(req, companyId)) throw notFound("Company not found");
+    if (!hasCompanyAccess(req, companyId)) throw notFound("Outpost not found");
     if (!await db.query.companies.findFirst({ where: eq(companies.id, companyId), columns: { id: true } })) {
-      throw notFound("Company not found");
+      throw notFound("Outpost not found");
     }
     if (!await service.dismiss(req.actor.userId!, id.data, companyId)) throw notFound("Announcement not found");
     res.status(204).end();

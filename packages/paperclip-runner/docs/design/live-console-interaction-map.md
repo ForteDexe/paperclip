@@ -4,7 +4,7 @@ Status: **approved for implementation** (UX gate TASK-16832, 2026-08-08).
 Owner: UXDesigner. Implementer: browser tracer owner (TASK-16834).
 Companion record: [component decisions](live-console-component-decisions.md).
 This map is the interaction contract for the Live console required by
-spec §29.1. It binds every surface to canonical Paperclip Runner Protocol (PRP)
+spec §29.1. It binds every surface to canonical Outpost Runner Protocol (PRP)
 events and reducer state only. No surface may derive state from third-party
 component message types, and no surface may show a control the upstream
 capability set does not support.
@@ -166,10 +166,10 @@ Rules:
 3. Keyboard: cards are focusable list items; action row is reachable by `Tab`;
    see §10 for the full contract.
 
-## 5. Goal capability states (set / view / pause / resume / clear)
+## 5. North Star capability states (set / view / pause / resume / clear)
 
 **Source of truth:** capability negotiation from the app-server (per spec
-§29.1.5), surfaced through the driver's capability snapshot. Goal state
+§29.1.5), surfaced through the driver's capability snapshot. North Star state
 changes arrive as canonical events; the banner derives from reducer state.
 
 Surfaces:
@@ -178,8 +178,8 @@ Surfaces:
   shows active goal text, state (`active`/`paused`), and last transition time.
   Hidden entirely when no goal has ever been set this session; shows a quiet
   "No goal set" row once goal capability is confirmed supported.
-- **Goal menu** (not a fuzzy palette — five fixed operations, Hick's law):
-  a menu button `Goal ▾` in the session status block opening a menu with
+- **North Star menu** (not a fuzzy palette — five fixed operations, Hick's law):
+  a menu button `North Star ▾` in the session status block opening a menu with
   `Set goal…`, `View`, `Pause`, `Resume`, `Clear`. `Set goal…` opens a small
   dialog with one textarea. `View` focuses/expands the banner. Operations
   invalid in the current goal state (e.g. `Resume` while active) are disabled
@@ -189,13 +189,13 @@ Capability gating (spec-critical):
 
 1. If the installed app-server does not advertise goal support, the whole menu
    renders disabled with the **exact diagnostic** from capability negotiation
-   (e.g. `Goal operations unsupported: app-server 0.132.0 does not advertise
+   (e.g. `North Star operations unsupported: app-server 0.132.0 does not advertise
    goals capability`) — copied verbatim into tooltip and inspector. Never hide
    the control silently (discoverability of the gap is a deliverable) and
    never fabricate a client-side goal.
 2. Partial support (some verbs missing) disables only the missing verbs, same
    exact-diagnostic rule per verb.
-3. Every goal mutation is also a transcript/system event ("Goal paused") so
+3. Every goal mutation is also a transcript/system event ("North Star paused") so
    replay shows the same history.
 
 ## 6. Parent/child lineage and subagent activity
@@ -312,7 +312,7 @@ each with keyboard-only and screen-reader passes.
 - K3. Request cards: card list is an `role="list"`; each card's actions are
   reachable in visual order; the oldest pending card is focusable via the
   pending-requests banner (`Enter` on banner focuses it).
-- K4. Goal menu: standard menu-button pattern (`Enter`/`Space`/`ArrowDown`
+- K4. North Star menu: standard menu-button pattern (`Enter`/`Space`/`ArrowDown`
   opens, arrows navigate, `Escape` closes, focus returns to trigger).
 - K5. Lineage tree: `role="tree"` arrow-key navigation; `Enter` selects a
   thread; selection is announced.

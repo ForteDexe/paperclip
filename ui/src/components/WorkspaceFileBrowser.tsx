@@ -1008,8 +1008,8 @@ export function WorkspaceFileBrowser({
     body = (
       <StateMessage
         icon={<FolderOpen aria-hidden="true" className="h-5 w-5 text-muted-foreground" />}
-        title="No organization selected"
-        body="Choose an organization before browsing another project workspace."
+        title="No outpost selected"
+        body="Choose an outpost before browsing another project workspace."
       />
     );
   } else if (source === "other" && projectsQuery.isFetching && projectsWithWorkspaces.length === 0) {
@@ -1025,7 +1025,7 @@ export function WorkspaceFileBrowser({
       <StateMessage
         icon={<FolderOpen aria-hidden="true" className="h-5 w-5 text-muted-foreground" />}
         title="No project workspaces"
-        body="No same-organization project has a registered workspace to browse."
+        body="No same-outpost project has a registered workspace to browse."
       />
     );
   } else if (!data && (listQuery.isFetching || (listKind === "reconnecting" && !changedFilesTemporarilyUnavailable))) {
@@ -1046,7 +1046,7 @@ export function WorkspaceFileBrowser({
         title={changedFilesTemporarilyUnavailable ? "Changed files temporarily unavailable" : "Couldn't load files"}
         body={
           changedFilesTemporarilyUnavailable
-            ? "Paperclip is limiting workspace scans to keep the server responsive. Try again in a moment."
+            ? "Outpost is limiting workspace scans to keep the server responsive. Try again in a moment."
             : listErrorStatus === 404
             ? "Workspace browsing isn't available for this issue."
             : describeError(listQuery.error, { action: "load workspace files" }).body

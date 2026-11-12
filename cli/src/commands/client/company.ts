@@ -125,7 +125,7 @@ const IMPORT_INCLUDE_OPTIONS: Array<{
   label: string;
   hint: string;
 }> = [
-  { value: "company", label: "Company", hint: "name, branding, and company settings" },
+  { value: "company", label: "Outpost", hint: "name, branding, and company settings" },
   { value: "projects", label: "Projects", hint: "projects and workspace metadata" },
   { value: "issues", label: "Tasks", hint: "tasks and recurring routines" },
   { value: "agents", label: "Agents", hint: "agent records and org structure" },
@@ -422,11 +422,11 @@ async function promptForImportSelection(preview: CompanyPortabilityPreviewResult
 
   while (true) {
     const choice = await p.select<ImportSelectableGroup | "company" | "confirm">({
-      message: "Select what Paperclip should import",
+      message: "Select what Outpost should import",
       options: [
         {
           value: "company",
-          label: state.company ? "Company: included" : "Company: skipped",
+          label: state.company ? "Outpost: included" : "Outpost: skipped",
           hint: catalog.company.files.length > 0 ? "toggle company metadata" : "no company metadata in package",
         },
         {
@@ -710,7 +710,7 @@ export function renderCompanyImportResult(
   const skills = result.skills ?? [];
   const lines: string[] = [
     `${pc.bold("Target")}  ${meta.targetLabel}`,
-    `${pc.bold("Company")} ${result.company.name} (${actionChip(result.company.action)})`,
+    `${pc.bold("Outpost")} ${result.company.name} (${actionChip(result.company.action)})`,
     `${pc.bold("Agents")}  ${summarizeImportAgentResults(result.agents)}`,
     `${pc.bold("Skills")}  ${summarizeImportSkillResults(skills)}`,
     `${pc.bold("Projects")} ${summarizeImportProjectResults(result.projects)}`,
@@ -1277,7 +1277,7 @@ export function resolveCompanyForDeletion(
 ): Company {
   const selector = normalizeSelector(selectorRaw);
   if (!selector) {
-    throw new Error("Company selector is required.");
+    throw new Error("Outpost selector is required.");
   }
 
   const idMatch = companies.find((company) => company.id === selector);
@@ -1344,7 +1344,7 @@ function assertDeleteFlags(opts: CompanyDeleteOptions): void {
 }
 
 export function registerCompanyCommands(program: Command): void {
-  const company = program.command("company").description("Company operations");
+  const company = program.command("company").description("Outpost operations");
 
   addCommonClientOptions(
     company
@@ -1385,7 +1385,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("get")
       .description("Get one company")
-      .argument("<companyId>", "Company ID")
+      .argument("<companyId>", "Outpost ID")
       .action(async (companyId: string, opts: CompanyCommandOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -1447,7 +1447,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("update")
       .description("Update a company")
-      .argument("<companyId>", "Company ID")
+      .argument("<companyId>", "Outpost ID")
       .requiredOption("--payload-json <json>", "UpdateCompany JSON payload")
       .action(async (companyId: string, opts: CompanyJsonOptions) => {
         try {
@@ -1463,7 +1463,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("branding:update")
       .description("Update company branding")
-      .argument("<companyId>", "Company ID")
+      .argument("<companyId>", "Outpost ID")
       .requiredOption("--payload-json <json>", "UpdateCompanyBranding JSON payload")
       .action(async (companyId: string, opts: CompanyJsonOptions) => {
         try {
@@ -1479,7 +1479,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("archive")
       .description("Archive a company")
-      .argument("<companyId>", "Company ID")
+      .argument("<companyId>", "Outpost ID")
       .action(async (companyId: string, opts: CompanyCommandOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -1499,7 +1499,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("feedback:list")
       .description("List feedback traces for a company")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .option("--target-type <type>", "Filter by target type")
       .option("--vote <vote>", "Filter by vote value")
       .option("--status <status>", "Filter by trace status")
@@ -1541,7 +1541,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("feedback:export")
       .description("Export feedback traces for a company")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .option("--target-type <type>", "Filter by target type")
       .option("--vote <vote>", "Filter by vote value")
       .option("--status <status>", "Filter by trace status")
@@ -1584,7 +1584,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("export")
       .description("Export a company into a portable markdown package")
-      .argument("<companyId>", "Company ID")
+      .argument("<companyId>", "Outpost ID")
       .requiredOption("--out <path>", "Output directory")
       .option("--include <values>", "Comma-separated include set: company,agents,projects,issues,tasks,skills", "company,agents")
       .option("--skills <values>", "Comma-separated skill slugs/keys to export")
@@ -1916,7 +1916,7 @@ export function registerCompanyCommands(program: Command): void {
     company
       .command("delete")
       .description("Delete a company by ID or shortname/prefix (destructive)")
-      .argument("<selector>", "Company ID or issue prefix (for example PAP)")
+      .argument("<selector>", "Outpost ID or issue prefix (for example PAP)")
       .option(
         "--by <mode>",
         "Selector mode: auto | id | prefix",
@@ -2066,7 +2066,7 @@ function addCompanyJsonPost(parent: Command, name: string, description: string, 
     parent
       .command(name)
       .description(description)
-      .argument("<companyId>", "Company ID")
+      .argument("<companyId>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
       .action(async (companyId: string, opts: CompanyJsonOptions) => {
         try {

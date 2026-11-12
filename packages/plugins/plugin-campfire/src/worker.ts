@@ -360,7 +360,7 @@ const plugin = definePlugin({
       const agentId = requiredString(params.agentId, "agentId");
       await requireRoom(ctx, cid, roomId);
       const agent = await ctx.agents.get(agentId, cid);
-      if (!agent) throw new Error("Paperclip agent not found");
+      if (!agent) throw new Error("Outpost agent not found");
       const handle = params.handle
         ? normalizeHandle(params.handle)
         : defaultHandle(agent.name, agent.id);

@@ -8,7 +8,7 @@ export const NATIVE_STATUS_ARBITER_POLICY_VERSION = "phase6-v14";
 export const NATIVE_RUN_FAILED_RETRY_CAUSE = "native_run_failed";
 export const NATIVE_RESPONSE_WAKE_WAITING_REASON = "response_wake_waiting_for_input";
 export const NATIVE_RUN_FAILED_CONTINUATION_EXHAUSTED_ACTION =
-  "The agent's turn failed again after Paperclip continued it automatically. The saved work is kept. Check the failed run, then Retry the task.";
+  "The agent's turn failed again after Outpost continued it automatically. The saved work is kept. Check the failed run, then Retry the task.";
 
 export type NativeAuthoritativeIssueStatus =
   | "backlog"

@@ -24,7 +24,7 @@ export function registerRoutineApiCommands(program: Command): void {
     routine
       .command("list")
       .description("List routines")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--project-id <id>", "Filter by project ID")
       .action(async (opts: CompanyOptions) => {
         try {
@@ -95,7 +95,7 @@ export function registerRoutineApiCommands(program: Command): void {
 }
 
 function addCompanyPost(parent: Command, name: string, description: string, path: string): void {
-  addCommonClientOptions(parent.command(name).description(description).option("-C, --company-id <id>", "Company ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonOptions) => {
+  addCommonClientOptions(parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonOptions) => {
     try {
       const ctx = resolveCommandContext(opts, { requireCompany: true });
       printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });

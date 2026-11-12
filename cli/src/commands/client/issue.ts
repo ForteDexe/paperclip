@@ -176,7 +176,7 @@ export function registerIssueCommands(program: Command): void {
     issue
       .command("list")
       .description("List issues for a company")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--status <csv>", "Comma-separated statuses")
       .option("--assignee-agent-id <id>", "Filter by assignee agent ID")
       .option("--project-id <id>", "Filter by project ID")
@@ -278,14 +278,14 @@ export function registerIssueCommands(program: Command): void {
     issue
       .command("create")
       .description("Create an issue")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--title <title>", "Issue title")
       .option("--description <text>", "Issue description")
       .option("--status <status>", "Issue status")
       .option("--priority <priority>", "Issue priority")
       .option("--assignee-agent-id <id>", "Assignee agent ID")
       .option("--project-id <id>", "Project ID")
-      .option("--goal-id <id>", "Goal ID")
+      .option("--goal-id <id>", "North Star ID")
       .option("--parent-id <id>", "Parent issue ID")
       .option(
         "--standalone",
@@ -332,7 +332,7 @@ export function registerIssueCommands(program: Command): void {
       .option("--priority <priority>", "Issue priority")
       .option("--assignee-agent-id <id>", "Assignee agent ID")
       .option("--project-id <id>", "Project ID")
-      .option("--goal-id <id>", "Goal ID")
+      .option("--goal-id <id>", "North Star ID")
       .option("--parent-id <id>", "Parent issue ID")
       .option("--request-depth <n>", "Request depth integer")
       .option("--billing-code <code>", "Billing code")
@@ -956,7 +956,7 @@ export function registerIssueCommands(program: Command): void {
       .command("attachment:upload")
       .description("Upload an issue attachment")
       .argument("<issueId>", "Issue ID")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--file <path>", "File to upload")
       .option("--comment-id <id>", "Attach to an issue comment")
       .action(async (issueId: string, opts: IssueAttachmentUploadOptions) => {
@@ -1020,7 +1020,7 @@ export function registerIssueCommands(program: Command): void {
     issue
       .command("label:list")
       .description("List issue labels in a company")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -1037,7 +1037,7 @@ export function registerIssueCommands(program: Command): void {
     issue
       .command("label:create")
       .description("Create an issue label")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--name <name>", "Label name")
       .requiredOption("--color <hex>", "Label color, e.g. #4f46e5")
       .action(async (opts: IssueLabelCreateOptions) => {

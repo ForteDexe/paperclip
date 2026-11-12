@@ -62,7 +62,7 @@ export function aiConnectionDisplayLabel(connection: AiConnectionSummary) {
   return [
     connection.name,
     aiMethodLabel(connection.provider, connection.method),
-    personal ? "Personal" : "Company shared",
+    personal ? "Personal" : "Outpost shared",
     connection.accountLabel || connection.ownerName,
   ].filter(Boolean).join(" · ");
 }
@@ -130,7 +130,7 @@ export function bindingProblem(
   if (!connection)
     return "This connection is no longer available for this agent. Choose another connection.";
   if (binding.mode === "shared" && connection.ownership !== "shared")
-    return "Choose a company-shared connection.";
+    return "Choose a outpost-shared connection.";
   if (
     binding.mode === "delegated" &&
     (connection.ownership !== "personal" ||

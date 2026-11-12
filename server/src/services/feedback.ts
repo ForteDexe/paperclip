@@ -1803,11 +1803,8 @@ export function feedbackService(db: Db, options: FeedbackServiceOptions = {}) {
     },
 
     hasPendingFeedbackTraces: async () => {
-      const pending = options.shareClient
-        ? or(eq(feedbackExports.status, "pending"), eq(feedbackExports.status, "failed"))
-        : eq(feedbackExports.status, "pending");
-      return (await db.select({ id: feedbackExports.id }).from(feedbackExports)
-        .where(pending).limit(1)).length > 0;
+      // Feedback votes remain local in Outpost; no vendor export queue runs.
+      return false;
     },
 
     flushPendingFeedbackTraces: async (input?: {
@@ -1817,6 +1814,11 @@ export function feedbackService(db: Db, options: FeedbackServiceOptions = {}) {
       now?: Date;
       signal?: AbortSignal;
     }) => serializeExportFlush(async () => {
+      // Preserve the compatibility method without reading or uploading stored
+      // traces. Explicit local bundle export uses getFeedbackTraceBundle.
+      input?.signal?.throwIfAborted();
+      /* c8 ignore start -- unreachable legacy exporter retained for schema/data compatibility */
+      if (false as boolean) {
       const shareClient = options.shareClient;
       input?.signal?.throwIfAborted();
       if (!shareClient) {
@@ -1927,6 +1929,9 @@ export function feedbackService(db: Db, options: FeedbackServiceOptions = {}) {
         sent,
         failed,
       };
+      }
+      /* c8 ignore stop */
+      return { attempted: 0, sent: 0, failed: 0 };
     }),
 
     saveIssueVote: async (input: {
@@ -1963,11 +1968,14 @@ export function feedbackService(db: Db, options: FeedbackServiceOptions = {}) {
           .from(companies)
           .where(eq(companies.id, issue.companyId))
           .then((rows) => rows[0] ?? null);
-        if (!existingCompany) throw notFound("Company not found");
+        if (!existingCompany) throw notFound("Outpost not found");
 
         const now = new Date();
         const normalizedReason = normalizeReason(input.vote, input.reason);
-        const sharedWithLabs = input.allowSharing === true;
+        // Outpost stores votes locally. The compatibility field remains accepted,
+        // but this fork never schedules or exports feedback to a vendor.
+        const sharedWithLabs = false;
+        void input.allowSharing;
         let consentEnabledNow = false;
         let consentVersion = existingCompany.feedbackDataSharingTermsVersion ?? null;
         let persistedSharingPreference: "allowed" | "not_allowed" | null = null;

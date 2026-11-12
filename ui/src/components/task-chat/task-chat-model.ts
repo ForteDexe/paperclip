@@ -640,7 +640,7 @@ export interface TaskChatTurnItem {
   standaloneHeader?: boolean;
   /** This segment resumes the same native run after a steering input. */
   continuedAfterSteering?: boolean;
-  /** Durable response shown after the ordered Paperclip Runner timeline. */
+  /** Durable response shown after the ordered Outpost Runner timeline. */
   finalResponse?: TaskChatMessageItem;
   /** MCP servers the harness could not start for this run (run-health banner). */
   mcpStartupFailures?: TaskChatMcpStartupFailure[];

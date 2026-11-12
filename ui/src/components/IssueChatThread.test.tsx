@@ -2704,7 +2704,7 @@ describe("IssueChatThread", () => {
     });
   });
 
-  it("renders the transcript directly from stable Paperclip messages", () => {
+  it("renders the transcript directly from stable Outpost messages", () => {
     const root = createRoot(container);
 
     act(() => {
@@ -4458,7 +4458,7 @@ describe("IssueAssigneePausedNotice", () => {
     });
 
     expect(container.textContent).toContain(
-      "arrived paused from an organization import",
+      "arrived paused from an outpost import",
     );
     const resumeButton = container.querySelector(
       '[data-testid="issue-assignee-paused-resume"]',
@@ -4523,7 +4523,7 @@ describe("IssueAssigneePausedNotice", () => {
       );
     });
     expect(container.textContent).not.toContain("paused manually");
-    expect(container.textContent).toContain("company is archived");
+    expect(container.textContent).toContain("outpost is archived");
     expect(container.querySelector('[data-testid="issue-assignee-paused-resume"]')).toBeNull();
     act(() => root.unmount());
   });
@@ -4542,7 +4542,7 @@ describe("IssueAssigneePausedNotice", () => {
       );
     });
 
-    expect(container.textContent).toContain("budget hard stop");
+    expect(container.textContent).toContain("legacy policy hold");
     expect(
       container.querySelector('[data-testid="issue-assignee-paused-resume"]'),
     ).toBeNull();

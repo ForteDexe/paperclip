@@ -14,7 +14,7 @@ async function assertParentCompany(
   if (!parentId) return;
   const [parent] = await db.select({ id: goals.id }).from(goals)
     .where(and(eq(goals.id, parentId), eq(goals.companyId, companyId))).for("key share");
-  if (!parent) throw unprocessable("Parent goal not found in this company");
+  if (!parent) throw unprocessable("Parent north star not found in this company");
 }
 
 export async function getDefaultCompanyGoal(db: GoalReader, companyId: string) {
@@ -85,11 +85,11 @@ export function goalService(db: Db) {
         if (!existing) return null;
         const parsed = updateGoalSchema.safeParse(data);
         if (!parsed.success) {
-          throw unprocessable("Invalid goal update", parsed.error.issues);
+          throw unprocessable("Invalid north star update", parsed.error.issues);
         }
         const requestedCompanyId = (data as Record<string, unknown>).companyId;
         if (requestedCompanyId !== undefined && requestedCompanyId !== existing.companyId) {
-          throw unprocessable("Goal company cannot be changed");
+          throw unprocessable("North Star company cannot be changed");
         }
         const patch = parsed.data;
         await assertParentCompany(tx, existing.companyId, patch.parentId);

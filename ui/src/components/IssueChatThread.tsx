@@ -868,17 +868,17 @@ export function IssueAssigneePausedNotice({
 
   const pauseDetail =
     agent.pauseReason === "budget"
-      ? "It was paused by a budget hard stop."
+      ? "It is paused by a legacy policy hold."
       : agent.pauseReason === "import"
-        ? "It arrived paused from an organization import — imported agents stay parked until you resume them."
+        ? "It arrived paused from an outpost import — imported agents stay parked until you resume them."
         : agent.pauseReason === "system"
           ? "It was paused by the system."
           : agent.pauseReason === "company_archived"
-            ? "It was paused because its company is archived."
+            ? "It was paused because its outpost is archived."
             : agent.pauseReason === "manual"
               ? "It was paused manually."
               : "";
-  // Budget pauses clear on their own when the budget resets and archive pauses
+  // Legacy policy pauses clear on their own when the old policy resets and archive pauses
   // clear when the company is restored; resuming by hand would fight either, so
   // the action is only offered for the rest.
   const canResume = Boolean(onResume) && agent.pauseReason !== "budget" && agent.pauseReason !== "company_archived";
@@ -2822,15 +2822,13 @@ function IssueChatFeedbackButtons({
     options?: { allowSharing?: boolean; reason?: string },
   ) => Promise<void>;
 }) {
+  void sharingPreference;
+  void termsUrl;
   const [isSaving, setIsSaving] = useState(false);
   const [optimisticVote, setOptimisticVote] =
     useState<FeedbackVoteValue | null>(null);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [downvoteReason, setDownvoteReason] = useState("");
-  const [pendingSharingDialog, setPendingSharingDialog] = useState<{
-    vote: FeedbackVoteValue;
-    reason?: string;
-  } | null>(null);
   const visibleVote = optimisticVote ?? activeVote ?? null;
 
   useEffect(() => {
@@ -2854,13 +2852,7 @@ function IssueChatFeedbackButtons({
 
   function handleVote(vote: FeedbackVoteValue, reason?: string) {
     setOptimisticVote(vote);
-    if (sharingPreference === "prompt") {
-      setPendingSharingDialog({ vote, ...(reason ? { reason } : {}) });
-      return;
-    }
-    const allowSharing = sharingPreference === "allowed";
     void doVote(vote, {
-      ...(allowSharing ? { allowSharing: true } : {}),
       ...(reason ? { reason } : {}),
     });
   }
@@ -2879,15 +2871,7 @@ function IssueChatFeedbackButtons({
   function handleSubmitReason() {
     if (!downvoteReason.trim()) return;
     // Re-submit with reason attached
-    if (sharingPreference === "prompt") {
-      setPendingSharingDialog({ vote: "down", reason: downvoteReason });
-    } else {
-      const allowSharing = sharingPreference === "allowed";
-      void doVote("down", {
-        ...(allowSharing ? { allowSharing: true } : {}),
-        reason: downvoteReason,
-      });
-    }
+    void doVote("down", { reason: downvoteReason });
     setReasonOpen(false);
     setDownvoteReason("");
   }
@@ -2962,81 +2946,6 @@ function IssueChatFeedbackButtons({
           </div>
         </PopoverContent>
       </Popover>
-
-      <Dialog
-        open={Boolean(pendingSharingDialog)}
-        onOpenChange={(open) => {
-          if (!open && !isSaving) {
-            setPendingSharingDialog(null);
-            setOptimisticVote(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save your feedback sharing preference</DialogTitle>
-            <DialogDescription>
-              Choose whether voted AI outputs can be shared with Paperclip Labs.
-              This answer becomes the default for future thumbs up and thumbs
-              down votes.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>This vote is always saved locally.</p>
-            <p>
-              Choose{" "}
-              <span className="font-medium text-foreground">Always allow</span>{" "}
-              to share this vote and future voted AI outputs. Choose{" "}
-              <span className="font-medium text-foreground">Don't allow</span>{" "}
-              to keep this vote and future votes local.
-            </p>
-            <p>You can change this later in Settings &gt; General.</p>
-            {termsUrl ? (
-              <a
-                href={termsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex text-sm text-foreground underline underline-offset-4"
-              >
-                Read our terms of service
-              </a>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!pendingSharingDialog || isSaving}
-              onClick={() => {
-                if (!pendingSharingDialog) return;
-                void doVote(
-                  pendingSharingDialog.vote,
-                  pendingSharingDialog.reason
-                    ? { reason: pendingSharingDialog.reason }
-                    : undefined,
-                ).then(() => setPendingSharingDialog(null));
-              }}
-            >
-              {isSaving ? "Saving..." : "Don't allow"}
-            </Button>
-            <Button
-              type="button"
-              disabled={!pendingSharingDialog || isSaving}
-              onClick={() => {
-                if (!pendingSharingDialog) return;
-                void doVote(pendingSharingDialog.vote, {
-                  allowSharing: true,
-                  ...(pendingSharingDialog.reason
-                    ? { reason: pendingSharingDialog.reason }
-                    : {}),
-                }).then(() => setPendingSharingDialog(null));
-              }}
-            >
-              {isSaving ? "Saving..." : "Always allow"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
@@ -3598,14 +3507,14 @@ function SystemNoticeCommentContent({
       ? (agentMap?.get(runAgentId)?.name ?? null)
       : null;
     if (authorType === "system") {
-      const label = runAgentName ?? "Paperclip";
+      const label = runAgentName ?? "Outpost";
       if (runAgentId && runId)
         return { label, href: `/agents/${runAgentId}/runs/${runId}` };
       return { label };
     }
     if (runAgentId && runId) {
       return {
-        label: authorName ?? runAgentName ?? "Paperclip",
+        label: authorName ?? runAgentName ?? "Outpost",
         href: `/agents/${runAgentId}/runs/${runId}`,
       };
     }

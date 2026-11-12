@@ -165,8 +165,8 @@ export function staleTerminalCallResult(operationId: string, unseen: readonly st
       error: {
         code: "terminal_call_before_results",
         retryable: true,
-        message: `Paperclip did not record ${operationId}. It was decided while earlier Paperclip calls (${names}) had not returned yet: `
-          + "Paperclip was briefly unreachable. " + now
+        message: `Outpost did not record ${operationId}. It was decided while earlier Outpost calls (${names}) had not returned yet: `
+          + "Outpost was briefly unreachable. " + now
           + `call ${operationId} again only if it is still the right outcome.`,
       },
     },

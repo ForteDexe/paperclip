@@ -404,9 +404,9 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
     const reason = observabilitySnapshot.reason;
     await appendRunEvent(run, { eventType: "agent_observability.unavailable", stream: "system", level: "warn",
       message: reason === "unsupported_home_mode"
-        ? "Company observability was not applied: automatic configuration of caller-owned Codex homes is unsupported."
-        : reason === "unsupported_harness" ? "Company observability was not applied: this harness is not supported."
-          : "Company observability is unavailable. Execution continues without company export.",
+        ? "Outpost observability was not applied: automatic configuration of caller-owned Codex homes is unsupported."
+        : reason === "unsupported_harness" ? "Outpost observability was not applied: this harness is not supported."
+          : "Outpost observability is unavailable. Execution continues without company export.",
       payload: { reason, revision: observabilitySnapshot.revision } }).catch(() => {
         logger.warn({ runId: run.id }, "Could not record the agent observability availability diagnostic");
       });

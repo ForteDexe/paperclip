@@ -116,7 +116,7 @@ export function GatewaysList() {
   });
 
   if (!selectedCompanyId) {
-    return <div className="p-6 text-sm text-muted-foreground">Select an organization to manage gateways.</div>;
+    return <div className="p-6 text-sm text-muted-foreground">Select an outpost to manage gateways.</div>;
   }
 
   const gateways = gatewaysQuery.data?.gateways ?? [];

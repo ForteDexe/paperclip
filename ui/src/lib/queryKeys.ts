@@ -172,47 +172,47 @@ export const queryKeys = {
       ["smoke-lab", companyId, "runs", runId] as const,
   },
   companySkills: {
-    list: (companyId: string) => ["company-skills", companyId] as const,
+    list: (companyId: string) => ["outpost-skills", companyId] as const,
     listRecent: (companyId: string) =>
-      ["company-skills", companyId, "recent-updated"] as const,
+      ["outpost-skills", companyId, "recent-updated"] as const,
     detail: (companyId: string, skillId: string) =>
-      ["company-skills", companyId, skillId] as const,
+      ["outpost-skills", companyId, skillId] as const,
     versions: (companyId: string, skillId: string) =>
-      ["company-skills", companyId, skillId, "versions"] as const,
+      ["outpost-skills", companyId, skillId, "versions"] as const,
     comments: (companyId: string, skillId: string) =>
-      ["company-skills", companyId, skillId, "comments"] as const,
+      ["outpost-skills", companyId, skillId, "comments"] as const,
     updateStatus: (companyId: string, skillId: string) =>
-      ["company-skills", companyId, skillId, "update-status"] as const,
+      ["outpost-skills", companyId, skillId, "update-status"] as const,
     forkPrecheck: (companyId: string, skillId: string) =>
-      ["company-skills", companyId, skillId, "fork-precheck"] as const,
+      ["outpost-skills", companyId, skillId, "fork-precheck"] as const,
     file: (companyId: string, skillId: string, relativePath: string) =>
-      ["company-skills", companyId, skillId, "file", relativePath] as const,
+      ["outpost-skills", companyId, skillId, "file", relativePath] as const,
     catalog: (filters: { kind?: string; category?: string; q?: string } = {}) =>
       [
-        "company-skills",
+        "outpost-skills",
         "catalog",
         filters.kind ?? "__all-kinds__",
         filters.category ?? "__all-categories__",
         filters.q ?? "",
       ] as const,
     catalogDetail: (catalogRef: string) =>
-      ["company-skills", "catalog", "detail", catalogRef] as const,
+      ["outpost-skills", "catalog", "detail", catalogRef] as const,
     catalogFile: (catalogRef: string, relativePath: string) =>
-      ["company-skills", "catalog", "file", catalogRef, relativePath] as const,
+      ["outpost-skills", "catalog", "file", catalogRef, relativePath] as const,
     testInputs: (companyId: string, skillId: string) =>
-      ["company-skills", companyId, skillId, "test-inputs"] as const,
+      ["outpost-skills", companyId, skillId, "test-inputs"] as const,
     testRunTemplates: (companyId: string) =>
-      ["company-skills", companyId, "test-run-templates"] as const,
+      ["outpost-skills", companyId, "test-run-templates"] as const,
     testRuns: (companyId: string, skillId: string, inputId?: string | null) =>
       [
-        "company-skills",
+        "outpost-skills",
         companyId,
         skillId,
         "test-runs",
         inputId ?? "__all-inputs__",
       ] as const,
     testRunDetail: (companyId: string, skillId: string, runId: string) =>
-      ["company-skills", companyId, skillId, "test-run", runId] as const,
+      ["outpost-skills", companyId, skillId, "test-run", runId] as const,
   },
   teamCatalog: {
     catalog: (filters: { kind?: string; category?: string; q?: string } = {}) =>
@@ -601,10 +601,10 @@ export const queryKeys = {
     companyMembers: (companyId: string) =>
       ["access", "company-members", companyId] as const,
     companyUserDirectory: (companyId: string) =>
-      ["access", "company-user-directory", companyId] as const,
+      ["access", "outpost-user-directory", companyId] as const,
     adminUsers: (query: string) => ["access", "admin-users", query] as const,
     userCompanyAccess: (userId: string) =>
-      ["access", "user-company-access", userId] as const,
+      ["access", "user-outpost-access", userId] as const,
     invite: (token: string) => ["access", "invite", token] as const,
     currentBoardAccess: ["access", "current-board-access"] as const,
   },
@@ -617,7 +617,7 @@ export const queryKeys = {
   },
   sidebarPreferences: {
     companyOrder: (userId: string) =>
-      ["sidebar-preferences", "company-order", userId] as const,
+      ["sidebar-preferences", "outpost-order", userId] as const,
     projectOrder: (companyId: string, userId: string) =>
       ["sidebar-preferences", "project-order", companyId, userId] as const,
   },
@@ -662,7 +662,7 @@ export const queryKeys = {
       scope: string,
       limit: number,
       offset: number,
-    ) => ["company-search", companyId, q, scope, limit, offset] as const,
+    ) => ["outpost-search", companyId, q, scope, limit, offset] as const,
   },
   dashboard: (companyId: string) => ["dashboard", companyId] as const,
   attention: (companyId: string) => ["attention", companyId] as const,

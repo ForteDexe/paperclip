@@ -2058,7 +2058,7 @@ export async function synchronizeCompletedProviderPlan(input: {
         idempotencyKey: `runner-plan-approval:v1:${input.execution.binding.runId}:${planId}:${providerRevision}:${digest}`,
         sourceRunId: input.execution.binding.runId,
         title: `Review plan revision ${revision.revisionNumber}`,
-        summary: "Review the synchronized Paperclip plan.",
+        summary: "Review the synchronized Outpost plan.",
         continuationPolicy: "wake_assignee",
         payload: {
           version: 1,
@@ -8988,7 +8988,7 @@ export function nativeSessionFailureSourceCode(
 }
 
 const NATIVE_PROVIDER_SIDE_EFFECT_PENDING_ACTION =
-  "The saved provider session has an unfinished provider turn, or a tool call whose result never reached the runner, so Paperclip did not replace the session or retry it. Reconcile the action: check whether it ran and record the outcome. The task then continues in a fresh provider session in the same workspace. The saved session and workspace are unchanged.";
+  "The saved provider session has an unfinished provider turn, or a tool call whose result never reached the runner, so Outpost did not replace the session or retry it. Reconcile the action: check whether it ran and record the outcome. The task then continues in a fresh provider session in the same workspace. The saved session and workspace are unchanged.";
 
 const RUNNER_TASK_ADMISSION_REJECTED_ACTION =
   "The execution provider refused to start this task. Review the admission reason before retrying. Automatic retries are stopped.";
@@ -10205,7 +10205,7 @@ export async function executePaperclipNativeSession(input: {
   if (input.observability) {
     const preconfiguredCodex = input.observability.kind === "codex" && "homeMode" in input.execution && input.execution.homeMode === "preconfigured";
     if (preconfiguredCodex) {
-      await input.onLog?.("stderr", "[paperclip] Company observability is unavailable for a caller-owned Codex home.\n");
+      await input.onLog?.("stderr", "[paperclip] Outpost observability is unavailable for a caller-owned Codex home.\n");
       input = { ...input, observability: undefined };
     } else {
       const environment = { ...resolveNativeProviderEnvironment(input.execution.provider, input.runnerEnvironment) };
@@ -12734,7 +12734,7 @@ async function executePaperclipNativeSessionAttempt(
         recoveryEvidence.recoveryMode === "bootstrap_retry" &&
         failureCode === "native_session_retry_exhausted";
       const startupExhaustedAction = sourceFailureCode === "runner_ingress_acquisition_failed"
-        ? `Paperclip could not acquire the computer's connection endpoint after ${attempt} attempts. Automatic retries are stopped. Inspect the computer provider's service status before retrying.`
+        ? `Outpost could not acquire the computer's connection endpoint after ${attempt} attempts. Automatic retries are stopped. Inspect the computer provider's service status before retrying.`
         : null;
       const startupRetry =
         recoveryEvidence.recoveryMode === "bootstrap_retry" &&
@@ -13994,7 +13994,7 @@ export function assertRemoteRunnerBuildMetadata(
   // Reject them before launch so preparation stages the bundled runner instead.
   if (requiredExternalProvider && (!Array.isArray(metadata.externalProviderCapabilities)
       || !metadata.externalProviderCapabilities.includes(requiredExternalProvider))) {
-    throw new Error(requiredExternalProvider === "muse_external_v1" ? "runner_remote_muse_capability_missing: install the current Paperclip Runner artifact" : "runner_remote_dot_capability_missing: install the current Paperclip Runner artifact");
+    throw new Error(requiredExternalProvider === "muse_external_v1" ? "runner_remote_muse_capability_missing: install the current Outpost Runner artifact" : "runner_remote_dot_capability_missing: install the current Outpost Runner artifact");
   }
   const sessionCapabilities = Array.isArray(metadata.durableSessionCapabilities)
     ? metadata.durableSessionCapabilities
@@ -14268,7 +14268,7 @@ export async function prepareRemoteProviderPackOnTarget(input: {
     }),
     stageAndVerify: async () => {
       if (!configuredProviderPackRoot) {
-        throw new Error("runner_remote_provider_artifact_incompatible: install the matching Paperclip package and Daytona image; the image provider pack did not match the bundled release identity");
+        throw new Error("runner_remote_provider_artifact_incompatible: install the matching Outpost package and Daytona image; the image provider pack did not match the bundled release identity");
       }
       if (!remoteCommandRunner.syncIn) {
         throw new Error(

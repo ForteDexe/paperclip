@@ -553,7 +553,7 @@ function KitchenSinkPageWidgets({ context }: { context: PluginPageProps["context
     <div style={widgetGridStyle}>
       <MiniWidget title="Runtime Summary" eyebrow="Overview">
         <div style={{ display: "grid", gap: "4px", fontSize: "12px" }}>
-          <div>Companies: {overview.data?.counts.companies ?? 0}</div>
+          <div>Outposts: {overview.data?.counts.companies ?? 0}</div>
           <div>Projects: {overview.data?.counts.projects ?? 0}</div>
           <div>Issues: {overview.data?.counts.issues ?? 0}</div>
           <div>Agents: {overview.data?.counts.agents ?? 0}</div>
@@ -864,7 +864,7 @@ function KitchenSinkIssueCrudDemo({ context }: { context: PluginPageProps["conte
   return (
     <Section title="Issue CRUD">
       <div style={mutedTextStyle}>
-        This is a regular embedded React page inside Paperclip calling the board API directly. It creates, updates, and deletes issues for the current company.
+        This is a regular embedded React page inside Outpost calling the board API directly. It creates, updates, and deletes issues for the current company.
       </div>
       {!context.companyId ? (
         <div style={mutedTextStyle}>Select a company to use issue demos.</div>
@@ -975,7 +975,7 @@ function KitchenSinkCompanyCrudDemo({ context }: { context: PluginPageProps["con
       setNewCompanyName(`Kitchen Sink Demo ${Date.now()}`);
       await loadCompanies();
     } catch (nextError) {
-      toast({ title: "Company create failed", body: getErrorMessage(nextError), tone: "error" });
+      toast({ title: "Outpost create failed", body: getErrorMessage(nextError), tone: "error" });
     }
   }
 
@@ -990,10 +990,10 @@ function KitchenSinkCompanyCrudDemo({ context }: { context: PluginPageProps["con
           status: draft.status,
         }),
       });
-      toast({ title: "Company updated", body: draft.name.trim(), tone: "success" });
+      toast({ title: "Outpost updated", body: draft.name.trim(), tone: "success" });
       await loadCompanies();
     } catch (nextError) {
-      toast({ title: "Company update failed", body: getErrorMessage(nextError), tone: "error" });
+      toast({ title: "Outpost update failed", body: getErrorMessage(nextError), tone: "error" });
     }
   }
 
@@ -1003,7 +1003,7 @@ function KitchenSinkCompanyCrudDemo({ context }: { context: PluginPageProps["con
       toast({ title: "Demo company deleted", body: company.name, tone: "info" });
       await loadCompanies();
     } catch (nextError) {
-      toast({ title: "Company delete failed", body: getErrorMessage(nextError), tone: "error" });
+      toast({ title: "Outpost delete failed", body: getErrorMessage(nextError), tone: "error" });
     }
   }
 
@@ -1011,13 +1011,13 @@ function KitchenSinkCompanyCrudDemo({ context }: { context: PluginPageProps["con
   const demoCompanies = companies.filter(isKitchenSinkDemoCompany);
 
   return (
-    <Section title="Company CRUD">
+    <Section title="Outpost CRUD">
       <div style={mutedTextStyle}>
         The worker SDK currently exposes company reads. This page shows a pragmatic embedded-app pattern for broader board actions by calling the host REST API directly.
       </div>
       <div style={subtleCardStyle}>
         <div style={rowStyle}>
-          <strong>Current Company</strong>
+          <strong>Current Outpost</strong>
           {currentCompany ? <Pill label={currentCompany.issuePrefix ?? "no-prefix"} /> : null}
         </div>
         <div style={{ fontSize: "12px" }}>{currentCompany?.name ?? "No current company selected"}</div>
@@ -1027,7 +1027,7 @@ function KitchenSinkCompanyCrudDemo({ context }: { context: PluginPageProps["con
           style={inputStyle}
           value={newCompanyName}
           onChange={(event) => setNewCompanyName(event.target.value)}
-          placeholder="Kitchen Sink Demo Company"
+          placeholder="Kitchen Sink Demo Outpost"
         />
         <button type="button" style={primaryButtonStyle} onClick={() => void handleCreate()}>
           Create demo company
@@ -1108,9 +1108,9 @@ function KitchenSinkTopRow({ context }: { context: PluginPageProps["context"] })
             {hostNavigation.resolveHref(`/${PAGE_ROUTE}`)}
           </a>
         </Section>
-        <Section title="Paperclip Animation">
+        <Section title="Outpost Animation">
           <div style={mutedTextStyle}>
-            This is the same Paperclip ASCII treatment used in onboarding, copied into the example plugin so the package stays self-contained.
+            This is the same Outpost ASCII treatment used in onboarding, copied into the example plugin so the package stays self-contained.
           </div>
           <AsciiArtAnimation />
         </Section>
@@ -1230,11 +1230,11 @@ function KitchenSinkHostIntegrationDemo({ context }: { context: PluginPageProps[
   return (
     <Section title="Host Integrations">
       <div style={mutedTextStyle}>
-        Plugin pages can feel like native Paperclip pages. This section demonstrates host toasts, company-scoped routing, and reading live heartbeat data from the embedded page.
+        Plugin pages can feel like native Outpost pages. This section demonstrates host toasts, company-scoped routing, and reading live heartbeat data from the embedded page.
       </div>
       <div style={subtleCardStyle}>
         <div style={rowStyle}>
-          <strong>Company Route</strong>
+          <strong>Outpost Route</strong>
           <Pill label={hostNavigation.resolveHref(`/${PAGE_ROUTE}`)} />
         </div>
         <div style={mutedTextStyle}>
@@ -1556,16 +1556,16 @@ function KitchenSinkConsole({ context }: { context: { companyId: string | null; 
         <div style={rowStyle}>
           <Pill label={`Plugin: ${overview.data?.pluginId ?? PLUGIN_ID}`} />
           <Pill label={`Version: ${overview.data?.version ?? "loading"}`} />
-          <Pill label={`Company: ${companyId ?? "none"}`} />
+          <Pill label={`Outpost: ${companyId ?? "none"}`} />
           {context.entityType ? <Pill label={`Entity: ${context.entityType}`} /> : null}
         </div>
         {overview.data ? (
           <>
             <div style={{ display: "grid", gap: "8px", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-              <StatusLine label="Companies" value={overview.data.counts.companies} />
+              <StatusLine label="Outposts" value={overview.data.counts.companies} />
               <StatusLine label="Projects" value={overview.data.counts.projects} />
               <StatusLine label="Issues" value={overview.data.counts.issues} />
-              <StatusLine label="Goals" value={overview.data.counts.goals} />
+              <StatusLine label="North Stars" value={overview.data.counts.goals} />
               <StatusLine label="Agents" value={overview.data.counts.agents} />
               <StatusLine label="Entities" value={overview.data.counts.entities} />
             </div>
@@ -1599,10 +1599,10 @@ function KitchenSinkConsole({ context }: { context: { companyId: string | null; 
         <JsonBlock value={overview.data?.runtimeLaunchers ?? []} />
       </Section>
 
-      <Section title="Paperclip Domain APIs">
+      <Section title="Outpost Domain APIs">
         <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           <PaginatedDomainCard
-            title="Companies"
+            title="Outposts"
             items={companies.data ?? []}
             totalCount={overview.data?.counts.companies ?? null}
             empty="No companies."
@@ -1635,7 +1635,7 @@ function KitchenSinkConsole({ context }: { context: { companyId: string | null; 
             }}
           />
           <PaginatedDomainCard
-            title="Goals"
+            title="North Stars"
             items={goals.data ?? []}
             totalCount={overview.data?.counts.goals ?? null}
             empty="No goals."
@@ -1648,7 +1648,7 @@ function KitchenSinkConsole({ context }: { context: { companyId: string | null; 
         </div>
       </Section>
 
-      <Section title="Issue + Goal Actions">
+      <Section title="Issue + North Star Actions">
         <div style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
           <form
             style={layoutStack}
@@ -2135,7 +2135,7 @@ export function KitchenSinkSettingsPage({ context }: PluginSettingsPageProps) {
         <div style={{ display: "grid", gap: "8px" }}>
           <strong>About</strong>
           <div style={{ fontSize: "13px", lineHeight: 1.5 }}>
-            Kitchen Sink demonstrates the current Paperclip plugin API surface in one local, trusted example. It intentionally includes domain mutations, event handling, streams, tools, jobs, webhooks, and local workspace/process demos.
+            Kitchen Sink demonstrates the current Outpost plugin API surface in one local, trusted example. It intentionally includes domain mutations, event handling, streams, tools, jobs, webhooks, and local workspace/process demos.
           </div>
           <div style={{ fontSize: "12px", opacity: 0.7 }}>
             Current company context: {context.companyId ?? "none"}
@@ -2252,7 +2252,7 @@ export function KitchenSinkCompanySettingsPage({ context }: PluginCompanySetting
 
   return (
     <div style={layoutStack}>
-      <Section title="Company Settings Slot">
+      <Section title="Outpost Settings Slot">
         <div style={subtleCardStyle}>
           <div style={{ display: "grid", gap: "8px" }}>
             <strong>Mounted inside company settings</strong>

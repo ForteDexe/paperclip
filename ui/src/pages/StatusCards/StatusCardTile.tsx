@@ -20,7 +20,7 @@ import {
   describeRefreshPolicy,
   STATUS_CARD_LIFECYCLE_PRESENTATION,
 } from "@/lib/status-card-state";
-import { formatCents, formatTokens } from "./format";
+import { formatTokens } from "./format";
 import type { StatusCardView } from "./types";
 
 export interface StatusCardTileProps {
@@ -80,7 +80,6 @@ export function StatusCardTile({
 
   const policyLabel = describeRefreshPolicy(card.refreshPolicy);
   const tokensLabel = formatTokens(card.todayTokens);
-  const costLabel = formatCents(card.todayCostCents);
   const freshnessLabel = card.lastGeneratedAt ? relativeTime(card.lastGeneratedAt) : "no summary yet";
   const hasSummary = Boolean(card.summaryBody && card.summaryBody.trim().length > 0);
 
@@ -278,7 +277,6 @@ export function StatusCardTile({
             <>
               {freshnessLabel} · {policyLabel}
               {tokensLabel ? ` · ${tokensLabel}` : ""}
-              {costLabel ? ` · ${costLabel}` : ""}
             </>
           )}
         </span>

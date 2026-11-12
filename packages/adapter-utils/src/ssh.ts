@@ -980,7 +980,7 @@ async function integrateImportedGitHead(input: {
         localDir: input.localDir,
         currentHead,
         importedHead: input.importedHead,
-        syncLabel: "Paperclip SSH sync",
+        syncLabel: "Outpost SSH sync",
       });
       try {
         await runLocalGit(input.localDir, ["update-ref", headRef, graftCommit, currentHead], {
@@ -1022,7 +1022,7 @@ async function integrateImportedGitHead(input: {
         "-p",
         input.importedHead,
         "-m",
-        `Paperclip SSH sync merge ${input.importedHead.slice(0, 12)}`,
+        `Outpost SSH sync merge ${input.importedHead.slice(0, 12)}`,
       ],
       {
         timeout: 60_000,

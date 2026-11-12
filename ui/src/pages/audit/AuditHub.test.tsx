@@ -59,17 +59,6 @@ vi.mock("./RoutineAuditActivity", () => ({
   ),
 }));
 
-vi.mock("@/pages/Costs", () => ({
-  Costs: (props: Record<string, unknown>) => (
-    <div
-      data-testid="audit-costs"
-      data-initial-tab={props.initialTab}
-      data-lock-tab={String(props.lockTab ?? false)}
-      data-hide-budgets={String(props.hideBudgetsTab ?? false)}
-    />
-  ),
-}));
-
 vi.mock("@/pages/Timeline", () => ({
   Timeline: ({ embedded }: { embedded?: boolean }) => (
     <div data-testid="audit-timeline" data-embedded={String(embedded ?? false)} />
@@ -95,7 +84,7 @@ describe("AuditHub", () => {
     vi.clearAllMocks();
   });
 
-  function render(section: "activity" | "runs" | "costs" | "budgets" | "timeline" | "commentary") {
+  function render(section: "activity" | "runs" | "timeline" | "commentary") {
     root = createRoot(container);
     flushSync(() => root.render(<AuditHub section={section} />));
   }
@@ -104,12 +93,10 @@ describe("AuditHub", () => {
     currentSearch = "mode=agents&agentId=agent-1&runId=run-1&action=tool_";
     render("activity");
 
-    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(6);
+    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(4);
     expect(container.textContent).toContain("Activity");
     expect(container.textContent).toContain("Runs");
     expect(container.textContent).toContain("Commentary");
-    expect(container.textContent).toContain("Costs");
-    expect(container.textContent).toContain("Budgets");
     expect(container.textContent).toContain("Timeline");
     const feed = container.querySelector<HTMLElement>('[data-testid="audit-feed"]');
     expect(feed?.dataset.mode).toBe("agents");
@@ -184,27 +171,14 @@ describe("AuditHub", () => {
     expect(runs?.dataset.routine).toBe("routine-1");
   });
 
-  it("renders Timeline as the section after Budgets", () => {
+  it("renders Timeline as the final section", () => {
     render("timeline");
 
     const labels = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'))
       .map((tab) => tab.textContent?.trim());
-    expect(labels).toEqual(["Activity", "Runs", "Commentary", "Costs", "Budgets", "Timeline"]);
+    expect(labels).toEqual(["Activity", "Runs", "Commentary", "Timeline"]);
     expect(container.querySelector<HTMLElement>('[data-testid="audit-timeline"]')?.dataset.embedded)
       .toBe("true");
-  });
-
-  it("renders Costs and Budgets as intentional peer sections", () => {
-    render("budgets");
-    let costs = container.querySelector<HTMLElement>('[data-testid="audit-costs"]');
-    expect(costs?.dataset.initialTab).toBe("budgets");
-    expect(costs?.dataset.lockTab).toBe("true");
-
-    flushSync(() => root.unmount());
-    render("costs");
-    costs = container.querySelector<HTMLElement>('[data-testid="audit-costs"]');
-    expect(costs?.dataset.initialTab).toBe("overview");
-    expect(costs?.dataset.hideBudgets).toBe("true");
   });
 
   it("keeps the current entity scope when moving between Audit sections", () => {

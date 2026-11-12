@@ -106,17 +106,17 @@ few seconds it becomes `expired before response` and stays in the record.
 
 ## Step 7: Change the goal
 
-1. Press **Goal lifecycle**, then **Run this demo chat**.
-2. Press **Goal**, then **Set goal…**, type an objective, and confirm.
-3. Press **Goal**, then **Pause**.
+1. Press **North Star lifecycle**, then **Run this demo chat**.
+2. Press **North Star**, then **Set goal…**, type an objective, and confirm.
+3. Press **North Star**, then **Pause**.
 
 Expected facts: the banner shows the objective, the state, and the time of the
 last change. **Resume** is disabled while the goal is active, and **Pause** is
 disabled while it is paused.
 
-Now press **Goals unsupported** and run it. The **Goal** button is disabled,
+Now press **North Stars unsupported** and run it. The **North Star** button is disabled,
 not hidden, and it names the exact upstream reason:
-`Goal operations unsupported: app-server 0.132.0 does not advertise the goals capability`.
+`North Star operations unsupported: app-server 0.132.0 does not advertise the goals capability`.
 Open the **Protocol inspector** and the **Capabilities** tab. The same string
 appears there.
 

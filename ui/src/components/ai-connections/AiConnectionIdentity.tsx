@@ -28,7 +28,7 @@ export function AiConnectionIdentity({
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Icon aria-hidden className="size-3" />
           {connection.ownership === "shared"
-            ? "Company shared"
+            ? "Outpost shared"
             : `Personal · ${connection.ownerName ?? "Account owner"}`}
         </span>
       </div>

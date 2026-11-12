@@ -47,7 +47,7 @@ export function CostByUserTable({ report }: { report: CostByUserReport }) {
           </table>
         </div>
         {report.rows.some(row => row.userId === null) && (
-          <p className="mt-3 text-xs text-muted-foreground">Unattributed costs have no recorded user in this organization.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Unattributed costs have no recorded user in this outpost.</p>
         )}
       </CardContent>
     </Card>

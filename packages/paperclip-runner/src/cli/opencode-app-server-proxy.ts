@@ -370,7 +370,7 @@ async function handle(message: RpcMessage): Promise<void> {
       if (params.paperclipRunId !== undefined) {
         const runId = params.paperclipRunId;
         if (typeof runId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(runId))
-          throw new Error("Invalid Paperclip run identity");
+          throw new Error("Invalid Outpost run identity");
         // Runnerd sends the attached run's contract with its run identity;
         // the launch parameters may still name an earlier run's contract,
         // even when the launch environment already names this run.

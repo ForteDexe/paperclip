@@ -5,7 +5,7 @@
 Codex implements a direct Codex app-server v2 driver behind the package's
 existing `HarnessDriver` contract. The driver, mock core, example CLI, tests,
 and evidence stay inside `packages/paperclip-runner/`. They do not import or
-change Paperclip server, UI, database, or production control-plane behavior.
+change Outpost server, UI, database, or production control-plane behavior.
 
 The app-server process is local to the execution environment and uses newline
 delimited JSON-RPC over stdio. It is not exposed as a network service.
@@ -86,7 +86,7 @@ When the execution target is itself the sandbox (a remote sandbox such as
 Daytona sets `PAPERCLIP_RUNNER_EXTERNAL_SANDBOX=1`), standard and ask runs use
 the default execution mode. The Runner starts their Codex threads and turns
 with the external sandbox policy and sends no collaboration mode. Ask mode
-restricts Paperclip mutation tools, not the Codex sandbox. Planning runs keep
+restricts Outpost mutation tools, not the Codex sandbox. Planning runs keep
 the `paperclip-runner-workspace-read-only` profile on `thread/start` and
 `turn/start` everywhere, because Codex's plan collaboration mode is a prompt
 and does not block writes or commands. Inside an external sandbox that profile
@@ -105,7 +105,7 @@ isolate the network, so planning commands fail closed in such a container.
 On the current Daytona image, bubblewrap also cannot map user IDs for
 planning commands (`bwrap: setting up uid map: Permission denied`), so shell
 commands fail closed there in every planning turn. The planning turn still
-reads files and writes its Plan through Codex and Paperclip tools.
+reads files and writes its Plan through Codex and Outpost tools.
 The broader read access matches what default-mode turns already have in the
 same sandbox, and the session context records `rootAccess: "read"` for these
 planning turns. Local and SSH planning keep the narrower profile that denies host
@@ -122,7 +122,7 @@ requires each readable `auth.json`/`config.toml` file and an unrelated host
 secret to remain unreadable and unwritable, while recording any injected root
 in `context.sandbox.legacyPolicy`.
 
-Paperclip bearer values, `OPENAI_API_KEY`, arbitrary skill paths, and other
+Outpost bearer values, `OPENAI_API_KEY`, arbitrary skill paths, and other
 inherited variables are not passed. Diagnostics redact bearer/basic
 credentials, credentialed proxy URLs, secret query parameters, sensitive JSON
 keys, and common key assignments.

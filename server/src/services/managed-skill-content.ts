@@ -141,7 +141,7 @@ export function managedSkillContent(db: Db, packageDb: Db = db, storage?: Storag
     return db.transaction(async tx => {
       const [company] = await tx.select({ id: companies.id }).from(companies)
         .where(eq(companies.id, values.companyId)).for("share");
-      if (!company) throw notFound("Company not found");
+      if (!company) throw notFound("Outpost not found");
       await options.beforeLock?.(tx);
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${values.companyId}:${values.slug}`}, 0))`);
       await options.validate?.(tx);

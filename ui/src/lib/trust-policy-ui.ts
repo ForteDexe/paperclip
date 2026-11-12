@@ -21,9 +21,9 @@ export const TRUST_PRESET_LABELS: Record<TrustPreset, string> = {
 };
 
 export const TRUST_PRESET_DESCRIPTIONS: Record<TrustPreset, string> = {
-  standard: "Organization-visible collaboration. This is the default for normal work.",
+  standard: "Outpost-visible collaboration. This is the default for normal work.",
   low_trust_review:
-    "Contained for hostile or untrusted input. Narrow Paperclip API, quarantined output. Use for PR review and external-content triage.",
+    "Contained for hostile or untrusted input. Narrow Outpost API, quarantined output. Use for PR review and external-content triage.",
 };
 
 export function getTrustPreset(permissions: Partial<AgentPermissions> | null | undefined): TrustPreset {

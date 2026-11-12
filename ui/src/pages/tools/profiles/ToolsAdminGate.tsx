@@ -59,7 +59,7 @@ export function ToolsAdminGate({ children }: { children: ReactNode }) {
             <h1 className="text-lg font-semibold">Access profiles require editing access</h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Access profiles decide which tools your agents can use. Ask a company editor to set these up, or
+            Access profiles decide which tools your agents can use. Ask a outpost editor to set these up, or
             head back to{" "}
             <Link to="/apps" className="font-medium text-primary hover:underline">
               your apps

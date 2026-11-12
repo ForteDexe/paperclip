@@ -336,7 +336,7 @@ export function costRoutes(
     // and any forged ids are rejected before we touch provider credentials
     const company = await companies.getById(companyId);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     const results = await fetchCompanyQuotaWindows(db, companyId, getActorInfo(req).actorId);
@@ -443,7 +443,7 @@ export function costRoutes(
     const membership = req.actor.memberships?.find((item) => item.companyId === companyId);
     if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin
       && !(membership?.status === "active" && ["owner", "admin"].includes(String(membership.membershipRole)))) {
-      throw forbidden("Company admin access required to import provider billing.");
+      throw forbidden("Outpost admin access required to import provider billing.");
     }
     next();
   }, validate(importProviderCostsSchema), async (req, res) => {

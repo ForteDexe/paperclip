@@ -374,7 +374,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       throw forbidden("Agent key cannot access another company");
     }
     if (actorAgent.role !== "ceo") {
-      throw forbidden(`Only CEO agents can manage ${capability}`);
+      throw forbidden(`Only Outpost Lead agents can manage ${capability}`);
     }
   }
 
@@ -494,7 +494,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     }
     const company = await svc.getById(companyId);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     res.json(company);
@@ -562,12 +562,12 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
    */
   const importFloor = (_req: Request, _res: Response, next: NextFunction) => {
     if (isCloudManagedInstance()) {
-      throw forbidden("Company import is disabled on cloud-managed instances", {
+      throw forbidden("Outpost import is disabled on cloud-managed instances", {
         code: "cloud_managed",
       });
     }
     if (hidesCompanyPage(getHiddenSettings(), "company.import")) {
-      throw forbidden("Company import is hidden by the hosting operator", {
+      throw forbidden("Outpost import is hidden by the hosting operator", {
         code: SETTINGS_OPERATOR_MANAGED_ERROR_CODE,
       });
     }
@@ -1207,7 +1207,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
   router.post("/", (req, _res, next) => {
     assertBoard(req);
     if (isCloudManagedInstance()) {
-      throw forbidden("Company creation is managed by Paperclip Cloud", {
+      throw forbidden("Outpost creation is managed by Outpost Cloud", {
         code: "cloud_managed",
       });
     }
@@ -1268,7 +1268,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
 
     const existingCompany = await svc.getById(companyId);
     if (!existingCompany) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
 
@@ -1310,7 +1310,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
 
     const company = await svc.update(companyId, body, actor);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     if (!lifecycleEventEmittedByService) {
@@ -1336,7 +1336,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     const body = updateCompanyBrandingSchema.parse(req.body);
     const company = await svc.update(companyId, body);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     const actor = getActorInfo(req);
@@ -1361,7 +1361,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     assertBoard(req);
     const company = await svc.archive(companyId, getActorInfo(req));
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     res.json(company);
@@ -1373,7 +1373,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     assertBoard(req);
     const company = await svc.remove(companyId);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     res.json({ ok: true });

@@ -466,7 +466,7 @@ export function useLiveConsole(): LiveConsole {
       if (sessionId === null) return;
       await guard(async () => {
         adopt(await client.goalOperation(sessionId, operation, body));
-        setAnnouncement(`Goal ${operation}`);
+        setAnnouncement(`North Star ${operation}`);
       });
     },
     [adopt, guard],

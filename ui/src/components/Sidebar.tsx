@@ -6,7 +6,6 @@ import {
   CircleCheck,
   Target,
   LayoutDashboard,
-  DollarSign,
   History,
   Search,
   SquarePen,
@@ -242,7 +241,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
             <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
           ) : null}
           {showGoalsLink ? (
-            <SidebarNavItem to="/goals" label="Goals" icon={Target} />
+            <SidebarNavItem to="/goals" label="North Stars" icon={Target} />
           ) : goalsLinkPending ? (
             <div
               data-testid="sidebar-goals-placeholder"
@@ -270,7 +269,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
 
         {streamlinedUiEnabled ? (
           <SidebarSection
-            label="Org"
+            label="Outpost"
             collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
           >
             <SidebarNavItem to="/agents" label="Agents" icon={Users} />
@@ -289,13 +288,12 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
             <SidebarProjects />
             <SidebarAgents />
             <SidebarSection
-              label="Organization"
+              label="Outpost"
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
-              <SidebarNavItem to="/org" label="Org" icon={Network} />
+              <SidebarNavItem to="/org" label="Crew map" icon={Network} />
               <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} />
               <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />
-              <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
               <SidebarNavItem to="/activity" label="Activity" icon={History} />
               <SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />
               <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />

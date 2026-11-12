@@ -339,7 +339,7 @@ function hireAgentApiRequest(input: Record<string, unknown>, binding: Pick<Bindi
 }
 
 function hireAgentResult(value: unknown, provider: unknown) {
-  return { ...apiToolResult(value), ...(provider === "openai_dot" ? { setupRequired: "This creates a separate Paperclip Dot agent. Its operator must pair a separate OpenAI Dot before it can run. The existing Dot binding and workspace permission are never inherited." } : {}) };
+  return { ...apiToolResult(value), ...(provider === "openai_dot" ? { setupRequired: "This creates a separate Outpost Dot agent. Its operator must pair a separate OpenAI Dot before it can run. The existing Dot binding and workspace permission are never inherited." } : {}) };
 }
 
 export class PaperclipRunnerToolAuthority {
@@ -390,7 +390,7 @@ export class PaperclipRunnerToolAuthority {
         name: descriptor.operationId,
         description:
           descriptor.operationId === "register_deliverable"
-            ? "Prepare one verified workspace file for Paperclip's final task or external-chat response. This records the attachment, work product, and explicit same-run selection; it does not confirm provider delivery."
+            ? "Prepare one verified workspace file for Outpost's final task or external-chat response. This records the attachment, work product, and explicit same-run selection; it does not confirm provider delivery."
             : descriptor.description,
         inputSchema:
           descriptor.operationId === "register_deliverable"
@@ -616,7 +616,7 @@ export class PaperclipRunnerToolAuthority {
       await this.binding.assertBridgeAuthority?.();
       if (!MUSE_NATIVE_OPERATIONS.has(tool)) throw forbidden("This operation is outside the Muse first-party runtime profile");
     }
-    if (this.binding.firstPartyOnly && (EXTERNAL_WORKSPACE_OPERATIONS.has(tool) || tool.startsWith("workspace_"))) throw forbidden("Paperclip workspace access is unavailable to this Grok Bot session.");
+    if (this.binding.firstPartyOnly && (EXTERNAL_WORKSPACE_OPERATIONS.has(tool) || tool.startsWith("workspace_"))) throw forbidden("Outpost workspace access is unavailable to this Grok Bot session.");
     if (this.binding.nativeReview && tool !== "resolve_review" && !NATIVE_REVIEW_READ_TOOLS.has(tool)) {
       throw forbidden("This review run may only inspect the assigned task and resolve its review.");
     }
@@ -721,7 +721,7 @@ export class PaperclipRunnerToolAuthority {
       return apiToolResult(await this.#callApi(call.callId, taskBridgeApiRequest(call.tool, input)));
     }
     if (this.binding.firstPartyOnly && (call.tool === READ_TOOL_RESULT || this.binding.assignedMcpTools?.has(call.tool) || isConnectorTool(call.tool)
-      || RUNTIME_CONNECTION_TOOL_DEFINITIONS.some(tool => tool.name === call.tool))) throw forbidden("This Grok Bot connection exposes first-party Paperclip operations. Use your own provider apps under their existing permissions.");
+      || RUNTIME_CONNECTION_TOOL_DEFINITIONS.some(tool => tool.name === call.tool))) throw forbidden("This Grok Bot connection exposes first-party Outpost operations. Use your own provider apps under their existing permissions.");
     if (call.tool === DOWNLOAD_ARTIFACT) return this.#downloadArtifact(call.arguments);
     if (call.tool === GENERATE_IMAGE) return this.#generateImage(call.callId, call.arguments);
     if (call.tool === READ_TOOL_RESULT) {
@@ -1164,7 +1164,7 @@ export class PaperclipRunnerToolAuthority {
     };
     const caseCaptureId = dedicatedCaseRoute ? options!.caseId
       : await caseIdForApiCapture(this.db, this.binding.companyId, operation.path, input.pathParams);
-    if (this.binding.firstPartyOnly && /\/(?:workspaces|workspace-runtime|repositories|tool-gateway|tool-connections|tool-profiles|tools|connection-intents|connections|plugins)(?:\/|$)/.test(operation.path)) throw forbidden("Third-party tools through Paperclip are unavailable for this Grok Bot connection.");
+    if (this.binding.firstPartyOnly && /\/(?:workspaces|workspace-runtime|repositories|tool-gateway|tool-connections|tool-profiles|tools|connection-intents|connections|plugins)(?:\/|$)/.test(operation.path)) throw forbidden("Third-party tools through Outpost are unavailable for this Grok Bot connection.");
     const sensitiveResponse = runnerApiSensitiveResponse(operation.method, operation.path);
     await this.#assertDotApiFileAccess(operation.path, input);
     if (options?.receiptOnly) {
@@ -1172,9 +1172,9 @@ export class PaperclipRunnerToolAuthority {
       return this.#completedApiReceipt(bound.run.resultJson?.apiToolReceipts, callId, input);
     }
     const apiUrl = this.binding.apiUrl ?? process.env.PAPERCLIP_API_URL;
-    if (!apiUrl) throw new Error("Paperclip API origin is unavailable");
+    if (!apiUrl) throw new Error("Outpost API origin is unavailable");
     const token = this.#apiToken(bound);
-    if (!token) throw new Error("Paperclip run authentication is unavailable");
+    if (!token) throw new Error("Outpost run authentication is unavailable");
     const execute = async () => {
       const current = await this.#boundContext();
       assertAvailable(current.issue.workMode);
@@ -1325,7 +1325,7 @@ export class PaperclipRunnerToolAuthority {
       if (!decision.allowed) throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
       // #boundContext checks company and agent budgets; spending also needs the task's project.
       if (current.issue.projectId && await budgetServiceInTransaction(this.db).getInvocationBlock(this.binding.companyId, this.binding.agentId,
-        { issueId: current.issue.id, projectId: current.issue.projectId })) throw forbidden("Company or budget authority unavailable");
+        { issueId: current.issue.id, projectId: current.issue.projectId })) throw forbidden("Outpost or budget authority unavailable");
       await assertNoCaseHandoffMutation(this.db, this.binding.runId, this.binding.issueId);
       return current;
     };
@@ -1471,7 +1471,7 @@ export class PaperclipRunnerToolAuthority {
     await authorize();
     const apiUrl = this.binding.apiUrl ?? process.env.PAPERCLIP_API_URL;
     const token = this.#apiToken(context);
-    if (!apiUrl || !token) throw new Error("Paperclip run authentication is unavailable");
+    if (!apiUrl || !token) throw new Error("Outpost run authentication is unavailable");
     // This dedicated read grants only a saved result from this task. It remains
     // available without generic call_api and uses the same authenticated asset
     // route, range/UTF-8 decoding, and responsible-user checks as API reads.
@@ -1557,7 +1557,7 @@ export class PaperclipRunnerToolAuthority {
               and ${runnerApiResponseReservations.assetId} is null), 0)` }).from(heartbeatRuns).where(eq(heartbeatRuns.id, this.binding.runId));
         const companyBytes = Number(usage.bytes);
         if (!Number.isSafeInteger(companyBytes) || companyBytes < 0 || companyBytes + RUNNER_API_RESPONSE_MAX_BYTES > runnerApiCompanyCaptureMaxBytes()) {
-          throw new RunnerApiResponseLimitError("api_response_company_storage_limit", "Company API snapshot storage quota is exhausted. Read an existing asset or ask the operator to remove old snapshots or increase the quota.");
+          throw new RunnerApiResponseLimitError("api_response_company_storage_limit", "Outpost API snapshot storage quota is exhausted. Read an existing asset or ask the operator to remove old snapshots or increase the quota.");
         }
         // Reserve worst-case bytes durably before creating a temporary file.
         // Interrupted/failed captures keep the reservation, preventing retry
@@ -1781,7 +1781,7 @@ export class PaperclipRunnerToolAuthority {
       // gates new work only; a hard stop or pause reaches this run through the
       // normal pause and cancellation path, and is still refused here.
       || await budgetServiceInTransaction(this.db).getInvocationBlock(this.binding.companyId, this.binding.agentId,
-        { issueId: this.binding.issueId, runId: this.binding.runId, admittedRecovery: true })) throw forbidden("Company or budget authority unavailable");
+        { issueId: this.binding.issueId, runId: this.binding.runId, admittedRecovery: true })) throw forbidden("Outpost or budget authority unavailable");
     if (this.binding.nativeReview) {
       const admitted = readNativeReviewAssignmentContext(row.run.contextSnapshot);
       if (!admitted || admitted.nativeReviewInteractionId !== this.binding.nativeReview.nativeReviewInteractionId

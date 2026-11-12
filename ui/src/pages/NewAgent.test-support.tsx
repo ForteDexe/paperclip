@@ -54,7 +54,7 @@ vi.mock("@/api/secrets", () => ({ secretsApi: secrets }));
 const adapterApi = vi.hoisted(() => ({ list: vi.fn() }));
 vi.mock("@/api/adapters", () => ({ adaptersApi: adapterApi }));
 vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+  useCompany: () => ({ selectedCompanyId: "outpost-1" }),
 }));
 vi.mock("../context/BreadcrumbContext", () => ({
   useBreadcrumbs: () => ({ setBreadcrumbs: vi.fn() }),
@@ -178,7 +178,7 @@ beforeEach(() => {
   api.adapterModels.mockResolvedValue([]);
   setupRecords = new Map();
   api.create.mockImplementation(async (_company, input) => {
-    const record = { ...input, id: input.setupId, companyId: "company-1", status: "paused", lifecycleState: "paused", pauseReason: "setup" };
+    const record = { ...input, id: input.setupId, companyId: "outpost-1", status: "paused", lifecycleState: "paused", pauseReason: "setup" };
     setupRecords.set(record.id, record);
     return record;
   });
@@ -188,7 +188,7 @@ beforeEach(() => {
     return record;
   });
   api.update.mockImplementation(async (id, input) => {
-    const record = { ...setupRecords.get(id), ...input, id, companyId: "company-1", status: "paused", lifecycleState: "paused", pauseReason: "setup" };
+    const record = { ...setupRecords.get(id), ...input, id, companyId: "outpost-1", status: "paused", lifecycleState: "paused", pauseReason: "setup" };
     setupRecords.set(id, record);
     return record;
   });

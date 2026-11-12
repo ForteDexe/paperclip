@@ -26,8 +26,8 @@ export const listGoalsAction = {
     "note": "Scenario/eval-only discovery via mock extension; no live dispatcher binding yet."
   },
   "documentation": {
-    "title": "List Goals",
-    "description": "List Goals through the Capability discovery capability set.",
+    "title": "List North Stars",
+    "description": "List North Stars through the Capability discovery capability set.",
     "note": "Scenario/eval-only discovery via mock extension; no live dispatcher binding yet."
   },
   "examples": {
@@ -55,8 +55,8 @@ export const listGoalsAction = {
     "descriptor": {
       "operationId": "list_goals",
       "version": 1,
-      "title": "List Goals",
-      "description": "List Goals through the Capability discovery capability set.",
+      "title": "List North Stars",
+      "description": "List North Stars through the Capability discovery capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {},

@@ -2,9 +2,9 @@
 
 # Capability Capability Contract
 
-This generated contract is a self-contained derivative of the Paperclip skill, its seven references, the Paperclip Evals corpus, and the legacy MCP tool surface. It does not import or contact the Paperclip control plane.
+This generated contract is a self-contained derivative of the Outpost skill, its seven references, the Outpost Evals corpus, and the legacy MCP tool surface. It does not import or contact the Outpost control plane.
 
-The skill/reference inventory and eval cases are the only normative behavior sources. Paperclip does not use the legacy MCP calls as a production capability surface; all MCP names below are traceability aliases folded into normative eval rows. Their disposition, grants, assertions, and evidence contract are inherited from the target row rather than classified independently.
+The skill/reference inventory and eval cases are the only normative behavior sources. Outpost does not use the legacy MCP calls as a production capability surface; all MCP names below are traceability aliases folded into normative eval rows. Their disposition, grants, assertions, and evidence contract are inherited from the target row rather than classified independently.
 
 ## Baseline Counts
 

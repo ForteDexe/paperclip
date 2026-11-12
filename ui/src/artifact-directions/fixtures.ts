@@ -19,13 +19,13 @@ import avatarDesigner from "./assets/avatar-designer.svg";
  * company so the gallery has six and every `LabKind` appears at least once.
  */
 
-export const COMPANY = { id: "company-acmehats", name: "acmehats", issuePrefix: "ACM" };
+export const COMPANY = { id: "outpost-acmehats", name: "acmehats", issuePrefix: "ACM" };
 export const DESIGNER = "Brand and Presentation Designer";
-export const CEO = "CEO";
+export const CEO = "Outpost Lead";
 export const AVATARS: Record<string, string> = { [DESIGNER]: avatarDesigner, [CEO]: avatarCeo };
 
 export const TASKS = {
-  "ACM-1": "Paperclip onboarding",
+  "ACM-1": "Outpost onboarding",
   "ACM-2": "Develop acmehats brand strategy and designer brief",
   "ACM-3": "Create visual directions and first acmehats brand deck",
   "ACM-4": "Write the launch email sequence",
@@ -173,16 +173,16 @@ export const THREAD_ATTACHMENTS: LabArtifact[] = [icImage, icPptx, icPdf, icGuid
 export const THREAD_WORK_PRODUCTS: LabArtifact[] = [docCritique, docGuideVerification, icPptx, icPdf, icImage, docSuppliedSource];
 
 // ---------------------------------------------------------------------------
-// ACM-1 — Paperclip onboarding (7)
+// ACM-1 — Outpost onboarding (7)
 // ---------------------------------------------------------------------------
 
 const T1 = { task: "ACM-1", author: CEO } as const;
 const ACM1: LabArtifact[] = [
-  taskDocument("a1-ceo-review", "Interface Craft pass — CEO review", "interface-craft-ceo-review", 1, docs.DOC_CEO_REVIEW, { ...T1, at: "2026-09-28T11:18:00" }),
+  taskDocument("a1-ceo-review", "Interface Craft pass — Outpost Lead review", "interface-craft-ceo-review", 1, docs.DOC_CEO_REVIEW, { ...T1, at: "2026-09-28T11:18:00" }),
   artifact("a1-packet", "pdf", "Founder review packet", { ...T1, at: "2026-09-28T11:16:00", filename: "founder-review-packet.pdf", byteSize: 148480, summary: "Deck, strategy and open decisions in one file", pageCount: 18, review: "needs_review" }),
   artifact("a1-storefront", "link", "Storefront preview", { ...T1, at: "2026-09-27T16:05:00", url: "https://preview.acmehats.example/storefront", summary: "Homepage and cap configurator, first pass", thumbnailUrl: storefrontPreview, aspect: 16 / 9 }),
   taskDocument("a1-founder-questions", "Founder questions and decisions", "founder-questions", 4, docs.DOC_FOUNDER_QUESTIONS, { ...T1, at: "2026-09-27T09:30:00" }),
-  taskDocument("a1-first-draft-review", "First draft — CEO review", "first-draft-ceo-review", 1, docs.DOC_FIRST_DRAFT_REVIEW, { ...T1, at: "2026-09-25T14:02:00" }),
+  taskDocument("a1-first-draft-review", "First draft — Outpost Lead review", "first-draft-ceo-review", 1, docs.DOC_FIRST_DRAFT_REVIEW, { ...T1, at: "2026-09-25T14:02:00" }),
   artifact("a1-logo", "image", "Supplied logo lockup", { ...T1, at: "2026-09-24T10:12:00", filename: "acmehats-logo-supplied.png", byteSize: 96461, summary: "As supplied by the founder; raster only", thumbnailUrl: logoLockup, aspect: 2 }),
   taskDocument("a1-onboarding-plan", "acmehats onboarding plan", "onboarding-plan", 2, docs.DOC_ONBOARDING_PLAN, { ...T1, at: "2026-09-24T09:48:00" }),
 ];

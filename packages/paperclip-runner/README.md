@@ -1,4 +1,4 @@
-# Paperclip Native Runner
+# Outpost Native Runner
 
 To add a harness/provider to native Runner, start with
 [create-runner-adapter](../../.agents/skills/create-runner-adapter/SKILL.md), the
@@ -7,7 +7,7 @@ To add a harness/provider to native Runner, start with
 They cover the new Runner integration path; legacy adapters are preserved as a
 compatibility boundary.
 
-This package is the standalone development boundary for Paperclip's native
+This package is the standalone development boundary for Outpost's native
 runner protocol, process supervision, durable transport, provider drivers, and
 normalized session backends. Rust owns the production runner under `runner/`;
 TypeScript provides the control-plane reference, browser SDK, scenario tools,
@@ -19,7 +19,7 @@ WebSocket delivery and recovery, qualified Codex, OpenCode, ACPX, Claude
 Managed, and AWS AgentCore drivers, live
 session and issue-thread surfaces, a public browser/React SDK, a standalone
 adapter demo, and a deterministic mock control plane. None of these surfaces
-imports or starts Paperclip's server, UI, CLI, or production database.
+imports or starts Outpost's server, UI, CLI, or production database.
 
 ## Execution environment lifecycle
 
@@ -56,7 +56,7 @@ Connection continuations inspect the harness descriptor's optional
 `toolRefreshOnResume` capability. Native Codex, Claude Managed Agents, AgentCore,
 OpenCode, and qualified Claude/Codex/Grok ACPX profiles expose it; unqualified
 harnesses leave it false or absent. Changing tools can replace a provider process while retaining
-the provider conversation. Company, agent, task, workspace, model, instruction,
+the provider conversation. Outpost, agent, task, workspace, model, instruction,
 and skill compatibility still gate recovery. An MCP-only assignment change can
 resume only when the selected harness explicitly supports refreshing tools.
 
@@ -124,7 +124,7 @@ without granting access to enclosing npm directories or credential homes.
 This packaging does not change agent defaults or
 the selected runner of an existing agent.
 
-Every ACPX harness accepts an explicit caller-selected model without a Paperclip
+Every ACPX harness accepts an explicit caller-selected model without an Outpost
 model allowlist. The adapter sends that ID unchanged and verifies the provider's
 effective model before prompting. An incomplete discovery catalog does not block
 selection; a provider rejection or mismatch fails without choosing a fallback.
@@ -171,7 +171,7 @@ existing `runControlPlanePortConformance` suite checks narrow PRP run/event
 persistence. `CAPABILITY_HIGH_RISK_SEMANTIC_VECTORS` and
 `runSemanticConformanceKit` compare normalized tool authorization, state,
 effects, audit, retries, conflicts, redaction, continuation, and terminal
-decisions. The production adapter stays App-owned and invokes Paperclip's real
+decisions. The production adapter stays App-owned and invokes Outpost's real
 route/service authorities; it does not copy those rules into this package.
 
 ## Quick start
@@ -214,21 +214,21 @@ PRP delivery keeps the controller's exact operation names, including compact MCP
 The selected permission and read-only policies still apply.
 
 Install Cursor explicitly with `paperclipai runtime setup cursor`; npm installation
-does not download it. Run setup as the OS user that runs Paperclip (the service
+does not download it. Run setup as the OS user that runs Outpost (the service
 account for a managed service). Setup writes to that account's
 `~/.paperclip/runtimes/cursor/<platform>-<arch>/<closure-sha256>`, so a system-wide
 npm installation can remain read-only. Isolated provider HOME/XDG settings do not
 redirect this cache. Container images continue to use their packaged assets.
 Configure a company secret binding for `CURSOR_API_KEY` or
 `CURSOR_AUTH_TOKEN`, select Cursor in the Runner configuration, and select an exact
-model ID. Agent is the default; Plan and Ask are explicit modes. Paperclip semantic
+model ID. Agent is the default; Plan and Ask are explicit modes. Outpost semantic
 questions are supported. Native AskQuestion and authoritative per-run dollar usage
 are unavailable. Accepting a native plan ends the planning run successfully while
 the task waits for the next instruction. See the
 [Cursor release report](../../doc/plans/2026-10-03-cursor-production-readiness.md).
 
 Cursor Cloud is a separate experimental native provider (`cursor_cloud`, driver
-`cursor_cloud_api`). In Cursor Cloud agent setup, select **Paperclip Runner** under
+`cursor_cloud_api`). In Cursor Cloud agent setup, select **Outpost Runner** under
 Advanced, bind `CURSOR_API_KEY`, choose an explicit model, and supply a repository
 or named Cursor Cloud environment. Existing Cursor Cloud agents keep their saved
 Legacy selection. The initial controller target is local; Cursor executes tools
@@ -242,10 +242,10 @@ Agent environment bindings support `CURSOR_API_KEY` only. Configure hosted shell
 secrets in the Cursor Cloud environment. Other selected process variables are
 rejected; they are not silently omitted from the hosted run.
 
-Paperclip native tools use the injected `paperclip` MCP server with
-controller-managed authentication; they need no Paperclip REST credentials in the
+Outpost native tools use the injected `paperclip` MCP server with
+controller-managed authentication; they need no Outpost REST credentials in the
 Cloud VM. Cursor also loads account and team MCP servers. The driver directs
-Paperclip operations to the run-bound server; Cursor controls the other account
+Outpost operations to the run-bound server; Cursor controls the other account
 tools. See [Cloud MCP configuration](https://cursor.com/docs/sdk/typescript).
 
 The hosted agent needs a reachable HTTPS callback origin from the server's public
@@ -257,12 +257,12 @@ company/run authority, then passes tool calls through normal PRP/Core dispatch.
 without launching a paid prompt. A passing Test does not qualify task completion.
 
 Cloud v1 provides no independent acknowledgment of the effective model or exact
-instruction digest. Paperclip records submitted inputs and treats this support as
+instruction digest. Outpost records submitted inputs and treats this support as
 experimental. Cursor manages its own shell permissions; native permission,
 question and plan callbacks and fixed per-run dollar limits are unavailable.
-Paperclip planning tasks retain their pinned planning context and existing tool
+Outpost planning tasks retain their pinned planning context and existing tool
 restrictions while using Cloud's default harness. Plan documents and
-revision-bound Paperclip confirmations use the normal semantic tools; this does
+revision-bound Outpost confirmations use the normal semantic tools; this does
 not enable Cursor's native Plan API or native plan-decision callbacks.
 Production usage and dollar cost remain unknown; the Cloud usage API is not yet
 projected through the Runner facade.
@@ -270,7 +270,7 @@ Budget policies can block further work after an unpriced run. If you accept
 unknown charges, clear **Block new work when usage has no reliable price** in
 both company and agent policies under **Costs → Budgets → Advanced settings**.
 Known-cost hard stops remain active, but cannot cap charges Cursor does not report.
-Paperclip semantic tools use their existing authorization. Stop cancels the exact
+Outpost semantic tools use their existing authorization. Stop cancels the exact
 Cloud run and requires a terminal provider receipt. Unknown cancellation remains
 unconfirmed. Recovery reuses the saved Agent/Run and stream cursor, keeps the
 original deadline, and does not replay an ambiguous paid mutation.
@@ -339,7 +339,7 @@ starts; install the matching package and image together.
 
 ### Native binary platform baseline
 
-Release packages contain Paperclip daemons for `linux-x64`, `linux-arm64`,
+Release packages contain Outpost daemons for `linux-x64`, `linux-arm64`,
 `darwin-arm64`, and `darwin-x64`. Codex native binaries are installed separately
 through the official optional npm platform dependencies described above.
 
@@ -433,7 +433,7 @@ remain unchanged.
 
 Cursor candidate configuration accepts `acpxSessionMode: "agent" | "plan" | "ask"`
 (default `agent`). This selects the native Cursor mode independently of
-`acpxPermissionMode` and Paperclip task planning or company approvals. The mode
+`acpxPermissionMode` and Outpost task planning or company approvals. The mode
 is validated at the API boundary and is bound to provider admission and recovery;
 changing it cannot reuse an incompatible warm session. Other providers reject
 this setting. Cursor configuration requires an explicit model. Pending providers retain
@@ -538,21 +538,21 @@ requests and the existing task interaction controls. Requests are persisted
 before presentation; answers are checked against the offered decisions and
 acknowledged by the sidecar before settlement. Unknown, stale and duplicate
 responses fail. Missing provider decision support remains a blocked disposition,
-not implicit approval. Company access checks still run for each Paperclip tool.
+not implicit approval. Outpost access checks still run for each Outpost tool.
 Provider death expires pending promises; approvals are never replayed into a
 replacement process.
 
-Automatic Paperclip/read allowances currently require the Claude SDK dispatch
+Automatic Outpost/read allowances currently require the Claude SDK dispatch
 boundary. Grok preserves these restricted settings, but its ACP requests lack
 independently bound tool authority. Those operations require a supported operator
 permission decision; a missing interactive responder stops with
 `approval_required`. An explicitly selected `approve-all` policy permits unattended
-Grok work in an assigned sandbox. Paperclip authorization and governed approvals
+Grok work in an assigned sandbox. Outpost authorization and governed approvals
 still apply.
 
 Runnerd selects only qualified provider profiles. Claude Managed and AWS
 AgentCore receive immutable company-profile snapshots with explicit retention,
-spend, and invocation limits. No provider process receives a Paperclip API
+spend, and invocation limits. No provider process receives an Outpost API
 credential or unrestricted server environment.
 
 Claude Managed resolves its API key from the company secret bound to the
@@ -856,7 +856,7 @@ execution role.
 
 Provisioning can incur Bedrock, AgentCore Runtime/Memory, storage, and private
 networking charges. Provisioning refuses to modify a colliding stack unless its
-Paperclip ownership tags and template description match. A verified
+Outpost ownership tags and template description match. A verified
 `ROLLBACK_COMPLETE` stack still requires `--replace-failed-stack` plus an
 interactive confirmation (or `--yes`) before it can be deleted and recreated.
 Destruction requires `--yes` and refuses to remove a stack with an active
@@ -869,7 +869,7 @@ recorded lab unless `--force` is also supplied.
 | `build`                                                 | Compile the TypeScript public surface, Rust workspace, and browser devtool.                                                                 |
 | `typecheck`                                             | Check TypeScript, Rust, generated schema sources, and browser types.                                                                        |
 | `test`                                                  | Run Rust/TypeScript fixture, supervisor, fake-driver, live/replay, and boundary tests.                                                      |
-| `check:forbidden-imports`                               | Reject TypeScript imports and Cargo path dependencies that cross into Paperclip core.                                                       |
+| `check:forbidden-imports`                               | Reject TypeScript imports and Cargo path dependencies that cross into Outpost core.                                                       |
 | `check:tracked-imports`                                 | Reject tracked imports and `package.json` entry points that only resolve against untracked files, so a clean checkout of any commit builds. |
 | `check:numbered-milestones`                             | Reject numbered construction-milestone names in tracked package paths and source.                                                           |
 | `check:package-boundaries`                              | Enforce the acyclic runtime/testing/eval dependency and manifest boundary.                                                                  |
@@ -902,7 +902,7 @@ recorded lab unless `--force` is also supplied.
 | `check:semantic-contracts`                              | Verify the provider-neutral semantic tool contract is current.                                                                              |
 | `trace:live-runner`                                     | Run the real runnerd/Codex semantic loop against the mock control plane.                                                                    |
 | `demo:scenarios`                                        | Start the Capability scenario explorer over the mock control plane on `127.0.0.1:4183`.                                                     |
-| `console:issue-thread`                                  | Start the Paperclip-style issue thread on `127.0.0.1:4184`.                                                                                 |
+| `console:issue-thread`                                  | Start the Outpost-style issue thread on `127.0.0.1:4184`.                                                                                 |
 | `test:scenarios`                                        | Run the scenario index, run-artifact, parity, explorer component, and route tests.                                                          |
 | `test:browser:scenarios`                                | Exercise both the scenario explorer and issue-thread browser contracts.                                                                     |
 | `browser:dev`                                           | Start the standalone live/replay browser devtool.                                                                                           |
@@ -939,7 +939,7 @@ recorded lab unless `--force` is also supplied.
 
 Codex adds the package-local real-model reference driver, Live console adds the
 package-local browser console, and SDK extracts a reusable public SDK plus
-two standalone consumers. Runtime production Paperclip integration remains
+two standalone consumers. Runtime production Outpost integration remains
 deferred; the App-owned production conformance adapter is test-only.
 
 The SDK reference console opens in direct chat mode. Enter a normal prompt,
@@ -1141,7 +1141,7 @@ configuration and public requests cannot supply that authority.
 Existing legacy Kimi agents retain their runtime and history. Managed Kimi connections,
 ambient login borrowing, other regions/platforms, steering, native child work,
 and per-run token/dollar accounting are outside this release. Read-only Kimi work
-uses scoped Paperclip tools; native filesystem and shell tools are denied.
+uses scoped Outpost tools; native filesystem and shell tools are denied.
 The provider-owned patch binds native instructions, preserves permission arguments,
 and removes provider auth from tool subprocesses. See the
 [protocol dossier](src/providers/kimi/README.md) and

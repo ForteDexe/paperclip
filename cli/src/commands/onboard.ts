@@ -440,7 +440,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
 
   if (existingConfig) {
     p.log.message(
-      pc.dim("Existing Paperclip install detected; keeping the current configuration unchanged."),
+      pc.dim("Existing Outpost install detected; keeping the current configuration unchanged."),
     );
     p.log.message(pc.dim(`Use ${pc.cyan("paperclipai configure")} if you want to change settings.`));
 
@@ -499,7 +499,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     let shouldRunNow = !serviceInstalled && (opts.run === true || opts.yes === true);
     if (shouldOfferForegroundStart({ serviceInstalled, startAlreadyDecided: shouldRunNow, invokedByRun: opts.invokedByRun === true, interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY) })) {
       const answer = await p.confirm({
-        message: "Start Paperclip now?",
+        message: "Start Outpost now?",
         initialValue: true,
       });
       if (!p.isCancel(answer)) {
@@ -512,7 +512,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
       return;
     }
 
-    p.outro("Existing Paperclip setup is ready.");
+    p.outro("Existing Outpost setup is ready.");
     return;
   }
 
@@ -710,7 +710,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     server,
     auth,
     telemetry: {
-      enabled: true,
+      enabled: false,
     },
     storage,
     secrets,
@@ -758,7 +758,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   printManagedInstallHint();
 
   if (canCreateBootstrapInviteImmediately({ database, server })) {
-    p.log.step("Generating bootstrap CEO invite");
+    p.log.step("Generating bootstrap Outpost Lead invite");
     await bootstrapCeoInvite({ config: configPath });
   }
 
@@ -770,7 +770,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   let shouldRunNow = !serviceInstalled && (opts.run === true || opts.yes === true);
   if (shouldOfferForegroundStart({ serviceInstalled, startAlreadyDecided: shouldRunNow, invokedByRun: opts.invokedByRun === true, interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY) })) {
     const answer = await p.confirm({
-      message: "Start Paperclip now?",
+      message: "Start Outpost now?",
       initialValue: true,
     });
     if (!p.isCancel(answer)) {
@@ -786,7 +786,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   if (server.deploymentMode === "authenticated" && database.mode === "embedded-postgres") {
     p.log.info(
       [
-        "Bootstrap CEO invite will be created after the server starts.",
+        "Bootstrap Outpost Lead invite will be created after the server starts.",
         `Next: ${pc.cyan("paperclipai run")}`,
         `Then: ${pc.cyan("paperclipai auth bootstrap-ceo")}`,
       ].join("\n"),

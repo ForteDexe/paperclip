@@ -296,7 +296,7 @@ export function registerAgentCommands(program: Command): void {
     agent
       .command("list")
       .description("List agents for a company")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: AgentListOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -352,7 +352,7 @@ export function registerAgentCommands(program: Command): void {
     agent
       .command("create")
       .description("Create an agent from a JSON payload")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "CreateAgent JSON payload")
       .option("--runner <runner>", "Runner: auto (default), paperclip, or legacy")
       .action(async (opts: AgentJsonPayloadOptions) => {
@@ -372,7 +372,7 @@ export function registerAgentCommands(program: Command): void {
     agent
       .command("hire")
       .description("Create an agent hire request")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "CreateAgentHire JSON payload")
       .option("--runner <runner>", "Runner: auto (default), paperclip, or legacy")
       .action(async (opts: AgentJsonPayloadOptions) => {
@@ -796,7 +796,7 @@ export function registerAgentCommands(program: Command): void {
       .command("wake")
       .description("Request a heartbeat wakeup for an agent")
       .argument("<agentRef>", "Agent ID or shortname/url-key")
-      .option("-C, --company-id <id>", "Company ID for shortname/url-key lookup")
+      .option("-C, --company-id <id>", "Outpost ID for shortname/url-key lookup")
       .option("--source <source>", "Invocation source (timer, assignment, on_demand, automation)", "on_demand")
       .option("--trigger <trigger>", "Trigger detail (manual, ping, callback, system)", "manual")
       .option("--reason <text>", "Wakeup reason")
@@ -832,14 +832,14 @@ export function registerAgentCommands(program: Command): void {
     agent
       .command("local-cli")
       .description(
-        "Create an agent API key, install local Paperclip skills for Codex/Claude, and print shell exports",
+        "Create an agent API key, install local Outpost skills for Codex/Claude, and print shell exports",
       )
       .argument("<agentRef>", "Agent ID or shortname/url-key")
-      .requiredOption("-C, --company-id <id>", "Company ID")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
       .option("--key-name <name>", "API key label", "local-cli")
       .option(
         "--no-install-skills",
-        "Skip installing Paperclip skills into ~/.codex/skills, ~/.claude/skills, and ~/.kimi-code/skills",
+        "Skip installing Outpost skills into ~/.codex/skills, ~/.claude/skills, and ~/.kimi-code/skills",
       )
       .action(async (agentRef: string, opts: AgentLocalCliOptions) => {
         try {
@@ -864,7 +864,7 @@ export function registerAgentCommands(program: Command): void {
             const skillsDir = await resolvePaperclipSkillsDir(__moduleDir, [path.resolve(process.cwd(), "skills")]);
             if (!skillsDir) {
               throw new Error(
-                "Could not locate local Paperclip skills directory. Expected ./skills in the repo checkout.",
+                "Could not locate local Outpost skills directory. Expected ./skills in the repo checkout.",
               );
             }
 

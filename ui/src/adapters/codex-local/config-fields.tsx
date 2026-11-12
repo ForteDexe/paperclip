@@ -196,7 +196,7 @@ export function CodexLocalConfigFields({
     ? "Fast mode will be passed through for this manual model. If Codex rejects it, turn the toggle off."
     : fastModeSupported
       ? "Fast mode consumes credits/tokens much faster than standard Codex runs."
-      : `Fast mode currently only works on ${supportedModelsLabel} or manual model IDs. Paperclip will ignore this toggle until the model is switched.`;
+      : `Fast mode currently only works on ${supportedModelsLabel} or manual model IDs. Outpost will ignore this toggle until the model is switched.`;
 
   return configFieldsForSection(section, (
     <>
@@ -304,7 +304,7 @@ export function CodexLocalConfigFields({
       )}
       {runnerManaged && runnerProvider === "grok_bot" && <GrokBotConnection companyId={companyId} agentId={agentId} />}
       {runnerManaged && isCursorCloud && <>
-        <p className="text-sm text-muted-foreground">Experimental. Cursor hosts this agent’s execution environment. A Paperclip computer is not required. Cursor manages command permissions; effective model identity is unavailable. Agent environment settings support only CURSOR_API_KEY. Configure hosted secrets in your Cursor Cloud environment.</p>
+        <p className="text-sm text-muted-foreground">Experimental. Cursor hosts this agent’s execution environment. An Outpost computer is not required. Cursor manages command permissions; effective model identity is unavailable. Agent environment settings support only CURSOR_API_KEY. Configure hosted secrets in your Cursor Cloud environment.</p>
         {[
           { key: "repoUrl", label: "GitHub repository", fallback: "", legacy: undefined, placeholder: "https://github.com/your-org/repo", hint: "Select a repository or a named Cursor cloud environment." },
           { key: "repoRef", label: "Starting ref", fallback: config.repoStartingRef ?? "", legacy: "repoStartingRef", placeholder: "Repository default" },
@@ -332,15 +332,11 @@ export function CodexLocalConfigFields({
           checked={runnerSchemaValue("dotAttachmentAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotAttachmentAccess", value)} />
         <ToggleField label="Workspace files and commands" hint="Let Dot read and write its assigned workspace and publish files. Requires a local Runner. Commands are available only on Linux with bubblewrap; they cannot read your home directory or use injected credentials."
           checked={runnerSchemaValue("dotWorkspaceAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotWorkspaceAccess", value)} />
-        <ToggleField label="Allow externally billed provider" hint="Dot does not report token usage or cost. Paperclip cannot enforce a provider spend ceiling; known company and agent budget limits still apply."
-          checked={runnerSchemaValue("allowUnmeteredProvider", false) === true} onChange={value => updateRunnerSchemaValue("allowUnmeteredProvider", value)} />
       </>}
       {runnerManaged && isMuse && <>
         <Field configSection="adapter" label="Muse connection" hint="Pairing, receiver contact, background reply, and agent setup are verified separately.">
           <MuseRunnerConnection companyId={companyId} agentId={agentId} />
         </Field>
-        <ToggleField label="Allow externally billed provider" hint="Muse does not report usage or cost. Paperclip cannot enforce a Muse spend ceiling; known company and agent budget limits still apply."
-          checked={runnerSchemaValue("allowUnmeteredProvider", false) === true} onChange={value => updateRunnerSchemaValue("allowUnmeteredProvider", value)} />
       </>}
       {runnerManaged && !hideRunnerHarness && runnerProvider === "acpx" && runnerSchemaValue("acpxAgent", "claude") !== "grok" && (
         <Field configSection="adapter" label="ACP agent" hint="Choose a qualified harness and enter its exact model ID.">
@@ -368,7 +364,7 @@ export function CodexLocalConfigFields({
         </Field>
       )}
       {runnerManaged && runnerProvider === "acpx" && runnerSchemaValue("acpxAgent", "claude") === "cursor" && (
-        <Field configSection="adapter" label="Cursor mode" hint="Select Cursor's session mode. Permissions and company approval rules still apply.">
+        <Field configSection="adapter" label="Cursor mode" hint="Select Cursor's session mode. Permissions and outpost approval rules still apply.">
           <select className={inputClass} aria-label="Cursor mode"
             value={String(runnerSchemaValue("acpxSessionMode", "agent"))}
             onChange={(event) => updateRunnerSchemaValue("acpxSessionMode", event.target.value)}>
@@ -394,7 +390,7 @@ export function CodexLocalConfigFields({
         <>
           <Field
             label="Managed Agent profile"
-            hint="Company-scoped qualified profile ID or key. Remote resource identity is loaded from the stored profile, not this agent config."
+            hint="Outpost-scoped qualified profile ID or key. Remote resource identity is loaded from the stored profile, not this agent config."
           >
             <DraftInput
               value={String(runnerSchemaValue("managedProfileId", ""))}
@@ -404,20 +400,6 @@ export function CodexLocalConfigFields({
               immediate
               className={inputClass}
               placeholder="managed-primary"
-            />
-          </Field>
-          <Field
-            label="Session spend ceiling (USD)"
-            hint="Optional per-agent hard ceiling. Leave 1.00 to use a conservative default."
-          >
-            <DraftNumberInput
-              value={Number(runnerSchemaValue("maxSessionListCostUsd", 1))}
-              min={0.01}
-              onCommit={(value) =>
-                updateRunnerSchemaValue("maxSessionListCostUsd", value)
-              }
-              immediate
-              className={inputClass}
             />
           </Field>
           <ToggleField
@@ -440,7 +422,7 @@ export function CodexLocalConfigFields({
         <>
           <Field
             label="AgentCore profile"
-            hint="Company-scoped qualified profile ID or key. Harness, Memory, IAM, and context-store identity come from the stored profile."
+            hint="Outpost-scoped qualified profile ID or key. Harness, Memory, IAM, and context-store identity come from the stored profile."
           >
             <DraftInput
               value={String(runnerSchemaValue("agentCoreProfileId", ""))}
@@ -450,20 +432,6 @@ export function CodexLocalConfigFields({
               immediate
               className={inputClass}
               placeholder="agentcore-primary"
-            />
-          </Field>
-          <Field
-            label="Estimated session ceiling (USD)"
-            hint="Paperclip estimate; AWS does not provide a per-session currency hard stop."
-          >
-            <DraftNumberInput
-              value={Number(runnerSchemaValue("maxEstimatedSessionCostUsd", 1))}
-              min={0.01}
-              onCommit={(value) =>
-                updateRunnerSchemaValue("maxEstimatedSessionCostUsd", value)
-              }
-              immediate
-              className={inputClass}
             />
           </Field>
           <Field
@@ -527,7 +495,7 @@ export function CodexLocalConfigFields({
       {runnerManaged && !isExternal && runnerPermissionCapability.configurable && (runnerPermissionCapability.options.length > 1 || runnerPermissionModeUnsupported) && (
         <Field
           label="Permission mode"
-          hint={`${runnerPermissionCapability.description} The selected mode does not widen Paperclip's workspace, network, credential, or planning boundaries.`}
+          hint={`${runnerPermissionCapability.description} The selected mode does not widen Outpost's workspace, network, credential, or planning boundaries.`}
         >
           <Select
             value={
@@ -578,7 +546,7 @@ export function CodexLocalConfigFields({
           </Select>
           {runnerPermissionModeUnsupported && runnerProvider === "codex" && (
             <p className="mt-1 text-xs text-destructive" role="alert">
-              This saved Codex mode cannot start or recover a Paperclip Runner
+              This saved Codex mode cannot start or recover an Outpost Runner
               run. Select Automatic (isolated) to remediate it.
             </p>
           )}
@@ -731,7 +699,7 @@ export function CodexLocalConfigFields({
           {!managedSandboxOnly && (
             <Field
               label="ACP state directory"
-              hint="Optional ACP session state directory. Defaults to Paperclip-managed organization/agent scoped storage."
+              hint="Optional ACP session state directory. Defaults to Outpost-managed outpost/agent scoped storage."
             >
               <div className="flex items-center gap-2">
                 <DraftInput

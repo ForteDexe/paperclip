@@ -1,8 +1,8 @@
-# Paperclip Evals Integration Contract
+# Outpost Evals Integration Contract
 
 ## Stable consumer inputs
 
-Paperclip Evals consumes two explicit App artifacts:
+Outpost Evals consumes two explicit App artifacts:
 
 1. a packed/released `@paperclipai/paperclip-runner` package; and
 2. an explicit `paperclip-runnerd` executable path plus its

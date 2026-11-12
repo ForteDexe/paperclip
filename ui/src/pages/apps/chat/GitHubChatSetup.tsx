@@ -431,7 +431,7 @@ export function GitHubChatSetup() {
             <>
               <p className="text-sm">
                 Connect GitHub account <strong>{state.identity.login}</strong>{" "}
-                to your Paperclip account.
+                to your Outpost account.
               </p>
               {footer("Confirm my account", async () => {
                 await githubChatApi.confirmIdentity(
@@ -444,7 +444,7 @@ export function GitHubChatSetup() {
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Link your GitHub account so your mentions use your Paperclip
+                Link your GitHub account so your mentions use your Outpost
                 permissions.
               </p>
               {(accounts.data?.length ?? 0) > 0 && (
@@ -540,10 +540,10 @@ export function GitHubChatSetup() {
       ) : state?.state === "enrollment" ? (
         <>
           <p className="text-sm">
-            Paperclip Cloud receives GitHub events and securely delivers them to
+            Outpost Cloud receives GitHub events and securely delivers them to
             this instance.
           </p>
-          {footer("Connect Paperclip Cloud", async () => {
+          {footer("Connect Outpost Cloud", async () => {
             authorization.reserve();
             const result = await toolsApi.startCloudConnectorEnrollment(
               selectedCompanyId!,
@@ -618,7 +618,7 @@ export function GitHubChatSetup() {
                 const choice = event.target.value;
                 setOwnerType(choice === "personal" ? "personal" : "organization");
                 setCustomOrganization(choice === "organization");
-                if (choice.startsWith("organization:")) setOwnerLogin(choice.slice("organization:".length));
+                if (choice.startsWith("outpost:")) setOwnerLogin(choice.slice("outpost:".length));
                 else if (choice === "organization") setOwnerLogin("");
               }}
             >
@@ -626,23 +626,23 @@ export function GitHubChatSetup() {
               {knownOrganizations.map((login) => (
                 <option key={login.toLowerCase()} value={`organization:${login}`}>{login}</option>
               ))}
-              <option value="organization">Another organization</option>
+              <option value="organization">Another outpost</option>
             </select>
             {(repositoriesView.kind === "error" || connectedBotsView.kind === "error") && (
               <p role="alert" className="text-sm text-destructive">
-                Could not load some connected GitHub accounts. Choose Another organization to enter a name.
+                Could not load some connected GitHub accounts. Choose Another outpost to enter a name.
               </p>
             )}
           </div>
           {accountChoice === "organization" && (
             <div className="space-y-2">
-              <Label htmlFor="github-owner-login">Organization</Label>
+              <Label htmlFor="github-owner-login">Outpost</Label>
               <Input
                 id="github-owner-login"
                 disabled={busy || !!state?.registration}
                 value={ownerLogin}
                 onChange={(event) => setOwnerLogin(event.target.value)}
-                placeholder="GitHub organization name"
+                placeholder="GitHub outpost name"
               />
             </div>
           )}

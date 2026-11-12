@@ -1,11 +1,10 @@
 import { UserPlus, Lightbulb, ShieldAlert, ShieldCheck } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
-import { formatCents } from "../lib/utils";
 
 export const typeLabel: Record<string, string> = {
   hire_agent: "Hire Agent",
-  approve_ceo_strategy: "CEO Strategy",
-  budget_override_required: "Budget Override",
+  approve_ceo_strategy: "Outpost Lead Strategy",
+  budget_override_required: "Legacy Policy Notice",
   request_board_approval: "Board Approval",
 };
 
@@ -130,21 +129,10 @@ export function CeoStrategyPayload({ payload }: { payload: Record<string, unknow
 }
 
 export function BudgetOverridePayload({ payload }: { payload: Record<string, unknown> }) {
-  const budgetAmount = typeof payload.budgetAmount === "number" ? payload.budgetAmount : null;
-  const observedAmount = typeof payload.observedAmount === "number" ? payload.observedAmount : null;
   return (
-    <div className="mt-3 space-y-1.5 text-sm">
+    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+      <p>This historical request came from a policy system that Outpost no longer enforces.</p>
       <PayloadField label="Scope" value={payload.scopeName ?? payload.scopeType} />
-      <PayloadField label="Window" value={payload.windowKind} />
-      <PayloadField label="Metric" value={payload.metric} />
-      {(budgetAmount !== null || observedAmount !== null) ? (
-        <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Limit {budgetAmount !== null ? formatCents(budgetAmount) : "—"} · Observed {observedAmount !== null ? formatCents(observedAmount) : "—"}
-        </div>
-      ) : null}
-      {!!payload.guidance && (
-        <p className="text-muted-foreground">{String(payload.guidance)}</p>
-      )}
     </div>
   );
 }

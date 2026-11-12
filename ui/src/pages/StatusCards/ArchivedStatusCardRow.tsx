@@ -5,7 +5,7 @@ import { statusCardsApi } from "@/api/statusCards";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatDateTime } from "@/lib/utils";
-import { formatCents, formatTokens, rollupUpdates } from "./format";
+import { formatTokens, rollupUpdates } from "./format";
 import type { StatusCardView } from "./types";
 
 function shortDate(iso: string | null): string {
@@ -24,7 +24,7 @@ export function ArchivedStatusCardRow({
   onRestore: () => void;
   restorePending?: boolean;
 }) {
-  // Lifetime cost is a rollup of the card's full update ledger (live P1 data).
+  // Lifetime usage is a rollup of the card's full update ledger (live P1 data).
   const updatesQuery = useQuery({
     queryKey: queryKeys.statusCards.updates(card.id),
     queryFn: () => statusCardsApi.updates(card.id),
@@ -37,7 +37,7 @@ export function ArchivedStatusCardRow({
         <p className="truncate text-sm font-semibold">{card.title ?? "Untitled card"}</p>
         <p className="mt-0.5 text-xs text-muted-foreground" title={card.archivedAt ? formatDateTime(card.archivedAt) : undefined}>
           archived {shortDate(card.archivedAt)} · last summary {shortDate(card.lastGeneratedAt)}
-          {rollup ? ` · lifetime ${formatTokens(rollup.totalTokens)} / ${formatCents(rollup.totalCostCents)}` : ""}
+          {rollup ? ` · lifetime ${formatTokens(rollup.totalTokens)}` : ""}
         </p>
       </div>
       {/* View is the more common intent on an archived row (reading the last

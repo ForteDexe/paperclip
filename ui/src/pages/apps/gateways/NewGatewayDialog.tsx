@@ -105,7 +105,7 @@ export function NewGatewayDialog({
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="CTO agents"
+              placeholder="Engineering Lead agents"
               required
               autoFocus
             />

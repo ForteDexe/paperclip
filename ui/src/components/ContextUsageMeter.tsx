@@ -138,7 +138,7 @@ export function ContextUsageCard({ usage, compact }: { usage: ContextUsage; comp
             : "Close to full. The agent will compact its context soon."}
         </p>
       ) : null}
-      {totals || usage.lastTurn || usage.costUsd != null || usage.compactions ? (
+      {totals || usage.lastTurn || usage.compactions ? (
         <dl className="mt-3 flex flex-col gap-1 border-t border-border pt-2">
           {totals?.inputTokens != null ? (
             <Row
@@ -159,7 +159,6 @@ export function ContextUsageCard({ usage, compact }: { usage: ContextUsage; comp
               muted
             />
           ) : null}
-          {usage.costUsd != null ? <Row label="Cost" value={`$${usage.costUsd.toFixed(2)}`} /> : null}
           {usage.compactions ? <Row label="Compactions" value={String(usage.compactions)} muted /> : null}
         </dl>
       ) : null}

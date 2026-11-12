@@ -152,7 +152,7 @@ export function SystemNoticeUxLab() {
               First-class system notice treatment
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Replaces the current pattern where a Paperclip-authored warning renders inside a user-style
+              Replaces the current pattern where an Outpost-authored warning renders inside a user-style
               chat bubble. The notice is one container, system-styled, with hidden-by-default operational
               metadata. Tone is conveyed by icon, label, and color together so it stays accessible.
             </p>
@@ -241,9 +241,9 @@ export function SystemNoticeUxLab() {
           <SystemNotice
             tone="danger"
             label="System alert"
-            source={{ label: "Paperclip", href: "/PAP/agents" }}
+            source={{ label: "Outpost", href: "/PAP/agents" }}
             timestamp="2026-05-04T16:48:00.000Z"
-            body="Paperclip could not resolve this issue's missing disposition automatically. The source assignment is unchanged and a board decision is required."
+            body="Outpost could not resolve this issue's missing disposition automatically. The source assignment is unchanged and a board decision is required."
             metadata={[
               {
                 title: "Recovery owner",
@@ -258,7 +258,7 @@ export function SystemNoticeUxLab() {
                   {
                     kind: "agent",
                     label: "Owner",
-                    name: "CTO",
+                    name: "Engineering Lead",
                     href: "/PAP/agents/cto",
                   },
                 ],
@@ -311,7 +311,7 @@ export function SystemNoticeUxLab() {
                           <li>Recovery run: 61fdb79b-8012-4676-ac71-2971830e126a</li>
                           <li>Status before: in_progress</li>
                           <li>Normalized cause: Run completed without disposition</li>
-                          <li>Recovery owner: CTO</li>
+                          <li>Recovery owner: Engineering Lead</li>
                           <li>Suggested action: Reassign to recovery agent</li>
                         </ul>
                       </div>
@@ -322,7 +322,7 @@ export function SystemNoticeUxLab() {
             </div>
             <p className="px-1 text-xs text-muted-foreground">
               Author reads as <span className="font-medium text-foreground">You</span> even though the
-              author is the Paperclip system. Two containers stack the warning inside a user-style
+              author is the Outpost system. Two containers stack the warning inside a user-style
               bubble, and operational evidence is always visible.
             </p>
           </div>

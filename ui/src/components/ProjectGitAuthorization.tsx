@@ -63,7 +63,7 @@ export function ProjectGitAuthorization({ project }: { project: Project }) {
       )}
       {data && !data.options.length && (
         <p className="text-sm text-muted-foreground">
-          Connect your GitHub account and install the Connector for this company to authorize it.
+          Connect your GitHub account and install the Connector for this outpost to authorize it.
         </p>
       )}
       {(authorization.error || save.error) && (

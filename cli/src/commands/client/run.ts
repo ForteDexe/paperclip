@@ -48,7 +48,7 @@ export function registerRunCommands(command: Command): void {
     command
       .command("list")
       .description("List heartbeat runs for a company")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--agent-id <id>", "Filter by agent ID")
       .option("--limit <n>", "Maximum runs to return")
       .action(async (opts: RunListOptions) => {
@@ -73,7 +73,7 @@ export function registerRunCommands(command: Command): void {
     command
       .command("live")
       .description("List queued and running heartbeat runs for a company")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--limit <n>", "Maximum runs to return")
       .option("--min-count <n>", "Pad with recent completed runs up to this count")
       .action(async (opts: RunLiveOptions) => {

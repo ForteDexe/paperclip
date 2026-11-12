@@ -21,10 +21,10 @@ import { releaseCursorCloudStaleSocket } from "./stale-socket.js";
 export const CURSOR_CLOUD_DRIVER_KIND = "cursor_cloud_api" as const;
 export const CURSOR_CLOUD_DRIVER_VERSION = "cursor-cloud-v1" as const;
 const CURSOR_CLOUD_CONTROL_INSTRUCTIONS = [
-  "You are executing in native Paperclip Runner, not a legacy REST adapter.",
-  `Paperclip control tools are provided by the injected MCP server "${CURSOR_CLOUD_MCP_SERVER_NAME}" with controller-managed MCP authentication; you do not need Paperclip REST credentials in the Cloud VM.`,
-  `At the start of each run, call get_mcp_tools({server:"${CURSOR_CLOUD_MCP_SERVER_NAME}"}) to discover its tools, then use the returned tool schemas for Paperclip task context and control.`,
-  "For Paperclip control, do not search unrelated inherited dashboard MCP namespaces or wait for their authentication.",
+  "You are executing in native Outpost Runner, not a legacy REST adapter.",
+  `Outpost control tools are provided by the injected MCP server "${CURSOR_CLOUD_MCP_SERVER_NAME}" with controller-managed MCP authentication; you do not need Outpost REST credentials in the Cloud VM.`,
+  `At the start of each run, call get_mcp_tools({server:"${CURSOR_CLOUD_MCP_SERVER_NAME}"}) to discover its tools, then use the returned tool schemas for Outpost task context and control.`,
+  "For Outpost control, do not search unrelated inherited dashboard MCP namespaces or wait for their authentication.",
   `When you need a human answer, use this server's offered request_human_input tool. Report completion with its offered ${PRP_COMPLETION_TOOL_NAME} tool, or a blocker with its offered ${PRP_BLOCK_TOOL_NAME} tool, following their schemas. Text alone does not submit a question, completion, or blocker.`,
 ].join("\n");
 type TurnAuthority = { generation: number; ownerRunId: string; turnId: string | null };

@@ -75,7 +75,7 @@ function hasSecretDefinitionAdminAccess(req: Parameters<typeof assertBoard>[0], 
 
 function assertSecretDefinitionAdmin(req: Parameters<typeof assertBoard>[0], companyId: string) {
   if (hasSecretDefinitionAdminAccess(req, companyId)) return;
-  throw forbidden("Company admin access required");
+  throw forbidden("Outpost admin access required");
 }
 
 function assertCompanySecretWrite(req: Parameters<typeof assertBoard>[0], companyId: string) {
@@ -181,7 +181,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       return { ...proposal, viewerCanApprove: false, approveBlockReason: "Proposal is no longer pending" };
     }
     if (proposal.kind === "secret" && !hasSecretDefinitionAdminAccess(req, req.params.companyId as string)) {
-      return { ...proposal, viewerCanApprove: false, approveBlockReason: "Company admin access required" };
+      return { ...proposal, viewerCanApprove: false, approveBlockReason: "Outpost admin access required" };
     }
     const decision = await bindingApprovalDecision(req, proposal);
     return {
@@ -888,7 +888,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     const companyId = req.params.companyId as string;
     if (req.actor.type === "agent") {
       assertCompanyAccess(req, companyId);
-      throw forbidden("Company secret creation requires a human board operator. Ask the human to enter the value in Settings → Secrets for this company. Do not send secret values in chat or tool calls. You can finish the current conversation response with these secure-entry instructions without claiming that credential setup is complete. If you need a resumable wait, first create a non-governing secure-save acknowledgment with request_human_input with interactionKind=\"confirmation\"; ask only whether secure entry is complete, never ask for the secret value in that card. Wait only on the actual saved request.");
+      throw forbidden("Outpost secret creation requires a human board operator. Ask the human to enter the value in Settings → Secrets for this company. Do not send secret values in chat or tool calls. You can finish the current conversation response with these secure-entry instructions without claiming that credential setup is complete. If you need a resumable wait, first create a non-governing secure-save acknowledgment with request_human_input with interactionKind=\"confirmation\"; ask only whether secure entry is complete, never ask for the secret value in that card. Wait only on the actual saved request.");
     }
     assertCompanySecretWrite(req, companyId);
     next();

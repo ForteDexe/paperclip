@@ -3,13 +3,11 @@ import {
   Activity,
   FileCode2,
   Fingerprint,
-  Gauge,
   History,
   KeyRound,
   Library,
   MessageSquare,
   PlayCircle,
-  ReceiptText,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -43,8 +41,6 @@ const localIcons = {
   advanced: FileCode2,
   activity: Activity,
   runs: PlayCircle,
-  costs: ReceiptText,
-  budgets: Gauge,
 } satisfies Record<AgentLocalDetailView, typeof Sparkles>;
 
 export function AgentContextualSidebar({

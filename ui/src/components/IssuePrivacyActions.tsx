@@ -175,7 +175,7 @@ export function IssuePrivacyActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Make this task public?</AlertDialogTitle>
             <AlertDialogDescription>
-              Everyone in the company will be able to read this task, its comments, documents, and
+              Everyone in the outpost will be able to read this task, its comments, documents, and
               run history. Existing private subtasks keep their privacy.{" "}
               {constraintsQuery.data?.leavesPersonalProject
                 ? "This task will also leave its personal project. " : null}

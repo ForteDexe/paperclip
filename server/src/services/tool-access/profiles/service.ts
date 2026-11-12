@@ -293,7 +293,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
     if (targetType === "company") {
       if (targetId !== companyId)
         throw unprocessable(
-          "Company profile bindings must target the same company id",
+          "Outpost profile bindings must target the same company id",
         );
       return;
     }

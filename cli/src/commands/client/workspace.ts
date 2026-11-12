@@ -25,7 +25,7 @@ interface OrgOutputOptions extends CompanyOptions {
 }
 
 export function registerWorkspaceCommands(program: Command): void {
-  const org = program.command("org").description("Organization chart operations");
+  const org = program.command("org").description("Outpost chart operations");
   addCompanyGet(org, "get", "Get org chart data", "org");
   addBinaryCompanyGet(org, "svg", "Download org chart SVG", "org.svg");
   addBinaryCompanyGet(org, "png", "Download org chart PNG", "org.png");
@@ -109,7 +109,7 @@ function addCompanyGet(parent: Command, name: string, description: string, path:
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: CompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -128,7 +128,7 @@ function addBinaryCompanyGet(parent: Command, name: string, description: string,
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--out <path>", "Write output to file")
       .action(async (opts: OrgOutputOptions) => {
         try {
@@ -158,7 +158,7 @@ function addCompanyPostJson(parent: Command, name: string, description: string, 
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
       .action(async (opts: JsonPayloadOptions) => {
         try {

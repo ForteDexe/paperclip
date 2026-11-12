@@ -21,7 +21,7 @@ const presets = [
   { id: "grok_bot", name: "Grok Bot", adapter: "grok_bot", description: "An existing Bot in Grok" },
   { id: "muse", name: "Muse — Personal agent", adapter: "muse", description: "Your personal Muse at muse.ai" },
   { id: "hermes", name: "Hermes", adapter: "hermes_gateway", description: "An existing Hermes agent" },
-  { id: "other", name: "Other", adapter: "http", description: "Any agent that can connect to Paperclip" },
+  { id: "other", name: "Other", adapter: "http", description: "Any agent that can connect to Outpost" },
 ] as const;
 
 export function ExternalAgentPresetPicker({ onSelect, dotDisabledReason, grokDisabledReason, museEnabled = false }: { onSelect: (preset: ExternalAgentPreset) => void; dotDisabledReason?: string; grokDisabledReason?: string; museEnabled?: boolean }) {
@@ -42,19 +42,19 @@ export function ExternalAgentPresetPicker({ onSelect, dotDisabledReason, grokDis
 }
 
 const checks = [
-  { title: "Connected to Paperclip", description: "Your Dot has connected to this agent." },
+  { title: "Connected to Outpost", description: "Your Dot has connected to this agent." },
   { title: "Task updates enabled", description: "Your Dot is subscribed to new assignments and messages." },
-  { title: "Test event confirmed", description: "Your Dot received our test and replied to Paperclip." },
+  { title: "Test event confirmed", description: "Your Dot received our test and replied to Outpost." },
 ];
 
 /** Controlled by server evidence in the invite controller, never by copying a prompt. */
 export function DotConnectionChecks({ state }: { state: DotConnectionState }) {
   const completed = { waiting: 0, connected: 1, subscribed: 2, testing: 2, finishing: 3, ready: 3 }[state.phase];
-  const message = state.problem === "agent_unavailable" ? "Connection checks passed, but this agent cannot receive tasks. Resolve the agent’s setup blocker in Paperclip."
+  const message = state.problem === "agent_unavailable" ? "Connection checks passed, but this agent cannot receive tasks. Resolve the agent’s setup blocker in Outpost."
     : state.problem === "offline" ? "Connection updates paused. Reconnect to check the latest status."
     : state.problem === "prompt_unavailable" ? "This setup prompt was replaced in another window. Create a fresh prompt to continue."
-    : state.problem === "event_timeout" ? "Your Dot connected, but hasn’t confirmed the test event. Ask it to check Paperclip, then retry."
-    : state.phase === "finishing" ? "Your Dot confirmed the test event. Paperclip is finishing agent setup."
+    : state.problem === "event_timeout" ? "Your Dot connected, but hasn’t confirmed the test event. Ask it to check Outpost, then retry."
+    : state.phase === "finishing" ? "Your Dot confirmed the test event. Outpost is finishing agent setup."
     : state.phase === "ready" ? "Your Dot is ready for tasks. Messages can travel both ways."
     : state.phase === "waiting" ? "Watching for your Dot. Updates will appear here automatically."
     : state.phase === "connected" ? "Your Dot connected. Waiting for it to enable task updates."
@@ -96,8 +96,8 @@ export type MuseConnectionState = {
 /** Receiver contact is separate from an authenticated, independent worker reply. */
 export function MuseConnectionChecks({ state }: { state: MuseConnectionState }) {
   const milestones = [
-    { title: "Paired with Paperclip", done: state.paired, description: "Paperclip authorized the scoped Muse agent connection." },
-    { title: "Receiver detected", done: state.receiverDetected, description: "Paperclip observed a public receiver check. Only an authenticated reply confirms Muse can work." },
+    { title: "Paired with Outpost", done: state.paired, description: "Outpost authorized the scoped Muse agent connection." },
+    { title: "Receiver detected", done: state.receiverDetected, description: "Outpost observed a public receiver check. Only an authenticated reply confirms Muse can work." },
     { title: "Background reply verified", done: state.backgroundReplyVerified, description: "Muse replied to an independent background test." },
   ];
   const checksPassed = milestones.every(item => item.done);
@@ -110,7 +110,7 @@ export function MuseConnectionChecks({ state }: { state: MuseConnectionState }) 
     : state.problem === "no_recent_response" ? "No recent response. Open Muse to check the current conversation and hostname permission, then test again. Silence does not identify a permission problem."
     : state.testing ? "Waiting for Muse to reply to the current background test."
     : checksPassed && state.ready ? "Muse is ready for tasks. All connection checks and agent setup passed."
-    : checksPassed ? "All connection checks passed. Paperclip is finishing agent setup."
+    : checksPassed ? "All connection checks passed. Outpost is finishing agent setup."
     : !state.paired ? "Watching for Muse to pair. Copy the setup prompt into your current Muse conversation."
     : !state.receiverDetected ? "Muse is paired. Waiting for the first persisted receiver contact."
     : "Receiver detected. Waiting for Muse to reply to the background test.";
@@ -184,23 +184,23 @@ export function ExternalAgentInviteContent({
           <DialogDescription className="text-sm leading-relaxed">
             {!provider ? `Bring an agent you already use into ${companyName}.`
               : muse ? museDetails ? `Give your personal Muse a name and role in ${companyName}.`
-              : museAwaitingInvitation ? "Muse requires an authenticated Paperclip instance with a public HTTPS URL and a company operator account."
+              : museAwaitingInvitation ? "Muse requires an authenticated Outpost instance with a public HTTPS URL and a outpost operator account."
               : ready ? `Muse can receive assignments and work with ${companyName}.`
               : !prompt && !museConnection?.paired ? "We’re checking whether this instance can prepare Muse setup."
-              : "Paste the setup prompt into your current Muse conversation. Complete Connect Paperclip if Muse asks, then approve this Paperclip hostname. Muse keeps the connection credential in its secure vault. The hostname permission applies to future requests."
+              : "Paste the setup prompt into your current Muse conversation. Complete Connect Outpost if Muse asks, then approve this Outpost hostname. Muse keeps the connection credential in its secure vault. The hostname permission applies to future requests."
               : ready ? `Your Dot can now receive assignments and work with ${companyName}.`
-              : connection.problem === "agent_unavailable" ? "Your Dot is connected. This agent must be available in Paperclip before it can receive assignments."
-              : connection.phase === "finishing" ? "Your Dot has connected and confirmed task updates. Paperclip is preparing it for assignments."
+              : connection.problem === "agent_unavailable" ? "Your Dot is connected. This agent must be available in Outpost before it can receive assignments."
+              : connection.phase === "finishing" ? "Your Dot has connected and confirmed task updates. Outpost is preparing it for assignments."
               : connecting ? "Your Dot has connected. We’re checking that task updates can travel both ways."
               : dot ? "Copy the setup prompt and send it to your Dot in ChatGPT. Your Dot will connect itself; we’ll watch for it here."
-              : `Copy the invitation prompt and send it to your ${preset === "hermes" ? "Hermes " : ""}agent. Approve its join request in Paperclip when it’s ready.`}
+              : `Copy the invitation prompt and send it to your ${preset === "hermes" ? "Hermes " : ""}agent. Approve its join request in Outpost when it’s ready.`}
           </DialogDescription>
         </div>
       </div>
       {error && <div role="alert" className="space-y-3 text-sm text-destructive"><p>{error}</p>{!museAwaitingInvitation && <Button variant="outline" disabled={busy} onClick={onRetry}>Try again</Button>}</div>}
       {!provider ? <><ExternalAgentPresetPicker onSelect={onSelect} dotDisabledReason={dotDisabledReason} grokDisabledReason={grokDisabledReason} museEnabled={museEnabled} />
         {dotDisabledReason && <p className="text-sm text-muted-foreground">{dotDisabledReason}</p>}{grokDisabledReason && grokDisabledReason !== dotDisabledReason && <p className="text-sm text-muted-foreground">{grokDisabledReason}</p>}</>
-        : approvalHref ? <p className="text-sm text-muted-foreground">An organization admin needs to approve this agent before {muse ? "Muse" : "Dot"} can connect. This page will update after approval.</p>
+        : approvalHref ? <p className="text-sm text-muted-foreground">An outpost admin needs to approve this agent before {muse ? "Muse" : "Dot"} can connect. This page will update after approval.</p>
         : museAwaitingInvitation ? busy ? <p role="status" className="text-sm text-muted-foreground">Loading Muse invitation…</p> : null
         : muse && busy && !museDetails && !prompt && !museConnection?.paired ? <p role="status" className="text-sm text-muted-foreground">Loading Muse setup…</p>
         : museDetails ? <form id={detailsId} className="space-y-4" onSubmit={event => { event.preventDefault(); if (museDraft.name.trim() && !busy) onMuseContinue?.(); }}>
@@ -215,18 +215,18 @@ export function ExternalAgentInviteContent({
               if (role) onMuseDraftChange?.({ ...museDraft, role });
             }}>{AGENT_ROLES.map(role => <option key={role} value={role}>{AGENT_ROLE_LABELS[role]}</option>)}</select>
           </div>
-          <p className="text-xs text-muted-foreground">Muse uses its own approved tools. Provider usage and cost are unavailable to Paperclip.</p>
+          <p className="text-xs text-muted-foreground">Muse uses its own approved tools. Provider usage details are not imported into Outpost.</p>
         </form>
         : muse && museConnection ? <>
           <MuseConnectionChecks state={museConnection} />
           {museConnection.problem === "no_recent_response" && <Button variant="outline" disabled={busy} onClick={onRetry}>Test background reply</Button>}
           {museConnection.problem === "offline" && <Button variant="outline" disabled={busy} onClick={onRetry}>Refresh connection</Button>}
           {!museConnection.paired && <a href="https://muse.ai" target="_blank" rel="noopener noreferrer" className="inline-flex text-sm text-foreground underline underline-offset-4">Open Muse</a>}
-          <p className="text-xs text-muted-foreground">Receiver contact is persisted in batches and may lag. Setup never creates a task. Provider usage and cost are unavailable.</p>
+          <p className="text-xs text-muted-foreground">Receiver contact is persisted in batches and may lag. Setup never creates a task. Provider usage details are not imported.</p>
         </>
         : busy && !prompt && connection.phase === "waiting" ? <p role="status" className="text-sm text-muted-foreground">Preparing your invitation…</p> : dot ? <>
         <div className="border-t pt-6"><DotConnectionChecks state={connection} />
-          {connection.phase === "waiting" && <p className="mt-4 text-xs text-muted-foreground">Dot uses your OpenAI account. Provider usage and cost aren’t reported to Paperclip.</p>}</div>
+          {connection.phase === "waiting" && <p className="mt-4 text-xs text-muted-foreground">Dot uses your OpenAI account. Provider usage details aren’t imported into Outpost.</p>}</div>
         {connection.problem === "event_timeout" && <Button variant="outline" disabled={busy} onClick={onRetry}>Retry test event</Button>}
         {connection.problem === "offline" && <Button variant="outline" disabled={busy} onClick={onRetry}>Reconnect updates</Button>}
       </> : <p className="text-sm leading-relaxed text-muted-foreground">The invitation includes everything your agent needs to join {companyName}. You can review its request before granting access.</p>}

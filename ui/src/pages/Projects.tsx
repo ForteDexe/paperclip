@@ -13,7 +13,7 @@ import { ArtifactEmptyGraphic } from "@/components/artifacts/v1/ArtifactEmptyGra
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
-import { formatDate, formatNumber, formatProjectBudget, projectUrl } from "../lib/utils";
+import { formatDate, formatNumber, projectUrl } from "../lib/utils";
 import {
   isStarred,
   resourceMembershipState,
@@ -118,7 +118,7 @@ export function Projects() {
   }, [membershipsQuery.data, sortedProjects]);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Hexagon} message="Select an organization to view projects." />;
+    return <EmptyState icon={Hexagon} message="Select an outpost to view projects." />;
   }
 
   // Keep a loaded list on screen through a failed refetch; only a real
@@ -199,11 +199,6 @@ export function Projects() {
                             >
                               {formatNumber(project.taskCount ?? 0)} task{(project.taskCount ?? 0) === 1 ? "" : "s"}
                             </span>
-                            {project.budget && (
-                              <span className="hidden text-xs text-muted-foreground tabular-nums sm:inline">
-                                {formatProjectBudget(project.budget)}
-                              </span>
-                            )}
                             {project.targetDate && (
                               <span className="hidden text-xs text-muted-foreground md:inline">
                                 {formatDate(project.targetDate)}

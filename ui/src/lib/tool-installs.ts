@@ -4,8 +4,8 @@ import type { ToolConnectionInstall } from "@paperclipai/shared";
  * Shared "Permitted vs Installed" helpers (Phase 3b, PAP-13618).
  *
  * The one mental model: `installed ⊆ permitted`. **Access** = who may use an
- * app (zero context cost). **Installed** = whose harness actually carries the
- * app's tools on every run (a real per-run context cost). These helpers derive
+ * app (zero context overhead). **Installed** = whose harness actually carries the
+ * app's tools on every run (real per-run context overhead). These helpers derive
  * the install state from a connection's `installs` rows and centralize the
  * copy so every surface (app detail, agent Tools tab, connect flow) speaks the
  * same language.
@@ -49,7 +49,7 @@ export function installInfoNotice(appName: string): string {
 }
 
 export const INSTALL_ALL_WARNING =
-  "Adds context cost to every run of every agent — a deliberate choice. New agents you add later are installed automatically.";
+  "Adds context overhead to every run of every agent — a deliberate choice. New agents you add later are installed automatically.";
 
 export function autoExtendNotice(agentName: string): string {
   return `Installing on ${agentName} will also grant access. A tool can't be installed on an agent that isn't allowed to use it, so we'll add ${agentName} to who can use it. This is logged.`;

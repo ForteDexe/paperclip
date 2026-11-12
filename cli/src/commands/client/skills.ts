@@ -90,7 +90,7 @@ export interface CompanySkillUpdateRow {
 }
 
 export function registerSkillsCommands(program: Command): void {
-  const skills = program.command("skills").description("Company and agent skill operations");
+  const skills = program.command("skills").description("Outpost and agent skill operations");
 
   addCommonClientOptions(
     skills
@@ -161,7 +161,7 @@ export function registerSkillsCommands(program: Command): void {
       .command("install")
       .description("Install a catalog skill into the company skill library; does not attach it to agents")
       .argument("<catalogRef>", "Catalog skill ID, key, or unique slug")
-      .option("--as <slug>", "Company skill slug override")
+      .option("--as <slug>", "Outpost skill slug override")
       .option("--force", "Replace a same-key catalog-managed skill when the server allows it", false)
       .action(async (catalogRef: string, opts: CatalogInstallOptions) => {
         try {
@@ -210,7 +210,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("show")
       .description("Show company skill details")
-      .argument("<skillRef>", "Company skill ID, key, or unique slug")
+      .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .action(async (skillRef: string, opts: SkillsOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -230,7 +230,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("file")
       .description("Print a company skill file")
-      .argument("<skillRef>", "Company skill ID, key, or unique slug")
+      .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .option("--path <path>", "Relative file path", "SKILL.md")
       .action(async (skillRef: string, opts: SkillFileOptions) => {
         try {
@@ -352,7 +352,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("check")
       .description("Check company skill update status")
-      .argument("[skillRef]", "Company skill ID, key, or unique slug")
+      .argument("[skillRef]", "Outpost skill ID, key, or unique slug")
       .action(async (skillRef: string | undefined, opts: SkillsOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -373,7 +373,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("update")
       .description("Install company skill updates")
-      .argument("[skillRef]", "Company skill ID, key, or unique slug")
+      .argument("[skillRef]", "Outpost skill ID, key, or unique slug")
       .option("--all", "Check all skills and install available updates", false)
       .option("--force", "Discard local-modification or soft-audit holds; hard-stop audit findings still fail", false)
       .action(async (skillRef: string | undefined, opts: SkillUpdateOptions) => {
@@ -401,7 +401,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("audit")
       .description("Audit installed company skill bytes without executing them")
-      .argument("[skillRef]", "Company skill ID, key, or unique slug")
+      .argument("[skillRef]", "Outpost skill ID, key, or unique slug")
       .action(async (skillRef: string | undefined, opts: SkillsOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -422,7 +422,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("reset")
       .description("Reset a catalog-managed company skill to its pinned installed origin")
-      .argument("<skillRef>", "Company skill ID, key, or unique slug")
+      .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .option("--yes", "Confirm reset without prompting", false)
       .option("--force", "Discard local modifications or accept soft audit warnings; hard-stop audit findings still fail", false)
       .action(async (skillRef: string, opts: ConfirmedSkillOptions) => {
@@ -450,7 +450,7 @@ export function registerSkillsCommands(program: Command): void {
     skills
       .command("remove")
       .description("Remove a company skill")
-      .argument("<skillRef>", "Company skill ID, key, or unique slug")
+      .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .option("--yes", "Confirm removal without prompting", false)
       .action(async (skillRef: string, opts: ConfirmedSkillOptions) => {
         try {

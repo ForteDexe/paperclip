@@ -1,18 +1,18 @@
-# Campfire for Paperclip
+# Campfire for Outpost
 
-Campfire is a Paperclip plugin for persistent, multi-agent development rooms.
-Each Paperclip agent may be booked into one room at a time. The plugin stores
+Campfire is an Outpost plugin for persistent, multi-agent development rooms.
+Each Outpost agent may be booked into one room at a time. The plugin stores
 room membership, messages, delivery receipts, and the current native agent
 session in its company-scoped database namespace.
 
 ## Current vertical slice
 
 - Create explicitly named rooms; no misleading default room is created.
-- Associate a room with the active Paperclip project when created from project context.
-- Invite existing Paperclip agents and give each a stable room handle.
+- Associate a room with the active Outpost project when created from project context.
+- Invite existing Outpost agents and give each a stable room handle.
 - Enforce one-room-at-a-time agent booking.
 - Send to every room member by default or only named `@handles`.
-- Create one persistent Paperclip agent session per booked agent and room.
+- Create one persistent Outpost agent session per booked agent and room.
 - Send only the new message on later turns; the native Codex/Claude session retains context.
 - Keep that session stable across turns; Campfire does not rotate it for context size.
 - Stream agent activity and persist final replies into the room feed.
@@ -20,7 +20,7 @@ session in its company-scoped database namespace.
 
 ## Local development
 
-From the Paperclip repository root:
+From the Outpost repository root:
 
 ```powershell
 corepack pnpm install --ignore-scripts
@@ -30,7 +30,7 @@ corepack pnpm --filter @forted/plugin-campfire exec vitest run
 corepack pnpm paperclipai run
 ```
 
-`--ignore-scripts` avoids Paperclip's optional excluded-plugin symlink setup,
+`--ignore-scripts` avoids Outpost's optional excluded-plugin symlink setup,
 which requires Windows Developer Mode or an elevated shell. It is not needed
 to build or run Campfire.
 
@@ -41,7 +41,7 @@ corepack pnpm paperclipai plugin install "$PWD\packages\plugins\plugin-campfire"
 corepack pnpm paperclipai plugin inspect forted.campfire
 ```
 
-Open **Campfire** in the Paperclip sidebar, create a room for a development
+Open **Campfire** in the Outpost sidebar, create a room for a development
 scope, invite at least one configured Codex or Claude agent, and send a message.
 
 ## Deliberately deferred

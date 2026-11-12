@@ -1313,7 +1313,7 @@ async function consumeTurn(
     };
     if (initialGovernedWait) {
       return settleDurableResult(initialGovernedWait.sourceEvent, initialGovernedWait.result,
-        "Paperclip resumed settlement of this durable governed interaction.");
+        "Outpost resumed settlement of this durable governed interaction.");
     }
     while (true) {
       const next = await eventIterator.next().catch((error) => {
@@ -1495,7 +1495,7 @@ async function consumeTurn(
         return settleDurableResult(
           event,
           governedResult,
-          "Paperclip parked this turn on a durable governed interaction.",
+          "Outpost parked this turn on a durable governed interaction.",
         );
       }
       if (sessionGoalObserved) {
@@ -2800,7 +2800,7 @@ export async function executeNativeSession(
       message: { role: "user" as const, text: JSON.stringify({
         schema: "paperclip.native-continuation.v1",
         events: [
-          "This is a resumed session. The process running the previous turn was lost, for example in a Paperclip restart. Paperclip restored this same conversation and workspace; that loss interrupted the previous turn.",
+          "This is a resumed session. The process running the previous turn was lost, for example in an Outpost restart. Outpost restored this same conversation and workspace; that loss interrupted the previous turn.",
           "Continue the current user request from the recorded progress and preserved workspace.",
           ...(steeredMessages.length > 0 ? [
             "During the interrupted turn the user sent the messages in steeredMessages. The interruption happened before you read them. Handle each one in this turn, oldest first, together with the current request.",
@@ -2831,8 +2831,8 @@ export async function executeNativeSession(
       envelope.completionContract = structuredClone(input.completionContract.contract);
       if ("requestedSkills" in envelope) envelope.requestedSkills = [];
       envelope.task.prompt = [
-        "Paperclip semantic-result recovery after a restart continuation.",
-        "The previous turn ended without paperclip_finish or paperclip_block, so Paperclip cannot settle this task.",
+        "Outpost semantic-result recovery after a restart continuation.",
+        "The previous turn ended without paperclip_finish or paperclip_block, so Outpost cannot settle this task.",
         "Do not repeat completed work. If a command you started is still running, wait for or check it in this turn; nothing resumes this conversation after the turn ends.",
         "Then invoke exactly one paperclip_finish or paperclip_block with the accurate current disposition, and stop.",
       ].join("\n");
@@ -3183,7 +3183,7 @@ export async function executeNativeSession(
             modelEnvelope.completionContract = structuredClone(input.completionContract.contract);
             if ("requestedSkills" in modelEnvelope) modelEnvelope.requestedSkills = [];
             modelEnvelope.task.prompt = [
-              "Paperclip semantic-result recovery for a prior completed provider turn.",
+              "Outpost semantic-result recovery for a prior completed provider turn.",
               "The prior turn already performed the work and its user-facing final answer is recorded.",
               "Do not repeat implementation, tests, research, or the final answer.",
               "Use the existing session context to invoke exactly one paperclip_finish or paperclip_block with the accurate current disposition, then stop without additional user-facing prose.",

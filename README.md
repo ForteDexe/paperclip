@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="doc/assets/banner.jpg" alt="Paperclip is the app people use to manage AI agents for work." width="720" />
+  <img src="doc/assets/banner.jpg" alt="Outpost coordinates persistent AI agents and their work." width="720" />
 </p>
 
 <p align="center">
@@ -29,28 +29,24 @@
 </div>
 
 <p align="center">
-  <a href="https://paperclip.ing/waitlist/"><strong>Sign up for the Paperclip Cloud waitlist →</strong></a>
+  <strong>Outpost is a private fork focused on persistent agent sessions and Campfire collaboration.</strong>
 </p>
 
 <br/>
 
-# Paperclip is the app people use to manage AI agents for work.
+# Outpost coordinates persistent AI agents and their work.
 
 Open-source orchestration for teams of AI agents.
 
-**If OpenClaw is an _employee_, Paperclip is the _company_.**
+Outpost is a Node.js server and React UI for persistent AI-agent sessions. Bring your own agents, give each a durable scope, coordinate work, and use Campfire for shared group chat while keeping tasks, skills, permissions, and history together.
 
-Paperclip is a Node.js server and React UI that orchestrates a team of AI agents to run a business. Bring your own agents, assign goals, and track work and costs from one dashboard. Choose models and harnesses per agent while keeping your team's tasks, skills, permissions, and history in one place.
-
-It looks like a task manager. Under the hood: org charts, budgets, governance, goal alignment, and agent coordination.
-
-**Manage business goals, not pull requests.**
+The fork keeps Outpost's internal package names, API fields, database schema, environment variables, and migration history for compatibility. See [the fork policy and terminology map](doc/OUTPOST_FORK.md).
 
 |        | Step            | Example                                                            |
 | ------ | --------------- | ------------------------------------------------------------------ |
-| **01** | Define the goal | _"Build the #1 AI note-taking app to $1M MRR."_                    |
-| **02** | Hire the team   | CEO, CTO, engineers, designers, marketers — any bot, any provider. |
-| **03** | Approve and run | Review strategy. Set budgets. Hit go. Monitor from the dashboard.  |
+| **01** | Define the North Star | _"Ship the next useful version of this project."_                  |
+| **02** | Form the crew   | Outpost Lead, Engineering Lead, specialists — any bot, any provider. |
+| **03** | Approve and run | Review direction. Start work. Monitor from the dashboard.          |
 
 <br/>
 
@@ -81,34 +77,33 @@ Custom processes, HTTP endpoints, and external adapter packages extend the roste
 
 <br/>
 
-## Paperclip is right for you if
+## Outpost is right for you if
 
-- ✅ You want to build **autonomous AI organizations**
-- ✅ You **coordinate many different agents** (OpenClaw, Codex, Claude, Cursor) toward a common goal
+- ✅ You want persistent AI agents with clear development scopes
+- ✅ You **coordinate many different agents** (OpenClaw, Codex, Claude, Cursor) toward a common North Star
 - ✅ You have **20 simultaneous Claude Code terminals** open and lose track of what everyone is doing
 - ✅ You want agents running **autonomously 24/7**, but still want to audit work and chime in when needed
-- ✅ You want to **monitor costs** and enforce budgets
 - ✅ You want a process for managing agents that **feels like using a task manager**
-- ✅ You want to manage your autonomous businesses **from your phone**
+- ✅ You want to review and coordinate agent work **from your phone**
 
 <br/>
 
 ## The four pillars
 
-Four things have to work for an organization of AI agents to actually produce: the tasks, the org, the training, and the infrastructure. Paperclip is built around exactly those four pillars.
+Four things have to work for a crew of AI agents to produce: tasks, ownership, training, and infrastructure. Outpost is built around those pillars.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/paperclipai/paperclip/1ec33ffd8b597f7e36aac3e2fbb4665b8c42dc3c/doc/assets/four-pillars-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/paperclipai/paperclip/1ec33ffd8b597f7e36aac3e2fbb4665b8c42dc3c/doc/assets/four-pillars-light.png">
-  <img src="https://raw.githubusercontent.com/paperclipai/paperclip/1ec33ffd8b597f7e36aac3e2fbb4665b8c42dc3c/doc/assets/four-pillars-light.png" alt="The four pillars of Paperclip">
+  <img src="https://raw.githubusercontent.com/paperclipai/paperclip/1ec33ffd8b597f7e36aac3e2fbb4665b8c42dc3c/doc/assets/four-pillars-light.png" alt="The four pillars of Outpost">
 </picture>
 
 | Pillar | Built for | What it covers |
 | --- | --- | --- |
 | **Agentic Task Manager** — Declare intent. Agents work. You verify the output. | Everyone, daily | Tasks, approvals & review gates · proactive agent coworkers · auditable routines & workflows · verify from diffs, screenshots & tests |
-| **Org Chart for Agents** — Roles, permissions & boundaries for humans and agents. | Managers | Mixed human + agent org chart · responsibilities, delegation, specialization · governance: who can do what · scoped secrets & company boundaries · connection permissions & responsible-user identities |
+| **Crew Map for Agents** — Roles, permissions & boundaries for humans and agents. | Leads | Mixed human + agent crew map · responsibilities, delegation, specialization · governance: who can do what · scoped secrets & outpost boundaries · connection permissions & responsible-user identities |
 | **Agent Employee Training** — Design, train & evaluate your AI employees. | Enablers | Skill Studio & shared org-wide skills · evals & saved test runs · active learning loops & quality metrics · performance reviews for agents · saved test inputs · skill version history & restore · reusable team templates |
-| **Agentic OS** — The infrastructure that makes the work run. | IT & platform | Cross-provider runtime: any model, any agent · sandboxing, integrations & MCP servers · SSO, GRC, RBAC & cost controls · data privacy, internal trace collection, compounding data value · personal & shared app connections · run history & opt-in tracing |
+| **Agentic OS** — The infrastructure that makes the work run. | IT & platform | Cross-provider runtime: any model, any agent · sandboxing, integrations & MCP servers · SSO, GRC & RBAC · data privacy · personal & shared app connections · local run history |
 
 <br/>
 
@@ -118,25 +113,25 @@ Four things have to work for an organization of AI agents to actually produce: t
 <tr>
 <td align="center" width="33%">
 <h3>🔌 Bring Your Own Agent</h3>
-Any agent, any runtime, one org chart. If it can receive a heartbeat, it's hired.
+Any agent, any runtime, one crew map. If it can receive a heartbeat, it can join the crew.
 </td>
 <td align="center" width="33%">
-<h3>🎯 Goal Alignment</h3>
-Link tasks and projects to your organization goals. Agents receive the goal context behind their work.
+<h3>🎯 North Star Alignment</h3>
+Link tasks and projects to your outpost North Stars. Agents receive the North Star context behind their work.
 </td>
 <td align="center" width="33%">
 <h3>💓 Heartbeats</h3>
-Agents wake for assigned work, follow-up messages, or configured schedules. Delegation flows up and down the org chart.
+Agents wake for assigned work, follow-up messages, or configured schedules. Delegation follows the crew map.
 </td>
 </tr>
 <tr>
 <td align="center">
-<h3>💰 Cost Control</h3>
-Company, agent, and project <a href="https://docs.paperclip.ing/guides/day-to-day/costs/">budgets</a>. Track reported spend, get threshold alerts, and pause work at configured limits.
+<h3>🔥 Campfire</h3>
+Persistent group chat lets people and agents coordinate in shared rooms.
 </td>
 <td align="center">
-<h3>🏢 Multi-Organization</h3>
-One deployment, many organizations. Separate tasks, agents, permissions, and activity histories for each.
+<h3>🏕️ Multiple Outposts</h3>
+One deployment, multiple outposts. Keep tasks, agents, permissions, and activity histories separate.
 </td>
 <td align="center">
 <h3>🎫 Task Threads</h3>
@@ -149,12 +144,12 @@ Keep conversations, plans, blockers, files, and run history attached to the work
 Configure <a href="https://docs.paperclip.ing/guides/day-to-day/approvals/">review and approval stages</a>, approve hires, and pause, reassign, or stop work when needed.
 </td>
 <td align="center">
-<h3>📊 Org Chart</h3>
-Hierarchies, roles, reporting lines. Your agents have a boss, a title, and a job description.
+<h3>📊 Crew Map</h3>
+Roles, reporting lines, and durable scopes make ownership explicit.
 </td>
 <td align="center">
 <h3>📱 Mobile Ready</h3>
-Monitor and manage your autonomous businesses from anywhere.
+Monitor and coordinate agent work from anywhere.
 </td>
 </tr>
 <tr>
@@ -187,47 +182,47 @@ Preview and install <a href="https://docs.paperclip.ing/guides/org/team-catalog/
 </tr>
 </table>
 
-Experimental **Agent Chat** and **chat/email connectors** add conversations with agents in Paperclip and through configured services such as Slack, Discord, Telegram, and AgentMail. Enable the relevant instance settings to try them.
+Experimental **Agent Chat** and **chat/email connectors** add conversations with agents in Outpost and through configured services such as Slack, Discord, Telegram, and AgentMail. Enable the relevant instance settings to try them.
 
 <br/>
 
-## Problems Paperclip solves
+## Problems Outpost solves
 
-| Without Paperclip                                                                                                                     | With Paperclip                                                                                                                         |
+| Without Outpost                                                                                                                     | With Outpost                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | ❌ You have 20 Claude Code tabs open and can't track which one does what. On reboot you lose everything.                              | ✅ Tasks are ticket-based, conversations are threaded, sessions persist across reboots.                                                |
-| ❌ You manually gather context from several places to remind your bot what you're actually doing.                                     | ✅ Context flows from the task up through the project and company goals — your agent always knows what to do and why.                  |
-| ❌ Folders of agent configs are disorganized and you're re-inventing task management, communication, and coordination between agents. | ✅ Paperclip gives you org charts, ticketing, delegation, and governance out of the box — so you run a company, not a pile of scripts. |
-| ❌ Runaway loops waste hundreds of dollars of tokens and max your quota before you even know what happened.                           | ✅ Spend tracking, budget alerts, and automatic pauses help you control the cost of ongoing work.                                       |
+| ❌ You manually gather context from several places to remind your bot what you're actually doing.                                     | ✅ Context flows from the task up through the project and outpost North Stars — your agent always knows what to do and why.                  |
+| ❌ Folders of agent configs are disorganized and you're re-inventing task management, communication, and coordination between agents. | ✅ Outpost gives you crew maps, ticketing, delegation, and governance out of the box — so you coordinate one durable outpost, not a pile of scripts. |
+| ❌ Long-running work is hard to supervise across many sessions.                                                                      | ✅ Run history, stop controls, and durable task state keep execution visible and recoverable.                                           |
 | ❌ You have recurring jobs (customer support, social, reports) and have to remember to manually kick them off.                        | ✅ Routines create assigned tasks on a schedule, with outputs and run history you can inspect.                                         |
-| ❌ You have an idea, you have to find your repo, fire up Claude Code, keep a tab open, and babysit it.                                | ✅ Add a task in Paperclip. Your coding agent works on it until it's done. Management reviews their work.                              |
+| ❌ You have an idea, you have to find your repo, fire up Claude Code, keep a tab open, and babysit it.                                | ✅ Add a task in Outpost. Your coding agent works on it until it's done. Management reviews their work.                              |
 
 <br/>
 
-## Why Paperclip is special
+## Why Outpost is special
 
-Paperclip handles the hard orchestration details correctly.
+Outpost handles the hard orchestration details correctly.
 
 |                                   |                                                                                                               |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | **Atomic task checkout.**         | A single assignee and execution locks prevent competing runs from claiming the same task.                    |
-| **Persistent work context.**      | Tasks, comments, and documents stay in Paperclip. Supporting adapters resume saved sessions across runs.       |
-| **Runtime skill injection.**      | Agents can learn Paperclip workflows and project context at runtime, without retraining.                      |
+| **Persistent work context.**      | Tasks, comments, and documents stay in Outpost. Supporting adapters resume saved sessions across runs.       |
+| **Runtime skill injection.**      | Agents can learn Outpost workflows and project context at runtime, without retraining.                      |
 | **Governance with rollback.**     | Approval gates are enforced, config changes are revisioned, and bad changes can be rolled back safely.        |
 | **Accountable connections.**      | Human access, agent eligibility, and gateway action permissions are separate controls. Approve a call once or save a revocable rule. |
-| **Goal-aware execution.**         | Linked tasks and projects carry goal ancestry so agents see the "why," not just a title.                      |
-| **Portable company templates.**   | Export/import orgs, agents, and skills with secret scrubbing and collision handling.                          |
-| **Organization boundaries.**      | Company-scoped access checks keep each organization's work, agents, and activity separate within one deployment. |
+| **North Star-aware execution.**         | Linked tasks and projects carry North Star ancestry so agents see the "why," not just a title.                      |
+| **Portable outpost templates.**   | Export/import outposts, agents, and skills with secret scrubbing and collision handling.                      |
+| **Outpost boundaries.**           | Compatibility-layer access checks keep each outpost's work, agents, and activity separate within one deployment. |
 
 <br/>
 
 ## What's Under the Hood
 
-Paperclip is a full control plane, not a wrapper. Before you build any of this yourself, know that it already exists:
+Outpost is a full control plane, not a wrapper. Before you build any of this yourself, know that it already exists:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                       PAPERCLIP SERVER                       │
+│                         OUTPOST SERVER                       │
 │                                                              │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
 │  │Identity & │  │  Work &   │  │ Heartbeat │  │Governance │  │
@@ -235,12 +230,12 @@ Paperclip is a full control plane, not a wrapper. Before you build any of this y
 │  └───────────┘  └───────────┘  └───────────┘  └───────────┘  │
 │                                                              │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-│  │ Org Chart │  │Workspaces │  │  Plugins  │  │  Budget   │  │
-│  │ & Agents  │  │ & Runtime │  │           │  │ & Costs   │  │
+│  │ Crew Map  │  │Workspaces │  │  Plugins  │  │ Campfire  │  │
+│  │ & Agents  │  │ & Runtime │  │           │  │Group Chat │  │
 │  └───────────┘  └───────────┘  └───────────┘  └───────────┘  │
 │                                                              │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-│  │ Routines  │  │ Secrets & │  │ Activity  │  │  Company  │  │
+│  │ Routines  │  │ Secrets & │  │ Activity  │  │  Outpost  │  │
 │  │& Schedules│  │  Storage  │  │ & Events  │  │Portability│  │
 │  └───────────┘  └───────────┘  └───────────┘  └───────────┘  │
 └──────────────────────────────────────────────────────────────┘
@@ -257,24 +252,24 @@ Paperclip is a full control plane, not a wrapper. Before you build any of this y
 <tr>
 <td width="50%">
 
-**Identity & Access** — Two deployment modes (trusted local or authenticated), human roles and permissions, agent API keys, short-lived run JWTs, company memberships, and invite flows. Responsible-user attribution follows work through delegation and supported managed connections.
+**Identity & Access** — Two deployment modes (trusted local or authenticated), human roles and permissions, agent API keys, short-lived run JWTs, outpost crew access, and invite flows. Responsible-user attribution follows work through delegation and supported managed connections.
 
 </td>
 <td width="50%">
 
-**Org Chart & Agents** — Agents have roles, titles, reporting lines, permissions, and budgets. Adapter examples match the diagram: Claude Code, Codex, CLI agents such as Cursor/Gemini/bash, HTTP/webhook bots such as OpenClaw, and external adapter plugins. If it can receive a heartbeat, it's hired.
+**Crew Map & Agents** — Agents have roles, titles, reporting lines, permissions, and durable scopes. Adapter examples match the diagram: Claude Code, Codex, CLI agents such as Cursor/Gemini/bash, HTTP/webhook bots such as OpenClaw, and external adapter plugins.
 
 </td>
 </tr>
 <tr>
 <td>
 
-**Work & Task System** — Issues carry company/project/goal/parent links, atomic checkout with execution locks, first-class blocker dependencies, comments, documents, attachments, work products, labels, and inbox state. Search across work, review document revisions, and leave anchored feedback.
+**Work & Task System** — Issues carry outpost/project/North Star/parent links, atomic checkout with execution locks, first-class blocker dependencies, comments, documents, attachments, work products, labels, and inbox state. Search across work, review document revisions, and leave anchored feedback.
 
 </td>
 <td>
 
-**Heartbeat Execution** — DB-backed wakeup queue with coalescing, budget checks, workspace resolution, secret injection, skill loading, and adapter invocation. Runs produce logs, usage records, and adapter-specific session state. Bounded recovery handles supported failures and surfaces cases that need human action.
+**Heartbeat Execution** — DB-backed wakeup queue with coalescing, workspace resolution, secret injection, skill loading, and adapter invocation. Runs produce logs, usage records, and adapter-specific session state. Bounded recovery handles supported failures and surfaces cases that need human action.
 
 </td>
 </tr>
@@ -286,14 +281,12 @@ Paperclip is a full control plane, not a wrapper. Before you build any of this y
 </td>
 <td>
 
-**Governance & Approvals** — Board approval workflows, execution policies with review/approval stages, decision tracking, budget hard-stops, and agent pause/resume/terminate. Configured task reviews govern completion; connection action approvals govern calls through the tool gateway.
+**Governance & Approvals** — Review and approval workflows, execution policies, decision tracking, and agent pause/resume/terminate. Configured task reviews govern completion; connection action approvals govern calls through the tool gateway.
 
 </td>
 </tr>
 <tr>
 <td>
-
-**Budget & Cost Control** — Token and cost tracking by company, agent, project, goal, issue, provider, and model. Scoped budget policies with warning thresholds and hard stops. Enforcement uses recorded spend; usage reporting and in-flight work can delay a stop.
 
 </td>
 <td>
@@ -305,24 +298,24 @@ Paperclip is a full control plane, not a wrapper. Before you build any of this y
 <tr>
 <td>
 
-**[Plugins](https://docs.paperclip.ing/administration/plugins/)** — Instance-wide plugin system with out-of-process workers, capability-gated host services, job scheduling, tool exposure, and UI contributions. Extend Paperclip without forking it.
+**[Plugins](https://docs.paperclip.ing/administration/plugins/)** — Instance-wide plugin system with out-of-process workers, capability-gated host services, job scheduling, tool exposure, and UI contributions. Extend Outpost without forking it.
 
 </td>
 <td>
 
-**Secrets & Storage** — Company secrets and per-person secret values, encrypted credential storage, local or S3-compatible file storage, attachments, and work products. Secret references supply credentials to authorized runs without copying values into ordinary agent configuration.
+**Secrets & Storage** — Outpost secrets and per-person secret values, encrypted credential storage, local or S3-compatible file storage, attachments, and work products. Secret references supply credentials to authorized runs without copying values into ordinary agent configuration.
 
 </td>
 </tr>
 <tr>
 <td>
 
-**Activity & Events** — Mutating actions, heartbeat state changes, cost events, approvals, comments, and work products are recorded as durable activity so operators can audit what happened and why.
+**Activity & Events** — Mutating actions, heartbeat state changes, run events, approvals, comments, and work products are recorded as durable activity so operators can audit what happened and why.
 
 </td>
 <td>
 
-**[Company Portability](https://docs.paperclip.ing/guides/power/export-import/)** — Preview, export, and import organization packages with agents, skills, and optional projects, routines, tasks, and attachments. Referenced secret values are omitted; review packages before sharing because plain environment values and local paths can remain. Packages share an operating setup; full-instance recovery uses backups.
+**[Outpost Portability](https://docs.paperclip.ing/guides/power/export-import/)** — Preview, export, and import outpost packages with agents, skills, and optional projects, routines, tasks, and attachments. Referenced secret values are omitted; review packages before sharing because plain environment values and local paths can remain. Packages share an operating setup; full-instance recovery uses backups.
 
 </td>
 </tr>
@@ -330,14 +323,14 @@ Paperclip is a full control plane, not a wrapper. Before you build any of this y
 
 <br/>
 
-## What Paperclip is not
+## What Outpost is not
 
 |                              |                                                                                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **Not just a chatbot.**      | Conversations stay attached to tasks, plans, decisions, and outputs. Experimental Agent Chat can hand work off to assigned tasks.    |
-| **Not an agent framework.**  | We don't tell you how to build agents. We tell you how to run a company made of them.                                |
-| **Not just a workflow builder.** | Routines operate within an organization, with roles, goals, budgets, and governance.                  |
-| **Not a prompt manager.**    | Agents bring their own prompts, models, and runtimes. Paperclip manages the organization they work in.               |
+| **Not an agent framework.**  | We don't tell you how to build agents. We coordinate persistent agents as one crew.                                |
+| **Not just a workflow builder.** | Routines operate within an outpost, with roles, North Stars, and governance.                                  |
+| **Not a prompt manager.**    | Agents bring their own prompts, models, and runtimes. Outpost manages the shared scope they work in.               |
 | **Not limited to one agent.** | Start with one agent and grow into a team with shared skills, delegation, and review.                                              |
 | **Not only for code review.** | Coding and PR review fit alongside research, operations, content, and other work.                                                  |
 
@@ -345,9 +338,9 @@ Paperclip is a full control plane, not a wrapper. Before you build any of this y
 
 ## Quickstart
 
-Open source. Self-hosted. No Paperclip account required. Follow the [guided quickstart](https://docs.paperclip.ing/guides/getting-started/five-minute-path/) to set up your first agent.
+Open source. Self-hosted. No Outpost account required. Follow the [guided quickstart](https://docs.paperclip.ing/guides/getting-started/five-minute-path/) to set up your first agent.
 
-### Just ask your agent to install Paperclip
+### Just ask your agent to install Outpost
 
 Share the [installation guide](https://docs.paperclip.ing/reference/cli/installation/) with your agent.
 
@@ -363,7 +356,7 @@ The CLI runs from npm's cache; your instance configuration and data persist loca
 
 See the [installation guide](https://docs.paperclip.ing/reference/cli/installation/) for managed installs, pinned versions, canary and git-ref installs, updates, rollback, service management, and uninstalling.
 
-For an isolated manual test instance that is already initialized with a CEO
+For an isolated manual test instance that is already initialized with an Outpost Lead
 agent, use `test-drive`. It stays in the foreground, never installs a service
 or creates a first task, and opens the browser only after setup succeeds:
 
@@ -406,7 +399,7 @@ npx paperclipai@latest onboard --yes --bind lan
 npx paperclipai@latest onboard --yes --bind tailnet
 ```
 
-If you already have Paperclip configured, rerunning `onboard` keeps the existing config in place. Use `npx paperclipai configure` to edit settings.
+If you already have Outpost configured, rerunning `onboard` keeps the existing config in place. Use `npx paperclipai configure` to edit settings.
 
 Or manually:
 
@@ -422,9 +415,9 @@ This starts the UI and API at `http://localhost:3100`. An embedded PostgreSQL da
 > **Requirements:** Node.js 24.11+, pnpm 9.15+
 
 Local Claude and Codex subscription sign-in also needs Python 3 and the
-corresponding provider CLI on the Paperclip host. The Docker image includes them.
+corresponding provider CLI on the Outpost host. The Docker image includes them.
 
-Source development also builds the native Paperclip Runner when enabled (the self-hosted default). Install a Rust toolchain, or set `PAPERCLIP_RUNNER_BINARY` to a compatible prebuilt runner.
+Source development also builds the native Outpost Runner when enabled (the self-hosted default). Install a Rust toolchain, or set `PAPERCLIP_RUNNER_BINARY` to a compatible prebuilt runner.
 
 <br/>
 
@@ -432,33 +425,33 @@ Source development also builds the native Paperclip Runner when enabled (the sel
 
 **Q: Is this project maintained or just slop?**
 
-**A:** Paperclip is maintained by the [Paperclip team](https://paperclip.ing). We've merged [over 2,700 pull requests](https://github.com/paperclipai/paperclip/pulls?q=is%3Apr+is%3Amerged).
+**A:** Outpost is maintained by the [Outpost team](https://paperclip.ing). We've merged [over 2,700 pull requests](https://github.com/paperclipai/paperclip/pulls?q=is%3Apr+is%3Amerged).
 
 <br/>
 
 **Q: What does a typical setup look like?**
 
-**A:** Locally, a single Node.js process manages an embedded Postgres and local file storage. For production, point it at your own Postgres and deploy however you like. Configure projects, agents, and goals — the agents take care of the rest.
+**A:** Locally, a single Node.js process manages an embedded Postgres and local file storage. For production, point it at your own Postgres and deploy however you like. Configure projects, agents, and North Stars — the agents take care of the rest.
 
 For remote access, use authenticated mode with a private-network bind such as Tailscale, or deploy the persistent server with Docker. See [deployment modes](https://docs.paperclip.ing/reference/deploy/deployment-modes/) and the [Docker guide](https://docs.paperclip.ing/reference/deploy/docker/).
 
 <br/>
 
-**Q: Can I run multiple companies?**
+**Q: Can I run multiple outposts?**
 
-**A:** Yes. A single deployment can host multiple organizations with company-scoped data and access checks.
-
-<br/>
-
-**Q: How is Paperclip different from agents like OpenClaw or Claude Code?**
-
-**A:** Paperclip _uses_ those agents. It orchestrates them into a company — with org charts, budgets, goals, governance, and accountability.
+**A:** Yes. A single deployment can host multiple outposts. Existing storage and APIs retain their legacy `company` identifiers for compatibility.
 
 <br/>
 
-**Q: Why should I use Paperclip instead of just pointing my OpenClaw to Asana or Trello?**
+**Q: How is Outpost different from agents like OpenClaw or Claude Code?**
 
-**A:** Agent orchestration has subtleties in how you coordinate who has work checked out, how to maintain sessions, monitoring costs, establishing governance - Paperclip does this for you.
+**A:** Outpost _uses_ those agents. It coordinates them as a persistent crew with tasks, North Stars, governance, and accountability.
+
+<br/>
+
+**Q: Why should I use Outpost instead of just pointing my OpenClaw to Asana or Trello?**
+
+**A:** Agent orchestration has subtleties in work ownership, persistent sessions, shared context, and governance—Outpost handles those concerns.
 
 (Bring-your-own-ticket-system is on the Roadmap)
 
@@ -497,11 +490,10 @@ See [doc/DEVELOPING.md](doc/DEVELOPING.md) for the full development guide.
 
 - ✅ Plugin system (e.g. add a knowledge base, custom tracing, queues, etc)
 - ✅ Get OpenClaw / claw-style agent employees
-- ✅ companies.sh - import and export entire organizations
+- ✅ Outpost import and export (`company` remains the compatibility command)
 - ✅ Easy AGENTS.md configurations
 - ✅ Skills Manager, Skill Studio & Skills Store
 - ✅ Scheduled Routines
-- ✅ Better Budgeting
 - ✅ Agent Reviews and Approvals
 - ✅ Multiple Human Users
 - ✅ Cloud / Sandbox agents (e2b, Cloudflare, Daytona, Modal, Novita, boxd, self-hosted Kubernetes)
@@ -518,13 +510,13 @@ See [doc/DEVELOPING.md](doc/DEVELOPING.md) for the full development guide.
 - ✅ Shared Agents Use Personal GitHub Identities
 - ✅ Skill Version History & Restore
 - ✅ Document Comments & Revision History
-- ✅ Company-Wide Search
+- ✅ Outpost-Wide Search
 - ✅ Multi-Model & Multi-Harness Teams
 - 🟡 Memory / Knowledge
 - ⚪ MAXIMIZER MODE
 - ⚪ Work Queues
-- ⚪ Self-Organization
-- ⚪ Automatic Organizational Learning
+- ⚪ Self-Coordination
+- ⚪ Automatic Crew Learning
 - 🟡 Agent Chat
 - 🟡 Cloud deployments
 - ⚪ Desktop App
@@ -540,25 +532,7 @@ Find Plugins and more at [awesome-paperclip](https://github.com/gsxdsm/awesome-p
 
 ## Observability
 
-Paperclip ships with opt-in OpenTelemetry auto-instrumentation for the server (traces only). It activates when `OTEL_EXPORTER_OTLP_ENDPOINT` is set and supports `grpc`, `http/protobuf`, and `http/json` via the standard `OTEL_EXPORTER_OTLP_PROTOCOL` env var. `@opentelemetry/api` is a normal server dependency; the SDK, auto-instrumentation, and exporter packages are optional peer dependencies — install them only if you want tracing. See [doc/observability.md](doc/observability.md) for install commands and the full env-var reference.
-
-Paperclip also ships with opt-in Sentry error monitoring for the server and the browser. Set `SENTRY_DSN_FRONTEND` to activate it for the browser and `SENTRY_DSN_BACKEND` to activate it for the server — each variable is optional, and the legacy `SENTRY_DSN` variable still works as a fallback for either component. The supported server SDK version is `@sentry/node@10.71.0`; it is an optional peer dependency for the server, so install it only if you want error monitoring. The browser SDK, `@sentry/browser`, is pinned to the same exact version. See [doc/observability.md](doc/observability.md#sentry-error-monitoring) for the install command, the privacy settings, and the full default capture set.
-
-## Telemetry
-
-Paperclip collects anonymous usage telemetry to help us understand how the product is used and improve it. No personal information, issue content, prompts, file paths, or secrets are ever collected. Private repository references are hashed with a per-install salt before being sent.
-
-Contributors changing emitted telemetry events should follow the [Telemetry Data Contract](packages/shared/src/telemetry/README.md).
-For proposed first-party events that are not in the generated contract yet, follow [Telemetry Workflow](doc/TELEMETRY_WORKFLOW.md).
-
-Telemetry is **enabled by default** and can be disabled with any of the following:
-
-| Method               | How                                                     |
-| -------------------- | ------------------------------------------------------- |
-| Environment variable | `PAPERCLIP_TELEMETRY_DISABLED=1`                        |
-| Standard convention  | `DO_NOT_TRACK=1`                                        |
-| CI environments      | Automatically disabled when `CI=true`                   |
-| Config file          | Set `telemetry.enabled: false` in your Paperclip config |
+Outpost keeps local logs, audit activity, and functional run events. Hosted OpenTelemetry exporters, Sentry uploads, anonymous product telemetry, and vendor feedback export are disabled in this fork.
 
 ## Contributing
 
@@ -579,7 +553,7 @@ We welcome contributions. See the [contributing guide](CONTRIBUTING.md) for deta
 
 ## License
 
-MIT &copy; 2026 [Paperclip Labs, Inc](https://paperclip.ing)
+MIT &copy; 2026 [Outpost Labs, Inc](https://paperclip.ing)
 
 ## Star History
 

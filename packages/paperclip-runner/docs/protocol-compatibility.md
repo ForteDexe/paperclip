@@ -52,7 +52,7 @@ required v2 protocol cannot be replayed by this consumer.
 ## Within-turn checklist snapshots
 
 `plan.updated` / `paperclip.plan.updated.v1` is a complete, ordered snapshot of
-the provider's checklist for one active turn. It is not a Paperclip Plan
+the provider's checklist for one active turn. It is not an Outpost Plan
 document and must never be inferred from assistant prose, Codex proposed-plan
 items, or generic TodoWrite output. Every replacement uses the provider turn ID
 as `planId`; PRP `sourceSeq`, not an optional provider revision, determines
@@ -101,7 +101,7 @@ no person clicked auditable. They never grant or deny execution authority.
 | Other ACPX profiles | Unavailable | Unavailable |
 
 Hooks run only when the harness home defines and trusts them. An isolated
-Paperclip home defines none, so these records appear for agents with a
+Outpost home defines none, so these records appear for agents with a
 preconfigured home.
 
 ## Provider-neutral semantic receipts
@@ -171,7 +171,7 @@ instead of silently degrading. ACPX sidecars advertise only form elicitation
 and use sidecar protocol v2 `runtime.input_requested` / `input.resolve` frames.
 
 The live lifecycle pauses and resumes the same provider turn. If the provider
-process is lost first, Paperclip emits one non-replayable
+process is lost first, Outpost emits one non-replayable
 `runtime_request.expired` fact and materializes an idempotent durable
 `ask_user_questions` interaction using the identical question set. Explicit
 cancellation and already-resolved requests never create that fallback.

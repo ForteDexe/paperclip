@@ -26,8 +26,8 @@ export const listCompanySkillsAction = {
     "note": "Scenario/eval-only mock extension."
   },
   "documentation": {
-    "title": "List Company Skills",
-    "description": "List Company Skills through the Capability company skills capability set.",
+    "title": "List Outpost Skills",
+    "description": "List Outpost Skills through the Capability company skills capability set.",
     "note": "Scenario/eval-only mock extension."
   },
   "examples": {
@@ -55,8 +55,8 @@ export const listCompanySkillsAction = {
     "descriptor": {
       "operationId": "list_company_skills",
       "version": 1,
-      "title": "List Company Skills",
-      "description": "List Company Skills through the Capability company skills capability set.",
+      "title": "List Outpost Skills",
+      "description": "List Outpost Skills through the Capability company skills capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {},

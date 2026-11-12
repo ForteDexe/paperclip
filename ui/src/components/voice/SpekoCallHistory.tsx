@@ -7,18 +7,12 @@ import { voiceSessionsApi } from "@/api/voiceSessions";
 import { voicePhoneApi } from "@/api/voicePhone";
 import { voiceHistoryApi } from "@/api/voiceHistory";
 
-function charge(amount: string | null) {
-  if (amount === null) return "Not yet reported";
-  const value = BigInt(amount);
-  const whole = value / 1_000_000n, fraction = (value % 1_000_000n).toString().padStart(6, "0");
-  return `$${whole}.${fraction} USD`;
-}
 export function SpekoCallReport({ report }: { report: VoiceCallReport }) {
   return <div className="space-y-3">
-    <dl className="flex flex-wrap gap-4 text-sm"><div><dt className="text-muted-foreground">Speko charge</dt><dd>{charge(report.costMicroUsd)}</dd></div>{report.durationSeconds !== null && <div><dt className="text-muted-foreground">Duration</dt><dd>{report.durationSeconds} seconds</dd></div>}</dl>
-    <p className="text-xs text-muted-foreground">Agent costs are separate. Recordings remain in Speko.</p>
+    {report.durationSeconds !== null && <dl className="flex flex-wrap gap-4 text-sm"><div><dt className="text-muted-foreground">Duration</dt><dd>{report.durationSeconds} seconds</dd></div></dl>}
+    <p className="text-xs text-muted-foreground">Provider billing and recordings remain in Speko.</p>
     {report.transcript.length ? <ol aria-label="Call transcript" className="space-y-3">{report.transcript.map(turn => <li key={turn.id} className="min-w-0"><p className="text-xs font-medium text-muted-foreground">{turn.speaker === "caller" ? "You" : "Agent"}{turn.interrupted ? " · interrupted" : ""}</p><p className="whitespace-pre-wrap break-words text-sm">{turn.text}</p></li>)}</ol>
-      : <p className="text-sm text-muted-foreground">{report.status === "unavailable" ? "The transcript is unavailable. Paperclip will retry while Speko finishes the report." : report.status === "pending" ? "The transcript will appear after Speko finishes the call report." : "Speko did not provide a transcript for this call."}</p>}
+      : <p className="text-sm text-muted-foreground">{report.status === "unavailable" ? "The transcript is unavailable. Outpost will retry while Speko finishes the report." : report.status === "pending" ? "The transcript will appear after Speko finishes the call report." : "Speko did not provide a transcript for this call."}</p>}
   </div>;
 }
 const modeNames = { browser: "Browser voice", inbound_phone: "Incoming call", outbound_phone: "Outgoing call" } as const;

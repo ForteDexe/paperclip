@@ -61,7 +61,7 @@ export class PaperclipRunnerCompatibilityError extends Error {
     issues: readonly PaperclipRunnerCompatibilityIssue[],
   ) {
     super(
-      `Paperclip runner compatibility check failed for ${consumer}: ${issues
+      `Outpost runner compatibility check failed for ${consumer}: ${issues
         .map((issue) => `${issue.code}: ${issue.message}`)
         .join("; ")}`,
     );

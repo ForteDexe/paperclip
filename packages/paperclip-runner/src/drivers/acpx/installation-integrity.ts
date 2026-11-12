@@ -671,7 +671,7 @@ export async function verifyQualifiedAcpxInstallation(
           (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND")) {
         throw Object.assign(new Error(
           `The ACPX ${profile.agent} runtime is incomplete: required package ${profile.agentServerPackage} is missing. ` +
-          "Reinstall or rebuild Paperclip with its bundled provider dependencies, restart the server, then test the agent's runtime before retrying.",
+          "Reinstall or rebuild Outpost with its bundled provider dependencies, restart the server, then test the agent's runtime before retrying.",
         ), { code: "ACPX_RUNTIME_PACKAGE_MISSING" });
       }
       throw error;
@@ -997,7 +997,7 @@ export function builtinGrokLauncherPath(moduleUrl: string = import.meta.url): st
     const candidate = fileURLToPath(new URL(relativePath, moduleUrl));
     if (existsSync(candidate)) return candidate;
   }
-  throw new Error("Grok builtin launcher is missing from the Paperclip installation");
+  throw new Error("Grok builtin launcher is missing from the Outpost installation");
 }
 
 export const GROK_PREREQUISITE_PATH = "/opt/paperclip/providers/grok/1.0.13/grok";

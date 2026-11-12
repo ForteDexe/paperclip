@@ -244,7 +244,7 @@ async function reusableDirectoryAfterPreparationFailure(db: Db, source: typeof h
       Object.keys(source.resultJson ?? {}).some(key => !["effectiveTimeoutSec", "executionRecovery", "stopReason", "timeoutConfigured", "timeoutFired", "timeoutSource", "workspaceValidation", "failureCause"].includes(key))) return null;
   const settlement = await readFailedPreparationSettlement(db, source);
   const warning = settlement?.unsupportedHarnessWarning;
-  if (!settlement || warning && (warning.message !== "Company observability was not applied: this harness is not supported."
+  if (!settlement || warning && (warning.message !== "Outpost observability was not applied: this harness is not supported."
     || !z.string().uuid().safeParse(warning.revision).success)) return null;
   const [executionEvidence] = await db.execute<{ present: boolean }>(sql`select
     exists(select 1 from ${environmentLeases} where ${environmentLeases.companyId} = ${source.companyId} and ${environmentLeases.heartbeatRunId} = ${source.id})

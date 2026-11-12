@@ -72,13 +72,15 @@ export function linkSdkInto(packageDir) {
   const scopeDir = join(packageDir, "node_modules", "@paperclipai");
   const linkTarget = join(scopeDir, "plugin-sdk");
   const relativeSdkDir = relative(scopeDir, sdkDir);
+  const windows = process.platform === "win32";
+  const linkSource = windows ? sdkDir : relativeSdkDir;
 
   mkdirSync(scopeDir, { recursive: true });
 
   try {
     const stat = lstatSync(linkTarget);
     if (stat.isSymbolicLink()) {
-      if (readlinkSync(linkTarget) === relativeSdkDir) {
+      if (resolve(scopeDir, readlinkSync(linkTarget)) === sdkDir) {
         // Already linked to the in-repo SDK; nothing to do.
         return false;
       }
@@ -93,6 +95,8 @@ export function linkSdkInto(packageDir) {
     if (error?.code !== "ENOENT") throw error;
   }
 
-  symlinkSync(relativeSdkDir, linkTarget, "dir");
+  // Directory junctions do not require Windows Developer Mode or elevation,
+  // unlike ordinary directory symlinks. Unix keeps the portable relative link.
+  symlinkSync(linkSource, linkTarget, windows ? "junction" : "dir");
   return true;
 }

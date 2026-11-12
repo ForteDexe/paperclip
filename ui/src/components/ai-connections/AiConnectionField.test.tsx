@@ -212,12 +212,12 @@ it.each(["openai", "anthropic", "google", "openrouter"] as const)("keeps a match
 it("keeps loaded connections usable when a refetch fails during an outage", async () => {
   await mount([account()]);
   expect(document.body.textContent).toContain("Reconnect account");
-  mocks.list.mockRejectedValue(new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }));
+  mocks.list.mockRejectedValue(new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }));
   await client.invalidateQueries();
   await settle();
   expect(document.body.textContent).toContain("Reconnect account");
   expect(document.body.textContent).not.toContain("Retry connections");
-  expect(document.body.textContent).not.toContain("Paperclip is restarting.");
+  expect(document.body.textContent).not.toContain("Outpost is restarting.");
   expect(document.querySelector('[data-query-view="error"]')).toBeNull();
 });
 

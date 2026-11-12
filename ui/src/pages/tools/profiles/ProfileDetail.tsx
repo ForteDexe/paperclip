@@ -751,7 +751,7 @@ function RemoveAssignmentDialog({
           <DialogTitle>Remove assignment</DialogTitle>
           <DialogDescription>
             {binding?.targetType === "company"
-              ? "Removing the organization default changes access for every agent that relies on it."
+              ? "Removing the outpost default changes access for every agent that relies on it."
               : `Remove this profile from ${label}.`}
           </DialogDescription>
         </DialogHeader>
@@ -852,16 +852,16 @@ function assignmentLabel(
   companyId: string,
   maps: ReturnType<typeof useProfilesData>["maps"],
 ): string {
-  if (binding.targetType === "company") return "Organization default";
+  if (binding.targetType === "company") return "Outpost default";
   if (binding.targetType === "agent") return maps.agentsById.get(binding.targetId) ?? "Unknown agent";
   if (binding.targetType === "project") return maps.projectsById.get(binding.targetId) ?? "Unknown project";
   if (binding.targetType === "routine") return maps.routinesById.get(binding.targetId) ?? "Unknown routine";
-  if (binding.targetId === companyId) return "Organization";
+  if (binding.targetId === companyId) return "Outpost";
   return binding.targetId;
 }
 
 function assignmentTypeLabel(type: ToolProfileBinding["targetType"]): string {
-  if (type === "company") return "Organization default";
+  if (type === "company") return "Outpost default";
   if (type === "agent") return "Agent";
   if (type === "project") return "Project";
   if (type === "routine") return "Routine";

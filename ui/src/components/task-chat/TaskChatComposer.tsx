@@ -685,7 +685,7 @@ export function TaskChatComposer({
     id: "action:goal",
     kind: "action",
     command: "goal",
-    name: "Goal",
+    name: "North Star",
     description:
       !runnerGoalCapability || runnerGoalCapability.verified === false
         ? "Support will be verified when the session starts."
@@ -694,7 +694,7 @@ export function TaskChatComposer({
     disabled: goalUnavailable && runnerGoalCapability !== null,
     disabledReason:
       runnerGoalCapability?.reason ??
-      "Session goals are unsupported by this agent.",
+      "Session north stars are unsupported by this agent.",
   };
 
   function updatePendingAssignee(value: string | null) {
@@ -944,7 +944,7 @@ export function TaskChatComposer({
       ? ({ matched: false } as const)
       : parseRunnerGoalCommand(submittedBody);
     if (goalCommand.matched && conversationMode) {
-      setActionError("Create a separate task for work that needs an ongoing execution goal.");
+      setActionError("Create a separate task for work that needs an ongoing execution north star.");
       return;
     }
     if (goalCommand.matched) {
@@ -959,7 +959,7 @@ export function TaskChatComposer({
       if (!onRunnerGoalCommand) {
         setActionError(
           runnerGoalCapability?.reason ??
-            "Session goals are unsupported by this agent.",
+            "Session north stars are unsupported by this agent.",
         );
         return;
       }
@@ -969,7 +969,7 @@ export function TaskChatComposer({
       ) {
         setActionError(
           runnerGoalCapability.reason ??
-            "Session goals are unsupported by this agent.",
+            "Session north stars are unsupported by this agent.",
         );
         return;
       }
@@ -979,7 +979,7 @@ export function TaskChatComposer({
         if (hasReassignment && goalCommand.command.action !== "focus") {
           const reassignment = parseAssigneeValue(assigneeValue);
           if (!reassignment?.assigneeAgentId || !onRunnerGoalReassign) {
-            setActionError("Select an agent before starting a session goal.");
+            setActionError("Select an agent before starting a session north star.");
             return;
           }
           await onRunnerGoalReassign(reassignment);
@@ -997,7 +997,7 @@ export function TaskChatComposer({
         setActionError(
           error instanceof Error
             ? error.message
-            : "The goal action could not be applied.",
+            : "The north star action could not be applied.",
         );
       }
       return;

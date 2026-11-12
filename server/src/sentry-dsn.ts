@@ -15,18 +15,7 @@ export interface SentryDsns {
   legacyFallbackUsed: boolean;
 }
 
-function normalize(value: string | undefined): string | null {
-  return value ? value : null;
-}
-
 export function resolveSentryDsns(env: NodeJS.ProcessEnv = process.env): SentryDsns {
-  const legacy = normalize(env.SENTRY_DSN);
-  const specificFrontend = normalize(env.SENTRY_DSN_FRONTEND);
-  const specificBackend = normalize(env.SENTRY_DSN_BACKEND);
-
-  const frontend = specificFrontend ?? legacy;
-  const backend = specificBackend ?? legacy;
-  const legacyFallbackUsed = (specificFrontend === null || specificBackend === null) && legacy !== null;
-
-  return { frontend, backend, legacyFallbackUsed };
+  void env;
+  return { frontend: null, backend: null, legacyFallbackUsed: false };
 }

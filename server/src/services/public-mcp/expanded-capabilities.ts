@@ -57,7 +57,7 @@ const nonempty = <T extends z.ZodObject>(schema: T) => schema.refine(v => Object
 export const expandedMcpCapabilities: Capability[] = [
   {
     name: "paperclip_update_task", write: true, destructive: true,
-    description: "Edit a task's title, description, priority, project, parent, dependencies, assignment or status as the connected person. Assignment/status changes may schedule agents and spend configured budget. Review decisions must be made in Paperclip. Reuse requestId on retries.",
+    description: "Edit a task's title, description, priority, project, parent, dependencies, assignment or status as the connected person. Assignment/status changes may schedule agents and spend configured budget. Review decisions must be made in Outpost. Reuse requestId on retries.",
     schema: z.object({ ...task, requestId, changes: nonempty(taskChanges) }).strict(),
     run: async (p, a, api) => ({ task: pick(await api(p, "PATCH", `/issues/${pathId(a.taskId)}`, a.changes), taskFields) }),
   },
@@ -116,7 +116,7 @@ export const expandedMcpCapabilities: Capability[] = [
   },
   {
     name: "paperclip_update_agent_instructions", configure: true, destructive: true,
-    description: "Update an existing agent's instruction file. Requires configuration consent and the revision/hash from a prior read; use null for a new file. Managed paths and normal instruction permissions apply. Legacy promptTemplate.legacy.md must be migrated in Paperclip before editing.",
+    description: "Update an existing agent's instruction file. Requires configuration consent and the revision/hash from a prior read; use null for a new file. Managed paths and normal instruction permissions apply. Legacy promptTemplate.legacy.md must be migrated in Outpost before editing.",
     schema: z.object({ ...agent, requestId, file: upsertAgentInstructionsFileSchema.omit({ clearLegacyPromptTemplate: true }).extend({ path: filePath }).refine(v => v.baseRevisionId !== undefined || v.baseHash !== undefined, "Read the file and provide its baseRevisionId or baseHash") }).strict(),
     run: async (p, a, api) => ({ instructions: await api(p, "PUT", `/agents/${pathId(a.agentId)}/instructions-bundle/file`, a.file) }),
   },
@@ -135,7 +135,7 @@ export const expandedMcpCapabilities: Capability[] = [
     run: async (p, a, api) => ({ project: projectOutput(await api(p, "POST", `/companies/${pathId(a.companyId)}/projects`, { ...object(a.project), idempotencyKey: `mcp:${p.grant.userId}:${a.requestId}` })) }),
   },
   {
-    name: "paperclip_update_project", configure: true, destructive: true, description: "Update a project's name, description, status, lead, goals, target date, icon or color. Requires configuration consent.",
+    name: "paperclip_update_project", configure: true, destructive: true, description: "Update a project's name, description, status, lead, north stars, target date, icon or color. Requires configuration consent.",
     schema: z.object({ ...project, requestId, changes: nonempty(updateProjectSchema.pick(projectFields).strict()) }).strict(),
     run: async (p, a, api) => ({ project: projectOutput(await api(p, "PATCH", `/projects/${pathId(a.projectId)}`, a.changes)) }),
   },

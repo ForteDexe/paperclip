@@ -85,13 +85,13 @@ export async function verifyGitHubCredentials(
           ? `GitHub App needs the documented minimum access for: ${missingPermissions.join(", ")}`
           : null,
         excessivePermissions.length > 0
-          ? `GitHub App has broader permissions than Paperclip needs: ${excessivePermissions.join(", ")}`
+          ? `GitHub App has broader permissions than Outpost needs: ${excessivePermissions.join(", ")}`
           : null,
         missingEvents.length > 0
           ? `GitHub App must subscribe to: ${missingEvents.join(", ")}`
           : null,
         excessiveEvents.length > 0
-          ? `GitHub App subscribes to broader events than Paperclip needs: ${excessiveEvents.join(", ")}`
+          ? `GitHub App subscribes to broader events than Outpost needs: ${excessiveEvents.join(", ")}`
           : null,
       ]
         .filter(Boolean)
@@ -107,7 +107,7 @@ export async function verifyGitHubCredentials(
     );
   }
   return {
-    githubOwnerType: result.owner?.type === "Organization" ? "organization" : result.owner?.type === "User" ? "personal" : undefined,
+    githubOwnerType: result.owner?.type === "Outpost" ? "organization" : result.owner?.type === "User" ? "personal" : undefined,
     githubOwnerLogin: result.owner?.login,
     providerAccountId: result.owner?.login,
     providerAccountLabel: result.owner?.login ?? result.name,

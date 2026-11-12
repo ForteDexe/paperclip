@@ -145,7 +145,7 @@ export function ChatConnectionPurpose({ provider, onChat, onTools, slackLabels }
               </span>
               <span className="mt-1 block text-sm text-muted-foreground">
                 People in {providerNames[provider]} can start and continue
-                Paperclip tasks.
+                Outpost tasks.
               </span>
             </span>
           </button>
@@ -531,7 +531,7 @@ function ChatSdkEndpointSetup() {
   if (!selectedCompanyId)
     return (
       <p className="text-sm text-muted-foreground">
-        Select an organization to connect chat.
+        Select an outpost to connect chat.
       </p>
     );
 
@@ -656,7 +656,7 @@ function ChatSdkEndpointSetup() {
         {endpoint && step === tryStep && provider === "speko" && (
           <div className="space-y-5">
             <h1 className="text-xl font-bold">Test your Speko voice connection</h1>
-            <p className="text-sm text-muted-foreground">Ask the agent to do some work, add a spoken follow-up, and listen for its result. Accepted work stays in Paperclip when you end the call.</p>
+            <p className="text-sm text-muted-foreground">Ask the agent to do some work, add a spoken follow-up, and listen for its result. Accepted work stays in Outpost when you end the call.</p>
             <NativeVoiceConversation companyId={endpoint.companyId} endpointId={endpoint.id} agentName={selectedAgent?.name ?? endpoint.assignedAgentName} />
             <SetupWizardFooter onSaveExit={() => navigate("/apps")}><Button disabled={testConnection.isPending} onClick={() => testConnection.mutate()}>Verify test conversation</Button></SetupWizardFooter>
           </div>
@@ -905,11 +905,11 @@ function ProviderConnectStep({
               commands: [
                 {
                   title: "/status",
-                  description: "Show the active Paperclip task status",
+                  description: "Show the active Outpost task status",
                 },
                 {
                   title: "/new",
-                  description: "Start a new Paperclip task in this chat",
+                  description: "Start a new Outpost task in this chat",
                 },
                 {
                   title: "/close",
@@ -951,7 +951,7 @@ function ProviderConnectStep({
           <p className="mt-1 text-sm text-muted-foreground">
             {repairing
               ? "Reconnect verifies this same Discord application and server installation. It does not add or remove the bot from the server. Leave fields blank to reuse saved credentials."
-              : "Create one dedicated Discord application and bot for this Paperclip agent."}
+              : "Create one dedicated Discord application and bot for this Outpost agent."}
           </p>
         </div>
       <ol className="list-decimal space-y-2 pl-5 text-sm">
@@ -993,7 +993,7 @@ function ProviderConnectStep({
         <p className="text-sm text-muted-foreground">
           The install link grants only View Channels, Send Messages, Create
           Public Threads, Send Messages in Threads, Read Message History, Add
-          Reactions, Embed Links, and Attach Files. Paperclip still requires
+          Reactions, Embed Links, and Attach Files. Outpost still requires
           each discovered channel to be enabled in Access.
         </p>
         <Button
@@ -1021,7 +1021,7 @@ function ProviderConnectStep({
           <h1 className="text-xl font-bold">Create {agentName} in Telegram</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {repairing
-              ? "Reconnect verifies this same BotFather bot and automatically refreshes its Paperclip webhook and command menu. It does not recreate the bot or change its chat memberships. Leave the token blank to reuse the saved credential."
+              ? "Reconnect verifies this same BotFather bot and automatically refreshes its Outpost webhook and command menu. It does not recreate the bot or change its chat memberships. Leave the token blank to reuse the saved credential."
               : "Create a bot with BotFather, then paste the token it gives you."}
           </p>
         </div>
@@ -1035,7 +1035,7 @@ function ProviderConnectStep({
           </li>
         </ol>
         <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          Paperclip works with Telegram&apos;s default bot privacy mode and
+          Outpost works with Telegram&apos;s default bot privacy mode and
           registers its command menu automatically. In a group, ordinary
           mentions are not delivered to bots: start or continue work with{" "}
           <code>/task@bot_username &lt;request&gt;</code>, or reply directly to
@@ -1050,7 +1050,7 @@ function ProviderConnectStep({
         {field("botToken", "Bot token")}
         {(!endpoint.setup?.webhookUrl || automaticSlack && !endpoint.setup?.slackOAuthCallbackUri?.startsWith("https://")) && (
           <p className="text-sm text-destructive">
-            Configure a public HTTPS URL for this Paperclip instance before
+            Configure a public HTTPS URL for this Outpost instance before
             connecting Telegram.
           </p>
         )}
@@ -1083,7 +1083,7 @@ function ProviderConnectStep({
           </p>
         </div>
         <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          This setup requires a Microsoft 365 work or school organization where
+          This setup requires a Microsoft 365 work or school outpost where
           you can register an Entra app, create an Azure Bot, and upload or
           install a Teams app. Personal or free Teams accounts at teams.live.com
           cannot complete this setup. This release supports Microsoft 365
@@ -1098,7 +1098,7 @@ function ProviderConnectStep({
           </li>
           <li>
             In Azure, create an Azure Bot. Choose Single Tenant, use that
-            Application ID, set its messaging endpoint to the Paperclip URL
+            Application ID, set its messaging endpoint to the Outpost URL
             below, and add the Microsoft Teams channel.
           </li>
           <li>
@@ -1142,7 +1142,7 @@ function ProviderConnectStep({
           </Button>
         </div>
         {endpointValue(
-          "Paperclip messaging endpoint",
+          "Outpost messaging endpoint",
           endpoint.setup?.messagingEndpoint,
         )}
         {field("clientId", "Application / Client ID", "text")}
@@ -1178,7 +1178,7 @@ function ProviderConnectStep({
               <strong>Single Tenant</strong>, set <strong>Creation type</strong>{" "}
               to <strong>Use existing app registration</strong>, and enter the
               Application ID and Tenant ID above. After creation, open{" "}
-              <strong>Settings · Configuration</strong> and paste the Paperclip{" "}
+              <strong>Settings · Configuration</strong> and paste the Outpost{" "}
               <strong>Messaging endpoint</strong>; then open{" "}
               <strong>Settings · Channels</strong> and enable{" "}
               <strong>Microsoft Teams</strong>.
@@ -1235,13 +1235,13 @@ function ProviderConnectStep({
         <p className="text-sm text-muted-foreground">
           Enter the Application / Client ID above before copying so the block
           contains the real bot identity. This block contains the
-          Paperclip-specific fields to verify in Developer Portal or merge into
+          Outpost-specific fields to verify in Developer Portal or merge into
           a complete Teams app manifest. It is not a complete app package;
           Developer Portal supplies the remaining required metadata and packages
           the manifest with your app icons.
         </p>
         <p className="text-sm text-muted-foreground">
-          Paperclip does not use Teams single sign-on in this release. The
+          Outpost does not use Teams single sign-on in this release. The
           copied <code>webApplicationInfo</code> entry only associates the RSC
           permissions with the same Entra Application ID. Its nonempty resource
           is an RSC placeholder; you do not need to register an Entra
@@ -1250,7 +1250,7 @@ function ProviderConnectStep({
         <p className="text-sm text-muted-foreground">
           The two application RSC permissions let the bot receive every message,
           without an @mention, in each team or group chat where it is installed.
-          Paperclip retains and acts only on messages admitted by your Paperclip
+          Outpost retains and acts only on messages admitted by your Outpost
           reach and access rules. Make this provider access clear in the app
           description shown to installers.
         </p>
@@ -1263,7 +1263,7 @@ function ProviderConnectStep({
         </p>
         {!endpoint.setup?.messagingEndpoint && (
           <p className="text-sm text-destructive">
-            Configure a public HTTPS URL for this Paperclip instance before
+            Configure a public HTTPS URL for this Outpost instance before
             connecting Microsoft Teams.
           </p>
         )}
@@ -1299,19 +1299,19 @@ function ProviderConnectStep({
           <p className="mt-1 text-sm text-muted-foreground">
             {repairing
               ? "Reconnect verifies this same App and installation, then updates its webhook URL, secret, and secure delivery settings. It does not reinstall the App or change repository access. Leave App ID and private key blank to reuse saved credentials. Keep Webhooks · Active enabled in GitHub; send a test conversation after reconnecting."
-              : "Configure its webhook and permissions, then verify the App with Paperclip."}
+              : "Configure its webhook and permissions, then verify the App with Outpost."}
           </p>
         </div>
         {!repairing && (
           <ol className="list-decimal space-y-2 pl-5 text-sm">
             <li>
-              Under the target user or organization, create a new GitHub App.
+              Under the target user or outpost, create a new GitHub App.
               Give it a globally unique name (34 characters or fewer), use the
-              Paperclip homepage URL below, and leave user authorization off.
+              Outpost homepage URL below, and leave user authorization off.
             </li>
             <li>
-              Keep <strong>Webhooks · Active</strong> on. Enter the Paperclip
-              webhook URL and the Paperclip-generated webhook secret below, and
+              Keep <strong>Webhooks · Active</strong> on. Enter the Outpost
+              webhook URL and the Outpost-generated webhook secret below, and
               keep <strong>Enable SSL verification</strong> selected.
             </li>
             <li>
@@ -1337,10 +1337,10 @@ function ProviderConnectStep({
           </ol>
         )}
         {endpointValue(
-          "Paperclip homepage URL",
+          "Outpost homepage URL",
           publicOrigin(endpoint.setup?.webhookUrl),
         )}
-        {endpointValue("Paperclip webhook URL", endpoint.setup?.webhookUrl)}
+        {endpointValue("Outpost webhook URL", endpoint.setup?.webhookUrl)}
         <Button
           variant="outline"
           onClick={() =>
@@ -1470,14 +1470,14 @@ function ProviderConnectStep({
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground">
-                Copy this value now. Paperclip will not show it again.
+                Copy this value now. Outpost will not show it again.
               </p>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
               {endpoint.setup?.webhookSecretConfigured
                 ? "A webhook secret is configured and cannot be shown again."
-                : "Generate the secret in Paperclip, then paste it into the GitHub App."}
+                : "Generate the secret in Outpost, then paste it into the GitHub App."}
             </p>
           )}
           <div>
@@ -1514,7 +1514,7 @@ function ProviderConnectStep({
         </div>
         {(!endpoint.setup?.webhookUrl || automaticSlack && !endpoint.setup?.slackOAuthCallbackUri?.startsWith("https://")) && (
           <p className="text-sm text-destructive">
-            Configure a public HTTPS URL for this Paperclip instance before
+            Configure a public HTTPS URL for this Outpost instance before
             connecting GitHub.
           </p>
         )}
@@ -1547,7 +1547,7 @@ function ProviderConnectStep({
       <div className="space-y-5">
         <div>
           <h1 className="text-xl font-bold">{automaticSlack ? "Send a message to your agent" : "Verify Slack connection"}</h1>
-          {!automaticSlack && <p className="mt-1 text-sm text-muted-foreground">Slack needs to confirm that it can reach your Paperclip instance.</p>}
+          {!automaticSlack && <p className="mt-1 text-sm text-muted-foreground">Slack needs to confirm that it can reach your Outpost instance.</p>}
         </div>
         {automaticSlack ? <Button asChild variant="outline"><a href={slackConversationUrl(endpoint, identitySettled ? userId : null)} target="_blank" rel="noopener noreferrer">Open Slack <ExternalLink className="size-4" /></a></Button> : slackRequestUrlInstructions}
         {endpoint.setup?.webhookVerifiedAt ? (
@@ -1565,7 +1565,7 @@ function ProviderConnectStep({
         <SlackSetupAdvanced label={automaticSlack ? "Didn’t work?" : "Troubleshooting"}>
           {automaticSlack && slackRequestUrlInstructions}
           <p className="text-muted-foreground">If the Request URL is missing or different, paste this URL into Event Subscriptions. If verification fails, check that your public HTTPS server is reachable and your Signing Secret is correct.</p>
-          {endpointValue("Paperclip webhook URL", endpoint.setup?.webhookUrl)}
+          {endpointValue("Outpost webhook URL", endpoint.setup?.webhookUrl)}
         </SlackSetupAdvanced>
         <div className="flex items-center justify-between gap-3">
           <Button variant="ghost" className="text-muted-foreground" onClick={() => navigate("/apps")}>Save &amp; exit</Button>
@@ -1587,7 +1587,7 @@ function ProviderConnectStep({
           <div className="space-y-1">
             <p className="text-sm font-semibold">Public HTTPS URL required</p>
             <p className="text-sm">
-              Slack needs a public HTTPS URL to send messages to Paperclip.
+              Slack needs a public HTTPS URL to send messages to Outpost.
               Configure one for this instance before creating or connecting your Slack app.
             </p>
             <a
@@ -1860,7 +1860,7 @@ function TryStep({
             ? {
                 tone: "warning" as const,
                 title: "Link the account you’re testing",
-                body: `An observed external account is unlinked, and isolated guest work is off, so it cannot safely start ${agentName}. Link the account in Access, then ${freshConversationInstruction}; Paperclip does not replay the refused request.`,
+                body: `An observed external account is unlinked, and isolated guest work is off, so it cannot safely start ${agentName}. Link the account in Access, then ${freshConversationInstruction}; Outpost does not replay the refused request.`,
               }
             : {
                 tone: "info" as const,
@@ -1880,7 +1880,7 @@ function TryStep({
   const instructions =
     provider === "imessage-photon" ? [
       photonAllocation === "shared" ? "In your Photon project, enroll your sender in Users and find its assigned number in Get started. Send a fresh message to that number from Apple Messages." : `Open Apple Messages and send a fresh message to ${botUsername ?? botLabel ?? "the dedicated number"}.`,
-      "Link the discovered sender to a Paperclip person in Access, then send a fresh request.",
+      "Link the discovered sender to an Outpost person in Access, then send a fresh request.",
       "Wait for the agent’s actual reply. Setup completes after that reply is delivered.",
       ...(photonAllocation === "shared" ? ["This Pro-compatible channel supports DMs only. Group messages cannot start work."] : ["For a group: add the number in Messages, send a message, enable the discovered group in Settings, then send a fresh request."]),
     ] : provider === "discord"

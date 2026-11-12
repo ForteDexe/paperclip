@@ -63,8 +63,8 @@ interface EnvironmentDescriptor {
 
 const localEnvironmentDescriptor: EnvironmentDescriptor = {
   label: "Local",
-  detail: "Paperclip host",
-  title: "Local - Paperclip host",
+  detail: "Outpost host",
+  title: "Local - Outpost host",
 };
 
 const loadingEnvironmentDescriptor: EnvironmentDescriptor = {
@@ -131,11 +131,11 @@ function describeEnvironment(
   capabilities?: EnvironmentCapabilities | null,
 ): EnvironmentDescriptor {
   const detail = isPlatformManagedEnvironment(environment)
-    ? "Managed by Paperclip"
+    ? "Managed by Outpost"
     : environment.driver === "sandbox"
       ? `${getSandboxProviderLabel(environment, capabilities)} sandbox provider`
       : environment.driver === "local"
-        ? "Paperclip host"
+        ? "Outpost host"
         : formatEnvironmentDriver(environment.driver);
 
   return {
@@ -328,7 +328,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   }, [navigate, requestedTab]);
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={Bot} message="Select an organization to view agents." />;
+    return <EmptyState icon={Bot} message="Select an outpost to view agents." />;
   }
 
   // Keep a loaded list on screen through a failed refetch; only a real

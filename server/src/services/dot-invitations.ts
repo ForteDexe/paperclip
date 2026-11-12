@@ -46,7 +46,7 @@ export function dotInvitationService(db: Db, provider: "openai_dot" | "grok_bot"
         await lock.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
         // SQL locking also serializes retries on different control-plane replicas.
         const [company] = await database.select().from(companies).where(eq(companies.id, companyId));
-        if (!company) throw notFound("Company not found");
+        if (!company) throw notFound("Outpost not found");
         if (company.status !== "active") throw unprocessable(`Activate this company before inviting ${providerName}.`);
         const existing = await pending(database, companyId, operatorId, true);
         if (existing) {

@@ -1,7 +1,7 @@
 # OpenClaw Gateway Onboarding and Test Plan
 
 ## Scope
-This plan is now **gateway-only**. Paperclip supports OpenClaw through `openclaw_gateway` only.
+This plan is now **gateway-only**. Outpost supports OpenClaw through `openclaw_gateway` only.
 
 - Removed path: legacy `openclaw` adapter (`/v1/responses`, `/hooks/*`, SSE/webhook transport switching)
 - Supported path: `openclaw_gateway` over WebSocket (`ws://` or `wss://`)
@@ -12,11 +12,11 @@ This plan is now **gateway-only**. Paperclip supports OpenClaw through `openclaw
 3. Device auth stays enabled by default; pairing is persisted via `adapterConfig.devicePrivateKeyPem`.
 4. Invite/access flow must be secure:
 - invite prompt endpoint is board-permission protected
-- CEO agent is allowed to invoke the invite prompt endpoint for their own company
+- Outpost Lead agent is allowed to invoke the invite prompt endpoint for their own company
 5. E2E pass criteria must include the 3 functional task cases.
 
 ## Current Product Flow
-1. Board/CEO opens company settings.
+1. Board/Outpost Lead opens company settings.
 2. Click `Generate OpenClaw Invite Prompt`.
 3. Paste generated prompt into OpenClaw chat.
 4. OpenClaw submits invite acceptance with:
@@ -24,7 +24,7 @@ This plan is now **gateway-only**. Paperclip supports OpenClaw through `openclaw
 - `agentDefaultsPayload.url: ws://... | wss://...`
 - `agentDefaultsPayload.headers["x-openclaw-token"]`
 5. Board approves join request.
-6. OpenClaw claims API key and installs/uses Paperclip skill.
+6. OpenClaw claims API key and installs/uses Outpost skill.
 7. First task run may trigger pairing approval once; after approval, pairing persists via stored device key.
 
 ## Technical Contract (Gateway)
@@ -64,7 +64,7 @@ docker image rm openclaw:local || true
 OPENCLAW_RESET_STATE=1 OPENCLAW_BUILD=1 ./scripts/smoke/openclaw-docker-ui.sh
 ```
 
-### 1) Start Paperclip
+### 1) Start Outpost
 ```bash
 pnpm dev --bind lan
 curl -fsS http://127.0.0.1:3100/api/health
@@ -87,7 +87,7 @@ curl -fsS http://127.0.0.1:3100/api/health
 ### 4) Functional E2E assertions
 1. Task assigned to OpenClaw is completed and closed.
 2. Task asking OpenClaw to send main-webchat message succeeds (message visible in main chat).
-3. In `/new` OpenClaw session, OpenClaw can still create a Paperclip task.
+3. In `/new` OpenClaw session, OpenClaw can still create an Outpost task.
 
 ## Manual Smoke Checklist
 Use [doc/OPENCLAW_ONBOARDING.md](../../../../doc/OPENCLAW_ONBOARDING.md) as the operator runbook.

@@ -39,7 +39,7 @@ export function registerPromptCommands(program: Command): void {
   addCommonClientOptions(
     program
       .command("agent-prompt")
-      .description("Create/update Paperclip work for an agent using an agent API key")
+      .description("Create/update Outpost work for an agent using an agent API key")
       .argument("<agent>", "Agent ID, shortname, or name")
       .argument("<agentApiKey>", "Agent API key")
       .argument("<prompt...>", "Prompt text")
@@ -64,7 +64,7 @@ export function registerPromptCommands(program: Command): void {
   addCommonClientOptions(
     agent
       .command("prompt")
-      .description("Create/update Paperclip work using an agent persona")
+      .description("Create/update Outpost work using an agent persona")
       .argument("<prompt...>", "Prompt text")
       .option("--agent <agent>", "Agent ID, shortname, or name; defaults to profile/identity agent")
       .option("--api-key-env <name>", "Read the agent API key from this environment variable")
@@ -90,9 +90,9 @@ export function registerPromptCommands(program: Command): void {
   addCommonClientOptions(
     board
       .command("prompt")
-      .description("Create/update Paperclip work for an agent using board auth")
+      .description("Create/update Outpost work for an agent using board auth")
       .requiredOption("--agent <agent>", "Target agent ID, shortname, or name")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--issue <issueId>", "Append as a comment to an existing issue")
       .option("--title <title>", "Issue title when creating a new issue")
       .option("--no-wake", "Do not wake the agent after creating/updating work")

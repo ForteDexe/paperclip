@@ -27,13 +27,13 @@ const inviteRoleOptions = [
   {
     value: "viewer",
     label: "Viewer",
-    description: "Can view organization work and follow along.",
-    gets: "View-only organization membership.",
+    description: "Can view outpost work and follow along.",
+    gets: "View-only outpost membership.",
   },
   {
     value: "operator",
     label: "Operator",
-    description: "Can edit organization work and invite people.",
+    description: "Can edit outpost work and invite people.",
     gets: "Full editing and audit access. Cannot approve join requests or manage member permissions.",
   },
   {
@@ -45,7 +45,7 @@ const inviteRoleOptions = [
   {
     value: "owner",
     label: "Owner",
-    description: "Full organization access, including membership management.",
+    description: "Full outpost access, including membership management.",
     gets: "Everything in Admin, plus managing members.",
   },
 ] as const;
@@ -203,14 +203,14 @@ function InviteSummaryPanel({
           className="h-16 w-16 rounded-none border border-zinc-800"
         />
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-(--tracking-caps) text-zinc-500">You&apos;ve been invited to join Paperclip</p>
+          <p className="text-xs uppercase tracking-(--tracking-caps) text-zinc-500">You&apos;ve been invited to join Outpost</p>
           <h3 className="mt-2 text-2xl font-semibold text-zinc-100">{title}</h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">{description}</p>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <MetaCard label="Organization" value="Acme Robotics" />
+        <MetaCard label="Outpost" value="Acme Robotics" />
         <MetaCard label="Invited by" value="Board User" />
         <MetaCard label="Requested access" value={requestedAccess} />
         <MetaCard label="Invite expires" value="Mar 7, 2027" />
@@ -258,8 +258,8 @@ function InlineAuthPreview({
         </h3>
         <p className="mt-1 text-sm text-zinc-400">
           {mode === "sign_up"
-            ? "Start with a Paperclip account. After that, you'll come right back here to accept the invite for Acme Robotics."
-            : "Use the Paperclip account that already matches this invite. If you do not have one yet, switch back to create account."}
+            ? "Start with an Outpost account. After that, you'll come right back here to accept the invite for Acme Robotics."
+            : "Use the Outpost account that already matches this invite. If you do not have one yet, switch back to create account."}
         </p>
       </div>
 
@@ -315,7 +315,7 @@ function InlineAuthPreview({
 
       <p className="text-xs leading-5 text-zinc-500">
         {mode === "sign_up"
-          ? "Already signed up before? Use the existing-account option instead so the invite lands on the right Paperclip user."
+          ? "Already signed up before? Use the existing-account option instead so the invite lands on the right Outpost user."
           : "No account yet? Switch back to create account so you can accept the invite with a new login."}
       </p>
     </div>
@@ -371,7 +371,7 @@ function AcceptInvitePreview({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-zinc-100">Accept organization invite</h3>
+        <h3 className="text-lg font-semibold text-zinc-100">Accept outpost invite</h3>
         <p className="mt-1 text-sm text-zinc-400">
           {autoAccept
             ? "Granting your access to Acme Robotics."
@@ -459,10 +459,10 @@ function AuthScreenPreview({ mode, error }: { mode: "sign_in" | "sign_up"; error
           <div className="mx-auto w-full max-w-md">
             <div className="mb-8 flex items-center gap-2">
               <FlaskConical className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Paperclip</span>
+              <span className="text-sm font-medium">Outpost</span>
             </div>
             <h3 className="text-xl font-semibold">
-              {mode === "sign_in" ? "Sign in to Paperclip" : "Create your Paperclip account"}
+              {mode === "sign_in" ? "Sign in to Outpost" : "Create your Outpost account"}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {mode === "sign_in"
@@ -532,7 +532,7 @@ function CompanyInvitesPreview() {
         <CardHeader className="space-y-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MailPlus className="h-4 w-4" />
-            Organization Invites
+            Outpost Invites
           </div>
           <div>
             <CardTitle>Create invite</CardTitle>
@@ -587,7 +587,7 @@ function CompanyInvitesPreview() {
               <div>
                 <div className="text-sm font-medium">Latest invite link</div>
                 <div className="text-sm text-muted-foreground">
-                  This URL includes the current Paperclip domain returned by the server.
+                  This URL includes the current Outpost domain returned by the server.
                 </div>
               </div>
               <div className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
@@ -680,13 +680,13 @@ function CompanyInvitesPreview() {
             <div className="rounded-2xl border border-border p-4">
               <div className="text-sm font-medium">Empty history state</div>
               <div className="mt-2 text-sm text-muted-foreground">
-                No invites have been created for this organization yet.
+                No invites have been created for this outpost yet.
               </div>
             </div>
             <div className="rounded-2xl border border-rose-400/40 bg-rose-500/[0.07] p-4">
               <div className="text-sm font-medium text-foreground">Permission error</div>
               <div className="mt-2 text-sm text-muted-foreground">
-                You do not have permission to manage organization invites.
+                You do not have permission to manage outpost invites.
               </div>
             </div>
           </div>
@@ -708,7 +708,7 @@ export function InviteUxLab() {
             </div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight">Invite and signup UX review surface</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-              This page collects the current invite landing, signup, approval-result, and organization invite-management states in one place so styling changes can be reviewed without recreating each backend condition by hand.
+              This page collects the current invite landing, signup, approval-result, and outpost invite-management states in one place so styling changes can be reviewed without recreating each backend condition by hand.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -734,7 +734,7 @@ export function InviteUxLab() {
                 "Inline account creation and sign-in variants, including feedback/error copy",
                 "Human accept, agent request, and auto-accept transitions",
                 "Pending approval, joined-now, claim secret, and onboarding result screens",
-                "Organization invite creation, copied-link, history, empty, and permission-error states",
+                "Outpost invite creation, copied-link, history, empty, and permission-error states",
               ].map((highlight) => (
                 <div
                   key={highlight}
@@ -763,7 +763,7 @@ export function InviteUxLab() {
           <StatusCard
             icon={<Clock3 className="h-4 w-4" />}
             title="Checking your access"
-            body="Shown after sign-in while the app verifies whether the current user already belongs to the invited organization."
+            body="Shown after sign-in while the app verifies whether the current user already belongs to the invited outpost."
           />
           <StatusCard
             icon={<KeyRound className="h-4 w-4" />}
@@ -780,7 +780,7 @@ export function InviteUxLab() {
           <StatusCard
             icon={<ShieldCheck className="h-4 w-4" />}
             title="Bootstrap complete"
-            body="Result screen for bootstrap CEO invites after setup has been accepted successfully."
+            body="Result screen for bootstrap Outpost Lead invites after setup has been accepted successfully."
             tone="success"
           />
           <StatusCard
@@ -791,7 +791,7 @@ export function InviteUxLab() {
           <StatusCard
             icon={<Users className="h-4 w-4" />}
             title="Already a member"
-            body="Acceptance stays disabled and the page redirects into the organization once membership is confirmed."
+            body="Acceptance stays disabled and the page redirects into the outpost once membership is confirmed."
           />
           <StatusCard
             icon={<UserPlus className="h-4 w-4" />}
@@ -813,7 +813,7 @@ export function InviteUxLab() {
             left={
               <InviteSummaryPanel
                 title="Join Acme Robotics"
-                description="Create your Paperclip account first. If you already have one, switch to sign in and continue the invite with the same email."
+                description="Create your Outpost account first. If you already have one, switch to sign in and continue the invite with the same email."
                 inviteMessage="Welcome aboard."
                 requestedAccess="Operator"
               />
@@ -825,7 +825,7 @@ export function InviteUxLab() {
             left={
               <InviteSummaryPanel
                 title="Join Acme Robotics"
-                description="Create your Paperclip account first. If you already have one, switch to sign in and continue the invite with the same email."
+                description="Create your Outpost account first. If you already have one, switch to sign in and continue the invite with the same email."
                 inviteMessage="Welcome aboard."
                 requestedAccess="Operator"
               />
@@ -874,7 +874,7 @@ export function InviteUxLab() {
                 signedInLabel="Jane Example"
               />
             }
-            right={<AcceptInvitePreview error="This account already belongs to the organization." isCurrentMember />}
+            right={<AcceptInvitePreview error="This account already belongs to the outpost." isCurrentMember />}
           />
         </div>
       </LabSection>
@@ -893,7 +893,7 @@ export function InviteUxLab() {
             onboardingTextUrl="/api/invites/pcp_invite_test/onboarding.txt"
           />
           <InviteResultPreview
-            title="You joined the organization"
+            title="You joined the outpost"
             description="Your account already matched the approved invite, so the board can be opened immediately."
             joinedNow
           />
@@ -918,7 +918,7 @@ export function InviteUxLab() {
 
       <LabSection
         eyebrow="Settings"
-        title="Organization invite management"
+        title="Outpost invite management"
         description="This section captures the board-side invite creation flow, copied-link state, audit table, and the edge states that are otherwise tedious to stage."
         accentClassName="bg-[linear-gradient(180deg,rgba(244,114,182,0.06),transparent_28%),var(--background)]"
       >

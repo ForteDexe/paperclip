@@ -45,7 +45,6 @@ import {
   type AgentSidebarSortMode,
   writeAgentSortMode,
 } from "../lib/agent-order";
-import { BudgetSidebarMarker } from "./BudgetSidebarMarker";
 import { SidebarNavItem } from "./SidebarNavItem.production";
 import { SidebarSection, type SidebarSectionRadioChoice } from "./SidebarSection";
 import { StarToggle } from "./StarToggle";
@@ -144,15 +143,12 @@ function SidebarAgentItem({
   const editHref = `${agentUrl(agent)}/configuration`;
   const isActive = activeAgentId === routeRef;
   const isPaused = agent.status === "paused";
-  const isBudgetPaused = isPaused && agent.pauseReason === "budget";
   const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
   const pauseResumeLabel = isPaused ? "Resume agent" : "Pause agent";
-  const pauseResumeDisabled = disabled || agent.status === "pending_approval" || isBudgetPaused || (isPaused && hasInvalidOrgChain);
+  const pauseResumeDisabled = disabled || agent.status === "pending_approval" || (isPaused && hasInvalidOrgChain);
   const pauseResumeDisabledLabel = disabled
     ? "Updating..."
-    : isBudgetPaused
-      ? "Budget paused"
-      : isPaused && hasInvalidOrgChain
+    : isPaused && hasInvalidOrgChain
         ? "Invalid org chain"
       : pauseResumeLabel;
   const showBuiltInLifecycle = builtInStatus === "needs_setup" || builtInStatus === "pending_approval";
@@ -188,9 +184,6 @@ function SidebarAgentItem({
         ) : undefined
       }
       trailingLabel={trailingLabel}
-      liveAccessory={
-        agent.pauseReason === "budget" ? <BudgetSidebarMarker title="Agent paused by budget" /> : undefined
-      }
     />
   );
 
@@ -272,7 +265,6 @@ function SidebarAgentItem({
               onPauseResume(agent, isPaused ? "resume" : "pause");
             }}
             disabled={pauseResumeDisabled}
-            title={isBudgetPaused ? "Agent was paused by budget limits" : undefined}
           >
             {isPaused ? <PlayCircle className="size-4" /> : <PauseCircle className="size-4" />}
             <span>{pauseResumeDisabledLabel}</span>

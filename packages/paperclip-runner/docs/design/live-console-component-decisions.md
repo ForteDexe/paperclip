@@ -86,7 +86,7 @@ re-typed to reducer snapshots and restyled to tokens.
 | Primitive | Adapted as | Implementation note |
 |---|---|---|
 | `Tabs` | `ui/tabs.tsx` | inspector tabs + mobile segments; WAI-ARIA tabs pattern, roving tabindex, no radix |
-| `DropdownMenu` (menu-button subset) | `ui/menu.tsx` | Goal menu (§5) — five fixed items; menu-button ARIA pattern; no radix portal |
+| `DropdownMenu` (menu-button subset) | `ui/menu.tsx` | North Star menu (§5) — five fixed items; menu-button ARIA pattern; no radix portal |
 | `Dialog` | `ui/dialog.tsx` | native `<dialog>` element (`showModal()` gives focus trap + `Escape` for free); used by Set goal… and reset confirm |
 | `Tooltip` | `ui/tooltip.tsx` | hover/focus tooltip for diagnostics; content mirrored to `aria-describedby` per map A5 (tooltip is never the only channel) |
 | `Alert` | `ui/banner.tsx` | reconnect / pending-request / replay banners; tone variants from status tokens |

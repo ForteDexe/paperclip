@@ -82,7 +82,7 @@ export function startCursorCloudAppServerProxy(options: {
     const relayExpiresAt = Number(env.PAPERCLIP_CURSOR_CLOUD_RELAY_EXPIRES_AT);
     if (!relayUrl || !relayToken || !socketPath || !Number.isSafeInteger(relayExpiresAt) || relayExpiresAt <= 0) throw new Error("Cursor Cloud semantic relay binding and expiry are required");
     const driver = new CursorCloudDriver({ model, config, binding, runtimeDirectory: dirname(resolve(configPath)), artifactRoot: env.PAPERCLIP_CURSOR_CLOUD_ARTIFACT_ROOT, relay: { url: relayUrl, token: relayToken, socketPath, expiresAt: relayExpiresAt },
-      instructions: text(params.baseInstructions, "Complete only the supplied Paperclip task. Use Paperclip tools and finish with paperclip_finish or paperclip_block."), runtimeContext,
+      instructions: text(params.baseInstructions, "Complete only the supplied Outpost task. Use Outpost tools and finish with paperclip_finish or paperclip_block."), runtimeContext,
       dynamicTools: Array.isArray(params.dynamicTools) ? params.dynamicTools.map(value => cursorCloudRecord(value)) : [],
       dynamicToolHandler: async call => requestController({ ...call }), environment: env,
       runnerInstanceId: env.PAPERCLIP_RUNNER_INSTANCE_ID ?? "cursor-cloud-sidecar" });

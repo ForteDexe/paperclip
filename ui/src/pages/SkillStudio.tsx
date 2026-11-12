@@ -81,7 +81,7 @@ import {
   SkillLineageChip,
 } from "@/components/skill-studio/SkillProvenance";
 import { isProjectScanSkill } from "@/lib/skill-fork";
-import { cn, formatCents, relativeTime } from "@/lib/utils";
+import { cn, relativeTime } from "@/lib/utils";
 import { SkillCardIcon, type DiscoveryCard } from "./CompanySkills";
 import {
   ResizableHandle,
@@ -336,7 +336,7 @@ export function SkillStudio() {
   }, [skill?.id]);
 
   if (!companyId) {
-    return <StudioMessage message="Select an organization to open Skill Studio." />;
+    return <StudioMessage message="Select an outpost to open Skill Studio." />;
   }
   if (isCreateMode) {
     return (
@@ -493,7 +493,7 @@ function StudioNewSkillPanel({
       toast?.pushToast({
         tone: "success",
         title: skill.forkedFromSkillId ? "Skill fork created" : "Skill created",
-        body: `${skill.name} is now editable in the Paperclip workspace.`,
+        body: `${skill.name} is now editable in the Outpost workspace.`,
       });
       navigate(skillStudioRoute(skill.id));
     },
@@ -539,7 +539,7 @@ function StudioNewSkillPanel({
           {draft.forkedFromSkillId ? "Fork skill" : "Create a new skill"}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Create an editable organization skill and open it directly in Studio.
+          Create an editable outpost skill and open it directly in Studio.
         </p>
       </div>
 
@@ -665,7 +665,7 @@ function StudioNewSkillPanel({
       <section className="space-y-3">
         <div>
           <h2 className="text-sm font-medium text-foreground">Sharing</h2>
-          <p className="text-xs text-muted-foreground">Choose who can discover this skill inside Paperclip.</p>
+          <p className="text-xs text-muted-foreground">Choose who can discover this skill inside Outpost.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
           {(["company", "private"] as const).map((scope) => (
@@ -678,9 +678,9 @@ function StudioNewSkillPanel({
                 draft.sharingScope === scope ? "border-foreground bg-accent/50" : "border-border",
               )}
             >
-              <span className="block font-medium">{scope === "company" ? "Organization" : "Private"}</span>
+              <span className="block font-medium">{scope === "company" ? "Outpost" : "Private"}</span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                {scope === "company" ? "Visible inside this organization." : "Only visible in your library."}
+                {scope === "company" ? "Visible inside this outpost." : "Only visible in your library."}
               </span>
             </button>
           ))}
@@ -1450,7 +1450,7 @@ function SkillPane({
     onError: onError("Couldn't delete file"),
   });
 
-  // Read-only skills (bundled Paperclip, remote GitHub, URL, skills.sh) reject
+  // Read-only skills (bundled Outpost, remote GitHub, URL, skills.sh) reject
   // file writes server-side; reflect that up-front instead of letting the user
   // type into an editor whose Save silently 422s (PAP-13001 Bug B).
   const readOnly = skill.editable === false || fileQuery.data?.editable === false;
@@ -3003,11 +3003,6 @@ function RunHistoryRow({
       identifier={runShortId(run)}
       title={removed ? `${name} (removed)` : name}
       subtitle={relativeTime(run.createdAt)}
-      trailing={
-        <span className="font-mono text-xs text-muted-foreground">
-          {formatCents(run.cost.costCents)}
-        </span>
-      }
       onClick={onSelect}
     />
   );
@@ -3131,7 +3126,7 @@ function RunDetailView({
     },
     onSuccess: (run) => {
       queryClient.invalidateQueries({
-        queryKey: ["company-skills", companyId, skillId, "test-runs"],
+        queryKey: ["outpost-skills", companyId, skillId, "test-runs"],
       });
       onSelectRun(run.id);
     },
@@ -3142,7 +3137,7 @@ function RunDetailView({
     mutationFn: () => companySkillsApi.deleteTestRun(companyId, skillId, runId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["company-skills", companyId, skillId, "test-runs"],
+        queryKey: ["outpost-skills", companyId, skillId, "test-runs"],
       });
       onSelectRun(null);
     },
@@ -3192,9 +3187,6 @@ function RunDetailView({
           {removed && <Badge variant="secondary">removed</Badge>}
           <span className="font-mono text-xs text-muted-foreground">
             v{detail.skillVersion.revisionNumber}
-          </span>
-          <span className="ml-auto font-mono text-xs text-muted-foreground">
-            {formatCents(detail.cost.costCents)}
           </span>
         </div>
 

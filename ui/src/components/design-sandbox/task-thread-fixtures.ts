@@ -24,7 +24,7 @@ export interface ThreadPreviewCase {
 }
 const ts = (second: number) => new Date(Date.UTC(2026, 9, 15, 17, 12, second)).toISOString();
 const event = (seq: number, type: string, payload: Record<string, unknown>, itemId?: string): HeartbeatRunEvent => ({
-  id: seq, companyId: "synthetic-company", agentId: "synthetic-agent", runId: "synthetic-run", seq,
+  id: seq, companyId: "synthetic-outpost", agentId: "synthetic-agent", runId: "synthetic-run", seq,
   eventType: type, stream: "system", level: "info", color: null, message: null, createdAt: new Date(ts(seq)),
   payload: { prpEvent: {
     schema: "paperclip.prp.event.v1", sourceEventId: `synthetic-event-${seq}`, sourceSeq: seq,

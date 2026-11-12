@@ -9,7 +9,7 @@ export const COPILOT_TASK_ORIENTATION_INSTRUCTIONS = "At the start of every task
 
 /** Compose Copilot-only guidance without changing other providers' sandbox identity. */
 export function composeCopilotSystemInstructions(instructions: string): string {
-  const composed = `${instructions}\n\n# Paperclip task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}`;
+  const composed = `${instructions}\n\n# Outpost task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}`;
   if (composed.includes("\0") || Buffer.byteLength(`${composed}\n`) > 32 * 1024) {
     throw new Error("Provider runtime instructions exceed their bounded size");
   }

@@ -238,14 +238,14 @@ export function InteractionGovernancePanel({
   errorMessage?: string | null;
 }) {
   return (
-    <div className="space-y-4" data-testid="company-settings-interaction-governance-section">
+    <div className="space-y-4" data-testid="outpost-settings-interaction-governance-section">
       <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
         Interaction governance
       </div>
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Thread interactions are open by default:{" "}
-          <span className="font-medium text-foreground">Anyone</span> in the organization — the
+          <span className="font-medium text-foreground">Anyone</span> in the outpost — the
           board or any agent, including the one that asked — can respond. Narrow a kind
           only when you need to.{" "}
           <span className="font-medium text-foreground">Default policy</span> is the

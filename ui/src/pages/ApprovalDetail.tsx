@@ -285,7 +285,7 @@ export function ApprovalDetail() {
           )}
           {isBudgetApproval && approval.status === "pending" && (
             <p className="text-sm text-muted-foreground">
-              Resolve this budget stop from the budget controls on <Link to="/costs" className="underline underline-offset-2">/costs</Link>.
+              This is a historical policy request. Outpost no longer enforces it or requires an action.
             </p>
           )}
           {approval.status === "pending" && (

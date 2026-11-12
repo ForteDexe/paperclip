@@ -95,7 +95,7 @@ export function ProfileSettings() {
   const uploadAvatarMutation = useAccountBoundMutation({
     mutationFn: async (file: File, { assertCurrentAccount }) => {
       if (!selectedCompanyId) {
-        throw new Error("Select an organization before uploading a profile avatar.");
+        throw new Error("Select an outpost before uploading a profile avatar.");
       }
 
       const asset = await assetsApi.uploadImage(
@@ -152,8 +152,8 @@ export function ProfileSettings() {
   const initials = deriveInitials(currentName);
   const isSavingProfile = updateMutation.isPending || uploadAvatarMutation.isPending || removeAvatarMutation.isPending;
   const uploadHint = selectedCompany
-    ? `Stored in Paperclip file storage for ${selectedCompany.name}.`
-    : "Select an organization to upload an avatar into Paperclip storage.";
+    ? `Stored in Outpost file storage for ${selectedCompany.name}.`
+    : "Select an outpost to upload an avatar into Outpost storage.";
 
   return (
     <div className="max-w-6xl space-y-6">

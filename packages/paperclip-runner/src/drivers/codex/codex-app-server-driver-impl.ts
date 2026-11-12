@@ -826,7 +826,7 @@ export class CodexAppServerDriver implements HarnessDriver {
     if (this.#options.observability?.otelConfig && !this.#options.transportFactory && !usesPreconfiguredHome(this.#options.environment)) {
       const home = this.#options.environment?.CODEX_HOME;
       if (home) writeManagedCodexObservability(home, this.#options.observability.otelConfig);
-      else this.#options.onDiagnostic?.("Company observability requires a managed Codex home");
+      else this.#options.onDiagnostic?.("Outpost observability requires a managed Codex home");
     }
     if (!usesPreconfiguredHome(this.#options.environment) && !this.#options.transportFactory && this.#options.environment?.CODEX_HOME && workingDirectory) {
       trustCodexStartupRoot(this.#options.environment.CODEX_HOME, workingDirectory);
@@ -904,7 +904,7 @@ export class CodexAppServerDriver implements HarnessDriver {
     const initialized = await transport.request("initialize", {
       clientInfo: {
         name: "paperclip-runner",
-        title: "Paperclip Runner",
+        title: "Outpost Runner",
         version: DRIVER_VERSION,
       },
       capabilities: { experimentalApi: true, requestAttestation: false },
@@ -1009,7 +1009,7 @@ export class CodexAppServerDriver implements HarnessDriver {
         codexVersion: boundedText(initialize.userAgent),
         clientInfo: {
           name: "paperclip-runner",
-          title: "Paperclip Runner",
+          title: "Outpost Runner",
           version: DRIVER_VERSION,
         },
         model: boundedText(response.model),

@@ -424,7 +424,7 @@ export function connectionManagementGuard(db: Db, purpose: "tool" | "chat" | "ai
 export async function aiLoginUserAction(db: Db, req: Request, companyId: string, sessionId: string) {
   if (req.actor.type !== "agent") return {};
   const [company] = await db.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
-  if (!company) throw notFound("Company not found");
+  if (!company) throw notFound("Outpost not found");
   return requiredConnectionUserAction(req, { type: "ai_login", id: sessionId, companyId },
     `/${encodeURIComponent(company.prefix)}/apps/connect?aiLogin=${encodeURIComponent(sessionId)}`,
     "Complete the provider sign-in for this saved AI account.");

@@ -169,10 +169,10 @@ export const TASK_CHAT_STATE_META: Record<TaskChatStateId, TaskChatStateMeta> = 
   },
   "live-token-cost": {
     id: "live-token-cost",
-    label: "Live token / cost",
+    label: "Live token usage",
     tier: "tier-b",
     surface: "thread",
-    protocol: "ACP UsageUpdate { used, size, cost }",
+    protocol: "ACP UsageUpdate { used, size }",
   },
 };
 

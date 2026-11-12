@@ -31,7 +31,7 @@ import {
   type PrpStructuredRunResult,
 } from "../../vendor/paperclip-runner/index.js";
 
-const repositoryYieldCorrection = 'This task has a saved repository preparation for its next admission. This is routine setup, not a blocker. Call paperclip_finish with reportedWorkDisposition="yielded" and omit continuation (or use null); Paperclip will select the saved workspace continuation. Preserve the completed work and explain what remains. Do not repeat setup, set a timer, or ask the user to restart.';
+const repositoryYieldCorrection = 'This task has a saved repository preparation for its next admission. This is routine setup, not a blocker. Call paperclip_finish with reportedWorkDisposition="yielded" and omit continuation (or use null); Outpost will select the saved workspace continuation. Preserve the completed work and explain what remains. Do not repeat setup, set a timer, or ask the user to restart.';
 
 // A Paperclip stall or restart leaves the agent's Paperclip tool calls
 // unanswered until the server is back; they then return together. The agent can
@@ -39,7 +39,7 @@ const repositoryYieldCorrection = 'This task has a saved repository preparation 
 // the server and is being answered, which is the server's own proof that its
 // control plane is reachable now. Ask once per run to re-check with fresh
 // Paperclip calls instead of resting the task blocked on a past stall.
-const paperclipServiceRecheckCorrection = "Paperclip answered this report, so its control plane is reachable now. Paperclip tool calls that did not return earlier were most likely delayed by a Paperclip restart or pause, and their results may have arrived since. Do not report this as a blocker. Re-read the current Paperclip state (for example read_document) before writing again; when a write is still needed, repeat it with the same idempotencyKey so it cannot apply twice. Then continue the task and report its real outcome. Report blocked only if a fresh Paperclip call fails now.";
+const paperclipServiceRecheckCorrection = "Outpost answered this report, so its control plane is reachable now. Outpost tool calls that did not return earlier were most likely delayed by an Outpost restart or pause, and their results may have arrived since. Do not report this as a blocker. Re-read the current Outpost state (for example read_document) before writing again; when a write is still needed, repeat it with the same idempotencyKey so it cannot apply twice. Then continue the task and report its real outcome. Report blocked only if a fresh Outpost call fails now.";
 const PAPERCLIP_SERVICE_RECHECK_LIMIT = 1_000;
 const paperclipServiceRechecked = new Set<string>();
 
@@ -130,7 +130,7 @@ export async function nativeCompletionFeedback(
       throw new Error("Resolve your assigned review with resolve_review before finishing. If you cannot review the work, report the concrete blocker with paperclip_block.");
     }
     return review?.interaction.status === "pending"
-      ? "Review blocker recorded. Paperclip will preserve the task and record the reviewer recovery action."
+      ? "Review blocker recorded. Outpost will preserve the task and record the reviewer recovery action."
       : "Review report accepted. The recorded review decision controls task completion; this report cannot override it.";
   }
   // Bind feedback to this run, not the first contract from a reused session or
@@ -305,7 +305,7 @@ export async function nativeCompletionFeedback(
         throw new Error(`The referenced tool-action approval is already resolved (${card.id}). Read its persisted interaction result and continue from that decision. Do not repeat the service call or request approval again.`);
       }
       if (card.status === "pending" && signals.actionableAttentionRequests.some(request => request.kind === "approval" && request.ownerClass === "human")) {
-        throw new Error(`This tool action already has an approval card (${card.id}). Wait on that existing interaction with a yielded response_wake report and no duplicate approval attentionRequest. Paperclip will resume from its decision; do not create a completion review or repeat the service call.`);
+        throw new Error(`This tool action already has an approval card (${card.id}). Wait on that existing interaction with a yielded response_wake report and no duplicate approval attentionRequest. Outpost will resume from its decision; do not create a completion review or repeat the service call.`);
       }
     }
   }
@@ -354,7 +354,7 @@ export async function nativeCompletionFeedback(
     throw new Error(paperclipServiceRecheckCorrection);
   }
   if (result.reportedWorkDisposition === "yielded" && result.continuation?.kind === "monitor") {
-    return `Monitor wait accepted. The task remains active and Paperclip will wake its assignee at or after ${issue.monitorNextCheckAt!.toISOString()} with issue_monitor_due. End this turn; do not poll or mark the task done.`;
+    return `Monitor wait accepted. The task remains active and Outpost will wake its assignee at or after ${issue.monitorNextCheckAt!.toISOString()} with issue_monitor_due. End this turn; do not poll or mark the task done.`;
   }
   if (
     !isConversation(issue) &&
@@ -394,7 +394,7 @@ export async function nativeCompletionFeedback(
       (signals.actionableAttentionRequests.length === 0 ||
         signals.actionableAttentionRequests.some(request => request.kind === "review"))) {
     throw new Error(
-      "This task has a configured review stage with its own reviewer. Do not request a separate review. Report done once the work is complete and verified; Paperclip then starts the configured review, and the task stays in review until that reviewer decides.",
+      "This task has a configured review stage with its own reviewer. Do not request a separate review. Report done once the work is complete and verified; Outpost then starts the configured review, and the task stays in review until that reviewer decides.",
     );
   }
   if (
@@ -402,7 +402,7 @@ export async function nativeCompletionFeedback(
     signals.actionableAttentionRequests.length === 0
   ) {
     throw new Error(
-      "needs_review requires a concrete decision and a named reviewer in attentionRequests. Continue unfinished work or checks; report done when complete. Paperclip will not create an automatic completion approval.",
+      "needs_review requires a concrete decision and a named reviewer in attentionRequests. Continue unfinished work or checks; report done when complete. Outpost will not create an automatic completion approval.",
     );
   }
   for (const request of signals.actionableAttentionRequests) {
@@ -429,5 +429,5 @@ export async function nativeCompletionFeedback(
   const links = await savedDocumentLinks(db, run, issue);
   const documentGuidance = links.length
     ? ` When compatible with the requested response format, include these clickable links to this run's saved documents in your final response: ${links.join(" ")}` : "";
-  return "Completion report accepted. Task status will be committed after this turn and workspace finalization finish. Follow the user's explicitly requested final-response format, including an exact response when requested. Otherwise describe the completed work and any explicitly requested reviewer action. Do not claim an approval is needed unless one was requested. When compatible with the requested response format, present any created or updated Paperclip resources you cite as usable Markdown links [name](href), using resourceLinks or resource hrefs actually returned by tools, not only backtick-wrapped paths. Do not guess routes or invent links when no resource href was returned." + documentGuidance;
+  return "Completion report accepted. Task status will be committed after this turn and workspace finalization finish. Follow the user's explicitly requested final-response format, including an exact response when requested. Otherwise describe the completed work and any explicitly requested reviewer action. Do not claim an approval is needed unless one was requested. When compatible with the requested response format, present any created or updated Outpost resources you cite as usable Markdown links [name](href), using resourceLinks or resource hrefs actually returned by tools, not only backtick-wrapped paths. Do not guess routes or invent links when no resource href was returned." + documentGuidance;
 }

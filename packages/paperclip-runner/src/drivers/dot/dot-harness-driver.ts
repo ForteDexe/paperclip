@@ -35,7 +35,7 @@ export class DotHarnessDriver implements HarnessDriver {
   #revoked = false;
 
   constructor(options: DotDriverOptions) {
-    if (options.identity.companyId !== options.principal.companyId) throw new DotBoundaryError("Company binding mismatch.");
+    if (options.identity.companyId !== options.principal.companyId) throw new DotBoundaryError("Outpost binding mismatch.");
     const remaining = options.expiresAt - (options.now ?? Date.now)();
     if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 24 * 3600_000) throw new DotBoundaryError("Dot authority must expire within 24 hours.");
     this.identity = structuredClone(options.identity);
@@ -182,7 +182,7 @@ class DotSession implements HarnessSession {
         return { accepted: true };
       }
       const parsed = validatePrpStructuredRunResult(input.result);
-      if (!parsed.ok) throw new DotBoundaryError("Invalid Paperclip structured run result.");
+      if (!parsed.ok) throw new DotBoundaryError("Invalid Outpost structured run result.");
       this.#result = parsed.result;
       clearTimeout(this.#expiry);
       this.#emit("run.result.proposed", this.#result);

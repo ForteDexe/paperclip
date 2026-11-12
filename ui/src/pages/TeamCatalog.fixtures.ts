@@ -12,19 +12,19 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const sampleTeam: CatalogTeam = {
-  id: "paperclipai:bundled:company-defaults:core-exec-team",
-  key: "paperclipai/bundled/company-defaults/core-exec-team",
+  id: "paperclipai:bundled:outpost-defaults:core-exec-team",
+  key: "paperclipai/bundled/outpost-defaults/core-exec-team",
   kind: "bundled",
-  category: "company-defaults",
+  category: "outpost-defaults",
   slug: "core-exec-team",
   name: "Core Exec Team",
   description:
-    "A starter executive team: a CEO who manages a CTO and a CMO, plus a launch project and a weekly standup routine. Installs ready-to-run agents you can customize.",
-  path: "catalog/bundled/company-defaults/core-exec-team",
+    "A starter executive team: an Outpost Lead who manages an Engineering Lead and a CMO, plus a launch project and a weekly standup routine. Installs ready-to-run agents you can customize.",
+  path: "catalog/bundled/outpost-defaults/core-exec-team",
   entrypoint: "TEAM.md",
   schema: "agentcompanies/v1",
   defaultInstall: true,
-  recommendedForCompanyTypes: ["company-root"],
+  recommendedForCompanyTypes: ["outpost-root"],
   tags: ["exec", "starter"],
   counts: {
     agents: 3,
@@ -133,8 +133,8 @@ export const onboardingTeams: CatalogTeam[] = [
   },
   {
     ...sampleTeam,
-    id: "paperclipai:bundled:company-defaults:growth-pod",
-    key: "paperclipai/bundled/company-defaults/growth-pod",
+    id: "paperclipai:bundled:outpost-defaults:growth-pod",
+    key: "paperclipai/bundled/outpost-defaults/growth-pod",
     slug: "growth-pod",
     name: "Growth Pod",
     description:
@@ -149,8 +149,8 @@ export const onboardingTeams: CatalogTeam[] = [
   },
   {
     ...sampleTeam,
-    id: "paperclipai:bundled:company-defaults:support-pod",
-    key: "paperclipai/bundled/company-defaults/support-pod",
+    id: "paperclipai:bundled:outpost-defaults:support-pod",
+    key: "paperclipai/bundled/outpost-defaults/support-pod",
     slug: "support-pod",
     name: "Support Pod",
     description: "A two-person support desk with a lead and an agent, plus a triage routine.",

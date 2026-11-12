@@ -192,7 +192,7 @@ function oauthCallbackErrorMessage(outcome: string | null, code: string | null):
     return "Authorization was cancelled or declined. Your saved connection was not changed.";
   }
   if (code === "github_installation_required") {
-    return "GitHub access is required. Install Paperclip and grant at least one repository, then try again.";
+    return "GitHub access is required. Install Outpost and grant at least one repository, then try again.";
   }
   return "Authorization did not complete. Your saved connection is still here, so you can try again.";
 }
@@ -852,7 +852,7 @@ function StandardConnectionSetupFlow({
     const popup = oauthPopupRef.current;
     if (!popup || popup.closed) {
       setOAuthPhase("error");
-      setOAuthError("Paperclip couldn’t open the sign-in window. Open sign-in in a new tab to continue.");
+      setOAuthError("Outpost couldn’t open the sign-in window. Open sign-in in a new tab to continue.");
       onPhaseChange?.("needs_retry");
       return;
     }
@@ -892,7 +892,7 @@ function StandardConnectionSetupFlow({
       if (target.kind === "reauthentication") {
         const destination = oauthPopupRef.current;
         if (!destination || destination.closed || !start.handoff) {
-          throw new Error("Paperclip couldn’t preserve this sign-in while refreshing your account.");
+          throw new Error("Outpost couldn’t preserve this sign-in while refreshing your account.");
         }
         savePendingCloudHandoff(start.handoff.session, destination.sessionStorage);
         setOAuthPhase("starting");
@@ -1213,7 +1213,7 @@ function StandardConnectionSetupFlow({
     onSuccess: (status) => {
       if (!status.verificationUrl) {
         closeEnrollmentPopup();
-        setConnectorEnrollmentError("Paperclip Cloud did not return an enrollment link. Try again.");
+        setConnectorEnrollmentError("Outpost Cloud did not return an enrollment link. Try again.");
         return;
       }
       openConnectorEnrollment(status.verificationUrl);
@@ -1555,7 +1555,7 @@ function StandardConnectionSetupFlow({
       // A resumable draft already owns its identity and install reach. Replacing
       // those choices with this page's defaults would turn "finish setup" into a
       // silent access change. Fresh connections still persist the Access step
-      // before the browser leaves Paperclip.
+      // before the browser leaves Outpost.
       if (result.auth?.kind === "oauth" && !resumeConnectionId && !reconnectConnectionId) {
         await applyAccessInstalls(result.connectionId);
       }
@@ -1806,7 +1806,7 @@ function StandardConnectionSetupFlow({
     if (automaticOAuth && directOAuthRetryingRef.current) return;
     if (automaticOAuth && (applicationsView.kind === "error" || connectionsView.kind === "error")) {
       setOAuthPhase("error");
-      setOAuthError("Paperclip couldn’t check for an existing connection. Try again.");
+      setOAuthError("Outpost couldn’t check for an existing connection. Try again.");
       setStep("key");
       return;
     }
@@ -1980,7 +1980,7 @@ function StandardConnectionSetupFlow({
   });
 
   if (!selectedCompanyId) {
-    return <div className="p-6 text-sm text-muted-foreground">Select an organization to connect apps.</div>;
+    return <div className="p-6 text-sm text-muted-foreground">Select an outpost to connect apps.</div>;
   }
 
   if (
@@ -1991,7 +1991,7 @@ function StandardConnectionSetupFlow({
       <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">Couldn’t load connection setup</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Paperclip couldn’t check the retained connection. The retained connection was not changed.
+          Outpost couldn’t check the retained connection. The retained connection was not changed.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button
@@ -2036,7 +2036,7 @@ function StandardConnectionSetupFlow({
       <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">This setup can’t be resumed</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The saved connection no longer exists or is not available to this organization.
+          The saved connection no longer exists or is not available to this outpost.
         </p>
         <Button type="button" variant="outline" className="mt-5" onClick={() => navigate("/apps")}>
           Back to apps
@@ -2076,7 +2076,7 @@ function StandardConnectionSetupFlow({
         <h2 className="text-lg font-semibold text-foreground">This connection can’t be reconnected</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {!reconnectConnection
-            ? "The retained connection no longer exists or is not available to this organization."
+            ? "The retained connection no longer exists or is not available to this outpost."
             : "This reconnect link does not match the retained connection's provider."}
         </p>
         <Button type="button" variant="outline" className="mt-5" onClick={() => navigate("/apps")}>
@@ -2091,7 +2091,7 @@ function StandardConnectionSetupFlow({
       <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">Couldn’t load connection setup</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Paperclip couldn’t load the provider details needed to restore this connection. The retained connection was not changed.
+          Outpost couldn’t load the provider details needed to restore this connection. The retained connection was not changed.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button type="button" onClick={galleryView.retry} disabled={galleryView.isFetching}>
@@ -2110,7 +2110,7 @@ function StandardConnectionSetupFlow({
       <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">This connection can’t be reconnected</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Paperclip no longer has a supported setup method for this retained connection. The retained connection was not changed.
+          Outpost no longer has a supported setup method for this retained connection. The retained connection was not changed.
         </p>
         <Button type="button" variant="outline" className="mt-5" onClick={() => navigate("/apps")}>
           Back to apps
@@ -2227,7 +2227,7 @@ function StandardConnectionSetupFlow({
       notice={[
         galleryQuery.data?.capabilities?.canCreateOrganizationGrant === false
           ? galleryQuery.data.capabilities.organizationGrantReason
-            ?? "Only a connection manager can share this credential with the organization."
+            ?? "Only a connection manager can share this credential with the outpost."
           : null,
         galleryQuery.data?.capabilities?.canSetCompanyInstall === false
           ? galleryQuery.data.capabilities.companyInstallReason
@@ -2415,7 +2415,7 @@ function StandardConnectionSetupFlow({
             oauthPopupRef.current?.close();
             oauthPopupRef.current = null;
             setOAuthPhase("error");
-            setOAuthError("Paperclip couldn’t check for an existing connection. Try again.");
+            setOAuthError("Outpost couldn’t check for an existing connection. Try again.");
           } finally {
             if (pendingOAuthLookupRef.current === lookup) {
               if (!isCurrentLookup()) {
@@ -2604,7 +2604,7 @@ function StandardConnectionSetupFlow({
         <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6">
           <h2 className="text-lg font-semibold text-foreground">{entry.name} sign-in is unavailable</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            This instance is connected to Paperclip, but {entry.name} sign-in is not currently available. Try again shortly or contact your instance administrator.
+            This instance is connected to Outpost, but {entry.name} sign-in is not currently available. Try again shortly or contact your instance administrator.
           </p>
           {customOAuthMethod ? (
             <Button type="button" variant="link" className="mt-4 h-auto p-0 text-xs" onClick={() => setConnectionMethodKey(customOAuthMethod.key)}>
@@ -2628,10 +2628,10 @@ function StandardConnectionSetupFlow({
               </div>
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-foreground">
-                  Connect with Paperclip
+                  Connect with Outpost
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  You must connect this instance to Paperclip to connect to {entry.name} (you only need to do this once).
+                  You must connect this instance to Outpost to connect to {entry.name} (you only need to do this once).
                 </p>
               </div>
             </div>
@@ -2644,7 +2644,7 @@ function StandardConnectionSetupFlow({
 
             {connectorEnrollmentView.kind === "error" || connectorEnrollmentError ? (
               <InlineBanner tone="danger" className="mt-4">
-                {connectorEnrollmentError ?? "Paperclip couldn’t check Cloud registration. Try again."}
+                {connectorEnrollmentError ?? "Outpost couldn’t check Cloud registration. Try again."}
               </InlineBanner>
             ) : null}
 
@@ -2676,7 +2676,7 @@ function StandardConnectionSetupFlow({
                 {startConnectorEnrollment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {connectorEnrollmentQuery.data?.status === "pending"
                   ? "Continue"
-                  : "Connect with Paperclip"}
+                  : "Connect with Outpost"}
               </Button>
             </div>
           </div>
@@ -2926,15 +2926,15 @@ export function OAuthConnectStateScreen({
     ? {
         title: resuming
           ? `Finish connecting ${serverName}`
-          : `Connect ${serverName} to Paperclip`,
+          : `Connect ${serverName} to Outpost`,
         body: resuming
           ? `Your connection is saved. Continue in ${serverName} to approve access; its identity and agent access will stay the same.`
-          : `Paperclip will open ${serverName} so you can choose a workspace and approve access.`,
+          : `Outpost will open ${serverName} so you can choose a workspace and approve access.`,
       }
     : phase === "starting"
       ? {
           title: "Preparing secure sign-in",
-          body: `Paperclip is creating a secure ${serverName} connection.`,
+          body: `Outpost is creating a secure ${serverName} connection.`,
         }
       : phase === "redirecting"
         ? {
@@ -2945,7 +2945,7 @@ export function OAuthConnectStateScreen({
           }
         : {
             title: `${serverName} couldn’t connect`,
-            body: error ?? "Paperclip couldn’t start secure sign-in. Try again.",
+            body: error ?? "Outpost couldn’t start secure sign-in. Try again.",
           };
 
   return (
@@ -2985,7 +2985,7 @@ export function OAuthConnectStateScreen({
             {recoveryActions.installationUrl ? (
               <Button type="button" variant="outline" asChild>
                 <a href={recoveryActions.installationUrl} target="_blank" rel="noreferrer">
-                  Install Paperclip on GitHub
+                  Install Outpost on GitHub
                   <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
                 </a>
               </Button>
@@ -3164,7 +3164,7 @@ function GalleryStep({
             <div>
               <h2 className="text-lg font-bold tracking-tight">Connect through Vercel</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Create and manage the provider connector in Vercel. Paperclip stores its reference and applies agent access, policy, approval, and audit controls here.
+                Create and manage the provider connector in Vercel. Outpost stores its reference and applies agent access, policy, approval, and audit controls here.
               </p>
             </div>
             {vercelConnectAvailability ? (
@@ -3351,7 +3351,7 @@ function normalizeAppLink(value: string): string | null {
  * key?" — because that is all most servers need. Everything protocol-shaped lives
  * behind "Advanced authentication", and no OAuth/DCR/CIMD jargon appears on the
  * consumer path: the operator picks how the server authenticates, not which RFC
- * Paperclip will use to satisfy it.
+ * Outpost will use to satisfy it.
  *
  * The endpoint host and the "Unverified server" label stay visible the whole way
  * through, so the operator can always see whose server they are about to let
@@ -3440,7 +3440,7 @@ function LinkConnectStep({
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2 text-sm">
             <AppLogo name={matchedEntry.name} logoUrl={matchedEntry.branding.logoUrl} darkLogoUrl={matchedEntry.branding.darkLogoUrl} size={24} />
-            <span className="truncate">Paperclip has a guided setup for {matchedEntry.name}.</span>
+            <span className="truncate">Outpost has a guided setup for {matchedEntry.name}.</span>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={onUseMatchedEntry}>
             Use {matchedEntry.name}
@@ -3471,7 +3471,7 @@ function LinkConnectStep({
                 className="mt-2 h-11 font-mono"
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                Grant this key read and write access to the resources your agents need. Paperclip cannot increase its permissions.
+                Grant this key read and write access to the resources your agents need. Outpost cannot increase its permissions.
               </p>
             </div>
           </div>
@@ -3547,8 +3547,8 @@ function LinkConnectStep({
             {authMode === "oauth" ? (
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Paperclip sets sign-in up on its own whenever the server allows it. Only fill these in when the
-                  server's docs tell you to register Paperclip yourself first.
+                  Outpost sets sign-in up on its own whenever the server allows it. Only fill these in when the
+                  server's docs tell you to register Outpost yourself first.
                 </p>
                 <div>
                   <label className="text-sm font-medium text-foreground" htmlFor="generic-mcp-client-id">
@@ -3600,15 +3600,15 @@ function LinkConnectStep({
 
 /**
  * What the operator is choosing is how the *server* authenticates, in its own
- * terms. Paperclip decides internally whether that means a preconfigured client,
+ * terms. Outpost decides internally whether that means a preconfigured client,
  * a client ID metadata document, dynamic registration, or the credentials pasted
  * below — none of which belongs on this screen.
  */
 const GENERIC_AUTH_MODE_OPTIONS: Array<{ mode: GenericMcpAuthMode; label: string; hint: string }> = [
   {
     mode: "auto",
-    label: "Let Paperclip check",
-    hint: "Paperclip asks the server what it needs and walks you through it. Start here.",
+    label: "Let Outpost check",
+    hint: "Outpost asks the server what it needs and walks you through it. Start here.",
   },
   {
     mode: "none",
@@ -3618,17 +3618,17 @@ const GENERIC_AUTH_MODE_OPTIONS: Array<{ mode: GenericMcpAuthMode; label: string
   {
     mode: "bearer",
     label: "Key or token",
-    hint: "Paperclip sends your key as an Authorization header.",
+    hint: "Outpost sends your key as an Authorization header.",
   },
   {
     mode: "custom_headers",
     label: "Custom headers",
-    hint: "For servers that name their own headers. Values are stored as Paperclip secrets and can\u2019t be read back.",
+    hint: "For servers that name their own headers. Values are stored as Outpost secrets and can’t be read back.",
   },
   {
     mode: "oauth",
     label: "Browser sign-in",
-    hint: "You\u2019ll sign in at the provider. Add a client ID and secret only if the provider requires you to register Paperclip first.",
+    hint: "You’ll sign in at the provider. Add a client ID and secret only if the provider requires you to register Outpost first.",
   },
 ];
 
@@ -3819,7 +3819,7 @@ function KeyStep({
   const hasAlternateMethods = capabilityGroups.length > 1 || capabilityMethods.length > 1;
   const capabilitySelection = capabilityGroups.length > 1 ? (
     <div>
-      <label className="text-sm font-medium text-foreground">What should Paperclip be able to do?</label>
+      <label className="text-sm font-medium text-foreground">What should Outpost be able to do?</label>
       <RadioCardGroup
         ariaLabel={`Access level for ${entry.name}`}
         className="mt-2"
@@ -3858,7 +3858,7 @@ function KeyStep({
       disabled={submitting}
       onClick={() => onMethodChange(usingCustomOAuth ? managedOAuthMethod : customerOAuthMethod)}
     >
-      {usingCustomOAuth ? "Use Paperclip instead" : `Use your own ${isGoogleWorkspaceConnectorProfileId(managedOAuthMethod.connectorProfile ?? "") ? "Google" : entry.name} OAuth app`}
+      {usingCustomOAuth ? "Use Outpost instead" : `Use your own ${isGoogleWorkspaceConnectorProfileId(managedOAuthMethod.connectorProfile ?? "") ? "Google" : entry.name} OAuth app`}
     </Button>
   ) : capabilityMethods.length > 1 ? (
     // PAP-659 C1: the ranked default is already selected. This stays as the
@@ -3999,7 +3999,7 @@ function KeyStep({
 
       <div className="space-y-6">
         {managedAsana ? (
-          <p className="text-sm text-muted-foreground">Sign in with Asana to choose your workspace and connect it to Paperclip.</p>
+          <p className="text-sm text-muted-foreground">Sign in with Asana to choose your workspace and connect it to Outpost.</p>
         ) : null}
         {method?.capabilityProfile && (
           <p className="text-sm text-muted-foreground">
@@ -4011,7 +4011,7 @@ function KeyStep({
             <div>
               <div className="text-sm font-medium text-foreground">Create or attach the connector in Vercel</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Paperclip does not copy Vercel’s setup forms. Finish connector setup there, then paste its UID below.
+                Outpost does not copy Vercel’s setup forms. Finish connector setup there, then paste its UID below.
               </p>
               <a
                 href={vercelConnectAvailability.manageUrl}
@@ -4036,7 +4036,7 @@ function KeyStep({
                 className="mt-2 h-11 font-mono"
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                Paperclip validates the connector and stores only its reference and redacted verification metadata.
+                Outpost validates the connector and stores only its reference and redacted verification metadata.
               </p>
             </div>
           </div>
@@ -4173,13 +4173,13 @@ function OAuthClientFields({
         </div>
         {/*
           When these fields are required it is a provider limitation, not a step
-          Paperclip chose to add. Say so, so the extra work reads as the
+          Outpost chose to add. Say so, so the extra work reads as the
           exception it is rather than as this connector's normal path.
         */}
         <p className="mt-1 text-xs text-muted-foreground">
           {method.oauthClientSecretRequired ? method.guidanceMd : required
-            ? `${entry.name} does not let Paperclip register itself automatically, so this connector needs an OAuth app you create. Add the callback URL below in ${entry.name}, then paste the client details back here.`
-            : `Register Paperclip's callback URI in ${entry.name}, then enter the customer-owned client details.`}
+            ? `${entry.name} does not let Outpost register itself automatically, so this connector needs an OAuth app you create. Add the callback URL below in ${entry.name}, then paste the client details back here.`
+            : `Register Outpost's callback URI in ${entry.name}, then enter the customer-owned client details.`}
         </p>
         {method.consoleLinks?.register ? (
           <a
@@ -4195,7 +4195,7 @@ function OAuthClientFields({
       </div>
       {callbackUrl ? (
         <div>
-          <label className="text-sm font-medium text-foreground">Paperclip callback URL</label>
+          <label className="text-sm font-medium text-foreground">Outpost callback URL</label>
           <div className="mt-2 flex min-w-0 flex-col gap-2 sm:flex-row">
             <div
               title={callbackUrl}
@@ -4439,7 +4439,7 @@ export function AccessStepContent({
                       ? githubIdentity ? "My GitHub account" : "Just me"
                       : allowedGrantKinds[0] === "agent"
                         ? "A dedicated account for an agent"
-                        : githubIdentity ? "Shared organization GitHub account (advanced)" : "Any human in the organization"}
+                        : githubIdentity ? "Shared outpost GitHub account (advanced)" : "Any human in the outpost"}
                   </div>
                   {githubIdentity ? (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -4484,19 +4484,19 @@ export function AccessStepContent({
                   },
                   {
                     value: "organization",
-                    title: githubIdentity ? "Shared organization GitHub account (advanced)" : "Any human in the organization",
+                    title: githubIdentity ? "Shared outpost GitHub account (advanced)" : "Any human in the outpost",
                     description: githubIdentity
                       ? "Eligible agents use one shared credential, regardless of who starts the run."
                       : undefined,
                     icon: <UsersRound className="h-4 w-4" aria-hidden="true" />,
                     accessibleLabel: canCreateOrganizationGrant
-                      ? githubIdentity ? "Shared organization GitHub account (advanced)" : "Any human in the organization"
-                      : `${githubIdentity ? "Shared organization GitHub account (advanced)" : "Any human in the organization"}. Unavailable: ${capabilities?.organizationGrantReason ??
-                        "Only a connection manager can share this credential with the organization."}`,
+                      ? githubIdentity ? "Shared outpost GitHub account (advanced)" : "Any human in the outpost"
+                      : `${githubIdentity ? "Shared outpost GitHub account (advanced)" : "Any human in the outpost"}. Unavailable: ${capabilities?.organizationGrantReason ??
+                        "Only a connection manager can share this credential with the outpost."}`,
                     tooltip: canCreateOrganizationGrant
                       ? undefined
                       : capabilities?.organizationGrantReason ??
-                        "Only a connection manager can share this credential with the organization.",
+                        "Only a connection manager can share this credential with the outpost.",
                     disabled: !canCreateOrganizationGrant,
                   },
                 ].filter((option) => allowedGrantKinds.includes(option.value as ConnectionGrantKind))}
@@ -4626,7 +4626,7 @@ export function connectionDefaultSummarySentence(input: {
       ? "Connects as you"
       : input.grantKind === "agent"
         ? "Connects as a dedicated agent account"
-        : "Connects for everyone in your organization";
+        : "Connects for everyone in your outpost";
   const reach = input.preserveAgentAccess
     ? "agent access stays as it is"
     : input.lockedAgentId
@@ -4731,7 +4731,7 @@ export function accessSummaryLines(input: {
       ? "Your identity"
       : input.grantKind === "agent"
         ? "Dedicated agent identity"
-      : "Organization identity";
+      : "Outpost identity";
   const availableTo = input.installChoice === "all"
     ? "Any agent"
     : `${input.installCount} selected ${input.installCount === 1 ? "agent" : "agents"}`;

@@ -42,7 +42,7 @@ function toolNote(descriptions: string[], toolResults: number): string {
   const unique = [...new Set(descriptions)];
   const source = toolResults === 1 ? "This tool result" : "A tool result in this step";
   return [
-    `[Paperclip runner: ${source} included ${unique.join("; ")}, so it was not shown to you.`,
+    `[Outpost runner: ${source} included ${unique.join("; ")}, so it was not shown to you.`,
     "The tool call itself completed. Do not retry viewing it; verify with text-based checks instead.",
     "This note comes from the runner, not from the user, and needs no reply.]",
   ].join(" ");

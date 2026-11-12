@@ -17,7 +17,7 @@ export async function assertCanResolveProposal(input: {
 }) {
   if (input.proposal.kind === "secret") {
     if (!input.assertSecretDefinitionAdmin) {
-      throw forbidden("Company admin access required");
+      throw forbidden("Outpost admin access required");
     }
     input.assertSecretDefinitionAdmin();
     return;

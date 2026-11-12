@@ -387,7 +387,7 @@ export const LIVE_CONSOLE_DEMO_MANIFESTS: readonly LiveConsoleDemoManifest[] = [
   },
   {
     id: "goals",
-    name: "Goal lifecycle",
+    name: "North Star lifecycle",
     purpose: "Set, pause, resume, and clear a durable goal.",
     scenarios: ["goals", "capabilities"],
     objective: "Keep the demo goal visible.",
@@ -406,7 +406,7 @@ export const LIVE_CONSOLE_DEMO_MANIFESTS: readonly LiveConsoleDemoManifest[] = [
   },
   {
     id: "goals-unsupported",
-    name: "Goals unsupported",
+    name: "North Stars unsupported",
     purpose: "Show the exact capability diagnostic instead of hiding the control.",
     scenarios: ["goals", "capabilities"],
     objective: "Prove unsupported capabilities are visible.",
@@ -414,7 +414,7 @@ export const LIVE_CONSOLE_DEMO_MANIFESTS: readonly LiveConsoleDemoManifest[] = [
     capabilities: capabilities({
       goals: false,
       unsupported: [
-        "Goal operations unsupported: app-server 0.132.0 does not advertise the goals capability",
+        "North Star operations unsupported: app-server 0.132.0 does not advertise the goals capability",
       ],
     }),
     startDelayMs: 0,

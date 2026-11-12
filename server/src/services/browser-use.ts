@@ -27,7 +27,6 @@ import {
   type TaskBrowser,
   centsToUnits,
   unitsToCents,
-  centsToUsd,
   usdToUnits,
 } from "@paperclipai/shared";
 import {
@@ -75,7 +74,7 @@ const argsSchema = z
   .strict();
 const terminalSessions = ["closed", "failed"];
 const liveSessions = ["starting", "running", "idle", "stopping"];
-const requestMarker = (invocationId: string) => `\n\n[Paperclip request: ${invocationId}]`;
+const requestMarker = (invocationId: string) => `\n\n[Outpost request: ${invocationId}]`;
 type BrowserBudgetHold = { invocationId: string; amountCents: string; projectId: string | null;
   state: "held" | "released" | "settled"; uncapped?: boolean;
   dispatchCommittedAt?: string; accountedCentsExact?: string; billingUnknown?: boolean;
@@ -229,7 +228,7 @@ export function browserUseService(
   async function assertBinding(binding: Binding, approved = false) {
     if (!binding.issueId || !binding.agentId || !binding.runId)
       throw forbidden(
-        "Browser tasks require an active Paperclip task and agent run. Use browser_profiles for a connection test.",
+        "Browser tasks require an active Outpost task and agent run. Use browser_profiles for a connection test.",
       );
     const [issue] = await db
       .select()
@@ -516,25 +515,8 @@ export function browserUseService(
         return { reason: "Browser budget changed before dispatch; try again with a bounded cost cap." };
       const [currentConfig] = await tx.select().from(settings).where(and(eq(settings.companyId, binding.companyId), eq(settings.grantId, grant.id)));
       if (args.profileId && !currentConfig?.allowedProfileIds.includes(args.profileId)) return { reason: "This profile is not allowed for this credential." };
-      let amount: bigint | undefined;
-      for (const cap of [currentConfig?.maxCostUsd, args.maxCostUsd]) {
-        if (cap === null || cap === undefined) continue;
-        const value = usdToUnits(cap);
-        amount = amount === undefined || value < amount ? value : amount;
-      }
-      for (const [index, policy] of admission.policies.entries()) {
-        const observed = admission.observations[index];
-        const committed = centsToUnits(observed.ledgerCents) + centsToUnits(observed.effectiveHeldCents);
-        const available = centsToUnits(policy.amount) - committed;
-        if (hold ? available < 0n || (centsToUnits(hold.amountCents) === 0n && available === 0n) : available <= 0n)
-          return { reason: "No browser budget remains; available capacity is reserved by unfinished work." };
-        if (!hold) amount = amount === undefined || available < amount ? available : amount;
-      }
-      if (amount !== undefined && amount <= 0n) return { reason: "No browser budget remains." };
-      if (hold && amount !== undefined && (centsToUnits(hold.amountCents) === 0n || amount < centsToUnits(hold.amountCents)))
-        return { reason: "Browser cost settings changed before dispatch; try again." };
       if (hold && issue.projectId !== hold.projectId) return { reason: "The browser task's project changed before dispatch." };
-      return { amountCents: unitsToCents(amount ?? 0n), maxCostUsd: amount === undefined ? undefined : Number(centsToUsd(unitsToCents(amount))), projectId: issue.projectId };
+      return { amountCents: "0.0000000", maxCostUsd: undefined, projectId: issue.projectId };
     };
     const sid = args.sessionId;
     const admitted = await withOperationAccountingTransaction(db, binding.companyId, async (tx, publications) => {
@@ -671,7 +653,7 @@ export function browserUseService(
       // A lost create response can mean paid work exists. Never submit it again.
       const rejected = !providerAttempted || (error instanceof BrowserUseError && error.requestRejected);
       const message = rejected ? (error instanceof Error ? error.message : "Browser dispatch was rejected.") :
-        "Browser run creation could not be confirmed. Paperclip is locating and stopping possible provider work. Do not start another run yet.";
+        "Browser run creation could not be confirmed. Outpost is locating and stopping possible provider work. Do not start another run yet.";
       await withOperationAccountingTransaction(db, binding.companyId, async (tx, publications) => {
         const [currentRun] = await tx.select().from(runs).where(and(eq(runs.invocationId, invocationId),
           eq(runs.companyId, binding.companyId))).for("update");
@@ -807,7 +789,7 @@ export function browserUseService(
       )
       .limit(1);
     if ((!membership || membership.role === "viewer") && userId !== "board")
-      throw forbidden("Company membership is no longer active.");
+      throw forbidden("Outpost membership is no longer active.");
     if (grant.kind === "agent" && grant.createdByUserId === userId)
       return grant;
     if (grant.kind === "user" && grant.subjectUserId === userId) return grant;
@@ -1398,7 +1380,7 @@ export function browserUseService(
         if (confirmed.status !== "stopped")
           throw new BrowserUseError(
             502,
-            "Browser shutdown is not confirmed. Paperclip will retry.",
+            "Browser shutdown is not confirmed. Outpost will retry.",
           );
         await db
           .update(browsers)
@@ -1509,8 +1491,8 @@ export function browserUseService(
           .set({
             error:
               s.stopRequested === "end"
-                ? "Browser shutdown is not confirmed. Paperclip will retry."
-                : "Browser synchronization failed. Paperclip will retry.",
+                ? "Browser shutdown is not confirmed. Outpost will retry."
+                : "Browser synchronization failed. Outpost will retry.",
           })
           .where(sessionLeaseFence(s));
       } finally {
@@ -1578,7 +1560,7 @@ export function browserUseService(
         .limit(1);
       if (pending)
         throw conflict(
-          "Browser access is disabled. Shutdown is still pending; retry removal after the browsers stop. Paperclip retains the key only for cleanup until then.",
+          "Browser access is disabled. Shutdown is still pending; retry removal after the browsers stop. Outpost retains the key only for cleanup until then.",
         );
     },
     async availableProfiles(

@@ -3944,7 +3944,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     contentItems: [
       {
         type: "inputText",
-        text: "No Paperclip control-plane tool handler is installed.",
+        text: "No Outpost control-plane tool handler is installed.",
       },
     ],
   });
@@ -5918,7 +5918,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       this.#authorizedTools = authorizedToolSetForProvider(provider, dynamicTools);
       const requirements = runnerProviderLaunchRequirements(this.options, identity, params,
         this.options.runtimeContext ?? null,
-        String(params.developerInstructions ?? params.baseInstructions ?? "You are a Paperclip agent."));
+        String(params.developerInstructions ?? params.baseInstructions ?? "You are an Outpost agent."));
       const prepared = await this.options.prepareLaunch(requirements);
       validatePreparedRunnerLaunch(requirements, prepared);
       this.#recordPreparedWorkingDirectory(prepared);
@@ -6073,7 +6073,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     const acpxAgent =
       provider === "acpx" ? (this.options.acpxAgent ?? "codex") : null;
     const unboundBaseInstructions = String(
-      params.developerInstructions ?? params.baseInstructions ?? "You are a Paperclip agent.",
+      params.developerInstructions ?? params.baseInstructions ?? "You are an Outpost agent.",
     );
     const baseInstructions =
       sourceRuntimeContext && runtimeContext
@@ -7560,7 +7560,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       }
       this.#assertStartupOpen();
       this.#throwIfFailed();
-      if (recovering) throw new Error("native_turn_start_held_tool_calls_unresolved: recovering an earlier turn's held Paperclip tool calls did not finish before the turn-start deadline");
+      if (recovering) throw new Error("native_turn_start_held_tool_calls_unresolved: recovering an earlier turn's held Outpost tool calls did not finish before the turn-start deadline");
       commandDeadline = this.#waitNow() + turnStartTimeoutMs;
     }
     const compactionTurn = params[COMPACTION_TURN] === true;
@@ -9067,7 +9067,7 @@ export async function defaultCapabilityRunnerdBinaryAsync(platform = process.pla
 
 function unstagedCapabilityRunnerdBinary(platform: string, architecture: string): string {
   if (platform !== process.platform || architecture !== process.arch) {
-    throw new Error(`runner_remote_artifact_unavailable: install the Paperclip release containing the ${platform}-${architecture} daemon or configure PAPERCLIP_RUNNER_REMOTE_BINARY_PATH`);
+    throw new Error(`runner_remote_artifact_unavailable: install the Outpost release containing the ${platform}-${architecture} daemon or configure PAPERCLIP_RUNNER_REMOTE_BINARY_PATH`);
   }
   return resolve(
     packageRoot,

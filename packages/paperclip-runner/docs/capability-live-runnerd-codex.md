@@ -6,9 +6,9 @@
 > in [the runner architecture](architecture.md): external control plane → PRP → one Rust `paperclip-runnerd` → provider. The TypeScript dispatcher below does not run in the sandbox.
 
 Capability binds the provider-neutral semantic catalog to a real package-local
-`paperclip-runnerd` process and a real Codex app-server session. Paperclip data
+`paperclip-runnerd` process and a real Codex app-server session. Outpost data
 remains deterministic mock state behind `ControlPlanePort`; no request reaches
-the Paperclip API.
+the Outpost API.
 
 ## Process and authority boundary
 
@@ -118,5 +118,5 @@ pnpm --filter @paperclipai/paperclip-runner trace:live-runner -- --json
 
 The smoke requires an authenticated local Codex installation. It checks a real
 semantic tool mutation, typed-result response, same-thread second turn, process
-ownership/cleanup, cleared authority, and zero Paperclip network/child-env
+ownership/cleanup, cleared authority, and zero Outpost network/child-env
 exposure.

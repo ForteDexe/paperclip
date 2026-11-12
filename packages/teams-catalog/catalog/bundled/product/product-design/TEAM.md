@@ -1,6 +1,6 @@
 ---
 name: Product Design
-description: Bundled product design team with a Principal Product Designer who owns wireframes, design critiques, and UX quality reviews for a product company.
+description: Bundled product design team with a Principal Product Designer who owns wireframes, design critiques, and UX quality reviews for an Outpost product.
 schema: agentcompanies/v1
 slug: product-design
 category: product

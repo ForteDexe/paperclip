@@ -216,7 +216,7 @@ export function AuditRuns({
         <div>
           <h2 className="text-lg font-semibold text-foreground">Runs</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Recent agent executions across the organization. Open a run to inspect its transcript,
+            Recent agent executions across the outpost. Open a run to inspect its transcript,
             output, and task context.
           </p>
         </div>

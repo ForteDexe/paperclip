@@ -85,8 +85,8 @@ const activityGatePolicyOptions = [
 const activityGateScopeOptions = [
   {
     value: "company",
-    title: "Company-wide",
-    description: "Any activity across the company counts as a reason to run.",
+    title: "Outpost-wide",
+    description: "Any activity across the Outpost counts as a reason to run.",
   },
   {
     value: "project",
@@ -564,7 +564,7 @@ export function TriggersSection() {
           <div>
             <p className="font-medium">{secretMessage.title}</p>
             <p className="text-xs text-muted-foreground">
-              Save this now. Paperclip will not show the secret value again.
+              Save this now. Outpost will not show the secret value again.
             </p>
           </div>
           <div className="space-y-3">

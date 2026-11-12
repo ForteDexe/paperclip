@@ -21,8 +21,6 @@ describe("agent detail navigation", () => {
       "advanced",
       "activity",
       "runs",
-      "costs",
-      "budgets",
     ]);
     expect(agentDetailViewLabel("instructions")).toBe("Identity");
   });
@@ -40,8 +38,8 @@ describe("agent detail navigation", () => {
     expect(parseAgentDetailView("identity")).toBe("instructions");
     expect(agentDetailHref("codie", "instructions")).toBe("/agents/codie/identity");
     expect(parseAgentDetailView("runs")).toBe("runs");
-    expect(parseAgentDetailView("budget")).toBe("budgets");
-    expect(isAgentAuditView("costs")).toBe(true);
+    expect(parseAgentDetailView("budget")).toBe("activity");
+    expect(isAgentAuditView("activity")).toBe(true);
     expect(isAgentAuditView("runtime")).toBe(false);
     expect(agentDetailHref("codie", "activity")).toBe("/agents/codie/activity");
   });
@@ -59,8 +57,8 @@ describe("agent detail navigation", () => {
   it("maps legacy operational pages into scoped Audit sections", () => {
     expect(agentLegacyAuditSection("runs")).toBe("runs");
     expect(agentLegacyAuditSection("audit")).toBe("activity");
-    expect(agentLegacyAuditSection("budget")).toBe("budgets");
+    expect(agentLegacyAuditSection("budget")).toBe("activity");
     expect(agentScopedAuditHref("agent-1", "activity")).toBe("/activity?mode=agents&agentId=agent-1");
-    expect(agentScopedAuditHref("agent-1", "costs")).toBe("/activity/costs?agentId=agent-1");
+    expect(agentScopedAuditHref("agent-1", "activity")).toBe("/activity?mode=agents&agentId=agent-1");
   });
 });

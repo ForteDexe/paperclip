@@ -28,7 +28,7 @@ import { SkillPackagePreview } from './skills/SkillPackagePreview';
 import { SkillSourceTree, type SkillTreeCandidate } from './skills/SkillSourceTree';
 import { SkillImportWarnings, skillImportWarnings } from './skills/SkillImportWarnings';
 import { timeAgo } from '@/lib/timeAgo';
-import { skillRoute } from '@/lib/company-skill-routes';
+import { skillRoute } from "@/lib/company-skill-routes";
 import { consumeSkillSourceReturn, rememberSkillSourceReturn } from '@/lib/skill-source-connect-return';
 import { groupProjectSkillRepositories } from '@/lib/project-skill-repositories';
 
@@ -86,7 +86,7 @@ export function SkillSources() {
   });
   const staleRemoval = disconnect.error instanceof ApiError && disconnect.error.status === 409;
   const activeSource = query.data?.find(source => source.id === sourceId);
-  if (!companyId) return <p className="p-6 text-sm text-muted-foreground">Select a company to manage skill sources.</p>;
+  if (!companyId) return <p className="p-6 text-sm text-muted-foreground">Select a outpost to manage skill sources.</p>;
   return <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-xl font-semibold">Skill sources</h1><p className="mt-1 text-sm text-muted-foreground">Skills from your repositories stay up to date automatically.</p></div>
@@ -105,7 +105,7 @@ export function SkillSources() {
     <SkillsPageNavigation activeView="sources" />
     {(view.kind === 'loading' || view.kind === 'reconnecting') && <p role="status" className="text-sm text-muted-foreground">Loading sources…</p>}
     {view.kind === 'error' && <QueryErrorState error={query.error} action="load skill sources" onRetry={view.retry} retrying={view.isFetching} />}
-    {query.data?.length === 0 && availableProjects.length === 0 && <div className="flex flex-col items-start gap-3 py-8"><p className="text-sm text-muted-foreground">No repositories added yet. Import your skills to make them available in {selectedCompany?.name ?? 'this company'}.</p><Button variant="outline" onClick={() => navigate('/skills/sources/new')}>Import from GitHub</Button></div>}
+    {query.data?.length === 0 && availableProjects.length === 0 && <div className="flex flex-col items-start gap-3 py-8"><p className="text-sm text-muted-foreground">No repositories added yet. Import your skills to make them available in {selectedCompany?.name ?? "this outpost"}.</p><Button variant="outline" onClick={() => navigate('/skills/sources/new')}>Import from GitHub</Button></div>}
     {projectsView.kind === 'error' && <p role="alert" className="text-sm text-destructive">{describeError(projectRepositories.error).body} <Button variant="ghost" size="sm" onClick={() => void projectRepositories.refetch()}>Try again</Button></p>}
     {adopt.error && <p role="alert" className="text-sm text-destructive">{describeError(adopt.error).body}</p>}
     {uninstalledProjects.length > 0 && <div className="divide-y divide-border" aria-label="Project repositories">

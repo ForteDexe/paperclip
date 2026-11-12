@@ -15,7 +15,7 @@ interface SkillOptions extends BaseClientOptions {
 }
 
 export function registerSkillCommands(program: Command): void {
-  const skill = program.command("skill").description("Company skill operations");
+  const skill = program.command("skill").description("Outpost skill operations");
 
   addCompanyGet(skill, "list", "List company skills", "skills");
 
@@ -24,7 +24,7 @@ export function registerSkillCommands(program: Command): void {
       .command("get")
       .description("Get company skill details")
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -41,7 +41,7 @@ export function registerSkillCommands(program: Command): void {
       .command("file")
       .description("Read a company skill file")
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .option("--path <path>", "Skill-relative file path", "SKILL.md")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
@@ -64,7 +64,7 @@ export function registerSkillCommands(program: Command): void {
       .command("file:update")
       .description("Update a company skill file")
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "CompanySkillFileUpdate JSON payload")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
@@ -87,7 +87,7 @@ export function registerSkillCommands(program: Command): void {
 
 function addCompanyGet(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
-    parent.command(name).description(description).option("-C, --company-id <id>", "Company ID").action(async (opts: SkillOptions) => {
+    parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").action(async (opts: SkillOptions) => {
       try {
         const ctx = resolveCommandContext(opts, { requireCompany: true });
         printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`), { json: ctx.json });
@@ -100,7 +100,7 @@ function addCompanyGet(parent: Command, name: string, description: string, path:
 }
 
 function addCompanyPost(parent: Command, name: string, description: string, path: string, requirePayload = false): void {
-  const command = parent.command(name).description(description).option("-C, --company-id <id>", "Company ID");
+  const command = parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID");
   if (requirePayload) {
     command.requiredOption("--payload-json <json>", "JSON payload");
   } else {
@@ -125,7 +125,7 @@ function addSkillAction(parent: Command, name: string, description: string, suff
       .command(name)
       .description(description)
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Company ID")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });

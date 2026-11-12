@@ -1908,13 +1908,13 @@ export function agentRoutes(
       } else if (asRecord(config)?.provider === "muse") {
         if (experimental.enableMuse !== true || experimental.enableNativeRunner !== true) throw unprocessable("Muse is experimental and disabled on this instance.", { code: "paperclip_runner_muse_disabled" });
       } else if (asRecord(config)?.provider === "grok_bot" && (experimental.enableGrokBot !== true || experimental.enablePublicMcp !== true || experimental.enableNativeRunner !== true)) {
-        throw unprocessable("Enable Grok Bot, Assistant connections (MCP), and Paperclip Runner before connecting this agent.", { code: "paperclip_runner_grok_disabled" });
+        throw unprocessable("Enable Grok Bot, Assistant connections (MCP), and Outpost Runner before connecting this agent.", { code: "paperclip_runner_grok_disabled" });
       } else if (!([undefined, "codex", "opencode"].includes(asRecord(config)?.provider as string | undefined)) &&
         !(asRecord(config)?.provider === "acpx" && asRecord(config)?.acpxAgent === "copilot") &&
         !["claude_local", "pi_local", "grok_local"].includes(agentHarnessType("paperclip_runner", asRecord(config) ?? {})) &&
         experimental.enableNativeRunner !== true && !antigravityCandidate && !kimiCandidate) {
         throw unprocessable(
-          "Paperclip Runner is experimental and disabled on this instance.",
+          "Outpost Runner is experimental and disabled on this instance.",
           { code: "paperclip_runner_rollout_disabled" },
         );
       }
@@ -1987,7 +1987,7 @@ export function agentRoutes(
     const defaults = paperclipRunnerTransitionConfig(input.previousAdapterType, input.previousAdapterConfig.model, input.nextAdapterConfig.provider);
     if (!["claude_local", "codex_local", "opencode_local", "pi_local", "grok_local"].includes(input.previousAdapterType)
       && !isPaperclipRunnerProvider(input.nextAdapterConfig.provider)) {
-      throw unprocessable("Select a Paperclip Runner provider before converting this agent.");
+      throw unprocessable("Select an Outpost Runner provider before converting this agent.");
     }
     const next = { ...defaults, ...input.nextAdapterConfig };
     if (next.provider === "acpx" && (next.acpxAgent === "pi" || next.acpxAgent === "kimi")) {
@@ -3116,7 +3116,7 @@ export function agentRoutes(
       return;
     }
     if (type === "paperclip_runner" && provider === "acpx" && req.query.acpxAgent === "antigravity") {
-      if (environment && environment.driver !== "local") throw unprocessable("Google Antigravity account model discovery requires the Paperclip host.");
+      if (environment && environment.driver !== "local") throw unprocessable("Google Antigravity account model discovery requires the Outpost host.");
       let binding: AiConnectionBinding = { provider: "google", method: "subscription", mode: "responsible_user" };
       if (typeof req.query.aiConnection === "string") {
         if (req.query.aiConnection.length > 4096) throw unprocessable("Invalid AI connection binding");
@@ -3131,7 +3131,7 @@ export function agentRoutes(
         await assertCanUpdateAgent(req, modelAgent);
         if (modelAgent.defaultEnvironmentId && !environmentId) {
           const target = await environmentsSvc.getById(modelAgent.defaultEnvironmentId);
-          if (!target || target.driver !== "local") throw unprocessable("Google Antigravity account model discovery requires the Paperclip host.");
+          if (!target || target.driver !== "local") throw unprocessable("Google Antigravity account model discovery requires the Outpost host.");
         }
       } else await assertCanCreateAgentsForCompany(req, companyId);
       const allowUninstalledShared = !modelAgentId && await canInstallSharedAiConnectionForNewAgent(db, req, companyId, binding);
@@ -3171,7 +3171,7 @@ export function agentRoutes(
       return;
     }
     if (type === "paperclip_runner" && provider && !isPaperclipRunnerProvider(provider)) {
-      throw unprocessable("Unknown Paperclip Runner provider");
+      throw unprocessable("Unknown Outpost Runner provider");
     }
     const modelAdapterType = type === "paperclip_runner"
       ? provider === "acpx" && req.query.acpxAgent === "grok" ? "grok_local"
@@ -4460,7 +4460,7 @@ export function agentRoutes(
       .where(eq(companies.id, companyId))
       .then((rows) => rows[0] ?? null);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
 
@@ -4852,7 +4852,7 @@ export function agentRoutes(
       .where(eq(companies.id, companyId))
       .then((rows) => rows[0] ?? null);
     if (!company) {
-      res.status(404).json({ error: "Company not found" });
+      res.status(404).json({ error: "Outpost not found" });
       return;
     }
     if (req.body.setupId) {
@@ -5048,7 +5048,7 @@ export function agentRoutes(
         return;
       }
       if (actorAgent.role !== "ceo") {
-        res.status(403).json({ error: "Only CEO can manage permissions" });
+        res.status(403).json({ error: "Only Outpost Lead can manage permissions" });
         return;
       }
       // Hiring authority is granted only by an actor that holds it. A CEO the
@@ -5307,7 +5307,7 @@ export function agentRoutes(
 
   router.put("/agents/:id/instructions-bundle/file", validate(upsertAgentInstructionsFileSchema), async (req, res) => {
     if (req.actor.source === "mcp_oauth" && req.body.path === "promptTemplate.legacy.md") {
-      throw unprocessable("Migrate legacy prompt instructions to a managed instruction file in Paperclip before editing through an assistant", { code: "MCP_LEGACY_INSTRUCTIONS_UNVERSIONED" });
+      throw unprocessable("Migrate legacy prompt instructions to a managed instruction file in Outpost before editing through an assistant", { code: "MCP_LEGACY_INSTRUCTIONS_UNVERSIONED" });
     }
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");

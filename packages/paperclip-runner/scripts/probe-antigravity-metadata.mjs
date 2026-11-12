@@ -9,7 +9,7 @@ import { antigravityRuntimeCachePath } from "./antigravity-provisioner-layout.mj
 import { antigravityDistribution, verifyAntigravityDistribution } from "./materialize-antigravity-distribution.mjs";
 
 const MAX_WIRE_BYTES = 1024 * 1024;
-const CLIENT_INFO = Object.freeze({ name: "paperclip-runner", title: "Paperclip Runner", version: "1" });
+const CLIENT_INFO = Object.freeze({ name: "paperclip-runner", title: "Outpost Runner", version: "1" });
 const AUTH_METHOD_IDS = ["oauth-personal", "oauth-business", "gemini-api-key", "agent-platform"];
 const plainObject = value => value !== null && typeof value === "object" && !Array.isArray(value);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));

@@ -57,7 +57,7 @@ export function VoiceControls({ state, agentName, muted = false, busy = false, p
         {canRepeat && onRepeat && !inactive && <Button size="sm" variant="outline" disabled={busy || connecting || state === "ending" || state === "cleanup_failed"} onClick={onRepeat}><RotateCcw aria-hidden="true" />Repeat answer</Button>}
         {playbackBlocked && !inactive && <Button size="sm" variant="outline" onClick={onResumeAudio}><Volume2 aria-hidden="true" />Enable audio</Button>}
       </div>
-      {!inactive && <p className="text-xs text-muted-foreground">Ending the call keeps your task running. Speko voice charges are separate from agent costs.</p>}
+      {!inactive && <p className="text-xs text-muted-foreground">Ending the call keeps your task running. Provider billing remains in Speko.</p>}
       <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
     </section>
   );

@@ -88,7 +88,7 @@ export function CompanyAccess() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Organization", href: "/dashboard" },
+      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
       { label: "Settings", href: "/company/settings" },
       { label: "Members" },
     ]);
@@ -248,22 +248,22 @@ export function CompanyAccess() {
   }, [removingMember]);
 
   if (!selectedCompanyId) {
-    return <div className="text-sm text-muted-foreground">Select an organization to manage access.</div>;
+    return <div className="text-sm text-muted-foreground">Select an outpost to manage access.</div>;
   }
 
   if (membersQuery.isLoading || membersView.kind === "reconnecting") {
-    return <div className="text-sm text-muted-foreground">Loading organization access…</div>;
+    return <div className="text-sm text-muted-foreground">Loading outpost access…</div>;
   }
 
   if (membersView.kind === "error") {
     if (membersView.errorKind === "forbidden") {
-      return <div className="text-sm text-destructive">You do not have permission to manage organization members.</div>;
+      return <div className="text-sm text-destructive">You do not have permission to manage outpost members.</div>;
     }
     return (
       <QueryErrorState
         size="page"
         error={membersQuery.error}
-        action="load organization members"
+        action="load outpost members"
         onRetry={membersView.retry}
         retrying={membersView.isFetching}
       />
@@ -290,7 +290,7 @@ export function CompanyAccess() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">Organization Members</h1>
+          <h1 className="text-lg font-semibold">Outpost Members</h1>
         </div>
         {cloudInviteUrl && (
           <Button asChild>
@@ -315,7 +315,7 @@ export function CompanyAccess() {
 
       {access && !access.currentUserRole && (
         <div className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          This account can manage access here through instance-admin privileges, but it does not currently hold an active organization membership.
+          This account can manage access here through instance-admin privileges, but it does not currently hold an active outpost membership.
         </div>
       )}
 
@@ -326,7 +326,7 @@ export function CompanyAccess() {
               <div>
                 <h3 className="text-sm font-semibold">Pending human joins</h3>
                 <p className="text-sm text-muted-foreground">
-                  Review pending join requests before they become active organization members.
+                  Review pending join requests before they become active outpost members.
                 </p>
               </div>
               <Badge variant="outline">{pendingHumanJoinRequests.length} pending</Badge>
@@ -379,7 +379,7 @@ export function CompanyAccess() {
               {members.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-8 text-muted-foreground">
-                    No user memberships found for this organization yet.
+                    No user memberships found for this outpost yet.
                   </td>
                 </tr>
               ) : members.map((member) => {
@@ -445,14 +445,14 @@ export function CompanyAccess() {
           <DialogHeader>
             <DialogTitle>Edit member</DialogTitle>
             <DialogDescription>
-              Update organization role and membership status for {editingMember?.user?.name || editingMember?.user?.email || editingMember?.principalId}.
+              Update outpost role and membership status for {editingMember?.user?.name || editingMember?.user?.email || editingMember?.principalId}.
             </DialogDescription>
           </DialogHeader>
           {editingMember && (
             <div className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm">
-                  <span className="font-medium">Organization role</span>
+                  <span className="font-medium">Outpost role</span>
                   <select
                     className="w-full rounded-md border border-border bg-background px-3 py-2"
                     value={draftRole ?? ""}
@@ -635,7 +635,7 @@ export function CompanyAccessLegacyRoute() {
           <h1 className="text-lg font-semibold">Advanced Permissions</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Advanced access, scoped assignment, and explicit grant controls are provided by installed organization settings extensions.
+          Advanced access, scoped assignment, and explicit grant controls are provided by installed outpost settings extensions.
         </p>
       </div>
 
@@ -643,7 +643,7 @@ export function CompanyAccessLegacyRoute() {
         <div className="space-y-2">
           <h2 className="text-sm font-semibold">Advanced permissions unavailable</h2>
           <p className="text-sm text-muted-foreground">
-            Core Paperclip keeps enforcing organization boundaries and any existing restrictive policy data, but editing advanced permissions requires an installed extension.
+            Core Outpost keeps enforcing outpost boundaries and any existing restrictive policy data, but editing advanced permissions requires an installed extension.
           </p>
           {errorMessage ? (
             <p className="text-sm text-destructive">Plugin extensions unavailable: {errorMessage}</p>

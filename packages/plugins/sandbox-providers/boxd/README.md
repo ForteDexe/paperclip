@@ -1,9 +1,9 @@
 # `@paperclipai/plugin-boxd`
 
-boxd sandbox provider for Paperclip. [boxd](https://boxd.sh) runs each sandbox
+boxd sandbox provider for Outpost. [boxd](https://boxd.sh) runs each sandbox
 as an isolated KVM microVM. This package lives alongside E2B, Daytona and the
 other sandbox providers, outside the root pnpm workspace. It uses the
-[`@boxd-sh/sdk`](https://www.npmjs.com/package/@boxd-sh/sdk) package. Paperclip's
+[`@boxd-sh/sdk`](https://www.npmjs.com/package/@boxd-sh/sdk) package. Outpost's
 CI release pipeline publishes this plugin to npm.
 
 ## Install from npm
@@ -31,7 +31,7 @@ and bootstrap process.
 
 ## Build and install locally
 
-Requires Node 24.11+, pnpm, and an installed Paperclip checkout.
+Requires Node 24.11+, pnpm, and an installed Outpost checkout.
 
 ```sh
 cd packages/plugins/sandbox-providers/boxd
@@ -41,7 +41,7 @@ pnpm test
 pnpm build
 ```
 
-From the Paperclip checkout, with your instance running:
+From the Outpost checkout, with your instance running:
 
 ```sh
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/paperclip/packages/plugins/sandbox-providers/boxd
@@ -55,8 +55,8 @@ plugin page. Select the `boxd` provider.
 
 - `apiKey`: a boxd API key. Create one with
   `boxd auth keys create paperclip --org <org>`. Each key belongs to one org,
-  and machines are created in that org. Paperclip saves a pasted key as a
-  company secret. `BOXD_API_KEY` on the Paperclip host is an optional fallback
+  and machines are created in that org. Outpost saves a pasted key as a
+  company secret. `BOXD_API_KEY` on the Outpost host is an optional fallback
   when the environment has no key.
 - `reuseLease`: default `false`. With `false`, the plugin deletes the machine
   when the run ends. With `true`, the plugin suspends the machine when the run

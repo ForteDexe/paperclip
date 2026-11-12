@@ -168,7 +168,7 @@ export function antigravityPatchedSources(server, sdk, eventProcessor) {
 
 `,
   );
-  server += "\n\n# Paperclip's owned admission patch, applied to this pinned release only.\nfrom google3.cloud.developer_experience.antigravity_extensions.acp_server import paperclip_admission\npaperclip_admission.install(AgyAdapter)\n";
+  server += "\n\n# Outpost's owned admission patch, applied to this pinned release only.\nfrom google3.cloud.developer_experience.antigravity_extensions.acp_server import paperclip_admission\npaperclip_admission.install(AgyAdapter)\n";
   sdk = replaceAntigravitySource(sdk,
     "    harness_config = self._build_harness_config()\n    process, ws, ws_url = await self._spawn_harness_and_connect_ws()",
     "    harness_config = self._build_harness_config()\n    from google3.cloud.developer_experience.antigravity_extensions.acp_server import paperclip_admission\n    paperclip_prepared = paperclip_admission.prepare_native_config(harness_config, self)\n    process, ws, ws_url = await self._spawn_harness_and_connect_ws()",

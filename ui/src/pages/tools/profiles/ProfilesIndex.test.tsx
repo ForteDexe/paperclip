@@ -156,13 +156,13 @@ describe("ProfilesIndex", () => {
     setProfilesQuery({
       status: "success",
       data: { profiles: [profile({ name: "Everyday work" })] },
-      error: new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      error: new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     });
     await render();
 
     expect(container.textContent).toContain("Everyday work");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
   });
 
   it("shows readable copy and a Retry button for a real error", async () => {

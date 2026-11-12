@@ -39,13 +39,13 @@ interface GoalDeleteOptions extends BaseClientOptions {
 }
 
 export function registerGoalCommands(program: Command): void {
-  const goal = program.command("goal").description("Goal operations");
+  const goal = program.command("goal").description("North Star operations");
 
   addCommonClientOptions(
     goal
       .command("list")
-      .description("List goals for a company")
-      .option("-C, --company-id <id>", "Company ID")
+      .description("List north stars for a company")
+      .option("-C, --company-id <id>", "Outpost ID")
       .action(async (opts: GoalListOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
@@ -78,8 +78,8 @@ export function registerGoalCommands(program: Command): void {
   addCommonClientOptions(
     goal
       .command("get")
-      .description("Get one goal")
-      .argument("<goalId>", "Goal ID")
+      .description("Get one north star")
+      .argument("<goalId>", "North Star ID")
       .action(async (goalId: string, opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -94,13 +94,13 @@ export function registerGoalCommands(program: Command): void {
   addCommonClientOptions(
     goal
       .command("create")
-      .description("Create a goal")
-      .requiredOption("-C, --company-id <id>", "Company ID")
-      .requiredOption("--title <title>", "Goal title")
-      .option("--description <text>", "Goal description")
-      .option("--level <level>", "Goal level")
-      .option("--status <status>", "Goal status")
-      .option("--parent-id <id>", "Parent goal ID")
+      .description("Create a north star")
+      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("--title <title>", "North Star title")
+      .option("--description <text>", "North Star description")
+      .option("--level <level>", "North Star level")
+      .option("--status <status>", "North Star status")
+      .option("--parent-id <id>", "Parent north star ID")
       .option("--owner-agent-id <id>", "Owner agent ID")
       .action(async (opts: GoalCreateOptions) => {
         try {
@@ -125,13 +125,13 @@ export function registerGoalCommands(program: Command): void {
   addCommonClientOptions(
     goal
       .command("update")
-      .description("Update a goal")
-      .argument("<goalId>", "Goal ID")
-      .option("--title <title>", "Goal title")
-      .option("--description <text|null>", "Goal description")
-      .option("--level <level>", "Goal level")
-      .option("--status <status>", "Goal status")
-      .option("--parent-id <id|null>", "Parent goal ID")
+      .description("Update a north star")
+      .argument("<goalId>", "North Star ID")
+      .option("--title <title>", "North Star title")
+      .option("--description <text|null>", "North Star description")
+      .option("--level <level>", "North Star level")
+      .option("--status <status>", "North Star status")
+      .option("--parent-id <id|null>", "Parent north star ID")
       .option("--owner-agent-id <id|null>", "Owner agent ID")
       .action(async (goalId: string, opts: GoalUpdateOptions) => {
         try {
@@ -155,8 +155,8 @@ export function registerGoalCommands(program: Command): void {
   addCommonClientOptions(
     goal
       .command("delete")
-      .description("Delete a goal")
-      .argument("<goalId>", "Goal ID")
+      .description("Delete a north star")
+      .argument("<goalId>", "North Star ID")
       .option("--yes", "Confirm deletion")
       .action(async (goalId: string, opts: GoalDeleteOptions) => {
         try {

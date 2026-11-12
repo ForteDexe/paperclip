@@ -60,7 +60,7 @@ export function AdvancedToolsRoute() {
             <h1 className="text-lg font-semibold">Advanced setup requires editing access</h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            This area lets company editors wire up tools that aren't in the gallery. Ask a company editor if you
+            This area lets outpost editors wire up tools that aren't in the gallery. Ask a outpost editor if you
             need a new app connected, or head back to{" "}
             <Link to="/apps" className="font-medium text-primary hover:underline">
               your apps

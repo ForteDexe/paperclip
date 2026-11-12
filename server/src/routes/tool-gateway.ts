@@ -98,10 +98,10 @@ async function handleMcpGatewayProtocol(
         result: {
           protocolVersion: "2025-03-26",
           capabilities: { tools: {}, resources: {}, prompts: {} },
-          serverInfo: { name: "Paperclip MCP Gateway", version: "1.0.0" },
+          serverInfo: { name: "Outpost MCP Gateway", version: "1.0.0" },
           _meta: {
             "paperclip/mcp-app-ui": "unsupported",
-            "paperclip/mcp-app-ui-detail": "Interactive ui:// iframe hosting is not available in Paperclip Runner.",
+            "paperclip/mcp-app-ui-detail": "Interactive ui:// iframe hosting is not available in Outpost Runner.",
           },
         },
       });
@@ -365,7 +365,7 @@ export function toolGatewayRoutes(db: Db, toolGateway: ToolGatewayService) {
   /** The person-facing Tokens page of a gateway, where token values are revealed. */
   async function gatewayTokensPath(companyId: string, gatewayId: string) {
     const [company] = await db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId)).limit(1);
-    if (!company) throw new ToolGatewayHttpError(404, "Company not found", "company_not_found");
+    if (!company) throw new ToolGatewayHttpError(404, "Outpost not found", "company_not_found");
     return `/${company.issuePrefix}/apps/gateways/${gatewayId}/tokens`;
   }
 

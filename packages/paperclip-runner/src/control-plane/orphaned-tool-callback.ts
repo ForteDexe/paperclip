@@ -81,7 +81,7 @@ export function interruptedToolCallbackOutcome(): CallbackOutcome {
         code: TOOL_CALLBACK_INTERRUPTED_CODE,
         outcome: "unknown",
         retryable: false,
-        message: "Paperclip restarted while this tool call was running, so its result was lost. "
+        message: "Outpost restarted while this tool call was running, so its result was lost. "
           + "It may or may not have taken effect. Check the current state before you repeat it.",
       },
     },

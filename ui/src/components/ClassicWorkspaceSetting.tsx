@@ -14,7 +14,7 @@ export function ClassicWorkspaceSetting() {
         <div className="space-y-1.5">
           <h3 id="classic-workspace-title" className="text-sm font-medium">Classic workspace</h3>
           <p id="classic-workspace-description" className="text-sm text-muted-foreground">
-            Use the previous workspace instead of the standard Coordinator workspace. This changes your interface across companies on this instance.
+            Use the previous workspace instead of the standard Coordinator workspace. This changes your interface across outposts on this instance.
           </p>
           <p className="text-xs text-muted-foreground">
             Off by default. Turn it off to return to Coordinator. Your work and your teammates’ settings stay the same.

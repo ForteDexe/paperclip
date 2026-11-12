@@ -610,7 +610,7 @@ export function StepAssign({
           onChange={(e) => onCompanyDefault(e.target.checked)}
         />
         <span className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-foreground">Make this the organization default</span>
+          <span className="text-sm font-medium text-foreground">Make this the outpost default</span>
           <span className="text-xs text-muted-foreground">
             Every agent without its own profile uses this one.
             {defaultProfileName ? ` Replaces “${defaultProfileName}”.` : ""}
@@ -631,7 +631,7 @@ export function StepAssign({
           getDescription={(agent) => {
             const context = contextByAgent.get(agent.id) ?? [];
             const bits = [...context];
-            if (defaultProfileName) bits.push("organization default");
+            if (defaultProfileName) bits.push("outpost default");
             return bits.length > 0 ? `already has: ${bits.join(" · ")}` : "no profiles yet";
           }}
         />

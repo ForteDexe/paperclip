@@ -6,7 +6,7 @@ import { AgentLifecycleConflict, assertAgentPurgeAllowed } from "../domain/polic
 export const agentLifecycleCompanyDeletion: CompanyDeletionParticipant = {
   async deleteCompanyData(tx, companyId) {
     if (!("nestedIndex" in tx)) {
-      throw new AgentLifecycleConflict("Company deletion requires a database transaction");
+      throw new AgentLifecycleConflict("Outpost deletion requires a database transaction");
     }
     const rows = await tx.select({ lifecycleState: agents.lifecycleState }).from(agents)
       .where(eq(agents.companyId, companyId)).for("update");

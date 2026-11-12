@@ -356,7 +356,7 @@ export function githubChatRegistrationService(
         throw badRequest("GitHub returned an App owned by a different account");
       if (
         session.ownerType === "organization" &&
-        (app.owner?.type !== "Organization" ||
+        (app.owner?.type !== "Outpost" ||
           app.owner?.login?.toLowerCase() !== session.ownerLogin?.toLowerCase())
       )
         throw badRequest("GitHub returned an App owned by a different account");

@@ -54,11 +54,11 @@ interface SidebarCompanyMenuProps {
 
 const TRIGGER_WORKSPACE_ICON_CLASS = "size-5 shrink-0 rounded-md text-(length:--text-micro)";
 const POPOVER_WORKSPACE_ICON_CLASS =
-  "size-(--organization-popover-avatar-size) shrink-0 rounded-lg text-(length:--text-micro)";
+  "size-(--outpost-popover-avatar-size) shrink-0 rounded-lg text-(length:--text-micro)";
 const ORGANIZATION_ROW_CLASS =
-  "h-(--organization-popover-company-row-height) min-w-0 gap-(--organization-popover-row-gap) rounded-lg px-2.5 py-0 text-(length:--text-compact) focus:bg-accent/50 focus:text-foreground";
+  "h-(--outpost-popover-outpost-row-height) min-w-0 gap-(--outpost-popover-row-gap) rounded-lg px-2.5 py-0 text-(length:--text-compact) focus:bg-accent/50 focus:text-foreground";
 const ORGANIZATION_ACTION_CLASS =
-  "h-(--organization-popover-action-row-height) gap-(--organization-popover-row-gap) rounded-lg px-2.5 py-0 text-(length:--text-compact) font-medium leading-(--organization-popover-action-line-height) text-foreground focus:bg-accent/50 focus:text-foreground";
+  "h-(--outpost-popover-action-row-height) gap-(--outpost-popover-row-gap) rounded-lg px-2.5 py-0 text-(length:--text-compact) font-medium leading-(--outpost-popover-action-line-height) text-foreground focus:bg-accent/50 focus:text-foreground";
 
 function WorkspaceIcon({ company, inPopover = false }: { company: Company; inPopover?: boolean }) {
   return (
@@ -115,11 +115,11 @@ function SortableCompanyItem({
     >
       <WorkspaceIcon company={company} inPopover />
       <span className="min-w-0 flex-1">
-        <TruncatedText className="block truncate font-medium leading-(--organization-popover-name-line-height)">
+        <TruncatedText className="block truncate font-medium leading-(--outpost-popover-name-line-height)">
           {company.name}
         </TruncatedText>
         {isEditing ? null : (
-          <TruncatedText className="block truncate text-(length:--text-nano) leading-(--organization-popover-prefix-line-height) text-muted-foreground">
+          <TruncatedText className="block truncate text-(length:--text-nano) leading-(--outpost-popover-prefix-line-height) text-muted-foreground">
             {company.issuePrefix}
           </TruncatedText>
         )}
@@ -196,7 +196,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange, showChevron = 
     hiddenSettingsLoaded &&
     !hidesCompanyPage(hiddenSettings, "company.members") &&
     !hidesCompanyPage(hiddenSettings, "company.invites");
-  const switcherNoun = "organization";
+  const switcherNoun = "outpost";
   const currentName = selectedCompany?.name ?? null;
   // Managed hosts forbid local company creation. Their extension owns that action.
   const companyCreationManaged = Boolean(useCloudInstance());
@@ -298,11 +298,11 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange, showChevron = 
       <DropdownMenuContent
         align="start"
         sideOffset={8}
-        className="ml-2 w-(--organization-popover-width) max-w-(--sz-calc-24) overflow-hidden rounded-xl border-border bg-popover p-0 shadow-(--shadow-profile-popover)"
+        className="ml-2 w-(--outpost-popover-width) max-w-(--sz-calc-24) overflow-hidden rounded-xl border-border bg-popover p-0 shadow-(--shadow-profile-popover)"
       >
-        <FlyoutHeader className="flex h-(--organization-popover-header-height) items-center justify-between gap-2 px-3.5">
+        <FlyoutHeader className="flex h-(--outpost-popover-header-height) items-center justify-between gap-2 px-3.5">
           <DropdownMenuLabel className="p-0 text-(length:--text-compact) font-semibold text-foreground">
-            Organizations
+            Outposts
           </DropdownMenuLabel>
           <button
             type="button"
@@ -344,7 +344,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange, showChevron = 
             // offer the way back.
             companyListUnavailable ? (
               <>
-                <DropdownMenuItem disabled>Couldn&apos;t load organizations</DropdownMenuItem>
+                <DropdownMenuItem disabled>Couldn&apos;t load outposts</DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(event) => {
                     // Keep the menu open so the result of the retry is visible.
@@ -357,7 +357,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange, showChevron = 
                 </DropdownMenuItem>
               </>
             ) : (
-              <DropdownMenuItem disabled>No organizations</DropdownMenuItem>
+              <DropdownMenuItem disabled>No outposts</DropdownMenuItem>
             )
           ) : null}
         </FlyoutOptions>
@@ -371,7 +371,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange, showChevron = 
               <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
                 <Plus className="size-4" />
               </span>
-              <TruncatedText className="min-w-0 flex-1 truncate">Create organization</TruncatedText>
+              <TruncatedText className="min-w-0 flex-1 truncate">Create outpost</TruncatedText>
             </DropdownMenuItem>
           )}
           {showInvitePeople ? (

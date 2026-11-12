@@ -136,8 +136,8 @@ export function boardAccessRequired(req: Request, controlPage?: BoardControlPage
   const scope = PLUGIN_ROUTE.test(deniedPath) ? `${PLUGIN_ADMINISTRATION_SCOPE} `
     : ENVIRONMENT_ROUTE.test(deniedPath) ? `${ENVIRONMENT_ADMINISTRATION_SCOPE} ` : "";
   const where = page
-    ? `They can do it in the Paperclip web app: link [Open ${page[0]}](${page[1]}), with this conversation's company prefix as <prefix>.`
-    : "They can do it in the Paperclip web app or with their own board credentials. Link a page only if you already know its route; do not search for one.";
+    ? `They can do it in the Outpost web app: link [Open ${page[0]}](${page[1]}), with this conversation's company prefix as <prefix>.`
+    : "They can do it in the Outpost web app or with their own board credentials. Link a page only if you already know its route; do not search for one.";
   return forbidden("Board access required", {
     code: BOARD_ACCESS_REQUIRED_CODE,
     remediation: `This action is board-only by design and this denial is final: no agent credential, tool or other API route can do it, so do not search for one. Stop working on this step and reply now: tell the person that a board user must do it. ${scope}${where}`,
@@ -186,7 +186,7 @@ export function assertBoardOrgAccess(req: Request) {
   if (hasBoardOrgAccess(req)) {
     return;
   }
-  throw forbidden("Company membership or instance admin access required");
+  throw forbidden("Outpost membership or instance admin access required");
 }
 
 export function assertBoardOrAgent(req: Request) {

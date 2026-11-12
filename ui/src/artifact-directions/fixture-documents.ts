@@ -38,7 +38,7 @@ The deck keeps the approved strategy and both visual directions. Layout, sequenc
 
 export const DOC_SUPPLIED_SOURCE = `# Interface Craft — supplied source
 
-Source: https://interfacecraft.dev/api/install-skills, supplied by the user on 28 September 2026. Embedded Markdown files were decoded without running the installer. Company import is unavailable to this run (route denied). This document preserves the exact relevant skill content for this revision.
+Source: https://interfacecraft.dev/api/install-skills, supplied by the user on 28 September 2026. Embedded Markdown files were decoded without running the installer. Outpost import is unavailable to this run (route denied). This document preserves the exact relevant skill content for this revision.
 
 ## Design Critique
 
@@ -47,7 +47,7 @@ Review the interface the way a senior designer would: start from what the screen
 
 export const DOC_REVISION_BRIEF = `# Approved consolidated deck revision brief
 
-Approved by the CEO on 26 September 2026. One consolidated revision is authorized before founder review.
+Approved by the Outpost Lead on 26 September 2026. One consolidated revision is authorized before founder review.
 
 ## Scope
 
@@ -128,7 +128,7 @@ Consolidated revision • 26 September 2026 • 12 slides • 16:9
 The recommendation is unchanged. Review the merged audience slide and the appendix of sources first.
 `;
 
-export const DOC_CEO_REVIEW = `# Interface Craft pass — CEO review
+export const DOC_CEO_REVIEW = `# Interface Craft pass — Outpost Lead review
 
 28 September 2026. Ready for founder review; acceptance remains pending.
 
@@ -143,7 +143,7 @@ A 12-slide strategy and direction deck for an early-stage custom cap business. T
 Accept the Interface Craft revision as the first brand deck and authorize Direction A for production samples.
 `;
 
-export const DOC_FIRST_DRAFT_REVIEW = `# First draft — CEO review
+export const DOC_FIRST_DRAFT_REVIEW = `# First draft — Outpost Lead review
 
 25 September 2026. The first draft is coherent and its claims are labelled. One consolidated revision is authorized before founder review.
 `;

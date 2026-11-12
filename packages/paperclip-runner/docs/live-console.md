@@ -9,7 +9,7 @@ approved [interaction map](design/live-console-interaction-map.md) and
 [component decision record](design/live-console-component-decisions.md).
 
 Every file lives under `packages/paperclip-runner/`. The console does not
-import or change Paperclip server, UI, database, or control-plane code.
+import or change Outpost server, UI, database, or control-plane code.
 
 ## Start it
 
@@ -55,7 +55,7 @@ model, no message store, and no client-side session cache.
 | Composer | composer state machine | one visible primary action: Send, Steer, or Stop |
 | Steering chip | `steering_acknowledgement` item or a rejection code | rejected text stays recoverable with **Send as new message** |
 | Request card | `runtime_request.*` events | renders only the actions the upstream request offers |
-| Goal banner and menu | capability snapshot and goal events | unsupported verbs are disabled with the exact diagnostic |
+| North Star banner and menu | capability snapshot and goal events | unsupported verbs are disabled with the exact diagnostic |
 | Lineage tree | driver thread lineage | child steering is shown as unsupported, never emulated |
 | Connection block | transport status and durable cursor | includes a deliberate connection-loss control |
 | Inspector | raw canonical events | four tabs: Events, Requests, Capabilities, Session |
@@ -100,7 +100,7 @@ discards and leaves recorded evidence files untouched.
 
 ## Credentials
 
-No provider or Paperclip credential reaches the browser. The Node process owns
+No provider or Outpost credential reaches the browser. The Node process owns
 the driver, the working directory, and any provider login. Every JSON and event
 frame passes the demo server's redaction layer, and the inspector renders
 redaction markers verbatim without attempting to reconstruct them.

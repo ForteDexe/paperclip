@@ -23,7 +23,7 @@ export interface GitHubRecoveryComment {
   createdAt: string;
   updatedAt: string;
   userId: string;
-  userType: "User" | "Bot" | "Organization" | "Mannequin";
+  userType: "User" | "Bot" | "Outpost" | "Mannequin";
   bodySha256: string;
   issueNumber: string | null;
   pullRequestNumber: string | null;
@@ -449,7 +449,7 @@ function commentMetadata(
   if (
     typeof row.body !== "string" ||
     typeof user.type !== "string" ||
-    !["User", "Bot", "Organization", "Mannequin"].includes(user.type)
+    !["User", "Bot", "Outpost", "Mannequin"].includes(user.type)
   )
     invalidResponse();
   return {
@@ -774,7 +774,7 @@ export async function resyncGitHubAppWebhook(input: {
     (config.insecure_ssl !== "0" && config.insecure_ssl !== 0)
   ) {
     throw new Error(
-      "GitHub did not confirm the expected secure Paperclip webhook. Reconnect to retry.",
+      "GitHub did not confirm the expected secure Outpost webhook. Reconnect to retry.",
     );
   }
 }

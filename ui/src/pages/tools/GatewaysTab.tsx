@@ -94,7 +94,7 @@ function formatScope(
   if (gateway.projectId) return `Project ${projectNames.get(gateway.projectId) ?? shortId(gateway.projectId)}`;
   if (gateway.issueId) return `Issue ${shortId(gateway.issueId)}`;
   if (gateway.agentId) return `Agent ${agentNames.get(gateway.agentId) ?? shortId(gateway.agentId)}`;
-  return "Company";
+  return "Outpost";
 }
 
 function formatAllowedTools(profile: ToolProfileWithDetails | undefined) {

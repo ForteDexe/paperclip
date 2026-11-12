@@ -96,7 +96,7 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
   }
   const links = [
     [agents, values.agentId, "Agent"], [issues, values.issueId, "Issue"],
-    [projects, values.projectId, "Project"], [goals, values.goalId, "Goal"],
+    [projects, values.projectId, "Project"], [goals, values.goalId, "North Star"],
     [heartbeatRuns, values.heartbeatRunId, "Heartbeat run"],
   ] as const;
   for (const [table, id, label] of links) {
@@ -154,7 +154,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         .where(eq(companies.id, companyId))
         .then((rows) => rows[0] ?? null);
 
-      if (!company) throw notFound("Company not found");
+      if (!company) throw notFound("Outpost not found");
 
       range = resolveCostDateRange(range);
       const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];

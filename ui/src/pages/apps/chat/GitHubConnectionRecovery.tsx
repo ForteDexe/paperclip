@@ -19,7 +19,7 @@ export function GitHubConnectionRecoveryNotice({ endpoint }: { endpoint: ChatEnd
       <div className="min-w-0 space-y-3">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">{endpoint.status === "revoked" ? "GitHub bot is disconnected" : "GitHub connection needs repair"}</h2>
-          <p className="text-sm">Reconnect this bot to restore GitHub reviews and @mentions. Start with the App already saved in Paperclip.</p>
+          <p className="text-sm">Reconnect this bot to restore GitHub reviews and @mentions. Start with the App already saved in Outpost.</p>
         </div>
         <Button asChild><Link to={`/apps/chat/connect?provider=github&resume=${endpoint.id}&reconnect=1`}>Reconnect GitHub</Link></Button>
         {(endpoint.lastError || endpoint.healthMessage) && <details className="text-sm">
@@ -116,12 +116,12 @@ export function GitHubAppRecovery({ endpoint, reconnect, credentialFields, requi
   }
   return <div className="space-y-6">
     {reconnect && <div className="space-y-3">
-      <p className="text-sm">Restore <strong>{appName}</strong> using its saved credentials. Paperclip will check the App and its installation, then repair event delivery.</p>
+      <p className="text-sm">Restore <strong>{appName}</strong> using its saved credentials. Outpost will check the App and its installation, then repair event delivery.</p>
       <p className="text-sm text-muted-foreground">Your agent, repository choices, review settings, and task history stay attached to this connection. You don’t need to create another GitHub App.</p>
     </div>}
     {rotateWebhookSecret && <section aria-label="Rotate webhook secret" className="space-y-3">
       <h2 className="text-base font-semibold">Rotate the webhook secret</h2>
-      <p className="text-sm">{rotationAlreadyCommitted ? "The rotated secret is saved. Reconnect using that value; Paperclip will check GitHub’s signed delivery." : <>Generate a new secret, then replace the webhook secret in <a href={gitHubAppSettingsUrl(endpoint)} target="_blank" rel="noreferrer" className="underline">GitHub App settings</a>. GitHub must verify the new secret before you reconnect.</>}</p>
+      <p className="text-sm">{rotationAlreadyCommitted ? "The rotated secret is saved. Reconnect using that value; Outpost will check GitHub’s signed delivery." : <>Generate a new secret, then replace the webhook secret in <a href={gitHubAppSettingsUrl(endpoint)} target="_blank" rel="noreferrer" className="underline">GitHub App settings</a>. GitHub must verify the new secret before you reconnect.</>}</p>
       <p className="text-sm text-muted-foreground">Generating immediately invalidates the previous secret. This value is shown only here; keep this page open until you have copied it.</p>
       <Button type="button" variant="outline" disabled={pending} onClick={() => void generateSecret()}>{rotationSecret || rotationAlreadyCommitted ? "Generate another secret" : "Generate webhook secret"}</Button>
       {rotationUncertain && <p role="status" className="text-sm">The active secret is not confirmed. Check its saved status before using an earlier value.</p>}
@@ -148,7 +148,7 @@ export function GitHubAppRecovery({ endpoint, reconnect, credentialFields, requi
       <div className="space-y-2 text-sm">
         <h2 className="text-base font-semibold">{reconnect ? "Replace credentials for the same App" : "Connect your existing GitHub App"}</h2>
         <p><a href={gitHubAppSettingsUrl(endpoint)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">Open GitHub App settings<ExternalLink className="size-3.5" /></a> and choose <strong>{appName}</strong>.</p>
-        <p className="text-muted-foreground">If it’s owned by an organization, open that organization’s Settings → Developer settings → GitHub Apps → Edit. You’ll need permission to manage the App.</p>
+        <p className="text-muted-foreground">If it’s owned by an outpost, open that outpost’s Settings → Developer settings → GitHub Apps → Edit. You’ll need permission to manage the App.</p>
         {credentialFields && <p className="text-muted-foreground">Enter the requested credentials below. Other saved credentials stay in place.</p>}
       </div>
       {needsPrivateKey && <div className="space-y-2">

@@ -8,4 +8,4 @@ skills:
   - content-calendar
 ---
 
-You plan content themes, keep the editorial calendar current, and turn company updates into publishable material.
+You plan content themes, keep the editorial calendar current, and turn Outpost updates into publishable material.
