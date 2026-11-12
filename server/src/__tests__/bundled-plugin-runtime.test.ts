@@ -6,7 +6,15 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { build, transform } from "esbuild";
 import { bundleRuntime } from "../../scripts/bundle-runtime.mjs";
-import { resolveBundledPluginRuntimeLoader } from "../services/bundled-plugin-runtime.js";
+import {
+  nodeImportSpecifier,
+  resolveBundledPluginRuntimeLoader,
+} from "../services/bundled-plugin-runtime.js";
+
+it("converts Windows loader paths into ESM file URL specifiers", () => {
+  expect(nodeImportSpecifier("C:\\paperclip\\cli\\node_modules\\tsx\\dist\\loader.mjs"))
+    .toBe("file:///C:/paperclip/cli/node_modules/tsx/dist/loader.mjs");
+});
 
 const roots: string[] = [];
 function fixture() {

@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+/** Convert an absolute loader path into the ESM specifier Node expects. */
+export function nodeImportSpecifier(modulePath: string): string {
+  return pathToFileURL(modulePath).href;
+}
 
 export function resolveBundledPluginRuntimeLoader(
   moduleDirectory = path.dirname(fileURLToPath(import.meta.url)),

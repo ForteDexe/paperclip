@@ -18,6 +18,14 @@ const PROJECT_ENVIRONMENT_OVERLAP = {
   repairSha256: "50ce0eb2567570b098bea1de92fe6a220d139e4ba83438195fbbad1be51e31a1",
 } as const;
 
+function canonicalMigrationContentHash(content: string): string {
+  // Git may materialize SQL files with CRLF when core.autocrlf is enabled on
+  // Windows. The pinned overlap hashes describe the repository bytes (LF),
+  // while the migration journal intentionally continues to record the exact
+  // bytes this checkout executed.
+  return createHash("sha256").update(content.replaceAll("\r\n", "\n")).digest("hex");
+}
+
 function createUtilitySql(url: string) {
   return postgres(url, { max: 1, onnotice: () => {} });
 }
@@ -717,8 +725,8 @@ async function applyPendingMigrationsManually(
           const repairContent = await readMigrationFileContent(repairFile);
           const repairHash = createHash("sha256").update(repairContent).digest("hex");
           const dropIndex = orderedPendingMigrations.indexOf(migrationFile);
-          if (hash !== PROJECT_ENVIRONMENT_OVERLAP.dropSha256
-            || repairHash !== PROJECT_ENVIRONMENT_OVERLAP.repairSha256
+          if (canonicalMigrationContentHash(migrationContent) !== PROJECT_ENVIRONMENT_OVERLAP.dropSha256
+            || canonicalMigrationContentHash(repairContent) !== PROJECT_ENVIRONMENT_OVERLAP.repairSha256
             || orderedPendingMigrations[dropIndex + 1] !== repairFile
             || await migrationHistoryEntryExists(sql, qualifiedTable, columnNames, repairFile, repairHash)) {
             throw new Error("Project environment migration pair does not match the qualified overlap repair");
