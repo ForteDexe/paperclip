@@ -11,6 +11,13 @@ import {
 } from "./NewAgent.test-support";
 
 describe("New agent setup", () => {
+  it("hides Environment and uses Local internally for a repository-backed Space", async () => {
+    state.selectedCompany = { workspaceRoot: "C:\\work\\maya" };
+    await render("codex_local");
+    expect(container.querySelector('select[aria-label="Environment"]')).toBeNull();
+    expect(container.textContent).not.toContain("Default: Local");
+  });
+
   it.each([
     ["claude_local", "Claude", "plugin"], ["codex_local", "OpenAI", "plugin"],
     ["claude_local", "Claude", "sandbox"], ["codex_local", "OpenAI", "sandbox"],

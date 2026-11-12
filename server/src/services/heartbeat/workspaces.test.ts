@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { agents, Db, projectWorkspaces } from "@paperclipai/db";
+import { companies, type agents, type Db, type projectWorkspaces } from "@paperclipai/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ensureManagedProjectWorkspace as legacyEnsureManagedProjectWorkspace,
@@ -20,7 +20,7 @@ const runGit = promisify(execFile);
 let testRoot: string;
 
 beforeEach(async () => {
-  testRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-module-"));
+  testRoot = await fs.mkdtemp(path.join(os.tmpdir(), "ow-"));
   vi.stubEnv("PAPERCLIP_HOME", testRoot);
   vi.stubEnv("PAPERCLIP_INSTANCE_ID", "workspace-test");
   vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "false");
@@ -45,10 +45,19 @@ function workspace(id: string, projectId: string, cwd: string) {
 // The existing service integration suites cover the SQL and authorization rules.
 // These query results exercise the new factory's database binding and call order.
 function databaseWithResults(...results: unknown[][]) {
+  return databaseWithSpaceRoot(null, ...results);
+}
+
+function databaseWithSpaceRoot(spaceRoot: string | null, ...results: unknown[][]) {
   const select = vi.fn(() => {
-    const rows = results.shift() ?? [];
+    let rows: unknown[] = [];
     const query = {
-      from: () => query,
+      from: (table: unknown) => {
+        rows = table === companies
+          ? spaceRoot ? [{ workspaceRoot: spaceRoot }] : []
+          : (results.shift() ?? []);
+        return query;
+      },
       where: () => query,
       orderBy: async () => rows,
       then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(rows).then(resolve),
@@ -77,6 +86,30 @@ async function createRepository(parent: string, text: string) {
 }
 
 describe("heartbeat workspace module", () => {
+  it("keeps a Space agent at its repository root across tasks and resumed sessions", async () => {
+    const spaceRoot = path.join(testRoot, "maya");
+    const staleSessionRoot = path.join(testRoot, "other-space");
+    await Promise.all([fs.mkdir(spaceRoot), fs.mkdir(staleSessionRoot)]);
+    const binding = workspace("space-workspace", "space-project", spaceRoot);
+    const database = databaseWithSpaceRoot(spaceRoot, [binding]);
+
+    const result = await createHeartbeatWorkspaceResolver(database.db).resolveWorkspaceForRun(
+      agent(),
+      { projectId: "other-project", projectWorkspaceId: "other-workspace" },
+      { cwd: staleSessionRoot, workspaceId: "stale-workspace" },
+      { configuredCwd: staleSessionRoot },
+    );
+
+    expect(result).toMatchObject({
+      cwd: spaceRoot,
+      projectId: "space-project",
+      workspaceId: "space-workspace",
+      source: "project_primary",
+      spaceBound: true,
+      warnings: [],
+    });
+  });
+
   it("preserves the legacy error class and checkout entry point", () => {
     expect(LegacyWorkspaceValidationFailure).toBe(WorkspaceValidationFailure);
     expect(legacyEnsureManagedProjectWorkspace).toBe(ensureManagedProjectWorkspace);
@@ -97,8 +130,8 @@ describe("heartbeat workspace module", () => {
     ]);
     expect(firstResult).toMatchObject({ cwd: firstCwd, projectId: "project-one", workspaceId: "workspace-one", source: "project_primary", additionalWorkspaces: [] });
     expect(secondResult).toMatchObject({ cwd: secondCwd, projectId: "project-two", workspaceId: "workspace-two", source: "project_primary", additionalWorkspaces: [] });
-    expect(first.select).toHaveBeenCalledTimes(2);
-    expect(second.select).toHaveBeenCalledTimes(2);
+    expect(first.select).toHaveBeenCalledTimes(3);
+    expect(second.select).toHaveBeenCalledTimes(3);
   });
 
   it("uses the current issue's project and selected workspace over stale context", async () => {
@@ -115,7 +148,7 @@ describe("heartbeat workspace module", () => {
       null,
     );
     expect(result).toMatchObject({ cwd: selectedCwd, projectId: "current-project", workspaceId: "selected-workspace", warnings: [], baseCwdFallback: false });
-    expect(database.select).toHaveBeenCalledTimes(4);
+    expect(database.select).toHaveBeenCalledTimes(5);
   });
 
   it("resolves plugin storage without creating or reading a Core checkout", async () => {
@@ -200,7 +233,7 @@ describe("heartbeat workspace module", () => {
     expect(fallback).toMatchObject({ cwd: resolveDefaultAgentWorkspaceDir(agent().id), source: "agent_home", workspaceId: null });
     expect(fallback.warnings).toEqual([expect.stringContaining("is not available")]);
     expect((await fs.stat(fallback.cwd)).isDirectory()).toBe(true);
-    expect(database.select).not.toHaveBeenCalled();
+    expect(database.select).toHaveBeenCalledTimes(2);
   });
 
   it("shares one in-flight checkout across legacy and direct module callers", async () => {
@@ -221,7 +254,7 @@ describe("heartbeat workspace module", () => {
     const results = await Promise.all(attempts);
     expect(resolveGitAuth).toHaveBeenCalledTimes(1);
     expect(new Set(results.map(result => result.cwd)).size).toBe(1);
-    expect(await fs.readFile(path.join(results[0]!.cwd, "README.md"), "utf8")).toBe("shared checkout\n");
+    expect((await fs.readFile(path.join(results[0]!.cwd, "README.md"), "utf8")).replace(/\r\n/g, "\n")).toBe("shared checkout\n");
     expect((await runGit("git", ["-C", results[0]!.cwd, "remote", "get-url", "origin"])).stdout.trim()).toBe(repoUrl);
   });
 
@@ -234,8 +267,8 @@ describe("heartbeat workspace module", () => {
       ensureManagedProjectWorkspace({ companyId: "company-one", projectId: "shared-project", repoUrl }),
     ));
     expect(first!.cwd).not.toBe(second!.cwd);
-    expect(await fs.readFile(path.join(first!.cwd, "README.md"), "utf8")).toBe("first repository\n");
-    expect(await fs.readFile(path.join(second!.cwd, "README.md"), "utf8")).toBe("second repository\n");
+    expect((await fs.readFile(path.join(first!.cwd, "README.md"), "utf8")).replace(/\r\n/g, "\n")).toBe("first repository\n");
+    expect((await fs.readFile(path.join(second!.cwd, "README.md"), "utf8")).replace(/\r\n/g, "\n")).toBe("second repository\n");
   });
 
   it("releases a failed checkout attempt so the next caller can retry", async () => {
@@ -247,6 +280,6 @@ describe("heartbeat workspace module", () => {
     await expect(ensureManagedProjectWorkspace(input)).rejects.toThrow("credential lookup failed");
     const result = await legacyEnsureManagedProjectWorkspace(input);
     expect(resolveGitAuth).toHaveBeenCalledTimes(2);
-    expect(await fs.readFile(path.join(result.cwd, "README.md"), "utf8")).toBe("retry succeeded\n");
+    expect((await fs.readFile(path.join(result.cwd, "README.md"), "utf8")).replace(/\r\n/g, "\n")).toBe("retry succeeded\n");
   });
 });

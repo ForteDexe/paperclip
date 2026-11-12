@@ -24,6 +24,7 @@ export const interactionResolverGovernanceSchema = z.object({
 export const createCompanySchema = z.object({
   name: z.string().min(1),
   description: z.string().optional().nullable(),
+  workspaceRoot: z.string().min(1).optional(),
   budgetMonthlyCents: z.number().int().nonnegative().optional().default(0),
   defaultResponsibleUserId: z.string().min(1).nullable().optional(),
 });

@@ -5,8 +5,8 @@ import {
   ChevronsUpDown,
   GripVertical,
   LogOut,
-  Plus,
   RefreshCw,
+  Plus,
   UserPlus,
 } from "lucide-react";
 import {
@@ -32,8 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCompany } from "@/context/CompanyContext";
-import { useDialogActions } from "@/context/DialogContext";
-import { useCloudInstance } from "@/hooks/useCloudInstance";
 import { useHiddenSettings } from "@/hooks/useHiddenSettings";
 import { useCompanyOrder } from "@/hooks/useCompanyOrder";
 import { useSignOut } from "@/hooks/useSignOut";
@@ -116,7 +114,7 @@ function SortableCompanyItem({
         </span>
         {isEditing ? null : (
           <span className="block truncate text-(length:--text-nano) leading-(--organization-popover-prefix-line-height) text-muted-foreground">
-            {company.issuePrefix}
+            {company.workspaceRoot ?? company.issuePrefix}
           </span>
         )}
       </span>
@@ -157,7 +155,6 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
   const [isEditingOrder, setIsEditingOrder] = useState(false);
   const { companies, selectedCompany, setSelectedCompanyId, companyListUnavailable, retryCompanies } =
     useCompany();
-  const { openOnboarding } = useDialogActions();
   const { isMobile, setSidebarOpen, collapsed, peeking } = useSidebar();
   const rail = collapsed && !peeking;
   const location = useLocation();
@@ -192,10 +189,8 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
     hiddenSettingsLoaded &&
     !hidesCompanyPage(hiddenSettings, "company.members") &&
     !hidesCompanyPage(hiddenSettings, "company.invites");
-  const switcherNoun = "company";
+  const switcherNoun = "space";
   const currentName = selectedCompany?.name ?? null;
-  // Managed hosts forbid local company creation. Their extension owns that action.
-  const companyCreationManaged = Boolean(useCloudInstance());
 
   const signOutMutation = useSignOut({ onSignedOut: closeNavigationChrome });
 
@@ -224,16 +219,6 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
     if (shouldLeaveCurrentRoute) {
       navigate(`/${company.issuePrefix}/dashboard`);
     }
-  }
-
-  function addCompany() {
-    if (companyCreationManaged) return;
-    setOpen(false);
-    if (isMobile) setSidebarOpen(false);
-    // Skip the front-door "how would you like to get started?" choice and land
-    // directly on "Name your organization" — this entry point is unambiguously
-    // "create a new company" (PAP-431).
-    openOnboarding({ initialStep: 1 });
   }
 
   const handleDragEnd = useCallback(
@@ -297,7 +282,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
       >
         <div className="flex h-(--organization-popover-header-height) items-center justify-between gap-2 px-3.5">
           <DropdownMenuLabel className="p-0 text-(length:--text-compact) font-semibold text-foreground">
-            Outposts
+            Spaces
           </DropdownMenuLabel>
           <button
             type="button"
@@ -339,7 +324,7 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
             // offer the way back.
             companyListUnavailable ? (
               <>
-                <DropdownMenuItem disabled>Couldn&apos;t load Outposts</DropdownMenuItem>
+                <DropdownMenuItem disabled>Couldn&apos;t load Spaces</DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(event) => {
                     // Keep the menu open so the result of the retry is visible.
@@ -352,23 +337,17 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
                 </DropdownMenuItem>
               </>
             ) : (
-              <DropdownMenuItem disabled>No Outposts</DropdownMenuItem>
+              <DropdownMenuItem disabled>No Spaces</DropdownMenuItem>
             )
           ) : null}
         </div>
         <div className="flex flex-col gap-0.5 border-t border-border px-2.5 pb-2.5 pt-2">
-          {!companyCreationManaged && (
-            <DropdownMenuItem
-              onClick={addCompany}
-              className={ORGANIZATION_ACTION_CLASS}
-              disabled={isEditingOrder}
-            >
-              <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-                <Plus className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1 truncate">Create Outpost</span>
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem asChild disabled={isEditingOrder} className={ORGANIZATION_ACTION_CLASS}>
+            <Link to="/spaces?new=1" onClick={() => closeNavigationChrome()}>
+              <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground"><Plus className="size-4" /></span>
+              <span className="min-w-0 flex-1 truncate">New Space</span>
+            </Link>
+          </DropdownMenuItem>
           {showInvitePeople ? (
             <DropdownMenuItem
               asChild

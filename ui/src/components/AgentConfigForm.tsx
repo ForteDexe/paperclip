@@ -370,7 +370,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const showCreateRunPolicySection = props.showCreateRunPolicySection ?? true;
   const hideInstructionsFile = props.hideInstructionsFile ?? false;
   const canConfigureProviderTrace = props.canConfigureProviderTrace === true;
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany } = useCompany();
+  const spaceBound = Boolean(selectedCompany?.workspaceRoot);
   const queryClient = useQueryClient();
   const environmentVariablesEditorRef = useRef<EnvironmentVariablesEditorHandle | null>(null);
 
@@ -1018,10 +1019,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     }
     return [...runnableEnvironments, currentDefaultEnvironment];
   }, [currentDefaultEnvironment, runnableEnvironments]);
-  // `runnableEnvironments` excludes the always-available Local environment, so a
-  // single entry already means the user has more than one environment configured
-  // (Local + that environment) and the override selector is meaningful.
-  const showEnvironmentOverrideControl = environmentsEnabled && (
+  const showEnvironmentOverrideControl = !spaceBound && environmentsEnabled && (
     forcedKubernetes ||
     currentDefaultEnvironmentId.length > 0 ||
     runnableEnvironments.length >= 1
@@ -1719,11 +1717,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         </div>
       )}
 
-      {/* ---- Execution ---- */}
-      {isCursorCloudRunner ? null : forcedKubernetes ? (
-        // Instance execution policy forces the managed Kubernetes sandbox
-        // (executionMode=kubernetes): never offer local / non-Kubernetes targets.
-        // Render the environment read-only instead of the selectable picker.
+      {/* Environment placement remains internal for repository-backed Spaces. */}
+      {spaceBound || isCursorCloudRunner ? null : forcedKubernetes ? (
         <div data-config-section="environment" className={cn(!cards && (isCreate ? "border-t border-border" : "border-b border-border"))}>
           {cards
             ? (untitled("environment") ? null : <h3 className="text-sm font-medium mb-3">Environment</h3>)

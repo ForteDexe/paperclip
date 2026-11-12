@@ -133,12 +133,10 @@ export const GroupedRows: Story = {
 
 export const EmptyProjects: Story = {
   render: function Render() {
-    const [created, setCreated] = useState(false);
     const [query, setQuery] = useState("");
     return <div className="bg-background p-6 text-foreground">
-      <ProjectsToolbar query={query} onQueryChange={setQuery} sortField="name" sortDir="asc" onSortChange={() => {}} onNewProject={() => setCreated(true)} />
-      <EmptyState icon={Hexagon} graphic={<ArtifactEmptyGraphic stack />} message="No projects yet." action="Create project" hideActionIcon onAction={() => setCreated(true)} />
-      {created && <p role="status">Create project requested (story fixture).</p>}
+      <ProjectsToolbar query={query} onQueryChange={setQuery} sortField="name" sortDir="asc" onSortChange={() => {}} />
+      <EmptyState icon={Hexagon} graphic={<ArtifactEmptyGraphic stack />} message="The repository project is unavailable. Restart Outpost from the repository launcher." />
     </div>;
   },
 };

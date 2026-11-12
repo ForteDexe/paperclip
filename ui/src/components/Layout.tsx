@@ -97,7 +97,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
     isMobile,
     setForceCollapsed,
   } = useSidebar();
-  const { openNewIssue, openOnboarding } = useDialogActions();
+  const { openNewIssue } = useDialogActions();
   const { togglePanelVisible, setPanelVisible } = usePanel();
   // Optional: Layout also renders in harnesses without a ToastProvider.
   const pushToast = useOptionalToastActions()?.pushToast ?? null;
@@ -149,7 +149,6 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
     isAppsRoute && companyPathSegments[1]?.toLowerCase() === "app" && companyPathSegments[2]
       ? companyPathSegments[2]
       : null;
-  const onboardingTriggered = useRef(false);
   const previousPathname = useRef<string | null>(null);
   const mainContentRef = useRef<HTMLElement | null>(null);
   const scrollMemory = useRef(new NavigationScrollMemory());
@@ -278,18 +277,6 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
     }
     previousShellRoute.current = { pathname: location.pathname, surface: contextualSurface };
   }, [companyPrefix, contextualSurface, location.pathname]);
-
-  useEffect(() => {
-    if (companiesLoading || onboardingTriggered.current) return;
-    if (health?.deploymentMode === "authenticated") return;
-    // Cloud provisions the single company for a stack, and POST /companies is a
-    // 403 floor there — auto-opening the wizard could only dead-end.
-    if (health?.cloud) return;
-    if (companies.length === 0) {
-      onboardingTriggered.current = true;
-      openOnboarding();
-    }
-  }, [companies, companiesLoading, openOnboarding, health?.cloud, health?.deploymentMode]);
 
   useEffect(() => {
     if (!companyPrefix || companiesLoading || companies.length === 0) return;

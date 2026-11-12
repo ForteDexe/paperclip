@@ -1273,7 +1273,8 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     const remembered = last !== undefined
       ? (available.has(last) ? last : "")
       : (getRecentProjectIds().find((id) => available.has(id)) ?? "");
-    setProjectId(remembered);
+    const soleProject = available.size === 1 ? [...available][0] : "";
+    setProjectId(remembered || soleProject);
   }, [newIssueOpen, effectiveCompanyId, projects, orderedProjects]);
   const projectOptions = useMemo<InlineEntityOption[]>(
     () =>
@@ -1671,7 +1672,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
                 readOnly: filesRestoring || Boolean(durableCreate.pending),
                 contextBar: (
                   <>
-                    <InlineEntitySelector
+                    {false && <InlineEntitySelector
                       value={projectId}
                       options={projectOptions}
                       recentOptionIds={recentProjectIds}
@@ -1714,7 +1715,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
                           </>
                         );
                       }}
-                    />
+                    />}
                     {canChooseWorktrees ? (
                       <ComposerWorktreePicker
                         mode={executionWorkspaceMode}

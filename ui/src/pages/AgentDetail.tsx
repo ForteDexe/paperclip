@@ -132,7 +132,6 @@ import { buildPermissionsForTrustPreset, getTrustPreset } from "../lib/trust-pol
 import { agentRouteRef } from "../lib/utils";
 import { syncAgentRouteAfterRename } from "./agent-detail/agent-route";
 import { InstructionsBundleSettings } from "./agent-detail/InstructionsBundleSettings";
-import { AgentAllowedConnectors } from "./agent-detail/AgentAllowedConnectors";
 import { AgentAuditTab } from "./AgentAuditTab";
 import { AgentDirectReports } from "./agent-detail/AgentDirectReports";
 import { instructionFileDateLabel } from "./agent-detail/instruction-file-date";
@@ -1734,7 +1733,6 @@ export function ConfigurationTab({
 
       {content === "permissions" ? <TrustPresetSection
         layout="cards"
-        aside={companyId ? <AgentAllowedConnectors agentId={agent.id} companyId={companyId} /> : null}
         projectAccessEditor={<AgentProjectAccessSettings agent={agent} />}
         permissions={agent.permissions}
         disabled={updatePermissions.isPending}

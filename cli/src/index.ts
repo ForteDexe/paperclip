@@ -202,6 +202,7 @@ const run = program
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("-i, --instance <id>", "Local instance id (default: default)")
   .option("--bind <mode>", "On first run, use onboarding reachability preset (loopback, lan, tailnet)")
+  .option("-y, --yes", "Initialize missing local config with quickstart defaults", false)
   .option("--repair", "Attempt automatic repairs during doctor", true)
   .option("--no-repair", "Disable automatic repairs during doctor")
   .option("--force", "Run even when the same instance is active under the service manager")

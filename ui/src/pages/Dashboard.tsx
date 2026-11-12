@@ -3,10 +3,6 @@ import { AgentIdentity } from "../components/AgentIdentity";
 import { TaskSummaryList } from "../components/TaskSummaryList";
 import { useDesignSandbox } from "../context/DesignSandboxContext";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "@/lib/router";
-import { shouldRouteAgentlessCompanyToOnboarding } from "../lib/onboarding-route";
-import { claimOnboardingOffer, dashboardOnboardingOptions } from "../lib/onboarding-auto-open";
-import { onboardingDraftStorage } from "../lib/onboarding-state";
 import { Link } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardApi } from "../api/dashboard";
@@ -16,7 +12,6 @@ import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { buildCompanyUserProfileMap } from "../lib/company-members";
 import { useCompany } from "../context/CompanyContext";
-import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { MetricCard } from "../components/MetricCard";
@@ -76,8 +71,6 @@ export function derivePausedAgentBanner(agents: Agent[] | undefined): PausedAgen
 export function Dashboard() {
   const designSandbox = useDesignSandbox();
   const { selectedCompanyId, companies } = useCompany();
-  const { openOnboarding } = useDialogActions();
-  const location = useLocation();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
   const seenActivityIdsRef = useRef<Set<string>>(new Set());
@@ -117,49 +110,6 @@ export function Dashboard() {
       ]);
     },
   });
-
-  // A company with no agent cannot do anything — no runs, no tasks, nothing
-  // to show. The banner below already says so and offers a link; this takes
-  // the customer there instead of asking them to notice.
-  //
-  // It also closes the gap a Cloud-provisioned stack falls into. Cloud creates
-  // the company before the tenant boots, so the companyless redirect never
-  // fires and a seeded customer lands here, on an empty dashboard, straight
-  // out of signup.
-  //
-  // Opened as the dialog rather than navigated to: the wizard is already
-  // mounted globally, so there is no route to race and no redirect to loop.
-  // Placed with the other hooks — the early returns below mean anything
-  // further down would be called conditionally.
-  //
-  // The company and the step are both passed. Opening with empty options would
-  // start the wizard at the front door with no company, and the new-company
-  // path there would create a *second* company instead of giving this one an
-  // agent.
-  // A saved agent that is still in setup is unfinished onboarding after reload.
-  // Only the matching browser draft may resume it; other setup records stay put.
-  const onboardingOptions = selectedCompanyId
-    ? dashboardOnboardingOptions(selectedCompanyId, agents, onboardingDraftStorage.read())
-    : null;
-  const onboardingInitialStep = onboardingOptions?.initialStep;
-  const shouldOpenOnboarding = shouldRouteAgentlessCompanyToOnboarding({
-    pathname: location.pathname,
-    agentsLoaded: agents !== undefined,
-    agentsRefreshing,
-    agentCount: onboardingOptions ? 0 : agents?.length ?? 0,
-  });
-  // Auto-open once per company. Every input to the effect sits behind a query,
-  // so a refetch re-runs it, and the customer can also navigate away and come
-  // back — both would otherwise call `openOnboarding` again and reopen a
-  // wizard that was deliberately closed. `claimOnboardingOffer` holds the
-  // companies already offered; see it for why that outlives this component.
-  useEffect(() => {
-    if (!shouldOpenOnboarding || !selectedCompanyId || !onboardingInitialStep) return;
-    if (!claimOnboardingOffer(selectedCompanyId)) return;
-    openOnboarding({ companyId: selectedCompanyId, initialStep: onboardingInitialStep });
-    // No mission lookup to wait on any more: the step this opens is the same
-    // whatever the goals say, so waiting only delayed the open.
-  }, [shouldOpenOnboarding, selectedCompanyId, onboardingInitialStep, openOnboarding]);
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Dashboard" }]);
@@ -305,9 +255,7 @@ export function Dashboard() {
       return (
         <EmptyState
           icon={LayoutDashboard}
-          message="Welcome to Outpost. Set up your first outpost and agent to get started."
-          action="Get Started"
-          onAction={openOnboarding}
+          message="Outpost could not initialize this repository. Restart it from the repository launcher."
         />
       );
     }
@@ -384,12 +332,12 @@ export function Dashboard() {
               You have no agents.
             </p>
           </div>
-          <button
-            onClick={() => openOnboarding({ initialStep: 3, companyId: selectedCompanyId! })}
+          <Link
+            to="/agents/new"
             className="text-sm font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 underline underline-offset-2 shrink-0"
           >
             Create one here
-          </button>
+          </Link>
         </div>
       )}
 

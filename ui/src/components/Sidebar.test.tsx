@@ -247,8 +247,8 @@ describe("Sidebar", () => {
     expect(navLabels).toContain("Tasks");
     expect(navLabels).not.toContain("Issues");
 
-    const projectsLink = [...container.querySelectorAll("nav a")].find((a) => a.textContent?.trim() === "Projects");
-    expect(projectsLink?.getAttribute("href")).toBe("/projects");
+    const spacesLink = [...container.querySelectorAll("nav a")].find((a) => a.textContent?.trim() === "Spaces");
+    expect(spacesLink?.getAttribute("href")).toBe("/spaces");
     const agentLinks = [...container.querySelectorAll('a[href="/agents"]')];
     expect(agentLinks).toHaveLength(1);
     expect([...container.querySelectorAll('a[href="/activity"]')]).toHaveLength(1);
@@ -268,7 +268,7 @@ describe("Sidebar", () => {
     const root = await renderSidebar();
 
     const navLabels = [...container.querySelectorAll("nav a")].map((a) => a.textContent?.trim());
-    expect(navLabels).toContain("Projects");
+    expect(navLabels).toContain("Spaces");
     expect(navLabels).toContain("Agents");
     expect(container.textContent).not.toContain("Organization");
     expect(container.textContent).not.toContain("Workspaces");
@@ -293,9 +293,8 @@ describe("Sidebar", () => {
 
     const navLabels = [...container.querySelectorAll("nav a")].map((a) => a.textContent?.trim());
     expect(navLabels).toContain("Tasks");
-    // Top-level Projects link + starred children stay, per-project collapsible gone.
-    expect(navLabels).toContain("Projects");
-    expect(container.querySelector('[data-testid="sidebar-starred-projects"]')).not.toBeNull();
+    expect(navLabels).toContain("Spaces");
+    expect(container.querySelector('[data-testid="sidebar-starred-projects"]')).toBeNull();
     expect(navLabels).toContain("Agents");
 
     flushSync(() => {
@@ -312,10 +311,11 @@ describe("Sidebar", () => {
 
     const labels = [...container.querySelectorAll("nav a")].map((anchor) => anchor.textContent?.trim());
     expect(container.querySelector('[data-testid="sidebar-recent-tasks"]')).toBeNull();
-    expect(container.querySelector('[data-testid="sidebar-projects"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="sidebar-projects"]')).toBeNull();
     expect(container.querySelector('[data-testid="sidebar-agents"]')?.getAttribute("data-streamlined")).toBe("undefined");
-    expect(container.textContent).toContain("Organization");
-    expect(labels).toEqual(expect.arrayContaining(["Org", "Connectors", "Timeline", "Costs", "Activity", "Settings"]));
+    expect(container.textContent).toContain("Space");
+    expect(labels).toEqual(expect.arrayContaining(["Spaces", "Crew map", "Timeline", "Activity", "Commentary", "Settings"]));
+    expect(labels).not.toContain("Connectors");
     expect(labels).not.toContain("Audit");
     expect(labels).not.toContain("Projects");
     expect(container.querySelector('a[href="/agents"]')).toBeNull();
@@ -517,12 +517,12 @@ describe("Sidebar", () => {
 
     const sections = [...container.querySelectorAll("nav > div")];
     const workSection = sections.find((section) => section.textContent?.startsWith("Work"));
-    const orgSection = sections.find((section) => section.textContent?.startsWith("Org"));
+    const orgSection = sections.find((section) => section.textContent?.startsWith("Space"));
     const labels = (section: Element | undefined) => [...(section?.querySelectorAll("a") ?? [])]
       .map((anchor) => anchor.textContent?.trim());
 
-    expect(labels(workSection)).toEqual(["Chat", "Tasks", "Projects", "Routines", "Artifacts"]);
-    expect(labels(orgSection)).toEqual(["Agents", "Skills", "Connectors", "Audit"]);
+    expect(labels(workSection)).toEqual(["Chat", "Tasks", "Spaces", "Routines", "Artifacts"]);
+    expect(labels(orgSection)).toEqual(["Agents", "Skills", "Audit"]);
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));
     expect(
       workSection?.querySelector('a[href="/issues"] svg')?.classList.contains("lucide-circle-check"),
@@ -554,11 +554,11 @@ describe("Sidebar", () => {
     });
     const root = await renderSidebar();
 
-    const link = [...container.querySelectorAll("a")].find((anchor) => anchor.textContent === "Goals");
+    const link = [...container.querySelectorAll("a")].find((anchor) => anchor.textContent === "North Stars");
     expect(link?.getAttribute("href")).toBe("/goals");
 
     const navText = container.querySelector("nav")?.textContent ?? "";
-    expect(navText.indexOf("Artifacts")).toBeLessThan(navText.indexOf("Goals"));
+    expect(navText.indexOf("Artifacts")).toBeLessThan(navText.indexOf("North Stars"));
 
     flushSync(() => {
       root.unmount();
@@ -571,7 +571,7 @@ describe("Sidebar", () => {
 
     const sections = [...container.querySelectorAll("nav > div")];
     const workSection = sections.find((section) => section.textContent?.startsWith("Work"));
-    expect(workSection?.textContent).toContain("Projects");
+    expect(workSection?.textContent).toContain("Spaces");
     expect(workSection?.textContent).not.toContain("Timeline");
     expect(container.querySelector('a[href="/timeline"]')).toBeNull();
 
@@ -611,20 +611,13 @@ describe("Sidebar", () => {
     });
   });
 
-  it("always shows Connectors in the Org section", async () => {
+  it("does not expose the retired Connectors area", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableApps: false });
     const root = await renderSidebar();
 
     const links = [...container.querySelectorAll("a")];
-    const link = links.find((anchor) => anchor.textContent === "Connectors");
-    expect(link?.getAttribute("href")).toBe("/apps");
-    expect(link?.querySelector("svg")?.classList).toContain("lucide-unplug");
-    expect(links.findIndex((anchor) => anchor.textContent === "Connectors")).toBeGreaterThan(
-      links.findIndex((anchor) => anchor.textContent === "Skills"),
-    );
-    expect(links.findIndex((anchor) => anchor.textContent === "Connectors")).toBeLessThan(
-      links.findIndex((anchor) => anchor.textContent === "Audit"),
-    );
+    expect(links.find((anchor) => anchor.textContent === "Connectors")).toBeUndefined();
+    expect(container.querySelector('a[href="/apps"]')).toBeNull();
 
     flushSync(() => {
       root.unmount();

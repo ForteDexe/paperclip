@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { FolderOpen, Lock, Loader2, LogOut, MoreHorizontal, Plus } from "lucide-react";
+import { FolderOpen, Lock, Loader2, LogOut, MoreHorizontal } from "lucide-react";
 import {
   DndContext,
   MouseSensor,
@@ -13,7 +13,6 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useCompany } from "../context/CompanyContext";
-import { useDialogActions } from "../context/DialogContext";
 import { useSidebar } from "../context/SidebarContext";
 import { authApi } from "../api/auth";
 import { SIDEBAR_SCROLL_RESET_STATE } from "../lib/navigation-scroll";
@@ -254,7 +253,6 @@ function SortableProjectItem(props: ProjectItemProps) {
 export function SidebarProjects() {
   const [open, setOpen] = useState(true);
   const { selectedCompany, selectedCompanyId } = useCompany();
-  const { openNewProject } = useDialogActions();
   const { isMobile, setSidebarOpen, collapsed, peeking } = useSidebar();
   const rail = collapsed && !peeking;
   const fineReorderPointer = useFineReorderPointer();
@@ -409,11 +407,6 @@ export function SidebarProjects() {
     <SidebarSection
       label="Projects"
       collapsible={{ open, onOpenChange: setOpen }}
-      headerAction={{
-        ariaLabel: "New project",
-        icon: Plus,
-        onClick: openNewProject,
-      }}
       menu={{
         ariaLabel: "Projects section actions",
         actions: [

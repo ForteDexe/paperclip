@@ -119,6 +119,7 @@ export function companyService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
     id: companies.id,
     name: companies.name,
     description: companies.description,
+    workspaceRoot: companies.workspaceRoot,
     status: companies.status,
     pauseReason: companies.pauseReason,
     pausedAt: companies.pausedAt,
@@ -275,6 +276,12 @@ export function companyService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
   }
 
   return {
+    getByWorkspaceRootKey: async (workspaceRootKey: string) => {
+      const row = await getCompanyQuery(db)
+        .where(eq(companies.workspaceRootKey, workspaceRootKey))
+        .then((rows) => rows[0] ?? null);
+      return row ? enrichCompany(row) : null;
+    },
     list: async () => {
       const rows = await getCompanyQuery(db);
       const hydrated = await hydrateCompanySpend(rows);
@@ -295,14 +302,19 @@ export function companyService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       return enrichCompany(hydrated);
     },
 
-    create: async (data: typeof companies.$inferInsert) => {
+    create: async (
+      data: typeof companies.$inferInsert,
+      options: { autoProvisionBundledAgents?: boolean } = {},
+    ) => {
       const created = await createCompanyWithUniquePrefix(data);
       await environmentsSvc.ensureLocalEnvironment(created.id);
-      await builtInAgents.autoProvisionBundledAgents(created.id);
+      if (options.autoProvisionBundledAgents !== false) {
+        await builtInAgents.autoProvisionBundledAgents(created.id);
+      }
       const row = await getCompanyQuery(db)
         .where(eq(companies.id, created.id))
         .then((rows) => rows[0] ?? null);
-      if (!row) throw notFound("Outpost not found after creation");
+      if (!row) throw notFound("Space not found after creation");
       const [hydrated] = await hydrateCompanySpend([row], db);
       return enrichCompany(hydrated);
     },

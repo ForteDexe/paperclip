@@ -47,6 +47,7 @@ function makeCompany(id: string): Company {
     id,
     name: "Outpost",
     description: null,
+    workspaceRoot: null,
     status: "active",
     pauseReason: null,
     pausedAt: null,

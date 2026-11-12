@@ -40,6 +40,7 @@ import {
 } from "@paperclipai/shared";
 import {
   agents,
+  companies,
   heartbeatRuns,
   issues,
   projects,
@@ -1356,6 +1357,8 @@ export type ResolvedWorkspaceForRun = {
   materializationFailures: WorkspaceMaterializationFailure[];
   /** True only for an explicitly configured local project path without a repository URL. */
   localPathOnlyWorkspace?: boolean;
+  /** True when this workspace is the immutable repository root of the agent's Space. */
+  spaceBound?: boolean;
   /** Current configuration for drift reporting; never an alternative restore source. */
   freshnessSource?: { projectId: string | null; workspaceId: string | null; repoUrl: string | null; repoRef: string | null };
   /**
@@ -3460,6 +3463,66 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     previousSessionParams: Record<string, unknown> | null,
     opts?: { useProjectWorkspace?: boolean | null; configuredCwd?: string | null; executionEnvironmentDriver?: string | null; storageProviderPluginId?: string | null },
   ): Promise<ResolvedAnchorWorkspaceForRun> {
+    // A repository-backed Space is the durable native-session boundary. Its
+    // root wins over task hints, agent cwd overrides, and cwd saved by a prior
+    // provider session. This mirrors Codex/Claude's native behavior: sessions
+    // created from one repository are not resumed from another repository.
+    // Legacy companies have no workspaceRoot and retain the existing resolver.
+    const [space] = await db
+      .select({ workspaceRoot: companies.workspaceRoot })
+      .from(companies)
+      .where(eq(companies.id, agent.companyId));
+    const spaceRoot = readNonEmptyString(space?.workspaceRoot);
+    if (spaceRoot) {
+      const resolvedSpaceRoot = path.resolve(spaceRoot);
+      const available = await fs
+        .stat(resolvedSpaceRoot)
+        .then((stats) => stats.isDirectory())
+        .catch(() => false);
+      if (!available) {
+        throw new WorkspaceValidationFailure(
+          `Space working directory is unavailable: ${resolvedSpaceRoot}`,
+          {
+            workspaceValidation: {
+              reason: "space_workspace_unavailable",
+              companyId: agent.companyId,
+              workspaceRoot: resolvedSpaceRoot,
+            },
+          },
+        );
+      }
+
+      const spaceWorkspaces = await db
+        .select()
+        .from(projectWorkspaces)
+        .where(eq(projectWorkspaces.companyId, agent.companyId))
+        .orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id));
+      const binding = spaceWorkspaces.find((workspace) =>
+        sameResolvedPath(workspace.cwd, resolvedSpaceRoot),
+      );
+      return {
+        cwd: resolvedSpaceRoot,
+        source: "project_primary",
+        projectId: binding?.projectId ?? null,
+        workspaceId: binding?.id ?? null,
+        repoUrl: binding?.repoUrl ?? null,
+        repoRef: binding?.repoRef ?? null,
+        workspaceHints: binding
+          ? [{
+              workspaceId: binding.id,
+              cwd: resolvedSpaceRoot,
+              repoUrl: readNonEmptyString(binding.repoUrl),
+              repoRef: readNonEmptyString(binding.repoRef),
+            }]
+          : [],
+        warnings: [],
+        baseCwdFallback: false,
+        materializationFailures: [],
+        localPathOnlyWorkspace: !readNonEmptyString(binding?.repoUrl),
+        spaceBound: true,
+      };
+    }
+
     const issueId =
       readNonEmptyString(context.issueId) ?? readNonEmptyString(context.taskId);
     const resolveGitAuth = createGitRemoteAuthProvider(db, agent.companyId, {

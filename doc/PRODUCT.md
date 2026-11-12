@@ -1,4 +1,30 @@
-# Paperclip — Product Definition
+# Outpost — Product Definition
+
+## Space boundary
+
+A **Space** is Outpost's top-level user-facing boundary. The user creates one by
+choosing an existing working directory, and that normalized directory may
+belong to only one Space. Switching Spaces changes the complete visible agent,
+task, Decision, North Star, session, and configuration context without stopping
+agent processes that are already running.
+
+The legacy `company` and `project` names remain in internal APIs where changing
+them would create migration risk. Each Space owns one hidden compatibility
+project/workspace whose cwd is the Space directory; Projects are not a second
+user-created navigation layer. Portable identity/configuration belongs in the
+repository's `.outpost/` directory. Provider authentication and secrets remain
+machine-global and outside the repository.
+
+An agent belongs to one Space for its lifetime. Native sessions always start
+and resume from that Space's working-directory root, even when an old session or
+task carries another cwd. Agents may use subdirectories within the repository,
+but cannot be moved to a different Space; the user creates a new agent there.
+Repository-backed Spaces use the local host environment and do not expose a
+per-agent Environment selector.
+
+Outpost does not expose the inherited Connectors catalog. Provider login and
+other connection machinery may remain as internal runtime plumbing where agent
+execution requires it, but Connectors is not a user-facing product area.
 
 Reusable workflows stay inside the Cases experiment. A workflow is a company-shared
 name and Markdown prompt; a case may adopt, leave and revisit workflows without

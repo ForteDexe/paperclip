@@ -58,7 +58,7 @@ const TASK_WATCHDOGS_TOGGLE_SELECTOR =
 const CLASSIC_TASK_INTERFACE_TOGGLE_SELECTOR =
   'button[aria-label="Toggle classic task interface experimental setting"]';
 const GOALS_SIDEBAR_LINK_TOGGLE_SELECTOR =
-  'button[aria-label="Toggle goals sidebar link experimental setting"]';
+  'button[aria-label="Toggle north stars sidebar link experimental setting"]';
 const DECISIONS_TOGGLE_SELECTOR =
   'button[aria-label="Toggle decisions experimental setting"]';
 const SERVER_INFO_TOGGLE_SELECTOR =
@@ -234,29 +234,18 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     expect(container.textContent).not.toContain("Show the Apps navigation");
   });
 
-  it("defaults memory connectors off and persists an explicit toggle in both directions", async () => {
+  it("does not expose memory connector settings", async () => {
     await renderPage();
     const selector = 'button[aria-label="Toggle memory connectors experimental setting"]';
-    expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe("false");
-    expect(container.textContent).toContain("Existing connections keep running.");
-    for (const enabled of [true, false]) {
-      await act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
-      await flushReact();
-      expect(mockInstanceSettingsApi.updateExperimental).toHaveBeenLastCalledWith({ enableMemoryConnectors: enabled });
-      expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe(String(enabled));
-    }
+    expect(container.querySelector(selector)).toBeNull();
+    expect(container.textContent).not.toContain("Memory connectors");
   });
 
-  it("defaults the Outpost Google Workspace connector off and persists an explicit toggle in both directions", async () => {
+  it("does not expose the Outpost Google Workspace connector setting", async () => {
     await renderPage();
     const selector = 'button[aria-label="Toggle Outpost Google Workspace connector experimental setting"]';
-    expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe("false");
-    for (const enabled of [true, false]) {
-      await act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
-      await flushReact();
-      expect(mockInstanceSettingsApi.updateExperimental).toHaveBeenLastCalledWith({ enableGoogleWorkspaceConnector: enabled });
-      expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe(String(enabled));
-    }
+    expect(container.querySelector(selector)).toBeNull();
+    expect(container.textContent).not.toContain("Google Workspace connector (Outpost)");
   });
 
   it("defaults Combined Inbox + Task List off and persists an explicit toggle in both directions", async () => {
@@ -289,7 +278,7 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
       await flushReact();
       expect(mockInstanceSettingsApi.updateExperimental).toHaveBeenLastCalledWith({ enablePublicMcp: enabled });
       expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe(String(enabled));
-      expect(Boolean(container.querySelector('a[href="/BUT/apps/assistant-connection"]'))).toBe(enabled);
+      expect(container.querySelector('a[href="/BUT/apps/assistant-connection"]')).toBeNull();
     }
   });
 
@@ -297,7 +286,7 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     await renderPage();
     expect(container.textContent).toContain("Muse — Personal agent");
     expect(container.textContent).toContain("independent background reply");
-    expect(container.textContent).toContain("Provider usage and cost are unavailable");
+    expect(container.textContent).toContain("Provider usage details are not imported");
     const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="Toggle Muse experimental setting"]')!;
     await act(() => toggle.click());
     await flushReact();
@@ -317,18 +306,11 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     }
   });
 
-  it("defaults chat connectors off and persists an explicit toggle in both directions", async () => {
+  it("does not expose chat connector settings", async () => {
     await renderPage();
     const selector = 'button[aria-label="Toggle chat connectors experimental setting"]';
-    expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe("false");
-    expect(container.textContent).toContain("Existing chat connections keep running");
-    for (const enabled of [true, false]) {
-      await act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
-      await flushReact();
-      expect(mockInstanceSettingsApi.updateExperimental).toHaveBeenLastCalledWith({ enableChatConnectors: enabled });
-      expect(container.querySelector(selector)?.getAttribute("aria-checked")).toBe(String(enabled));
-      expect(currentExperimentalSettings.enableApps).toBe(true);
-    }
+    expect(container.querySelector(selector)).toBeNull();
+    expect(container.textContent).not.toContain("Chat connectors");
   });
 
   it("toggles GitHub review bots without enabling chat connectors", async () => {
@@ -533,9 +515,9 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
   it("renders and patches the Goals Sidebar Link experimental toggle", async () => {
     await renderPage();
 
-    expect(container.textContent).toContain("Goals Sidebar Link");
+    expect(container.textContent).toContain("North Stars Sidebar Link");
     expect(container.textContent).toContain(
-      "Restore the Goals item in the main sidebar while the goals surface is being evaluated.",
+      "Restore the North Stars item in the main sidebar while the north stars surface is being evaluated.",
     );
 
     const toggle = container.querySelector<HTMLButtonElement>(GOALS_SIDEBAR_LINK_TOGGLE_SELECTOR);
@@ -969,16 +951,13 @@ describe("InstanceExperimentalSettings — cloud-managed keys", () => {
     expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
   });
 
-  it("keeps a managed chat connectors setting locked", async () => {
+  it("keeps managed chat connector settings hidden", async () => {
     await renderPage({
       ...defaultExperimentalSettings(),
       managedKeys: { enableChatConnectors: { managed: true, managedBy: "paperclip-cloud" } },
     });
     const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="Toggle chat connectors experimental setting"]');
-    expect(toggle?.disabled).toBe(true);
-    expect(toggle?.getAttribute("aria-checked")).toBe("false");
-    expect(container.textContent).toContain(MANAGED_BADGE_TEXT);
-    await act(() => toggle?.click());
+    expect(toggle).toBeNull();
     expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
   });
 
@@ -1095,7 +1074,7 @@ describe("InstanceExperimentalSettings — card ordering and headings (PAP-393)"
     expect(sections.at(-2)?.textContent).toContain("Task Plan Decomposition");
     expect(sections.at(-1)?.textContent).toContain("These features are going to be removed.");
     expect(sections.at(-1)?.textContent).toContain("Classic Task Interface");
-    expect(sections.at(-1)?.textContent).toContain("Goals Sidebar Link");
+    expect(sections.at(-1)?.textContent).toContain("North Stars Sidebar Link");
   });
 
   it("alphabetizes cards by their displayed title within each section", async () => {
@@ -1217,7 +1196,7 @@ describe("InstanceExperimentalSettings — operator-hidden cards", () => {
 
   it("keeps only permitted controls in alphabetical order, including when hidden features are enabled", async () => {
     setWorktreeRuntimeMeta(true);
-    const visible = new Set(["enableExternalObjects", "enableMemoryConnectors", "enableSimplifiedEnglishInteractions"]);
+    const visible = new Set(["enableExternalObjects", "enableSimplifiedEnglishInteractions"]);
     await renderPage(
       INSTANCE_FEATURE_KEYS.filter((key) => !visible.has(key)).map((key) => `instance.experimental.${key}`),
       {
@@ -1233,13 +1212,12 @@ describe("InstanceExperimentalSettings — operator-hidden cards", () => {
 
     expect([...container.querySelectorAll("h3")].map((heading) => heading.textContent)).toEqual([
       "Enable External Objects",
-      "Memory connectors",
       "Simplified English Interactions",
     ]);
     expect([...container.querySelectorAll("section h2")].map((heading) => heading.textContent)).toEqual([
       "Experimental features",
     ]);
-    expect(container.querySelectorAll('button[role="switch"]')).toHaveLength(3);
+    expect(container.querySelectorAll('button[role="switch"]')).toHaveLength(2);
     expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
   });
 
@@ -1247,7 +1225,7 @@ describe("InstanceExperimentalSettings — operator-hidden cards", () => {
     const visible = new Set(["enablePaperclipDeveloperMode", "enableGoalsSidebarLink"]);
     await renderPage(INSTANCE_FEATURE_KEYS.filter((key) => !visible.has(key)).map((key) => `instance.experimental.${key}`));
     expect(container.querySelector('[aria-labelledby="developer-mode-heading"] h3')?.textContent).toBe("Outpost Developer Mode");
-    expect(container.querySelector('[aria-labelledby="legacy-heading"] h3')?.textContent).toBe("Goals Sidebar Link");
+    expect(container.querySelector('[aria-labelledby="legacy-heading"] h3')?.textContent).toBe("North Stars Sidebar Link");
   });
 
   it("shows every toggle when nothing is hidden", async () => {

@@ -7,6 +7,14 @@ import {
 } from "./company-routes";
 
 describe("company routes", () => {
+  it("treats the Space collection as a board route inside the active shell", () => {
+    expect(isBoardPathWithoutPrefix("/spaces")).toBe(true);
+    expect(extractCompanyPrefixFromPath("/spaces")).toBeNull();
+    expect(applyCompanyPrefix("/spaces", "HER")).toBe("/HER/spaces");
+    expect(applyCompanyPrefix("/spaces?new=1", "HER")).toBe("/HER/spaces?new=1");
+    expect(toCompanyRelativePath("/HER/spaces?new=1")).toBe("/spaces?new=1");
+  });
+
   it("keeps public Dot consent outside company-prefixed routes", () => {
     const path = `/dot-connect/pcmcp_request_${"a".repeat(43)}`;
     expect(extractCompanyPrefixFromPath(path)).toBeNull();

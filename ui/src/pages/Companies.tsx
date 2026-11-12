@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
-import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { useCloudInstance } from "../hooks/useCloudInstance";
 import { companiesApi } from "../api/companies";
 import { queryKeys } from "../lib/queryKeys";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { QueryErrorState } from "../components/QueryView";
 import { relativeTime } from "../lib/utils";
 import { Input } from "@/components/ui/input";
@@ -23,14 +22,21 @@ import {
   Pencil,
   Check,
   X,
-  Plus,
   MoreHorizontal,
   Trash2,
   Users,
   CircleDot,
   Calendar,
   ArchiveRestore,
+  Plus,
+  FolderOpen,
+  Map,
 } from "lucide-react";
+
+function spaceNameFromPath(value: string) {
+  const normalized = value.trim().replace(/[\\/]+$/, "");
+  return normalized.split(/[\\/]/).pop() || "Space";
+}
 
 export function Companies() {
   const {
@@ -40,13 +46,12 @@ export function Companies() {
     loading,
     error,
     retryCompanies,
+    createCompany,
   } = useCompany();
-  const { openOnboarding } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
-  // A cloud stack holds exactly one company; creating another is a 403 floor
-  // server-side, so the wizard entry point is hidden rather than dead-ending.
-  const isCloud = Boolean(useCloudInstance());
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const { data: stats } = useQuery({
     queryKey: queryKeys.companies.stats,
@@ -57,6 +62,22 @@ export function Companies() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [spaceName, setSpaceName] = useState("");
+  const [workspaceRoot, setWorkspaceRoot] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: () => createCompany({
+      name: spaceName.trim() || spaceNameFromPath(workspaceRoot),
+      workspaceRoot: workspaceRoot.trim(),
+    }),
+    onSuccess: (company) => {
+      setShowCreate(false);
+      setSpaceName("");
+      setWorkspaceRoot("");
+      navigate(`/${company.issuePrefix}/dashboard`);
+    },
+  });
 
   const editMutation = useMutation({
     mutationFn: ({ id, newName }: { id: string; newName: string }) =>
@@ -90,8 +111,12 @@ export function Companies() {
   });
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Outposts" }]);
+    setBreadcrumbs([{ label: "Spaces" }]);
   }, [setBreadcrumbs]);
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") setShowCreate(true);
+  }, [searchParams]);
 
   function startEdit(companyId: string, currentName: string) {
     setEditingId(companyId);
@@ -108,21 +133,82 @@ export function Companies() {
     setEditName("");
   }
 
+  function selectSpace(company: (typeof companies)[number]) {
+    setSelectedCompanyId(company.id);
+    navigate(`/${company.issuePrefix}/dashboard`);
+  }
+
+  const createSpaceForm = showCreate ? (
+    <Card className="w-full space-y-4 p-5 text-left">
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium">Name <span className="font-normal text-muted-foreground">(optional)</span></span>
+          <Input value={spaceName} onChange={(event) => setSpaceName(event.target.value)} placeholder="Derived from the folder name" />
+        </label>
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium">Working directory</span>
+          <Input value={workspaceRoot} onChange={(event) => setWorkspaceRoot(event.target.value)} placeholder={"C:\\work\\maya"} autoFocus />
+        </label>
+      </div>
+      {createMutation.error ? <p className="text-sm text-destructive">{createMutation.error.message}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+        <Button
+          onClick={() => createMutation.mutate()}
+          disabled={!workspaceRoot.trim() || createMutation.isPending}
+        >
+          {createMutation.isPending ? "Creating…" : "Create Space"}
+        </Button>
+      </div>
+    </Card>
+  ) : null;
+
+  if (!loading && !error && companies.length === 0) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6 py-12" data-testid="spaces-welcome">
+        <div className="flex w-full max-w-2xl flex-col items-center text-center">
+          <div className="mb-8 flex h-28 w-28 items-center justify-center rounded-3xl border border-border bg-muted/30 text-muted-foreground/40 shadow-sm">
+            <Map className="h-14 w-14" strokeWidth={1.25} aria-hidden="true" />
+          </div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Welcome to Outpost</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Create your first Space</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            A Space connects one repository to its agents, tasks, decisions, and Campfire rooms.
+            Start by choosing its working directory.
+          </p>
+          <div className="mt-8 w-full">
+            {createSpaceForm ?? (
+              <Button size="lg" onClick={() => setShowCreate(true)}>
+                <FolderOpen className="h-4 w-4" /> Choose working directory
+              </Button>
+            )}
+          </div>
+          {!showCreate ? (
+            <p className="mt-4 text-xs text-muted-foreground">
+              Outpost keeps each Space&apos;s agent and work context separate.
+            </p>
+          ) : null}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        {isCloud ? null : (
-          <Button size="sm" onClick={() => openOnboarding()}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            New Outpost
-          </Button>
-        )}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">Spaces</h1>
+          <p className="text-sm text-muted-foreground">Each Space owns one repository and its complete agent context.</p>
+        </div>
+        <Button onClick={() => setShowCreate((value) => !value)}>
+          <Plus className="h-4 w-4" /> New Space
+        </Button>
       </div>
-
+      {createSpaceForm}
       <div className="min-h-6">
-        {loading && <p className="text-sm text-muted-foreground">Loading outposts...</p>}
+        {loading && <p className="text-sm text-muted-foreground">Loading spaces...</p>}
         {error ? (
-          <QueryErrorState size="inline" error={error} action="load outposts" onRetry={() => void retryCompanies()} />
+          <QueryErrorState size="inline" error={error} action="load spaces" onRetry={() => void retryCompanies()} />
         ) : null}
       </div>
 
@@ -140,11 +226,11 @@ export function Companies() {
               key={company.id}
               role="button"
               tabIndex={0}
-              onClick={() => setSelectedCompanyId(company.id)}
+              onClick={() => selectSpace(company)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setSelectedCompanyId(company.id);
+                  selectSpace(company);
                 }
               }}
               interactive
@@ -214,6 +300,12 @@ export function Companies() {
                       {company.description}
                     </p>
                   )}
+                  {company.workspaceRoot ? (
+                    <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+                      <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{company.workspaceRoot}</span>
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Three-dot menu */}
@@ -250,7 +342,7 @@ export function Companies() {
                         onClick={() => setConfirmDeleteId(company.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete Outpost
+                        Delete Space
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -284,7 +376,7 @@ export function Companies() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <p className="text-sm text-destructive font-medium">
-                    Delete this outpost and all its data? This cannot be undone.
+                    Delete this Space and all its data? This cannot be undone.
                   </p>
                   <div className="flex items-center gap-2 ml-4 shrink-0">
                     <Button

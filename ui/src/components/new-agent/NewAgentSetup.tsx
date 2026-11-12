@@ -77,6 +77,7 @@ import {
   type ProviderConnection,
 } from "./AgentProviderConnection";
 import { adapterCuratesModelOrder } from "../../lib/model-utils";
+import { usesExistingProviderLogin } from "./local-provider-login";
 
 const controlClass = nativeSelectClassName;
 const nativeSetupHarnesses: Record<string, string> = {
@@ -87,7 +88,7 @@ const blocking = (result: AdapterEnvironmentTestResult) =>
   result.checks.some((check) => check.code === ADAPTER_AUTH_MISSING_CHECK_CODE);
 
 export function NewAgentSetup() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany } = useCompany();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   if (!selectedCompanyId)
@@ -108,6 +109,7 @@ export function NewAgentSetup() {
       runnerProvider={params.get("runnerProvider") ?? "codex"}
       createdAgentId={params.get("createdAgentId")}
       setupAgentId={params.get("setupAgentId")}
+      spaceBound={Boolean(selectedCompany?.workspaceRoot)}
     />
   );
 }
@@ -121,6 +123,7 @@ function Setup({
   preserveNativeHarness,
   createdAgentId,
   setupAgentId,
+  spaceBound,
 }: {
   companyId: string;
   name: string;
@@ -130,6 +133,7 @@ function Setup({
   preserveNativeHarness: boolean;
   createdAgentId: string | null;
   setupAgentId: string | null;
+  spaceBound: boolean;
 }) {
   const navigate = useNavigate();
   const cache = useQueryClient();
@@ -152,18 +156,24 @@ function Setup({
         ? "opencode_local"
         : runnerProvider === "pi" ? "pi_local" : runnerProvider === "codex" ? "codex_local" : runnerProvider
     : adapterType;
+  // Local Codex and Claude agents deliberately use the login already owned by
+  // their CLI/desktop application. Outpost neither imports nor manages those
+  // credentials, so their setup begins at runtime configuration instead of a
+  // redundant "Connect a model" screen. A failed runtime test tells the user
+  // to sign in with the provider's own application.
   const connectionAdapter =
-    brandType === "claude_local" || brandType === "codex_local" || brandType === "grok_local" || brandType === "antigravity_runtime"
+    brandType === "grok_local" || brandType === "antigravity_runtime"
       ? brandType
       : null;
   const unreleasedAntigravity = brandType === "antigravity_runtime"
     && !PAPERCLIP_RUNNER_ACPX_PROFILES.some(profile => profile.value === "antigravity" && profile.qualified);
   const multiProvider =
     brandType === "opencode_local" || brandType === "pi_local";
+  const usesHostLogin = usesExistingProviderLogin(brandType);
   const providerKeys = setupProviderKeys(brandType);
   const chooseProvider = multiProvider || brandType === "hermes_local";
   const hasCredentialField =
-    isKimi || chooseProvider || Boolean(SETUP_CREDENTIAL_KEYS[adapterType]);
+    !usesHostLogin && (isKimi || chooseProvider || Boolean(SETUP_CREDENTIAL_KEYS[adapterType]));
   const nativeCursorCloud = adapterType === "cursor_cloud" && runner === "paperclip";
   const showModel = !isDot && adapterType !== "hermes_gateway" && (adapterType !== "cursor_cloud" || nativeCursorCloud);
   const [allowUnmeteredProvider, setAllowUnmeteredProvider] = useState(false);
@@ -280,6 +290,13 @@ function Setup({
     queryKey: queryKeys.environments.list(companyId),
     queryFn: () => environmentsApi.list(companyId),
   });
+  const localEnvironmentId = resolveLocalDefaultEnvironmentId(envs.data ?? []);
+  useEffect(() => {
+    if (!spaceBound || nativeCursorCloud || !localEnvironmentId) return;
+    if (environmentOverride !== localEnvironmentId) {
+      setEnvironmentOverride(localEnvironmentId);
+    }
+  }, [spaceBound, nativeCursorCloud, localEnvironmentId, environmentOverride]);
   const settings = useQuery({
     queryKey: queryKeys.instance.settings,
     queryFn: instanceSettingsApi.get,
@@ -1139,8 +1156,10 @@ function Setup({
                             </dd>
                           </>
                         )}
-                        <dt className="text-muted-foreground">Environment</dt>
-                        <dd>{environmentLabel}</dd>
+                        {!spaceBound ? <>
+                          <dt className="text-muted-foreground">Environment</dt>
+                          <dd>{environmentLabel}</dd>
+                        </> : null}
                       </dl>
                       <p className="text-sm text-muted-foreground">
                         {created.status === "pending_approval"
@@ -1189,7 +1208,7 @@ function Setup({
                           <ToggleField label="Allow externally billed provider" hint="Dot does not report token usage. Review provider-side usage separately."
                             checked={allowUnmeteredProvider} onChange={value => { setAllowUnmeteredProvider(value); resetTest(); }} />
                         </>}
-                        {!connectionAdapter && aiProviderForAdapter(brandType) && (
+                        {!connectionAdapter && !usesHostLogin && aiProviderForAdapter(brandType) && (
                           <AiConnectionField companyId={companyId} agentName={name} adapterType={brandType} model={model} environmentId={environmentId ?? undefined} value={aiBinding}
                             onChange={binding => { binding.mode !== "router" && setRuntimeAiBinding(binding); resetTest();
                               if (accountCatalogAvailable && hashKey([aiBinding ?? null]) === hashKey([binding ?? null])) void refreshAccountModels();
@@ -1470,7 +1489,7 @@ function Setup({
                           </>
                         )}
                       </section>
-                      {adapterType !== "hermes_gateway" && adapterType !== "cursor_cloud" && (
+                      {!spaceBound && adapterType !== "hermes_gateway" && adapterType !== "cursor_cloud" && (
                         <section className="space-y-5">
                           <h3 className="text-sm font-semibold">Environment</h3>
                           <select

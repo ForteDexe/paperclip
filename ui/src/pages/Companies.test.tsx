@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-import { flushSync } from "react-dom";
+import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { queryKeys } from "@/lib/queryKeys";
 import { Companies } from "./Companies";
 
 const mockCompaniesApi = vi.hoisted(() => ({
@@ -12,33 +12,23 @@ const mockCompaniesApi = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
 }));
-const mockOpenOnboarding = vi.hoisted(() => vi.fn());
+
+const mockCompanyContext = vi.hoisted(() => ({
+  companies: [] as Array<Record<string, unknown>>,
+  selectedCompanyId: null as string | null,
+  setSelectedCompanyId: vi.fn(),
+  loading: false,
+  error: null as Error | null,
+  retryCompanies: vi.fn(),
+  createCompany: vi.fn(),
+}));
 
 vi.mock("../api/companies", () => ({
   companiesApi: mockCompaniesApi,
 }));
 
 vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [
-      {
-        id: "company-1",
-        issuePrefix: "PAP",
-        name: "Acme Labs",
-        status: "active",
-        budgetMonthlyCents: 0,
-        spentMonthlyCents: 0,
-      },
-    ],
-    selectedCompanyId: "company-1",
-    setSelectedCompanyId: vi.fn(),
-    loading: false,
-    error: null,
-  }),
-}));
-
-vi.mock("../context/DialogContext", () => ({
-  useDialogActions: () => ({ openOnboarding: mockOpenOnboarding }),
+  useCompany: () => mockCompanyContext,
 }));
 
 vi.mock("../context/BreadcrumbContext", () => ({
@@ -48,32 +38,22 @@ vi.mock("../context/BreadcrumbContext", () => ({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-function act(callback: () => void) {
-  flushSync(callback);
-}
-
 async function flushReact() {
   await Promise.resolve();
   await new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
-const CLOUD_HEALTH = {
-  status: "ok" as const,
-  cloud: {
-    managed: true as const,
-    managedBy: "paperclip-cloud" as const,
-    stackSlug: "acme-labs",
-    cloudBaseUrl: "https://cloud.example.test",
-  },
-};
-
-describe("Companies page", () => {
+describe("Spaces page", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
     mockCompaniesApi.stats.mockResolvedValue({});
+    mockCompanyContext.companies = [];
+    mockCompanyContext.selectedCompanyId = null;
+    mockCompanyContext.loading = false;
+    mockCompanyContext.error = null;
   });
 
   afterEach(() => {
@@ -82,45 +62,64 @@ describe("Companies page", () => {
     vi.clearAllMocks();
   });
 
-  async function renderPage({ cloud }: { cloud?: boolean } = {}) {
+  async function renderPage(initialEntry = "/spaces") {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    if (cloud) queryClient.setQueryData(queryKeys.health, CLOUD_HEALTH);
     const root = createRoot(container);
-    act(() => {
+    await act(async () => {
       root.render(
-        <QueryClientProvider client={queryClient}>
-          <Companies />
-        </QueryClientProvider>,
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <QueryClientProvider client={queryClient}>
+            <Companies />
+          </QueryClientProvider>
+        </MemoryRouter>,
       );
+      await flushReact();
     });
-    await flushReact();
-    await flushReact();
     return root;
   }
 
-  it("offers the company wizard when self-hosted", async () => {
+  it("welcomes a new user and opens the first-Space form", async () => {
     const root = await renderPage();
 
-    expect(container.textContent).toContain("New Organization");
+    expect(container.querySelector('[data-testid="spaces-welcome"]')).not.toBeNull();
+    expect(container.textContent).toContain("Welcome to Outpost");
+    expect(container.textContent).toContain("Create your first Space");
 
-    act(() => {
-      root.unmount();
+    const startButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Choose working directory"),
+    );
+    await act(async () => {
+      startButton?.click();
+      await flushReact();
     });
+
+    expect(container.querySelectorAll("input")).toHaveLength(2);
+    expect(container.querySelectorAll("input")[1]?.getAttribute("placeholder")).toBe("C:\\work\\maya");
+    expect(container.textContent).toContain("Create Space");
+
+    await act(async () => root.unmount());
   });
 
-  it("hides the company wizard on a cloud-managed instance", async () => {
-    const root = await renderPage({ cloud: true });
+  it("keeps the management list for existing Spaces", async () => {
+    mockCompanyContext.companies = [{
+      id: "space-1",
+      issuePrefix: "MAYA",
+      name: "Maya",
+      status: "active",
+      workspaceRoot: "C:\\work\\maya",
+      createdAt: "2026-11-12T00:00:00.000Z",
+    }];
+    mockCompanyContext.selectedCompanyId = "space-1";
 
-    // Cloud stacks hold exactly one company and POST /companies is a 403 floor,
-    // so the entry point must not be offered at all.
-    expect(container.textContent).not.toContain("New Organization");
-    expect(container.textContent).toContain("Acme Labs");
-    expect(mockOpenOnboarding).not.toHaveBeenCalled();
+    const root = await renderPage();
 
-    act(() => {
-      root.unmount();
-    });
+    expect(container.querySelector('[data-testid="spaces-welcome"]')).toBeNull();
+    expect(container.textContent).toContain("Spaces");
+    expect(container.textContent).toContain("Maya");
+    expect(container.textContent).toContain("New Space");
+
+    await act(async () => root.unmount());
   });
 });

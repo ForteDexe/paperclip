@@ -35,6 +35,7 @@ import {
   type CompanyImportTransferStatus,
 } from "@paperclipai/shared/company-import-transfer";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../errors.js";
+import { isUniqueViolation } from "../db-errors.js";
 import { authorizationDeniedDetails, issueReadSqlCondition } from "../services/authorization.js";
 import { PORTABLE_ZIP_UPLOAD_LIMIT_BYTES } from "../http/body-limits.js";
 import { logger } from "../middleware/logger.js";
@@ -71,6 +72,11 @@ import { getHiddenSettings } from "../services/settings-visibility.js";
 import type { StorageService } from "../storage/types.js";
 import { assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo, hasCompanyAccess } from "./authz.js";
 import { COMPANY_IMPORT_ROUTE_PATH } from "./company-import-paths.js";
+import {
+  provisionSpaceWorkspace,
+  resolveSpaceWorkingDirectory,
+  writePortableSpaceManifest,
+} from "../services/spaces.js";
 
 // A company import can arrive one of two ways on the import + preview routes:
 //   • application/json — the original inline body `{ source, target, ... }`,
@@ -1207,7 +1213,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
   router.post("/", (req, _res, next) => {
     assertBoard(req);
     if (isCloudManagedInstance()) {
-      throw forbidden("Outpost creation is managed by Outpost Cloud", {
+      throw forbidden("Space creation is managed by Outpost Cloud", {
         code: "cloud_managed",
       });
     }
@@ -1217,11 +1223,31 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     if (!(req.actor.source === "local_implicit" || req.actor.isInstanceAdmin)) {
       throw forbidden("Instance admin required");
     }
+    const workingDirectory = req.body.workspaceRoot
+      ? await resolveSpaceWorkingDirectory(req.body.workspaceRoot)
+        .catch((error) => { throw unprocessable(error instanceof Error ? error.message : "Invalid working directory"); })
+      : null;
+    if (workingDirectory && await svc.getByWorkspaceRootKey(workingDirectory.key)) {
+      throw conflict("That working directory already belongs to a Space");
+    }
     const ownerPrincipalId = req.actor.userId ?? "local-board";
-    const company = await svc.create({
-      ...req.body,
-      defaultResponsibleUserId: req.body.defaultResponsibleUserId ?? ownerPrincipalId,
-    });
+    let company;
+    try {
+      company = await svc.create({
+        ...req.body,
+        name: req.body.name.trim() || workingDirectory?.name || "Space",
+        ...(workingDirectory ? {
+          workspaceRoot: workingDirectory.root,
+          workspaceRootKey: workingDirectory.key,
+        } : {}),
+        defaultResponsibleUserId: req.body.defaultResponsibleUserId ?? ownerPrincipalId,
+      }, { autoProvisionBundledAgents: !workingDirectory });
+    } catch (error) {
+      if (workingDirectory && isUniqueViolation(error, "companies_workspace_root_key_idx")) {
+        throw conflict("That working directory already belongs to a Space");
+      }
+      throw error;
+    }
     await access.ensureMembership(company.id, "user", ownerPrincipalId, "owner", "active");
     await access.ensureRoleDefaultGrants(
       company.id,
@@ -1229,6 +1255,25 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       "owner",
       req.actor.userId ?? null,
     );
+    if (workingDirectory) {
+      try {
+        await provisionSpaceWorkspace(db, {
+          companyId: company.id,
+          name: company.name,
+          root: workingDirectory.root,
+        });
+      } catch (error) {
+        await svc.remove(company.id).catch(() => undefined);
+        throw error;
+      }
+      await writePortableSpaceManifest({
+        root: workingDirectory.root,
+        companyId: company.id,
+        name: company.name,
+      }).catch((error) => {
+        logger.warn({ error, companyId: company.id, root: workingDirectory.root }, "Could not write portable Space manifest");
+      });
+    }
     await logActivity(db, {
       companyId: company.id,
       actorType: "user",
@@ -1236,7 +1281,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       action: "company.created",
       entityType: "company",
       entityId: company.id,
-      details: { name: company.name },
+      details: { name: company.name, workingDirectory: workingDirectory?.root ?? null },
     });
     if (company.budgetMonthlyCents > 0) {
       await budgets.upsertPolicy(

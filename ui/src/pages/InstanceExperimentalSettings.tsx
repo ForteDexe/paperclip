@@ -19,7 +19,6 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Link } from "@/lib/router";
 import { ClassicWorkspaceSetting } from "@/components/ClassicWorkspaceSetting";
 import { describeError } from "@/api/errors";
 
@@ -216,7 +215,6 @@ export function InstanceExperimentalSettings() {
   );
   const enableEnvironments = experimentalQuery.data?.enableEnvironments === true;
   const enableNativeRunner = experimentalQuery.data?.enableNativeRunner === true;
-  const enableChatConnectors = experimentalQuery.data?.enableChatConnectors === true;
   const enableManagedSandboxOnly = experimentalQuery.data?.enableManagedSandboxOnly === true;
   const enableIsolatedWorkspaces = experimentalQuery.data?.enableIsolatedWorkspaces === true;
   const enableIsolatedWorkspacesByDefault =
@@ -311,7 +309,7 @@ export function InstanceExperimentalSettings() {
         <ExperimentalToggleCard
           title="Assistant connections (MCP)"
           description="Connect Codex, Claude, and other assistants to this Outpost. People sign in, select an outpost once, and approve access to review work, delegate tasks, and add feedback."
-          footnote={<>Requires an authenticated instance with a configured public URL. Takes effect immediately. Turning this off blocks assistant calls and event delivery; work already delegated continues.{experimentalQuery.data?.enablePublicMcp && <> <Link className="underline" to="/apps/assistant-connection">Set up an assistant connection</Link></>}</>}
+          footnote="Requires an authenticated instance with a configured public URL. Takes effect immediately. Turning this off blocks assistant calls and event delivery; work already delegated continues."
           checked={experimentalQuery.data?.enablePublicMcp === true}
           onCheckedChange={(checked) => toggleMutation.mutate({ enablePublicMcp: checked })}
           disabled={toggleMutation.isPending}
@@ -352,18 +350,6 @@ export function InstanceExperimentalSettings() {
           settingKey="enableCases"
           managed={managedKeys.enableCases}
           ariaLabel="Toggle cases experimental setting"
-        />
-
-        <ExperimentalToggleCard
-          title="Chat connectors"
-          description="Connect agents to Slack, Discord, Microsoft Teams, and Telegram conversations."
-          footnote="Turning this off hides experimental chat setup and connected-task controls. Existing chat connections keep running. AgentMail, GitHub review bots, and tool connectors are controlled separately."
-          checked={enableChatConnectors}
-          onCheckedChange={(checked) => toggleMutation.mutate({ enableChatConnectors: checked })}
-          disabled={toggleMutation.isPending}
-          settingKey="enableChatConnectors"
-          managed={managedKeys.enableChatConnectors}
-          ariaLabel="Toggle chat connectors experimental setting"
         />
 
         <ExperimentalToggleCard
@@ -485,25 +471,13 @@ export function InstanceExperimentalSettings() {
         <ExperimentalToggleCard
           title="GitHub review bots"
           description="Connect agents to GitHub with their own App identity to review pull requests and respond to issues."
-          footnote="Independent of Chat connectors. Turning this off hides setup and management; existing bots keep running. GitHub tool connections stay available."
+          footnote="Independent of other agent integrations. Turning this off hides setup and management; existing bots keep running. GitHub tool connections stay available."
           checked={experimentalQuery.data?.enableGitHubReviewBots === true}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableGitHubReviewBots: checked })}
           disabled={toggleMutation.isPending}
           settingKey="enableGitHubReviewBots"
           managed={managedKeys.enableGitHubReviewBots}
           ariaLabel="Toggle GitHub review bots experimental setting"
-        />
-
-        <ExperimentalToggleCard
-          title="Google Workspace connector (Outpost)"
-          description="Show the built-in Google Workspace connector for Gmail, Drive, and Calendar while Google verification is pending."
-          footnote="Off by default. While off, Google apps are offered through Composio and Arcade instead, and the built-in connector cannot be set up or run."
-          checked={experimentalQuery.data?.enableGoogleWorkspaceConnector === true}
-          onCheckedChange={(checked) => toggleMutation.mutate({ enableGoogleWorkspaceConnector: checked })}
-          disabled={toggleMutation.isPending}
-          settingKey="enableGoogleWorkspaceConnector"
-          managed={managedKeys.enableGoogleWorkspaceConnector}
-          ariaLabel="Toggle Outpost Google Workspace connector experimental setting"
         />
 
         <ExperimentalToggleCard
@@ -517,18 +491,6 @@ export function InstanceExperimentalSettings() {
           ariaLabel="Toggle Grok Bot experimental setting"
         />
 
-
-        <ExperimentalToggleCard
-          title="Memory connectors"
-          description="Connect Mem0, Zep, Supermemory, Cognee, and Honcho for long-term memory and context."
-          footnote="Turning this off hides setup for these connectors. Existing connections keep running."
-          checked={experimentalQuery.data?.enableMemoryConnectors === true}
-          onCheckedChange={(checked) => toggleMutation.mutate({ enableMemoryConnectors: checked })}
-          disabled={toggleMutation.isPending}
-          settingKey="enableMemoryConnectors"
-          managed={managedKeys.enableMemoryConnectors}
-          ariaLabel="Toggle memory connectors experimental setting"
-        />
 
         <ExperimentalToggleCard
           title="Muse — Personal agent"

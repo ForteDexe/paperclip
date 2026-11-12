@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Project } from "@paperclipai/shared";
 import { useCompany } from "../context/CompanyContext";
-import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { EntityRow } from "../components/EntityRow";
 import { ProjectTile } from "../components/ProjectTile";
@@ -69,7 +68,6 @@ function sortProjects(projects: Project[], sortField: ProjectSortField, sortDir:
 
 export function Projects() {
   const { selectedCompanyId } = useCompany();
-  const { openNewProject } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [query, setQuery] = useState("");
   const [sortField, setSortField] = useState<ProjectSortField>("name");
@@ -141,16 +139,13 @@ export function Projects() {
   return (
     <div className="space-y-4">
       <ProjectsToolbar query={query} onQueryChange={setQuery} sortField={sortField} sortDir={sortDir}
-        onSortChange={(field, direction) => { setSortField(field); setSortDir(direction); }} onNewProject={openNewProject} />
+        onSortChange={(field, direction) => { setSortField(field); setSortDir(direction); }} />
 
       {!isLoading && projects.length === 0 && (
         <EmptyState
           icon={Hexagon}
           graphic={<ArtifactEmptyGraphic stack />}
-          message="No projects yet."
-          action="Create project"
-          hideActionIcon
-          onAction={openNewProject}
+          message="The repository project is unavailable. Restart Outpost from the repository launcher."
         />
       )}
 

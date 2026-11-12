@@ -38,6 +38,7 @@ const secrets = vi.hoisted(() => ({
 const state = vi.hoisted(() => ({
   params: new URLSearchParams(),
   adapters: [] as object[],
+  selectedCompany: null as { workspaceRoot?: string } | null,
   navigate: vi.fn(),
   openNewIssue: vi.fn(),
 }));
@@ -54,7 +55,10 @@ vi.mock("@/api/secrets", () => ({ secretsApi: secrets }));
 const adapterApi = vi.hoisted(() => ({ list: vi.fn() }));
 vi.mock("@/api/adapters", () => ({ adaptersApi: adapterApi }));
 vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "outpost-1" }),
+  useCompany: () => ({
+    selectedCompanyId: "outpost-1",
+    selectedCompany: state.selectedCompany,
+  }),
 }));
 vi.mock("../context/BreadcrumbContext", () => ({
   useBreadcrumbs: () => ({ setBreadcrumbs: vi.fn() }),
@@ -175,6 +179,7 @@ beforeEach(() => {
     "pi_local",
     "paperclip_runner", "cursor_cloud", "cursor", "gemini_local", "kimi_local", "grok_local", "hermes_local", "hermes_gateway",
   ].map((type) => ({ type, loaded: true, disabled: false }));
+  state.selectedCompany = null;
   api.adapterModels.mockResolvedValue([]);
   setupRecords = new Map();
   api.create.mockImplementation(async (_company, input) => {

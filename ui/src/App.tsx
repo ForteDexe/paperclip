@@ -1,10 +1,7 @@
 import { useCoordinatorWorkspaceEnabled } from "./hooks/useCoordinatorWorkspaceEnabled";
 import { AgentChats } from "./pages/AgentChats";
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
-import type { ToolConnectionCredentialSource } from "@paperclipai/shared";
 import { Navigate, Outlet, Route, Routes, useActiveCompanyPrefix, useLocation, useParams } from "@/lib/router";
-import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/i18n";
 import { Layout } from "./components/Layout";
 import { ConferenceRoomChatGate } from "./components/ConferenceRoomChatGate";
 import { CasesExperimentalGate } from "./components/CasesExperimentalGate";
@@ -17,31 +14,18 @@ import {
   UnprefixedExecutionWorkspaceRedirect,
 } from "./components/UnprefixedExecutionWorkspaceRedirect";
 import { useHiddenSettings } from "./hooks/useHiddenSettings";
-import { OnboardingWizardVariant } from "./components/OnboardingWizardVariant";
 import { CloudAccessGate } from "./components/CloudAccessGate";
 import { ConnectionStatusBanner } from "./components/ConnectionStatusBanner";
 import { ShellConfigurationGate } from "./components/ShellConfigurationGate";
 import { PaperclipLoading } from "./components/AnimatedPaperclipIcon";
 import { AGENT_FILTER_TABS } from "./lib/agent-filter-tabs";
 import { useCombinedInboxTasksEnabled } from "./hooks/useCombinedInboxTasksEnabled";
-import { ChatConnectorsExperimentalGate } from "./components/ChatConnectorsExperimentalGate";
-import { useChatConnectorsEnabled } from "./hooks/useChatConnectorsEnabled";
-import { canEnterAppsConnect } from "./pages/apps/app-connect-policy";
 import { NotFoundPage } from "./pages/NotFound";
 import { useCompany } from "./context/CompanyContext";
-import { useDialogActions, useDialogState } from "./context/DialogContext";
 import { loadLastInboxTab } from "./lib/inbox";
 import { TASK_VIEW_PARAM, taskViewForInboxTab, type TaskViewKey } from "./lib/task-views";
-import {
-  isOnboardingWizardActive,
-  onboardingStepForCompany,
-  shouldRedirectCompanylessRouteToOnboarding,
-} from "./lib/onboarding-route";
 import { filterHiddenInstanceSettingsPath, normalizeRememberedInstanceSettingsPath } from "./lib/instance-settings";
-import { useCloudInstance } from "./hooks/useCloudInstance";
 import { useStreamlinedUiEnabled } from "./hooks/useStreamlinedUiEnabled";
-import { cloudStackCreateUrl } from "./lib/cloudLinks";
-import { navigateTopLevel } from "@/lib/browserNavigation";
 
 const AuthPage = lazy(() => import("./pages/Auth").then((module) => ({ default: module.AuthPage })));
 const BoardClaimPage = lazy(() => import("./pages/BoardClaim").then((module) => ({ default: module.BoardClaimPage })));
@@ -76,9 +60,6 @@ const DashboardLive = lazy(() => import("./pages/DashboardLive").then((module) =
 const Timeline = lazy(() => import("./pages/Timeline").then((module) => ({ default: module.Timeline })));
 const Companies = lazy(() => import("./pages/Companies").then((module) => ({ default: module.Companies })));
 const AgentDetail = lazy(() => import("./pages/AgentDetailPage").then((module) => ({ default: module.AgentDetailPage })));
-const Projects = lazy(() => import("./pages/Projects").then((module) => ({ default: module.Projects })));
-const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((module) => ({ default: module.ProjectDetail })));
-const ProjectWorkspaceDetail = lazy(() => import("./pages/ProjectWorkspaceDetail").then((module) => ({ default: module.ProjectWorkspaceDetail })));
 const Workspaces = lazy(() => import("./pages/Workspaces").then((module) => ({ default: module.Workspaces })));
 const Search = lazy(() => import("./pages/Search").then((module) => ({ default: module.Search })));
 const Routines = lazy(() => import("./pages/Routines").then((module) => ({ default: module.Routines })));
@@ -102,18 +83,6 @@ const CompanyEnvironments = lazy(() => import("./pages/CompanyEnvironments").the
 const CompanySettingsPluginPage = lazy(() => import("./pages/CompanySettingsPluginPage").then((module) => ({ default: module.CompanySettingsPluginPage })));
 const CompanyAccess = lazy(() => import("./pages/CompanyAccess").then((module) => ({ default: module.CompanyAccess })));
 const CompanyAccessLegacyRoute = lazy(() => import("./pages/CompanyAccess").then((module) => ({ default: module.CompanyAccessLegacyRoute })));
-const AdvancedToolsRoute = lazy(() => import("./pages/tools/AdvancedToolsRoute").then((module) => ({ default: module.AdvancedToolsRoute })));
-const ProfileWizardRoute = lazy(() => import("./pages/tools/profiles/ProfileWizardRoute").then((module) => ({ default: module.ProfileWizardRoute })));
-const ProfileDetailRoute = lazy(() => import("./pages/tools/profiles/ProfileDetailRoute").then((module) => ({ default: module.ProfileDetailRoute })));
-const Browse = lazy(() => import("./pages/apps/Browse").then((module) => ({ default: module.Browse })));
-const AppsConnect = lazy(() => import("./pages/apps/AppsConnect").then((module) => ({ default: module.AppsConnect })));
-const ChatEndpointSetup = lazy(() => import("./pages/apps/chat/ChatEndpointSetup").then((module) => ({ default: module.ChatEndpointSetup })));
-const ChatEndpointDetail = lazy(() => import("./pages/apps/chat/ChatEndpointDetail").then((module) => ({ default: module.ChatEndpointDetail })));
-const AppsReview = lazy(() => import("./pages/apps/AppsReview").then((module) => ({ default: module.AppsReview })));
-const AppDetail = lazy(() => import("./pages/apps/AppDetail").then((module) => ({ default: module.AppDetail })));
-const AppNotConnected = lazy(() => import("./pages/apps/AppNotConnected").then((module) => ({ default: module.AppNotConnected })));
-const GatewaysList = lazy(() => import("./pages/apps/gateways/GatewaysList").then((module) => ({ default: module.GatewaysList })));
-const GatewayDetail = lazy(() => import("./pages/apps/gateways/GatewayDetail").then((module) => ({ default: module.GatewayDetail })));
 const CompanySkills = lazy(() => import("./pages/CompanySkills").then((module) => ({ default: module.CompanySkills })));
 const SkillSources = lazy(() => import("./pages/SkillSources").then((module) => ({ default: module.SkillSources })));
 const SkillStudio = lazy(() => import("./pages/SkillStudio").then((module) => ({ default: module.SkillStudio })));
@@ -128,7 +97,6 @@ const PluginSettings = lazy(() => import("./pages/PluginSettings").then((module)
 const AdapterManager = lazy(() => import("./pages/AdapterManager").then((module) => ({ default: module.AdapterManager })));
 const PluginPage = lazy(() => import("./pages/PluginPage").then((module) => ({ default: module.PluginPage })));
 const NewAgent = lazy(() => import("./pages/NewAgent").then((module) => ({ default: module.NewAgent })));
-const AssistantConnection = lazy(() => import("./pages/apps/AssistantConnection").then((module) => ({ default: module.AssistantConnection })));
 const JoinRequestQueue = lazy(() => import("./pages/JoinRequestQueue").then((module) => ({ default: module.JoinRequestQueue })));
 
 const CompanyExport = lazy(() => import("./pages/CompanyExport").then((module) => ({ default: module.CompanyExport })));
@@ -156,8 +124,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
         path="timeline"
         element={streamlinedUiEnabled ? <AuditCompatibilityRedirect to="/activity/timeline" /> : <Timeline />}
       />
-      <Route path="onboarding" element={<OnboardingRoutePage />} />
-      <Route path="companies" element={<Companies />} />
+      <Route path="onboarding" element={<Navigate to="../dashboard" replace />} />
+      <Route path="spaces" element={<Companies />} />
+      <Route path="companies" element={<Navigate to="/spaces" replace />} />
       <Route path="company/settings" element={<CompanySettings />} />
       <Route path="company/settings/connections" element={<CompanyConnections />} />
       <Route path="company/settings/environments" element={<Navigate to="/company/settings/instance/environments" replace />} />
@@ -192,52 +161,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route element={<HiddenSettingsPageGate pageKey="company.secrets" />}>
         <Route path="company/settings/secrets" element={<Secrets />} />
       </Route>
-      <Route path="company/settings/tools" element={<LegacyToolsSettingsRedirect />} />
-      <Route path="company/settings/tools/:tab" element={<LegacyToolsSettingsRedirect />} />
-      <Route path="tools" element={<LegacyToolsRedirect />} />
-      <Route path="tools/:tab" element={<LegacyToolsRedirect />} />
-      <Route path="apps" element={<Browse />} />
-      <Route path="apps/assistant-connection" element={<AssistantConnection />} />
-      <Route path="apps/browse" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/connections" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/byo" element={<AppsConnect byoOnly />} />
-      <Route
-        path="apps/vercel-connect"
-        element={<AppsConnectEntryRoute credentialSource="vercel_connect" />}
-      />
-      <Route path="apps/connect" element={<AppsConnectEntryRoute />} />
-      <Route path="apps/chat/connect" element={
-        <ChatConnectorsExperimentalGate><ChatEndpointSetup /></ChatConnectorsExperimentalGate>
-      } />
-      <Route path="apps/chat/:endpointId" element={
-        <ChatConnectorsExperimentalGate><Navigate to="settings" replace /></ChatConnectorsExperimentalGate>
-      } />
-      <Route path="apps/chat/:endpointId/reviews/:reviewId" element={
-        <ChatConnectorsExperimentalGate><ChatEndpointDetail /></ChatConnectorsExperimentalGate>
-      } />
-      <Route path="apps/chat/:endpointId/:tab" element={
-        <ChatConnectorsExperimentalGate><ChatEndpointDetail /></ChatConnectorsExperimentalGate>
-      } />
-      <Route path="apps/connect/:appKey" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/connect/:appKey/:stage" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/review" element={<AppsReview />} />
-      {/* Connector health is inline on the Apps landing page; keep legacy links working. */}
-      <Route path="apps/attention" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/gateways" element={<GatewaysList />} />
-      <Route path="apps/gateways/:gatewayId" element={<Navigate to="overview" replace />} />
-      <Route path="apps/gateways/:gatewayId/:tab" element={<GatewayDetail />} />
-      <Route path="apps/advanced" element={<AdvancedToolsRoute />} />
-      <Route path="apps/advanced/gateways" element={<GatewaysList />} />
-      <Route path="apps/advanced/profiles/new" element={<ProfileWizardRoute mode="new" />} />
-      <Route path="apps/advanced/profiles/:profileId/edit" element={<ProfileWizardRoute mode="edit" />} />
-      <Route path="apps/advanced/profiles/:profileId" element={<ProfileDetailRoute />} />
-      <Route path="apps/advanced/audit" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/advanced/run-your-own" element={<Navigate to="/apps" replace />} />
-      <Route path="apps/advanced/:tab" element={<AdvancedToolsRoute />} />
-      <Route path="apps/app/:applicationId" element={<AppNotConnected />} />
-      <Route path="apps/app/:applicationId/:tab" element={<AppNotConnected />} />
-      <Route path="apps/:connectionId" element={<Navigate to="permissions" replace />} />
-      <Route path="apps/:connectionId/:tab" element={<AppDetail />} />
+      <Route path="company/settings/tools/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="tools/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="apps/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="company/settings/instance" element={<Navigate to="/company/settings" replace />} />
       <Route element={<HiddenSettingsPageGate pageKey="instance.profile" />}>
         <Route path="company/settings/instance/profile" element={<ProfileSettings />} />
@@ -292,17 +218,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="agents/:agentId" element={<AgentDetail />} />
       <Route path="agents/:agentId/:tab" element={<AgentDetail />} />
       <Route path="agents/:agentId/runs/:runId" element={<AgentDetail />} />
-      <Route path="projects" element={<Projects />} />
-      <Route path="projects/:projectId" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/issues" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/issues/:filter" element={<ProjectDetail />} />
-      <Route element={<IsolatedWorkspacesRouteGate />}>
-        <Route path="projects/:projectId/workspaces/:workspaceId" element={<ProjectWorkspaceDetail />} />
-      </Route>
-      <Route path="projects/:projectId/workspaces" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/configuration" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/budget" element={<ProjectDetail />} />
+      <Route path="projects/*" element={<Navigate to="/spaces" replace />} />
       <Route element={<IsolatedWorkspacesRouteGate />}>
         <Route path="workspaces" element={<Workspaces />} />
       </Route>
@@ -446,19 +362,6 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
   );
 }
 
-function AppsConnectEntryRoute({
-  credentialSource = "paperclip_vault",
-}: {
-  credentialSource?: ToolConnectionCredentialSource;
-} = {}) {
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const { enabled: chatConnectorsEnabled, githubEnabled: githubReviewBotsEnabled } = useChatConnectorsEnabled();
-  return canEnterAppsConnect(searchParams, { chatConnectorsEnabled, githubReviewBotsEnabled })
-    ? <AppsConnect credentialSource={credentialSource} />
-    : <Navigate to="/apps" replace />;
-}
-
 function InboxRootRedirect() {
   const { enabled: combinedInboxTasksEnabled } = useCombinedInboxTasksEnabled();
   return combinedInboxTasksEnabled
@@ -520,15 +423,7 @@ function LegacySettingsRedirect() {
     null;
 
   if (!targetCompany) {
-    if (
-      shouldRedirectCompanylessRouteToOnboarding({
-        pathname: location.pathname,
-        hasCompanies: false,
-      })
-    ) {
-      return <Navigate to="/onboarding" replace />;
-    }
-    return <NoCompaniesStartPage />;
+    return <Navigate to="/spaces" replace />;
   }
 
   const normalizedPath = filterHiddenInstanceSettingsPath(
@@ -546,121 +441,15 @@ function LegacySettingsRedirect() {
   );
 }
 
-function LegacyToolsSettingsRedirect() {
-  const { tab } = useParams<{ tab?: string }>();
-  return <Navigate to={legacyToolsRedirectTarget(tab)} replace />;
-}
-
-// The developer "Tools" surface moved under the Apps "Advanced setup" door
-// (PAP-10862). `/tools` and `/tools/:tab` redirect to their new home.
-function LegacyToolsRedirect() {
-  const { tab } = useParams<{ tab?: string }>();
-  return <Navigate to={legacyToolsRedirectTarget(tab)} replace />;
-}
-
-function legacyToolsRedirectTarget(tab?: string) {
-  if (!tab) return "/apps/advanced/profiles";
-  if (tab === "applications" || tab === "connections" || tab === "overview" || tab === "examples") return "/apps";
-  if (tab === "runtime" || tab === "audit") return "/apps";
-  if (tab === "policies") return "/apps/advanced/profiles";
-  return `/apps/advanced/${tab}`;
-}
-
-export function OnboardingRoutePage() {
-  const { companies } = useCompany();
-  const { openOnboarding } = useDialogActions();
-  const { t } = useTranslation();
-  const cloudInstance = useCloudInstance();
-  const createStackUrl = cloudStackCreateUrl(cloudInstance?.cloudBaseUrl ?? null);
-  const { onboardingOpen, onboardingRouteDismissed } = useDialogState();
-  const { companyPrefix } = useParams<{ companyPrefix?: string }>();
-  const matchedCompany = companyPrefix
-    ? companies.find((company) => company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase()) ?? null
-    : null;
-  // The OnboardingWizard auto-opens on this route (and can also be opened
-  // explicitly). While it is showing it covers the whole screen, so the
-  // launcher card below must not stay interactive behind it — otherwise users
-  // can tab/click through to the form behind the modal (PAP-52). The launcher
-  // only needs to render as a re-entry point once the wizard is dismissed.
-  if (isOnboardingWizardActive({ onboardingOpen, routeDismissed: onboardingRouteDismissed })) {
-    return null;
-  }
-
-  const title = matchedCompany
-    ? `Add another agent to ${matchedCompany.name}`
-    : companies.length > 0
-      ? "Create another outpost"
-      : "Create your first outpost";
-  const description = matchedCompany
-    ? "Run onboarding again to add an agent and a starter task for this outpost."
-    : companies.length > 0
-      ? "Run onboarding again to create another outpost and seed its first agent."
-      : "Get started by creating an outpost and your first agent.";
-
-  return (
-    <div className="mx-auto max-w-xl py-10">
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-        <div className="mt-4">
-          {/* On a managed stack whose Cloud origin is unknown there is nowhere
-              to send this click: creation lives on Cloud, and in-app creation
-              is a 403 floor. A button that does nothing is worse than none, so
-              say why instead of rendering an inert control. */}
-          {!matchedCompany && cloudInstance && !createStackUrl ? (
-            <p className="text-sm text-muted-foreground">
-              {t("app.cloudCreateUnavailable", {
-                defaultValue:
-                  "Outposts are created in Outpost Cloud. This instance can't reach it right now — try again from your Cloud portfolio.",
-              })}
-            </p>
-          ) : (
-            <Button
-              onClick={() =>
-                matchedCompany
-                  ? openOnboarding({
-                      // "Add another agent" to a company that already has its
-                      // mission must not stop to ask for the mission again. An
-                      // unsettled or failed lookup reads as "no mission" and
-                      // costs the step, which the customer can pass - and the
-                      // mission step now updates the existing goal rather than
-                      // adding a second one.
-                      initialStep: onboardingStepForCompany(),
-                      companyId: matchedCompany.id,
-                    })
-                  : cloudInstance && createStackUrl
-                    ? navigateTopLevel(createStackUrl)
-                    : openOnboarding()
-              }
-            >
-              {matchedCompany ? "Add Agent" : "Start Onboarding"}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CompanyRootRedirect() {
   const { companies, selectedCompany, loading } = useCompany();
-  const location = useLocation();
-
   if (loading) {
     return <PaperclipLoading />;
   }
 
   const targetCompany = selectedCompany ?? companies[0] ?? null;
   if (!targetCompany) {
-    if (
-      shouldRedirectCompanylessRouteToOnboarding({
-        pathname: location.pathname,
-        hasCompanies: false,
-      })
-    ) {
-      return <Navigate to="/onboarding" replace />;
-    }
-    return <NoCompaniesStartPage />;
+    return <Navigate to="/spaces" replace />;
   }
 
   return <Navigate to={`/${targetCompany.issuePrefix}/dashboard`} replace />;
@@ -697,15 +486,7 @@ function UnprefixedBoardRedirect() {
 
   const targetCompany = selectedCompany ?? companies[0] ?? null;
   if (!targetCompany) {
-    if (
-      shouldRedirectCompanylessRouteToOnboarding({
-        pathname: location.pathname,
-        hasCompanies: false,
-      })
-    ) {
-      return <Navigate to="/onboarding" replace />;
-    }
-    return <NoCompaniesStartPage />;
+    return <Navigate to="/spaces" replace />;
   }
 
   return (
@@ -716,47 +497,24 @@ function UnprefixedBoardRedirect() {
   );
 }
 
-function NoCompaniesStartPage() {
-  const { openOnboarding } = useDialogActions();
-  const { t } = useTranslation();
-  // A managed stack with no visible companies is a loading or error state, not
-  // an invitation to create one in-app — creation lives on Cloud (403 floor).
-  const cloudInstance = useCloudInstance();
-  const createStackUrl = cloudStackCreateUrl(cloudInstance?.cloudBaseUrl ?? null);
+function UnprefixedSpacesRoute() {
+  const location = useLocation();
+  const { companies, selectedCompany, loading } = useCompany();
+
+  if (loading) {
+    return <PaperclipLoading />;
+  }
+
+  const targetCompany = selectedCompany ?? companies[0] ?? null;
+  if (!targetCompany) {
+    return <Companies />;
+  }
 
   return (
-    <div className="mx-auto max-w-xl py-10">
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h1 className="text-xl font-semibold">
-          {t("app.noCompanies.title", { defaultValue: "Create your first outpost" })}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("app.noCompanies.description", { defaultValue: "Get started by creating an outpost." })}
-        </p>
-        <div className="mt-4">
-          {/* Same as the onboarding route: no Cloud origin means nowhere to
-              send the click, and in-app creation is a 403 floor here. */}
-          {cloudInstance && !createStackUrl ? (
-            <p className="text-sm text-muted-foreground">
-              {t("app.cloudCreateUnavailable", {
-                defaultValue:
-                  "Outposts are created in Outpost Cloud. This instance can't reach it right now — try again from your Cloud portfolio.",
-              })}
-            </p>
-          ) : (
-            <Button
-              onClick={() =>
-                cloudInstance && createStackUrl
-                  ? navigateTopLevel(createStackUrl)
-                  : openOnboarding()
-              }
-            >
-              {t("app.noCompanies.newCompany", { defaultValue: "New Outpost" })}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+    <Navigate
+      to={`/${targetCompany.issuePrefix}/spaces${location.search}${location.hash}`}
+      replace
+    />
   );
 }
 
@@ -802,11 +560,12 @@ export function App() {
         <Route element={<CloudAccessGate />}>
           <Route element={<ShellConfigurationGate loaded={streamlinedUiLoaded} allowPendingTaskDetail={classicStreamlinedUiLoaded && !coordinatorWorkspaceLoaded} />}>
           <Route index element={<CompanyRootRedirect />} />
-          <Route path="onboarding" element={<OnboardingRoutePage />} />
+          <Route path="onboarding" element={<CompanyRootRedirect />} />
           <Route path="instance" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings/*" element={<LegacySettingsRedirect />} />
-          <Route path="companies" element={<UnprefixedBoardRedirect />} />
+          <Route path="spaces" element={<UnprefixedSpacesRoute />} />
+          <Route path="companies" element={<Navigate to="/spaces" replace />} />
           <Route path="issues" element={<UnprefixedBoardRedirect />} />
           <Route path="tasks" element={<UnprefixedBoardRedirect />} />
           <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
@@ -848,14 +607,7 @@ export function App() {
           <Route path="agents/:agentId" element={<UnprefixedBoardRedirect />} />
           <Route path="agents/:agentId/:tab" element={<UnprefixedBoardRedirect />} />
           <Route path="agents/:agentId/runs/:runId" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/overview" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/issues" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/issues/:filter" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/workspaces" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/workspaces/:workspaceId" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/configuration" element={<UnprefixedBoardRedirect />} />
+          <Route path="projects/*" element={<Navigate to="/spaces" replace />} />
           <Route path="workspaces" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId" element={<UnprefixedExecutionWorkspaceRedirect />} />
           <Route path="execution-workspaces/:workspaceId/services" element={<UnprefixedExecutionWorkspaceRedirect />} />
@@ -870,7 +622,6 @@ export function App() {
           </Route>
         </Route>
       </Routes></Suspense>
-      <OnboardingWizardVariant />
     </>
   );
 }

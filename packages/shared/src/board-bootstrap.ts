@@ -8,6 +8,7 @@ const companySnapshotSchema: z.ZodType<Company> = z.object({
   id: z.string().min(1),
   name: z.string(),
   description: z.string().nullable(),
+  workspaceRoot: z.string().nullable(),
   status: z.enum(COMPANY_STATUSES),
   pauseReason: z.enum(PAUSE_REASONS).nullable(),
   pausedAt: z.coerce.date().nullable(),

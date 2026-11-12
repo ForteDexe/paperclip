@@ -1222,6 +1222,22 @@ export function agentRoutes(
     });
   }
 
+  async function resolveSpaceBoundEnvironmentId(
+    companyId: string,
+    adapterType: string,
+    requestedEnvironmentId: string | null | undefined,
+  ) {
+    if (!allowedEnvironmentDriversForAgent(adapterType).includes("local")) {
+      return requestedEnvironmentId;
+    }
+    const [space] = await db
+      .select({ workspaceRoot: companies.workspaceRoot })
+      .from(companies)
+      .where(eq(companies.id, companyId));
+    if (!space?.workspaceRoot) return requestedEnvironmentId;
+    return (await environmentsSvc.ensureLocalEnvironment(companyId)).id;
+  }
+
   async function decideAgentRead(req: Request, agent: { id: string; companyId: string }) {
     return access.decide({
       actor: req.actor,
@@ -4558,6 +4574,11 @@ export function agentRoutes(
       hireInput.defaultEnvironmentId = caller.defaultEnvironmentId ?? null;
     }
     if (inheritRuntimeFrom === "caller" && hireRunner !== undefined) throw unprocessable("inheritRuntimeFrom=caller cannot be combined with runner");
+    hireInput.defaultEnvironmentId = await resolveSpaceBoundEnvironmentId(
+      companyId,
+      hireInput.adapterType,
+      hireInput.defaultEnvironmentId,
+    );
     let configurationWarnings: AgentConfigurationWarning[] = [];
     Object.assign(hireInput, await resolveNewAgentRunnerForCompany(db, companyId, { ...hireInput, runner: hireRunner,
       onConfigurationWarnings: warnings => { configurationWarnings = warnings; } }));
@@ -4882,6 +4903,11 @@ export function agentRoutes(
       runner: createRunner,
       ...createInput
     } = req.body;
+    createInput.defaultEnvironmentId = await resolveSpaceBoundEnvironmentId(
+      companyId,
+      createInput.adapterType,
+      createInput.defaultEnvironmentId,
+    );
     const agentId = setupId ?? randomUUID();
     const requestedCreateConfig = (createInput.adapterConfig ?? {}) as Record<string, unknown>;
     assertProviderTraceSettingTransition(req, createInput.runtimeConfig);
@@ -5548,6 +5574,13 @@ export function agentRoutes(
     const patchData = runtimeSettings
       ? prepareRuntimeSettingsPatch(existing, req.body)
       : { ...(req.body as Record<string, unknown>) };
+    if (Object.prototype.hasOwnProperty.call(patchData, "defaultEnvironmentId")) {
+      patchData.defaultEnvironmentId = await resolveSpaceBoundEnvironmentId(
+        existing.companyId,
+        typeof patchData.adapterType === "string" ? patchData.adapterType : existing.adapterType,
+        patchData.defaultEnvironmentId as string | null | undefined,
+      );
+    }
     const runner = patchData.runner as AgentRunnerChoice | undefined;
     delete patchData.runner;
     const expectedConfigurationRevision = patchData.expectedConfigurationRevision as string | undefined;

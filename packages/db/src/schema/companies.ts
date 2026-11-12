@@ -7,6 +7,8 @@ export const companies = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     description: text("description"),
+    workspaceRoot: text("workspace_root"),
+    workspaceRootKey: text("workspace_root_key"),
     status: text("status").notNull().default("active"),
     pauseReason: text("pause_reason"),
     pausedAt: timestamp("paused_at", { withTimezone: true }),
@@ -34,5 +36,7 @@ export const companies = pgTable(
   },
   (table) => ({
     issuePrefixUniqueIdx: uniqueIndex("companies_issue_prefix_idx").on(table.issuePrefix),
+    workspaceRootUniqueIdx: uniqueIndex("companies_workspace_root_key_idx")
+      .on(table.workspaceRootKey),
   }),
 );

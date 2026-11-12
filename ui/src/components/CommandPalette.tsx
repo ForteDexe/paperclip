@@ -211,10 +211,10 @@ export function CommandPalette() {
   }, [projects, quickSearchQuery]);
 
   const showSearchAll = searchQuery.length > 0;
-  const showPromotedProjects = showSearchAll && matchedProjects.length > 0;
+  const showPromotedProjects = false;
   const taskLimit = showPromotedProjects ? TASK_LIMIT_WITH_PROJECTS : TASK_LIMIT;
   const showEmptyHint =
-    showSearchAll && visibleIssues.length === 0 && matchedProjects.length === 0;
+    showSearchAll && visibleIssues.length === 0;
 
   return (
     <CommandDialog open={open} onOpenChange={(v) => {
@@ -222,7 +222,7 @@ export function CommandPalette() {
         if (v && isMobile) setSidebarOpen(false);
       }}>
       <CommandInput
-        placeholder="Search tasks, agents, projects..."
+        placeholder="Search tasks and agents..."
         value={query}
         onValueChange={setQuery}
         onKeyDown={(event) => {
@@ -344,10 +344,6 @@ export function CommandPalette() {
             <Plus className="mr-2 h-4 w-4" />
             Create new agent
           </CommandItem>
-          <CommandItem onSelect={() => go("/projects")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create new project
-          </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />
@@ -364,10 +360,6 @@ export function CommandPalette() {
           <CommandItem onSelect={() => go("/issues")}>
             <CircleDot className="mr-2 h-4 w-4" />
             Tasks
-          </CommandItem>
-          <CommandItem onSelect={() => go("/projects")}>
-            <Hexagon className="mr-2 h-4 w-4" />
-            Projects
           </CommandItem>
           <CommandItem onSelect={() => go("/goals")}>
             <Target className="mr-2 h-4 w-4" />
@@ -427,7 +419,7 @@ export function CommandPalette() {
           </>
         )}
 
-        {projects.length > 0 && !showSearchAll && (
+        {false && projects.length > 0 && !showSearchAll && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Projects">

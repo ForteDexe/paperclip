@@ -104,11 +104,17 @@ vi.mock("../lib/clipboard", () => ({
   copyTextToClipboard: mockClipboard.copyTextToClipboard,
 }));
 
+const mockCompanyContext = vi.hoisted(() => ({ workspaceRoot: null as string | null }));
 vi.mock("../context/CompanyContext", () => ({
   useCompany: () => ({
     companies: [{ id: "company-1", name: "Outpost", issuePrefix: "CO" }],
     selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", name: "Outpost", issuePrefix: "CO" },
+    selectedCompany: {
+      id: "company-1",
+      name: "Outpost",
+      issuePrefix: "CO",
+      workspaceRoot: mockCompanyContext.workspaceRoot,
+    },
     selectionSource: "bootstrap",
     loading: false,
     error: null,
@@ -644,6 +650,21 @@ async function flushUntil(check: () => boolean, timeoutMs = 4000) {
 
 describe("AgentConfigForm environment selector", () => {
   let roots: Root[] = [];
+
+  it("keeps Environment internal for a repository-backed Space", async () => {
+    mockCompanyContext.workspaceRoot = "C:\\work\\maya";
+    try {
+      const result = await renderCreateForm([
+        makeEnvironment({ id: "local-1" }),
+        makeEnvironment({ id: "sandbox-1", name: "Sandbox", driver: "sandbox", config: { provider: "daytona" } }),
+      ]);
+      roots.push(result.root);
+      expect(result.container.querySelector('[aria-label="Environment override"]')).toBeNull();
+      expect(result.container.querySelector('[data-config-section="environment"]')).toBeNull();
+    } finally {
+      mockCompanyContext.workspaceRoot = null;
+    }
+  });
 
   it.each(["paperclip", "legacy"] as const)("uses the resolved %s Claude form to preserve the correct turn limit", async defaultRunner => {
     mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: defaultRunner === "paperclip" ? ["paperclip", "legacy"] : ["legacy"], defaultRunner }]);
@@ -1583,7 +1604,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
 
     expect(result.container.textContent).toContain("Secret access");
-    expect(result.container.textContent).toContain("No company secret references are bound to this agent yet.");
+    expect(result.container.textContent).toContain("No outpost secret references are bound to this agent yet.");
     expect(result.container.textContent).not.toContain("Environment variables");
   });
 
