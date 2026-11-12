@@ -13,9 +13,34 @@ import {
 describe("New agent setup", () => {
   it("hides Environment and uses Local internally for a repository-backed Space", async () => {
     state.selectedCompany = { workspaceRoot: "C:\\work\\maya" };
+    envApi.list.mockResolvedValue([{
+      id: "local-1",
+      name: "Local",
+      status: "active",
+      driver: "local",
+      config: {},
+      metadata: { defaultForInstance: true },
+    }]);
     await render("codex_local");
     expect(container.querySelector('select[aria-label="Environment"]')).toBeNull();
     expect(container.textContent).not.toContain("Default: Local");
+    const runTest = [...container.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.trim() === "Run test");
+    expect(runTest?.disabled).toBe(false);
+    await click("Run test");
+    expect(api.testEnvironment).toHaveBeenCalledWith(
+      "outpost-1",
+      "codex_local",
+      expect.objectContaining({ environmentId: "local-1" }),
+    );
+    const finish = [...container.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.trim() === "Finish setup");
+    expect(finish?.disabled).toBe(false);
+    await click("Finish setup");
+    expect(api.hire).toHaveBeenCalledWith(
+      "outpost-1",
+      expect.objectContaining({ defaultEnvironmentId: "local-1" }),
+    );
   });
 
   it.each([

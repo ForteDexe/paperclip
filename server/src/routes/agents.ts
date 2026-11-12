@@ -141,7 +141,7 @@ import {
   workspaceOperationService,
 } from "../services/index.js";
 import { badRequest, conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
-import { ONBOARDING_FIRST_TASK_SKILL_KEY, PAPERCLIP_CORE_SKILL_KEYS } from "../services/company-skills.js";
+import { PAPERCLIP_CORE_SKILL_KEYS } from "../services/company-skills.js";
 import { createRunSecretRedactionRegistry } from "../services/run-secret-redaction.js";
 import { agentBudgetPage, assertAuthenticated, assertBoard, assertCompanyAccess, COMPANY_BUDGETS_PAGE, assertInstanceAdmin, buildActorSecretContext, getAccessibleResource, getActorInfo, hasCompanyAccess } from "./authz.js";
 import { runAdapterLoginStartSpine } from "./adapter-login-route-spine.js";
@@ -2792,12 +2792,8 @@ export function agentRoutes(
     };
   }
 
-  // CEO and board-created onboarding chief-of-staff instructions assume the
-  // core paperclip skills (board coordination, planning, hiring, memory).
-  // Union them into these skills-capable hires/creates so their desired skills
-  // match their instructions. Optional role
-  // skills remain removable afterwards. Legacy adapters separately guarantee
-  // the Paperclip operational skill as a runtime invariant.
+  // Skill-capable lead agents receive only the operational control-plane skill.
+  // Optional workflow skills remain explicit user choices.
   function defaultRoleSkillSelections(
     role: string | null | undefined,
     adapterType: string,
@@ -2808,10 +2804,7 @@ export function agentRoutes(
     if (role !== "ceo" && !boardOnboardingFirstAgent) return undefined;
     const adapter = findActiveServerAdapter(adapterType);
     if (!adapter?.listSkills && !adapter?.syncSkills) return undefined;
-    const keys = boardOnboardingFirstAgent
-      ? [...PAPERCLIP_CORE_SKILL_KEYS, ONBOARDING_FIRST_TASK_SKILL_KEY]
-      : PAPERCLIP_CORE_SKILL_KEYS;
-    return keys
+    return PAPERCLIP_CORE_SKILL_KEYS
       .filter((key) => adapterType !== "paperclip_runner" || key !== PAPERCLIP_OPERATIONAL_SKILL_KEY)
       .map((key) => ({ key, versionId: null }));
   }

@@ -1207,9 +1207,9 @@ describe("agent skill routes", () => {
     const seededCalls = mockAgentInstructionsService.materializeManagedBundle.mock.calls;
     const entrySeed = seededCalls.at(-1)?.[1] as Record<string, string> | undefined;
     expect(entrySeed?.["AGENTS.md"]).toContain("chief of staff");
-    // The normal onboarding flow has beta skill version selection disabled.
+    // Onboarding uses the same minimal operational skill set as any lead agent.
     expect(mockAgentService.create.mock.calls[0][1].adapterConfig.paperclipSkillSync.desiredSkills)
-      .toContain("paperclipai/paperclip/first-task");
+      .toEqual(["paperclipai/paperclip/paperclip"]);
   });
 
   const codexRunnerCases = [
@@ -1226,12 +1226,8 @@ describe("agent skill routes", () => {
     { adapterType: "claude_local", runner: "legacy", platform: "darwin", expectedType: "claude_local" },
   ];
   it.each(creationRunnerCases.flatMap((runnerCase) => [
-    ["agents", "paperclipai/paperclip/paperclip-create-agent"],
-    ["agent-hires", "paperclipai/paperclip/paperclip-create-agent"],
     ["agents", "paperclip"],
     ["agent-hires", "paperclip"],
-    ["agents", "paperclipai/paperclip/first-task"],
-    ["agent-hires", "paperclipai/paperclip/first-task"],
   ].map(([route, skill]) => ({ ...runnerCase, route, skill }))))("assigns onboarding skills via $route for $adapterType/$runner on $platform with $skill pins", async ({ adapterType, runner, platform, expectedType, route, skill }) => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = platform === "darwin" ? "arm64" : "x64";
@@ -1251,7 +1247,7 @@ describe("agent skill routes", () => {
     const native = expectedType === "paperclip_runner";
     if (native) expect(input.adapterConfig).toMatchObject(adapterType === "claude_local" ? { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } : { provider: "codex" });
     const canonicalKey = skill === "paperclip" ? "paperclipai/paperclip/paperclip" : skill;
-    const expected = ["paperclip", "paperclip-board", "paperclip-converting-plans-to-tasks", "paperclip-create-agent", "para-memory-files", "first-task"]
+    const expected = ["paperclip"]
       .filter((name) => !native || name !== "paperclip")
       .map((name) => ({ key: `paperclipai/paperclip/${name}`, versionId: `paperclipai/paperclip/${name}` === canonicalKey ? versionId : null }));
     const desiredSkills = input.adapterConfig.paperclipSkillSync.desiredSkills.map((entry: string | { key: string; versionId: string | null }) =>
@@ -1268,7 +1264,7 @@ describe("agent skill routes", () => {
     expect(mockAgentService.create.mock.calls[0][1].adapterConfig.paperclipSkillSync).toBeUndefined();
   });
 
-  it.each(creationRunnerCases.flatMap((runnerCase) => ["agents", "agent-hires"].map((route) => ({ ...runnerCase, route }))))("assigns core skills without first-task to ordinary CEOs via $route using $runner on $platform", async ({ route, runner, platform, expectedType, adapterType }) => {
+  it.each(creationRunnerCases.flatMap((runnerCase) => ["agents", "agent-hires"].map((route) => ({ ...runnerCase, route }))))("assigns only the operational skill to ordinary CEOs via $route using $runner on $platform", async ({ route, runner, platform, expectedType, adapterType }) => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = platform === "darwin" ? "arm64" : "x64";
     const res = await request(await createApp())
@@ -1280,12 +1276,11 @@ describe("agent skill routes", () => {
     const native = expectedType === "paperclip_runner";
     if (native) expect(input.adapterConfig).toMatchObject(adapterType === "claude_local" ? { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } : { provider: "codex" });
     const desiredSkills = input.adapterConfig.paperclipSkillSync.desiredSkills;
-    const expected = ["paperclip", "paperclip-board", "paperclip-converting-plans-to-tasks", "paperclip-create-agent", "para-memory-files"]
+    const expected = ["paperclip"]
       .filter((name) => !native || name !== "paperclip")
       .map((name) => `paperclipai/paperclip/${name}`);
     expect(desiredSkills).toEqual(expect.arrayContaining(expected));
     expect(desiredSkills).toHaveLength(expected.length);
-    expect(desiredSkills).not.toContain("paperclipai/paperclip/first-task");
   });
 
   it("does not trust an agent-supplied onboarding marker to select chief-of-staff defaults", async () => {
@@ -1340,13 +1335,7 @@ describe("agent skill routes", () => {
       expect.objectContaining({
         adapterConfig: expect.objectContaining({
           paperclipSkillSync: expect.objectContaining({
-            desiredSkills: expect.arrayContaining([
-              "paperclipai/paperclip/paperclip",
-              "paperclipai/paperclip/paperclip-board",
-              "paperclipai/paperclip/paperclip-converting-plans-to-tasks",
-              "paperclipai/paperclip/paperclip-create-agent",
-              "paperclipai/paperclip/para-memory-files",
-            ]),
+            desiredSkills: ["paperclipai/paperclip/paperclip"],
           }),
         }),
       }),
@@ -1354,7 +1343,7 @@ describe("agent skill routes", () => {
     );
   });
 
-  it("omits the legacy operational skill from paperclip_runner CEO defaults", async () => {
+  it("does not add bundled API skills to paperclip_runner CEO defaults", async () => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({
       enableBetaSkills: false,
       enableNativeRunner: true,
@@ -1373,12 +1362,7 @@ describe("agent skill routes", () => {
     const createInput = mockAgentService.create.mock.calls[0]?.[1] as {
       adapterConfig: { paperclipSkillSync: { desiredSkills: string[] } };
     };
-    expect(createInput.adapterConfig.paperclipSkillSync.desiredSkills).not.toContain(
-      "paperclipai/paperclip/paperclip",
-    );
-    expect(createInput.adapterConfig.paperclipSkillSync.desiredSkills).toContain(
-      "paperclipai/paperclip/paperclip-board",
-    );
+    expect(createInput.adapterConfig.paperclipSkillSync.desiredSkills).toEqual([]);
   });
 
   it("unions requested skills with the CEO defaults instead of replacing them", async () => {
@@ -1399,7 +1383,7 @@ describe("agent skill routes", () => {
     };
     const desired = createInput.adapterConfig.paperclipSkillSync.desiredSkills;
     // "paperclip" resolves to its canonical key and dedupes with the default.
-    expect(desired).toHaveLength(5);
+    expect(desired).toHaveLength(1);
     expect(desired).toContain("paperclipai/paperclip/paperclip");
   });
 

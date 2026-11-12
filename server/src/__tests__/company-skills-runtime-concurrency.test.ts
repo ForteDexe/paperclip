@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, companies, companyMemberships, companySkills, companySkillSources, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   projectAccessMembers, projects, projectSkillSources } from "@paperclipai/db";
 import { and, eq } from "drizzle-orm";
-import { PAPERCLIP_FEEDBACK_SKILL_KEYS, PAPERCLIP_OPERATIONAL_SKILL_KEY } from "@paperclipai/adapter-utils/server-utils";
+import { PAPERCLIP_OPERATIONAL_SKILL_KEY } from "@paperclipai/adapter-utils/server-utils";
 import { companySkillService } from "../services/company-skills.js";
 import { withSkillActor } from "../services/skill-access.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -44,7 +44,7 @@ describeDatabase("concurrent runtime skill preparation", () => {
         selectionConfig: { paperclipSkillSync: { desiredSkills: [] } }, includeLegacy: true, snapshotLatest: true,
       })));
       for (const entries of selections) {
-        expect(entries.map(entry => entry.key).sort()).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY, ...PAPERCLIP_FEEDBACK_SKILL_KEYS].sort());
+        expect(entries.map(entry => entry.key)).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY]);
         expect(entries.every(entry => entry.sourceStatus === "available" && entry.versionId)).toBe(true);
       }
       expect(select.mock.calls.filter(([fields]) => fields && Object.keys(fields).length === 1 && fields.id === companies.id)).toHaveLength(1);

@@ -24,7 +24,6 @@ import {
   materializePaperclipSkillCopy,
   normalizePaperclipRunnerAdapterConfig,
   PAPERCLIP_OPERATIONAL_SKILL_KEY,
-  PAPERCLIP_FEEDBACK_SKILL_KEYS,
   refreshPaperclipWorkspaceEnvForExecution,
   renderPaperclipWakePrompt,
   resolveLegacyPaperclipDesiredSkillNames,
@@ -191,16 +190,6 @@ describe("legacy adapter skill selection", () => {
     );
   });
 
-  it("makes feedback available to existing legacy agents without opting native agents into API skills", () => {
-    const inventory = [operationalEntry, ...PAPERCLIP_FEEDBACK_SKILL_KEYS.map((key) => ({ key }))];
-    for (const config of [{}, { paperclipSkillSync: { desiredSkills: [] } }]) {
-      expect(resolveLegacyPaperclipDesiredSkillNames(config, inventory)).toEqual([
-        PAPERCLIP_OPERATIONAL_SKILL_KEY, ...PAPERCLIP_FEEDBACK_SKILL_KEYS,
-      ]);
-      expect(resolvePaperclipDesiredSkillNames(config, inventory)).toEqual([]);
-    }
-    expect(resolveLegacyPaperclipDesiredSkillNames({}, inventory.slice(1))).toEqual([]);
-  });
 });
 
 function isPidAlive(pid: number) {
@@ -4009,10 +3998,10 @@ describe("runtime skill assignment boundaries", () => {
   it("preserves an explicitly empty assignment instead of discovering bundled connector skills", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-skills-empty-"));
     try {
-      await fs.mkdir(path.join(root, "agentmail"));
-      await fs.writeFile(path.join(root, "agentmail", "SKILL.md"), "---\nname: agentmail\ndescription: Email connector\n---\n");
+      await fs.mkdir(path.join(root, "ascii-heart"));
+      await fs.writeFile(path.join(root, "ascii-heart", "SKILL.md"), "---\nname: ascii-heart\ndescription: Custom skill\n---\n");
       const discovered = await readPaperclipRuntimeSkillEntries({}, root, [root]);
-      expect(discovered.some((entry) => entry.runtimeName === "agentmail")).toBe(true);
+      expect(discovered.some((entry) => entry.runtimeName === "ascii-heart")).toBe(true);
       expect(await readPaperclipRuntimeSkillEntries({ paperclipRuntimeSkills: [] }, root, [root])).toEqual([]);
     } finally {
       await fs.rm(root, { recursive: true, force: true });

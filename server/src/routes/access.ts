@@ -255,18 +255,24 @@ function listAvailableSkills(): AvailableSkill[] {
   if (paperclipSkillsDir) {
     try {
       for (const entry of fs.readdirSync(paperclipSkillsDir, { withFileTypes: true })) {
-        if (entry.isDirectory()) paperclipSkillNames.add(entry.name);
+        if (entry.isDirectory() && entry.name === "paperclip") paperclipSkillNames.add(entry.name);
       }
     } catch { /* skip */ }
   }
 
   const skills: AvailableSkill[] = [];
+  const retiredBundledSkillNames = new Set([
+    "agentmail", "complain", "first-task", "paperclip-board",
+    "paperclip-converting-plans-to-tasks", "paperclip-create-agent",
+    "para-memory-files", "slack", "suggestion-box",
+  ]);
 
   try {
     const entries = fs.readdirSync(claudeSkillsDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
       if (entry.name.startsWith(".")) continue;
+      if (retiredBundledSkillNames.has(entry.name)) continue;
       const skillMdPath = path.join(claudeSkillsDir, entry.name, "SKILL.md");
       let description = "";
       try {
@@ -285,7 +291,7 @@ function listAvailableSkills(): AvailableSkill[] {
     const existingNames = new Set(skills.map((skill) => skill.name));
     try {
       for (const entry of fs.readdirSync(paperclipSkillsDir, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name.startsWith(".") || existingNames.has(entry.name)) continue;
+        if (!entry.isDirectory() || entry.name !== "paperclip" || existingNames.has(entry.name)) continue;
         const skillMdPath = path.join(paperclipSkillsDir, entry.name, "SKILL.md");
         let description = "";
         try {
@@ -3265,19 +3271,7 @@ export function accessRoutes(
     assertAuthenticated(req);
     res.json({
       skills: [
-        { name: "paperclip", path: "/api/skills/paperclip" },
-        {
-          name: "para-memory-files",
-          path: "/api/skills/para-memory-files"
-        },
-        {
-          name: "paperclip-create-agent",
-          path: "/api/skills/paperclip-create-agent"
-        },
-        {
-          name: "paperclip-converting-plans-to-tasks",
-          path: "/api/skills/paperclip-converting-plans-to-tasks"
-        }
+        { name: "paperclip", path: "/api/skills/paperclip" }
       ]
     });
   });

@@ -20,7 +20,6 @@ async function createSkillDir(root: string, name: string) {
 
 describe("claude local skill sync", () => {
   const paperclipKey = "paperclipai/paperclip/paperclip";
-  const createAgentKey = "paperclipai/paperclip/paperclip-create-agent";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -38,9 +37,11 @@ describe("claude local skill sync", () => {
 
     expect(snapshot.mode).toBe("ephemeral");
     expect(snapshot.supported).toBe(true);
-    expect(snapshot.desiredSkills).toEqual([paperclipKey, "paperclipai/paperclip/complain", "paperclipai/paperclip/suggestion-box"]);
+    expect(snapshot.desiredSkills).toEqual([paperclipKey]);
     expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("configured");
-    expect(snapshot.entries.find((entry) => entry.key === createAgentKey)?.state).toBe("available");
+    expect(snapshot.entries.some((entry) =>
+      entry.runtimeName !== null && ["complain", "suggestion-box"].includes(entry.runtimeName)
+    )).toBe(false);
   });
 
   it("respects an explicit desired skill list without mutating a persistent home", async () => {
@@ -57,7 +58,9 @@ describe("claude local skill sync", () => {
 
     expect(snapshot.desiredSkills).toContain(paperclipKey);
     expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("configured");
-    expect(snapshot.entries.find((entry) => entry.key === createAgentKey)?.state).toBe("available");
+    expect(snapshot.entries.some((entry) =>
+      entry.runtimeName !== null && ["complain", "suggestion-box"].includes(entry.runtimeName)
+    )).toBe(false);
   });
 
   it("normalizes legacy flat Paperclip skill refs to canonical keys", async () => {

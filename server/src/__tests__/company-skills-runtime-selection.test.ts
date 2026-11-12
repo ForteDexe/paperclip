@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, companies, companyMemberships, companySkillSources, companySkills, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, projectAccessMembers, projects, projectSkillSources } from "@paperclipai/db";
 import { and, eq } from "drizzle-orm";
-import { PAPERCLIP_FEEDBACK_SKILL_KEYS, PAPERCLIP_OPERATIONAL_SKILL_KEY } from "@paperclipai/adapter-utils/server-utils";
+import { PAPERCLIP_OPERATIONAL_SKILL_KEY } from "@paperclipai/adapter-utils/server-utils";
 import { companySkillService } from "../services/company-skills.js";
 import { authorizationService, type AuthorizationActor } from "../services/authorization.js";
 import { skillAccessService, withSkillActor } from "../services/skill-access.js";
@@ -57,7 +57,7 @@ describeDatabase("selected runtime skill reconciliation", () => {
           cpuMicros: process.cpuUsage(cpu), selectBuilderCalls: select.mock.calls.length,
           insertBuilderCalls: insert.mock.calls.length, updateBuilderCalls: update.mock.calls.length,
           delivered: entries.map(entry => entry.key) }));
-        expect(entries.map(entry => entry.key).sort()).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY, ...PAPERCLIP_FEEDBACK_SKILL_KEYS].sort());
+        expect(entries.map(entry => entry.key)).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY]);
         expect(entries.every(entry => entry.sourceStatus === "available" && entry.versionId)).toBe(true);
       } finally {
         select.mockRestore();
@@ -121,7 +121,7 @@ describeDatabase("selected runtime skill reconciliation", () => {
     }) as typeof db.select);
     try {
       const entries = await read();
-      expect(entries.length).toBeGreaterThan(2);
+      expect(entries).toHaveLength(1);
       expect(entries.every(entry => entry.sourceStatus === "available" && entry.versionId)).toBe(true);
       expect(sourceReads).toHaveLength(0);
     } finally { spy.mockRestore(); }
@@ -177,7 +177,7 @@ describeDatabase("selected runtime skill reconciliation", () => {
       }));
       console.info(JSON.stringify({ phase: "actor-runtime", projects: 80, elapsedMs: performance.now() - runtimeStarted,
         selectBuilderCalls: select.mock.calls.length }));
-      expect(entries.map(entry => entry.key).sort()).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY, ...PAPERCLIP_FEEDBACK_SKILL_KEYS].sort());
+      expect(entries.map(entry => entry.key)).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY]);
     } finally { select.mockRestore(); }
     expect(counts[1]).toBeLessThanOrEqual(counts[0]! + 2);
   }, 30_000);

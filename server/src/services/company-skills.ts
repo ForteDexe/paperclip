@@ -668,24 +668,10 @@ function readCanonicalSkillKey(frontmatter: Record<string, unknown>, metadata: R
   );
 }
 
-/**
- * The bundled operating skills the default agent instructions assume every
- * lead agent has (coordination, board usage, planning, hiring, memory). A
- * seeded or hired CEO must arrive with these enabled: an agent's runtime only
- * receives skills in its own desired set, so a CEO with an empty set
- * truthfully reports these as not installed while its instructions tell it to
- * use them. Mirrors the repo-root `skills/` bundle that
- * `ensureSkillInventoryCurrent` imports into every company library.
- */
+/** The sole bundled operating skill used to access the Outpost control plane. */
 export const PAPERCLIP_CORE_SKILL_KEYS = [
   "paperclipai/paperclip/paperclip",
-  "paperclipai/paperclip/paperclip-board",
-  "paperclipai/paperclip/paperclip-converting-plans-to-tasks",
-  "paperclipai/paperclip/paperclip-create-agent",
-  "paperclipai/paperclip/para-memory-files",
 ] as const;
-
-export const ONBOARDING_FIRST_TASK_SKILL_KEY = "paperclipai/paperclip/first-task";
 
 function deriveCanonicalSkillKey(
   companyId: string,
@@ -3057,13 +3043,6 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
   }
 
   async function ensureBundledSkills(companyId: string) {
-    // Onboarding owns this skill's wording. The server build copies this asset
-    // directory into dist, so it uses the same import path in source and npm.
-    const firstTaskSkill = await readLocalSkillImportFromDirectory(
-      companyId,
-      fileURLToPath(new URL("../onboarding-assets/first-task/skills/first-task/", import.meta.url)),
-      { metadata: { sourceKind: "paperclip_bundled" } },
-    );
     for (const skillsRoot of resolveBundledSkillsRoot()) {
       const stats = await fs.stat(skillsRoot).catch(() => null);
       if (!stats?.isDirectory()) continue;
@@ -3082,11 +3061,13 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
             sourceKind: "paperclip_bundled",
           },
         })))
+        .then((skills) => skills.filter((skill) =>
+          PAPERCLIP_CORE_SKILL_KEYS.includes(skill.key as typeof PAPERCLIP_CORE_SKILL_KEYS[number])))
         .catch(() => [] as ImportedSkill[]);
       if (bundledSkills.length === 0) continue;
-      return upsertImportedSkills(companyId, [...bundledSkills, firstTaskSkill], db, { includeFolderPath: false });
+      return upsertImportedSkills(companyId, bundledSkills, db, { includeFolderPath: false });
     }
-    return upsertImportedSkills(companyId, [firstTaskSkill], db, { includeFolderPath: false });
+    return [];
   }
 
   async function readBundledSkillReleaseRegistry() {

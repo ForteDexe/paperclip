@@ -3868,7 +3868,18 @@ export async function listPaperclipSkillEntries(
 
   try {
     const entries = await fs.readdir(root, { withFileTypes: true });
-    const dirs = entries.filter((entry) => entry.isDirectory());
+    const retiredBundledSkills = new Set([
+      "agentmail",
+      "complain",
+      "first-task",
+      "paperclip-board",
+      "paperclip-converting-plans-to-tasks",
+      "paperclip-create-agent",
+      "para-memory-files",
+      "slack",
+      "suggestion-box",
+    ]);
+    const dirs = entries.filter((entry) => entry.isDirectory() && !retiredBundledSkills.has(entry.name));
     return dirs.map((entry) => ({
       key: `paperclipai/paperclip/${entry.name}`,
       runtimeName: entry.name,
@@ -4321,11 +4332,6 @@ export function resolvePaperclipDesiredSkillNames(
 export const PAPERCLIP_OPERATIONAL_SKILL_KEY =
   "paperclipai/paperclip/paperclip";
 
-export const PAPERCLIP_FEEDBACK_SKILL_KEYS = [
-  "paperclipai/paperclip/complain",
-  "paperclipai/paperclip/suggestion-box",
-] as const;
-
 /**
  * Native Paperclip Runner sessions receive the control-plane contract through
  * PRP, so carrying the legacy operational skill into their stored preference
@@ -4393,11 +4399,7 @@ export function resolveLegacyPaperclipDesiredSkillNames(
   );
   if (!operationalEntry) return desiredSkills;
 
-  const feedbackEntries = PAPERCLIP_FEEDBACK_SKILL_KEYS.flatMap((key) => {
-    const entry = availableEntries.find((candidate) => candidate.key.trim().toLowerCase() === key);
-    return entry ? [entry.key] : [];
-  });
-  return Array.from(new Set([operationalEntry.key, ...feedbackEntries, ...desiredSkills]));
+  return Array.from(new Set([operationalEntry.key, ...desiredSkills]));
 }
 
 export function writePaperclipSkillSyncPreference(

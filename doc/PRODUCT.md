@@ -250,6 +250,18 @@ Source feeds and project task lists retain their existing access rules.
 
 ### Company Skills and Policy
 
+Outpost's user-facing Skills area is intentionally small. It lists the skills
+installed in the current Space, supports search, imports a skill from a local
+path or GitHub URL, shows its files and current agent usage, and removes it when
+no agent depends on it. Marketplace discovery, stars, forks, folders, sharing,
+bulk organization, source management, version comparison, and Skill Studio are
+not product surfaces. Their inherited backend contracts may remain temporarily
+for compatibility while the fork is simplified.
+
+Only the core Outpost operational skill is bundled and assigned automatically.
+Connector-specific, onboarding, autonomous hiring, task-pipeline, feedback, and
+auxiliary memory skills are not part of the default product.
+
 Company skills are shared operating capabilities, not privileged objects by default. Every authenticated agent in a company can create, import, install, edit, update, test, reset, and remove that company's skills unless the company has configured an explicit restriction.
 
 Paperclip-managed skills are immutable saved versions. Studio and API authoring

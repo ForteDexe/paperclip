@@ -7,8 +7,8 @@ usage() {
 Usage:
   paperclip-upload-artifact.sh FILE [options]
 
-Uploads a generated file from the current workspace to the current Paperclip
-issue, then creates an attachment-backed artifact work product by default.
+Uploads a generated file from the current workspace to the current Outpost
+task, then creates an attachment-backed artifact work product by default.
 
 Required environment for live uploads:
   PAPERCLIP_API_URL, PAPERCLIP_API_KEY, PAPERCLIP_COMPANY_ID, PAPERCLIP_TASK_ID, PAPERCLIP_RUN_ID
@@ -31,7 +31,7 @@ Options:
 Examples:
   bash scripts/paperclip-upload-artifact.sh dist/demo.mp4 \
     --title "Demo video render" \
-    --summary "MP4 render for board review"
+    --summary "Requested MP4 render"
 
   bash scripts/paperclip-upload-artifact.sh out/walkthrough.webm \
     --title "Walkthrough video" \

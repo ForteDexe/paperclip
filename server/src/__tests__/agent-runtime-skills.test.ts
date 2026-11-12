@@ -60,7 +60,8 @@ describeDatabase("skill runtime invalidation", () => {
     await db.update(companySkills).set({ starCount: 9, updatedAt: new Date() }).where(eq(companySkills.id, skillId));
     expect(await events()).toHaveLength(after);
   });
-  it.each(["paperclip", "complain", "suggestion-box"])("invalidates implicit legacy %s skills with an empty selection", async slug => {
+  it("invalidates the implicit legacy operational skill with an empty selection", async () => {
+    const slug = "paperclip";
     const legacy = await agent([]);
     const native = await agent([]);
     await db.update(agents).set({ adapterType: "process" }).where(eq(agents.id, legacy.id));

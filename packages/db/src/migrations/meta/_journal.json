@@ -3277,6 +3277,13 @@
       "when": 1794482978078,
       "tag": "0469_long_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 470,
+      "version": "7",
+      "when": 1794502244074,
+      "tag": "0470_outpost_core_skill_only",
+      "breakpoints": true
     }
   ]
 }

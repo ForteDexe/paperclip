@@ -308,17 +308,14 @@ describe("CloudAccessGate", () => {
   });
 });
 
-describe("Skill Studio routes", () => {
-  it("registers create mode before the skillId route in prefixed and unprefixed routing", () => {
-    const createRoute = 'path="skills/studio/new"';
-    const detailRoute = 'path="skills/studio/:skillId"';
-    const createIndexes = [...appSource.matchAll(new RegExp(createRoute, "g"))].map((match) => match.index ?? -1);
-    const detailIndexes = [...appSource.matchAll(new RegExp(detailRoute, "g"))].map((match) => match.index ?? -1);
-
-    expect(createIndexes).toHaveLength(2);
-    expect(detailIndexes).toHaveLength(2);
-    expect(createIndexes[0]).toBeLessThan(detailIndexes[0]!);
-    expect(createIndexes[1]).toBeLessThan(detailIndexes[1]!);
+describe("Skills routes", () => {
+  it("uses the simple installed-skills library and retires Sources and Studio", () => {
+    expect(appSource).toContain('const InstalledSkills = lazy(() => import("./pages/InstalledSkills")');
+    expect(appSource).toContain('<Route path="skills/*" element={<InstalledSkills />} />');
+    expect(appSource).toContain('<Route path="skills/sources/*" element={<Navigate to="/skills" replace />} />');
+    expect(appSource).toContain('<Route path="skills/studio/*" element={<Navigate to="/skills" replace />} />');
+    expect(appSource).not.toContain('const SkillSources = lazy(');
+    expect(appSource).not.toContain('const SkillStudio = lazy(');
   });
 });
 

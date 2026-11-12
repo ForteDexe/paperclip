@@ -83,9 +83,7 @@ const CompanyEnvironments = lazy(() => import("./pages/CompanyEnvironments").the
 const CompanySettingsPluginPage = lazy(() => import("./pages/CompanySettingsPluginPage").then((module) => ({ default: module.CompanySettingsPluginPage })));
 const CompanyAccess = lazy(() => import("./pages/CompanyAccess").then((module) => ({ default: module.CompanyAccess })));
 const CompanyAccessLegacyRoute = lazy(() => import("./pages/CompanyAccess").then((module) => ({ default: module.CompanyAccessLegacyRoute })));
-const CompanySkills = lazy(() => import("./pages/CompanySkills").then((module) => ({ default: module.CompanySkills })));
-const SkillSources = lazy(() => import("./pages/SkillSources").then((module) => ({ default: module.SkillSources })));
-const SkillStudio = lazy(() => import("./pages/SkillStudio").then((module) => ({ default: module.SkillStudio })));
+const InstalledSkills = lazy(() => import("./pages/InstalledSkills").then((module) => ({ default: module.InstalledSkills })));
 const Secrets = lazy(() => import("./pages/Secrets").then((module) => ({ default: module.Secrets })));
 const CompanyImport = lazy(() => import("./pages/CompanyImport").then((module) => ({ default: module.CompanyImport })));
 const DesignGuide = lazy(() => import("./pages/DesignGuide").then((module) => ({ default: module.DesignGuide })));
@@ -104,7 +102,6 @@ const CompanyExport = lazy(() => import("./pages/CompanyExport").then((module) =
 const ProductionAgents = lazy(() => import("./pages/Agents.production").then((module) => ({ default: module.Agents })));
 const ProductionRoutines = lazy(() => import("./pages/Routines.production").then((module) => ({ default: module.Routines })));
 const ProductionRoutineDetail = lazy(() => import("./pages/RoutineDetail.production").then((module) => ({ default: module.RoutineDetail })));
-const ProductionCompanySkills = lazy(() => import("./pages/CompanySkills.production").then((module) => ({ default: module.CompanySkills })));
 const ProductionCompanyActivity = lazy(() => import("./pages/audit/CompanyActivity.production").then((module) => ({ default: module.CompanyActivity })));
 const ProductionOrgChart = lazy(() => import("./pages/OrgChart.production").then((module) => ({ default: module.OrgChart })));
 
@@ -189,16 +186,10 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
         <Route path="company/settings/instance/adapters" element={<AdapterManager />} />
       </Route>
       <Route path="company/settings/:settingsRoutePath/*" element={<CompanySettingsPluginPage />} />
-      <Route path="skills/sources" element={<SkillSources />} />
-      <Route path="skills/sources/:sourceId" element={<SkillSources />} />
-      <Route path="skills/studio" element={streamlinedUiEnabled ? <CompanySkills collectionView="authored" /> : <SkillStudio />} />
-      <Route path="skills/studio/new" element={<SkillStudio />} />
-      <Route path="skills/studio/:skillId" element={<SkillStudio />} />
-      <Route path="skills/:skillId/studio" element={<LegacySkillStudioRedirect />} />
-      <Route
-        path="skills/*"
-        element={streamlinedUiEnabled ? <CompanySkills /> : <ProductionSurface><ProductionCompanySkills /></ProductionSurface>}
-      />
+      <Route path="skills/sources/*" element={<Navigate to="/skills" replace />} />
+      <Route path="skills/studio/*" element={<Navigate to="/skills" replace />} />
+      <Route path="skills/:skillId/studio" element={<Navigate to="/skills" replace />} />
+      <Route path="skills/*" element={<InstalledSkills />} />
       <Route path="settings" element={<LegacySettingsRedirect />} />
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
       <Route path="plugins/:pluginId" element={<PluginPage />} />
@@ -375,33 +366,6 @@ function TaskViewRedirect({ view }: { view: TaskViewKey }) {
   const params = new URLSearchParams(location.search);
   params.set(TASK_VIEW_PARAM, view);
   return <Navigate to={`/issues?${params.toString()}${location.hash}`} replace />;
-}
-
-function LegacySkillStudioRedirect() {
-  const location = useLocation();
-  const { companies, selectedCompany, loading } = useCompany();
-  const { companyPrefix, skillId } = useParams<{ companyPrefix?: string; skillId?: string }>();
-
-  if (loading) return null;
-
-  const targetCompany =
-    (companyPrefix
-      ? companies.find((company) => company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase())
-      : null) ??
-    selectedCompany ??
-    companies[0] ??
-    null;
-
-  if (!targetCompany || !skillId) {
-    return <Navigate to="/skills/studio" replace />;
-  }
-
-  return (
-    <Navigate
-      to={`/${targetCompany.issuePrefix}/skills/studio/${encodeURIComponent(skillId)}${location.search}${location.hash}`}
-      replace
-    />
-  );
 }
 
 function LegacySettingsRedirect() {
@@ -595,7 +559,7 @@ export function App() {
           <Route path="skills/studio" element={<UnprefixedBoardRedirect />} />
           <Route path="skills/studio/new" element={<UnprefixedBoardRedirect />} />
           <Route path="skills/studio/:skillId" element={<UnprefixedBoardRedirect />} />
-          <Route path="skills/:skillId/studio" element={<LegacySkillStudioRedirect />} />
+          <Route path="skills/:skillId/studio" element={<UnprefixedBoardRedirect />} />
           <Route path="skills/*" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />

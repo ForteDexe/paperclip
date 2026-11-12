@@ -9,24 +9,26 @@ import { readPaperclipRuntimeSkillEntries, resolveLegacyPaperclipDesiredSkillNam
 import { prepareClaudePromptBundle } from "../../../packages/adapters/claude-local/src/server/prompt-cache.js";
 import { stageCodexHomeForSync } from "../../../packages/adapters/codex-local/src/server/codex-home.js";
 
-describe("default feedback skill delivery", () => {
+describe("minimal default skill delivery", () => {
   const cleanup: string[] = [];
-  const keys = ["paperclip", "complain", "suggestion-box"].map(name => `paperclipai/paperclip/${name}`);
+  const operationalKey = "paperclipai/paperclip/paperclip";
+  const retiredFeedbackKeys = ["complain", "suggestion-box"].map(name => `paperclipai/paperclip/${name}`);
   afterEach(async () => {
     vi.unstubAllEnvs();
     await Promise.all(cleanup.splice(0).map(root => rm(root, { recursive: true, force: true })));
   });
 
-  it.each([undefined, []])("resolves defaults for Codex and Claude with selection %s", async (desiredSkills) => {
+  it.each([undefined, []])("resolves only the operational default for Codex and Claude with selection %s", async (desiredSkills) => {
     const config = desiredSkills ? { paperclipSkillSync: { desiredSkills } } : {};
     for (const [adapterType, list] of [["codex_local", listCodexSkills], ["claude_local", listClaudeSkills]] as const) {
       const snapshot = await list({ agentId: "agent", companyId: "company", adapterType, config });
-      expect(snapshot.desiredSkills).toEqual(expect.arrayContaining(keys));
-      expect(snapshot.entries.filter(e => keys.includes(e.key)).every(e => e.state === "configured")).toBe(true);
+      expect(snapshot.desiredSkills).toEqual([operationalKey]);
+      expect(snapshot.entries.find(e => e.key === operationalKey)?.state).toBe("configured");
+      expect(snapshot.desiredSkills).not.toEqual(expect.arrayContaining(retiredFeedbackKeys));
     }
   });
 
-  it("mounts both skills and their shared helper for Codex, Claude and the Codex sandbox home", async () => {
+  it("does not mount retired feedback skills into Codex or Claude homes", async () => {
     const root = await mkdtemp(join(tmpdir(), "paperclip-commentary-skills-"));
     cleanup.push(root);
     vi.stubEnv("PAPERCLIP_HOME", root);
@@ -40,13 +42,12 @@ describe("default feedback skill delivery", () => {
     cleanup.push(staged);
     for (const skills of [join(codexHome, "skills"), join(claude.addDir, ".claude", "skills"), join(staged, "skills")]) {
       for (const name of ["complain", "suggestion-box"]) {
-        expect(await readFile(join(skills, name, "SKILL.md"), "utf8")).toContain("scripts/submit-agent-commentary.mjs");
+        await expect(readFile(join(skills, name, "SKILL.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
       }
-      expect(await readFile(join(skills, "paperclip", "scripts", "submit-agent-commentary.mjs"), "utf8")).toContain("process.stdin");
     }
     // Runtime policy removes entries before default selection; never resurrect them.
-    const restricted = entries.filter(e => e.key === keys[0]);
-    expect(resolveLegacyPaperclipDesiredSkillNames({}, restricted)).toEqual([keys[0]]);
+    const restricted = entries.filter(e => e.key === operationalKey);
+    expect(resolveLegacyPaperclipDesiredSkillNames({}, restricted)).toEqual([operationalKey]);
     expect(await readPaperclipRuntimeSkillEntries({ paperclipRuntimeSkills: [] }, import.meta.dirname)).toEqual([]);
   });
 });

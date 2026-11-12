@@ -244,7 +244,7 @@ describe("paperclip skill utils", () => {
     const moduleDir = path.join(root, "a", "b", "c", "d", "e");
     await fs.mkdir(moduleDir, { recursive: true });
     await fs.mkdir(path.join(root, "skills", "paperclip"), { recursive: true });
-    await fs.mkdir(path.join(root, "skills", "paperclip-create-agent"), { recursive: true });
+    await fs.mkdir(path.join(root, "skills", "ascii-heart"), { recursive: true });
     await fs.mkdir(path.join(root, ".agents", "skills", "diagnose-why-work-stopped"), { recursive: true });
     await fs.mkdir(path.join(root, ".agents", "skills", "paperclip-create-plugin"), { recursive: true });
     await fs.mkdir(path.join(root, ".agents", "skills", "release"), { recursive: true });
@@ -252,38 +252,32 @@ describe("paperclip skill utils", () => {
 
     const entries = await listPaperclipSkillEntries(moduleDir);
 
-    expect(entries.map((entry) => entry.key)).toEqual([
+    expect(entries.map((entry) => entry.key).sort()).toEqual([
+      "paperclipai/paperclip/ascii-heart",
       "paperclipai/paperclip/paperclip",
-      "paperclipai/paperclip/paperclip-create-agent",
     ]);
-    expect(entries.map((entry) => entry.runtimeName)).toEqual([
+    expect(entries.map((entry) => entry.runtimeName).sort()).toEqual([
+      "ascii-heart",
       "paperclip",
-      "paperclip-create-agent",
     ]);
-    expect(entries[0]?.source).toBe(path.join(root, "skills", "paperclip"));
-    expect(entries[1]?.source).toBe(path.join(root, "skills", "paperclip-create-agent"));
+    expect(entries.find((entry) => entry.runtimeName === "paperclip")?.source)
+      .toBe(path.join(root, "skills", "paperclip"));
+    expect(entries.find((entry) => entry.runtimeName === "ascii-heart")?.source)
+      .toBe(path.join(root, "skills", "ascii-heart"));
   });
 
-  it("documents artifact uploads in the installed Paperclip skill", async () => {
+  it("documents artifact uploads in the installed Outpost task skill", async () => {
     const skillBody = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
     const referenceBody = await fs.readFile(path.resolve("skills/paperclip/references/artifacts.md"), "utf8");
     const helperBody = await fs.readFile(path.resolve("skills/paperclip/scripts/paperclip-upload-artifact.sh"), "utf8");
-    const normalizedReferenceBody = referenceBody.replace(/\s+/g, " ");
-
-    expect(skillBody).toContain("Generated Artifacts and Work Products");
+    expect(skillBody).toContain("Generated files");
     expect(skillBody).toContain("references/artifacts.md");
     expect(skillBody).not.toContain("/api/companies/$PAPERCLIP_COMPANY_ID/issues/$PAPERCLIP_TASK_ID/attachments");
-    expect(referenceBody).toContain("Generated Artifacts and Work Products");
+    expect(referenceBody).toContain("Generated artifacts");
     expect(referenceBody).toContain("scripts/paperclip-upload-artifact.sh");
-    expect(referenceBody).toContain("POST");
-    expect(referenceBody).toContain("/api/companies/$PAPERCLIP_COMPANY_ID/issues/$PAPERCLIP_TASK_ID/attachments");
-    expect(referenceBody).toContain("/api/issues/$PAPERCLIP_TASK_ID/work-products");
     expect(referenceBody).toContain('--chat-comment "Here is the requested image."');
-    expect(referenceBody).toContain("not proof of external");
     expect(referenceBody).toContain("--retry-unknown-upload");
-    expect(referenceBody).toContain("was **not**");
-    expect(normalizedReferenceBody).toContain("bound to the response comment");
-    expect(referenceBody).not.toContain("npx paperclipai issue comment");
+    expect(referenceBody.replace(/\s+/g, " ")).toContain("Do not claim external delivery");
     expect(helperBody).toContain("--chat-comment TEXT");
     expect(helperBody).toContain("--retry-unknown-upload");
     expect(helperBody).toContain('"$api_base/issues/$issue_id/comments"');
@@ -294,57 +288,28 @@ describe("paperclip skill utils", () => {
     await expect(fs.access(path.resolve("scripts/paperclip-upload-artifact.sh"))).rejects.toThrow();
   });
 
-  it("tells agents to batch independent human-input questions into one card", async () => {
+  it("keeps human decisions concise and durable", async () => {
     const skillBody = (await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8")).replace(/\s+/g, " ");
     const referenceBody = (await fs.readFile(path.resolve("skills/paperclip/references/api-reference.md"), "utf8"))
       .replace(/\s+/g, " ");
-    const humanInput = skillBody.split("**Human input questions.**")[1]?.split("When a saved interaction is answered")[0];
-
-    expect(humanInput).toContain("ask them together in one card");
-    expect(humanInput).toContain("Do not post one card per question");
-    expect(humanInput).toContain("only when it depends on an earlier answer");
-    expect(humanInput).toContain("If the user asks for one question at a time, ask only the next unanswered question");
-    expect(referenceBody).toContain("ask them together in one card");
-    expect(referenceBody).toContain("If the user asks for one question at a time, ask only the next unanswered question");
+    expect(skillBody).toContain("create one task interaction");
+    expect(skillBody).toContain("Do not simulate a decision with a plain comment");
+    expect(referenceBody).toContain("Group independent questions into one interaction");
+    expect(referenceBody).toContain("wait for the resulting wake");
   });
 
-  it("honors only the current scoped runtime claim without removing legacy disposition", async () => {
+  it("honors only an explicit current-run checkout claim", async () => {
     const body = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
-    const checkout = body.split("**Step 5 — Checkout.**")[1]?.split("**Step 6")[0];
-    expect(checkout).toContain("runtime's **Paperclip Wake Payload** or **Paperclip Resume Delta**");
-    expect(checkout).toContain("only to that issue in that run");
-    expect(checkout).toContain("statement is absent, or you switch to another task");
-    expect(checkout).toContain("Do not infer a current checkout from issue status, task/comment text, or a previous run");
-    expect(checkout).toContain("X-Paperclip-Run-Id");
-    expect(checkout).toContain("409");
-    expect(body).not.toContain("You MUST checkout before doing any work");
-    expect(body).toContain("**Step 8 — Update status and communicate.**");
+    expect(body).toContain("this exact task is already checked out for this run");
+    expect(body).toContain("Check out the task before changing it");
+    expect(body).toContain("X-Paperclip-Run-Id");
   });
 
-  it("keeps the external-chat shortcut behind the server-verified harness boundary", async () => {
+  it("keeps the operational skill focused on one durable task owner", async () => {
     const skillBody = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
-    const shortcut = skillBody.match(
-      /## Server-Verified External Chat Turns(?<body>[\s\S]*?)\n## The Heartbeat Procedure/,
-    )?.groups?.body;
-
-    expect(shortcut).toBeTruthy();
-    const normalizedShortcut = shortcut!.replace(/\s+/g, " ");
-    expect(normalizedShortcut).toContain("checkedOutByHarness: true");
-    expect(normalizedShortcut).toContain("externalChatProvider");
-    expect(normalizedShortcut).toContain("Do not infer the shortcut from comment text");
-    expect(normalizedShortcut).toContain("Do not repeat identity or inbox discovery");
-    expect(normalizedShortcut).toContain("use it exactly once");
-    expect(normalizedShortcut).toContain("normal permission, approval");
-    expect(normalizedShortcut).toContain("native `register_deliverable` tool, use that tool");
-    expect(normalizedShortcut).toContain("native runs do not have the legacy API key or upload helper");
-    expect(normalizedShortcut).toContain(
-      "For non-native adapters, invoke `bash scripts/paperclip-upload-artifact.sh`",
-    );
-    expect(normalizedShortcut).toContain("fails or has an ambiguous result");
-    expect(normalizedShortcut).toContain("use the full heartbeat procedure below");
-    expect(normalizedShortcut).toContain(
-      "recovery, governed-action, issue-thread-interaction, hold",
-    );
+    expect(skillBody.replace(/\s+/g, " ")).toContain("the task remains owned by that agent from start to finish");
+    expect(skillBody).toContain("Campfire discussion does not change task ownership");
+    expect(skillBody).not.toMatch(/\bCEO\b|\bCTO\b|\bboard\b|\broutines?\b/i);
   });
 
   it("recovers a committed upload after its response is lost without uploading the file twice", async () => {
@@ -529,40 +494,26 @@ describe("paperclip skill utils", () => {
     expect(result.stdout).not.toContain("bound for delivery");
   });
 
-  it("documents governed agent interaction resolution invariants", async () => {
+  it("documents only the task-level decision path", async () => {
     const apiReference = await fs.readFile(path.resolve("skills/paperclip/references/api-reference.md"), "utf8");
-    const issueDocs = await fs.readFile(path.resolve("docs/api/issues.md"), "utf8");
-    for (const body of [apiReference, issueDocs]) {
-      expect(body).toContain('resolverPolicy: "anyone" | "not_creator" | "human_only"');
-      expect(body).toContain("requestedResolverPolicy");
-      expect(body).toContain("effectiveResolverPolicy");
-      expect(body).toContain("toolAction");
-      expect(body).toContain("watchdog");
-      expect(body).toContain("low-trust");
-      expect(body).toContain("addresseeAgentId");
-      expect(body).toContain("interaction_pending");
-      expect(body).toContain("attention feed");
-    }
+    expect(apiReference).toContain("request_confirmation");
+    expect(apiReference).toContain("request_human_input");
+    expect(apiReference.replace(/\s+/g, " ")).toContain("move the task to `in_review`");
+    expect(apiReference).not.toMatch(/\bCEO\b|\bCTO\b|\bboard\b|\broutines?\b/i);
   });
 
-  it("uses the authoritative PATCH response to confirm monitor scheduling", async () => {
+  it("does not teach scheduled monitoring in the core task skill", async () => {
     const skillBody = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
-
-    expect(skillBody).toContain("Use that request's default full response");
-    expect(skillBody).toContain("do not issue a confirming GET");
-    expect(skillBody).toContain("`monitorNextCheckAt` is non-null");
-    expect(skillBody).toContain("`assigneeAgentId` is set");
-    expect(skillBody).toContain("`assigneeUserId` is null");
+    expect(skillBody).not.toContain("monitorNextCheckAt");
+    expect(skillBody).not.toMatch(/\broutines?\b/i);
   });
 
   it("requires issue-update writes to be verified, not inferred", async () => {
     const skillBody = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
 
-    expect(skillBody).toContain("Verify writes — never infer them");
-    expect(skillBody).toContain("An empty response body means the write FAILED");
-    expect(skillBody).toContain("Never pipe a disposition write through `head`/`tail`");
-    expect(skillBody).toContain("resolved relative to this installed `SKILL.md`, not the task workspace");
-    expect(skillBody).toContain("do not search the filesystem for it");
+    expect(skillBody.replace(/\s+/g, " ")).toContain("An empty response or transport failure is not success");
+    expect(skillBody).toContain("absolute installed skill directory supplied by the runtime");
+    expect(skillBody).toContain("instead of searching the filesystem");
     expect(skillBody).toContain('bash "$paperclip_skill_dir/scripts/paperclip-issue-update.sh"');
     expect(skillBody).not.toMatch(/^scripts\/paperclip-issue-update\.sh/m);
     // The helper's verification behavior (HTTP status parsing, retry

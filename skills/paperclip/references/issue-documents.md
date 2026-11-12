@@ -1,21 +1,13 @@
-# Issue documents through the API
+# Task documents
 
-Use this procedure for requested Paperclip task documents in API-based runtimes.
-Honor a destination explicitly chosen by the requester. Native Runner runtimes
-use their document tool and its contract. Downloadable files follow
-[artifacts.md](artifacts.md).
+Use task documents for requested plans, reports, specifications, or other
+durable Markdown that belongs with an Outpost task. Honor a different
+destination when the user explicitly chooses one.
 
-## Create a document
-
-Use the injected `PAPERCLIP_API_URL` and bearer `PAPERCLIP_API_KEY`. Include
-`X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID` on the write and send JSON with
-`Content-Type: application/json`.
-
-Choose a descriptive document key such as `report`; keys use lowercase letters,
-numbers, underscores, or hyphens and are at most 64 characters. Plans use `plan`.
+## Create
 
 ```text
-PUT /api/issues/{issueId}/documents/{key}
+PUT /api/issues/{taskId}/documents/{key}
 ```
 
 ```json
@@ -27,32 +19,28 @@ PUT /api/issues/{issueId}/documents/{key}
 }
 ```
 
-A successful write returns HTTP `201` for creation or `200` for an update,
-with the saved document JSON. Check its `key`, `body`, and `latestRevisionId`
-before claiming delivery. This receipt is sufficient; another GET is unnecessary
-when it confirms the intended content and a saved revision.
+Keys use lowercase letters, numbers, underscores, or hyphens and are at most 64
+characters. Use `plan` for plans. Include bearer authorization,
+`X-Paperclip-Run-Id`, and `Content-Type: application/json`.
 
-Construct a clickable Markdown link from the current issue and successful write
-receipt, then add it to the completion comment or response:
+A successful creation returns `201`; an update returns `200`. Verify the
+returned key, body, and `latestRevisionId` before claiming delivery.
 
-```javascript
-const issuePath = issue.identifier
-  ? `/${issue.identifier.split("-")[0]}/issues/${issue.identifier}`
-  : `/issues/${issue.id}`;
-const documentUrl = `${issuePath}#document-${saved.key}`;
-const comment = `Saved [Task report](${documentUrl}).`;
+## Update safely
+
+Read the current document first. Send its `latestRevisionId` as the next
+request's `baseRevisionId`. On `409`, fetch the new revision and reconcile the
+content; never overwrite another update blindly.
+
+If a write result is unclear, read the document and verify its saved revision
+before retrying.
+
+## Link
+
+Link the saved document in the task update:
+
+```text
+/<task-prefix>/issues/<task-identifier>#document-<key>
 ```
 
-Use the returned key: a locked document can redirect an agent's write to a new
-document. Unnumbered issues use their ID; the board resolves their company.
-
-## Update or resolve an unclear write
-
-For an existing document, first `GET /api/issues/{issueId}/documents/{key}`
-and read its body and `latestRevisionId`. Send the updated body with
-`baseRevisionId` set to that revision. On `409`, fetch the latest document and
-reconcile changes before retrying; preserve the skill's bounded-write retry rule.
-
-If a write's status or receipt is unclear, GET the document to check the saved
-content and revision before retrying. If delivery cannot be confirmed, report
-that limitation instead of claiming the requested document was saved.
+For an unnumbered task, use `/issues/<task-id>#document-<key>`.

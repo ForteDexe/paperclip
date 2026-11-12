@@ -50,7 +50,14 @@ export function isLinkedGitWorktreeCheckout(rootDir: string): boolean {
   const stat = lstatSync(gitMetadataPath);
   if (!stat.isFile()) return false;
 
-  return readFileSync(gitMetadataPath, "utf8").trimStart().startsWith("gitdir:");
+  const reference = readFileSync(gitMetadataPath, "utf8").trim();
+  if (!reference.startsWith("gitdir:")) return false;
+
+  // Both linked worktrees and submodules store a `gitdir:` pointer in .git.
+  // Only linked worktrees live below Git's worktrees administration folder;
+  // treating a submodule as a worktree incorrectly requires `.paperclip/.env`.
+  const gitDir = reference.slice("gitdir:".length).trim().replaceAll("\\", "/");
+  return gitDir.split("/").includes("worktrees");
 }
 
 export function resolveWorktreeEnvFilePath(rootDir: string): string {

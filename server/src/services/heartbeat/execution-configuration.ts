@@ -39,9 +39,6 @@ import {
 import { buildExecutionWorkspaceConfigSnapshot, stripWorkspaceRuntimeFromExecutionRunConfig } from "./workspaces.js";
 import type { HeartbeatWorkspacePreparationInput } from "./workspace-preparation.js";
 
-const ACCEPTED_PLAN_CONVERSION_SKILL_KEY =
-  "paperclipai/paperclip/paperclip-converting-plans-to-tasks";
-
 type ManagedAiRuntime = Awaited<ReturnType<typeof prepareManagedAiRuntime>>;
 type EnvironmentSelection = Awaited<ReturnType<typeof selectHeartbeatEnvironment>>;
 
@@ -95,7 +92,7 @@ export interface HeartbeatExecutionConfigurationInput {
 export async function prepareHeartbeatExecutionConfiguration(db: Db, input: HeartbeatExecutionConfigurationInput) {
   const { run, agent, onFailureSecretsResolved, onManagedAiRuntimeAcquired, onIdentityRedactorPrepared } = input;
   const time = createHeartbeatPreparationTiming(run.id);
-  const { issueId, context, responsibleUserId, acceptedPlanContinuationWake, acceptedPlanWakeRoutingDecision, taskProjectContext, routineEnvContext, pinnedSkillTest } = input.task;
+  const { issueId, context, responsibleUserId, taskProjectContext, routineEnvContext, pinnedSkillTest } = input.task;
   const { selectedEnvironmentId, selectedEnvironmentForConfig, resolvedInstanceSettings, persistedNativeExecutionInput } = input.environment;
   const sourceWorkspaceConfig = agent.adapterType === "paperclip_runner"
     ? { ...input.config.sourceWorkspaceConfig,
@@ -169,11 +166,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   if (mentionedSkills.status === "rejected") throw mentionedSkills.reason;
   if (githubIdentity.status === "rejected") throw githubIdentity.reason;
   const runScopedMentionedSkillKeys = mentionedSkills.value;
-  const runScopedSkillKeys =
-    !pinnedSkillTest && acceptedPlanContinuationWake &&
-    !acceptedPlanWakeRoutingDecision?.suppressAcceptedContinuation
-      ? [...runScopedMentionedSkillKeys, ACCEPTED_PLAN_CONVERSION_SKILL_KEY]
-      : runScopedMentionedSkillKeys;
+  const runScopedSkillKeys = runScopedMentionedSkillKeys;
   const githubSelection = githubIdentity.value;
   const useHostGitHub =
     !githubSelection.configured &&
