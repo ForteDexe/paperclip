@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
 import { agentRecordQueries, isPlainRecord, configPatchFromApprovalPayload, normalizeRuntimeConfigForNewAgent,
   deduplicateAgentName, type CreateAgentData, type CreateAgentOptions, type AgentConfigurationPatch, type AgentHireRecord } from "../lib/agent-records.js";
-import { CEO_HIRING_DENIAL_KEY, normalizeAgentPermissions, permissionsImplyLowTrust, NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS,
+import { normalizeAgentPermissions, permissionsImplyLowTrust, NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS,
   newStandardAgentGrantScope } from "../lib/agent-permissions.js";
 import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { secretService, assertClaudeOAuthBindingInvariant } from "./secrets.js";
@@ -49,10 +49,7 @@ export async function prepareAgentHire(db: Db, companyId: string, input: CreateA
   const uniqueName = deduplicateAgentName(data.name, existingAgents.filter(agent => agent.id !== options?.setupAgentId));
 
   const role = data.role ?? "general";
-  // Only the permissions control records a CEO hiring restriction.
-  const requestedPermissions = data.permissions && typeof data.permissions === "object" && !Array.isArray(data.permissions)
-    ? Object.fromEntries(Object.entries(data.permissions).filter(([key]) => key !== CEO_HIRING_DENIAL_KEY)) : data.permissions;
-  const normalizedPermissions = normalizeAgentPermissions(requestedPermissions, { context: "create" });
+  const normalizedPermissions = normalizeAgentPermissions(data.permissions, { context: "create" });
   const runtimeConfig = normalizeRuntimeConfigForNewAgent(data.runtimeConfig);
   const adapterType = data.adapterType ?? "process";
   const rawAdapterConfig = isPlainRecord(data.adapterConfig)

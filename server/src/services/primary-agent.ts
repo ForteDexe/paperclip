@@ -61,7 +61,7 @@ export function primaryAgentService(db: Db) {
           .where(and(eq(agents.companyId, companyId), eq(agents.id, agentId))).for("update");
         if (!agent) throw notFound("Agent not found");
         if (agent.status === "terminated" || agent.status === "pending_approval") {
-          throw unprocessable("Choose an active, approved agent as the Space primary.");
+          throw unprocessable("Choose an active, approved agent as the default agent.");
         }
         await tx.update(companies).set({ primaryAgentId: agentId, updatedAt: new Date() })
           .where(eq(companies.id, companyId));

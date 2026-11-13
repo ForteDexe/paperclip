@@ -486,7 +486,6 @@ const DEFINITIONS_BY_KEY = new Map(DEFINITIONS.map((definition) => [definition.k
 // seeded. Add a definition key here to restore automatic provisioning.
 const AUTO_PROVISION_ON_COMPANY_CREATE_KEYS = new Set<string>([]);
 
-const ROOT_AGENT_DEFAULT_CHANGE_GRANTS: PermissionKey[] = ["agents:configure", "skills:create"];
 const BUILT_IN_AGENT_DEFAULT_GRANTS: Record<string, PermissionKey[]> = {
   "reflection-coach": ["agents:suggest-changes", "skills:suggest-changes"],
 };
@@ -846,23 +845,8 @@ export function builtInAgentService(db: Db) {
     );
   }
 
-  async function ensureRootAgentDefaultChangeGrants(companyId: string) {
-    const rows = await db
-      .select()
-      .from(agents)
-      .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated")));
-    const rootCeoRows = rows.filter((agent) =>
-      !readBuiltInAgentMarker(agent.metadata) &&
-      !agent.reportsTo &&
-      agent.role.trim().toLowerCase() === "ceo" &&
-      agent.status !== "pending_approval"
-    );
-    if (rootCeoRows.length !== 1) return 0;
-    return ensureAgentDefaultGrants(companyId, rootCeoRows[0]!.id, ROOT_AGENT_DEFAULT_CHANGE_GRANTS);
-  }
-
   async function ensureCompanyDefaultAgentGrants(companyId: string) {
-    let ensured = await ensureRootAgentDefaultChangeGrants(companyId);
+    let ensured = 0;
     for (const definition of DEFINITIONS) {
       const agent = await findSingleAgent(companyId, definition);
       if (!agent) continue;

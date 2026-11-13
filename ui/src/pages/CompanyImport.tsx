@@ -1076,7 +1076,7 @@ export function CompanyImport() {
     return created.transferId;
   }
 
-  // Prefer the Space primary agent's adapter when filling import defaults.
+  // Prefer the default agent's adapter when filling import defaults.
   const { data: companyAgents } = useQuery({
     queryKey: selectedCompanyId ? queryKeys.agents.list(selectedCompanyId) : ["agents", "none"],
     queryFn: () => agentsApi.list(selectedCompanyId!),

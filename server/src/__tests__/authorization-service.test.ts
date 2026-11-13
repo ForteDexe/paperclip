@@ -2098,7 +2098,7 @@ describeEmbeddedPostgres("authorization service", () => {
     expect(decision).toMatchObject({ allowed: false, reason: "deny_missing_grant" });
   });
 
-  it("grants hire authority through an explicit persisted permission", async () => {
+  it("does not treat the compatibility toggle as authority", async () => {
     const company = await createCompany(db, "DefaultHire");
     const actorAgent = await createAgent(db, company.id, {
       role: "engineer",
@@ -2111,10 +2111,21 @@ describeEmbeddedPostgres("authorization service", () => {
       resource: { type: "company", companyId: company.id },
     });
 
-    expect(decision).toMatchObject({
-      allowed: true,
-      reason: "allow_legacy_agent_creator",
+    expect(decision).toMatchObject({ allowed: false, reason: "deny_missing_grant" });
+  });
+
+  it("grants hire authority through an explicit permission grant", async () => {
+    const company = await createCompany(db, "ExplicitHireGrant");
+    const actorAgent = await createAgent(db, company.id, { role: "general" });
+    await grantAgentPermission(db, company.id, actorAgent.id, "agents:create");
+
+    const decision = await authorizationService(db).decide({
+      actor: { type: "agent", agentId: actorAgent.id, companyId: company.id, source: "agent_jwt" },
+      action: "agents:create",
+      resource: { type: "company", companyId: company.id },
     });
+
+    expect(decision).toMatchObject({ allowed: true, reason: "allow_explicit_grant" });
   });
 
   it("keeps legacy rows without an explicit canCreateAgents fail-closed", async () => {

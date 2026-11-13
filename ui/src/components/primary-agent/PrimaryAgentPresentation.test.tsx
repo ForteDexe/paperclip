@@ -61,17 +61,17 @@ afterEach(() => {
 });
 
 describe("PrimaryAgentCrownButton", () => {
-  it("fills the crown at once when there is no primary agent yet", async () => {
+  it("sets the default at once when there is no default agent yet", async () => {
     const onChange = vi.fn();
     await render({ initial: null, onChange });
-    expect(crown()?.getAttribute("aria-label")).toBe("Set as Space primary");
+    expect(crown()?.getAttribute("aria-label")).toBe("Set as default agent");
 
     await act(async () => crown()?.click());
 
     expect(onChange).toHaveBeenCalledWith("ceo");
     expect(dialog()).toBeNull();
     expect(crown()?.getAttribute("role")).toBe("img");
-    expect(crown()?.getAttribute("aria-label")).toBe("Space primary agent");
+    expect(crown()?.getAttribute("aria-label")).toBe("Default agent");
     expect(crown()?.dataset.pop).toBe("now");
     const bubbles = Array.from(crown()?.querySelectorAll<HTMLElement>(".primary-crown-bubble") ?? []);
     expect(bubbles).toHaveLength(3);
@@ -81,26 +81,26 @@ describe("PrimaryAgentCrownButton", () => {
     }
   });
 
-  it("asks before replacing the current primary agent, then fills after the dialog", async () => {
+  it("asks before replacing the current default agent, then fills after the dialog", async () => {
     const onChange = vi.fn();
     await render({ initial: cto, onChange });
 
     await act(async () => crown()?.click());
-    expect(dialog()?.textContent).toContain("Change the Space primary agent?");
+    expect(dialog()?.textContent).toContain("Change the default agent?");
     expect(onChange).not.toHaveBeenCalled();
 
-    const confirm = Array.from(dialog()?.querySelectorAll("button") ?? []).find((button) => button.textContent === "Set as Space primary");
+    const confirm = Array.from(dialog()?.querySelectorAll("button") ?? []).find((button) => button.textContent === "Set as default agent");
     await act(async () => confirm?.click());
 
     expect(onChange).toHaveBeenCalledWith("ceo");
-    expect(crown()?.getAttribute("aria-label")).toBe("Space primary agent");
+    expect(crown()?.getAttribute("aria-label")).toBe("Default agent");
     expect(crown()?.dataset.pop).toBe("after-dialog");
     await nextTick();
     expect(document.activeElement).toBe(crown());
     expect(document.body.querySelector("[data-slot=tooltip-content]")).toBeNull();
   });
 
-  it("keeps the current primary agent when the dialog is cancelled", async () => {
+  it("keeps the current default agent when the dialog is cancelled", async () => {
     const onChange = vi.fn();
     await render({ initial: cto, onChange });
 
@@ -109,13 +109,13 @@ describe("PrimaryAgentCrownButton", () => {
     await act(async () => cancel?.click());
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(crown()?.getAttribute("aria-label")).toBe("Set as Space primary");
+    expect(crown()?.getAttribute("aria-label")).toBe("Set as default agent");
     await nextTick();
     expect(document.activeElement).toBe(crown());
     expect(document.body.querySelector("[data-slot=tooltip-content]")).toBeNull();
   });
 
-  it("shows a still, filled crown on the primary agent", async () => {
+  it("shows a still, filled pin on the default agent", async () => {
     await render({ initial: ceo, onChange: vi.fn() });
     expect(crown()?.getAttribute("role")).toBe("img");
     expect(crown()?.dataset.pop).toBeUndefined();
@@ -123,13 +123,13 @@ describe("PrimaryAgentCrownButton", () => {
     expect(container.querySelector("button")).toBeNull();
   });
 
-  it("retries loading when the primary agent could not be loaded", async () => {
+  it("retries loading when the default agent could not be loaded", async () => {
     const onRetry = vi.fn();
     await render({ initial: null, onChange: vi.fn(), error: "offline", onRetry });
 
     await act(async () => crown()?.click());
 
-    expect(crown()?.getAttribute("aria-label")).toBe("Retry loading primary agent");
+    expect(crown()?.getAttribute("aria-label")).toBe("Retry loading default agent");
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

@@ -48,7 +48,6 @@ import {
   type TrustPresetResolution,
 } from "./trust-preset-resolver.js";
 import { logger } from "../middleware/logger.js";
-import { normalizeAgentPermissions } from "../lib/agent-permissions.js";
 import { grantsForHumanRole, normalizeHumanRole } from "./company-member-roles.js";
 import { isRunPhaseActive, measureRunPhase, type ExecutionPhase } from "./execution-preparation-timing.js";
 
@@ -148,7 +147,6 @@ export type AuthorizationDecision = {
     | "allow_user_inbox_policy"
     | "allow_direct_change"
     | "allow_consented_change"
-    | "allow_legacy_agent_creator"
     | "allow_issue_mention_grant"
     | "allow_direct_parent_report"
     | "allow_visible_issue_write"
@@ -213,16 +211,6 @@ function permissionForAction(action: AuthorizationAction): PermissionKey | null 
   }
   if (action === "issue:comment" || action === "issue:mutate") return null;
   return action;
-}
-
-function canCreateAgentsLegacy(agent: { role: string; permissions: unknown }) {
-  // An explicit canCreateAgents value is the saved access policy, including
-  // for CEOs: the board can turn hiring off on any agent's permissions page,
-  // and the CEO title must not override that denial. The CEO role only fills
-  // in hiring authority for rows that never saved an explicit value. Raw rows
-  // may predate permission normalization; apply the same defaults the agent
-  // service applies on read so enforcement matches what the API reports.
-  return normalizeAgentPermissions(agent.permissions, { role: agent.role }).canCreateAgents;
 }
 
 function scopeValueList(value: unknown): string[] {
@@ -2699,14 +2687,6 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
         scope: input.scope,
       });
       if (grantDecision.allowed) return grantDecision;
-    }
-
-    if (input.action === "agents:create" && canCreateAgentsLegacy(actorAgent)) {
-      return allow({
-        action: input.action,
-        reason: "allow_legacy_agent_creator",
-        explanation: "Allowed by legacy agent creator authority.",
-      });
     }
 
     if (

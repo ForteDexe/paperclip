@@ -7126,8 +7126,8 @@ for (const method of ["get", "put"] as const) {
     method,
     path: "/api/companies/{companyId}/primary-agent/me",
     tags: ["agents"],
-    summary: method === "get" ? "Get the Space primary agent" : "Set the Space primary agent",
-    description: "Uses the company-wide Space primary agent while retaining the legacy /me path for client compatibility. Active company members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this board route. In the human UI, open the chosen agent's profile and select its crown control (Set as Space primary). Confirm the replacement when a primary is already set. The Chat picker opens conversations and does not change the Space primary. The selected agent must be visible, approved, and non-terminated.",
+    summary: method === "get" ? "Get the default agent" : "Set the default agent",
+    description: "Uses the Space-wide default agent while retaining the legacy /me path and primaryAgentId field for client compatibility. Active Space members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this board route. In the human UI, open the chosen agent's profile and select Set as default agent. Confirm the replacement when a default is already set. The default receives new tasks when no assignee is selected and is the initial Chat fallback; it does not gain rank or permissions. The selected agent must be visible, approved, and non-terminated.",
     request: {
       params: z.object({ companyId: z.string().uuid() }),
       ...(method === "put" ? { body: jsonBody(updatePrimaryAgentSchema) } : {}),

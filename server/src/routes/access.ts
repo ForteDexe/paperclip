@@ -2284,17 +2284,8 @@ export function resolveJoinRequestAgentManagerId(
     : null;
   if (primary) return primary.id;
 
-  // Keep old data working while role-based leadership is phased out.
-  const ceoCandidates = candidates.filter(
-    (candidate) => candidate.role === "ceo"
-  );
-  const rootCeo = ceoCandidates.find(
-    (candidate) => candidate.reportsTo === null
-  );
-  if (rootCeo) return rootCeo.id;
-
   const rootPeer = candidates.find((candidate) => candidate.reportsTo === null);
-  return (rootPeer ?? ceoCandidates[0] ?? candidates[0] ?? null)?.id ?? null;
+  return (rootPeer ?? candidates[0] ?? null)?.id ?? null;
 }
 
 function isInviteTokenHashCollisionError(error: unknown) {

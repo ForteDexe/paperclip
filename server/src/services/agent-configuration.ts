@@ -18,7 +18,7 @@ import { normalizePaperclipRunnerAdapterConfig } from "@paperclipai/adapter-util
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { agentRecordQueries, type UpdateAgentOptions, type AgentConfigurationPatch, type AgentConfigurationRecord, isPlainRecord, buildConfigSnapshot,
   hasConfigPatchFields, changedPendingApprovalConfigFields, diffConfigSnapshot, jsonEqual } from "../lib/agent-records.js";
-import { CEO_HIRING_DENIAL_KEY, ceoHiringDenial, normalizeAgentPermissions } from "../lib/agent-permissions.js";
+import { normalizeAgentPermissions } from "../lib/agent-permissions.js";
 import type { ActivityPublication } from "../types/activity-publication.js";
 import { secretService, assertClaudeOAuthBindingInvariant } from "./secrets.js";
 import { agentCredentialService } from "./agent-credentials.js";
@@ -91,15 +91,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
   const normalizedPatch = { ...data } as AgentConfigurationPatch;
   if (options?.recordRevision?.createdByAgentId) delete normalizedPatch.budgetMonthlyCents;
   if (data.permissions !== undefined) {
-    // Only the permissions control records a CEO hiring restriction. Keep an
-    // existing one unless this write turns hiring on, and never take one from input.
-    const incoming = data.permissions && typeof data.permissions === "object" && !Array.isArray(data.permissions)
-      ? Object.fromEntries(Object.entries(data.permissions).filter(([key]) => key !== CEO_HIRING_DENIAL_KEY)) : data.permissions;
-    const denial = ceoHiringDenial(existing.permissions);
-    normalizedPatch.permissions = normalizeAgentPermissions(
-      denial && (incoming as Record<string, unknown> | null)?.canCreateAgents !== true
-        ? { ...(incoming as Record<string, unknown>), [CEO_HIRING_DENIAL_KEY]: denial } : incoming,
-    );
+    normalizedPatch.permissions = normalizeAgentPermissions(data.permissions);
   }
   if (
     Object.prototype.hasOwnProperty.call(normalizedPatch, "adapterConfig") &&

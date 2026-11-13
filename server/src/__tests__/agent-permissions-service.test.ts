@@ -29,17 +29,14 @@ describe("agent permissions service", () => {
     expect(normalizeAgentPermissions([]).canCreateAgents).toBe(false);
   });
 
-  it("does not derive hiring authority from a legacy role", () => {
-    expect(normalizeAgentPermissions({}, { role: "ceo" }).canCreateAgents).toBe(false);
-    expect(normalizeAgentPermissions(undefined, { role: "ceo" }).canCreateAgents).toBe(false);
-    expect(normalizeAgentPermissions({ canCreateAgents: false }, { role: "ceo" }).canCreateAgents).toBe(false);
+  it("removes legacy CEO denial metadata without changing the explicit toggle", () => {
     const denial = { actorType: "user", actorId: "board-user", at: "2026-11-08T00:00:00.000Z" };
-    expect(normalizeAgentPermissions({ canCreateAgents: false, ceoHiringDeniedBy: denial }, { role: "ceo" }))
-      .toMatchObject({ canCreateAgents: false, ceoHiringDeniedBy: denial });
-    expect(normalizeAgentPermissions({ canCreateAgents: true, ceoHiringDeniedBy: denial }, { role: "ceo" })).not.toHaveProperty("ceoHiringDeniedBy");
-    expect(normalizeAgentPermissions({ canCreateAgents: false, ceoHiringDeniedBy: { actorType: "forged" } }, { role: "ceo" }).canCreateAgents).toBe(false);
-    expect(normalizeAgentPermissions({ trustPreset: LOW_TRUST_REVIEW_PRESET }, { role: "ceo" }).canCreateAgents).toBe(false);
-    expect(normalizeAgentPermissions({}, { role: "engineer" }).canCreateAgents).toBe(false);
+    expect(normalizeAgentPermissions({ canCreateAgents: false, ceoHiringDeniedBy: denial }))
+      .toEqual(expect.objectContaining({ canCreateAgents: false }));
+    expect(normalizeAgentPermissions({ canCreateAgents: false, ceoHiringDeniedBy: denial }))
+      .not.toHaveProperty("ceoHiringDeniedBy");
+    expect(normalizeAgentPermissions({ canCreateAgents: true, ceoHiringDeniedBy: denial }))
+      .not.toHaveProperty("ceoHiringDeniedBy");
   });
 
   it("withholds agent-creation authority from new low-trust agents", () => {

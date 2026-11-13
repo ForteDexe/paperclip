@@ -654,7 +654,7 @@ describe("company portability", () => {
     expect(asTextFile(exported.files["agents/claudecoder/AGENTS.md"])).toContain(`- "${paperclipKey}"`);
   });
 
-  it("exports a CEO's recorded hiring denial and drops an unrecorded false", async () => {
+  it("drops retired CEO hiring-denial metadata from exports", async () => {
     const denial = { actorType: "user", actorId: "board-user", at: "2026-11-08T00:00:00.000Z" };
     const ceo = (id: string, name: string, permissions: Record<string, unknown>) => ({
       id, companyId: "company-1", name, status: "idle", role: "ceo", title: null, icon: null, reportsTo: null, capabilities: null,
@@ -670,7 +670,8 @@ describe("company portability", () => {
     });
 
     const permissions = (slug: string) => exported.manifest.agents.find((agent: { slug: string }) => agent.slug === slug)?.permissions;
-    expect(permissions("deniedceo")).toMatchObject({ canCreateAgents: false, ceoHiringDeniedBy: denial });
+    expect(permissions("deniedceo")).not.toHaveProperty("canCreateAgents");
+    expect(permissions("deniedceo")).not.toHaveProperty("ceoHiringDeniedBy");
     expect(permissions("openceo")).not.toHaveProperty("ceoHiringDeniedBy");
   });
 
@@ -1813,7 +1814,7 @@ describe("company portability", () => {
     for (const [, input] of agentSvc.create.mock.calls) expect(input.appearance).toEqual(appearance);
   });
 
-  it("restores a CEO's recorded hiring denial on import, stamped by the importing user", async () => {
+  it("does not restore retired CEO hiring-denial metadata on import", async () => {
     const denial = { actorType: "user", actorId: "source-board-user", at: "2026-11-08T00:00:00.000Z" };
     const source = await agentSvc.list();
     agentSvc.list.mockResolvedValue([{ ...source[0], role: "ceo", permissions: { canCreateAgents: false, canCreateSkills: true, ceoHiringDeniedBy: denial } }]);
@@ -1827,12 +1828,10 @@ describe("company portability", () => {
     await portability.importBundle({ source: { type: "inline", files: exported.files, rootPath: exported.rootPath }, include,
       target: { mode: "new_company", newCompanyName: "Imported CEO" }, collisionStrategy: "rename", agents: "all" }, "user-1");
 
-    expect(agentSvc.updatePermissions).toHaveBeenCalledWith(expect.stringMatching(/^imported-/), {
-      canCreateAgents: false,
-      ceoHiringDeniedBy: expect.objectContaining({ actorType: "user", actorId: "user-1", at: expect.any(String) }),
-    });
-    const importedId = agentSvc.updatePermissions.mock.calls[0]![0];
-    expect(accessSvc.setPrincipalPermission).toHaveBeenCalledWith(expect.any(String), "agent", importedId, "agents:create", false, null);
+    expect(agentSvc.updatePermissions).not.toHaveBeenCalled();
+    expect(accessSvc.setPrincipalPermission).not.toHaveBeenCalledWith(
+      expect.any(String), "agent", expect.any(String), "agents:create", false, expect.anything(),
+    );
   });
 
   it("asks the importing actor for hiring authority before an import creates agents", async () => {
@@ -1849,7 +1848,7 @@ describe("company portability", () => {
     expect(agentSvc.create).not.toHaveBeenCalled();
   });
 
-  it("removes an existing hiring grant when an update import restores a CEO's denial", async () => {
+  it("ignores retired CEO hiring-denial metadata during update import", async () => {
     const denial = { actorType: "user", actorId: "source-board-user", at: "2026-11-08T00:00:00.000Z" };
     const [fixture] = await agentSvc.list();
     const existing = { ...fixture, role: "ceo", permissions: { canCreateAgents: false, canCreateSkills: true, ceoHiringDeniedBy: denial } };
@@ -1864,8 +1863,8 @@ describe("company portability", () => {
       agents: "all", collisionStrategy: "replace" }, "user-1");
 
     expect(agentSvc.create).not.toHaveBeenCalled();
-    expect(agentSvc.updatePermissions).toHaveBeenCalledWith("agent-1", expect.objectContaining({ canCreateAgents: false }));
-    expect(accessSvc.setPrincipalPermission).toHaveBeenCalledWith("company-1", "agent", "agent-1", "agents:create", false, null);
+    expect(agentSvc.updatePermissions).not.toHaveBeenCalled();
+    expect(accessSvc.setPrincipalPermission).not.toHaveBeenCalledWith("company-1", "agent", "agent-1", "agents:create", false, null);
     expect(accessSvc.setPrincipalPermission).not.toHaveBeenCalledWith("company-1", "agent", "agent-1", "agents:create", true, expect.anything(), expect.anything());
     agentSvc.update.mockReset();
     agentSvc.updatePermissions.mockReset();

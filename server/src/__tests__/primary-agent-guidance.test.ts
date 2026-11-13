@@ -4,7 +4,7 @@ import { executeRunnerApi } from "../services/native-runtime/runner-api-client.j
 import { startOpenCodeMcpBridge } from "../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.js";
 import { searchApiAction } from "../../../packages/paperclip-runner/src/protocol-actions/search-api.js";
 
-it("delivers Space primary profile guidance through actual API discovery and bounded OpenCode MCP output", async () => {
+it("delivers default-agent profile guidance through actual API discovery and bounded OpenCode MCP output", async () => {
   const descriptor = searchApiAction.live.descriptor;
   let calls = 0;
   const bridge = await startOpenCodeMcpBridge({
@@ -18,7 +18,7 @@ it("delivers Space primary profile guidance through actual API discovery and bou
     const response = await fetch(bridge.url, { method: "POST", headers: {
       Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream",
     }, body: JSON.stringify({ jsonrpc: "2.0", id: "primary-guidance", method: "tools/call",
-      params: { name: "paperclip_search_api", arguments: { query: "set primary agent", limit: 2 } } }) });
+      params: { name: "paperclip_search_api", arguments: { query: "set default agent", limit: 2 } } }) });
     expect(response.status).toBe(200);
     const wire = await response.json() as { result: { isError?: boolean; content: Array<{ type: string; text: string }> } };
     expect(wire.result.isError).not.toBe(true);
@@ -29,9 +29,9 @@ it("delivers Space primary profile guidance through actual API discovery and bou
     const operation = discovered.results.find(row => row.operationId === "PUT /api/companies/{companyId}/primary-agent/me");
     expect(operation).toBeDefined();
     expect(operation!.description).toMatch(/agent.{0,12}profile/i);
-    expect(operation!.description).toContain("Set as Space primary");
+    expect(operation!.description).toContain("Set as default agent");
     expect(operation!.description).toMatch(/confirm.{0,30}replac/i);
-    expect(operation!.description).toMatch(/chat picker.{0,70}does not change/i);
+    expect(operation!.description).toMatch(/initial Chat fallback/i);
     expect(operation!.authorization.actor).toBe("board");
     expect(operation!.description).toContain("Agent credentials cannot access this board route");
     expect(operation!.requestBody?.content["application/json"].schema.properties.primaryAgentId).toMatchObject({ type: "string", format: "uuid" });

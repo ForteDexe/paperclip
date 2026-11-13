@@ -64,14 +64,15 @@ Example: A CEO agent's adapter config tells it to "review what your executives a
 
 Then you define who reports to the CEO: a CTO managing programmers, a CMO managing the marketing team, and so on. Every agent in the tree gets their own adapter configuration.
 
-Each person also has a personal primary agent per company. Their first human-created
-agent becomes primary automatically; they can choose another from its profile.
-An existing primary is replaced only after confirmation. The crown appears on the
-profile and roster, while the primary stays first in the Agents sidebar without a
-sidebar crown. Stars remain independent. Task drafts, explicit assignments, and
-recent choices take precedence over the primary; Chat similarly reopens a valid
-recent conversation before falling back to the primary. Opening Chat does not
-start execution. This preference does not change the org chart or permissions.
+Each Space has one **default agent**. Its first human-created agent becomes the
+default automatically; the user can choose another from an agent profile. An
+existing default is replaced only after confirmation. The pin appears on the
+profile, and the default stays first in the Agents sidebar. Stars remain
+independent. Task drafts, explicit assignments, and recent choices take precedence
+over the default; Chat similarly reopens a valid recent conversation before
+falling back to it. Opening Chat does not start execution. Being the default is a
+routing preference only: it does not change reporting relationships, rank, or
+permissions.
 
 ### Agent Execution
 

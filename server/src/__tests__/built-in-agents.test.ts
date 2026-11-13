@@ -700,10 +700,10 @@ describeEmbeddedPostgres("built-in agents", () => {
     expect(enabled.agent?.adapterConfig).not.toMatchObject({ model: "gpt-5.4", apiKey: "do-not-copy" });
 
     // Startup reconcile keeps the enabled bundle tracking stock and re-grants
-    // the root/company default permissions.
+    // only permissions declared by built-in definitions. A root title adds none.
     const result = await reconcileBuiltInAgentsOnStartup(db);
     expect(result.autoEnsured).toBeGreaterThanOrEqual(1);
-    expect(result.defaultGrantsEnsured).toBeGreaterThanOrEqual(4);
+    expect(result.defaultGrantsEnsured).toBeGreaterThanOrEqual(2);
 
     const rootGrantKeys = await permissionKeysForAgent(root.id);
     expect(rootGrantKeys).toEqual(expect.arrayContaining([

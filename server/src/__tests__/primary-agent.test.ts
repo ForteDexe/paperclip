@@ -13,7 +13,7 @@ import { primaryAgentService } from "../services/primary-agent.js";
 const support = await getEmbeddedPostgresTestSupport();
 if (!support.supported) console.warn(`Primary agent database tests unavailable: ${support.reason}`);
 
-(support.supported ? describe : describe.skip)("Space primary agent", () => {
+(support.supported ? describe : describe.skip)("default agent", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 

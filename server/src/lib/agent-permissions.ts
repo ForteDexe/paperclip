@@ -68,7 +68,7 @@ export function permissionsImplyLowTrust(permissions: unknown): boolean {
 export type AgentPermissionsContext = "create" | "stored";
 
 export function defaultAgentPermissions(
-  options?: { lowTrust?: boolean; context?: AgentPermissionsContext; role?: string | null },
+  _options?: { lowTrust?: boolean; context?: AgentPermissionsContext },
 ): NormalizedAgentPermissions {
   return {
     // Authority is explicit. Titles and coordination relationships never grant
@@ -78,44 +78,28 @@ export function defaultAgentPermissions(
   };
 }
 
-/**
- * Records who turned off a CEO's hiring through the permissions control.
- * Several ordinary writes save canCreateAgents: false without meaning to
- * restrict a CEO: a full-object save of a stale read, an import update whose
- * manifest omits the field, and the low-trust default. So a saved false
- * restricts a CEO only together with this record.
- */
-export const CEO_HIRING_DENIAL_KEY = "ceoHiringDeniedBy";
-export type CeoHiringDenial = { actorType: "user" | "agent"; actorId: string | null; at: string };
-
-export function ceoHiringDenial(permissions: unknown): CeoHiringDenial | null {
-  const denial = asRecord(asRecord(permissions)?.[CEO_HIRING_DENIAL_KEY]);
-  return denial && (denial.actorType === "user" || denial.actorType === "agent") && typeof denial.at === "string"
-    ? { actorType: denial.actorType, actorId: typeof denial.actorId === "string" ? denial.actorId : null, at: denial.at }
-    : null;
-}
+const LEGACY_CEO_HIRING_DENIAL_KEY = "ceoHiringDeniedBy";
 
 export function normalizeAgentPermissions(
   permissions: unknown,
-  options?: { context?: AgentPermissionsContext; role?: string | null },
+  options?: { context?: AgentPermissionsContext },
 ): NormalizedAgentPermissions {
   const lowTrust = permissionsImplyLowTrust(permissions);
   const defaults = defaultAgentPermissions({
     lowTrust,
     context: options?.context ?? "stored",
-    role: options?.role,
   });
   const record = asRecord(permissions);
   if (!record) {
     return defaults;
   }
 
-  const { [CEO_HIRING_DENIAL_KEY]: _denial, ...rest } = record;
-  const denial = ceoHiringDenial(record);
+  // Old releases paired CEO-derived authority with a denial marker. Titles no
+  // longer grant capabilities, so discard that compatibility-only metadata.
+  const { [LEGACY_CEO_HIRING_DENIAL_KEY]: _legacyDenial, ...rest } = record;
   const canCreateAgents = typeof record.canCreateAgents === "boolean" ? record.canCreateAgents : defaults.canCreateAgents;
   return {
     ...rest,
-    ...(canCreateAgents === false && denial ? { [CEO_HIRING_DENIAL_KEY]: denial } : {}),
     canCreateAgents,
     canCreateSkills:
       typeof record.canCreateSkills === "boolean"

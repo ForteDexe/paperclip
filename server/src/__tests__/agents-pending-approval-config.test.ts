@@ -188,7 +188,7 @@ describeEmbeddedPostgres("pending approval agent config integrity", () => {
     });
   });
 
-  it("keeps a CEO's hiring authority as saved when another permission changes", async () => {
+  it("keeps agent creation authority explicit and removes legacy CEO metadata", async () => {
     const companyId = await seedCompany();
     const service = agentService(db);
     const insertCeo = (permissions: Record<string, unknown>) => db.insert(agents).values({
@@ -199,21 +199,22 @@ describeEmbeddedPostgres("pending approval agent config integrity", () => {
 
     const legacy = await insertCeo({});
     await service.updatePermissions(legacy.id, { canCreateSkills: false } as never);
-    expect(await stored(legacy.id)).toMatchObject({ canCreateAgents: true, canCreateSkills: false });
+    expect(await stored(legacy.id)).toMatchObject({ canCreateAgents: false, canCreateSkills: false });
 
     const unrecorded = await insertCeo({ canCreateAgents: false, canCreateSkills: true });
     await service.updatePermissions(unrecorded.id, { canCreateSkills: false } as never);
-    expect(await stored(unrecorded.id)).toMatchObject({ canCreateAgents: true, canCreateSkills: false });
+    expect(await stored(unrecorded.id)).toMatchObject({ canCreateAgents: false, canCreateSkills: false });
 
     const denial = { actorType: "user", actorId: "board-user", at: "2026-11-08T00:00:00.000Z" };
     const denied = await insertCeo({ canCreateAgents: false, canCreateSkills: true, ceoHiringDeniedBy: denial });
     await service.updatePermissions(denied.id, { canCreateSkills: false } as never);
-    expect(await stored(denied.id)).toMatchObject({ canCreateAgents: false, canCreateSkills: false, ceoHiringDeniedBy: denial });
+    expect(await stored(denied.id)).toMatchObject({ canCreateAgents: false, canCreateSkills: false });
+    expect(await stored(denied.id)).not.toHaveProperty("ceoHiringDeniedBy");
 
-    // An import update whose manifest omits the field keeps the board's denial,
-    // and a supplied denial record is never taken from input.
+    // Generic configuration writes also discard the retired marker.
     await service.update(denied.id, { permissions: {} } as never);
-    expect(await stored(denied.id)).toMatchObject({ canCreateAgents: false, ceoHiringDeniedBy: denial });
+    expect(await stored(denied.id)).toMatchObject({ canCreateAgents: false });
+    expect(await stored(denied.id)).not.toHaveProperty("ceoHiringDeniedBy");
     const open = await insertCeo({ canCreateAgents: true });
     await service.update(open.id, { permissions: { canCreateAgents: false, ceoHiringDeniedBy: denial } } as never);
     expect(await stored(open.id)).not.toHaveProperty("ceoHiringDeniedBy");

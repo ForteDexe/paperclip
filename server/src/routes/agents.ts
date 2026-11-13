@@ -2775,7 +2775,7 @@ export function agentRoutes(
   }
 
   // The legacy first-agent onboarding path receives the operational control-plane skill.
-  // Ordinary agents, including Space primary agents, receive only explicit user choices.
+  // Ordinary agents, including the default agent, receive only explicit user choices.
   function defaultOnboardingSkillSelections(
     adapterType: string,
     boardOnboardingFirstAgent = false,
@@ -5070,10 +5070,18 @@ export function agentRoutes(
 
     const effectiveCanAssignTasks = Boolean(req.body.canAssignTasks);
     await access.ensureMembership(agent.companyId, "agent", agent.id, "member", "active");
-    // The toggle is the visible hiring control: turning it off also removes an
-    // explicit agents:create grant that would otherwise still allow hiring.
-    if (req.body.canCreateAgents === false) {
-      await access.setPrincipalPermission(agent.companyId, "agent", agent.id, "agents:create", false, null);
+    // Agent creation authority is an explicit grant. The compatibility field
+    // remains in the agent payload for older clients, but is never an authority
+    // source on its own.
+    if (typeof req.body.canCreateAgents === "boolean") {
+      await access.setPrincipalPermission(
+        agent.companyId,
+        "agent",
+        agent.id,
+        "agents:create",
+        req.body.canCreateAgents,
+        req.actor.type === "board" ? (req.actor.userId ?? null) : null,
+      );
     }
     await access.setPrincipalPermission(
       agent.companyId,
