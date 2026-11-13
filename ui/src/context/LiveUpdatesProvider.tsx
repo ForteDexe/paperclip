@@ -1257,30 +1257,6 @@ function buildActivityToast(
   };
 }
 
-function buildJoinRequestToast(
-  payload: Record<string, unknown>,
-): ToastInput | null {
-  const entityType = readString(payload.entityType);
-  const action = readString(payload.action);
-  const entityId = readString(payload.entityId);
-  const details = readRecord(payload.details);
-
-  if (entityType !== "join_request" || !action || !entityId) return null;
-  if (action !== "join.requested" && action !== "join.request_replayed")
-    return null;
-
-  const requestType = readString(details?.requestType);
-  const label = requestType === "agent" ? "Agent" : "Someone";
-
-  return {
-    title: `${label} wants to join`,
-    body: "A new join request is waiting for approval.",
-    tone: "info",
-    action: { label: "View inbox", href: "/inbox/mine" },
-    dedupeKey: `join-request:${entityId}`,
-  };
-}
-
 function buildAgentStatusToast(
   payload: Record<string, unknown>,
   nameOf: (id: string) => string | null,
@@ -1860,9 +1836,9 @@ function invalidateActivityQueries(
   }
 
   if (entityType === "join_request") {
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.access.joinRequests(companyId),
-    });
+    // Agent onboarding still uses join requests. Human membership requests are
+    // filtered by the consumers and never surface in Outpost.
+    queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(companyId) });
     return;
   }
 
@@ -2185,7 +2161,7 @@ function handleLiveEvent(
         expectedCompanyId,
         payload,
         currentActor,
-      ) : null) ?? buildJoinRequestToast(payload);
+      ) : null);
     if (
       toast &&
       !shouldSuppressActivityToastForVisibleIssue(

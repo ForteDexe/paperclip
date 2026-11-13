@@ -40,6 +40,7 @@ export function useOpenAgentChat(companyId: string | null, userId: string | null
   }, [companyId, userId]);
   return useCallback(async (agent: Agent, signal?: AbortSignal) => {
     if (!companyId || agent.companyId !== companyId) throw new Error("Choose an agent from this outpost.");
+    if (agent.status === "terminated") throw new Error("Terminated agents cannot start a chat.");
     const current = scope.current;
     const chat = await agentChatsApi.ensure(companyId, agent.id);
     client.setQueryData(queryKeys.agentChats.detail(companyId, userId, agent.id), chat);

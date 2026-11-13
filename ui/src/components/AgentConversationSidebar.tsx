@@ -41,7 +41,9 @@ export function AgentConversationSidebar({ agents, existingChatAgentIds, availab
   const headingId = useId();
   const unreadIds = useMemo(() => new Set(unreadAgentIds), [unreadAgentIds]);
   const query = search.trim().toLocaleLowerCase();
-  const visible = agents.filter(agent => `${agent.name} ${agent.title ?? ""} ${agent.role}`.toLocaleLowerCase().includes(query));
+  const eligibleAgents = agents.filter(agent => agent.status !== "terminated");
+  const eligibleAvailableAgents = availableAgents.filter(agent => agent.status !== "terminated");
+  const visible = eligibleAgents.filter(agent => `${agent.name} ${agent.title ?? ""} ${agent.role}`.toLocaleLowerCase().includes(query));
   function focusSearch() {
     setSearch("");
     searchRef.current?.focus();
@@ -81,17 +83,17 @@ export function AgentConversationSidebar({ agents, existingChatAgentIds, availab
           <AgentAvatar agent={agent} size={40} />
           <span className="agent-pin-text flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="truncate text-sm font-medium">{agent.name}</span>
-            <span className="truncate text-xs text-muted-foreground">{agent.status === "terminated" ? "Terminated" : agent.title ?? agent.role}</span>
+            <span className="truncate text-xs text-muted-foreground">{agent.title ?? agent.role}</span>
           </span>
           {unreadCount > 0 ? <Badge variant="ghost" aria-label={`${unreadCount} unread ${unreadCount === 1 ? "message" : "messages"} from ${agent.name}`} className="shrink-0 bg-primary font-mono tabular-nums text-primary-foreground">{unreadCount}</Badge>
             : unreadIds.has(agent.id) && <span role="img" aria-label={`Unread messages from ${agent.name}`} className="size-2 shrink-0 rounded-full bg-primary" />}
         </Link>{renderAgentAction?.(agent)}</div>;
         })}
       </nav> : !agents.length && (historyLoading || historyError) ? null : <div className="flex flex-col items-start gap-2 px-2 py-6">
-        <p className="text-sm font-medium">{agents.length ? "No agents found" : "No chats yet"}</p>
-        <p className="text-xs leading-relaxed text-muted-foreground">{agents.length ? "Try another name or role." : "Choose an agent to start a conversation."}</p>
-        {!agents.length && <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>Choose an agent</Button>}
-        {agents.length > 0 && <Button variant="outline" size="sm" onClick={focusSearch}>Clear search</Button>}
+        <p className="text-sm font-medium">{eligibleAgents.length ? "No agents found" : "No chats yet"}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{eligibleAgents.length ? "Try another name or role." : "Choose an agent to start a conversation."}</p>
+        {!eligibleAgents.length && <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>Choose an agent</Button>}
+        {eligibleAgents.length > 0 && <Button variant="outline" size="sm" onClick={focusSearch}>Clear search</Button>}
       </div>}
       {onCreateAgent && !loading && !error && <button type="button" onClick={onCreateAgent}
         className="flex min-w-0 items-center gap-3 rounded-md px-2.5 py-3 text-left hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
@@ -104,9 +106,9 @@ export function AgentConversationSidebar({ agents, existingChatAgentIds, availab
         <Users className="size-4" />Browse all agents
       </Button>
     </div>}
-    <AgentChatPicker agents={availableAgents} open={pickerOpen} onOpenChange={setPickerOpen}
+    <AgentChatPicker agents={eligibleAvailableAgents} open={pickerOpen} onOpenChange={setPickerOpen}
       unreadMessageCounts={unreadMessageCounts}
-      existingChatAgentIds={existingChatAgentIds ?? agents.map(agent => agent.id)} loading={loading} error={error} onRetry={onRetry}
+      existingChatAgentIds={existingChatAgentIds ?? eligibleAgents.map(agent => agent.id)} loading={loading} error={error} onRetry={onRetry}
       renderAgentIcon={agent => <AgentAvatar agent={agent} size={32} />}
       onSelect={async (agent, signal) => {
         if (onAddChat) await onAddChat(agent, signal);

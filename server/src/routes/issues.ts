@@ -5024,10 +5024,7 @@ export function issueRoutes(
       res.status(403).json({ error: "Forbidden" });
       return false;
     }
-    if (
-      actorAgent.role === "ceo" ||
-      Boolean(actorAgent.permissions?.canCreateAgents)
-    )
+    if (Boolean(actorAgent.permissions?.canCreateAgents))
       return true;
     res.status(403).json({ error: "Missing permission to link approvals" });
     return false;

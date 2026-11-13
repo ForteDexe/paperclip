@@ -782,18 +782,11 @@ describe("chat setup and identity-link clipboard actions", () => {
     expect(copied).toEqual([]);
   });
 
-  it("copies a reusable Slack invitation without granting access or exposing a private confirmation token", async () => {
+  it("does not expose a person-invitation action for Slack", async () => {
     await render("slack", true);
-    await click("Invite people");
-    const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("Invite people to talk to Maya");
-    expect(dialog.textContent).toContain("wait for an admin to approve");
-    const copy = [...dialog.querySelectorAll("button")].find(button => button.textContent === "Copy invitation")!;
-    flushSync(() => copy.click());
-    await settle();
-    expect(copied[0]).toContain("connect");
-    expect(copied[0]).toContain("Talk to Maya");
-    expect(copied[0]).not.toContain("token=");
+    expect(container.textContent).not.toContain("Invite people");
+    expect(container.textContent).not.toContain("Copy invitation");
+    expect(copied).toEqual([]);
     expect(mocks.createLinkIntent).not.toHaveBeenCalled();
     expect(mocks.update).not.toHaveBeenCalled();
   });

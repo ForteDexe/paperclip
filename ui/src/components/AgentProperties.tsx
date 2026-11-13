@@ -1,7 +1,7 @@
 import { AgentIdentity } from "@/components/AgentIdentity";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@/lib/router";
-import { AGENT_ROLE_LABELS, type Agent, type AgentRuntimeState } from "@paperclipai/shared";
+import type { Agent, AgentRuntimeState } from "@paperclipai/shared";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
 import { agentDisplayAdapterType, getAdapterLabel } from "../adapters/adapter-display-registry";
@@ -15,8 +15,6 @@ interface AgentPropertiesProps {
   agent: Agent;
   runtimeState?: AgentRuntimeState;
 }
-
-const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
 function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -52,14 +50,9 @@ export function AgentProperties({ agent, runtimeState }: AgentPropertiesProps) {
             </span>
           </PropertyRow>
         )}
-        <PropertyRow label="Role">
-          <span className="text-sm">{roleLabels[agent.role] ?? agent.role}</span>
+        <PropertyRow label="Title">
+          <span className="text-sm">{agent.title || "Scope owner"}</span>
         </PropertyRow>
-        {agent.title && (
-          <PropertyRow label="Title">
-            <span className="text-sm">{agent.title}</span>
-          </PropertyRow>
-        )}
         <PropertyRow label="Adapter">
           <span className="text-sm font-mono">{getAdapterLabel(agentDisplayAdapterType(agent))}</span>
         </PropertyRow>

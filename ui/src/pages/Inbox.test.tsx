@@ -574,7 +574,14 @@ describe("Inbox toolbar", () => {
     localStorage.setItem("paperclip:inbox:group-by", "none");
     apiMocks.approvalsList.mockResolvedValue([createApproval()]);
     setFailureRuns([createFailedRun()]);
-    apiMocks.joinRequestsList.mockResolvedValue([createJoinRequest()]);
+    apiMocks.joinRequestsList.mockResolvedValue([
+      createJoinRequest({
+        requestType: "agent",
+        agentName: "Invited worker",
+        adapterType: "codex_local",
+        requesterUser: null,
+      }),
+    ]);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
@@ -591,14 +598,14 @@ describe("Inbox toolbar", () => {
     await vi.waitFor(() => {
       expect(container.textContent).toContain("Hire Agent: New teammate");
       expect(container.textContent).toContain("Failed run");
-      expect(container.textContent).toContain("Jordan Example");
+      expect(container.textContent).toContain("Invited worker");
     });
 
     const rowFor = (text: string) =>
       [...container.querySelectorAll("[data-inbox-item]")]
         .find((row) => row.textContent?.includes(text));
 
-    for (const text of ["Hire Agent: New teammate", "Failed run", "Jordan Example"]) {
+    for (const text of ["Hire Agent: New teammate", "Failed run", "Invited worker"]) {
       const row = rowFor(text);
       expect(row, `missing inbox row for ${text}`).toBeDefined();
       expect(row?.querySelector('button[aria-label="Mark as read"]')).not.toBeNull();
@@ -618,6 +625,28 @@ describe("Inbox toolbar", () => {
       expect(button.className).toContain("min-w-(--sz-64px)");
       expect(button.className).toContain("justify-center");
     });
+
+    act(() => root.unmount());
+  });
+
+  it("does not surface human membership requests", async () => {
+    routerMock.location.pathname = "/inbox/mine";
+    apiMocks.joinRequestsList.mockResolvedValue([createJoinRequest()]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
+    });
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Inbox />
+        </QueryClientProvider>,
+      );
+    });
+    await vi.waitFor(() => expect(apiMocks.joinRequestsList).toHaveBeenCalled());
+    expect(container.textContent).not.toContain("Jordan Example");
+    expect(container.textContent).not.toContain("joiner@example.com");
 
     act(() => root.unmount());
   });

@@ -1,5 +1,4 @@
 import express from "express";
-import { unprocessable, forbidden } from "../errors.js";
 import request from "supertest";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
@@ -153,29 +152,14 @@ describe("adapter routes", () => {
       expect(typeof adapter.capabilities.supportsAcp).toBe("boolean");
     }
   });
-  it("projects only the enabled company-local candidate and exact model", async () => {
-    mockCandidateAdmission.mockImplementation(({ companyId }) => companyId === "company-1"
-      ? { agent: "antigravity", model: "exact-google-model", profileDigest: "private-profile", nativeClosureDigest: "private-closure" } : undefined);
-    const local = createApp({}, { resolveRunnerTarget: async () => ({ driver: "local" }) });
-    const scoped = await request(local).get("/api/adapters?companyId=company-1");
-    expect(scoped.status).toBe(200);
-    expect(scoped.body.find((adapter: any) => adapter.type === "paperclip_runner").candidateHarnesses)
-      .toEqual([{ agent: "antigravity", model: "exact-google-model" }]);
-    expect(JSON.stringify(scoped.body)).not.toContain("private-profile");
-    expect(JSON.stringify(scoped.body)).not.toContain("private-closure");
-    for (const query of ["", "?companyId=other-company"]) {
-      const response = await request(local).get(`/api/adapters${query}`);
-      expect(response.status).toBe(200);
-      expect(response.body.every((adapter: any) => adapter.candidateHarnesses === undefined)).toBe(true);
-    }
-    const remote = await request(createApp({}, { resolveRunnerTarget: async () => ({ driver: "ssh" }) }))
-      .get("/api/adapters?companyId=company-1&environmentId=remote");
-    expect(remote.body.every((adapter: any) => adapter.candidateHarnesses === undefined)).toBe(true);
-    mockAdapterPluginStore.getDisabledAdapterTypes.mockReturnValue(["paperclip_runner"]);
-    const disabled = await request(local).get("/api/adapters?companyId=company-1");
-    expect(disabled.body.find((adapter: any) => adapter.type === "paperclip_runner").candidateHarnesses).toBeUndefined();
+  it("GET /api/adapters exposes only Claude and Codex for agent configuration", async () => {
+    const res = await request(createApp()).get("/api/adapters");
+    expect(res.status).toBe(200);
+    expect(res.body.map((adapter: { type: string }) => adapter.type)).toEqual([
+      "claude_local",
+      "codex_local",
+    ]);
   });
-
   it("keeps ordinary adapter discovery available after candidate startup authority expires", async () => {
     mockCandidateAdmission.mockImplementation(() => { throw new Error("ACPX candidate startup authorization expired"); });
     const app = createApp({}, { resolveRunnerTarget: async () => ({ driver: "local" }) });
@@ -201,25 +185,6 @@ describe("adapter routes", () => {
       }
       expect(warn).toHaveBeenCalledExactlyOnceWith({ code: "ANTIGRAVITY_CANDIDATE_ADMISSION_INVALID" }, "Invalid Google Antigravity preview authorization");
     } finally { warn.mockRestore(); }
-  });
-
-  it("keeps the shared runner implementation available for Codex without the experimental flag", async () => {
-    const disabledResponse = await request(createApp()).get("/api/adapters");
-    expect(disabledResponse.status).toBe(200);
-    expect(disabledResponse.body.find((adapter: any) => adapter.type === "paperclip_runner"))
-      .toMatchObject({ disabled: false });
-
-    const enabledResponse = await request(createApp({}, {
-      getNativeRunnerEnabled: async () => true,
-    })).get("/api/adapters");
-    expect(enabledResponse.status).toBe(200);
-    expect(enabledResponse.body.find((adapter: any) => adapter.type === "paperclip_runner"))
-      .toMatchObject({
-        disabled: false,
-        capabilities: {
-          supportsInstructionsBundle: true,
-        },
-      });
   });
 
   it.each<[RunnerTarget, string]>([
@@ -261,30 +226,6 @@ describe("adapter routes", () => {
     expect(resolveRunnerTarget).not.toHaveBeenCalled();
   });
 
-  it("keeps Cursor API discovery available without granting local support when the implicit managed Computer is unavailable", async () => {
-    const unavailable = unprocessable("Managed Computer unavailable", { code: "managed_sandbox_unavailable" });
-    const app = createApp({}, { resolveRunnerTarget: async () => { throw unavailable; } });
-    const response = await request(app).get("/api/adapters?companyId=company-1");
-    expect(response.status).toBe(200);
-    expect(response.body.find((adapter: any) => adapter.type === "cursor_cloud")).toMatchObject({ supportedRunners: ["paperclip"], defaultRunner: "paperclip" });
-    expect(response.body.find((adapter: any) => adapter.type === "codex_local").supportedRunners).toEqual([]);
-    const explicit = await request(app).get("/api/adapters?companyId=company-1&environmentId=selected");
-    expect(explicit.status).toBe(422);
-    const foreign = await request(createApp({}, { resolveRunnerTarget: async () => { throw forbidden("Foreign Computer", { code: "environment_company_mismatch" }); } })).get("/api/adapters?companyId=company-1");
-    expect(foreign.status).toBe(403);
-  });
-
-  it("does not offer Cursor execution under Kubernetes-only policy, including the unavailable managed Computer fallback", async () => {
-    for (const resolveRunnerTarget of [
-      async () => ({ driver: "sandbox", executionMode: "kubernetes" as const }),
-      async () => { throw unprocessable("Managed Computer unavailable", { code: "managed_sandbox_unavailable", executionMode: "kubernetes" }); },
-    ]) {
-      const response = await request(createApp({}, { resolveRunnerTarget })).get("/api/adapters?companyId=company-1");
-      expect(response.status).toBe(200);
-      expect(response.body.find((adapter: any) => adapter.type === "cursor_cloud").supportedRunners).toEqual([]);
-    }
-  });
-
   it.each(["environmentId=selected", "companyId=", "companyId=one&companyId=two", "companyId=one&environmentId="])("rejects malformed discovery scope before resolution (%s)", async query => {
     const resolveRunnerTarget = vi.fn();
     const response = await request(createApp({}, { resolveRunnerTarget })).get(`/api/adapters?${query}`);
@@ -292,23 +233,12 @@ describe("adapter routes", () => {
     expect(resolveRunnerTarget).not.toHaveBeenCalled();
   });
 
-  it("keeps the shared implementation available for Dot independently, while honoring adapter-admin disabling", async () => {
-    const options = { getNativeRunnerEnabled: async () => false, getOpenAiDotEnabled: async () => true };
-    const enabled = await request(createApp({}, options)).get("/api/adapters");
-    expect(enabled.body.find((adapter: any) => adapter.type === "paperclip_runner")).toMatchObject({ disabled: false });
-    mockAdapterPluginStore.getDisabledAdapterTypes.mockReturnValue(["paperclip_runner"]);
-    const disabled = await request(createApp({}, options)).get("/api/adapters");
-    expect(disabled.body.find((adapter: any) => adapter.type === "paperclip_runner")).toMatchObject({ disabled: true });
-  });
-
-  it("GET /api/adapters returns correct capabilities for built-in adapters", async () => {
+  it("GET /api/adapters returns the expected Codex capabilities", async () => {
     const app = createApp();
 
     const res = await request(app).get("/api/adapters");
     expect(res.status).toBe(200);
 
-    // codex_local has instructions bundle + skills + jwt, no materialized skills
-    // (claude_local is overridden by beforeEach, so check codex_local instead)
     const codexLocal = res.body.find((a: any) => a.type === "codex_local");
     expect(codexLocal).toBeDefined();
     expect(codexLocal.capabilities).toMatchObject({
@@ -327,91 +257,6 @@ describe("adapter routes", () => {
       },
     });
 
-    // process adapter should have no local capabilities
-    const processAdapter = res.body.find((a: any) => a.type === "process");
-    expect(processAdapter).toBeDefined();
-    expect(processAdapter.capabilities).toMatchObject({
-      supportsInstructionsBundle: false,
-      supportsSkills: false,
-      supportsLocalAgentJwt: true,
-      requiresMaterializedRuntimeSkills: false,
-      supportsAcp: false,
-    });
-
-    // cursor adapter should require materialized runtime skills
-    const cursorAdapter = res.body.find((a: any) => a.type === "cursor");
-    expect(cursorAdapter).toBeDefined();
-    expect(cursorAdapter.capabilities.requiresMaterializedRuntimeSkills).toBe(true);
-    expect(cursorAdapter.capabilities.supportsInstructionsBundle).toBe(true);
-    expect(cursorAdapter.capabilities.supportsAcp).toBe(false);
-
-    const geminiAdapter = res.body.find((a: any) => a.type === "gemini_local");
-    expect(geminiAdapter).toBeDefined();
-    expect(geminiAdapter.capabilities).toMatchObject({
-      supportsInstructionsBundle: true,
-      supportsSkills: true,
-      supportsLocalAgentJwt: true,
-      requiresMaterializedRuntimeSkills: true,
-      supportsAcp: true,
-    });
-    expect(geminiAdapter.acp).toMatchObject({
-      agentId: "gemini",
-      skillsMode: "ephemeral",
-      prerequisites: {
-        nodeRange: ">=24.11.0",
-        packages: ["@google/gemini-cli"],
-      },
-    });
-
-    const grokAdapter = res.body.find((a: any) => a.type === "grok_local");
-    expect(grokAdapter).toBeDefined();
-    expect(grokAdapter.capabilities).toMatchObject({
-      supportsInstructionsBundle: true,
-      supportsSkills: true,
-      supportsLocalAgentJwt: true,
-      requiresMaterializedRuntimeSkills: true,
-      supportsAcp: false,
-    });
-
-    const kimiAdapter = res.body.find((a: any) => a.type === "kimi_local");
-    expect(kimiAdapter).toBeDefined();
-    expect(kimiAdapter.capabilities).toMatchObject({
-      supportsInstructionsBundle: true,
-      supportsSkills: true,
-      supportsLocalAgentJwt: true,
-      requiresMaterializedRuntimeSkills: true,
-      supportsAcp: true,
-    });
-    expect(kimiAdapter.acp).toMatchObject({
-      agentId: "kimi",
-      skillsMode: "ephemeral",
-      prerequisites: {
-        nodeRange: ">=20.0.0",
-        packages: ["@moonshot-ai/kimi-code"],
-      },
-    });
-
-    const hermesLocal = res.body.find((a: any) => a.type === "hermes_local");
-    expect(hermesLocal).toBeDefined();
-    expect(hermesLocal.source).toBe("builtin");
-    expect(hermesLocal.capabilities).toMatchObject({
-      supportsInstructionsBundle: true,
-      supportsSkills: true,
-      supportsLocalAgentJwt: true,
-      requiresMaterializedRuntimeSkills: false,
-      supportsAcp: false,
-    });
-
-    const hermesGateway = res.body.find((a: any) => a.type === "hermes_gateway");
-    expect(hermesGateway).toBeDefined();
-    expect(hermesGateway.source).toBe("builtin");
-    expect(hermesGateway.capabilities).toMatchObject({
-      supportsInstructionsBundle: false,
-      supportsSkills: false,
-      supportsLocalAgentJwt: false,
-      requiresMaterializedRuntimeSkills: false,
-      supportsAcp: false,
-    });
   });
 
   it("GET /api/adapters derives supportsSkills from listSkills/syncSkills presence", async () => {
@@ -420,20 +265,9 @@ describe("adapter routes", () => {
     const res = await request(app).get("/api/adapters");
     expect(res.status).toBe(200);
 
-    // http adapter has no listSkills/syncSkills
-    const httpAdapter = res.body.find((a: any) => a.type === "http");
-    expect(httpAdapter).toBeDefined();
-    expect(httpAdapter.capabilities.supportsSkills).toBe(false);
-
-    // codex_local has listSkills/syncSkills
     const codexLocal = res.body.find((a: any) => a.type === "codex_local");
     expect(codexLocal).toBeDefined();
     expect(codexLocal.capabilities.supportsSkills).toBe(true);
-
-    // acpx_local remains registered only as a tombstone for legacy rows.
-    const acpxLocal = res.body.find((a: any) => a.type === "acpx_local");
-    expect(acpxLocal).toBeDefined();
-    expect(acpxLocal.capabilities.supportsSkills).toBe(false);
   });
 
   it("uses the active adapter when resolving config schema for a paused builtin override", async () => {
@@ -636,17 +470,6 @@ describe("adapter routes", () => {
         expect.objectContaining({ key: "apiKey", required: true }),
       ]),
     );
-  });
-
-  it("GET /api/adapters lists acpx_local only as a model-less tombstone", async () => {
-    const app = createApp();
-
-    const res = await request(app).get("/api/adapters");
-
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    const acpxLocal = res.body.find((a: any) => a.type === "acpx_local");
-    expect(acpxLocal).toBeDefined();
-    expect(acpxLocal.modelsCount).toBe(0);
   });
 
   it("rejects signed-in users without org access", async () => {

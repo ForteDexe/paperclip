@@ -9,6 +9,7 @@ import {
   heartbeatRuns,
   issues,
   projectWorkspaces,
+  principalPermissionGrants,
   projects,
 } from "@paperclipai/db";
 import { LOW_TRUST_REVIEW_PRESET } from "@paperclipai/shared";
@@ -45,6 +46,7 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
     await db.delete(projectWorkspaces);
     await db.delete(projects);
     await db.delete(heartbeatRuns);
+    await db.delete(principalPermissionGrants);
     await db.delete(agents);
     await db.delete(companies);
   });
@@ -135,10 +137,16 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
     })).resolves.toBeUndefined();
   });
 
-  it("allows CEO agents to manage any project workspace runtime services in their company", async () => {
+  it("allows explicitly granted agents to manage any project workspace runtime services", async () => {
     const companyId = await seedCompany();
     const { projectWorkspaceId } = await seedProjectWorkspace(companyId);
     const ceoAgentId = await seedAgent(companyId, { role: "ceo", name: "CEO" });
+    await db.insert(principalPermissionGrants).values({
+      companyId,
+      principalType: "agent",
+      principalId: ceoAgentId,
+      permissionKey: "tools:manage_runtime",
+    });
 
     await expect(assertCanManageProjectWorkspaceRuntimeServices(db, {
       actor: {
@@ -200,7 +208,7 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
     });
   });
 
-  it("allows standard CEO runtime service mutations for low-trust workspace issues", async () => {
+  it("does not let a legacy CEO title bypass low-trust workspace policy", async () => {
     const companyId = await seedCompany();
     const { projectId, projectWorkspaceId } = await seedProjectWorkspace(companyId);
     const ceoAgentId = await seedAgent(companyId, { role: "ceo", name: "CEO" });
@@ -235,7 +243,10 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
     } as any, {
       companyId,
       projectWorkspaceId,
-    })).resolves.toBeUndefined();
+    })).rejects.toMatchObject({
+      status: 403,
+      message: "Low-trust runs cannot manage workspace runtime services unless the boundary grants runtime.manage",
+    });
   });
 
   it("rejects runtime service mutations when only the run policy is low-trust without runtime.manage", async () => {

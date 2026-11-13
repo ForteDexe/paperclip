@@ -13,7 +13,7 @@ import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
 import { Download, Maximize2, Minus, Network, Plus, Upload } from "lucide-react";
-import { AGENT_ROLE_LABELS, type Agent } from "@paperclipai/shared";
+import type { Agent } from "@paperclipai/shared";
 import { useCloudInstance } from "@/hooks/useCloudInstance";
 import { useHiddenSettings } from "@/hooks/useHiddenSettings";
 
@@ -38,7 +38,6 @@ interface LayoutNode {
   y: number;
   children: LayoutNode[];
 }
-
 interface Point {
   x: number;
   y: number;
@@ -628,7 +627,7 @@ export function OrgChart() {
                       {node.name}
                     </span>
                     <span className="text-(length:--text-micro) text-muted-foreground leading-tight mt-0.5">
-                      {agent?.title ?? roleLabel(node.role)}
+                      {agent?.title ?? "Scope owner"}
                     </span>
                     {agent && (
                       <span className="text-(length:--text-nano) text-muted-foreground/60 font-mono leading-tight mt-1">
@@ -649,10 +648,4 @@ export function OrgChart() {
       </div>
     </div>
   );
-}
-
-const roleLabels: Record<string, string> = AGENT_ROLE_LABELS;
-
-function roleLabel(role: string): string {
-  return roleLabels[role] ?? role;
 }

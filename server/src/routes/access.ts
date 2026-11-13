@@ -2276,16 +2276,25 @@ type JoinRequestManagerCandidate = {
 };
 
 export function resolveJoinRequestAgentManagerId(
-  candidates: JoinRequestManagerCandidate[]
+  candidates: JoinRequestManagerCandidate[],
+  primaryAgentId?: string | null,
 ): string | null {
+  const primary = primaryAgentId
+    ? candidates.find((candidate) => candidate.id === primaryAgentId)
+    : null;
+  if (primary) return primary.id;
+
+  // Keep old data working while role-based leadership is phased out.
   const ceoCandidates = candidates.filter(
     (candidate) => candidate.role === "ceo"
   );
-  if (ceoCandidates.length === 0) return null;
   const rootCeo = ceoCandidates.find(
     (candidate) => candidate.reportsTo === null
   );
-  return (rootCeo ?? ceoCandidates[0] ?? null)?.id ?? null;
+  if (rootCeo) return rootCeo.id;
+
+  const rootPeer = candidates.find((candidate) => candidate.reportsTo === null);
+  return (rootPeer ?? ceoCandidates[0] ?? candidates[0] ?? null)?.id ?? null;
 }
 
 function isInviteTokenHashCollisionError(error: unknown) {
@@ -3018,22 +3027,7 @@ export function accessRoutes(
     req: Request,
     companyId: string
   ) {
-    assertCompanyAccess(req, companyId);
-    if (req.actor.type === "agent") {
-      if (!req.actor.agentId) throw forbidden("Agent authentication required");
-      const actorAgent = await agents.getById(req.actor.agentId);
-      if (!actorAgent || actorAgent.companyId !== companyId) {
-        throw forbidden("Agent key cannot access another company");
-      }
-      if (actorAgent.role !== "ceo") {
-        throw forbidden("Only Outpost Lead agents can generate OpenClaw invite prompts");
-      }
-      return;
-    }
-    if (req.actor.type !== "board") throw unauthorized();
-    if (isLocalImplicit(req)) return;
-    const allowed = await access.canUser(companyId, req.actor.userId, "users:invite");
-    if (!allowed) throw forbidden("Permission denied");
+    await assertCompanyPermission(req, companyId, "users:invite");
   }
 
   async function createCompanyInviteForCompany(input: {
@@ -4220,10 +4214,16 @@ export function accessRoutes(
       } else {
         assertLegacyAgentInviteAdapterType(existing.adapterType);
         const existingAgents = await agents.list(companyId);
-        const managerId = resolveJoinRequestAgentManagerId(existingAgents);
+        const company = await db.query.companies.findFirst({
+          where: eq(companies.id, companyId),
+        });
+        const managerId = resolveJoinRequestAgentManagerId(
+          existingAgents,
+          company?.primaryAgentId,
+        );
         if (!managerId) {
           throw conflict(
-            "Join request cannot be approved because this company has no active Outpost Lead"
+            "Join request cannot be approved because this Space has no active agents"
           );
         }
 

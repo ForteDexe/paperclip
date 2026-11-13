@@ -56,6 +56,7 @@ function makeCompany(id: string): Company {
     budgetMonthlyCents: 0,
     spentMonthlyCents: 0,
     defaultResponsibleUserId: null,
+    primaryAgentId: null,
     requireBoardApprovalForNewAgents: false,
     interactionResolverGovernance: {},
     feedbackDataSharingEnabled: false,

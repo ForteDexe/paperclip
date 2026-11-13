@@ -71,9 +71,9 @@ export function defaultAgentPermissions(
   options?: { lowTrust?: boolean; context?: AgentPermissionsContext; role?: string | null },
 ): NormalizedAgentPermissions {
   return {
-    // A CEO row without a recorded hiring restriction keeps its legacy hiring
-    // authority, so reads report what enforcement allows.
-    canCreateAgents: (options?.context === "create" || options?.role === "ceo") && options?.lowTrust !== true,
+    // Authority is explicit. Titles and coordination relationships never grant
+    // capabilities, and omitted values fail closed in every context.
+    canCreateAgents: false,
     canCreateSkills: true,
   };
 }
@@ -112,9 +112,7 @@ export function normalizeAgentPermissions(
 
   const { [CEO_HIRING_DENIAL_KEY]: _denial, ...rest } = record;
   const denial = ceoHiringDenial(record);
-  let canCreateAgents = typeof record.canCreateAgents === "boolean" ? record.canCreateAgents : defaults.canCreateAgents;
-  // An unrecorded false on a CEO is not a restriction the board chose.
-  if (options?.role === "ceo" && canCreateAgents === false && !denial) canCreateAgents = !lowTrust;
+  const canCreateAgents = typeof record.canCreateAgents === "boolean" ? record.canCreateAgents : defaults.canCreateAgents;
   return {
     ...rest,
     ...(canCreateAgents === false && denial ? { [CEO_HIRING_DENIAL_KEY]: denial } : {}),

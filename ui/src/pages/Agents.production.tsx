@@ -1,4 +1,4 @@
-import { PrimaryAgentIndicator } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { AgentCoordinationIndicator } from "@/components/AgentCoordinationIndicator";
 import { AgentBulkRoster } from "@/components/agents/AgentBulkRoster";
 import { AgentRosterFilters, useAgentRosterFilters } from "@/components/agents/AgentRosterFilters";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -25,12 +25,11 @@ import { QueryErrorState, useQueryView } from "../components/QueryView";
 import { relativeTime, cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Bot, Plus, List, GitBranch } from "lucide-react";
-import { AGENT_ROLE_LABELS, type Agent, type Environment, type EnvironmentCapabilities } from "@paperclipai/shared";
+import type { Agent, Environment, EnvironmentCapabilities } from "@paperclipai/shared";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
 
 import { getAdapterLabel } from "../adapters/adapter-display-registry";
 
-const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
 // Lazy-loaded so the roster page doesn't statically pull in the full
 // AgentConfigForm module graph (the modal reuses its adapter/model pickers).
@@ -341,6 +340,9 @@ export function Agents() {
   );
 
   const renderAgentRow = (agent: Agent) => {
+    const directReportCount = (agents ?? []).filter(
+      (candidate) => candidate.reportsTo === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
+    ).length;
     const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
     const builtInState = builtInByAgentId.get(agent.id);
     const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
@@ -373,7 +375,7 @@ export function Agents() {
       <EntityRow
         key={agent.id}
         title={agent.name}
-        titleAccessory={<PrimaryAgentIndicator agentId={agent.id} companyId={agent.companyId} />}
+        titleAccessory={<AgentCoordinationIndicator directReportCount={directReportCount} />}
         // Fixed (truncating) title width at xl so the `meta` group starts at a
         // constant x on every row — that's what makes the model + timestamp
         // columns line up vertically. Below xl the meta columns are hidden, so
@@ -382,7 +384,7 @@ export function Agents() {
         titleClassName="flex-1"
         titleTextClassName="whitespace-normal break-words xl:truncate xl:whitespace-nowrap"
         subtitleClassName="whitespace-normal break-words xl:truncate xl:whitespace-nowrap"
-        subtitle={`${roleLabels[agent.role] ?? agent.role}${agent.title ? ` - ${agent.title}` : ""}`}
+        subtitle={agent.title || "Scope owner"}
         to={agentUrl(agent)}
         className="agent-roster-identity group py-3"
         leading={hasInvalidOrgChain ? (
@@ -567,10 +569,7 @@ function OrgTreeNode({
               the name at narrow widths. */}
           <div className="min-w-(--sz-7rem) truncate">
             <span className="text-sm font-medium">{node.name}</span>
-            <span className="text-xs text-muted-foreground ml-2">
-              {roleLabels[node.role] ?? node.role}
-              {agent?.title ? ` - ${agent.title}` : ""}
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">{agent?.title || "Scope owner"}</span>
           </div>
           {builtInState && showBuiltInLifecycle && (
             <div className="flex items-center gap-1.5 shrink-0">

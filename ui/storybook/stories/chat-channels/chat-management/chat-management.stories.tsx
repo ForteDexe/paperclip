@@ -123,7 +123,7 @@ const meta = {
       ],
       "implementation": "production",
       "boundary": "fixtures",
-      "notes": "Task-workspace reconciliation: the mounted endpoint adds connection and destination editors. Local endpoint PATCH/resource PUT preserve defaults; workspace-choice requests now return only active/idle, unclosed fixture workspaces. Browser save/error/reload and new-conversation inheritance remain unverified. Inspected channel task-default controls, optional API fields, avatar rendering and matching fixture updates; live defaults inheritance and permission checks remain outside these stories. Access, InvitePeople, ConnectAndTest and Conversations render the shipped endpoint detail with simulated identity linking and conversation data. External delivery and identity authorization are not live."
+      "notes": "Task-workspace reconciliation: the mounted endpoint adds connection and destination editors. Local endpoint PATCH/resource PUT preserve defaults; workspace-choice requests now return only active/idle, unclosed fixture workspaces. Browser save/error/reload and new-conversation inheritance remain unverified. Inspected channel task-default controls, optional API fields, avatar rendering and matching fixture updates; live defaults inheritance and permission checks remain outside these stories. Access, ConnectAndTest and Conversations render the shipped endpoint detail with simulated identity linking and conversation data. External delivery and identity authorization are not live."
     },
   },
   args: { tab: "settings", scenario: "populated" },
@@ -150,16 +150,9 @@ export const Access: Story = {
     await expect(Math.abs(center(avatar) - center(within(row as HTMLElement).getByRole("button", { name: "Disconnect" })))).toBeLessThan(1);
   },
 };
-export const InvitePeople: Story = {
-  name: "3 · Invite people", args: { tab: "access" },
-  play: async ({ canvasElement }) => {
-    await userEvent.click(await within(canvasElement).findByRole("button", { name: "Invite people" }));
-    await expect(within(document.body).getByRole("dialog")).toBeVisible();
-  },
-};
-export const Conversations: Story = { name: "4 · Conversations", args: { tab: "conversations" } };
+export const Conversations: Story = { name: "3 · Conversations", args: { tab: "conversations" } };
 export const TestMessage: Story = {
-  name: "5 · Test message", args: { tab: "settings" },
+  name: "4 · Test message", args: { tab: "settings" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole("button", { name: "Send me a test message" }));

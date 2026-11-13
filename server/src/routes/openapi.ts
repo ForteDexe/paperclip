@@ -228,7 +228,6 @@ import {
   submitIssueThreadInteractionVerdictsSchema,
   withdrawIssueThreadInteractionSchema,
   // Auth / profile
-  updateCurrentUserProfileSchema,
   // Company portability (legacy routes)
   companyPortabilityExportSchema,
   companyPortabilityPreviewSchema,
@@ -7131,8 +7130,8 @@ for (const method of ["get", "put"] as const) {
     method,
     path: "/api/companies/{companyId}/primary-agent/me",
     tags: ["agents"],
-    summary: method === "get" ? "Get my primary agent" : "Set my primary agent",
-    description: "Uses the authenticated board user's personal company preference. Active company viewers may manage their own preference. Agent credentials cannot access it. In the human UI, open the chosen agent's profile and select its crown control (Set as my primary). Confirm the replacement when a primary is already set. The Chat picker opens conversations and does not change this preference. Setting a primary requires a visible, approved, non-terminated agent and rejoins that agent under existing membership rules. A cleared preference retains its initialization state.",
+    summary: method === "get" ? "Get the Space primary agent" : "Set the Space primary agent",
+    description: "Uses the company-wide Space primary agent while retaining the legacy /me path for client compatibility. Active company members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this board route. In the human UI, open the chosen agent's profile and select its crown control (Set as Space primary). Confirm the replacement when a primary is already set. The Chat picker opens conversations and does not change the Space primary. The selected agent must be visible, approved, and non-terminated.",
     request: {
       params: z.object({ companyId: z.string().uuid() }),
       ...(method === "put" ? { body: jsonBody(updatePrimaryAgentSchema) } : {}),
@@ -7527,7 +7526,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/members",
   tags: ["access"],
   summary: "List company members",
-  description: "Board members or agents holding users:manage_permissions in this company. Returns each member's role, status and explicit grants. Changing a member's role, grants or status stays board-only: A person makes this change on the Members page at /<prefix>/company/settings/members (prefix = the company's issue prefix); link that page as a Markdown link.",
+  description: "Internal compatibility endpoint for actors holding users:manage_permissions. Returns each member's role, status and explicit grants. Outpost no longer exposes human member management in the product UI.",
   request: { params: z.object({ companyId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -7537,7 +7536,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/members/{memberId}",
   tags: ["access"],
   summary: "Update a company member status or role",
-  description: "Board-only, even for agents holding users:manage_permissions. A person makes this change on the Members page at /<prefix>/company/settings/members (prefix = the company's issue prefix); link that page as a Markdown link.",
+  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
   request: {
     params: z.object({ companyId: z.string(), memberId: z.string() }),
     body: jsonBody(updateCompanyMemberSchema),
@@ -7555,7 +7554,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/members/{memberId}/role-and-grants",
   tags: ["access"],
   summary: "Update a company member role and explicit grants",
-  description: "Board-only, even for agents holding users:manage_permissions. A person makes this change on the Members page at /<prefix>/company/settings/members (prefix = the company's issue prefix); link that page as a Markdown link.",
+  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
   request: {
     params: z.object({ companyId: z.string(), memberId: z.string() }),
     body: jsonBody(updateCompanyMemberWithPermissionsSchema),
@@ -7573,7 +7572,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/members/{memberId}/archive",
   tags: ["access"],
   summary: "Archive a company member",
-  description: "Board-only, even for agents holding users:manage_permissions. A person makes this change on the Members page at /<prefix>/company/settings/members (prefix = the company's issue prefix); link that page as a Markdown link.",
+  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
   request: {
     params: z.object({ companyId: z.string(), memberId: z.string() }),
     body: jsonBody(archiveCompanyMemberSchema),
@@ -7591,7 +7590,7 @@ registry.registerPath({
   path: "/api/companies/{companyId}/members/{memberId}/permissions",
   tags: ["access"],
   summary: "Update explicit company member permissions",
-  description: "Board-only, even for agents holding users:manage_permissions. A person makes this change on the Members page at /<prefix>/company/settings/members (prefix = the company's issue prefix); link that page as a Markdown link.",
+  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
   request: {
     params: z.object({ companyId: z.string(), memberId: z.string() }),
     body: jsonBody(updateMemberPermissionsSchema),
@@ -7742,34 +7741,6 @@ registry.registerPath({
   summary: "Get current session",
   description: "Authenticated board sessions can include an optional same-user boardBootstrap with accessible companies and boardAccess. Existing session fields are unchanged; clients retain ordinary company and access reads when the optional projection is absent.",
   responses: { 200: r.ok(), 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/api/auth/profile",
-  tags: ["auth"],
-  summary: "Get current user profile",
-  responses: { 200: r.ok(), 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "patch",
-  path: "/api/auth/profile",
-  tags: ["auth"],
-  summary: "Update current user profile",
-  request: { body: jsonBody(updateCurrentUserProfileSchema) },
-  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/api/companies/{companyId}/users/{userSlug}/profile",
-  tags: ["auth"],
-  summary: "Get a user profile within a company",
-  request: {
-    params: z.object({ companyId: z.string(), userSlug: z.string() }),
-  },
-  responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({

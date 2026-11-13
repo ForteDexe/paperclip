@@ -1,4 +1,4 @@
-import { PrimaryAgentIndicator } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { AgentCoordinationIndicator } from "@/components/AgentCoordinationIndicator";
 import { AgentBulkRoster } from "@/components/agents/AgentBulkRoster";
 import { AgentRosterFilters, useAgentRosterFilters } from "@/components/agents/AgentRosterFilters";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -359,6 +359,9 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   );
 
   const renderAgentRow = (agent: Agent) => {
+    const directReportCount = (agents ?? []).filter(
+      (candidate) => candidate.reportsTo === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
+    ).length;
     const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
     const builtInState = builtInByAgentId.get(agent.id);
     const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
@@ -389,11 +392,11 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
       <div key={agent.id} className="agent-pin-row agent-roster-pin-row group/agent-pin relative">
       <EntityRow
         title={agent.name}
-        titleAccessory={<PrimaryAgentIndicator agentId={agent.id} companyId={agent.companyId} />}
+        titleAccessory={<AgentCoordinationIndicator directReportCount={directReportCount} />}
         titleClassName="agent-pin-text flex-1"
         titleTextClassName="truncate"
         subtitleClassName="truncate"
-        subtitle={`${roleLabels[agent.role] ?? agent.role}${agent.title ? ` - ${agent.title}` : ""}`}
+        subtitle={agent.title || "Scope owner"}
         to={agentUrl(agent)}
         className="agent-roster-identity group py-3 group-hover/agent-pin:bg-accent/50 group-focus-within/agent-pin:bg-accent/50"
         leading={hasInvalidOrgChain ? (
@@ -556,8 +559,7 @@ function OrgTreeNode({
           <div className="min-w-(--sz-7rem) truncate">
             <span className="text-sm font-medium">{node.name}</span>
             <span className="text-xs text-muted-foreground ml-2">
-              {roleLabels[node.role] ?? node.role}
-              {agent?.title ? ` - ${agent.title}` : ""}
+              {agent?.title || "Scope owner"}
             </span>
           </div>
           {builtInState && showBuiltInLifecycle && (

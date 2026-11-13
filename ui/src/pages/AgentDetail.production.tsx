@@ -35,7 +35,7 @@ import { copyTextToClipboard } from "../lib/clipboard";
 import { AgentSkillsTab } from "./agent-skills/AgentSkillsTab";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { PageTabBar } from "../components/PageTabBar";
-import { adapterLabels, roleLabels, help } from "../components/agent-config-primitives";
+import { adapterLabels, help } from "../components/agent-config-primitives";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useAdapterCapabilities } from "@/adapters/use-adapter-capabilities";
 import { MarkdownEditor } from "../components/MarkdownEditor";
@@ -822,10 +822,7 @@ export function AgentDetail() {
             <div className="flex items-center gap-2">
               <h2 className="text-2xl font-bold truncate">{agent.name}</h2>
             </div>
-            <p className="text-sm text-muted-foreground truncate">
-              {roleLabels[agent.role] ?? agent.role}
-              {agent.title ? ` - ${agent.title}` : ""}
-            </p>
+            <p className="text-sm text-muted-foreground truncate">{agent.title || "Scope owner"}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -1700,13 +1697,8 @@ export function ConfigurationTab({
   const canCreateSkills = agent.permissions?.canCreateSkills !== false;
   const canAssignTasks = Boolean(agent.access?.canAssignTasks);
   const taskAssignSource = agent.access?.taskAssignSource ?? "none";
-  const taskAssignLocked = agent.role === "ceo" || canCreateAgents;
   const taskAssignHint =
-    taskAssignSource === "ceo_role"
-      ? "Enabled automatically for Outpost Lead agents."
-      : taskAssignSource === "agent_creator"
-        ? "Enabled automatically while this agent can create new agents."
-        : taskAssignSource === "explicit_grant"
+    taskAssignSource === "explicit_grant"
           ? "Enabled via explicit company permission grant."
           : taskAssignSource === "simple_default"
             ? "Enabled by simple company-wide task assignment defaults."
@@ -1767,7 +1759,7 @@ export function ConfigurationTab({
             <div className="space-y-1">
               <div>Can create new agents</div>
               <p className="text-xs text-muted-foreground">
-                Lets this agent create or hire agents. This also grants task assignment authority.
+                Lets this agent create or hire agents. Task assignment is controlled separately.
               </p>
             </div>
             <ToggleSwitch
@@ -1817,7 +1809,7 @@ export function ConfigurationTab({
                   canAssignTasks: !canAssignTasks,
                 })
               }
-              disabled={updatePermissions.isPending || taskAssignLocked}
+              disabled={updatePermissions.isPending}
             />
           </div>
         </div>

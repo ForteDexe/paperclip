@@ -784,7 +784,7 @@ describe("AgentConfigForm environment selector", () => {
     const options = document.querySelector('[role="listbox"][aria-label="Harness"]');
     expect(options).not.toBeNull();
     const values = Array.from(options!.querySelectorAll('[role="option"]'), option => option.getAttribute("data-value"));
-    expect(values).toEqual(expect.arrayContaining(["claude_local", "codex_local", "opencode_local", "pi_local"]));
+    expect(values).toEqual(["claude_local", "codex_local"]);
     expect(values).not.toContain("process");
     expect(values).not.toContain("http");
     expect(options!.textContent).not.toContain("Coming soon");
@@ -1073,24 +1073,6 @@ describe("AgentConfigForm environment selector", () => {
     const configuration = result.container.querySelector('[data-config-section="configuration"]')!;
     expect(configuration.textContent).not.toContain("Advanced");
     expect(result.container.querySelector('[aria-label="Runner"]')).toBeNull();
-  });
-
-  it.each([false, true])("keeps experimental native selection gated when enableNativeRunner is %s", async enabled => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableNativeRunner: enabled });
-    const result = await renderForm([], { adapterType: "claude_local", adapterConfig: { model: "claude-sonnet-5" } }, { showAdapterTypeField: true });
-    roots.push(result.root);
-    await clickElement(result.container.querySelector('[aria-label="Harness"]'));
-    const option = [...document.querySelectorAll('[role="option"]')].find(element => element.getAttribute("data-value") === "paperclip_runner");
-    expect(Boolean(option)).toBe(enabled);
-    if (!enabled) return;
-    expect(document.body.textContent).toContain("Advanced");
-    await clickElement(option);
-    await clickByText(result.container, "Save");
-    expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({
-      adapterType: "paperclip_runner",
-      adapterConfig: expect.objectContaining({ provider: "acpx", acpxAgent: "claude" }),
-    }));
-    expect(result.onSave.mock.calls[0][0].runner).toBeUndefined();
   });
 
   it("preserves Claude's saved runner without runner or legacy command controls when the experimental gate is off", async () => {

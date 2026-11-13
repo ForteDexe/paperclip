@@ -15,7 +15,6 @@ import type {
   ResourceMembershipUpdateResult,
 } from "@paperclipai/shared";
 import { forbidden, notFound } from "../errors.js";
-import { clearPrimaryAgent } from "./primary-agent.js";
 import { logger } from "../middleware/logger.js";
 
 type BoardActor = {
@@ -428,8 +427,6 @@ export function resourceMembershipService(db: Db, options: ResourceMembershipSer
           },
         })
         .returning();
-
-      if (nextState === "left") await clearPrimaryAgent(db, input.companyId, input.agentId, input.userId);
 
       return {
         resourceType: "agent",

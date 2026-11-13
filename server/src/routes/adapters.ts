@@ -53,7 +53,7 @@ import { isCloudManagedInstance } from "../services/cloud-instance.js";
 import { assertExternalAdapterCodeAllowed } from "../services/adapter-code-policy.js";
 import { getHiddenSettings } from "../services/settings-visibility.js";
 import { assertBoardOrgAccess, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
-import { BUILTIN_ADAPTER_TYPES } from "../adapters/builtin-adapter-types.js";
+import { BUILTIN_ADAPTER_TYPES, OUTPOST_AGENT_ADAPTER_TYPES } from "../adapters/builtin-adapter-types.js";
 import { agentRunnerAvailability, type RunnerTarget } from "../services/agent-runner-selection.js";
 import type { AgentRunnerAvailability } from "@paperclipai/shared";
 import { resolveAntigravityCandidateAdmission } from "../services/native-runtime/acpx-qualification.js";
@@ -296,7 +296,8 @@ export function adapterRoutes(options: {
     }
     await waitForExternalAdapters();
 
-    const registeredAdapters = listServerAdapters();
+    const registeredAdapters = listServerAdapters()
+      .filter((adapter) => OUTPOST_AGENT_ADAPTER_TYPES.has(adapter.type));
     const externalRecords = new Map(
       listAdapterPlugins().map((r) => [r.type, r]),
     );

@@ -332,7 +332,7 @@ describe("buildPaperclipTaskMarkdown", () => {
       });
       expect(markdown).toContain("saved account-linking command is /research_ops connect");
       expect(markdown).toContain("without an @person argument");
-      expect(markdown).toContain("Access → Invite people");
+      expect(markdown).toContain("Sharing the saved connection command does not send an invitation or grant access");
       expect(markdown).toContain("expires after 15 minutes");
       expect(markdown).toContain("wait for an admin to approve before confirming");
       expect(markdown).toContain("their own current Paperclip permissions");

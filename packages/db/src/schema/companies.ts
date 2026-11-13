@@ -1,5 +1,5 @@
 import type { InteractionResolverGovernance } from "@paperclipai/shared";
-import { numeric, pgTable, uuid, text, integer, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { numeric, pgTable, uuid, text, integer, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const companies = pgTable(
   "companies",
@@ -18,6 +18,8 @@ export const companies = pgTable(
     spendMonthUtc: text("spend_month_utc"),
     spentMonthlyCents: numeric("spent_monthly_cents", { precision: 24, scale: 7, mode: "number" }).notNull().default(0),
     defaultResponsibleUserId: text("default_responsible_user_id"),
+    /** Space-wide default for entry points that need one agent. Not a rank. */
+    primaryAgentId: uuid("primary_agent_id"),
     requireBoardApprovalForNewAgents: boolean("require_board_approval_for_new_agents")
       .notNull()
       .default(false),
@@ -38,5 +40,6 @@ export const companies = pgTable(
     issuePrefixUniqueIdx: uniqueIndex("companies_issue_prefix_idx").on(table.issuePrefix),
     workspaceRootUniqueIdx: uniqueIndex("companies_workspace_root_key_idx")
       .on(table.workspaceRootKey),
+    primaryAgentIdx: index("companies_primary_agent_id_idx").on(table.primaryAgentId),
   }),
 );

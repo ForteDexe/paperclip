@@ -27,7 +27,9 @@ export function AgentConversationsSidebar() {
   const { pathname } = useLocation();
   const activeRef = pathname.split("/chats/")[1]?.split("/")[0];
   const roster = agents.data ?? [];
-  // The active roster excludes terminated agents, but their history remains readable.
+  const activeRoster = roster.filter(agent => agent.status !== "terminated");
+  // Missing historical contacts are loaded only to determine whether they are
+  // still eligible. Terminated agents remain in storage but are not listed.
   const missingIds = agents.isSuccess ? [...new Set((chats.data ?? [])
     .flatMap(chat => chat.conversationAgentId && !roster.some(agent => agent.id === chat.conversationAgentId) ? [chat.conversationAgentId] : []))] : [];
   const historyAgents = useQueries({ queries: missingIds.map(id => ({
@@ -35,7 +37,8 @@ export function AgentConversationsSidebar() {
   })) });
   const byId = new Map(roster.map(agent => [agent.id, agent]));
   for (const result of historyAgents) if (result.data) byId.set(result.data.id, result.data);
-  const active = [...byId.values()].find(agent => agent.id === activeRef || (agent.status !== "terminated" && encodeURIComponent(agentRouteRef(agent)) === activeRef));
+  const active = [...byId.values()].find(agent => agent.status !== "terminated"
+    && (agent.id === activeRef || encodeURIComponent(agentRouteRef(agent)) === activeRef));
   const activeId = active?.id;
   const existingChatAgentIds = useMemo(() => {
     const ids = (chats.data ?? []).flatMap(chat => chat.conversationAgentId ? [chat.conversationAgentId] : []);
@@ -46,7 +49,7 @@ export function AgentConversationsSidebar() {
     .flatMap(chat => chat.isUnreadForMe && chat.conversationAgentId ? [chat.conversationAgentId] : []), [chats.data]);
   const conversations = (chats.data ?? []).flatMap(chat => {
     const agent = chat.conversationAgentId ? byId.get(chat.conversationAgentId) : undefined;
-    return agent ? [agent] : [];
+    return agent && agent.status !== "terminated" ? [agent] : [];
   });
   if (active && !conversations.some(agent => agent.id === active.id)) conversations.unshift(active);
   // Everyone you can chat with is listed, not only agents you've already
@@ -54,13 +57,13 @@ export function AgentConversationsSidebar() {
   // roster alphabetically. Same eligibility rule as the Agents nav section —
   // terminated agents and agents you've left are omitted.
   const listedIds = new Set(conversations.map(agent => agent.id));
-  const teammates = roster
-    .filter(agent => !listedIds.has(agent.id) && agent.status !== "terminated"
+  const teammates = activeRoster
+    .filter(agent => !listedIds.has(agent.id)
       && (!memberships.isSuccess || resourceMembershipState(memberships.data, "agent", agent.id) !== "left"))
     .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
   const previews = Object.fromEntries((chats.data ?? []).filter(chat => chat.conversationState === "active")
     .map(chat => [chat.conversationAgentId!, "Working…"]));
-  return <AgentConversationSidebar key={`${companyId}:${userId}`} agents={[...conversations, ...teammates]} availableAgents={roster}
+  return <AgentConversationSidebar key={`${companyId}:${userId}`} agents={[...conversations, ...teammates]} availableAgents={activeRoster}
     existingChatAgentIds={existingChatAgentIds}
     activeId={active?.id} previews={previews}
     unreadAgentIds={unreadAgentIds}
@@ -76,7 +79,7 @@ export function AgentConversationsSidebar() {
     onRetryHistory={() => { historyAgents.filter(result => result.isError).forEach(result => { void result.refetch(); }); }}
     onAddChat={openChat}
     onSelect={agent => {
-      navigate(`/chats/${encodeURIComponent(agent.status === "terminated" ? agent.id : agentRouteRef(agent))}`);
+      navigate(`/chats/${encodeURIComponent(agentRouteRef(agent))}`);
       if (isMobile) setSidebarOpen(false);
     }} />;
 }

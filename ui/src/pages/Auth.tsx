@@ -8,7 +8,6 @@ import { CloudSignIn } from "@/components/CloudSignIn";
 import { clearCloudSignInAttempt } from "@/lib/cloud-sign-in";
 import { tenantSignInReturnPath } from "@/lib/cloudLinks";
 import { queryKeys } from "../lib/queryKeys";
-import { getRememberedInvitePath } from "../lib/invite-memory";
 import { Button } from "@/components/ui/button";
 import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
 import { PaperclipLoading } from "@/components/AnimatedPaperclipIcon";
@@ -30,7 +29,7 @@ export function AuthPage() {
   const errorId = "auth-error";
 
   const nextPath = useMemo(
-    () => tenantSignInReturnPath(searchParams.get("next") || getRememberedInvitePath() || "/"),
+    () => tenantSignInReturnPath(searchParams.get("next") || "/"),
     [searchParams],
   );
   const healthQuery = useQuery({

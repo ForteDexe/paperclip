@@ -124,9 +124,6 @@ function planResolvedConfiguration(snapshot: AgentConfigurationSnapshot, documen
   if (Object.keys(corePatch).length) add("Agent configuration", () => agentsApi.update(snapshot.agent.id, {
     ...corePatch, expectedConfigurationRevision: snapshot.core.configurationRevision,
   }, snapshot.agent.companyId));
-  if (document.spec.permissions && !document.spec.permissions.canAssignTasks && (document.spec.role === "ceo" || document.spec.permissions.canCreateAgents)) {
-    throw new Error("Outpost Lead agents and agents that can create agents also have task assignment authority. Set canAssignTasks to true.");
-  }
   planInstructions(snapshot, document, add);
   if (document.spec.skills && !equal(document.spec.skills, snapshot.document.spec.skills)) {
     unique(document.spec.skills.map(skill => typeof skill === "string" ? skill : skill.key), "skills");

@@ -37,7 +37,7 @@ export function GrokBotSetup({ companyId, companyName, onBack, onClose }: {
     queryFn: ({ signal }) => grokBotApi.connection(companyId, invitation!.agent.id, signal),
     enabled: !!invitation, staleTime: 0, refetchInterval: 2500 });
   const create = useMutation({ mutationFn: async () => {
-    const value = await grokBotApi.create(companyId, details); setInvitation(value);
+    const value = await grokBotApi.create(companyId, { ...details, role: "general" }); setInvitation(value);
     await cache.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) }); return value;
   }, onSuccess: () => setStep(1) });
   const pair = useMutation({ mutationFn: async (replaceBindingId?: string) => {

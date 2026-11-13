@@ -368,7 +368,7 @@ describe("NewIssueDialog", () => {
 
   beforeEach(() => {
     coordinatorState.enabled = false;
-    primaryState.primaryAgentId = null;
+    primaryState.primaryAgentId = "ceo";
     primaryState.loading = false;
     vi.useRealTimers();
     originalResizeObserver = globalThis.ResizeObserver;
@@ -559,7 +559,7 @@ describe("NewIssueDialog", () => {
     { recent: "ceo", explicit: null, draft: null, primary: "worker", expected: "CEO" },
     { recent: "worker", explicit: "ceo", draft: null, primary: "worker", expected: "CEO" },
     { recent: "worker", explicit: null, draft: "ceo", primary: "worker", expected: "CEO" },
-    { recent: null, explicit: null, draft: null, primary: "missing", expected: "CEO" },
+    { recent: null, explicit: null, draft: null, primary: "missing", expected: "Worker" },
   ])("preserves task selection precedence ($recent, $explicit, $draft, $primary)", async ({ recent, explicit, draft, primary, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
     primaryState.primaryAgentId = primary;

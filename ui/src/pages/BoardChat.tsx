@@ -33,6 +33,7 @@ import {
 import { cn, formatDateTime } from "../lib/utils";
 import type { FeedbackVoteValue } from "@paperclipai/shared";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { usePrimaryAgentPresentation } from "@/components/primary-agent/PrimaryAgentPresentation";
 
 /**
  * Board Concierge Chat — a chat interface powered by the board-member skill.
@@ -266,12 +267,13 @@ export function BoardChat() {
     enabled: !!selectedCompanyId,
   });
 
-  const ceoAgent = useMemo(
-    () => agents?.find((a) => a.role === "ceo" && a.status !== "terminated"),
-    [agents],
+  const primary = usePrimaryAgentPresentation(selectedCompanyId);
+  const primaryAgent = useMemo(
+    () => agents?.find((agent) => agent.id === primary?.primaryAgentId && agent.status !== "terminated"),
+    [agents, primary?.primaryAgentId],
   );
 
-  // Pull the company's top-level goal so the CEO's welcome can reference
+  // Pull the Space's top-level goal so its primary agent can reference
   // the mission verbatim.
   const { data: goals } = useQuery({
     queryKey: queryKeys.goals.list(selectedCompanyId!),
@@ -390,7 +392,7 @@ export function BoardChat() {
   // needed to render the welcome bubble. This guarantees the animation is
   // visible at the moment the user arrives, even if agent/goal queries
   // take a beat to resolve.
-  const canRenderWelcome = !!ceoAgent && !!selectedCompany;
+  const canRenderWelcome = !!primaryAgent && !!selectedCompany;
   useEffect(() => {
     if (!canRenderWelcome) return;
     if (welcomeRevealed) return;
@@ -676,7 +678,7 @@ export function BoardChat() {
             />
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-semibold">
-                {ceoAgent?.name ?? "Conference Room"}
+                {primaryAgent?.name ?? "Conference Room"}
               </h3>
               <p className="text-xs text-muted-foreground">
                 {selectedCompany?.name ?? "Your outpost"}
@@ -727,14 +729,14 @@ export function BoardChat() {
                    visible even while agent/goal data is still loading. */}
               {!welcomeRevealed && <TypingBubble />}
 
-              {welcomeRevealed && ceoAgent && selectedCompany && (() => {
-                const ceoName = ceoAgent.name;
+              {welcomeRevealed && primaryAgent && selectedCompany && (() => {
+                const primaryName = primaryAgent.name;
                 const companyName = selectedCompany.name;
                 const missionLine = missionText
                   ? ` — your mission is "${missionText}".`
                   : ".";
                 const welcomeBody =
-                  `Welcome to **${companyName}**! I'm ${ceoName}, your team lead. I've read through what you shared in the wizard${missionLine}\n\n` +
+                  `Welcome to **${companyName}**! I'm ${primaryName}, the Space primary agent. I've read through what you shared in the wizard${missionLine}\n\n` +
                   `Here are a few things I can help you put on paper right now. Pick one below and I'll draft it for you using everything you told us.`;
 
                 const userHasReplied = sortedComments.some(
@@ -763,7 +765,7 @@ export function BoardChat() {
                 return (
                   <>
                     <div className="flex flex-col items-start">
-                      <AgentBubbleHeader agent={{ ...ceoAgent, name: ceoName }} />
+                      <AgentBubbleHeader agent={{ ...primaryAgent, name: primaryName }} />
                       <div
                         className={cn(
                           boardChatBubbleShell,
@@ -815,7 +817,7 @@ export function BoardChat() {
                 // the room speaks the same bubble language as the task thread.
                 const agent = comment.authorAgentId
                   ? agentMap.get(comment.authorAgentId) ?? null
-                  : ceoAgent ?? null;
+                  : primaryAgent ?? null;
                 const agentName = agent?.name ?? "Assistant";
                 const agentIconValue = agent?.icon ?? null;
                 return (
@@ -869,8 +871,8 @@ export function BoardChat() {
               {/* Streaming response */}
               {streamingText && (
                 <div className="flex flex-col items-start">
-                  {ceoAgent && (
-                    <AgentBubbleHeader agent={ceoAgent} />
+                  {primaryAgent && (
+                    <AgentBubbleHeader agent={primaryAgent} />
                   )}
                   <div
                     className={cn(

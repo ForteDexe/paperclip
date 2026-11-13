@@ -2709,18 +2709,6 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
       });
     }
 
-    // Active-checkout management deliberately does not ride on
-    // canCreateAgents: that flag is default-on for standard-trust agents, and
-    // coupling would let any peer write over another agent's checked-out
-    // issue. CEOs, explicit grants, and the manager chain remain the paths.
-    if (input.action === "tasks:manage_active_checkouts" && actorAgent.role === "ceo") {
-      return allow({
-        action: input.action,
-        reason: "allow_legacy_agent_creator",
-        explanation: "Allowed by legacy agent creator authority.",
-      });
-    }
-
     if (
       input.action === "tasks:manage_active_checkouts" &&
       input.resource.type === "issue" &&

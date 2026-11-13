@@ -1,10 +1,7 @@
 import {
   authSessionSchema,
-  currentUserProfileSchema,
   type BoardBootstrapSession,
   readBoardBootstrap,
-  type CurrentUserProfile,
-  type UpdateCurrentUserProfile,
 } from "@paperclipai/shared";
 import { redactUrlSecrets } from "@/lib/redact-url-secrets";
 import { tenantSessionRecovery } from "@/lib/tenant-session-recovery";
@@ -146,22 +143,6 @@ async function authPost(path: string, body: Record<string, unknown>): Promise<un
   return payload;
 }
 
-async function authPatch<T>(path: string, body: Record<string, unknown>, parse: (value: unknown) => T): Promise<T> {
-  const res = await fetch(`/api/auth${path}`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await res.json().catch(() => null);
-  if (!res.ok) {
-    const recovery = tenantSessionRecovery.recoverIfNeeded(res.status, payload);
-    if (recovery) return recovery;
-    throw extractAuthError(payload as AuthErrorBody, res.status);
-  }
-  return parse(payload);
-}
-
 export const authApi = {
   getSession: async (): Promise<BoardBootstrapSession | null> => {
     const res = await apiFetch("/api/auth/get-session", {
@@ -189,23 +170,6 @@ export const authApi = {
   signUpEmail: async (input: { name: string; email: string; password: string }) => {
     await authPost("/sign-up/email", input);
   },
-
-  getProfile: async (): Promise<CurrentUserProfile> => {
-    const res = await fetch("/api/auth/profile", {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok) {
-      const recovery = tenantSessionRecovery.recoverIfNeeded(res.status, payload);
-      if (recovery) return recovery;
-      throw new Error((payload as { error?: string } | null)?.error ?? `Failed to load profile (${res.status})`);
-    }
-    return currentUserProfileSchema.parse(payload);
-  },
-
-  updateProfile: async (input: UpdateCurrentUserProfile): Promise<CurrentUserProfile> =>
-    authPatch("/profile", input, (payload) => currentUserProfileSchema.parse(payload)),
 
   signOut: async (): Promise<SignOutResult | null> => {
     const payload = await authPost("/sign-out", {});

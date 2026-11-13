@@ -4,7 +4,7 @@ import { executeRunnerApi } from "../services/native-runtime/runner-api-client.j
 import { startOpenCodeMcpBridge } from "../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.js";
 import { searchApiAction } from "../../../packages/paperclip-runner/src/protocol-actions/search-api.js";
 
-it("delivers personal primary profile guidance through actual API discovery and bounded OpenCode MCP output", async () => {
+it("delivers Space primary profile guidance through actual API discovery and bounded OpenCode MCP output", async () => {
   const descriptor = searchApiAction.live.descriptor;
   let calls = 0;
   const bridge = await startOpenCodeMcpBridge({
@@ -29,17 +29,17 @@ it("delivers personal primary profile guidance through actual API discovery and 
     const operation = discovered.results.find(row => row.operationId === "PUT /api/companies/{companyId}/primary-agent/me");
     expect(operation).toBeDefined();
     expect(operation!.description).toMatch(/agent.{0,12}profile/i);
-    expect(operation!.description).toContain("Set as my primary");
+    expect(operation!.description).toContain("Set as Space primary");
     expect(operation!.description).toMatch(/confirm.{0,30}replac/i);
     expect(operation!.description).toMatch(/chat picker.{0,70}does not change/i);
     expect(operation!.authorization.actor).toBe("board");
-    expect(operation!.description).toContain("Agent credentials cannot access it");
+    expect(operation!.description).toContain("Agent credentials cannot access this board route");
     expect(operation!.requestBody?.content["application/json"].schema.properties.primaryAgentId).toMatchObject({ type: "string", format: "uuid" });
     expect(calls).toBe(1);
   } finally { await bridge.close(); }
 });
 
-it("keeps personal preference calls on the agent identity and preserves the board-only denial", async () => {
+it("keeps the compatibility route board-only when called with an agent identity", async () => {
   const companyId = "00000000-0000-4000-8000-000000000111", runId = "00000000-0000-4000-8000-000000000112";
   const request = vi.fn<typeof fetch>(async () => Response.json({ error: "Board access required" }, { status: 403 }));
   const result = await executeRunnerApi({ operationId: "PUT /api/companies/{companyId}/primary-agent/me",

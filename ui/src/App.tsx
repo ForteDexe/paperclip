@@ -29,7 +29,6 @@ import { useStreamlinedUiEnabled } from "./hooks/useStreamlinedUiEnabled";
 const AuthPage = lazy(() => import("./pages/Auth").then((module) => ({ default: module.AuthPage })));
 const BoardClaimPage = lazy(() => import("./pages/BoardClaim").then((module) => ({ default: module.BoardClaimPage })));
 const CliAuthPage = lazy(() => import("./pages/CliAuth").then((module) => ({ default: module.CliAuthPage })));
-const InviteLandingPage = lazy(() => import("./pages/InviteLanding").then((module) => ({ default: module.InviteLandingPage })));
 const ChatIdentityConfirm = lazy(() => import("./pages/apps/chat/ChatIdentityConfirm").then((module) => ({ default: module.ChatIdentityConfirm })));
 const PaperclipCloudOAuthHandoffPage = lazy(() => import("./pages/apps/PaperclipCloudOAuthHandoff").then((module) => ({ default: module.PaperclipCloudOAuthHandoffPage })));
 const McpConnectPage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.McpConnectPage })));
@@ -64,7 +63,6 @@ const Search = lazy(() => import("./pages/Search").then((module) => ({ default: 
 const Routines = lazy(() => import("./pages/Routines").then((module) => ({ default: module.Routines })));
 const StatusCards = lazy(() => import("./pages/StatusCards").then((module) => ({ default: module.StatusCards })));
 const RoutineDetail = lazy(() => import("./pages/RoutineDetail").then((module) => ({ default: module.RoutineDetail })));
-const UserProfile = lazy(() => import("./pages/UserProfile").then((module) => ({ default: module.UserProfile })));
 const ExecutionWorkspaceDetail = lazy(() => import("./pages/ExecutionWorkspaceDetail").then((module) => ({ default: module.ExecutionWorkspaceDetail })));
 const Goals = lazy(() => import("./pages/Goals").then((module) => ({ default: module.Goals })));
 const Artifacts = lazy(() => import("./pages/Artifacts").then((module) => ({ default: module.Artifacts })));
@@ -80,21 +78,16 @@ const CompanySettings = lazy(() => import("./pages/CompanySettings").then((modul
 const CompanyConnections = lazy(() => import("./pages/CompanyConnections").then((module) => ({ default: module.CompanyConnections })));
 const CompanyEnvironments = lazy(() => import("./pages/CompanyEnvironments").then((module) => ({ default: module.CompanyEnvironments })));
 const CompanySettingsPluginPage = lazy(() => import("./pages/CompanySettingsPluginPage").then((module) => ({ default: module.CompanySettingsPluginPage })));
-const CompanyAccess = lazy(() => import("./pages/CompanyAccess").then((module) => ({ default: module.CompanyAccess })));
-const CompanyAccessLegacyRoute = lazy(() => import("./pages/CompanyAccess").then((module) => ({ default: module.CompanyAccessLegacyRoute })));
 const InstalledSkills = lazy(() => import("./pages/InstalledSkills").then((module) => ({ default: module.InstalledSkills })));
 const Secrets = lazy(() => import("./pages/Secrets").then((module) => ({ default: module.Secrets })));
 const CompanyImport = lazy(() => import("./pages/CompanyImport").then((module) => ({ default: module.CompanyImport })));
 const DesignGuide = lazy(() => import("./pages/DesignGuide").then((module) => ({ default: module.DesignGuide })));
 const InstanceExperimentalSettings = lazy(() => import("./pages/InstanceExperimentalSettings").then((module) => ({ default: module.InstanceExperimentalSettings })));
-const InstanceAccess = lazy(() => import("./pages/InstanceAccess").then((module) => ({ default: module.InstanceAccess })));
-const ProfileSettings = lazy(() => import("./pages/ProfileSettings").then((module) => ({ default: module.ProfileSettings })));
 const PluginManager = lazy(() => import("./pages/PluginManager").then((module) => ({ default: module.PluginManager })));
 const PluginSettings = lazy(() => import("./pages/PluginSettings").then((module) => ({ default: module.PluginSettings })));
 const AdapterManager = lazy(() => import("./pages/AdapterManager").then((module) => ({ default: module.AdapterManager })));
 const PluginPage = lazy(() => import("./pages/PluginPage").then((module) => ({ default: module.PluginPage })));
 const NewAgent = lazy(() => import("./pages/NewAgent").then((module) => ({ default: module.NewAgent })));
-const JoinRequestQueue = lazy(() => import("./pages/JoinRequestQueue").then((module) => ({ default: module.JoinRequestQueue })));
 
 const CompanyExport = lazy(() => import("./pages/CompanyExport").then((module) => ({ default: module.CompanyExport })));
 
@@ -127,18 +120,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="company/settings/connections" element={<CompanyConnections />} />
       <Route path="company/settings/environments" element={<Navigate to="/company/settings/instance/environments" replace />} />
       <Route path="company/settings/cloud-upstream" element={<Navigate to="/company/export" replace />} />
-      <Route element={<HiddenSettingsPageGate pageKey="company.members" />}>
-        <Route path="company/settings/members" element={<CompanyAccess />} />
-        <Route path="company/settings/access" element={<CompanyAccessLegacyRoute />} />
-      </Route>
-      {/* Invites moved into the Members page; the old URL redirects (and stays
-          gated so a hidden Invites surface never round-trips through it). */}
-      <Route element={<HiddenSettingsPageGate pageKey="company.invites" />}>
-        <Route
-          path="company/settings/invites"
-          element={<Navigate to="/company/settings/members?tab=invites" replace />}
-        />
-      </Route>
+      <Route path="company/settings/members" element={<Navigate to="/company/settings" replace />} />
+      <Route path="company/settings/access" element={<Navigate to="/company/settings" replace />} />
+      <Route path="company/settings/invites" element={<Navigate to="/company/settings" replace />} />
       <Route element={<HiddenSettingsPageGate pageKey="company.export" />}>
         <Route
           path="company/export/*"
@@ -161,9 +145,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="tools/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="apps/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="company/settings/instance" element={<Navigate to="/company/settings" replace />} />
-      <Route element={<HiddenSettingsPageGate pageKey="instance.profile" />}>
-        <Route path="company/settings/instance/profile" element={<ProfileSettings />} />
-      </Route>
+      <Route path="company/settings/instance/profile" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/instance/general" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/instance/heartbeats" element={<Navigate to="/company/settings" replace />} />
       <Route element={<HiddenSettingsPageGate pageKey="instance.environments" />}>
@@ -171,9 +153,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
         <Route path="company/settings/instance/environments/new" element={<CompanyEnvironments mode="create" />} />
         <Route path="company/settings/instance/environments/:environmentId/edit" element={<CompanyEnvironments mode="edit" />} />
       </Route>
-      <Route element={<HiddenSettingsPageGate pageKey="instance.access" />}>
-        <Route path="company/settings/instance/access" element={<InstanceAccess />} />
-      </Route>
+      <Route path="company/settings/instance/access" element={<Navigate to="/company/settings" replace />} />
       <Route element={<HiddenSettingsPageGate pageKey="instance.experimental" />}>
         <Route path="company/settings/instance/experimental" element={<InstanceExperimentalSettings />} />
       </Route>
@@ -317,10 +297,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       ) : null}
       <Route path="decisions" element={<WhatNeedsMe />} />
       <Route path="decisions/queues/:key" element={<DecisionQueuePage />} />
-      {/* Combined Inbox + Task List: Inbox is a view inside Tasks. Every /inbox/* URL still
-          resolves — it redirects into the matching view — and with the flag off
-          (or in the legacy shell) the standalone pages stay. /inbox/requests
-          stays its own page either way; Settings → Members links straight to it. */}
+      {/* Combined Inbox + Task List: Inbox is a view inside Tasks. Every supported
+          /inbox/* URL still resolves into the matching view. The retired human
+          access-request route redirects to the inbox below. */}
       {mergedTasks ? (
         <>
           <Route path="inbox" element={<InboxRootRedirect />} />
@@ -342,8 +321,8 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
           <Route path="inbox/new" element={<Navigate to="/inbox/mine" replace />} />
         </>
       )}
-      <Route path="inbox/requests" element={<JoinRequestQueue />} />
-      <Route path="u/:userSlug" element={<UserProfile />} />
+      <Route path="inbox/requests" element={<Navigate to="/inbox" replace />} />
+      <Route path="u/:userSlug" element={<Navigate to="/dashboard" replace />} />
       <Route path="design-guide" element={<DesignGuide />} />
       <Route path="instance/settings/adapters" element={<AdapterManager />} />
       <Route path=":pluginRoutePath/*" element={<PluginPage />} />
@@ -504,7 +483,6 @@ export function App() {
         <Route path="mcp-device" element={<McpDevicePage />} />
         <Route path="assistant-connections" element={<AssistantConnectionsPage />} />
         <Route path="cli-auth/:id" element={<CliAuthPage />} />
-        <Route path="invite/:token" element={<InviteLandingPage />} />
         <Route element={<CloudAccessGate allowMembershipRequest />}>
           <Route element={<ShellConfigurationGate loaded={streamlinedUiLoaded} />}>
           {/* The identity APIs enforce the chat rollout flag. Nonmembers cannot

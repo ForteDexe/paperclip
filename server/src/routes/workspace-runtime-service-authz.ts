@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { agents, heartbeatRuns, issues, projects } from "@paperclipai/db";
+import { agents, heartbeatRuns, issues, principalPermissionGrants, projects } from "@paperclipai/db";
 import { isUuidLike } from "@paperclipai/shared";
 import type { Request } from "express";
 import { forbidden, notFound } from "../errors.js";
@@ -120,7 +120,17 @@ async function assertAgentCanManageRuntimeServicesForWorkspace(
 
   const runIssueId = readRunIssueId(runContext);
 
-  if (actorAgent.role === "ceo" && actorRuntimeTrust.kind === "standard") {
+  const hasRuntimeGrant = await db.select({ id: principalPermissionGrants.id })
+    .from(principalPermissionGrants)
+    .where(and(
+      eq(principalPermissionGrants.companyId, input.companyId),
+      eq(principalPermissionGrants.principalType, "agent"),
+      eq(principalPermissionGrants.principalId, actorAgent.id),
+      eq(principalPermissionGrants.permissionKey, "tools:manage_runtime"),
+    ))
+    .then((rows) => rows.length > 0);
+
+  if (hasRuntimeGrant && actorRuntimeTrust.kind === "standard") {
     return { runIssueId };
   }
 
@@ -191,7 +201,7 @@ async function assertAgentCanManageRuntimeServicesForWorkspace(
     });
   }
 
-  if (actorAgent.role === "ceo") {
+  if (hasRuntimeGrant) {
     return { runIssueId };
   }
 

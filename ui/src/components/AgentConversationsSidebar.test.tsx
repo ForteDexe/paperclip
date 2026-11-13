@@ -166,15 +166,14 @@ it("reuses chat indexes for 500 agents across unchanged parent renders and refre
   } finally { parse.mockRestore(); }
 });
 
-it("retains terminated agents' history by id without offering them for new chats", async () => {
+it("hides terminated agents even when their chat history still exists", async () => {
   const retired = { ...roster[0], id: "retired-id", name: "Retired", status: "terminated", urlKey: "alice" };
   client.setQueryData(queryKeys.agents.detail(retired.id), retired);
   client.setQueryData(queryKeys.agentChats.list("company-a", "user-a"), [chat(retired.id), chat("alice")]);
   await render();
-  const historyLink = container.querySelector<HTMLAnchorElement>('a[href="/chats/retired-id"]')!;
-  expect(historyLink.textContent).toContain("RetiredTerminated");
-  await act(async () => historyLink.click());
-  expect(state.navigate).toHaveBeenLastCalledWith("/chats/retired-id");
+  expect(container.querySelector('a[href="/chats/retired-id"]')).toBeNull();
+  expect(container.textContent).not.toContain("Retired");
+  expect(state.navigate).not.toHaveBeenCalledWith("/chats/retired-id");
   expect(state.ensure).not.toHaveBeenCalled();
 });
 
@@ -199,9 +198,9 @@ it("keeps healthy chats usable while a historical lookup fails and retries", asy
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "Retry chat history")!.click());
   await vi.waitFor(async () => {
     await act(async () => {});
-    expect(container.querySelector('a[href="/chats/retired-id"]')).not.toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('a[href="/chats/retired-id"]')).toBeNull();
   });
-  expect(container.querySelector('[role="alert"]')).toBeNull();
   expect(container.querySelector('a[href="/chats/alice"]')).not.toBeNull();
 });
 

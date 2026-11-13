@@ -124,7 +124,7 @@ describePostgres("saved Slack invitation command in heartbeat prompts", () => {
     await db.update(chatEndpoints).set({ setup: { step: "complete" } }).where(eq(chatEndpoints.id, f.endpointId));
     const { context } = await turn(f);
     expect(context.paperclipTaskMarkdown).toContain("No saved account-linking command is available");
-    expect(context.paperclipTaskMarkdown).toContain("Access → Invite people");
+    expect(context.paperclipTaskMarkdown).toContain("inspect the connection configuration");
     expect(context.paperclipTaskMarkdown).not.toContain("/forged");
   }, 30_000);
 

@@ -15,8 +15,6 @@ const mockAuthApi = vi.hoisted(() => ({
   getSession: vi.fn(),
   signInEmail: vi.fn(),
   signUpEmail: vi.fn(),
-  getProfile: vi.fn(),
-  updateProfile: vi.fn(),
   signOut: vi.fn(),
 }));
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -209,10 +207,10 @@ describe("SidebarCompanyMenu", () => {
 
     const { root } = renderMenu();
     await flushReact();
-    await openMenu("Open Acme Labs organization switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("Couldn't load organizations");
-    expect(document.body.textContent).not.toContain("No organizations");
+    expect(document.body.textContent).toContain("Couldn't load spaces");
+    expect(document.body.textContent).not.toContain("No spaces");
 
     const retryItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find(
       (item) => item.textContent?.includes("Try again"),
@@ -238,10 +236,10 @@ describe("SidebarCompanyMenu", () => {
 
     const { root } = renderMenu();
     await flushReact();
-    await openMenu("Open Acme Labs organization switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("No organizations");
-    expect(document.body.textContent).not.toContain("Couldn't load organizations");
+    expect(document.body.textContent).toContain("No spaces");
+    expect(document.body.textContent).not.toContain("Couldn't load spaces");
 
     act(() => {
       root.unmount();
@@ -269,7 +267,7 @@ describe("SidebarCompanyMenu", () => {
 
     expect(container.textContent).toContain("Acme Labs");
 
-    const trigger = container.querySelector('button[aria-label="Open Acme Labs organization switcher"]');
+    const trigger = container.querySelector('button[aria-label="Open Acme Labs space switcher"]');
     expect(trigger).not.toBeNull();
 
     act(() => {
@@ -278,12 +276,12 @@ describe("SidebarCompanyMenu", () => {
     });
     await flushReact();
 
-    expect(document.body.textContent).toContain("Organizations");
+    expect(document.body.textContent).toContain("Spaces");
     expect(document.body.textContent).toContain("Edit");
     expect(document.body.textContent).toContain("Strata");
     expect(document.body.textContent).toContain("ANA");
-    expect(document.body.textContent).toContain("Create organization");
-    expect(document.body.textContent).toContain("Invite people to Acme Labs");
+    expect(document.body.textContent).toContain("New Space");
+    expect(document.body.textContent).not.toContain("Invite people");
     expect(document.body.textContent).not.toContain("Company settings");
     expect(document.body.textContent).toContain("Sign out");
 
@@ -299,7 +297,7 @@ describe("SidebarCompanyMenu", () => {
     expect(mockAuthApi.signOut).toHaveBeenCalledTimes(1);
     expect(mockNavigateTopLevel).not.toHaveBeenCalled();
     expect(queryClient.getQueryState(queryKeys.health)?.isInvalidated).toBe(true);
-    expect(document.body.textContent).not.toContain("Organizations");
+    expect(document.body.textContent).not.toContain("Spaces");
 
     act(() => {
       root.unmount();
@@ -320,9 +318,9 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    await openMenu("Open Acme Labs company switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("Invite people to Acme Labs");
+    expect(document.body.textContent).not.toContain("Invite people");
 
     act(() => {
       root.unmount();
@@ -346,9 +344,9 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    await openMenu("Open Acme Labs company switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("Organizations");
+    expect(document.body.textContent).toContain("Spaces");
     expect(document.body.textContent).not.toContain("Invite people");
 
     act(() => {
@@ -363,9 +361,9 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    await openMenu("Open Acme Labs organization switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("Organizations");
+    expect(document.body.textContent).toContain("Spaces");
     expect(document.body.textContent).not.toContain("Invite people");
 
     act(() => {
@@ -380,9 +378,9 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    await openMenu("Open Acme Labs organization switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("Organizations");
+    expect(document.body.textContent).toContain("Spaces");
     expect(document.body.textContent).not.toContain("Invite people");
 
     act(() => {
@@ -397,9 +395,9 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    await openMenu("Open Acme Labs organization switcher");
+    await openMenu("Open Acme Labs space switcher");
 
-    expect(document.body.textContent).toContain("Organizations");
+    expect(document.body.textContent).toContain("Spaces");
     expect(document.body.textContent).not.toContain("Invite people");
 
     act(() => {
@@ -423,7 +421,7 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    const trigger = container.querySelector('button[aria-label="Open Acme Labs organization switcher"]');
+    const trigger = container.querySelector('button[aria-label="Open Acme Labs space switcher"]');
     expect(trigger).not.toBeNull();
 
     expect(trigger?.classList).toContain("px-4");
@@ -442,7 +440,7 @@ describe("SidebarCompanyMenu", () => {
     });
     await flushReact();
 
-    expect(document.body.textContent).toContain("Create organization");
+    expect(document.body.textContent).toContain("New Space");
     expect(document.body.textContent).not.toContain("Add company...");
 
     const editButton = Array.from(document.body.querySelectorAll("button"))
@@ -497,7 +495,7 @@ describe("SidebarCompanyMenu", () => {
     await flushReact();
     await flushReact();
 
-    const trigger = container.querySelector('button[aria-label="Open Acme Labs organization switcher"]');
+    const trigger = container.querySelector('button[aria-label="Open Acme Labs space switcher"]');
     expect(trigger).not.toBeNull();
 
     act(() => {
@@ -523,23 +521,19 @@ describe("SidebarCompanyMenu", () => {
     });
   });
 
-  it("keeps the in-app company wizard and never leaves the app when self-hosted", async () => {
+  it("links to the in-app Space creator and never leaves the app when self-hosted", async () => {
     const { root } = renderMenu();
     await flushReact();
     await flushReact();
 
-    await openMenu("Open Acme Labs organization switcher");
+    await openMenu("Open Acme Labs space switcher");
 
     const createItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'))
-      .find((element) => element.textContent?.includes("Create organization"));
+      .find((element) => element.textContent?.includes("New Space"));
     expect(createItem).toBeTruthy();
 
-    act(() => {
-      createItem?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-
-    expect(mockOpenOnboarding).toHaveBeenCalledTimes(1);
+    expect(createItem?.getAttribute("href")).toBe("/spaces?new=1");
+    expect(mockOpenOnboarding).not.toHaveBeenCalled();
     expect(mockNavigateTopLevel).not.toHaveBeenCalled();
 
     act(() => {
@@ -557,7 +551,7 @@ describe("SidebarCompanyMenu", () => {
     const { root } = renderMenu();
     await flushReact();
 
-    const trigger = container.querySelector('button[aria-label="Open Acme Labs organization switcher"]');
+    const trigger = container.querySelector('button[aria-label="Open Acme Labs space switcher"]');
     expect(trigger).not.toBeNull();
     expect(trigger?.className).toContain("min-w-0");
 
@@ -581,7 +575,7 @@ describe("SidebarCompanyMenu", () => {
       const { root } = renderMenu({ cloud: true });
       await flushReact();
       await flushReact();
-      await openMenu("Open Acme Labs organization switcher");
+      await openMenu("Open Acme Labs space switcher");
 
       const signOutItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'))
         .find((element) => element.textContent?.includes("Sign out"));
@@ -595,21 +589,21 @@ describe("SidebarCompanyMenu", () => {
       expect(mockAuthApi.signOut).not.toHaveBeenCalled();
       expect(mockNavigateTopLevel).toHaveBeenCalledOnce();
       expect(mockNavigateTopLevel).toHaveBeenCalledWith("/cloud/logout");
-      expect(document.body.textContent).not.toContain("Organizations");
+      expect(document.body.textContent).not.toContain("Spaces");
 
       act(() => {
         root.unmount();
       });
     });
 
-    it.each([false, true])("keeps company navigation without local creation when a managed host has no switcher plugin (production=%s)", async (production) => {
+    it.each([false, true])("keeps space navigation and creation available on managed hosts (production=%s)", async (production) => {
       const { root } = renderMenu({ cloud: true, production });
       await flushReact();
       await flushReact();
-      await openMenu(`Open Acme Labs ${production ? "company" : "organization"} switcher`);
+      await openMenu("Open Acme Labs space switcher");
       expect(document.body.textContent).toContain("Anachronist Wiki");
       expect(document.body.textContent).toContain("ANA");
-      expect(document.body.textContent).not.toContain("Create organization");
+      expect(document.body.textContent).toContain("New Space");
       expect(mockOpenOnboarding).not.toHaveBeenCalled();
       const row = [...document.querySelectorAll('[data-slot="dropdown-menu-item"]')]
         .find(element => element.textContent?.includes("Anachronist Wiki"));

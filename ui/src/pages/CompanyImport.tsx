@@ -41,7 +41,8 @@ import { GithubIcon } from "../components/icons/github-icon";
 import { Field, adapterLabels } from "../components/agent-config-primitives";
 import { getAdapterLabel } from "../adapters/adapter-display-registry";
 import { defaultCreateValues } from "../components/agent-config-defaults";
-import { getUIAdapter, listUIAdapters } from "../adapters";
+import { getUIAdapter } from "../adapters";
+import { listAdapterOptions } from "../adapters/metadata";
 import { isPaperclipRunnerProvider, PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES, type CreateConfigValues } from "@paperclipai/adapter-utils";
 import { resolveCodexLocalCliPolicy } from "@paperclipai/adapter-codex-local";
 import {
@@ -562,12 +563,10 @@ function ConflictResolutionList({
 // ── Adapter type options for import ───────────────────────────────────
 
 const IMPORT_ADAPTER_OPTIONS: { value: string; label: string }[] = [
-  ...listUIAdapters().map((adapter) => ({
-    value: adapter.type,
-    label: adapterLabels[adapter.type] ?? getAdapterLabel(adapter.type),
+  ...listAdapterOptions().map((adapter) => ({
+    value: adapter.value,
+    label: adapterLabels[adapter.value] ?? getAdapterLabel(adapter.value),
   })),
-  { value: "openai_dot", label: "OpenAI Dot (experimental)" },
-  { value: "muse", label: "Muse — Personal agent (experimental)" },
 ];
 
 // Dot is a picker choice backed by the shared Runner API adapter.
@@ -1077,17 +1076,17 @@ export function CompanyImport() {
     return created.transferId;
   }
 
-  // Fetch current company agents to find CEO adapter type
+  // Prefer the Space primary agent's adapter when filling import defaults.
   const { data: companyAgents } = useQuery({
     queryKey: selectedCompanyId ? queryKeys.agents.list(selectedCompanyId) : ["agents", "none"],
     queryFn: () => agentsApi.list(selectedCompanyId!),
     enabled: Boolean(selectedCompanyId),
   });
-  const ceoAdapterType = useMemo(() => {
+  const primaryAdapterType = useMemo(() => {
     if (!companyAgents) return "claude_local";
-    const ceo = companyAgents.find((a) => a.role === "ceo");
-    return ceo?.adapterType ?? "claude_local";
-  }, [companyAgents]);
+    const primary = companyAgents.find((agent) => agent.id === selectedCompany?.primaryAgentId);
+    return primary?.adapterType ?? "claude_local";
+  }, [companyAgents, selectedCompany?.primaryAgentId]);
 
   const { data: installedAdapters } = useQuery({
     queryKey: queryKeys.adapters.all,
@@ -1703,8 +1702,8 @@ export function CompanyImport() {
         const selectableTypes = [...availableAdapterTypes].filter((type) =>
           type !== "paperclip_runner" || nativeRunnerAvailable,
         );
-        fallbackAdapterType = selectableTypes.includes(ceoAdapterType)
-          ? ceoAdapterType
+        fallbackAdapterType = selectableTypes.includes(primaryAdapterType)
+          ? primaryAdapterType
           : selectableTypes[0] ?? null;
       }
 
@@ -1719,7 +1718,7 @@ export function CompanyImport() {
         fallbackAdapterType,
       };
     });
-  }, [importPreview, availableAdapterTypes, ceoAdapterType, runnerInstalled, nativeRunnerAvailable, dotAvailable, museAvailable]);
+  }, [importPreview, availableAdapterTypes, primaryAdapterType, runnerInstalled, nativeRunnerAvailable, dotAvailable, museAvailable]);
 
   /** The adapter type an imported agent will actually use: an explicit user pick, else the availability fallback, else the manifest adapter. */
   function effectiveAdapterType(agent: AdapterPickerItem): string {

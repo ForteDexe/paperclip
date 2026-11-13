@@ -141,19 +141,15 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAccessService.hasPermission.mockResolvedValue(false);
     mockAccessService.canUser.mockResolvedValue(false);
     mockAgentService.getById.mockReset();
     mockLogActivity.mockResolvedValue(undefined);
     mockStorage.headObject.mockResolvedValue({ exists: true, contentLength: 3, contentType: "image/png" });
   });
 
-  it("rejects non-CEO agent callers", async () => {
+  it("rejects agent callers without explicit invite permission", async () => {
     const db = createDbStub();
-    mockAgentService.getById.mockResolvedValue({
-      id: "agent-1",
-      companyId: "company-1",
-      role: "engineer",
-    });
     const app = createApp(
       {
         type: "agent",
@@ -169,7 +165,7 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
       .send({});
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Permission denied");
   });
 
   it("rejects CEO agent callers outside the target company scope", async () => {
@@ -194,13 +190,11 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
     expect((db as any).__insertValues).not.toHaveBeenCalled();
   });
 
-  it("allows CEO agent callers and creates an agent-only invite", async () => {
+  it("allows peer agent callers with explicit invite permission", async () => {
     const db = createDbStub([companyBranding], [logoAsset]);
-    mockAgentService.getById.mockResolvedValue({
-      id: "agent-1",
-      companyId: "company-1",
-      role: "ceo",
-    });
+    mockAccessService.hasPermission.mockImplementation(
+      async (_companyId, _principalType, _principalId, permissionKey) => permissionKey === "users:invite",
+    );
     const app = createApp(
       {
         type: "agent",

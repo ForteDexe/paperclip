@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Check, Circle, Loader2 } from "lucide-react";
-import { AGENT_ROLES, type CreateGrokInvitation, type DotPairing, type GrokConnection } from "@paperclipai/shared";
+import type { CreateGrokInvitation, DotPairing, GrokConnection } from "@paperclipai/shared";
 import { AdapterMark } from "../AdapterMark";
 import { AgentSetupPrompt } from "../AgentSetupPrompt";
 import { Button, buttonVariants } from "../ui/button";
@@ -54,7 +54,6 @@ export function GrokBotSetupContent(p: GrokBotSetupContentProps) {
           <label className="block space-y-2 text-sm"><span>Outpost name</span><Input value={p.details.name} disabled={p.created} onChange={e => p.onDetails({ ...p.details, name: e.target.value })} autoComplete="off" maxLength={100} /></label>
           <label className="block space-y-2 text-sm"><span>Bot name in Grok</span><Input value={p.details.botName} disabled={p.created} onChange={e => p.onDetails({ ...p.details, botName: e.target.value })} autoComplete="off" maxLength={100} /></label>
           <p className="text-xs text-muted-foreground">Use the name shown in the Grok Bot desktop app. Bot web links may no longer work.</p>
-          <label className="block space-y-2 text-sm"><span>Role</span><NativeSelect disabled={p.created} value={p.details.role ?? "general"} onChange={e => p.onDetails({ ...p.details, role: e.target.value as CreateGrokInvitation["role"] })}>{AGENT_ROLES.map(role => <option key={role} value={role}>{role.replaceAll("_", " ")}</option>)}</NativeSelect></label>
           <label className="block space-y-2 text-sm"><span>Manager</span><NativeSelect disabled={p.created} value={p.details.reportsTo ?? ""} onChange={e => p.onDetails({ ...p.details, reportsTo: e.target.value || null })}><option value="">No manager</option>{p.managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</NativeSelect></label>
         </div>}
         {p.step === 1 && <div className="space-y-4 text-sm">

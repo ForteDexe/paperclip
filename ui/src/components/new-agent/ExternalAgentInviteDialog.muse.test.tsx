@@ -55,20 +55,19 @@ it("gates Muse on both flags without changing Dot availability", async () => {
   expect(document.body.textContent).not.toContain("Muse — Personal agent");
   expect(museApi.resume).not.toHaveBeenCalled();
 });
-it("retains a nonsecret name/role draft and has one aligned footer", async () => {
+it("retains a nonsecret name draft and has one aligned footer", async () => {
   await render(); await click("Muse — Personal agentYour personal Muse at muse.ai");
   const name = document.querySelector<HTMLInputElement>('input[placeholder="Muse"]')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "Maia");
     name.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  const select = document.querySelector<HTMLSelectElement>("select")!;
-  await act(async () => { select.value = "researcher"; select.dispatchEvent(new Event("change", { bubbles: true })); });
-  expect(readMuseInvitationDraft("company", "operator")).toEqual({ name: "Maia", role: "researcher" });
+  expect(document.querySelector("select")).toBeNull();
+  expect(readMuseInvitationDraft("company", "operator")).toEqual({ name: "Maia", role: "general" });
   const footer = [...document.querySelectorAll("button")].find(b => b.textContent === "Continue")!.parentElement!;
   expect(footer.textContent).toContain("Save & exit");
   await click("Continue");
-  expect(museApi.create).toHaveBeenCalledWith("company", { name: "Maia", role: "researcher" });
+  expect(museApi.create).toHaveBeenCalledWith("company", { name: "Maia", role: "general" });
   expect(museApi.pair).toHaveBeenCalledWith("company", agent.id, {});
   expect(JSON.stringify(cache.getMutationCache().getAll().map(mutation => mutation.state))).not.toContain(musePairing.ticket);
   expect(JSON.stringify(cache.getQueryCache().getAll().map(query => query.state.data))).not.toContain(musePairing.ticket);

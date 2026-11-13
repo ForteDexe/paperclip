@@ -217,13 +217,3 @@ export const authSessionSchema = z.object({
 });
 
 export type AuthSession = z.infer<typeof authSessionSchema>;
-
-export const updateCurrentUserProfileSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  image: z
-    .union([profileImageSchema, z.literal(""), z.null()])
-    .optional()
-    .transform((value) => value === "" ? null : value),
-});
-
-export type UpdateCurrentUserProfile = z.infer<typeof updateCurrentUserProfileSchema>;

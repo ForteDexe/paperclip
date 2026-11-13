@@ -1151,13 +1151,6 @@ describe("chat prompt policy", () => {
     expect(prompt).toContain("Do not build, delegate or brief the work with an invented or placeholder name");
   });
 
-  it("routes a person's own profile change to their profile settings instead of an agent write", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("only they can change them in their profile settings at /<prefix>/company/settings/instance/profile");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("link that page instead of attempting the change");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
-    expect(prompt).toContain("/<prefix>/company/settings/instance/profile");
-  });
-
   it("routes a task identifier from another company to a company switch instead of a search", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("A task identifier whose prefix differs from this conversation's prefix belongs to another company or to none");
     expect(AGENT_CHAT_DIRECTIVE).toContain("a lookup that is not found does not mean the task does not exist");

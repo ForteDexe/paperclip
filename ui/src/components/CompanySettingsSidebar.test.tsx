@@ -9,9 +9,6 @@ import { CompanySettingsSidebar as ProductionCompanySettingsSidebar } from "./Co
 import { primarySidebarStyles } from "./primary-sidebar-styles";
 
 const sidebarNavItemMock = vi.hoisted(() => vi.fn());
-const mockSidebarBadgesApi = vi.hoisted(() => ({
-  get: vi.fn(),
-}));
 const mockPluginsApi = vi.hoisted(() => ({
   list: vi.fn(),
 }));
@@ -76,10 +73,6 @@ vi.mock("./SidebarCompanyMenu", () => ({
   SidebarCompanyMenu: () => <div>Workspace switcher</div>,
 }));
 
-vi.mock("@/api/sidebarBadges", () => ({
-  sidebarBadgesApi: mockSidebarBadgesApi,
-}));
-
 vi.mock("@/api/plugins", () => ({
   pluginsApi: mockPluginsApi,
 }));
@@ -110,12 +103,6 @@ describe("CompanySettingsSidebar", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
-    mockSidebarBadgesApi.get.mockResolvedValue({
-      inbox: 0,
-      approvals: 0,
-      failedRuns: 0,
-      joinRequests: 2,
-    });
     mockPluginsApi.list.mockResolvedValue([]);
     mockUsePluginSlots.mockReturnValue({
       slots: [],
@@ -176,9 +163,10 @@ describe("CompanySettingsSidebar", () => {
     expect(container.textContent).toContain("Environments");
     expect(container.textContent).toContain("Export");
     expect(container.textContent).toContain("Import");
-    expect(container.textContent).toContain("Members");
+    expect(container.textContent).not.toContain("Members");
     expect(container.textContent).toContain("Secrets");
-    expect(container.textContent).toContain("Access");
+    expect(container.textContent).not.toContain("Access");
+    expect(container.textContent).not.toContain("Profile");
     expect(container.textContent).not.toContain("Tools & Access");
     expect(sidebarNavItemMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -215,30 +203,8 @@ describe("CompanySettingsSidebar", () => {
     );
     expect(sidebarNavItemMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        to: "/company/settings/instance/access",
-        label: "Access",
-        end: true,
-      }),
-    );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "/company/settings/members",
-        label: "Members",
-        badge: 2,
-        end: true,
-      }),
-    );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
-      expect.objectContaining({
         to: "/company/settings/secrets",
         label: "Secrets",
-        end: true,
-      }),
-    );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "/company/settings/instance/profile",
-        label: "Profile",
         end: true,
       }),
     );
@@ -393,12 +359,6 @@ describe("CompanySettingsSidebar operator-hidden entries", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
-    mockSidebarBadgesApi.get.mockResolvedValue({
-      inbox: 0,
-      approvals: 0,
-      failedRuns: 0,
-      joinRequests: 0,
-    });
     mockPluginsApi.list.mockResolvedValue([]);
     mockUsePluginSlots.mockReturnValue({ slots: [], isLoading: false, errorMessage: null });
   });
@@ -433,14 +393,14 @@ describe("CompanySettingsSidebar operator-hidden entries", () => {
     expect(container.textContent).not.toContain("Plugins");
     expect(container.textContent).toContain("General");
     expect(container.textContent).toContain("Adapters");
-    expect(container.textContent).toContain("Access");
+    expect(container.textContent).not.toContain("Access");
     expect(mockPluginsApi.list).not.toHaveBeenCalled();
   });
 
   it("keeps every entry when nothing is hidden", async () => {
     await renderSidebar();
 
-    expect(container.textContent).toContain("Access");
+    expect(container.textContent).not.toContain("Access");
     expect(container.textContent).toContain("Plugins");
     expect(container.textContent).toContain("Adapters");
     expect(container.textContent).toContain("Import");

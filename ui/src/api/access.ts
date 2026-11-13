@@ -209,30 +209,6 @@ export type AdminUserDirectoryEntry = {
   activeCompanyMembershipCount: number;
 };
 
-export type UserCompanyAccessEntry = {
-  id: string;
-  companyId: string;
-  principalType: "user";
-  principalId: string;
-  status: "pending" | "active" | "suspended" | "archived";
-  membershipRole: HumanCompanyRole | "member" | null;
-  createdAt: string;
-  updatedAt: string;
-  companyName: string | null;
-  companyStatus: "active" | "paused" | "archived" | null;
-};
-
-export type UserCompanyAccessResponse = {
-  user: {
-    id: string;
-    email: string | null;
-    name: string | null;
-    image: string | null;
-    isInstanceAdmin: boolean;
-  } | null;
-  companyAccess: UserCompanyAccessEntry[];
-};
-
 export type CurrentBoardAccess = {
   user: { id: string; email: string | null; name: string | null; image: string | null } | null;
   userId: string;
@@ -409,12 +385,6 @@ export const accessApi = {
 
   demoteInstanceAdmin: (userId: string) =>
     api.post(`/admin/users/${userId}/demote-instance-admin`, {}),
-
-  getUserCompanyAccess: (userId: string) =>
-    api.get<UserCompanyAccessResponse>(`/admin/users/${userId}/company-access`),
-
-  setUserCompanyAccess: (userId: string, companyIds: string[]) =>
-    api.put<UserCompanyAccessResponse>(`/admin/users/${userId}/company-access`, { companyIds }),
 
   getCurrentBoardAccess: () =>
     api.get<CurrentBoardAccess>("/cli-auth/me"),

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { IssueChatUxLab } from "@/pages/IssueChatUxLab";
-import { InviteUxLab } from "@/pages/InviteUxLab";
 import { RunTranscriptUxLab } from "@/pages/RunTranscriptUxLab";
 import { SystemNoticeUxLab } from "@/pages/SystemNoticeUxLab";
 
@@ -52,7 +51,6 @@ export const IssueChatReviewSurface: Story = {
     },
   },
 };
-
 export const RunTranscriptFixtures: Story = {
   name: "Run Transcript Fixtures",
   render: () => (
@@ -69,7 +67,6 @@ export const RunTranscriptFixtures: Story = {
     },
   },
 };
-
 export const SystemNoticeTreatment: Story = {
   name: "System Notice Treatment",
   render: () => (
@@ -86,20 +83,4 @@ export const SystemNoticeTreatment: Story = {
     },
   },
 };
-
-export const InviteAndAccessFlow: Story = {
-  name: "Invite And Access Flow",
-  render: () => (
-    <StoryFrame>
-      <InviteUxLab />
-    </StoryFrame>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Exercises invitation and access UX states with fixture-backed role choices, landing frames, history, and failure treatments.",
-      },
-    },
-  },
-};
+// End of developer lab stories.

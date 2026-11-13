@@ -7,19 +7,13 @@ import {
   FlaskConical,
   KeyRound,
   Link2,
-  MailPlus,
   MonitorCog,
   Puzzle,
-  Shield,
   SlidersHorizontal,
   Upload,
-  UserRoundPen,
-  Users,
 } from "lucide-react";
 import type { PluginRecord } from "@paperclipai/shared";
-import { sidebarBadgesApi } from "@/api/sidebarBadges";
 import { pluginsApi } from "@/api/plugins";
-import { ApiError } from "@/api/client";
 import { Link, NavLink } from "@/lib/router";
 import { INSTANCE_SETTINGS_PATH_PREFIX } from "@/lib/instance-settings";
 import { SIDEBAR_SCROLL_RESET_STATE } from "@/lib/navigation-scroll";
@@ -57,23 +51,6 @@ export function CompanySettingsSidebar() {
     companyId: selectedCompanyId,
     enabled: !!selectedCompanyId,
   });
-  const { data: badges } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.sidebarBadges(selectedCompanyId)
-      : ["sidebar-badges", "__disabled__"] as const,
-    queryFn: async () => {
-      try {
-        return await sidebarBadgesApi.get(selectedCompanyId!);
-      } catch (error) {
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          return null;
-        }
-        throw error;
-      }
-    },
-    enabled: !!selectedCompanyId,
-    refetchInterval: 15_000,
-  });
   const { data: plugins } = useQuery({
     queryKey: queryKeys.plugins.all,
     queryFn: () => pluginsApi.list(),
@@ -101,23 +78,6 @@ export function CompanySettingsSidebar() {
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide px-3 py-2">
         <div className="flex flex-col gap-0.5">
           <SidebarNavItem to="/company/settings" label="General" icon={SlidersHorizontal} end />
-          {showPage("instance.profile") && (
-            <SidebarNavItem
-              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/profile`}
-              label="Profile"
-              icon={UserRoundPen}
-              end
-            />
-          )}
-          {showPage("company.members") && (
-            <SidebarNavItem
-              to="/company/settings/members"
-              label="Members"
-              icon={Users}
-              badge={badges?.joinRequests ?? 0}
-              end
-            />
-          )}
           {companySettingsPluginSlots
             .filter((slot) => slot.routePath)
             .map((slot) => (
@@ -129,9 +89,6 @@ export function CompanySettingsSidebar() {
                 end
               />
             ))}
-          {showPage("company.invites") && (
-            <SidebarNavItem to="/company/settings/invites" label="Invites" icon={MailPlus} end />
-          )}
           {showPage("company.secrets") && (
             <SidebarNavItem to="/company/settings/secrets" label="Secrets" icon={KeyRound} end />
           )}
@@ -144,14 +101,6 @@ export function CompanySettingsSidebar() {
             />
           )}
           <SidebarNavItem to="/company/settings/connections" label="Connections" icon={Link2} end />
-          {showPage("instance.access") && (
-            <SidebarNavItem
-              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/access`}
-              label="Access"
-              icon={Shield}
-              end
-            />
-          )}
           {showPage("instance.heartbeats") && (
             <SidebarNavItem
               to={`${INSTANCE_SETTINGS_PATH_PREFIX}/heartbeats`}

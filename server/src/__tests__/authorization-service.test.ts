@@ -2049,7 +2049,7 @@ describeEmbeddedPostgres("authorization service", () => {
     });
   });
 
-  it("preserves legacy CEO agent creator authority", async () => {
+  it("does not derive agent creator authority from a legacy CEO title", async () => {
     const company = await createCompany(db, "Legacy");
     const actorAgent = await createAgent(db, company.id, { role: "ceo" });
 
@@ -2059,10 +2059,7 @@ describeEmbeddedPostgres("authorization service", () => {
       resource: { type: "company", companyId: company.id },
     });
 
-    expect(decision).toMatchObject({
-      allowed: true,
-      reason: "allow_legacy_agent_creator",
-    });
+    expect(decision).toMatchObject({ allowed: false, reason: "deny_missing_grant" });
   });
 
   it("honors a board-recorded hiring denial on a CEO instead of the CEO title", async () => {
@@ -2085,9 +2082,7 @@ describeEmbeddedPostgres("authorization service", () => {
     });
   });
 
-  it("keeps CEO hiring when a false was saved without a board-recorded denial", async () => {
-    // Stale full-object saves, import updates and the low-trust default can
-    // all save false on a CEO without the board choosing to restrict it.
+  it("honors an explicit false regardless of legacy title", async () => {
     const company = await createCompany(db, "CeoUnrecordedFalse");
     const actorAgent = await createAgent(db, company.id, {
       role: "ceo",
@@ -2100,13 +2095,11 @@ describeEmbeddedPostgres("authorization service", () => {
       resource: { type: "company", companyId: company.id },
     });
 
-    expect(decision).toMatchObject({ allowed: true, reason: "allow_legacy_agent_creator" });
+    expect(decision).toMatchObject({ allowed: false, reason: "deny_missing_grant" });
   });
 
-  it("grants hire authority through the persisted new-agent default", async () => {
+  it("grants hire authority through an explicit persisted permission", async () => {
     const company = await createCompany(db, "DefaultHire");
-    // The service create path persists the create-context default
-    // (canCreateAgents: true for standard trust); enforcement reads it back.
     const actorAgent = await createAgent(db, company.id, {
       role: "engineer",
       permissions: { canCreateAgents: true, canCreateSkills: true },

@@ -11,7 +11,6 @@ import { slackConversationUrl } from "./slack/conversation-url";
 import { useAccountIdentity } from "@/api/companies-query";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { SlackSetupAdvanced } from "./SlackAppDetails";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SlackToolsSettings, SlackSearchAccess } from "./SlackToolSettings";
 import { ChatCommunicationInstructions } from "./ChatCommunicationInstructions";
 import { ChatExecutionDefaults } from "./ChatExecutionDefaults";
@@ -697,10 +696,7 @@ function Access({
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [confirmationUrl, setConfirmationUrl] = useState<string | null>(null);
-  const [joinCommandCopied, setJoinCommandCopied] = useState(false);
-  const [inviteCopied, setInviteCopied] = useState(false);
   const [confirmationFor, setConfirmationFor] = useState<string | null>(null);
-  const joinCommand = `${endpoint.setup?.slackApp?.command ?? endpoint.setup?.command ?? "/paperclip"} connect`;
   const linksQuery = useQuery({
     queryKey: queryKeys.chatEndpoints.principals(endpointId),
     queryFn: () => chatEndpointsApi.listPrincipals(endpointId),
@@ -742,36 +738,8 @@ function Access({
   const links = linksQuery.data ?? [];
   return (
     <section className="max-w-3xl space-y-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">People</h2>
-        {endpoint.provider === "slack" && <Dialog>
-          <DialogTrigger asChild><Button>Invite people</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite people to talk to {endpoint.assignedAgentName}</DialogTitle>
-              <DialogDescription>Share these instructions with someone in your Slack workspace.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 text-sm">
-              <ol className="list-decimal space-y-3 pl-5">
-                <li>Send <code className="font-mono">{joinCommand}</code> in Slack.</li>
-                <li>Open the bot’s private link and sign in to Outpost to confirm your Slack account.</li>
-                <li>If you’re new to this outpost, request access and wait for an admin to approve.</li>
-              </ol>
-              <p className="text-muted-foreground">The confirmation link is personal and expires after 15 minutes.</p>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Button variant="ghost" onClick={() => {
-                  void copyTextToClipboard(joinCommand).then(() => setJoinCommandCopied(true), () => pushToast({ title: "Couldn't copy the command", tone: "error" }));
-                }}>{joinCommandCopied ? <Check className="size-4" /> : <Copy className="size-4" />}{joinCommandCopied ? "Copied" : "Copy command"}</Button>
-                <Button onClick={() => {
-                  const workspace = endpoint.providerAccountId ? `https://app.slack.com/client/${encodeURIComponent(endpoint.providerAccountId)}` : "https://app.slack.com/";
-                  void copyTextToClipboard(`Talk to ${endpoint.assignedAgentName} in Slack: ${workspace}\nSend ${joinCommand}, then open the bot’s private link and sign in to Outpost to confirm your account. If you’re new to the Outpost, request access for an admin to approve.`).then(() => setInviteCopied(true), () => pushToast({ title: "Couldn't copy invitation", tone: "error" }));
-                }}>{inviteCopied ? <Check className="size-4" /> : <Copy className="size-4" />}{inviteCopied ? "Invitation copied" : "Copy invitation"}</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>}
-      </div>
-      <p className="text-sm text-muted-foreground">People with linked accounts use their own Outpost permissions. <Link className="underline underline-offset-4" to="/company/settings/members">Manage members</Link></p>
+      <h2 className="text-lg font-semibold">Linked accounts</h2>
+      <p className="text-sm text-muted-foreground">Existing linked accounts use their own Outpost permissions.</p>
       {confirmationUrl && (
         <div className="space-y-2 border-y border-border py-3">
           <p className="text-sm font-medium">Confirm {confirmationFor ?? "this account"}</p>
@@ -806,7 +774,7 @@ function Access({
       <div className="space-y-2">
         {linksQuery.isPending || linksView.kind === "reconnecting" ? <p role="status" className="text-sm text-muted-foreground">Loading people…</p> : linksView.kind === "error" ? <QueryErrorState size="inline" error={linksQuery.error} action="load people" onRetry={linksView.retry} retrying={linksView.isFetching} /> : links.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-            No linked accounts yet. Invite someone to connect.
+            No linked accounts.
           </p>
         ) : (
           <div role="list" aria-label="People" className="divide-y divide-border border-y border-border">

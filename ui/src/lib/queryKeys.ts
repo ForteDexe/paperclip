@@ -603,8 +603,6 @@ export const queryKeys = {
     companyUserDirectory: (companyId: string) =>
       ["access", "outpost-user-directory", companyId] as const,
     adminUsers: (query: string) => ["access", "admin-users", query] as const,
-    userCompanyAccess: (userId: string) =>
-      ["access", "user-outpost-access", userId] as const,
     invite: (token: string) => ["access", "invite", token] as const,
     currentBoardAccess: ["access", "current-board-access"] as const,
   },

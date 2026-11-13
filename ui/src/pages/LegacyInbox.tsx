@@ -807,11 +807,10 @@ export function Inbox() {
     queryKey: queryKeys.access.joinRequests(selectedCompanyId!),
     queryFn: async () => {
       try {
-        return await accessApi.listJoinRequests(selectedCompanyId!, "pending_approval");
+        const requests = await accessApi.listJoinRequests(selectedCompanyId!, "pending_approval");
+        return requests.filter((request) => request.requestType === "agent");
       } catch (err) {
-        if (err instanceof ApiError && (err.status === 403 || err.status === 401)) {
-          return [];
-        }
+        if (err instanceof ApiError && (err.status === 403 || err.status === 401)) return [];
         throw err;
       }
     },
@@ -2565,7 +2564,7 @@ export function Inbox() {
             <SelectContent>
               <SelectItem value="everything">All categories</SelectItem>
               <SelectItem value="issues_i_touched">My recent tasks</SelectItem>
-              <SelectItem value="join_requests">Join requests</SelectItem>
+              <SelectItem value="join_requests">Agent join requests</SelectItem>
               <SelectItem value="approvals">Approvals</SelectItem>
               <SelectItem value="failed_runs">Failed runs</SelectItem>
               <SelectItem value="alerts">Alerts</SelectItem>

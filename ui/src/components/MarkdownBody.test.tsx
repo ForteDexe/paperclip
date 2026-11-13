@@ -201,8 +201,8 @@ describe("MarkdownBody", () => {
       </QueryClientProvider>,
     );
 
-    expect(html).toContain('href="/company/settings/access"');
     expect(html).toContain('data-mention-kind="user"');
+    expect(html).not.toContain('href="/company/settings/access"');
     expect(html).toContain('href="/agents/agent-123"');
     expect(html).toContain('data-mention-kind="agent"');
     expect(html).toContain("--paperclip-mention-avatar-image");

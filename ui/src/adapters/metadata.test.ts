@@ -16,20 +16,19 @@ const externalAdapter: UIAdapterModule = {
 };
 
 describe("adapter metadata", () => {
-  it("treats registered external adapters as enabled by default", () => {
-    expect(isEnabledAdapterType("external_test")).toBe(true);
+  it("limits agent adapter choices to Claude and Codex", () => {
+    expect(isEnabledAdapterType("external_test")).toBe(false);
+    expect(isValidAdapterType("external_test")).toBe(false);
 
     expect(
       listAdapterOptions((type) => type, [externalAdapter]),
-    ).toEqual([
-      {
-        value: "external_test",
-        label: "external_test",
-        comingSoon: false,
-        hidden: false,
-        experimental: false,
-      },
-    ]);
+    ).toEqual([]);
+
+    expect(listAdapterOptions((type) => type, [
+      { ...externalAdapter, type: "claude_local" },
+      { ...externalAdapter, type: "codex_local" },
+      { ...externalAdapter, type: "gemini_local" },
+    ]).map((option) => option.value)).toEqual(["claude_local", "codex_local"]);
   });
 
   it("keeps intentionally withheld built-in adapters marked as coming soon", () => {
@@ -42,21 +41,6 @@ describe("adapter metadata", () => {
     expect(isValidAdapterType("acpx_local")).toBe(false);
     expect(isVisualAdapterChoice("acpx_local")).toBe(false);
 
-    expect(
-      listAdapterOptions((type) => type, [
-        {
-          ...externalAdapter,
-          type: "acpx_local",
-        },
-      ]),
-    ).toEqual([
-      {
-        value: "acpx_local",
-        label: "acpx_local",
-        comingSoon: true,
-        hidden: false,
-        experimental: false,
-      },
-    ]);
+    expect(listAdapterOptions((type) => type, [{ ...externalAdapter, type: "acpx_local" }])).toEqual([]);
   });
 });

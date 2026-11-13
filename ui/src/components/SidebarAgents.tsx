@@ -1,4 +1,5 @@
 import { usePrimaryAgentPresentation } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { AgentCoordinationIndicator } from "@/components/AgentCoordinationIndicator";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "@/lib/router";
@@ -118,6 +119,7 @@ function SidebarAgentItem({
   runCount,
   setSidebarOpen,
   builtInStatus,
+  directReportCount,
   starred = false,
   onToggleStar,
   starPending = false,
@@ -134,6 +136,7 @@ function SidebarAgentItem({
   runCount: number;
   setSidebarOpen: (open: boolean) => void;
   builtInStatus?: BuiltInAgentStatus;
+  directReportCount: number;
   starred?: boolean;
   onToggleStar?: (agent: Agent, starred: boolean) => void;
   starPending?: boolean;
@@ -153,6 +156,7 @@ function SidebarAgentItem({
       : pauseResumeLabel;
   const showBuiltInLifecycle = builtInStatus === "needs_setup" || builtInStatus === "pending_approval";
   const trailingLabel = [
+    directReportCount > 0 ? `Coordinates ${directReportCount} ${directReportCount === 1 ? "agent" : "agents"}` : null,
     showBuiltInLifecycle ? `Built-in agent ${builtInStatus.replace(/_/g, " ")}` : null,
     hasInvalidOrgChain ? "Invalid reporting chain" : null,
   ].filter(Boolean).join(", ") || undefined;
@@ -174,8 +178,9 @@ function SidebarAgentItem({
         starred && !isMobile ? "pr-14" : "pr-8",
       )}
       trailing={
-        showBuiltInLifecycle || hasInvalidOrgChain ? (
+        directReportCount > 0 || showBuiltInLifecycle || hasInvalidOrgChain ? (
           <span className="ml-1 flex shrink-0 items-center gap-1">
+            <AgentCoordinationIndicator directReportCount={directReportCount} />
             {showBuiltInLifecycle ? <BuiltInLifecycleChip status={builtInStatus} compact /> : null}
             {hasInvalidOrgChain ? (
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid reporting chain" />
@@ -602,6 +607,15 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
     [displayedAgents, starredAgentIdSet],
   );
 
+  const directReportCountByAgentId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const agent of visibleAgents) {
+      if (!agent.reportsTo) continue;
+      counts.set(agent.reportsTo, (counts.get(agent.reportsTo) ?? 0) + 1);
+    }
+    return counts;
+  }, [visibleAgents]);
+
   const primaryAgent = primary && !primary.loading
     ? visibleAgents.find(agent => agent.id === primary.primaryAgentId)
     : undefined;
@@ -621,6 +635,7 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
       runCount={liveCountByAgent.get(agent.id) ?? 0}
       setSidebarOpen={setSidebarOpen}
       builtInStatus={builtInStatusByAgentId.get(agent.id)}
+      directReportCount={directReportCountByAgentId.get(agent.id) ?? 0}
       starred={isStarredRow || isStarred(membershipsQuery.data, "agent", agent.id)}
       onToggleStar={toggleStarAgent}
       starPending={agentStarPending(agent)}

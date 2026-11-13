@@ -930,15 +930,24 @@ function MarkdownBodyImpl({
             </MarkdownAgentMention>
           );
         }
+        if (parsed.kind === "user") {
+          return (
+            <span
+              className="paperclip-mention-chip paperclip-mention-chip--user"
+              data-mention-kind="user"
+              style={{ ...mergeWrapStyle(linkStyle as React.CSSProperties | undefined), ...mentionChipInlineStyle(parsed) }}
+            >
+              {linkChildren}
+            </span>
+          );
+        }
         const targetHref = parsed.kind === "project"
           ? `/projects/${parsed.projectId}`
           : parsed.kind === "issue"
             ? `/issues/${parsed.identifier}`
             : parsed.kind === "skill"
               ? `/skills/${parsed.skillId}`
-              : parsed.kind === "routine"
-                ? `/routines/${parsed.routineId}`
-                : "/company/settings/access";
+              : `/routines/${parsed.routineId}`;
         return (
           <a
             href={targetHref}

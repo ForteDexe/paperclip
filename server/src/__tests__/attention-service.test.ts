@@ -324,6 +324,54 @@ describeEmbeddedPostgres("attention service", () => {
     expect(feed.countsBySourceKind.review).toBe(0);
   });
 
+  it("keeps agent join approvals and omits human membership requests", async () => {
+    const { companyId } = await seedCompany("AJR");
+    const humanInviteId = randomUUID();
+    const agentInviteId = randomUUID();
+    await db.insert(invites).values([
+      {
+        id: humanInviteId,
+        companyId,
+        tokenHash: `hash-${humanInviteId}`,
+        allowedJoinTypes: "human",
+        expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+      },
+      {
+        id: agentInviteId,
+        companyId,
+        tokenHash: `hash-${agentInviteId}`,
+        allowedJoinTypes: "agent",
+        expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+      },
+    ]);
+    await db.insert(joinRequests).values([
+      {
+        id: randomUUID(),
+        inviteId: humanInviteId,
+        companyId,
+        requestType: "human",
+        status: "pending_approval",
+        requestIp: "127.0.0.1",
+        requestEmailSnapshot: "person@example.test",
+      },
+      {
+        id: randomUUID(),
+        inviteId: agentInviteId,
+        companyId,
+        requestType: "agent",
+        status: "pending_approval",
+        requestIp: "127.0.0.1",
+        agentName: "Invited worker",
+        adapterType: "codex_local",
+      },
+    ]);
+
+    const feed = await attentionService(db).list(companyId, { userId: "board-user" });
+    const joins = feed.items.filter((item) => item.sourceKind === "join_request");
+    expect(joins.map((item) => item.subject.title)).toEqual(["Invited worker"]);
+    expect(joins[0]?.subject.href).toBe("/AJR/inbox/mine");
+  });
+
   it("returns ranked decision-only items for every active source and excludes non-human or transient rows", async () => {
     const { companyId, workerId, reviewerId } = await seedCompany("ATN");
     const baseTime = new Date("2026-07-09T12:00:00.000Z");
@@ -476,19 +524,20 @@ describeEmbeddedPostgres("attention service", () => {
       id: inviteId,
       companyId,
       tokenHash: `hash-${inviteId}`,
-      allowedJoinTypes: "both",
+      allowedJoinTypes: "agent",
       expiresAt: new Date("2026-07-10T00:00:00.000Z"),
     });
     await db.insert(joinRequests).values({
       id: randomUUID(),
       inviteId,
       companyId,
-      requestType: "human",
+      requestType: "agent",
       status: "pending_approval",
       requestIp: "127.0.0.1",
-      requestEmailSnapshot: "new@paperclip.test",
-      createdAt: new Date("2026-07-09T12:04:00.000Z"),
-      updatedAt: new Date("2026-07-09T12:04:00.000Z"),
+      agentName: "Invited worker",
+      adapterType: "codex_local",
+      createdAt: new Date("2026-07-09T12:04:30.000Z"),
+      updatedAt: new Date("2026-07-09T12:04:30.000Z"),
     });
 
     await db.insert(issueRecoveryActions).values([
@@ -705,6 +754,7 @@ describeEmbeddedPostgres("attention service", () => {
       "budget_alert",
       "agent_error_alert",
     ]));
+    expect(feed.items.some((item) => item.subject.title === "Invited worker")).toBe(true);
     for (const item of feed.items) {
       expect(item.dedupKey).toBeTruthy();
       expect(item.dismissalKey).toBe(`attention:${item.dedupKey}`);

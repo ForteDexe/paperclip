@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloudAppUrl, cloudPortfolioManageUrl, cloudStackCreateUrl, cloudStackInviteUrl, cloudStackEntryUrl, tenantSignInReturnPath } from "./cloudLinks";
+import { cloudAppUrl, cloudPortfolioManageUrl, cloudStackCreateUrl, cloudStackEntryUrl, tenantSignInReturnPath } from "./cloudLinks";
 
 describe("cloudLinks", () => {
   it.each(["https://my.paperclip.app", "https://my-staging.paperclip.app", "http://cloud.localhost:3200"])(
@@ -30,15 +30,6 @@ describe("cloudLinks", () => {
       "https://app.paperclip.app/orgs?manage=1",
     );
     expect(cloudPortfolioManageUrl(null)).toBeNull();
-  });
-
-  it("opens Cloud People settings on the configured origin with an escaped stack slug", () => {
-    expect(cloudStackInviteUrl("https://cloud.example.test/control-plane", "team/with?query")).toBe(
-      "https://cloud.example.test/workspaces/team%2Fwith%3Fquery/settings?section=people",
-    );
-    expect(cloudStackInviteUrl(null, "team")).toBeNull();
-    expect(cloudStackInviteUrl("https://cloud.example.test", " ")).toBeNull();
-    expect(cloudStackInviteUrl("javascript:alert(1)", "team")).toBeNull();
   });
 
   it("returns null without a usable base", () => {

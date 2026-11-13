@@ -2949,7 +2949,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gradient-extract-2: linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02)); /* Costs.tsx subtle white card gradient. */
   --gradient-extract-3: radial-gradient(circle at top left,rgba(244,114,182,0.08),transparent 35%),radial-gradient(circle at bottom right,rgba(56,189,248,0.1),transparent 32%); /* AccountingModelCard.tsx decorative overlay. */
   --gradient-extract-4: linear-gradient(180deg,rgba(255,70,70,0.10),rgba(255,255,255,0.02)); /* BudgetIncidentCard.tsx incident-card gradient. */
-  --gradient-extract-7: radial-gradient(circle at top right,rgba(255,255,255,0.22),transparent 34%),radial-gradient(circle at bottom left,rgba(255,255,255,0.08),transparent 36%); /* ProfileSettings.tsx:162 decorative overlay. */
 }
 
 /* ── Extracted verbatim TYPE tokens (Phase 2 Batch 2, design/token-extraction) ── */
@@ -3180,7 +3179,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --rad-2: 2px; /* Extracted from ui/src/components/SidebarCompanyMenu.tsx (ring-[2px]). */
   --rad-14: 14px; /* Extracted from ui/src/pages/CompanySettings.tsx (rounded-[14px]). */
   --rad-28: 28px; /* Extracted from ui/src/pages/InviteUxLab.tsx (rounded-[28px]). */
-  --rad-24: 24px; /* Extracted from ui/src/pages/InviteUxLab.tsx (rounded-[24px]). */
   --rad-32: 32px; /* Extracted from ui/src/pages/InviteUxLab.tsx (rounded-[32px]). */
   --pct-90: 90%; /* Extracted from ui/src/components/DocumentDiffModal.tsx (max-w-[90%]). */
   --pct-80: 80%; /* TaskChatThread composer width (PAP-498 follow-up). */
@@ -3204,7 +3202,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --shadow-sidebar-icon-badge: 0 0 0 2px var(--muted); /* Streamlined sidebar icon-badge outline; matches the sidebar surface. */
   --shadow-extract-13: 0 0 0 3px rgba(245,158,11,0.18); /* Extracted from ui/src/components/environment-variables-editor/index.tsx (shadow-[0_0_0_3px_rgba(245,158,11,0.18)]). */
   --shadow-extract-14: 0 0 12px rgba(37,99,235,0.08); /* AgentDetail.tsx live-card glow. Gallery feedback r2: liveness glow recolored cyan->status blue (value edit, site unchanged; originally extracted as rgba(6,182,212,0.08)). */
-  --shadow-extract-18: 0 18px 44px -28px rgba(0,0,0,0.45); /* Extracted from ui/src/pages/ProfileSettings.tsx (shadow-[0_18px_44px_-28px_rgba(0,0,0,0.45)]). */
 }
 
 /* ── Extracted verbatim MISC tokens (Phase 2 Batch 4, design/token-extraction) ── */
@@ -3266,7 +3263,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gtc-18: auto minmax(0,1fr) minmax(12rem,0.65fr); /* Extracted from ui/src/pages/AgentDetail.tsx (grid-cols-[auto_minmax(0,1fr)_minmax(12rem,0.65fr)]). */
   --gtc-19: 260px minmax(0,1fr); /* Extracted from ui/src/pages/AgentDetail.tsx (grid-cols-[260px_minmax(0,1fr)]). */
   /* --gtc-20 through --gtc-23 retired with the removed Cloud Upstream page. */
-  --gtc-24: minmax(0,1.5fr) 120px 120px 180px; /* Extracted from ui/src/pages/CompanyAccess.tsx (grid-cols-[minmax(0,1.5fr)_120px_120px_180px]). */
   --gtc-25: 19rem minmax(0,1fr); /* Extracted from ui/src/pages/CompanyExport.tsx (grid-cols-[19rem_minmax(0,1fr)]). */
   --gtc-26: 7rem minmax(0,1fr); /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[7rem_minmax(0,1fr)]). */
   --gtc-27: minmax(0,1fr) auto auto; /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[minmax(0,1fr)_auto_auto]). */
@@ -3278,9 +3274,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gtc-33: 1.2fr,0.95fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.2fr,0.95fr]). */
   --gtc-34: 320px minmax(0,1fr); /* Extracted from ui/src/pages/InstanceAccess.tsx (grid-cols-[320px_minmax(0,1fr)]). */
   --gtc-35: minmax(10rem,14rem) 1fr; /* Extracted from ui/src/pages/InstanceExperimentalSettings.tsx (grid-cols-[minmax(10rem,14rem)_1fr]). */
-  --gtc-36: minmax(0,1.15fr) minmax(360px,0.85fr); /* Extracted from ui/src/pages/InviteLanding.tsx (grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]). */
-  --gtc-37: minmax(0,1.15fr) minmax(320px,0.85fr); /* Extracted from ui/src/pages/InviteUxLab.tsx (grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]). */
-  --gtc-38: minmax(0,0.92fr) minmax(0,1.08fr); /* Extracted from ui/src/pages/InviteUxLab.tsx (grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]). */
   --gtc-39: minmax(0,1.2fr) 320px; /* Extracted from ui/src/pages/InviteUxLab.tsx (grid-cols-[minmax(0,1.2fr)_320px]). */
   --gtc-40: minmax(0,1fr) 320px; /* Extracted from ui/src/pages/IssueChatLongThreadPerf.tsx (grid-cols-[minmax(0,1fr)_320px]). */
   --gtc-52: minmax(0,1.4fr) minmax(220px,0.8fr); /* Extracted from ui/src/pages/PluginSettings.tsx (grid-cols-[minmax(0,1.4fr)_minmax(220px,0.8fr)]). */
@@ -3288,8 +3281,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gtc-54: minmax(12rem,2.4fr) minmax(5.25rem,0.75fr) minmax(7rem,1fr) minmax(5rem,0.7fr) 2.75rem; /* Extracted from ui/src/pages/Secrets.tsx (grid-cols-[minmax(12rem,2.4fr)_minmax(5.25rem,0.75fr)_minmax(7rem,1fr)_minmax(5rem,0.7fr)_2.75rem]). */
   --gtc-55: 8rem minmax(0,1fr); /* Extracted from ui/src/pages/Secrets.tsx (grid-cols-[8rem_minmax(0,1fr)]). */
   --gtc-56: minmax(0,1fr) minmax(14rem,18rem); /* Extracted from ui/src/pages/TeamCatalog.tsx (grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)]). */
-  --gtc-57: repeat(14,minmax(0,1fr)); /* Extracted from ui/src/pages/UserProfile.tsx (grid-cols-[repeat(14,minmax(0,1fr))]). */
-  --gtc-58: auto 1fr auto; /* Extracted from ui/src/pages/UserProfile.tsx (grid-cols-[auto_1fr_auto]). */
   --gtc-59: 8rem 1fr;
   --gtc-60: 1fr 1fr;
   --gtc-61: 1fr 1fr 1fr;
@@ -3346,7 +3337,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --code-gutter-fg-resolved: var(--paperclip-code-gutter-fg, var(--muted-foreground)); /* Extracted from ui/src/components/FileViewerSheet.tsx (text-[var(--paperclip-code-gutter-fg,theme(colors.muted.foreground))]). */
   --code-highlight-border-resolved: var(--paperclip-code-highlight-border); /* Extracted from ui/src/components/FileViewerSheet.tsx; fallback dropped in A5 now that --paperclip-code-highlight-border is a real token (was var(--paperclip-code-highlight-border, rgb(234,179,8))). */
   --gradient-extract-25: linear-gradient(135deg,var(--primary) 0%,var(--accent) 55%,var(--muted) 100%); /* Extracted from ui/src/components/SidebarAccountMenu.tsx; corrected for full-color semantic tokens. */
-  --gradient-extract-26: linear-gradient(135deg,var(--primary) 0%,var(--accent) 58%,color-mix(in oklab,var(--background) 76%,white 24%) 100%); /* Extracted from ui/src/pages/ProfileSettings.tsx; corrected for full-color semantic tokens. */
 }
 
 /* ── ALLOWLIST (Phase 2, design/token-extraction) ──────────────────────────
@@ -3386,7 +3376,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    * allow ui/src/components/ProjectWorkspaceSummaryCard.tsx — min-[420px]: is a Tailwind arbitrary BREAKPOINT variant (responsive container-query-style prefix), not a value applied to a property; the variant position cannot reference a CSS custom property, so it cannot be tokenized without changing Tailwind's own variant syntax
    * allow ui/src/components/FileTree.tsx — max-[480px]: arbitrary breakpoint variant (x2), same reasoning as min-[420px] above
    * allow ui/src/pages/RunTranscriptUxLab.tsx — first-party intentional one-off decoration (demo/UX-lab page): hero/card gradients + shadows reverted from singleton tokens per DECISION-SHEET.md B1 user ruling
-   * allow ui/src/pages/InviteUxLab.tsx — first-party intentional one-off decoration (demo/UX-lab page): hero/card gradients + shadows reverted from singleton tokens per DECISION-SHEET.md B1 user ruling
    * allow ui/src/pages/IssueChatUxLab.tsx — first-party intentional one-off decoration (demo/UX-lab page): hero/card gradients + shadows reverted from singleton tokens per DECISION-SHEET.md B1 user ruling
    * allow ui/src/pages/SystemNoticeUxLab.tsx — first-party intentional one-off decoration (demo/UX-lab page): hero/card gradients + shadows reverted from singleton tokens per DECISION-SHEET.md B1 user ruling
 
@@ -3413,7 +3402,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    * allow ui/src/components/SidebarStarredProjects.test.tsx — mock project color fixture
    * allow ui/src/pages/CompanyEnvironments.test.tsx — xterm.js theme-mock assertion values (mirrors the allowlisted xterm.js config in the CompanyEnvironments.tsx source above)
    * allow ui/src/pages/ExecutionWorkspaceDetail.test.tsx — mock project color fixture
-   * allow ui/src/pages/InviteLanding.test.tsx — "#NNNN" pull-request references inside explanatory comments, not color literals
    * allow ui/src/pages/IssueDetail.test.tsx — mock project color fixture
    * allow ui/src/pages/ProjectDetail.test.tsx — mock project color fixture
    * allow ui/src/pages/ProjectWorkspaceDetail.test.tsx — mock project color fixture

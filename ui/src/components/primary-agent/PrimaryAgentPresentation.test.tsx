@@ -64,14 +64,14 @@ describe("PrimaryAgentCrownButton", () => {
   it("fills the crown at once when there is no primary agent yet", async () => {
     const onChange = vi.fn();
     await render({ initial: null, onChange });
-    expect(crown()?.getAttribute("aria-label")).toBe("Set as my primary");
+    expect(crown()?.getAttribute("aria-label")).toBe("Set as Space primary");
 
     await act(async () => crown()?.click());
 
     expect(onChange).toHaveBeenCalledWith("ceo");
     expect(dialog()).toBeNull();
     expect(crown()?.getAttribute("role")).toBe("img");
-    expect(crown()?.getAttribute("aria-label")).toBe("My primary agent");
+    expect(crown()?.getAttribute("aria-label")).toBe("Space primary agent");
     expect(crown()?.dataset.pop).toBe("now");
     const bubbles = Array.from(crown()?.querySelectorAll<HTMLElement>(".primary-crown-bubble") ?? []);
     expect(bubbles).toHaveLength(3);
@@ -86,14 +86,14 @@ describe("PrimaryAgentCrownButton", () => {
     await render({ initial: cto, onChange });
 
     await act(async () => crown()?.click());
-    expect(dialog()?.textContent).toContain("Change your primary agent?");
+    expect(dialog()?.textContent).toContain("Change the Space primary agent?");
     expect(onChange).not.toHaveBeenCalled();
 
-    const confirm = Array.from(dialog()?.querySelectorAll("button") ?? []).find((button) => button.textContent === "Set as my primary");
+    const confirm = Array.from(dialog()?.querySelectorAll("button") ?? []).find((button) => button.textContent === "Set as Space primary");
     await act(async () => confirm?.click());
 
     expect(onChange).toHaveBeenCalledWith("ceo");
-    expect(crown()?.getAttribute("aria-label")).toBe("My primary agent");
+    expect(crown()?.getAttribute("aria-label")).toBe("Space primary agent");
     expect(crown()?.dataset.pop).toBe("after-dialog");
     await nextTick();
     expect(document.activeElement).toBe(crown());
@@ -109,7 +109,7 @@ describe("PrimaryAgentCrownButton", () => {
     await act(async () => cancel?.click());
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(crown()?.getAttribute("aria-label")).toBe("Set as my primary");
+    expect(crown()?.getAttribute("aria-label")).toBe("Set as Space primary");
     await nextTick();
     expect(document.activeElement).toBe(crown());
     expect(document.body.querySelector("[data-slot=tooltip-content]")).toBeNull();

@@ -23,5 +23,6 @@ export async function loadDefaultAgentInstructionsBundle(role: DefaultAgentBundl
 }
 
 export function resolveDefaultAgentInstructionsBundleRole(role: string): DefaultAgentBundleRole {
-  return role === "ceo" ? "ceo" : "default";
+  void role;
+  return "default";
 }

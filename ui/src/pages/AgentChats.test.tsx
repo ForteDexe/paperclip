@@ -119,23 +119,34 @@ describe("Chat landing", () => {
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
   });
 
-  it("reopens historical chats for agents missing from the active roster", async () => {
+  it("does not reopen historical chats for agents missing from the active roster", async () => {
     recordAgentChatVisit("company-a", "user-a", "retired-id");
     state.chats = [{ id: "chat-retired", conversationAgentId: "retired-id" }];
     await render();
-    expect(state.navigate).toHaveBeenCalledWith("/chats/retired-id", { replace: true });
+    expect(state.navigate).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Who would you like to talk to?");
   });
 
-  it("waits for history before skipping a recent historical chat", async () => {
+  it("skips a missing recent agent without waiting for history", async () => {
     recordAgentChatVisit("company-a", "user-a", "alice");
     recordAgentChatVisit("company-a", "user-a", "retired-id");
     state.chatsFetched = false;
     await render();
-    expect(state.navigate).not.toHaveBeenCalled();
+    expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
+    state.navigate.mockClear();
     state.chatsFetched = true;
     state.chats = [{ id: "chat-retired", conversationAgentId: "retired-id" }];
     await render();
-    expect(state.navigate).toHaveBeenCalledWith("/chats/retired-id", { replace: true });
+    // The destination did not change, so React does not need to navigate again.
+    expect(state.navigate).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Opening chat");
+  });
+
+  it("omits terminated agents from the chooser", async () => {
+    state.agents = [agent("alice"), { ...agent("retired-id"), status: "terminated" }];
+    await render();
+    expect(container.textContent).toContain("alice");
+    expect(container.textContent).not.toContain("retired-id");
   });
 
   it("shows the chooser when no saved chat remains available", async () => {

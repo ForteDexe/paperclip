@@ -121,6 +121,9 @@ const HTTP_METHODS = new Set([
 const explicitOpenApiCoverageExclusions = new Set<string>();
 
 const explicitOpenApiOperationCoverageExclusions = new Set([
+  // Compatibility implementation retained for old data tests, but not mounted
+  // after the public human-profile feature was removed.
+  "GET /api/companies/{companyId}/users/{userSlug}/profile",
   // Exact Cloud-control signed action; ordinary board/agent credentials cannot invoke it.
   "POST /api/instance/connector-events/wake",
   "POST /api/instance/ephemeral-enrollment/prepare",
@@ -464,9 +467,9 @@ describe("openapi routes", () => {
       "/api/companies/{companyId}/members/{memberId}/role-and-grants",
     ]) {
       expect(spec.paths[path].patch["x-paperclip-authorization"]).toEqual({ actor: "board" });
-      expect(spec.paths[path].patch.description).toContain("/<prefix>/company/settings/members");
+      expect(spec.paths[path].patch.description).toContain("no longer exposes human member management");
     }
-    expect(spec.paths["/api/companies/{companyId}/members"].get.description).toContain("/<prefix>/company/settings/members");
+    expect(spec.paths["/api/companies/{companyId}/members"].get.description).toContain("no longer exposes human member management");
   });
 
   it("documents owned conversation reads and exact revision access separately", () => {

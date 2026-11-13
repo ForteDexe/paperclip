@@ -6,7 +6,6 @@ import { enqueueNativeRuntimeResponse } from "../services/native-runtime/native-
 import { latestFailedRunsByAgent } from "@paperclipai/shared";
 import { agentConfigurationSpec } from "@paperclipai/shared";
 import { agentConfigurationRevision, restoreAgentConfigurationRedactions } from "../lib/agent-configuration-revision.js";
-import { CEO_HIRING_DENIAL_KEY, ceoHiringDenial, normalizeAgentPermissions } from "../lib/agent-permissions.js";
 import { prepareRuntimeSettingsPatch } from "../services/agent-runtime-settings.js";
 import { completeSetupTokenAiConnection } from "../services/setup-token-ai-connection.js";
 import { connectionManagementService, continuingConnectionManagement } from "../services/connection-management.js";
@@ -181,6 +180,7 @@ import {
   refreshAdapterModels,
   requireServerAdapter,
 } from "../adapters/index.js";
+import { OUTPOST_AGENT_ADAPTER_TYPES } from "../adapters/builtin-adapter-types.js";
 import {
   REDACTED_EVENT_VALUE,
   redactAgentAdapterConfig,
@@ -1284,35 +1284,12 @@ export function agentRoutes(
     };
   }
 
-  function canCreateAgents(agent: { role: string; permissions: Record<string, unknown> | null | undefined }) {
-    if (!agent.permissions || typeof agent.permissions !== "object") return false;
-    return Boolean((agent.permissions as Record<string, unknown>).canCreateAgents);
-  }
-
   async function buildAgentAccessState(agent: NonNullable<Awaited<ReturnType<typeof svc.getById>>>) {
     const membership = await access.getMembership(agent.companyId, "agent", agent.id);
     const grants = membership
       ? await access.listPrincipalGrants(agent.companyId, "agent", agent.id)
       : [];
     const hasExplicitTaskAssignGrant = grants.some((grant) => grant.permissionKey === "tasks:assign");
-
-    if (agent.role === "ceo") {
-      return {
-        canAssignTasks: true,
-        taskAssignSource: "ceo_role" as const,
-        membership,
-        grants,
-      };
-    }
-
-    if (canCreateAgents(agent)) {
-      return {
-        canAssignTasks: true,
-        taskAssignSource: "agent_creator" as const,
-        membership,
-        grants,
-      };
-    }
 
     if (hasExplicitTaskAssignGrant) {
       return {
@@ -1902,6 +1879,11 @@ export function agentRoutes(
    */
   async function assertSelectableAdapterType(type: string | null | undefined, config?: unknown, companyId?: string): Promise<string> {
     const adapterType = assertKnownAdapterType(type);
+    if (!OUTPOST_AGENT_ADAPTER_TYPES.has(adapterType)) {
+      throw unprocessable(
+        `Adapter "${adapterType}" is not available in Outpost. Available adapters: claude_local, codex_local`,
+      );
+    }
     if (adapterType === "paperclip_runner") {
       const experimental = await instanceSettings.getExperimental();
       const selected = asRecord(config);
@@ -2792,16 +2774,15 @@ export function agentRoutes(
     };
   }
 
-  // Skill-capable lead agents receive only the operational control-plane skill.
-  // Optional workflow skills remain explicit user choices.
-  function defaultRoleSkillSelections(
-    role: string | null | undefined,
+  // The legacy first-agent onboarding path receives the operational control-plane skill.
+  // Ordinary agents, including Space primary agents, receive only explicit user choices.
+  function defaultOnboardingSkillSelections(
     adapterType: string,
     boardOnboardingFirstAgent = false,
     adapterConfig?: Record<string, unknown>,
   ): AgentDesiredSkillEntry[] | undefined {
     if (adapterType === "paperclip_runner" && ["openai_dot", "grok_bot"].includes(String(adapterConfig?.provider))) return undefined;
-    if (role !== "ceo" && !boardOnboardingFirstAgent) return undefined;
+    if (!boardOnboardingFirstAgent) return undefined;
     const adapter = findActiveServerAdapter(adapterType);
     if (!adapter?.listSkills && !adapter?.syncSkills) return undefined;
     return PAPERCLIP_CORE_SKILL_KEYS
@@ -4618,8 +4599,7 @@ export function agentRoutes(
       requestedAdapterConfig,
       withDefaultRoleSkillSelections(
         normalizeDesiredSkillSelections(Array.isArray(requestedDesiredSkills) ? requestedDesiredSkills : undefined),
-        defaultRoleSkillSelections(
-          hireInput.role,
+        defaultOnboardingSkillSelections(
           hireInput.adapterType,
           hireOnboardingFirstAgent === true && req.actor.type === "board",
           requestedAdapterConfig,
@@ -4947,8 +4927,7 @@ export function agentRoutes(
       requestedAdapterConfig,
       withDefaultRoleSkillSelections(
         normalizeDesiredSkillSelections(Array.isArray(requestedDesiredSkills) ? requestedDesiredSkills : undefined),
-        defaultRoleSkillSelections(
-          createInput.role,
+        defaultOnboardingSkillSelections(
           createInput.adapterType,
           createOnboardingFirstAgent === true && req.actor.type === "board",
           requestedAdapterConfig,
@@ -5066,39 +5045,30 @@ export function agentRoutes(
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      if (actorAgent.role !== "ceo") {
-        res.status(403).json({ error: "Only Outpost Lead can manage permissions" });
+      const decision = await access.decide({
+        actor: req.actor,
+        action: "agent_config:update",
+        resource: { type: "agent", companyId: existing.companyId, agentId: existing.id },
+        scope: { targetAgentId: existing.id },
+      });
+      if (!decision.allowed) {
+        res.status(403).json({ error: "Missing agents:configure permission" });
         return;
       }
-      // Hiring authority is granted only by an actor that holds it. A CEO the
-      // board denied hiring must not restore it for itself or pass it to
-      // another agent to hire through.
-      const savedCanCreateAgents = normalizeAgentPermissions(existing.permissions, { role: existing.role }).canCreateAgents;
-      if (typeof req.body.canCreateAgents === "boolean" && req.body.canCreateAgents !== savedCanCreateAgents) {
+      if (typeof req.body.canCreateAgents === "boolean") {
         await assertCanCreateAgentsForCompany(req, existing.companyId, { hiring: true });
       }
     } else {
       await assertBoardCanManageAgentsForCompany(req, existing.companyId);
     }
 
-    // Saving a CEO's hiring as off here is the board's restriction, since this
-    // control shows the effective value; record who and when, so it is told
-    // apart from a false saved by other writes. Keep an earlier record.
-    const permissionsPatch = existing.role === "ceo" && req.body.canCreateAgents === false
-      ? { ...req.body, [CEO_HIRING_DENIAL_KEY]: ceoHiringDenial(existing.permissions) ?? {
-          actorType: req.actor.type === "agent" ? "agent" : "user",
-          actorId: (req.actor.type === "agent" ? req.actor.agentId : req.actor.userId) ?? null,
-          at: new Date().toISOString(),
-        } }
-      : req.body;
-    const agent = await svc.updatePermissions(id, permissionsPatch, { actorAgentId: req.actor.type === "agent" ? req.actor.agentId : null });
+    const agent = await svc.updatePermissions(id, req.body, { actorAgentId: req.actor.type === "agent" ? req.actor.agentId : null });
     if (!agent) {
       res.status(404).json({ error: "Agent not found" });
       return;
     }
 
-    const effectiveCanAssignTasks =
-      agent.role === "ceo" || Boolean(agent.permissions?.canCreateAgents) || req.body.canAssignTasks;
+    const effectiveCanAssignTasks = Boolean(req.body.canAssignTasks);
     await access.ensureMembership(agent.companyId, "agent", agent.id, "member", "active");
     // The toggle is the visible hiring control: turning it off also removes an
     // explicit agents:create grant that would otherwise still allow hiring.

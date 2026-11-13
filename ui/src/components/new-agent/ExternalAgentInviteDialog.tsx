@@ -182,7 +182,7 @@ function MuseInvitationController({ companyId, companyName, onClose, onBack, ini
   useEffect(() => { attemptedAutomaticPairing.current = false; attemptedAutomaticVerification.current = null; }, [scopeKey, invitation?.agent.id]);
   const create = useMutation({ mutationFn: async (input: MuseInvitationDraft) => {
     const requestScope = scopeKey;
-    const result = await museInvitationsApi.create(companyId, { name: input.name.trim(), role: input.role });
+    const result = await museInvitationsApi.create(companyId, { name: input.name.trim(), role: "general" });
     if (currentScope.current === requestScope) {
       setCreated({ scopeKey: requestScope, invitation: result });
       cache.setQueryData(invitationKey, result);

@@ -74,17 +74,14 @@ describe("CompanySettingsNav", () => {
     expect(getCompanySettingsTab("/PAP/company/export")).toBe("export");
     expect(getCompanySettingsTab("/company/import")).toBe("import");
     expect(getCompanySettingsTab("/PAP/company/import")).toBe("import");
-    expect(getCompanySettingsTab("/company/settings/members")).toBe("members");
-    expect(getCompanySettingsTab("/PAP/company/settings/members")).toBe("members");
-    expect(getCompanySettingsTab("/company/settings/access")).toBe("members");
-    expect(getCompanySettingsTab("/PAP/company/settings/access")).toBe("members");
-    expect(getCompanySettingsTab("/company/settings/invites")).toBe("members");
+    expect(getCompanySettingsTab("/company/settings/members")).toBe("general");
+    expect(getCompanySettingsTab("/company/settings/access")).toBe("general");
+    expect(getCompanySettingsTab("/company/settings/invites")).toBe("general");
     expect(getCompanySettingsTab("/PAP/company/settings/secrets")).toBe("secrets");
-    expect(getCompanySettingsTab("/company/settings/instance/profile")).toBe("instance-profile");
+    expect(getCompanySettingsTab("/company/settings/instance/profile")).toBe("general");
     expect(getCompanySettingsTab("/PAP/company/settings/instance/general")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/instance/environments")).toBe("instance-environments");
-    expect(getCompanySettingsTab("/company/settings/instance/access")).toBe("instance-access");
-    expect(getCompanySettingsTab("/PAP/company/settings/instance/access")).toBe("instance-access");
+    expect(getCompanySettingsTab("/company/settings/instance/access")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/instance/experimental")).toBe("instance-experimental");
     expect(getCompanySettingsTab("/PAP/company/settings/instance/plugins/example")).toBe("instance-plugins");
     expect(getCompanySettingsTab("/company/settings/instance/adapters")).toBe("instance-adapters");
@@ -118,27 +115,24 @@ describe("CompanySettingsNav", () => {
   });
 
   it("renders the active tab and navigates when a different tab is selected", async () => {
-    currentPathname = "/PAP/company/settings/members";
+    currentPathname = "/PAP/company/settings";
     const root = createRoot(container);
 
     await act(async () => {
       renderNav(root);
     });
 
-    expect(container.textContent).toContain("members");
+    expect(container.textContent).toContain("general");
     expect(pageTabBarMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        value: "members",
+        value: "general",
         items: [
           { value: "general", label: "General" },
           { value: "export", label: "Export" },
           { value: "import", label: "Import" },
-          { value: "members", label: "Members" },
           { value: "secrets", label: "Secrets" },
-          { value: "instance-profile", label: "Profile" },
           { value: "instance-environments", label: "Environments" },
           { value: "connections", label: "Connections" },
-          { value: "instance-access", label: "Access" },
           { value: "instance-experimental", label: "Experimental" },
           { value: "instance-plugins", label: "Plugins" },
           { value: "instance-adapters", label: "Adapters" },
@@ -161,7 +155,7 @@ describe("CompanySettingsNav", () => {
   });
 
   it("filters operator-hidden tabs out of the tab bar", async () => {
-    currentPathname = "/PAP/company/settings/members";
+    currentPathname = "/PAP/company/settings";
     const root = createRoot(container);
 
     await act(async () => {
@@ -175,12 +169,9 @@ describe("CompanySettingsNav", () => {
       "general",
       "export",
       "import",
-      "members",
       "secrets",
-      "instance-profile",
       "instance-environments",
       "connections",
-      "instance-access",
       "instance-experimental",
       "instance-adapters",
     ]);
@@ -191,7 +182,7 @@ describe("CompanySettingsNav", () => {
   });
 
   it("filters operator-hidden company tabs out of the tab bar", async () => {
-    currentPathname = "/PAP/company/settings/members";
+    currentPathname = "/PAP/company/settings";
     const root = createRoot(container);
 
     await act(async () => {
@@ -204,7 +195,7 @@ describe("CompanySettingsNav", () => {
     expect(renderedValues).not.toContain("import");
     expect(renderedValues).not.toContain("secrets");
     expect(renderedValues).toContain("export");
-    expect(renderedValues).toContain("members");
+    expect(renderedValues).not.toContain("members");
 
     await act(async () => {
       root.unmount();
@@ -212,7 +203,7 @@ describe("CompanySettingsNav", () => {
   });
 
   it("suppresses the Import tab on a Cloud-managed instance", async () => {
-    currentPathname = "/PAP/company/settings/members";
+    currentPathname = "/PAP/company/settings";
     const root = createRoot(container);
 
     await act(async () => {

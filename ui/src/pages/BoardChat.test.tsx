@@ -12,7 +12,7 @@ import { BoardChat } from "./BoardChat";
 /**
  * Regression coverage for the post-wizard Conference Room intro (PAP-134,
  * plan: PAP-133 A+B): a fresh mount shows the three-dot typing bubble for
- * ~2s, then the CEO welcome, then the suggestion chips ~700ms later. The
+ * ~2s, then the Space primary agent welcome, then the suggestion chips ~700ms later. The
  * staged reveal must hold while the onboarding wizard overlay is open or
  * the tab is hidden, and must fast-forward when the user already replied.
  */
@@ -43,6 +43,10 @@ vi.mock("../context/BreadcrumbContext", () => ({
 
 vi.mock("../context/DialogContext", () => ({
   useDialogState: () => ({ onboardingOpen: mockDialogState.onboardingOpen }),
+}));
+
+vi.mock("@/components/primary-agent/PrimaryAgentPresentation", () => ({
+  usePrimaryAgentPresentation: () => ({ primaryAgentId: "agent-ceo" }),
 }));
 
 // Heavy children that are irrelevant to the staged intro.
@@ -110,7 +114,7 @@ function hasWelcome(container: HTMLElement) {
 }
 
 function hasChips(container: HTMLElement) {
-  return (container.textContent ?? "").includes("Draft an Organization Brief");
+  return (container.textContent ?? "").includes("Draft an Outpost Brief");
 }
 
 describe("BoardChat staged typing intro", () => {

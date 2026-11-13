@@ -981,19 +981,18 @@ function StreamlinedInbox({
     queryKey: queryKeys.access.joinRequests(selectedCompanyId!),
     queryFn: async ({ signal }) => {
       try {
-        return await accessApi.listJoinRequests(selectedCompanyId!, "pending_approval", undefined, {
+        const requests = await accessApi.listJoinRequests(selectedCompanyId!, "pending_approval", undefined, {
           signal,
           timeoutMs: INBOX_OPTIONAL_READ_TIMEOUT_MS,
         });
+        return requests.filter((request) => request.requestType === "agent");
       } catch (err) {
-        if (err instanceof ApiError && (err.status === 403 || err.status === 401)) {
-          return [];
-        }
+        if (err instanceof ApiError && (err.status === 403 || err.status === 401)) return [];
         throw err;
       }
     },
     enabled: !!selectedCompanyId,
-    });
+  });
 
   const dashboardQueryKey = queryKeys.dashboard(selectedCompanyId!);
   const sharedDashboard = useSharedPollingQuery({

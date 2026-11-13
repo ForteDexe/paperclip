@@ -19,3 +19,9 @@ export const BUILTIN_ADAPTER_TYPES = new Set([
   "process",
   "http",
 ]);
+
+/** Adapter types Outpost offers when creating or reconfiguring an agent. */
+export const OUTPOST_AGENT_ADAPTER_TYPES = new Set([
+  "claude_local",
+  "codex_local",
+]);

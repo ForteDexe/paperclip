@@ -622,11 +622,9 @@ function Setup({
     setError(null);
     navigate(`/agents/new?${new URLSearchParams({ name, adapterType, runnerProvider,
       runner, setupAgentId: setupId.current })}`, { replace: true });
-    const existing = agents.data ?? [];
-    const leader = existing.find(agent => agent.role === "ceo" && agent.status !== "terminated");
     void agentsApi.create(companyId, {
       setupId: setupId.current, name, appearance: appearanceDraft.appearance,
-      role: existing.length ? "general" : "ceo", ...(leader ? { reportsTo: leader.id } : {}),
+      role: "general",
       adapterType: requestAdapterType, runner,
       adapterConfig: requestAdapterType === "paperclip_runner" ? {
         provider: ["claude", "grok", "copilot", "pi", "antigravity", "kimi"].includes(runnerProvider) ? "acpx" : runnerProvider,

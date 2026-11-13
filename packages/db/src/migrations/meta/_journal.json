@@ -3284,6 +3284,13 @@
       "when": 1794502244074,
       "tag": "0470_outpost_core_skill_only",
       "breakpoints": true
+    },
+    {
+      "idx": 471,
+      "version": "7",
+      "when": 1794510000000,
+      "tag": "0471_space_primary_agent",
+      "breakpoints": true
     }
   ]
 }

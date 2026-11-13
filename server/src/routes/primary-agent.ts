@@ -17,8 +17,9 @@ export function primaryAgentRoutes(db: Db) {
     const companyId = req.params.companyId as string;
     if (!hasCompanyAccess(req, companyId)) throw forbidden("User does not have access to this company");
     if (!req.actor.userId) throw forbidden("Board user access required");
-    // Personal preferences follow the same self-service rules as stars and
-    // resource memberships: viewers may choose their own primary too.
+    // Keep the legacy /me path for client compatibility. The selected agent
+    // is now Space-wide, so only active members may read it and mutation is
+    // separately authorized through agents:configure below.
     if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin
       && !req.actor.memberships?.some(membership => membership.companyId === companyId && membership.status === "active")) {
       throw forbidden("User does not have active company access");
@@ -42,9 +43,9 @@ export function primaryAgentRoutes(db: Db) {
     const agentId = req.body.primaryAgentId as string;
     const agent = await db.query.agents.findFirst({ where: and(eq(agents.companyId, companyId), eq(agents.id, agentId)) });
     if (!agent) throw notFound("Agent not found");
-    const decision = await access.decide({ actor: req.actor, action: "agent:read",
-      resource: { type: "agent", companyId, agentId } });
-    if (!decision.allowed) throw forbidden("Agent is outside this actor's authorization boundary");
+    const decision = await access.decide({ actor: req.actor, action: "agent_config:update",
+      resource: { type: "agent", companyId, agentId }, scope: { targetAgentId: agentId } });
+    if (!decision.allowed) throw forbidden("Missing agents:configure permission for this agent");
     res.json(await svc.set(companyId, req.actor.userId!, agentId, req.actor));
   });
   return router;

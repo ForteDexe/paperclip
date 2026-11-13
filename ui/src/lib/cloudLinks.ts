@@ -53,16 +53,6 @@ export function cloudStackEntryUrl(
   return url.toString();
 }
 
-/** Cloud manages human invitations in the current stack's People settings. */
-export function cloudStackInviteUrl(
-  cloudBaseUrl: string | null | undefined,
-  stackSlug: string | null | undefined,
-): string | null {
-  const slug = stackSlug?.trim();
-  if (!slug) return null;
-  return cloudAppUrl(cloudBaseUrl, `/workspaces/${encodeURIComponent(slug)}/settings?section=people`);
-}
-
 /**
  * Cloud's organization portfolio in its explicit manage view. `?manage=1`
  * matters: the plain launchpad auto-forwards a solo user straight back into

@@ -416,6 +416,22 @@ describe("Agents", () => {
     expect(mockRouterState.navigate).not.toHaveBeenCalled();
   });
 
+  it("shows a crown only for agents with direct reports", async () => {
+    mockAgentsApi.list.mockResolvedValue([
+      makeAgent({ id: "manager", name: "Manager" }),
+      makeAgent({ id: "worker", name: "Worker", reportsTo: "manager" }),
+      makeAgent({ id: "peer", name: "Peer" }),
+    ]);
+    root = createRoot(container);
+    await act(async () => renderAgentsView(root, queryClient));
+    await flushReact();
+    await flushReact();
+
+    expect(findAgentRow(container, "Manager")?.querySelector('[aria-label="Coordinates 1 agent"]')).not.toBeNull();
+    expect(findAgentRow(container, "Worker")?.querySelector('[aria-label^="Coordinates"]')).toBeNull();
+    expect(findAgentRow(container, "Peer")?.querySelector('[aria-label^="Coordinates"]')).toBeNull();
+  });
+
   it.each([
     ["streamlined", Agents],
     ["production", ProductionAgents],

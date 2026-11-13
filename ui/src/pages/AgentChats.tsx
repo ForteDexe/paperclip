@@ -28,29 +28,29 @@ function AgentChatsContent({ companyId, userId, enabled, loaded, agents, chats, 
   const agentsView = useQueryView(agents);
   const sessionView = useQueryView(session);
   const chatsView = useQueryView(chats);
+  const eligibleAgents = (agents.data ?? []).filter(agent => agent.status !== "terminated");
   // Only a real failure blocks the entry redirect; an outage waits it out below.
   const blockingError = agentsView.kind === "error" ? agents.error : sessionView.kind === "error" ? session.error : null;
   const reconnecting = agentsView.kind === "reconnecting" || sessionView.kind === "reconnecting" || chatsView.kind === "reconnecting";
   const firstId = recentIds[0];
-  const firstAgent = agents.data?.find(agent => agent.id === firstId);
-  // An empty chat with an active agent can reopen from the roster alone. A
-  // missing agent or a saved issue needs history to validate that visit.
-  const needsHistory = !!firstId && (!firstAgent || !!recordedAgentChatIssueId(companyId ?? "", userId, firstId));
+  // An empty chat with an active agent can reopen from the roster alone. Saved
+  // issue ids still need history validation, but missing/terminated agents are skipped.
+  const needsHistory = recentIds.some(id => eligibleAgents.some(agent => agent.id === id)
+    && !!recordedAgentChatIssueId(companyId ?? "", userId, id));
   const resolvingRecent = recentIds.length > 0 && !blockingError && (!agents.isFetched || !session.isFetched || (needsHistory && !chats.isFetched && !chats.error));
   const recentChatPath = loaded && enabled && companyId && !blockingError && !resolvingRecent
     ? recentIds.map(id => {
-      const agent = agents.data?.find(item => item.id === id);
+      const agent = eligibleAgents.find(item => item.id === id);
       const historyIssue = chats.data?.find(chat => chat.conversationAgentId === id);
       const savedIssueId = recordedAgentChatIssueId(companyId, userId, id);
       // A deleted or inaccessible issue must not silently reopen as a new chat.
       if (savedIssueId && chats.isSuccess && historyIssue?.id !== savedIssueId) return null;
       if (agent) return `/chats/${encodeURIComponent(agentRouteRef(agent))}`;
-      if (historyIssue) return `/chats/${encodeURIComponent(id)}`;
       return null;
     }).find((path): path is string => path !== null)
     : undefined;
-  const primaryAgent = agents.data?.find(agent => agent.id === primary?.primaryAgentId
-    && agent.status !== "terminated" && agent.status !== "pending_approval");
+  const primaryAgent = eligibleAgents.find(agent => agent.id === primary?.primaryAgentId
+    && agent.status !== "pending_approval");
   const entryPath = recentChatPath ?? (loaded && enabled && !blockingError && !resolvingRecent
     && agents.isFetched && session.isFetched && !primary?.loading && primaryAgent
     ? `/chats/${encodeURIComponent(agentRouteRef(primaryAgent))}` : undefined);
@@ -72,7 +72,7 @@ function AgentChatsContent({ companyId, userId, enabled, loaded, agents, chats, 
     {error ? <QueryErrorState error={error} action="load your chats" onRetry={() => { agentsView.retry(); chatsView.retry(); sessionView.retry(); }} />
       : agents.isPending || session.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading agents…</p>
       : <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {(agents.data ?? []).slice(0, 6).map(agent => <button key={agent.id} type="button" disabled={openingId !== null}
+        {eligibleAgents.slice(0, 6).map(agent => <button key={agent.id} type="button" disabled={openingId !== null}
           onClick={async () => {
             setOpeningId(agent.id); setOpenError(null);
             try { await openChat(agent); } catch (error) { setOpenError(error instanceof Error ? error.message : "Couldn’t open chat. Try again."); } finally { setOpeningId(null); }
@@ -82,7 +82,7 @@ function AgentChatsContent({ companyId, userId, enabled, loaded, agents, chats, 
         </button>)}
       </div>}
     {openError && <p role="alert" className="text-sm text-destructive">{openError}</p>}
-    {agents.data?.length === 0 && <p className="text-sm text-muted-foreground">Add an agent to start a conversation.</p>}
+    {eligibleAgents.length === 0 && <p className="text-sm text-muted-foreground">Add an agent to start a conversation.</p>}
     <Button variant="ghost" className="self-start" asChild><Link to="/agents/all">Browse all agents</Link></Button>
   </div>;
 }

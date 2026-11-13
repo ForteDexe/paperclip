@@ -1364,6 +1364,9 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
         .orderBy(desc(joinRequests.updatedAt), desc(joinRequests.id));
 
       for (const join of pendingJoins) {
+        // Human membership administration is not exposed. Agent onboarding
+        // continues to use the shared join-request infrastructure.
+        if (join.requestType !== "agent") continue;
         const label = join.requestType === "agent"
           ? join.agentName ?? "Agent join request"
           : join.requestEmailSnapshot ?? join.requestingUserId ?? "Human join request";
@@ -1378,7 +1381,7 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
             title: label,
             identifier: null,
             status: join.status,
-            href: `/${prefix}/settings/access`,
+            href: `/${prefix}/inbox/mine`,
             metadata: {
               requestType: join.requestType,
               requestingUserId: join.requestingUserId,

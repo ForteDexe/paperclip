@@ -1262,7 +1262,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     const recent = recents.find((value) => available.has(value));
     const targets = agents.filter(isAgentTaskTarget);
     const fallback = targets.find((agent) => agent.id === primaryAgent?.primaryAgentId)
-      ?? targets.find((agent) => agent.role === "ceo") ?? targets[0];
+      ?? targets[0];
     setAssigneeValue(recent ?? (fallback ? assigneeValueFromSelection({ assigneeAgentId: fallback.id }) : ""));
   }, [newIssueOpen, effectiveCompanyId, agents, assigneeOptions, sessionFetched, membersFetched, primaryAgent?.loading, primaryAgent?.primaryAgentId]);
   useEffect(() => {

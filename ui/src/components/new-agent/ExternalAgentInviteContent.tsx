@@ -1,5 +1,4 @@
 import { useId } from "react";
-import { AGENT_ROLES, AGENT_ROLE_LABELS } from "@paperclipai/shared";
 import type { MuseInvitationDraft } from "@/lib/muse-invitation-draft";
 import { Input } from "../ui/input";
 import { Link } from "@/lib/router";
@@ -183,7 +182,7 @@ export function ExternalAgentInviteContent({
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
             {!provider ? `Bring an agent you already use into ${companyName}.`
-              : muse ? museDetails ? `Give your personal Muse a name and role in ${companyName}.`
+              : muse ? museDetails ? `Give your personal Muse a name in ${companyName}.`
               : museAwaitingInvitation ? "Muse requires an authenticated Outpost instance with a public HTTPS URL and a outpost operator account."
               : ready ? `Muse can receive assignments and work with ${companyName}.`
               : !prompt && !museConnection?.paired ? "We’re checking whether this instance can prepare Muse setup."
@@ -207,13 +206,6 @@ export function ExternalAgentInviteContent({
           <div className="space-y-2">
             <label htmlFor={`${detailsId}-name`} className="text-sm font-medium">Agent name</label>
             <Input id={`${detailsId}-name`} disabled={busy} autoFocus maxLength={100} value={museDraft.name} placeholder="Muse" onChange={event => onMuseDraftChange?.({ ...museDraft, name: event.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor={`${detailsId}-role`} className="text-sm font-medium">Role</label>
-            <select id={`${detailsId}-role`} disabled={busy} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={museDraft.role} onChange={event => {
-              const role = AGENT_ROLES.find(value => value === event.target.value);
-              if (role) onMuseDraftChange?.({ ...museDraft, role });
-            }}>{AGENT_ROLES.map(role => <option key={role} value={role}>{AGENT_ROLE_LABELS[role]}</option>)}</select>
           </div>
           <p className="text-xs text-muted-foreground">Muse uses its own approved tools. Provider usage details are not imported into Outpost.</p>
         </form>

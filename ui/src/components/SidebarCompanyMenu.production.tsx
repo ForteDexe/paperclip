@@ -7,7 +7,6 @@ import {
   LogOut,
   RefreshCw,
   Plus,
-  UserPlus,
 } from "lucide-react";
 import {
   DndContext,
@@ -20,7 +19,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { hidesCompanyPage, type Company } from "@paperclipai/shared";
+import type { Company } from "@paperclipai/shared";
 import { Link, useLocation, useNavigate } from "@/lib/router";
 import { authApi } from "@/api/auth";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCompany } from "@/context/CompanyContext";
-import { useHiddenSettings } from "@/hooks/useHiddenSettings";
 import { useCompanyOrder } from "@/hooks/useCompanyOrder";
 import { useSignOut } from "@/hooks/useSignOut";
 import { queryKeys } from "@/lib/queryKeys";
@@ -183,12 +181,6 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
     userId: currentUserId,
   });
 
-  // Keep invitation links hidden until the operator policy is known.
-  const { hidden: hiddenSettings, loaded: hiddenSettingsLoaded } = useHiddenSettings();
-  const showInvitePeople =
-    hiddenSettingsLoaded &&
-    !hidesCompanyPage(hiddenSettings, "company.members") &&
-    !hidesCompanyPage(hiddenSettings, "company.invites");
   const switcherNoun = "space";
   const currentName = selectedCompany?.name ?? null;
 
@@ -348,33 +340,6 @@ function BuiltinCompanyMenu({ open: controlledOpen, onOpenChange }: SidebarCompa
               <span className="min-w-0 flex-1 truncate">New Space</span>
             </Link>
           </DropdownMenuItem>
-          {showInvitePeople ? (
-            <DropdownMenuItem
-              asChild
-              disabled={isEditingOrder}
-              className={ORGANIZATION_ACTION_CLASS}
-            >
-              <Link
-                to="/company/settings/invites"
-                onClick={(event) => {
-                  if (isEditingOrder) {
-                    event.preventDefault();
-                    return;
-                  }
-                  closeNavigationChrome();
-                }}
-              >
-                <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-                  <UserPlus className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {currentName
-                    ? `Invite people to ${currentName}`
-                    : "Invite people"}
-                </span>
-              </Link>
-            </DropdownMenuItem>
-          ) : null}
           {session?.session ? (
             <DropdownMenuItem
               className={ORGANIZATION_ACTION_CLASS}

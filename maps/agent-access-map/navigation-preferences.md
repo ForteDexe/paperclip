@@ -1,7 +1,6 @@
 # Navigation, profile, and announcements — agent access
 
-Product map: [Navigation, profile, and
-announcements](../feature-map/navigation-preferences.md).
+Product map: [Navigation, profile, and announcements](../feature-map/navigation-preferences.md).
 
 Feature ID: `navigation-preferences`.
 
@@ -92,28 +91,17 @@ Capability ID: `navigation-preferences/profile`.
 
 Review: `baseline`.
 
-API: `present` — representative operation IDs:
+API: `present` — `GET /api/agents/{id}` serves agent identity and persona surfaces.
 
-- `GET /api/companies/{companyId}/users/{userSlug}/profile`.
-- `PATCH /api/auth/profile`.
+Agent access: `partial` — agents can read their task-scoped identity and configuration; public human profiles and human profile editing are removed.
 
-Agent access: `partial` — Agent can read eligible company profile; changing personal
-identity requires board user.
+Policy: Agent identity changes use agent configuration permissions.
 
-Policy: Persisted user preferences require board user context; resource reads still
-apply company visibility.
+Evidence: `source-only` — [agent routes](../../server/src/routes/agents.ts).
 
-Evidence: `source-only` —
-[implementation](../../server/src/routes/sidebar-preferences.ts#L8) at the reviewed
-commit above.
+Verification: `not-run` — verify agent persona pages independently of removed human-profile routes.
 
-Verification: `not-run` — exercise a listed permitted operation with actual agent
-credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
-remaining operations before qualifying the whole capability.
-
-Gaps: Reading another visible user's profile and editing a person's identity are
-distinct permission paths.
+Gaps: This capability intentionally excludes public human profiles and human profile editing.
 
 ## `announcements`
 
