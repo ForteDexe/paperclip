@@ -75,10 +75,8 @@ const WhatNeedsMe = lazy(() => import("./pages/WhatNeedsMe").then((module) => ({
 const DecisionQueuePage = lazy(() => import("./pages/DecisionQueuePage").then((module) => ({ default: module.DecisionQueuePage })));
 const BoardChat = lazy(() => import("./pages/BoardChat").then((module) => ({ default: module.BoardChat })));
 const CompanySettings = lazy(() => import("./pages/CompanySettings").then((module) => ({ default: module.CompanySettings })));
-const CompanyEnvironments = lazy(() => import("./pages/CompanyEnvironments").then((module) => ({ default: module.CompanyEnvironments })));
 const CompanySettingsPluginPage = lazy(() => import("./pages/CompanySettingsPluginPage").then((module) => ({ default: module.CompanySettingsPluginPage })));
 const InstalledSkills = lazy(() => import("./pages/InstalledSkills").then((module) => ({ default: module.InstalledSkills })));
-const Secrets = lazy(() => import("./pages/Secrets").then((module) => ({ default: module.Secrets })));
 const CompanyImport = lazy(() => import("./pages/CompanyImport").then((module) => ({ default: module.CompanyImport })));
 const DesignGuide = lazy(() => import("./pages/DesignGuide").then((module) => ({ default: module.DesignGuide })));
 const InstanceExperimentalSettings = lazy(() => import("./pages/InstanceExperimentalSettings").then((module) => ({ default: module.InstanceExperimentalSettings })));
@@ -117,7 +115,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="companies" element={<Navigate to="/spaces" replace />} />
       <Route path="company/settings" element={<CompanySettings />} />
       <Route path="company/settings/connections" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/environments" element={<Navigate to="/company/settings/instance/environments" replace />} />
+      <Route path="company/settings/environments" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/cloud-upstream" element={<Navigate to="/company/export" replace />} />
       <Route path="company/settings/members" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/access" element={<Navigate to="/company/settings" replace />} />
@@ -137,9 +135,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
           <Route path="company/import" element={<CompanyImport />} />
         </Route>
       </Route>
-      <Route element={<HiddenSettingsPageGate pageKey="company.secrets" />}>
-        <Route path="company/settings/secrets" element={<Secrets />} />
-      </Route>
+      <Route path="company/settings/secrets" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/tools/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="tools/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="apps/*" element={<Navigate to="/dashboard" replace />} />
@@ -147,11 +143,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="company/settings/instance/profile" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/instance/general" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/instance/heartbeats" element={<Navigate to="/company/settings" replace />} />
-      <Route element={<HiddenSettingsPageGate pageKey="instance.environments" />}>
-        <Route path="company/settings/instance/environments" element={<CompanyEnvironments />} />
-        <Route path="company/settings/instance/environments/new" element={<CompanyEnvironments mode="create" />} />
-        <Route path="company/settings/instance/environments/:environmentId/edit" element={<CompanyEnvironments mode="edit" />} />
-      </Route>
+      <Route path="company/settings/instance/environments/*" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/instance/access" element={<Navigate to="/company/settings" replace />} />
       <Route element={<HiddenSettingsPageGate pageKey="instance.experimental" />}>
         <Route path="company/settings/instance/experimental" element={<InstanceExperimentalSettings />} />

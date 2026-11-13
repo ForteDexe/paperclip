@@ -4,8 +4,6 @@ import {
   Cpu,
   Download,
   FlaskConical,
-  KeyRound,
-  MonitorCog,
   Puzzle,
   SlidersHorizontal,
   Upload,
@@ -91,17 +89,6 @@ export function CompanySettingsSidebar() {
                 end
               />
             ))}
-          {showPage("company.secrets") && (
-            <SidebarNavItem to="/company/settings/secrets" label="Secrets" icon={KeyRound} end />
-          )}
-          {showPage("instance.environments") && (
-            <SidebarNavItem
-              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/environments`}
-              label="Environments"
-              icon={MonitorCog}
-              end
-            />
-          )}
           {showPage("company.export") && (
             <SidebarNavItem to="/company/export" label="Export" icon={Download} />
           )}

@@ -160,11 +160,11 @@ describe("CompanySettingsSidebar", () => {
     expect(container.textContent).not.toContain("Instance Settings");
     expect(container.textContent).toContain("General");
     expect(container.textContent).not.toContain("Connections");
-    expect(container.textContent).toContain("Environments");
+    expect(container.textContent).not.toContain("Environments");
     expect(container.textContent).toContain("Export");
     expect(container.textContent).toContain("Import");
     expect(container.textContent).not.toContain("Members");
-    expect(container.textContent).toContain("Secrets");
+    expect(container.textContent).not.toContain("Secrets");
     expect(container.textContent).not.toContain("Access");
     expect(container.textContent).not.toContain("Profile");
     expect(container.textContent).not.toContain("Tools & Access");
@@ -194,18 +194,16 @@ describe("CompanySettingsSidebar", () => {
         end: true,
       }),
     );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
+    expect(sidebarNavItemMock).not.toHaveBeenCalledWith(
       expect.objectContaining({
         to: "/company/settings/instance/environments",
         label: "Environments",
-        end: true,
       }),
     );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
+    expect(sidebarNavItemMock).not.toHaveBeenCalledWith(
       expect.objectContaining({
         to: "/company/settings/secrets",
         label: "Secrets",
-        end: true,
       }),
     );
     expect(new Set(

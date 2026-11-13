@@ -31,7 +31,7 @@ vi.mock("@/components/PageTabBar", () => ({
     return (
       <div>
         <div data-testid="active-tab">{props.value}</div>
-        <button type="button" onClick={() => props.onValueChange?.("secrets")}>
+        <button type="button" onClick={() => props.onValueChange?.("instance-experimental")}>
           switch-tab
         </button>
       </div>
@@ -69,7 +69,7 @@ describe("CompanySettingsNav", () => {
     expect(getCompanySettingsTab("/company/settings")).toBe("general");
     expect(getCompanySettingsTab("/PAP/company/settings")).toBe("general");
     expect(getCompanySettingsTab("/PAP/company/settings/connections")).toBe("general");
-    expect(getCompanySettingsTab("/company/settings/environments")).toBe("instance-environments");
+    expect(getCompanySettingsTab("/company/settings/environments")).toBe("general");
     expect(getCompanySettingsTab("/company/export")).toBe("export");
     expect(getCompanySettingsTab("/PAP/company/export")).toBe("export");
     expect(getCompanySettingsTab("/company/import")).toBe("import");
@@ -77,10 +77,10 @@ describe("CompanySettingsNav", () => {
     expect(getCompanySettingsTab("/company/settings/members")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/access")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/invites")).toBe("general");
-    expect(getCompanySettingsTab("/PAP/company/settings/secrets")).toBe("secrets");
+    expect(getCompanySettingsTab("/PAP/company/settings/secrets")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/instance/profile")).toBe("general");
     expect(getCompanySettingsTab("/PAP/company/settings/instance/general")).toBe("general");
-    expect(getCompanySettingsTab("/company/settings/instance/environments")).toBe("instance-environments");
+    expect(getCompanySettingsTab("/company/settings/instance/environments")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/instance/access")).toBe("general");
     expect(getCompanySettingsTab("/company/settings/instance/experimental")).toBe("instance-experimental");
     expect(getCompanySettingsTab("/PAP/company/settings/instance/plugins/example")).toBe("instance-plugins");
@@ -121,8 +121,6 @@ describe("CompanySettingsNav", () => {
           { value: "general", label: "General" },
           { value: "export", label: "Export" },
           { value: "import", label: "Import" },
-          { value: "secrets", label: "Secrets" },
-          { value: "instance-environments", label: "Environments" },
           { value: "instance-experimental", label: "Experimental" },
           { value: "instance-plugins", label: "Plugins" },
           { value: "instance-adapters", label: "Adapters" },
@@ -137,7 +135,7 @@ describe("CompanySettingsNav", () => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(navigateMock).toHaveBeenCalledWith("/company/settings/secrets");
+    expect(navigateMock).toHaveBeenCalledWith("/company/settings/instance/experimental");
 
     await act(async () => {
       root.unmount();
@@ -159,8 +157,6 @@ describe("CompanySettingsNav", () => {
       "general",
       "export",
       "import",
-      "secrets",
-      "instance-environments",
       "instance-experimental",
       "instance-adapters",
     ]);
