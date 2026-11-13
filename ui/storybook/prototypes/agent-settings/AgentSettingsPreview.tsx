@@ -52,8 +52,6 @@ const descriptions: Record<AgentLocalDetailView, string> = {
   skills: "Choose the skills your agent brings to each task.",
   runtime:
     "Configure the harness, model, environment, and how your agent runs.",
-  secrets:
-    "Manage environment variables, secret bindings, and credentials your agent can access.",
   tools: "Manage installed connections, available tools, and access policies.",
   channels: "Manage the external chat connections dedicated to this agent.",
   permissions: "Set the agent’s trust level, authority, and boundaries.",
@@ -233,12 +231,9 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
     return (
       <div className="p-8 text-sm text-muted-foreground">Loading agent…</div>
     );
-  const title =
-    view === "secrets"
-      ? "Secrets & variables"
-      : AGENT_DETAIL_NAVIGATION.flatMap((s) => s.items).find(
-          (t) => t.value === view,
-        )?.label;
+  const title = AGENT_DETAIL_NAVIGATION.flatMap((s) => s.items).find(
+    (t) => t.value === view,
+  )?.label;
   const displayType = agentDisplayAdapterType(agent);
   const display = getAdapterDisplay(displayType);
   const Icon = display.icon;
@@ -290,7 +285,6 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
             agentRef={REF}
             agentId={ID}
             agentName={agent.name}
-            labels={{ secrets: "Secrets & variables" }}
           />
         </div>
         <main className="min-w-0 flex-1 px-6 py-8 lg:px-10">
@@ -389,7 +383,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
               )}
               {view === "runtime" && runtimeContent
                 ? runtimeContent
-                : (view === "runtime" || view === "secrets") && (
+                : view === "runtime" && (
                     <div className="space-y-6">
                       <div className="agent-settings-form">
                         <AgentConfigForm
@@ -400,10 +394,8 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
                           hideInlineSave
                           hidePromptTemplate
                           hideInstructionsFile
-                          content={
-                            view === "runtime" ? "configuration" : "secrets"
-                          }
-                          environmentVariablesPlacement="secrets"
+                          content="configuration"
+                          environmentVariablesPlacement="configuration"
                           sectionLayout="cards"
                           canConfigureProviderTrace
                           sectionOrder={[
@@ -484,7 +476,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
                 {saveError ?? String(permissions.error)}
               </p>
             )}
-            {(["runtime", "secrets", "instructions"] as string[]).includes(
+            {(["runtime", "instructions"] as string[]).includes(
               view,
             ) &&
               !(view === "runtime" && runtimeContent) && (

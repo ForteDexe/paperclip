@@ -168,14 +168,13 @@ const sourceLabels: Record<string, string> = {
   automation: "Automation",
 };
 
-type AgentDetailView = "dashboard" | "instructions" | "configuration" | "secrets" | "skills" | "tools" | "channels" | "runs" | "audit" | "budget";
+type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "tools" | "channels" | "runs" | "audit" | "budget";
 
 export const AGENT_DETAIL_TABS: ReadonlyArray<{ value: AgentDetailView; label: string }> = [
   { value: "dashboard", label: "Dashboard" },
   { value: "instructions", label: "Instructions" },
   { value: "skills", label: "Skills" },
   { value: "configuration", label: "Configuration" },
-  { value: "secrets", label: "Secrets" },
   { value: "tools", label: "Tools" },
   { value: "channels", label: "Channels" },
   { value: "runs", label: "Runs" },
@@ -220,7 +219,7 @@ export function restoreAgentConfigHistoryEntry(
 export function parseAgentDetailView(value: string | null): AgentDetailView {
   if (value === "instructions" || value === "prompts") return "instructions";
   if (value === "configure" || value === "configuration") return "configuration";
-  if (value === "secrets") return "secrets";
+  if (value === "secrets") return "dashboard";
   if (value === "skills") return "skills";
   if (value === "tools") return "tools";
   if (value === "channels") return "channels";
@@ -499,9 +498,7 @@ export function AgentDetail() {
         ? "instructions"
         : activeView === "configuration"
           ? "configuration"
-          : activeView === "secrets"
-            ? "secrets"
-            : activeView === "skills"
+          : activeView === "skills"
               ? "skills"
               : activeView === "tools" || activeView === "channels"
                 ? activeView
@@ -612,8 +609,6 @@ export function AgentDetail() {
         crumbs.push({ label: "Instructions" });
       } else if (activeView === "configuration") {
         crumbs.push({ label: "Configuration" });
-      } else if (activeView === "secrets") {
-        crumbs.push({ label: "Secrets" });
       // } else if (activeView === "skills") { // TODO: bring back later
       //   crumbs.push({ label: "Skills" });
       } else if (activeView === "tools") {
@@ -732,7 +727,7 @@ export function AgentDetail() {
   const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
   const pausedEscalationWarning = !hasInvalidOrgChain ? agent.orgChainHealth?.escalationWarning ?? null : null;
   const showConfigActionBar = (
-    activeView === "configuration" || activeView === "instructions" || activeView === "secrets"
+    activeView === "configuration" || activeView === "instructions"
   ) && (configDirty || configSaving);
   const showLeftAgentNotice = agentMembershipState === "left" && !dismissedLeftAgentIds.has(agent.id);
   const agentMembershipPending =
@@ -1042,21 +1037,6 @@ export function AgentDetail() {
           onSavingChange={setConfigSaving}
           updatePermissions={updatePermissions}
         />
-      )}
-
-      {activeView === "secrets" && (
-        <div className="max-w-3xl">
-          <ConfigurationTab
-            agent={agent}
-            companyId={resolvedCompanyId ?? undefined}
-            onDirtyChange={setConfigDirty}
-            onSaveActionChange={setSaveConfigAction}
-            onCancelActionChange={setCancelConfigAction}
-            onSavingChange={setConfigSaving}
-            updatePermissions={updatePermissions}
-            content="secrets"
-          />
-        </div>
       )}
 
       {activeView === "skills" && (
@@ -1621,7 +1601,7 @@ export function ConfigurationTab({
   updatePermissions: { mutate: (permissions: AgentPermissionUpdate) => void; isPending: boolean };
   hidePromptTemplate?: boolean;
   hideInstructionsFile?: boolean;
-  content?: "configuration" | "secrets";
+  content?: "configuration";
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -1720,7 +1700,7 @@ export function ConfigurationTab({
         hideInstructionsFile={hideInstructionsFile}
         content={content}
         sectionLayout="cards"
-        environmentVariablesPlacement={content === "secrets" ? "secrets" : "configuration"}
+        environmentVariablesPlacement="configuration"
       />
       {content === "configuration" ? (
         <p className="text-xs text-muted-foreground">

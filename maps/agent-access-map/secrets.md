@@ -4,16 +4,19 @@ Product map: [Secrets, personal credentials, and proposals](../feature-map/secre
 
 Feature ID: `secrets`.
 
-The agent **Secrets** page shows inline environment variables alongside company
-and user secret references. Inline values stay redacted on configuration reads.
-This presentation uses the existing agent configuration APIs and permissions;
-it does not grant another agent access to those values.
+The dedicated agent Secrets page has been retired. This map documents legacy
+runtime compatibility and redaction boundaries that remain in the backend; it
+does not represent a user-facing credential-management workflow.
 
 Source revision: `3bbc2104b65caf9f7763938a01260a5673e12f7a`.
 
 Review depth and executed proof are separate. The operation records enumerate the named behavior and access boundaries. Their evidence states describe the reviewed sources; run results and environment limits belong in the PR or verification artifacts. A listed API or source test does not establish a live authorized journey. Follow the [map contract](../README.md).
 
-- UI: `/company/settings/secrets` ([ui/src/App.tsx:187](../../ui/src/App.tsx)), company/personal Secrets, My secrets, Vaults, Proposals tabs in [ui/src/pages/Secrets.tsx:657](../../ui/src/pages/Secrets.tsx); `?secret=<id>`/`?definition=<id>` opens inspectable detail sheets (`Secrets.tsx:673`). Hidden tabs are presentation only: APIs stay live. Relevant UI sources: `ui/src/pages/secrets/{MyUserSecretsTab,SetMyUserSecretDialog,ProposalsTab,ImportFromVaultDialog}.tsx`; agent env/API-access editing in [ui/src/components/AgentConfigForm.tsx:536](../../ui/src/components/AgentConfigForm.tsx) and [ui/src/lib/secret-delivery.ts](../../ui/src/lib/secret-delivery.ts).
+- UI: the former `/company/settings/secrets` URL now redirects to Settings and
+  the dedicated management tabs are removed. Compatibility prompts and
+  configuration helpers remain in [AgentConfigForm.tsx](../../ui/src/components/AgentConfigForm.tsx),
+  [SetMyUserSecretDialog.tsx](../../ui/src/pages/secrets/SetMyUserSecretDialog.tsx),
+  and [secret-delivery.ts](../../ui/src/lib/secret-delivery.ts).
 - All board route operations require board identity and company/resource access, plus ordinary viewer-write protection. Company secret CRUD and vault administration use their own board checks. Definition administration and direct secret-proposal resolution require definition-admin authority; binding-proposal resolution instead checks target agent_config:update authority. The binding dependency cascade has a separate enforcement gap recorded under approve. Source [secret routes](../../server/src/routes/secrets.ts) and each handler. There is no board endpoint that returns arbitrary stored plaintext values.
 - Native production agent path is admitted `search_api`/`call_api` over the exact REST operation, not the declared `read_secret_value`/`list_secret_metadata` scenario names. Production authority does not bind those two dedicated scenario actions ([server/src/services/native-runtime/paperclip-runner-tool-authority.ts:124,501,616,641](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); catalog [runner-api-catalog.ts:43-123](../../server/src/services/native-runtime/runner-api-catalog.ts)). Native fallback needs rollout admission, running authorized bound agent/task/run, current assignment/execution and budget/company/privacy authority. GETs are available in Ask/Plan; POST/DELETE secret operations are not, including POST value retrieval even though its business meaning is reading. Skill-test may appear in catalog allowedModes but secret authorization denies its JWT scope. Actual run scope survives restart/task mode edits. See [runner-api-client.ts:50-61](../../server/src/services/native-runtime/runner-api-client.ts), [runner-api-catalog.ts:117-123](../../server/src/services/native-runtime/runner-api-catalog.ts), [paperclip-runner-tool-authority.ts:1190-1230,2440-2485](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts).
 - Legacy shell/REST uses actual bearer actor and signed JWT run context, not merely an X-Paperclip-Run-Id. `secrets` CLI wraps company/vault operations; it has no personal-secret/proposal/value command family. Direct REST remains necessary for those. CLI installation/working shell must be separately established for a given runtime; do not assume remote/native CLI presence.

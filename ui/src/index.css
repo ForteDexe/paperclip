@@ -2911,7 +2911,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    Allowlist (sites intentionally left as hardcoded / functional literals,
    NOT converted to tokens — each also carries an inline
    `token-extraction: allowlisted` comment at the site):
-   - pages/CompanyEnvironments.tsx — xterm.js terminal theme config; functional JS values, third-party.
    - pages/CompanySettings.tsx — <input type="color"> value; functional form control, not a rendered value. REMOVED: the company brand-color setting was deleted, so the control no longer exists.
    - components/issue-properties/IssueProperties.tsx (newLabelColor) — color-picker seed persisted into label-create payload.
    - pages/CompanySkills.tsx (DISCOVERY_ACCENTS) — persisted/compared skill.color JS data, not just rendered.
@@ -2959,9 +2958,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    Allowlist (sites intentionally left as hardcoded / functional literals,
    NOT converted to tokens — each also carries an inline
    `token-extraction: allowlisted` comment at the site):
-   - pages/CompanyEnvironments.tsx (fontSize: 12) — xterm.js terminal theme
-     config; functional third-party numeric option, not a rendered CSS value.
-     Same allowlisted object as Batch 1's color entry for this file.
    - pages/CompanySkills.tsx (fontSize: Math.round(size * 0.42)) — computed at
      runtime from a prop; not a static literal, nothing to extract.
 */
@@ -3146,7 +3142,7 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sz-38rem: 38rem; /* Extracted from ui/src/pages/AgentDetail.tsx (max-h-[38rem]). */
   --sz-7rem: 7rem; /* Extracted from ui/src/pages/Agents.test.tsx (min-w-[7rem]). */
   --sz-calc-29: calc(100% + 3rem); /* Extracted from ui/src/pages/BoardChat.tsx (h-[calc(100%+3rem)]). */
-  --sz-22rem: 22rem; /* Extracted from ui/src/pages/CompanyEnvironments.tsx (h-[22rem]). */
+  --sz-22rem: 22rem; /* SkillStudio.tsx editor minimum height. */
   --sz-560px: 560px; /* Extracted from ui/src/pages/CompanyExport.tsx (min-h-[560px]). */
   --sz-520px: 520px; /* Extracted from ui/src/pages/CompanyExport.tsx (min-h-[520px]). */
   --sz-480px: 480px; /* Extracted from ui/src/pages/CompanyExport.tsx (max-h-[480px]). */
@@ -3169,9 +3165,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sz-720px: 720px; /* Extracted from ui/src/pages/RunTranscriptUxLab.tsx (max-h-[720px]). */
   --sz-460px: 460px; /* Extracted from ui/src/pages/RunTranscriptUxLab.tsx (max-h-[460px]). */
   --sz-960px: 960px; /* Extracted from ui/src/pages/Search.tsx (max-w-[960px]). */
-  --sz-70px: 70px; /* Extracted from ui/src/pages/Secrets.tsx (min-h-[70px]). */
-  --sz-calc-41: min(520px,calc(100vw - 2rem)); /* Extracted from ui/src/pages/Secrets.tsx (w-[min(520px,calc(100vw-2rem))]). */
-  --sz-calc-42: min(80vh,34rem); /* Extracted from ui/src/pages/Secrets.tsx (max-h-[min(80vh,34rem)]). */
   --sz-calc-43: min(98vw,90rem); /* RunnerInspector sheet width. */
   --sz-14rem: 14rem; /* Extracted from ui/src/pages/TeamCatalog.tsx (max-w-[14rem]). */
   --rad-3: 3px; /* Extracted from ui/src/components/ExternalObjectPill.tsx (ring-[3px]). */
@@ -3278,8 +3271,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gtc-40: minmax(0,1fr) 320px; /* Extracted from ui/src/pages/IssueChatLongThreadPerf.tsx (grid-cols-[minmax(0,1fr)_320px]). */
   --gtc-52: minmax(0,1.4fr) minmax(220px,0.8fr); /* Extracted from ui/src/pages/PluginSettings.tsx (grid-cols-[minmax(0,1.4fr)_minmax(220px,0.8fr)]). */
   --gtc-53: minmax(0,1.4fr) minmax(18rem,0.9fr); /* Extracted from ui/src/pages/ProjectWorkspaceDetail.tsx (grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]). */
-  --gtc-54: minmax(12rem,2.4fr) minmax(5.25rem,0.75fr) minmax(7rem,1fr) minmax(5rem,0.7fr) 2.75rem; /* Extracted from ui/src/pages/Secrets.tsx (grid-cols-[minmax(12rem,2.4fr)_minmax(5.25rem,0.75fr)_minmax(7rem,1fr)_minmax(5rem,0.7fr)_2.75rem]). */
-  --gtc-55: 8rem minmax(0,1fr); /* Extracted from ui/src/pages/Secrets.tsx (grid-cols-[8rem_minmax(0,1fr)]). */
   --gtc-56: minmax(0,1fr) minmax(14rem,18rem); /* Extracted from ui/src/pages/TeamCatalog.tsx (grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)]). */
   --gtc-59: 8rem 1fr;
   --gtc-60: 1fr 1fr;
@@ -3364,7 +3355,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    A path may appear more than once if it has more than one distinct
    allowlisted concern. Paths are matched by the gate script as a substring
    of the file being checked (repo-relative, POSIX-style).
-   * allow ui/src/pages/CompanyEnvironments.tsx — xterm.js terminal theme config (background/foreground/cursor/cursorAccent/selectionBackground hex, fontSize: 12); functional third-party option object, not a rendered CSS value
    * allow ui/src/components/issue-properties/IssueProperties.tsx — newLabelColor color-picker seed state persisted into the label-create payload sent to the backend; a var() string would corrupt that payload
    * allow ui/src/pages/CompanySkills.tsx — DISCOVERY_ACCENTS palette array feeds skill.color, persisted/compared JS data (SkillCreateDraft), not just a rendered value; also fontSize: Math.round(size * 0.42), computed at runtime from a prop, not a static literal
    * allow ui/src/components/IssueColumns.tsx — accentColor fallback also feeds pickTextColorForPillBg() contrast math (lib/color-contrast.ts), which needs a real hex string to compute luminance
@@ -3400,7 +3390,6 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    * allow ui/src/components/RoutineRunVariablesDialog.test.tsx — mock label color fixture
    * allow ui/src/components/SidebarProjects.test.tsx — mock project color fixture
    * allow ui/src/components/SidebarStarredProjects.test.tsx — mock project color fixture
-   * allow ui/src/pages/CompanyEnvironments.test.tsx — xterm.js theme-mock assertion values (mirrors the allowlisted xterm.js config in the CompanyEnvironments.tsx source above)
    * allow ui/src/pages/ExecutionWorkspaceDetail.test.tsx — mock project color fixture
    * allow ui/src/pages/IssueDetail.test.tsx — mock project color fixture
    * allow ui/src/pages/ProjectDetail.test.tsx — mock project color fixture

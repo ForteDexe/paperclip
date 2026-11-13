@@ -27,7 +27,7 @@ export function MissingUserSecretsBanner({
   companyId: string;
   definitionKeys?: string[];
   title?: string;
-  /** Optional route to the Secrets → My secrets tab for the "Manage all" link. */
+  /** Optional legacy route for hosts that still expose bulk secret management. */
   secretsPath?: string;
   className?: string;
 }) {

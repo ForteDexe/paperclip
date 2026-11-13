@@ -171,7 +171,6 @@ export function PluginSettings() {
         : "secondary";
   const pluginDescription = plugin.manifestJson.description || "No description provided.";
   const pluginCapabilities = plugin.manifestJson.capabilities ?? [];
-  const environmentDrivers = plugin.manifestJson.environmentDrivers ?? [];
   const localFolderDeclarations = plugin.manifestJson.localFolders ?? [];
   // A plugin local folder is an absolute path on the execution host. Under the
   // managed-sandbox-only policy the platform-managed environment owns the
@@ -179,10 +178,6 @@ export function PluginSettings() {
   // to whatever else the plugin declares. The section also stays hidden until
   // the policy is known.
   const hasLocalFolders = localFolderDeclarations.length > 0 && !hideHostPaths;
-  const environmentDriverNames = environmentDrivers
-    .map((driver) => driver.displayName?.trim() || driver.driverKey)
-    .filter((name, index, values) => values.indexOf(name) === index);
-  const driverLabel = environmentDriverNames.join(", ");
 
   return (
     <div className="max-w-6xl space-y-6">
@@ -284,19 +279,6 @@ export function PluginSettings() {
                   pluginStatus={plugin.status}
                   supportsConfigTest={(plugin as unknown as { supportsConfigTest?: boolean }).supportsConfigTest === true}
                 />
-              ) : environmentDrivers.length > 0 ? (
-                <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-3 text-sm">
-                  <p className="font-medium text-foreground">Configure this plugin from Settings → Environments.</p>
-                  <p className="mt-1 text-muted-foreground">
-                    {driverLabel || "This plugin"} registers environment runtime settings there so the execution target
-                    stays instance-scoped while secret bindings still resolve through the selected outpost context.
-                  </p>
-                  <div className="mt-3">
-                    <Link to="/company/settings/instance/environments">
-                      <Button variant="outline" size="sm">Open Environments</Button>
-                    </Link>
-                  </div>
-                </div>
               ) : !hasLocalFolders ? (
                 <p className="text-sm text-muted-foreground">
                   This plugin does not require any settings.

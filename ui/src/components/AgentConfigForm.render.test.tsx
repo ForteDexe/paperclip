@@ -1590,36 +1590,6 @@ describe("AgentConfigForm environment selector", () => {
     expect(result.container.textContent).not.toContain("Environment variables");
   });
 
-  it.each([
-    { variant: "current", adapterType: "paperclip_runner" },
-    { variant: "current", adapterType: "claude_local" },
-    { variant: "classic", adapterType: "paperclip_runner" },
-    { variant: "classic", adapterType: "claude_local" },
-  ])("shows saved $adapterType environment credentials on the $variant agent Secrets page", async ({ variant, adapterType }) => {
-    mockEnvironmentsApi.list.mockResolvedValue([]);
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    roots.push(root);
-    const agent = { ...makeAgent({ adapterType, adapterConfig: {
-      provider: "acpx", acpxAgent: "claude",
-      env: { RELEASE_WEBHOOK: { type: "plain", value: "***REDACTED***" } },
-    } }), chainOfCommand: [], access: { canAssignTasks: false, taskAssignSource: "none" as const, membership: null, grants: [] } };
-    const Settings = variant === "current" ? ConfigurationTab : ClassicConfigurationTab;
-    await act(async () => renderFormView(root, createFormQueryClient(), <MemoryRouter>
-      <Settings agent={agent} companyId="company-1" content="secrets"
-        onDirtyChange={vi.fn()} onSaveActionChange={vi.fn()} onCancelActionChange={vi.fn()} onSavingChange={vi.fn()}
-        updatePermissions={{ mutate: vi.fn(), isPending: false }} />
-    </MemoryRouter>));
-    await flushReact();
-
-    expect(container.querySelector<HTMLInputElement>('input[aria-label="Variable name"]')?.value).toBe("RELEASE_WEBHOOK");
-    expect(container.querySelector<HTMLInputElement>('input[aria-label="Variable value"]')?.value).toBe("***REDACTED***");
-    expect(container.textContent).toContain("Environment variables");
-    expect(container.textContent).toContain("Secret access");
-    expect(container.textContent).not.toContain("No environment variables");
-  });
-
   it("shows concise Environment copy when one runnable non-local environment exists", async () => {
     const result = await renderForm(e2bEnvironments());
     roots.push(result.root);

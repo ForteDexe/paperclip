@@ -17,9 +17,9 @@ import {
 } from "./AgentDetail";
 
 describe("agent detail tabs", () => {
-  it("exposes Secrets as its own route-backed tab", () => {
-    expect(AGENT_DETAIL_TABS.map((tab) => tab.label)).toContain("Secrets & variables");
-    expect(parseAgentDetailView("secrets")).toBe("secrets");
+  it("does not expose the retired Secrets surface", () => {
+    expect(AGENT_DETAIL_TABS.map((tab) => tab.label)).not.toContain("Secrets & variables");
+    expect(parseAgentDetailView("secrets")).toBe("overview");
   });
 
   it("requires confirmation before navigation can discard unsaved configuration", () => {

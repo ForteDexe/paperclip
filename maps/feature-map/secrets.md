@@ -4,11 +4,13 @@ navigation: {"section":"Apps, channels, and extensions","sectionOrder":50,"order
 
 # Secrets and proposals
 
-Operators manage company secret references, users supply their own credentials where required, and reviewers decide proposed secret changes without exposing secret values in ordinary UI evidence.
+This map records the retained compatibility and redaction contracts. Outpost no
+longer exposes a Settings > Secrets management surface, and new local
+Codex/Claude agents use credentials from their already-authenticated CLI.
 
 Feature ID: `secrets`.
 
-Implementation: [secrets page](../../ui/src/pages/Secrets.tsx), [personal secrets](../../ui/src/pages/secrets/MyUserSecretsTab.tsx), [proposals](../../ui/src/pages/secrets/ProposalsTab.tsx).
+Implementation: [compatibility API](../../ui/src/api/secrets.ts), [runtime service](../../server/src/services/secrets.ts), [proposal helpers](../../ui/src/pages/secrets/proposal-review.tsx).
 
 Agent access: [companion](../agent-access-map/secrets.md).
 
@@ -24,11 +26,12 @@ Agent access: [companion](../agent-access-map/secrets.md).
 
 ### `secret-management`
 
-Open company Settings → Secrets and the company/personal secret views.
+There is no general secret-management page. A legacy task or run can still show
+an inline compatibility prompt when an existing record requires a user value.
 
 ### `proposal-import`
 
-Use the Proposals tab or Import from vault where available.
+No proposal or vault-import management page is exposed.
 
 ## Driving it with Playwright and the Paperclip CLI
 
@@ -54,7 +57,7 @@ Manual: Create a dummy secret reference, bind it through a supported field, and 
 
 ### `proposal-import`
 
-Automated: [proposal routes](../../server/src/__tests__/secret-proposals-routes.test.ts) and [vault import dialog](../../ui/src/pages/secrets/ImportFromVaultDialog.test.tsx) cover route/UI layers; a real vault integration needs live validation.
+Automated: [proposal routes](../../server/src/__tests__/secret-proposals-routes.test.ts) and [secret routes](../../server/src/__tests__/secrets-routes.test.ts) cover retained backend compatibility; a real vault integration needs live validation.
 
 Manual: Review a dummy proposal, reject one and accept another, then inspect the resulting reference state and history. Preview a vault import, select only disposable entries, and verify imported references and denied-access errors after reload.
 
@@ -77,7 +80,7 @@ Capability ID: `secrets/proposals`.
 Scope: ui
 Storybook: Mount ProposalsTab pending secret/binding proposals, blocked authority, expired/resolved proposal, approval/rejection pending/error, and redacted metadata.
 Production: GET /companies/{id}/secret-proposals and POST approve/reject must enforce company/admin/target authority, durable resolution and redaction; verified run-bound agent proposal creation is separate.
-Sources: Source: [ProposalsTab.tsx](../../ui/src/pages/secrets/ProposalsTab.tsx), [secrets.ts](../../server/src/routes/secrets.ts), [secret-proposal-authorization.ts](../../server/src/services/secret-proposal-authorization.ts). Tests: [ProposalsTab.render.test.tsx](../../ui/src/pages/secrets/ProposalsTab.render.test.tsx), [secret-proposals-routes.test.ts](../../server/src/__tests__/secret-proposals-routes.test.ts)
+Sources: Source: [proposal-review.tsx](../../ui/src/pages/secrets/proposal-review.tsx), [secrets.ts](../../server/src/routes/secrets.ts), [secret-proposal-authorization.ts](../../server/src/services/secret-proposal-authorization.ts). Tests: [secret-proposals-routes.test.ts](../../server/src/__tests__/secret-proposals-routes.test.ts)
 
 ### Documentation scope: Secrets and secret proposals
 

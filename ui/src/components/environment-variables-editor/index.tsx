@@ -563,8 +563,8 @@ export const EnvironmentVariablesEditor = forwardRef<EnvironmentVariablesEditorH
         <p className="inline-flex items-start gap-1 text-(length:--text-micro) text-muted-foreground/70">
           <UserRound className="mt-0.5 size-3 shrink-0" />
           <span>
-            User secrets resolve from the user responsible for the run. Required bindings fail until that user
-            sets their value under Secrets → My secrets.
+            User-secret bindings are retained for compatibility. Outpost no longer provides a settings page for
+            creating or changing them.
           </span>
         </p>
       ) : null}

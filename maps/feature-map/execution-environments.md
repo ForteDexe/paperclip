@@ -4,11 +4,13 @@ navigation: {"section":"Projects and execution","sectionOrder":40,"order":40}
 
 # Execution environments
 
-Operators configure where agents execute, probe readiness, select an environment for work, and inspect remote provisioning or custom-image state when the installed provider supports it.
+This map records the retained execution-runtime compatibility layer. Outpost no
+longer exposes the Settings > Environments management surface; local Codex and
+Claude execution still use environment selection and probing internally.
 
 Feature ID: `execution-environments`.
 
-Implementation: [environment settings](../../ui/src/pages/CompanyEnvironments.tsx), [environment runtime](../../server/src/services/environment-runtime.ts).
+Implementation: [runtime-facing UI API](../../ui/src/api/environments.ts), [environment runtime](../../server/src/services/environment-runtime.ts).
 
 Agent access: [companion](../agent-access-map/execution-environments.md).
 
@@ -24,11 +26,8 @@ Agent access: [companion](../agent-access-map/execution-environments.md).
 
 ### `environment-settings`
 
-Open Settings → Environments, then create/edit a supported target.
-The canonical URL is `/company/settings/instance/environments`. Enable
-`enableEnvironments` first; keep `enableManagedSandboxOnly` off to inspect local
-targets. The catalog is instance-scoped and mutation requires a local operator
-or instance administrator.
+There is no user-facing environment-management page. Legacy URLs redirect to
+Settings. Local execution is selected from the Space and agent runtime flows.
 
 ### `remote-execution`
 
@@ -40,7 +39,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 ### `environment-settings`
 
-Automated: [environment UI](../../ui/src/pages/CompanyEnvironments.test.tsx), [driver configuration UI](../../ui/src/pages/CompanySettings.test.tsx), and [environment service](../../server/src/__tests__/environment-service.test.ts) cover configuration behavior.
+Automated: [environment routes](../../server/src/__tests__/environment-routes.test.ts) and [environment service](../../server/src/__tests__/environment-service.test.ts) cover retained compatibility behavior.
 
 Manual: Save a disposable target, reload it, and run its available probe. Verify both success and missing-credential/reachability errors identify the target. Confirm unavailable providers are not offered as working run targets.
 
@@ -140,7 +139,7 @@ Capability ID: `execution-environments/configuration`.
 Scope: ui
 Storybook: Local/SSH/sandbox editors; unavailable providers, missing credentials, save pending/error and restricted operator.
 Production: Persist target configuration and enforce instance-admin/local-operator mutation boundary; target catalog is instance-scoped.
-Sources: Source: [CompanyEnvironments.tsx](../../ui/src/pages/CompanyEnvironments.tsx), [environments.ts](../../server/src/routes/environments.ts). Tests: [CompanyEnvironments.test.tsx](../../ui/src/pages/CompanyEnvironments.test.tsx), [environment-service.test.ts](../../server/src/__tests__/environment-service.test.ts)
+Sources: Source: [environments.ts](../../ui/src/api/environments.ts), [environments.ts](../../server/src/routes/environments.ts). Tests: [environment-routes.test.ts](../../server/src/__tests__/environment-routes.test.ts), [environment-service.test.ts](../../server/src/__tests__/environment-service.test.ts)
 
 #### `capabilities`
 
@@ -149,7 +148,7 @@ Capability ID: `execution-environments/capabilities`.
 Scope: ui
 Storybook: Supported versus unavailable driver/provider controls and interactive-setup/template-capture limitations.
 Production: Verify advertised driver/plugin capabilities match operations; unavailable provider cannot become working target; capability discovery must not allocate sandbox.
-Sources: Source: [CompanyEnvironments.tsx](../../ui/src/pages/CompanyEnvironments.tsx), [environments.ts](../../ui/src/api/environments.ts). Tests: [environment-capability-contract.test.ts](../../server/src/__tests__/environment-capability-contract.test.ts), [environment-execution-target-capabilities.test.ts](../../server/src/__tests__/environment-execution-target-capabilities.test.ts), [plugin-environment-driver-sandbox-capabilities.test.ts](../../server/src/__tests__/plugin-environment-driver-sandbox-capabilities.test.ts)
+Sources: Source: [environments.ts](../../ui/src/api/environments.ts). Tests: [environment-capability-contract.test.ts](../../server/src/__tests__/environment-capability-contract.test.ts), [environment-execution-target-capabilities.test.ts](../../server/src/__tests__/environment-execution-target-capabilities.test.ts), [plugin-environment-driver-sandbox-capabilities.test.ts](../../server/src/__tests__/plugin-environment-driver-sandbox-capabilities.test.ts)
 
 #### `probe`
 
@@ -158,7 +157,7 @@ Capability ID: `execution-environments/probe`.
 Scope: ui
 Storybook: Remote Test pending, success, reachability/auth failure and platform qualification absent/invalidated notice.
 Production: Probe actual owned target; verify selected saved immutable config/image/company qualification plus lease cleanup; local API probe proves host/cwd only and has no UI Test button.
-Sources: Source: [CompanyEnvironments.tsx](../../ui/src/pages/CompanyEnvironments.tsx), [environment-probe.ts](../../server/src/services/environment-probe.ts). Tests: [CompanyEnvironments.test.tsx](../../ui/src/pages/CompanyEnvironments.test.tsx), [environment-probe.test.ts](../../server/src/__tests__/environment-probe.test.ts), [environment-live-ssh.test.ts](../../server/src/__tests__/environment-live-ssh.test.ts)
+Sources: Source: [environments.ts](../../ui/src/api/environments.ts), [environment-probe.ts](../../server/src/services/environment-probe.ts). Tests: [environment-routes.test.ts](../../server/src/__tests__/environment-routes.test.ts), [environment-probe.test.ts](../../server/src/__tests__/environment-probe.test.ts), [environment-live-ssh.test.ts](../../server/src/__tests__/environment-live-ssh.test.ts)
 
 #### `images`
 
@@ -167,7 +166,7 @@ Capability ID: `execution-environments/images`.
 Scope: ui
 Storybook: Custom-image setup/capture/progress, terminal connect/disconnect/failure, unsupported capability and active-image drift.
 Production: Execute owned provider setup/capture/probe/terminal transport with correct saved image identity, authority, cleanup and shutdown; terminal screenshot cannot prove operation.
-Sources: Source: [CompanyEnvironments.tsx](../../ui/src/pages/CompanyEnvironments.tsx), [environment-custom-images.ts](../../server/src/services/environment-custom-images.ts). Tests: [CompanyEnvironments.test.tsx](../../ui/src/pages/CompanyEnvironments.test.tsx), [environment-custom-images-service.test.ts](../../server/src/__tests__/environment-custom-images-service.test.ts)
+Sources: Source: [environment-custom-images.ts](../../server/src/services/environment-custom-images.ts). Tests: [environment-custom-image-routes.test.ts](../../server/src/__tests__/environment-custom-image-routes.test.ts), [environment-custom-images-service.test.ts](../../server/src/__tests__/environment-custom-images-service.test.ts)
 
 Managed account transfer requires `projectAuthCheckVersion: 1` and a successful
 `check_project_auth` result for the exact prepared configuration, provider, and

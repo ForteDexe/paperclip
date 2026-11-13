@@ -709,7 +709,7 @@ function Setup({
         rememberCredentials();
       } else {
         try { await Promise.all(staged.map(secret => secret.remove())); }
-        catch { throw new Error(`${cause instanceof Error ? cause.message : "Could not save agent setup."} Could not remove an unused setup credential. Remove it from Secrets before retrying.`); }
+        catch { throw new Error(`${cause instanceof Error ? cause.message : "Could not save agent setup."} Could not remove an unused legacy setup credential.`); }
       }
       throw cause;
     }

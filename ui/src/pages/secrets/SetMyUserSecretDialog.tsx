@@ -19,10 +19,8 @@ import { UserSecretChip } from "./user-secret-presentation";
 import { describeError } from "@/api/errors";
 
 /**
- * Shared "set my value" dialog for a user-secret definition. Used both from the
- * Secrets → My secrets tab and from the missing-required-secret warning surfaces
- * (task run / issue failure), so a user can satisfy a required secret from either
- * place with identical behavior.
+ * Compatibility dialog for satisfying a legacy user-secret requirement directly
+ * from a task or run failure. The removed Settings surface no longer imports it.
  */
 export function SetMyUserSecretDialog({
   companyId,

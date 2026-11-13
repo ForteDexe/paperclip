@@ -32,7 +32,6 @@ const localIcons = {
   instructions: Fingerprint,
   skills: Library,
   runtime: Settings2,
-  secrets: KeyRound,
   tools: Wrench,
   channels: MessageSquare,
   permissions: ShieldCheck,

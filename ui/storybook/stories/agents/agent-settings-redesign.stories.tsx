@@ -32,7 +32,6 @@ const meta = {
         "instructions",
         "skills",
         "runtime",
-        "secrets",
         "tools",
         "permissions",
         "api-keys",
@@ -97,10 +96,6 @@ export const CodexLegacyAdvanced: Story = { ...CodexRuntime, play: async ({ canv
   await expect(await canvas.findByText("Command", { exact: true })).toBeVisible();
   await expect(await canvas.findByText("Extra args (comma-separated)", { exact: true })).toBeVisible();
 } };
-export const Secrets: Story = {
-  name: "Secrets & variables",
-  args: { initialTab: "secrets" },
-};
 export const Tools: Story = { args: { initialTab: "tools" } };
 export const Permissions: Story = {
   name: "Permissions / Trust",

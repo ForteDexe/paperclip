@@ -232,7 +232,6 @@ const LEGACY_AGENT_DETAIL_TABS = [
   { value: "instructions", label: "Instructions" },
   { value: "skills", label: "Skills" },
   { value: "configuration", label: "Configuration" },
-  { value: "secrets", label: "Secrets" },
   { value: "tools", label: "Tools" },
   { value: "runs", label: "Runs" },
   { value: "audit", label: "Audit" },
@@ -329,8 +328,6 @@ function agentViewDescription(view: AgentDetailView, name: string): string | nul
   switch (view) {
     case "runtime":
       return `How ${name} runs: harness, model and environment.`;
-    case "secrets":
-      return "Secrets this agent can reach. Values are never shown here.";
     case "permissions":
       return `What ${name} may do without asking, and where.`;
     case "activity":
@@ -794,9 +791,7 @@ export function AgentDetail() {
   const isPendingApproval = currentAgent.status === "pending_approval";
   const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
   const pausedEscalationWarning = !hasInvalidOrgChain ? agent.orgChainHealth?.escalationWarning ?? null : null;
-  const showConfigActionBar = (
-    activeView === "runtime" || activeView === "instructions" || activeView === "secrets"
-  );
+  const showConfigActionBar = activeView === "runtime" || activeView === "instructions";
   const showLeftAgentNotice = agentMembershipState === "left" && !dismissedLeftAgentIds.has(agent.id);
   const agentMembershipPending =
     membershipMutation.isPending &&
@@ -965,7 +960,7 @@ export function AgentDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes to {agent.name}&rsquo;s {activeView === "runtime" ? "harness settings" : activeView === "secrets" ? "secrets and variables" : activeView === "advanced" ? "configuration" : "instructions"}. If you continue, they&rsquo;ll be lost.
+              You have unsaved changes to {agent.name}&rsquo;s {activeView === "runtime" ? "harness settings" : activeView === "advanced" ? "configuration" : "instructions"}. If you continue, they&rsquo;ll be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="sm:justify-between">
@@ -1112,21 +1107,6 @@ export function AgentDetail() {
             content="runtime"
             hidePromptTemplate
             hideInstructionsFile
-          />
-        </div>
-      )}
-
-      {activeView === "secrets" && (
-        <div>
-          <ConfigurationTab
-            agent={agent}
-            companyId={resolvedCompanyId ?? undefined}
-            onDirtyChange={setConfigDirty}
-            onSaveActionChange={setSaveConfigAction}
-            onCancelActionChange={setCancelConfigAction}
-            onSavingChange={setConfigSaving}
-            updatePermissions={updatePermissions}
-            content="secrets"
           />
         </div>
       )}
@@ -1608,7 +1588,7 @@ export function ConfigurationTab({
   updatePermissions: { mutate: (permissions: AgentPermissionUpdate) => void; isPending: boolean };
   hidePromptTemplate?: boolean;
   hideInstructionsFile?: boolean;
-  content?: "runtime" | "permissions" | "secrets";
+  content?: "runtime" | "permissions";
   canConfigureProviderTrace?: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -1716,9 +1696,9 @@ export function ConfigurationTab({
         hideInlineSave
         hidePromptTemplate={hidePromptTemplate}
         hideInstructionsFile={hideInstructionsFile}
-        content={content === "runtime" ? "configuration" : "secrets"}
+        content="configuration"
         sectionLayout="panels"
-        environmentVariablesPlacement={content === "secrets" ? "secrets" : "configuration"}
+        environmentVariablesPlacement="configuration"
         compactTestFeedback
         sectionOrder={["adapter", "configuration", "environment", "environment-variables"]}
         hiddenSections={["identity", "run-policy"]}
