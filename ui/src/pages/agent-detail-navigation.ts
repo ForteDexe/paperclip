@@ -5,7 +5,6 @@ export type AgentAuditView = Extract<AuditSection, "activity" | "runs">;
 export type AgentDetailView =
   | "overview"
   | "instructions"
-  | "skills"
   | "runtime"
   | "tools"
   | "channels"
@@ -42,7 +41,6 @@ export const AGENT_DETAIL_NAVIGATION: ReadonlyArray<{
 ] as const;
 
 const HIDDEN_VIEW_LABELS: Partial<Record<AgentLocalDetailView, string>> = {
-  skills: "Skills",
   tools: "Tools",
   channels: "Channels",
   "api-keys": "API Keys",
@@ -62,7 +60,7 @@ export function agentDetailViewLabel(view: AgentLocalDetailView): string {
 
 export function parseAgentDetailView(value: string | null): AgentLocalDetailView {
   if (value === "identity" || value === "instructions" || value === "prompts") return "instructions";
-  if (value === "skills") return "skills";
+  if (value === "skills") return "overview";
   if (value === "runtime" || value === "configure" || value === "configuration") return "runtime";
   if (value === "secrets") return "overview";
   if (value === "tools") return "tools";

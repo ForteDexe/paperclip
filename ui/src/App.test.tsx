@@ -309,11 +309,9 @@ describe("CloudAccessGate", () => {
 });
 
 describe("Skills routes", () => {
-  it("uses the simple installed-skills library and retires Sources and Studio", () => {
-    expect(appSource).toContain('const InstalledSkills = lazy(() => import("./pages/InstalledSkills")');
-    expect(appSource).toContain('<Route path="skills/*" element={<InstalledSkills />} />');
-    expect(appSource).toContain('<Route path="skills/sources/*" element={<Navigate to="/skills" replace />} />');
-    expect(appSource).toContain('<Route path="skills/studio/*" element={<Navigate to="/skills" replace />} />');
+  it("retires Outpost-managed skills in favor of native harness skills", () => {
+    expect(appSource).toContain('<Route path="skills/*" element={<Navigate to="/dashboard" replace />} />');
+    expect(appSource).not.toContain('const InstalledSkills = lazy(');
     expect(appSource).not.toContain('const SkillSources = lazy(');
     expect(appSource).not.toContain('const SkillStudio = lazy(');
   });

@@ -161,8 +161,8 @@ describe("CompanySettingsSidebar", () => {
     expect(container.textContent).toContain("General");
     expect(container.textContent).not.toContain("Connections");
     expect(container.textContent).not.toContain("Environments");
-    expect(container.textContent).toContain("Export");
-    expect(container.textContent).toContain("Import");
+    expect(container.textContent).not.toContain("Export");
+    expect(container.textContent).not.toContain("Import");
     expect(container.textContent).not.toContain("Members");
     expect(container.textContent).not.toContain("Secrets");
     expect(container.textContent).not.toContain("Access");
@@ -181,18 +181,11 @@ describe("CompanySettingsSidebar", () => {
         end: true,
       }),
     );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "/company/export",
-        label: "Export",
-      }),
+    expect(sidebarNavItemMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/company/export" }),
     );
-    expect(sidebarNavItemMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "/company/import",
-        label: "Import",
-        end: true,
-      }),
+    expect(sidebarNavItemMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/company/import" }),
     );
     expect(sidebarNavItemMock).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -401,15 +394,15 @@ describe("CompanySettingsSidebar operator-hidden entries", () => {
     expect(container.textContent).not.toContain("Access");
     expect(container.textContent).toContain("Plugins");
     expect(container.textContent).toContain("Adapters");
-    expect(container.textContent).toContain("Import");
+    expect(container.textContent).not.toContain("Import");
     expect(mockPluginsApi.list).toHaveBeenCalled();
   });
 
-  it("hides Import but keeps Export on a Cloud-managed instance", async () => {
+  it("keeps retired portability controls hidden on a Cloud-managed instance", async () => {
     await renderSidebar(undefined, { managed: true });
 
     expect(container.textContent).not.toContain("Import");
-    expect(container.textContent).toContain("Export");
+    expect(container.textContent).not.toContain("Export");
   });
 
   it("hides operator-hidden company pages", async () => {

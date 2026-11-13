@@ -250,7 +250,6 @@ import { chatWebhookBodyParser } from "./middleware/chat-webhook-body.js";
 import { createChatWebhookDiagnostics } from "./services/chat-webhook-diagnostics.js";
 
 type UiMode = "none" | "static" | "vite-dev";
-const FEEDBACK_EXPORT_FLUSH_INTERVAL_MS = 5_000;
 const VITE_DEV_ASSET_PREFIXES = [
   "/@fs/",
   "/@id/",
@@ -440,16 +439,6 @@ export async function createApp(
     uiMode: UiMode;
     serverPort: number;
     storageService: StorageService;
-    feedbackExportService?: {
-      hasPendingFeedbackTraces(): Promise<boolean>;
-      flushPendingFeedbackTraces(input?: {
-        companyId?: string;
-        traceId?: string;
-        limit?: number;
-        now?: Date;
-        signal?: AbortSignal;
-      }): Promise<unknown>;
-    };
     databaseBackupService?: InstanceDatabaseBackupService;
     prepareIdleDatabaseBackup?: () => Promise<boolean>;
     idleDeadlineOwners?: IdleDeadlineOwners;
@@ -1268,13 +1257,6 @@ export async function createApp(
   });
   const resourceLifecycleDelivery = registerPluginLifecycleDelivery(deliveryWork, db, workerManager, lifecycle);
   await resourceLifecycleDelivery.ready;
-  if (opts.feedbackExportService) {
-    deliveryWork.register(DELIVERY_QUEUES.feedback, {
-      retryMs: FEEDBACK_EXPORT_FLUSH_INTERVAL_MS,
-      run: (signal) => opts.feedbackExportService!.flushPendingFeedbackTraces({ signal }),
-      hasPending: () => opts.feedbackExportService!.hasPendingFeedbackTraces(),
-    });
-  }
   registerChatDeliveryWork(deliveryWork, chatChannels, () => !isIdleTaskDrainActive());
   registerChatActionWork(deliveryWork, chatChannels, () => !isIdleTaskDrainActive());
   chatChannels.voice.registerReportWork(deliveryWork, () => !isWarmStandby() && !isIdleTaskDrainActive());

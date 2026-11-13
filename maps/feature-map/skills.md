@@ -8,7 +8,7 @@ Operators discover or import skills, author and test them in Skill Studio, manag
 
 Feature ID: `skills`.
 
-Implementation: [skill library](../../ui/src/pages/CompanySkills.tsx), [studio](../../ui/src/pages/SkillStudio.tsx), [sources](../../ui/src/pages/SkillSources.tsx), [agent skills](../../ui/src/pages/agent-skills/AgentSkillsTab.tsx).
+Implementation: legacy backend compatibility remains for historical rows. Outpost no longer exposes skill management; Codex and Claude manage native skills outside this UI.
 
 Agent access: [companion](../agent-access-map/skills.md).
 
@@ -61,7 +61,7 @@ Manual: Create or fork a disposable skill, edit instructions, save, and reload. 
 
 ### `agent-enablement`
 
-Automated: [policy service](../../server/src/__tests__/company-skill-policy-service.test.ts) and [agent skills state](../../ui/src/pages/agent-skills/AgentSkillsTab.test.ts) cover policy/state contracts.
+Automated: [policy service](../../server/src/__tests__/company-skill-policy-service.test.ts) and [agent skill routes](../../server/src/__tests__/agent-skills-routes.test.ts) cover the retained compatibility contracts.
 
 The [version-cache regression](../../server/src/__tests__/skill-version-cache.test.ts)
 checks that listing assignments does not create repository caches, validate every

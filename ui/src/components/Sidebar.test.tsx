@@ -251,8 +251,8 @@ describe("Sidebar", () => {
     expect(spacesLink?.getAttribute("href")).toBe("/spaces");
     const agentLinks = [...container.querySelectorAll('a[href="/agents"]')];
     expect(agentLinks).toHaveLength(1);
-    expect([...container.querySelectorAll('a[href="/activity"]')]).toHaveLength(1);
-    expect(navLabels).toContain("Audit");
+    expect([...container.querySelectorAll('a[href="/activity"]')]).toHaveLength(0);
+    expect(navLabels).not.toContain("Audit");
     expect(navLabels).not.toContain("Settings");
     expect(navLabels).not.toContain("Activity");
     expect(navLabels).not.toContain("Costs");
@@ -314,7 +314,8 @@ describe("Sidebar", () => {
     expect(container.querySelector('[data-testid="sidebar-projects"]')).toBeNull();
     expect(container.querySelector('[data-testid="sidebar-agents"]')?.getAttribute("data-streamlined")).toBe("true");
     expect(container.textContent).toContain("Space");
-    expect(labels).toEqual(expect.arrayContaining(["Spaces", "Agents", "Skills", "Audit"]));
+    expect(labels).toEqual(expect.arrayContaining(["Spaces", "Agents"]));
+    expect(labels).not.toEqual(expect.arrayContaining(["Skills", "Audit"]));
     expect(labels).not.toContain("Connectors");
     expect(labels).not.toContain("Projects");
     expect(container.querySelector('a[href="/agents"]')).not.toBeNull();
@@ -337,7 +338,7 @@ describe("Sidebar", () => {
     });
   });
 
-  it("renders plugin sidebar slots in Work below Workspaces", async () => {
+  it("renders plugin sidebar slots in Work after the retained product links", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: true });
     const root = await renderSidebar();
 
@@ -346,9 +347,9 @@ describe("Sidebar", () => {
     expect(sidebarSlot?.textContent).toContain("Plugin slot outlet");
     const workSectionContainer = sidebarSlot?.parentElement?.parentElement;
     const workText = workSectionContainer?.textContent ?? "";
-    expect(workText).toContain("Work");
-    expect(workText).toContain("Workspaces");
-    expect(workText.indexOf("Workspaces")).toBeLessThan(workText.indexOf("Plugin slot outlet"));
+    expect(workText).toContain("Artifacts");
+    expect(workText).not.toContain("Workspaces");
+    expect(workText.indexOf("Artifacts")).toBeLessThan(workText.indexOf("Plugin slot outlet"));
 
     const primaryNavText = container.querySelector("nav > div:first-child")?.textContent ?? "";
     expect(primaryNavText).toContain("Inbox");
@@ -359,13 +360,13 @@ describe("Sidebar", () => {
     });
   });
 
-  it("keeps Chat, Inbox and Workspaces without the combined Tasks experiment", async () => {
+  it("keeps Chat and Inbox without the combined Tasks experiment", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: true });
     const root = await renderSidebar();
 
     expect([...container.querySelectorAll("a")].some((anchor) => anchor.getAttribute("href") === "/chats")).toBe(true);
     expect([...container.querySelectorAll("a")].some((anchor) => anchor.getAttribute("href") === "/inbox")).toBe(true);
-    expect([...container.querySelectorAll("a")].some((anchor) => anchor.getAttribute("href") === "/workspaces")).toBe(true);
+    expect([...container.querySelectorAll("a")].some((anchor) => anchor.getAttribute("href") === "/workspaces")).toBe(false);
 
     flushSync(() => {
       root.unmount();
@@ -401,12 +402,12 @@ describe("Sidebar", () => {
       });
     });
 
-    it("keeps Workspaces available beside Chat when isolated workspaces are on", async () => {
+    it("keeps retired Workspaces hidden beside Chat", async () => {
       mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableAgentChat: true, enableIsolatedWorkspaces: true });
       const root = await renderSidebar();
 
-      expect(container.textContent).toContain("Workspaces");
-      expect([...container.querySelectorAll("a")].some((anchor) => anchor.getAttribute("href") === "/workspaces")).toBe(true);
+      expect(container.textContent).not.toContain("Workspaces");
+      expect([...container.querySelectorAll("a")].some((anchor) => anchor.getAttribute("href") === "/workspaces")).toBe(false);
 
       flushSync(() => {
         root.unmount();
@@ -485,7 +486,7 @@ describe("Sidebar", () => {
     });
   });
 
-  it("shows Status directly below Decisions in primary navigation", async () => {
+  it("keeps the retired Status surface hidden", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableDecisions: true,
       enableStatusCards: true,
@@ -493,16 +494,8 @@ describe("Sidebar", () => {
     const root = await renderSidebar();
 
     const primaryNavLinks = [...container.querySelectorAll("nav > div:first-child a")];
-    const decisionsLink = primaryNavLinks.find(
-      (anchor) => anchor.textContent?.trim() === "Decisions",
-    );
     const statusLink = primaryNavLinks.find((anchor) => anchor.getAttribute("href") === "/status");
-
-    expect(statusLink?.textContent).toContain("Status");
-    expect(statusLink?.textContent).toContain("beta");
-    expect(statusLink?.textContent).not.toContain("exp");
-    expect(statusLink?.textContent).not.toContain("cards");
-    expect(primaryNavLinks.indexOf(statusLink!)).toBe(primaryNavLinks.indexOf(decisionsLink!) + 1);
+    expect(statusLink).toBeUndefined();
 
     flushSync(() => {
       root.unmount();
@@ -522,8 +515,8 @@ describe("Sidebar", () => {
     const labels = (section: Element | undefined) => [...(section?.querySelectorAll("a") ?? [])]
       .map((anchor) => anchor.textContent?.trim());
 
-    expect(labels(workSection)).toEqual(["Chat", "Tasks", "Spaces", "Routines", "Artifacts"]);
-    expect(labels(orgSection)).toEqual(["Agents", "Skills", "Audit"]);
+    expect(labels(workSection)).toEqual(["Chat", "Tasks", "Spaces", "Artifacts"]);
+    expect(labels(orgSection)).toEqual(["Agents"]);
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));
     expect(
       workSection?.querySelector('a[href="/issues"] svg')?.classList.contains("lucide-circle-check"),
@@ -640,12 +633,12 @@ describe("Sidebar", () => {
     });
   });
 
-  it("shows the Workspaces link when isolated workspaces are enabled", async () => {
+  it("keeps the retired Workspaces link hidden when old settings enable it", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: true });
     const root = await renderSidebar();
 
     const link = [...container.querySelectorAll("a")].find((anchor) => anchor.textContent === "Workspaces");
-    expect(link?.getAttribute("href")).toBe("/workspaces");
+    expect(link).toBeUndefined();
 
     flushSync(() => {
       root.unmount();

@@ -13,7 +13,6 @@ import {
   type AgentPermissionUpdate,
 } from "../api/agents";
 import { builtInAgentsApi, type BuiltInManagedResourceKind } from "../api/builtInAgents";
-import { companySkillsApi } from "../api/companySkills";
 import { budgetsApi } from "../api/budgets";
 import { heartbeatsApi } from "../api/heartbeats";
 import { runCancellationLabel } from "../lib/run-cancellation-label";
@@ -32,7 +31,6 @@ import { useToastActions } from "../context/ToastContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { copyTextToClipboard } from "../lib/clipboard";
-import { AgentSkillsTab } from "./agent-skills/AgentSkillsTab";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { PageTabBar } from "../components/PageTabBar";
 import { adapterLabels, help } from "../components/agent-config-primitives";
@@ -168,12 +166,11 @@ const sourceLabels: Record<string, string> = {
   automation: "Automation",
 };
 
-type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "tools" | "channels" | "runs" | "audit" | "budget";
+type AgentDetailView = "dashboard" | "instructions" | "configuration" | "tools" | "channels" | "runs" | "audit" | "budget";
 
 export const AGENT_DETAIL_TABS: ReadonlyArray<{ value: AgentDetailView; label: string }> = [
   { value: "dashboard", label: "Dashboard" },
   { value: "instructions", label: "Instructions" },
-  { value: "skills", label: "Skills" },
   { value: "configuration", label: "Configuration" },
   { value: "tools", label: "Tools" },
   { value: "channels", label: "Channels" },
@@ -220,7 +217,7 @@ export function parseAgentDetailView(value: string | null): AgentDetailView {
   if (value === "instructions" || value === "prompts") return "instructions";
   if (value === "configure" || value === "configuration") return "configuration";
   if (value === "secrets") return "dashboard";
-  if (value === "skills") return "skills";
+  if (value === "skills") return "dashboard";
   if (value === "tools") return "tools";
   if (value === "channels") return "channels";
   if (value === "budget") return "budget";
@@ -498,9 +495,7 @@ export function AgentDetail() {
         ? "instructions"
         : activeView === "configuration"
           ? "configuration"
-          : activeView === "skills"
-              ? "skills"
-              : activeView === "tools" || activeView === "channels"
+          : activeView === "tools" || activeView === "channels"
                 ? activeView
                 : activeView === "runs"
                   ? "runs"
@@ -1036,13 +1031,6 @@ export function AgentDetail() {
           onCancelActionChange={setCancelConfigAction}
           onSavingChange={setConfigSaving}
           updatePermissions={updatePermissions}
-        />
-      )}
-
-      {activeView === "skills" && (
-        <AgentSkillsTab
-          agent={agent}
-          companyId={resolvedCompanyId ?? undefined}
         />
       )}
 
@@ -1674,7 +1662,10 @@ export function ConfigurationTab({
   }, [onSavingChange, isConfigSaving]);
 
   const canCreateAgents = Boolean(agent.permissions?.canCreateAgents);
-  const canCreateSkills = agent.permissions?.canCreateSkills !== false;
+  // Preserve the historical field when changing adjacent permissions. Skill
+  // management is no longer exposed by Outpost, but older agent rows and the
+  // update contract still require this compatibility value.
+  const preservedCanCreateSkills = agent.permissions?.canCreateSkills !== false;
   const canAssignTasks = Boolean(agent.access?.canAssignTasks);
   const taskAssignSource = agent.access?.taskAssignSource ?? "none";
   const taskAssignHint =
@@ -1725,7 +1716,7 @@ export function ConfigurationTab({
         onChange={(nextPermissions) =>
           updatePermissions.mutate({
             canCreateAgents,
-            canCreateSkills,
+            canCreateSkills: preservedCanCreateSkills,
             canAssignTasks,
             ...buildPermissionsForTrustPreset(nextPermissions, nextPermissions.trustPreset === "low_trust_review" ? "low_trust_review" : "standard"),
           })
@@ -1747,27 +1738,8 @@ export function ConfigurationTab({
               onCheckedChange={() =>
                 updatePermissions.mutate({
                   canCreateAgents: !canCreateAgents,
-                  canCreateSkills,
+                  canCreateSkills: preservedCanCreateSkills,
                   canAssignTasks: !canCreateAgents ? true : canAssignTasks,
-                })
-              }
-              disabled={updatePermissions.isPending}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4 text-sm">
-            <div className="space-y-1">
-              <div>Can create/import skills</div>
-              <p className="text-xs text-muted-foreground">
-                Lets this agent install, import, create, and scan company skills without creating agents.
-              </p>
-            </div>
-            <ToggleSwitch
-              checked={canCreateSkills}
-              onCheckedChange={() =>
-                updatePermissions.mutate({
-                  canCreateAgents,
-                  canCreateSkills: !canCreateSkills,
-                  canAssignTasks,
                 })
               }
               disabled={updatePermissions.isPending}
@@ -1785,7 +1757,7 @@ export function ConfigurationTab({
               onCheckedChange={() =>
                 updatePermissions.mutate({
                   canCreateAgents,
-                  canCreateSkills,
+                  canCreateSkills: preservedCanCreateSkills,
                   canAssignTasks: !canAssignTasks,
                 })
               }

@@ -30,11 +30,9 @@ mutations are outside this preview.
 
 ## Existing onboarding
 
-**Onboarding → Agent arc** mounts the shipped `OnboardingWizard` against API
-fixtures. The four **Connect · ...** stories walk from naming the agent to the
-actual Claude/OpenAI subscription and API-key screens. Claude shows the returned
-authorization-code field; Codex/OpenAI shows its device code. They stop at the
-connection prompt for visual review. They do not authorize real provider accounts.
+**Onboarding → Agent arc** is a historical design fixture. Outpost no longer
+ships provider sign-in onboarding; users authenticate Codex or Claude in their
+own CLI before creating an agent.
 
 **Onboarding → Connect a model** remains the older tile/mode design preview, not
 the shipped flow. Use Agent arc to inspect current onboarding behavior.
@@ -47,44 +45,15 @@ through Connect → Configure → Confirmation. Other adapters go straight to
 configuration. No working directory, instructions, advanced settings, role,
 permissions, or scheduling steps are shown.
 
-Paperclip Runner has exactly three choices, selected before creation:
-
-- Codex (app server): the native Codex runner.
-- Claude (ACPX): the Claude runner.
-- OpenCode: the OpenCode runner.
-
-The adapter and runner stay fixed after creation. Configuration carries the
-provider's brand mark and uses the shipped `ModelDropdown` with the adapters'
-existing model lists. Every model starts on **Default**. Adapters without a
-bundled list show Default until runtime discovery is wired up. Every model picker
-also accepts a custom model ID through the shipped dropdown’s creatable option.
-
-Claude and Codex offer subscription or API-key connections, directly and through
-their runners. Eight **Connect · ...** stories expose those combinations.
-**Connect · Choose subscription or API key** starts before selecting a method.
-The connection step reuses `ModelSourceTiles`, `CredentialModeLink`,
-`OnboardingLoginCard`, `OnboardingCardField`, `OnboardingLoginCodeRow`,
-`OnboardingCard`, `OnboardingHeading`, and `FooterNav`, plus the existing
-onboarding motion constants for the source collapse, card reveal, button labels,
-and connecting hold. Only the already-selected provider is offered.
-
-The provider lifecycle is simulated locally. Use example keys/codes. Claude
-accepts a pasted code or Enter; Codex has a separate **Simulate completed sign-in**
-preview control. No keys or codes are persisted or sent to a provider. Completion
-advances to configuration. Direct configuration and confirmation stories seed a
-completed connection so each screen can be reviewed independently.
+Current production creation offers only the local Codex and Claude adapters. The
+adapter stays fixed after creation and uses the provider's existing CLI login.
 
 **06 · Confirmation** and **Confirmation · Native Codex runner** expose the final
 screen directly. Finish setup reaches that screen interactively; Edit configuration
 preserves the choices, and Start over clears them.
 
-These stories remain isolated design fixtures. The production implementation now
-lives in `ui/src/components/new-agent/`, with real hiring, subscription login,
-secret storage, provider probes, and task assignment. OpenCode and Pi support
-provider environment variables, including saved OpenRouter secrets. The real
-configuration page uses the same compact test card and shared settings styles.
-See `docs/specs/agent-config-ui.md` for the current workflow. Environment choices
-in Storybook remain fixtures.
+These stories remain isolated design fixtures. The production implementation
+lives in `ui/src/components/new-agent/` and uses local CLI authentication.
 
 ## Configuration checks and task assignment
 
@@ -112,28 +81,16 @@ are cleaned up on unmount.
 
 ## Full agent configuration review
 
-**Agents / Configuration refresh** covers Overview, Instructions, Skills,
-Harness / Runtime, Secrets & variables, Tools, Permissions / Trust, API Keys, and Revisions.
-Additional runtime stories cover Codex, OpenCode, Pi, and Paperclip Runner, plus
-interactive test-failure and save-failure fixtures.
+**Agents / Configuration refresh** is a historical fixture. Production retains
+the local Codex/Claude runtime and core agent settings; Skills, managed secrets,
+and provider-connection management are no longer product surfaces.
 
-This preview composes the existing `AgentContextualSidebar`, `AgentOverview`,
-`PromptsTab`, `AgentSkillsTab`, `AgentConfigForm`, `AgentToolsTab`, permission
-controls, key management, revision history, and `AgentActionButtons`. The file
-editor and skills interactions are unchanged. Runtime sections are ordered by
-optional form presentation props and shared scoped styles for spacing and
-aligned fields. The real agent configuration pages now use this same presentation.
+This preview composes historical configuration surfaces and must not be treated
+as the current route contract.
 
-Mutable fixtures support configuration saving, file editing/creation/deletion,
-skill changes, secret bindings, tool installation, permission changes, key
-creation/revocation, pause/resume, and revision restoration. Runtime tests use the
-real form action and API client with a simulated response. Saves and remote
-operations do not reach a live server. Linked audit, tool-management, and task
-pages are outside this configuration preview; unhandled mutations show an
-explicit fixture error. Switch stories to reset the example data.
+The remaining mutable fixtures are historical design references only. They do
+not define which production settings Outpost supports.
 
-The configuration header uses the onboarding `PillGuy` avatar and omits the manual
-heartbeat action and status badge. The unified **Secrets & variables** tab uses a
-single `AgentConfigForm` draft for environment bindings and API-access grants, so
-Save and Discard apply to both together. Variable bindings no longer appear on
-Harness / Runtime. Routine next-run notices are omitted in this review layout.
+The configuration header uses the onboarding `PillGuy` avatar and omits the
+manual heartbeat action and status badge. Routine next-run notices are omitted in
+this review layout.

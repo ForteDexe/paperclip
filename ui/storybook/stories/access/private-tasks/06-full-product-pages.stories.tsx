@@ -7,19 +7,16 @@ import { IssueDetail } from "@/pages/IssueDetail";
 import { Issues } from "@/pages/Issues";
 import { ProjectDetail } from "@/pages/ProjectDetail";
 import { Projects } from "@/pages/Projects";
-import { DesignGuide } from "@/pages/DesignGuide";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { mobile, privacyDecorator, privacyParameters } from "../../../support/private-tasks/PrivacyStory";
 
 export function PrivacyPage({
   child = false,
-  guide = false,
   projects = false,
   tasks = false,
   projectSettings = false,
 }: {
   child?: boolean;
-  guide?: boolean;
   projects?: boolean;
   tasks?: boolean;
   projectSettings?: boolean;
@@ -28,13 +25,11 @@ export function PrivacyPage({
   const [ready, setReady] = useState(false);
   useEffect(() => {
     navigate(
-      projectSettings ? "/PAP/projects/project-private/configuration" : tasks ? "/PAP/issues" : projects ? "/PAP/projects" : guide
-        ? "/PAP/design-guide"
-        : `/PAP/issues/${child ? "PAP-411" : "PAP-410"}`,
+      projectSettings ? "/PAP/projects/project-private/configuration" : tasks ? "/PAP/issues" : projects ? "/PAP/projects" : `/PAP/issues/${child ? "PAP-411" : "PAP-410"}`,
       { replace: true },
     );
     setReady(true);
-  }, [navigate, child, guide, projects, tasks, projectSettings]);
+  }, [navigate, child, projects, tasks, projectSettings]);
   if (!ready) return null;
   return (
     <PluginLauncherProvider>
@@ -44,7 +39,6 @@ export function PrivacyPage({
           <Route path="issues/:issueId" element={<IssueDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:projectId/*" element={<ProjectDetail />} />
-          <Route path="design-guide" element={<DesignGuide />} />
         </Route>
       </Routes>
     </PluginLauncherProvider>
@@ -143,19 +137,6 @@ export const MobileSharedChild: Story = {
   render: () => <PrivacyPage child />,
 };
 export const LightTask: Story = { globals: { theme: "light" } };
-export const DesignGuideLockedReferences: Story = {
-  render: () => <PrivacyPage guide />,
-  play: async ({ canvasElement }) => {
-    const section = await within(canvasElement).findByText(
-      "LockedIssueChip",
-      {},
-      { timeout: 15000 },
-    );
-    section.scrollIntoView({ block: "center" });
-    await expect(section).toBeVisible();
-  },
-};
-
 export const SharedChildTasksPanel: Story = {
   parameters: { privacy: { role: "reader", childOnly: true } },
   render: () => <PrivacyPage child />,

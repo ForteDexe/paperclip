@@ -17,7 +17,6 @@ import {
   AgentRevisionsTab,
   confirmAgentConfigNavigation,
 } from "@/pages/AgentDetail";
-import { AgentSkillsTab } from "@/pages/agent-skills/AgentSkillsTab";
 import { AgentAdvancedTab } from "@/pages/AgentAdvancedTab";
 import { AgentToolsTab } from "@/pages/AgentToolsTab";
 import { AgentContextualSidebar } from "@/components/AgentContextualSidebar";
@@ -41,7 +40,7 @@ import { agentDisplayAdapterType, getAdapterDisplay } from "@/adapters/adapter-d
 import { cn } from "@/lib/utils";
 import { RuntimeTestCard } from "../RuntimeTestCard";
 import { type TestOutcome } from "../new-agent-fixtures";
-import { COMPANY, ID, REF, createSettingsFixtures, library } from "./fixtures";
+import { COMPANY, ID, REF, createSettingsFixtures } from "./fixtures";
 import { storybookIssues } from "../../fixtures/paperclipData";
 import "./settings.css";
 
@@ -49,7 +48,6 @@ const descriptions: Record<AgentLocalDetailView, string> = {
   advanced: "Edit the agent’s configuration as YAML.",
   overview: "A snapshot of Nova’s work, capabilities, and current setup.",
   instructions: "The files that guide how your agent thinks and works.",
-  skills: "Choose the skills your agent brings to each task.",
   runtime:
     "Configure the harness, model, environment, and how your agent runs.",
   tools: "Manage installed connections, available tools, and access policies.",
@@ -170,11 +168,6 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
   const { data: agent } = useQuery({
     queryKey: queryKeys.agents.detail(ID),
     queryFn: () => agentsApi.get(ID, COMPANY),
-  });
-  const { data: skills } = useQuery({
-    queryKey: queryKeys.agents.skills(ID),
-    queryFn: () => agentsApi.skills(ID, COMPANY),
-    enabled: view === "overview",
   });
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -364,9 +357,6 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
                   runs={[]}
                   assignedIssues={storybookIssues.slice(0, 3)}
                   directReportCount={0}
-                  skillNames={library
-                    .filter((s) => skills?.desiredSkills.includes(s.key))
-                    .map((s) => s.name)}
                   agentRouteId={REF}
                 />
               )}
@@ -377,9 +367,6 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
                   showSaveNotice={false}
                   {...callbacks}
                 />
-              )}
-              {view === "skills" && (
-                <AgentSkillsTab agent={agent} companyId={COMPANY} />
               )}
               {view === "runtime" && runtimeContent
                 ? runtimeContent

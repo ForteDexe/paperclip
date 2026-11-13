@@ -102,10 +102,6 @@ vi.mock("./RoutineContextualSidebar", () => ({
   ),
 }));
 
-vi.mock("./SkillsContextualSidebar", () => ({
-  SkillsContextualSidebar: () => <div>Skills sidebar</div>,
-}));
-
 vi.mock("./AppConnectionSidebar", () => ({
   AppDetailSidebar: (
     props:
@@ -548,7 +544,7 @@ describe("Layout", () => {
   });
 
   it("retains settings navigation and route content beside the proposed sandbox sidebar", async () => {
-    currentPathname = "/PAP/company/settings/access";
+    currentPathname = "/PAP/company/settings";
     mockDesignSandbox.enabled = true;
     const root = createRoot(container);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -612,7 +608,7 @@ describe("Layout", () => {
     });
   });
 
-  it("keeps the global sidebar beside legacy settings navigation when Streamlined UI is off", async () => {
+  it("uses settings navigation without reviving the legacy global sidebar", async () => {
     currentPathname = "/PAP/company/settings/access";
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableApps: true,
@@ -629,9 +625,9 @@ describe("Layout", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).not.toContain("Main company nav");
     expect(container.textContent).toContain("Company settings sidebar");
-    expect(mockSetForceCollapsed).toHaveBeenCalledWith(true);
+    expect(mockSetForceCollapsed).toHaveBeenCalledWith(false);
 
     await act(async () => {
       root.unmount();
@@ -915,7 +911,7 @@ describe("Layout", () => {
     });
   });
 
-  it("keeps global navigation beside Agent and Routine details", async () => {
+  it("keeps global navigation beside Agent details", async () => {
     async function renderAt(pathname: string) {
       currentPathname = pathname;
       const root = createRoot(container);
@@ -937,7 +933,6 @@ describe("Layout", () => {
         "/PAP/agents/briefing-analyst/runs/run-1",
         "Agent sidebar briefing-analyst",
       ],
-      ["/PAP/routines/routine-1/overview", "Routine sidebar routine-1"],
     ] as const) {
       const root = await renderAt(pathname);
       expect(container.textContent).toContain(sidebarText);
@@ -968,10 +963,7 @@ describe("Layout", () => {
       enableStreamlinedUi: false,
     });
 
-    for (const pathname of [
-      "/PAP/agents/briefing-analyst/skills",
-      "/PAP/routines/routine-1/overview",
-    ]) {
+    for (const pathname of ["/PAP/agents/briefing-analyst/skills"]) {
       currentPathname = pathname;
       const root = createRoot(container);
       const queryClient = new QueryClient({
@@ -985,8 +977,7 @@ describe("Layout", () => {
       await flushReact();
 
       expect(container.textContent).toContain("Main company nav");
-      if (pathname.includes("/agents/")) expect(container.textContent).toContain("Agent sidebar");
-      else expect(container.textContent).not.toContain("Agent sidebar");
+      expect(container.textContent).toContain("Agent sidebar");
       expect(container.textContent).not.toContain("Routine sidebar");
 
       await act(async () => {
@@ -1011,7 +1002,7 @@ describe("Layout", () => {
     }
   });
 
-  it("keeps the global rail beside Skills navigation in the legacy shell", async () => {
+  it("does not revive Skills navigation in the legacy shell", async () => {
     currentPathname = "/PAP/skills/studio";
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableApps: true,
@@ -1029,8 +1020,8 @@ describe("Layout", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Main company nav");
-    expect(container.textContent).toContain("Skills sidebar");
-    expect(mockSetForceCollapsed).toHaveBeenCalledWith(true);
+    expect(container.textContent).not.toContain("Skills sidebar");
+    expect(mockSetForceCollapsed).toHaveBeenCalledWith(false);
 
     await act(async () => {
       root.unmount();

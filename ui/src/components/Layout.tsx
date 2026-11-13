@@ -5,7 +5,6 @@ import { useBrowserTimeZoneSync } from "@/hooks/useBrowserTimeZoneSync";
 import { useDesignSandbox } from "@/context/DesignSandboxContext";
 import { DesignSandboxSidebar } from "./DesignSandboxSidebar";
 import { BoardDialogs } from "./BoardDialogs";
-import { SetupWizardSidebarOutlet } from "./SetupWizard";
 import { ChatSetupSidebarProvider } from "@/context/ChatSetupSidebarContext";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -16,8 +15,6 @@ import { CompanySettingsNav } from "./access/CompanySettingsNav";
 import { AppsSidebar } from "./AppsSidebar";
 import { AppDetailSidebar } from "./AppConnectionSidebar";
 import { AgentContextualSidebar } from "./AgentContextualSidebar";
-import { RoutineContextualSidebar } from "./RoutineContextualSidebar";
-import { SkillsContextualSidebar } from "./SkillsContextualSidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CommandPalette } from "./CommandPalette";
@@ -113,12 +110,10 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
     companyPrefix,
     pluginRoutePath: matchedPluginRoutePath,
     agentId,
-    routineId,
   } = useParams<{
     companyPrefix: string;
     pluginRoutePath?: string;
     agentId?: string;
-    routineId?: string;
   }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -191,8 +186,6 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
   // beside the persistent company nav.
   const sharedSecondarySidebar = isCompanySettingsRoute ? (
     <CompanySettingsSidebar />
-  ) : !streamlinedUiEnabled && shellRoute.builtInContextualSurface === "skills" ? (
-    <SkillsContextualSidebar />
   ) : appDetailConnectionId ? (
     <AppDetailSidebar kind="connection" connectionId={appDetailConnectionId} />
   ) : appDetailApplicationId ? (
@@ -223,14 +216,11 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
   ) : null;
   const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
     <AgentContextualSidebar agentRef={agentId} />
-  ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "routine" && routineId ? (
-    <SetupWizardSidebarOutlet><RoutineContextualSidebar routineId={routineId} /></SetupWizardSidebarOutlet>
   ) : sharedSecondarySidebar;
   const hasSecondarySidebar = secondarySidebar != null;
   const keepsPrimarySidebar = streamlinedUiEnabled && hasSecondarySidebar && (
     isAgentChatRoute
     || shellRoute.builtInContextualSurface === "agent"
-    || shellRoute.builtInContextualSurface === "routine"
     || isAppsRoute
     || isToolsRoute
   );

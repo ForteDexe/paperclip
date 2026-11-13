@@ -115,8 +115,6 @@ export interface Config extends StorageConfig {
   secretsProvider: SecretProvider;
   secretsStrictMode: boolean;
   secretsMasterKeyFilePath: string;
-  feedbackExportBackendUrl: string | undefined;
-  feedbackExportBackendToken: string | undefined;
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   companyDeletionEnabled: boolean;
@@ -179,15 +177,6 @@ export function loadConfig(override?: PaperclipConfig | null): Config {
       ?? (configFile?.explicitStorageS3Bucket ? fileConfig?.storage.s3.bucket : undefined),
     databaseUrl: process.env.DATABASE_URL ?? fileDbUrl,
   }, process.env);
-  const feedbackExportBackendUrl =
-    process.env.PAPERCLIP_FEEDBACK_EXPORT_BACKEND_URL?.trim() ||
-    process.env.PAPERCLIP_TELEMETRY_BACKEND_URL?.trim() ||
-    undefined;
-  const feedbackExportBackendToken =
-    process.env.PAPERCLIP_FEEDBACK_EXPORT_BACKEND_TOKEN?.trim() ||
-    process.env.PAPERCLIP_TELEMETRY_BACKEND_TOKEN?.trim() ||
-    undefined;
-
   const deploymentMode = resolveDeploymentMode(fileConfig);
   const strictModeFromEnv = process.env.PAPERCLIP_SECRETS_STRICT_MODE;
   const secretsStrictMode =
@@ -437,8 +426,6 @@ export function loadConfig(override?: PaperclipConfig | null): Config {
           resolveDefaultSecretsKeyFilePath(),
       ),
     ...storage,
-    feedbackExportBackendUrl,
-    feedbackExportBackendToken,
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     companyDeletionEnabled,

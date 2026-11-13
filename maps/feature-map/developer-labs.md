@@ -8,7 +8,7 @@ Contributors can inspect design examples, interaction labs, and performance fixt
 
 Feature ID: `developer-labs`.
 
-Implementation: [route registration](../../ui/src/App.tsx), [design guide](../../ui/src/pages/DesignGuide.tsx), [long-thread fixture](../../ui/src/pages/IssueChatLongThreadPerf.tsx).
+Implementation: [route registration](../../ui/src/App.tsx) and the standalone performance harnesses under `tests/perf`.
 
 Agent access: [companion](../agent-access-map/developer-labs.md).
 
@@ -64,7 +64,7 @@ Capability ID: `developer-labs/performance`.
 Scope: browser
 Storybook: A screenshot/story is optional context, not the required performance evidence.
 Production: Use existing browser performance harnesses. Record build/browser/data size, timing/trace and scrolling. Long-thread fixture has a disabled composer; task-chat HTML harness uses a plain textarea and simulated updates.
-Sources: Source: [IssueChatLongThreadPerf.tsx](../../ui/src/pages/IssueChatLongThreadPerf.tsx), [README.md](../../tests/perf/task-chat/README.md), [README.md](../../tests/perf/issue-detail/README.md). Tests: [scrollback.spec.ts](../../tests/perf/task-chat/scrollback.spec.ts), [issue-detail.perf.spec.ts](../../tests/perf/issue-detail/issue-detail.perf.spec.ts)
+Sources: Source: [README.md](../../tests/perf/task-chat/README.md), [README.md](../../tests/perf/issue-detail/README.md). Tests: [scrollback.spec.ts](../../tests/perf/task-chat/scrollback.spec.ts), [issue-detail.perf.spec.ts](../../tests/perf/issue-detail/issue-detail.perf.spec.ts)
 
 #### `route-gates`
 

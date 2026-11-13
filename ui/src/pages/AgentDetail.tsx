@@ -22,7 +22,6 @@ import {
   type AgentPermissionUpdate,
 } from "../api/agents";
 import { builtInAgentsApi, type BuiltInManagedResourceKind } from "../api/builtInAgents";
-import { companySkillsApi } from "../api/companySkills";
 import { heartbeatsApi } from "../api/heartbeats";
 import { runCancellationLabel } from "../lib/run-cancellation-label";
 import { stopFailedNativeRun } from "../lib/native-run-stop";
@@ -38,7 +37,6 @@ import { useToastActions } from "../context/ToastContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { copyTextToClipboard } from "../lib/clipboard";
-import { AgentSkillsTab } from "./agent-skills/AgentSkillsTab";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { agentDisplayAdapterType, getAdapterDisplay } from "../adapters/adapter-display-registry";
 import { adapterLabels, help } from "../components/agent-config-primitives";
@@ -533,18 +531,6 @@ export function AgentDetail() {
     enabled: !!resolvedCompanyId,
   });
 
-  const { data: skillSnapshot } = useQuery({
-    queryKey: queryKeys.agents.skills(resolvedAgentId ?? "__none__"),
-    queryFn: () => agentsApi.skills(resolvedAgentId!, resolvedCompanyId ?? undefined),
-    enabled: Boolean(resolvedCompanyId && resolvedAgentId && needsOverviewData),
-  });
-
-  const { data: overviewCompanySkills } = useQuery({
-    queryKey: queryKeys.companySkills.list(resolvedCompanyId ?? "__none__"),
-    queryFn: () => companySkillsApi.list(resolvedCompanyId!),
-    enabled: Boolean(resolvedCompanyId && needsOverviewData),
-  });
-
   const assignedIssues = useMemo(
     () => [...(allIssues ?? [])].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
     [allIssues],
@@ -577,10 +563,6 @@ export function AgentDetail() {
     }
   };
   const directReports = (allAgents ?? []).filter((a) => a.reportsTo === agent?.id && a.status !== "terminated");
-  const overviewSkillNames = useMemo(() => {
-    const namesByKey = new Map((overviewCompanySkills ?? []).map((skill) => [skill.key, skill.name]));
-    return (skillSnapshot?.desiredSkills ?? []).map((key) => namesByKey.get(key) ?? key);
-  }, [overviewCompanySkills, skillSnapshot?.desiredSkills]);
   const mobileLiveRun = useMemo(
     () => (heartbeats ?? []).find((r) => r.status === "running" || r.status === "queued") ?? null,
     [heartbeats],
@@ -1073,7 +1055,6 @@ export function AgentDetail() {
           reportsToAgent={reportsToAgent}
           directReportCount={directReports.length}
           directReports={directReports}
-          skillNames={overviewSkillNames}
           agentRouteId={canonicalAgentRef}
         />
       )}
@@ -1109,13 +1090,6 @@ export function AgentDetail() {
             hideInstructionsFile
           />
         </div>
-      )}
-
-      {activeView === "skills" && (
-        <AgentSkillsTab
-          agent={agent}
-          companyId={resolvedCompanyId ?? undefined}
-        />
       )}
 
       {activeView === "tools" && resolvedCompanyId && (
@@ -1396,7 +1370,6 @@ export function AgentOverview({
   runs,
   assignedIssues,
   directReports = [],
-  skillNames,
 }: {
   agent: AgentDetailRecord;
   runs: HeartbeatRun[];
@@ -1405,7 +1378,6 @@ export function AgentOverview({
   reportsToAgent?: Agent;
   directReportCount: number;
   directReports?: Agent[];
-  skillNames: string[];
   agentRouteId: string;
 }) {
   const agentRef = agentRouteRef(agent);
@@ -1456,22 +1428,6 @@ export function AgentOverview({
             </div>}
 
           </div>
-        </AgentPanel>
-        <AgentPanel
-          title="Skills"
-          meta={<span>{skillNames.length} enabled</span>}
-          className="min-h-(--agent-detail-tile-min-h) sm:col-span-2"
-          aria-label="Skills"
-        >
-          {skillNames.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 px-(--agent-detail-module-inset) pt-1 pb-(--agent-detail-module-inset)">
-              {skillNames.map((name) => (
-                <AgentChip key={name}>{name}</AgentChip>
-              ))}
-            </div>
-          ) : (
-            <p className="px-(--agent-detail-module-inset) pt-1 pb-(--agent-detail-module-inset) text-sm text-muted-foreground">No skills enabled.</p>
-          )}
         </AgentPanel>
       </div>
 
@@ -1672,7 +1628,10 @@ export function ConfigurationTab({
   }, [content, onCancelActionChange, onDirtyChange, onSaveActionChange]);
 
   const canCreateAgents = Boolean(agent.permissions?.canCreateAgents);
-  const canCreateSkills = agent.permissions?.canCreateSkills !== false;
+  // Preserve the historical field when changing adjacent permissions. Skill
+  // management is no longer exposed by Outpost, but older agent rows and the
+  // update contract still require this compatibility value.
+  const preservedCanCreateSkills = agent.permissions?.canCreateSkills !== false;
   const canAssignTasks = Boolean(agent.access?.canAssignTasks);
   const taskAssignSource = agent.access?.taskAssignSource ?? "none";
   const taskAssignHint =
@@ -1724,7 +1683,7 @@ export function ConfigurationTab({
         onChange={(nextPermissions) =>
           updatePermissions.mutate({
             canCreateAgents,
-            canCreateSkills,
+            canCreateSkills: preservedCanCreateSkills,
             canAssignTasks,
             ...buildPermissionsForTrustPreset(nextPermissions, nextPermissions.trustPreset === "low_trust_review" ? "low_trust_review" : "standard"),
           })
@@ -1745,27 +1704,8 @@ export function ConfigurationTab({
               onCheckedChange={() =>
                 updatePermissions.mutate({
                   canCreateAgents: !canCreateAgents,
-                  canCreateSkills,
+                  canCreateSkills: preservedCanCreateSkills,
                   canAssignTasks: !canCreateAgents ? true : canAssignTasks,
-                })
-              }
-              disabled={updatePermissions.isPending}
-            />
-          </div>
-          <div className="flex min-h-11 items-center justify-between gap-4 px-(--agent-detail-module-inset) py-2 text-sm">
-            <div className="space-y-1">
-              <div>Can create/import skills</div>
-              <p className="text-xs text-muted-foreground">
-                Lets this agent install, import, create, and scan outpost skills without creating agents.
-              </p>
-            </div>
-            <ToggleSwitch
-              checked={canCreateSkills}
-              onCheckedChange={() =>
-                updatePermissions.mutate({
-                  canCreateAgents,
-                  canCreateSkills: !canCreateSkills,
-                  canAssignTasks,
                 })
               }
               disabled={updatePermissions.isPending}
@@ -1783,7 +1723,7 @@ export function ConfigurationTab({
               onCheckedChange={() =>
                 updatePermissions.mutate({
                   canCreateAgents,
-                  canCreateSkills,
+                  canCreateSkills: preservedCanCreateSkills,
                   canAssignTasks: !canAssignTasks,
                 })
               }

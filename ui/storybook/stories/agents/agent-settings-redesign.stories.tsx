@@ -66,7 +66,6 @@ export const Advanced: Story = {
     notes: "Production YAML editor inside the settings preview shell. Mutable fixtures simulate saves and revision conflicts; server authorization and secret restoration require integration verification.",
   } },
 };
-export const Skills: Story = { args: { initialTab: "skills" } };
 export const Runtime: Story = {
   name: "Harness / Runtime",
   args: { initialTab: "runtime" },

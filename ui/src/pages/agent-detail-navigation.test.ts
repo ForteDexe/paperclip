@@ -16,7 +16,6 @@ describe("agent detail navigation", () => {
       "overview",
       "instructions",
       "runtime",
-      "secrets",
       "permissions",
       "advanced",
       "activity",
@@ -26,7 +25,7 @@ describe("agent detail navigation", () => {
   });
 
   it("keeps views that left the nav reachable by URL", () => {
-    expect(parseAgentDetailView("skills")).toBe("skills");
+    expect(parseAgentDetailView("skills")).toBe("overview");
     expect(parseAgentDetailView("tools")).toBe("tools");
     expect(parseAgentDetailView("channels")).toBe("channels");
     expect(parseAgentDetailView("api-keys")).toBe("api-keys");

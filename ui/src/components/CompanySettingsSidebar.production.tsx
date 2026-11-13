@@ -1,13 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
-  Clock3,
   Cpu,
-  Download,
   FlaskConical,
   Puzzle,
   SlidersHorizontal,
-  Upload,
 } from "lucide-react";
 import type { PluginRecord } from "@paperclipai/shared";
 import { pluginsApi } from "@/api/plugins";
@@ -17,7 +14,6 @@ import { SIDEBAR_SCROLL_RESET_STATE } from "@/lib/navigation-scroll";
 import { queryKeys } from "@/lib/queryKeys";
 import { useCompany } from "@/context/CompanyContext";
 import { useSidebar } from "@/context/SidebarContext";
-import { useCloudInstance } from "@/hooks/useCloudInstance";
 import { useHiddenSettings } from "@/hooks/useHiddenSettings";
 import { usePluginSlots } from "@/plugins/slots";
 import { SidebarNavItem } from "./SidebarNavItem.production";
@@ -40,9 +36,6 @@ export function CompanySettingsSidebar() {
   const { hidden: hiddenSettings } = useHiddenSettings();
   const showPage = (pageKey: string) => !hiddenSettings.has(pageKey);
   const showPlugins = showPage("instance.plugins");
-  // Import is floored server-side on cloud-managed instances (403 cloud_managed), so the
-  // nav entry is hidden rather than dead-ending. Export stays available.
-  const isCloud = Boolean(useCloudInstance());
   const { slots: companySettingsPluginSlots } = usePluginSlots({
     slotTypes: ["companySettingsPage"],
     companyId: selectedCompanyId,
@@ -86,20 +79,6 @@ export function CompanySettingsSidebar() {
                 end
               />
             ))}
-          {showPage("instance.heartbeats") && (
-            <SidebarNavItem
-              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/heartbeats`}
-              label="Heartbeats"
-              icon={Clock3}
-              end
-            />
-          )}
-          {showPage("company.export") && (
-            <SidebarNavItem to="/company/export" label="Export" icon={Download} />
-          )}
-          {!isCloud && showPage("company.import") && (
-            <SidebarNavItem to="/company/import" label="Import" icon={Upload} end />
-          )}
           {showPage("instance.experimental") && (
             <SidebarNavItem
               to={`${INSTANCE_SETTINGS_PATH_PREFIX}/experimental`}

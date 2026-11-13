@@ -351,8 +351,6 @@ function buildTestConfig(overrides: Record<string, unknown> = {}) {
     storageS3Endpoint: undefined,
     storageS3Prefix: "",
     storageS3ForcePathStyle: false,
-    feedbackExportBackendUrl: "https://telemetry.example.com",
-    feedbackExportBackendToken: "telemetry-token",
     heartbeatSchedulerEnabled: false,
     heartbeatSchedulerIntervalMs: 30000,
     companyDeletionEnabled: false,
@@ -621,10 +619,6 @@ vi.mock("../services/secret-proposals.js", () => ({
 
 vi.mock("../storage/index.js", () => ({
   createStorageServiceFromConfig: vi.fn(() => ({ id: "storage-service" })),
-}));
-
-vi.mock("../services/feedback-share-client.js", () => ({
-  createFeedbackTraceShareClientFromConfig: vi.fn(() => ({ id: "feedback-share-client" })),
 }));
 
 vi.mock("../services/plugin-worker-manager.js", () => ({
@@ -1398,19 +1392,6 @@ describe("startServer feedback export wiring", () => {
     await expect(startServer()).rejects.toThrow("managed environments refused");
     expect(managedEnvironmentMocks.factory).toHaveBeenCalled();
     expect(managedEnvironmentMocks.recovery.stop).toHaveBeenCalledTimes(1);
-  });
-
-  it("passes the feedback export service into createApp so pending traces flush in runtime", async () => {
-    const started = await startServer();
-
-    expect(started.server).toBe(fakeServer);
-    expect(feedbackServiceFactoryMock).toHaveBeenCalledTimes(1);
-    expect(createAppMock).toHaveBeenCalledTimes(1);
-    expect(createAppMock.mock.calls[0]?.[1]).toMatchObject({
-      feedbackExportService: feedbackExportServiceMock,
-      storageService: { id: "storage-service" },
-      serverPort: 3210,
-    });
   });
 
   it("keeps startup available when completion delivery recovery fails", async () => {

@@ -327,7 +327,6 @@
     "server/src/__tests__/feedback-flush-controller.test.ts": 7313,
     "server/src/__tests__/feedback-redaction.test.ts": 100,
     "server/src/__tests__/feedback-service.test.ts": 6183,
-    "server/src/__tests__/feedback-share-client.test.ts": 117,
     "server/src/__tests__/file-delivery-bridges.test.ts": 15734,
     "server/src/__tests__/file-resources-git-scan-load.test.ts": 2231,
     "server/src/__tests__/file-resources.test.ts": 8502,

@@ -4,20 +4,14 @@ import {
   CircleDot,
   Target,
   LayoutDashboard,
-  History,
   Search,
   SquarePen,
   Network,
-  Boxes,
-  Repeat,
   Layers,
-  GitBranch,
   FolderOpen,
   Package,
   Settings,
   MessagesSquare,
-  GanttChartSquare,
-  LayoutGrid,
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -74,8 +68,6 @@ export function Sidebar() {
   });
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
   const liveRunCount = liveRuns?.length ?? 0;
-  const showWorkspacesLink = experimentalSettings?.enableIsolatedWorkspaces === true;
-  const showStatusCards = experimentalSettings?.enableStatusCards === true;
   const goalsLinkPending = experimentalSettings === undefined;
   const showGoalsLink = experimentalSettings?.enableGoalsSidebarLink === true;
   // Decisions (attention home) is an experimental surface (PAP-13481): the nav
@@ -165,9 +157,6 @@ export function Sidebar() {
               badgeLabel="decisions"
             />
           ) : null}
-          {showStatusCards ? (
-            <SidebarNavItem to="/status" label="Status" icon={LayoutGrid} textBadge="beta" />
-          ) : null}
           {conferenceRoomChatEnabled ? (
             <SidebarNavItem to="/board-chat" label="Conference Room" icon={MessagesSquare} />
           ) : null}
@@ -179,7 +168,6 @@ export function Sidebar() {
           {showCases ? (
             <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
           ) : null}
-          <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
           {showGoalsLink ? (
             <SidebarNavItem to="/goals" label="North Stars" icon={Target} />
           ) : goalsLinkPending ? (
@@ -190,10 +178,6 @@ export function Sidebar() {
             />
           ) : null}
           <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
-          <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
-          {showWorkspacesLink ? (
-            <SidebarNavItem to="/workspaces" label="Workspaces" icon={GitBranch} />
-          ) : null}
           <PluginSlotOutlet
             slotTypes={["sidebar"]}
             context={pluginContext}
@@ -213,10 +197,6 @@ export function Sidebar() {
 
         <SidebarSection label="Space" collapsible={{ open: companyOpen, onOpenChange: setCompanyOpen }}>
           <SidebarNavItem to="/org" label="Crew map" icon={Network} />
-          <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />
-          {/* One entry — /audit merged into the rich Activity feed (PAP-16302). */}
-          <SidebarNavItem to="/activity" label="Activity" icon={History} />
-          <SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />
           <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
         </SidebarSection>
 

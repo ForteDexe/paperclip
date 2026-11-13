@@ -23,7 +23,7 @@ vi.mock("../components/MarkdownBody", () => ({
 }));
 
 describe("AgentOverview", () => {
-  it("leads with audit cards, then Profile, Skills and Recent tasks", () => {
+  it("leads with activity and run cards, then Profile and Recent tasks", () => {
     const agent = {
       id: "agent-1",
       companyId: "company-1",
@@ -62,21 +62,19 @@ describe("AgentOverview", () => {
           assignedIssues={[issue]}
           runtimeState={runtime}
           directReportCount={2}
-          skillNames={["Design Guide", "Check PR"]}
           agentRouteId="codexcoder"
         />
         </TooltipProvider>
       </QueryClientProvider>,
     );
 
-    for (const label of ["Activity", "Runs", "Costs", "Budget used", "Profile", "Skills", "Recent tasks"]) {
+    for (const label of ["Activity", "Runs", "Profile", "Recent tasks"]) {
       expect(markup).toContain(label);
     }
-    for (const page of ["activity", "runs", "costs", "budgets"]) {
+    for (const page of ["activity", "runs"]) {
       expect(markup).toContain(`href="/agents/codexcoder/${page}"`);
     }
-    expect(markup).toContain("2 enabled");
-    expect(markup).toContain("Design Guide");
+    expect(markup).not.toContain("Skills");
     expect(markup).toContain("Simplify agent information architecture");
     expect(markup).toContain("PAP-42");
     expect(markup).toContain("See all tasks");
@@ -112,7 +110,6 @@ describe("AgentOverview", () => {
           runs={[] as HeartbeatRun[]}
           assignedIssues={[]}
           directReportCount={0}
-          skillNames={[]}
           agentRouteId="sharedagent"
         />
       </QueryClientProvider>,

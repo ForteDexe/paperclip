@@ -14,7 +14,6 @@ import { notifyToolConnectionHealth } from "./tool-connection-health-notificatio
 import { notifyCompanyRetentionWork } from "./retention-work-notifications.js";
 import { notifyToolReviewChange } from "./tool-review-work-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
-import { agentObservabilityService } from "./agent-observability.js";
 import { withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
 import type { Db } from "@paperclipai/db";
 import { eq, inArray } from "drizzle-orm";
@@ -88,7 +87,6 @@ export async function deleteCompany(db: Db, id: string) {
           await notifyStatusCardEvaluation(tx, id);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.secretProposalExpiry, id);
         await notifyToolReviewChange(tx, id);
-        await agentObservabilityService(tx as unknown as Db).removeForCompanyDeletion(id);
         // Finance can reference costs and both can reference runs. Incidents
         // reference policies and approvals; delete these dependents first.
         await tx.delete(financeEvents).where(eq(financeEvents.companyId, id));

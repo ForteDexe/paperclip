@@ -5,7 +5,6 @@ import {
   Fingerprint,
   History,
   KeyRound,
-  Library,
   MessageSquare,
   PlayCircle,
   Settings2,
@@ -30,7 +29,6 @@ import {
 const localIcons = {
   overview: Sparkles,
   instructions: Fingerprint,
-  skills: Library,
   runtime: Settings2,
   tools: Wrench,
   channels: MessageSquare,

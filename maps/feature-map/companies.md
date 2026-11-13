@@ -8,7 +8,7 @@ An operator can switch between companies, change their identity and settings, ar
 
 Feature ID: `companies`.
 
-Implementation: [companies](../../ui/src/pages/Companies.tsx), [settings](../../ui/src/pages/CompanySettings.tsx), [import](../../ui/src/pages/CompanyImport.tsx), [export](../../ui/src/pages/CompanyExport.tsx).
+Implementation: [companies](../../ui/src/pages/Companies.tsx), [settings](../../ui/src/pages/CompanySettings.tsx). Historical portability compatibility remains available through the CLI and server APIs, but is not exposed in the Outpost UI.
 
 Agent access: [companion](../agent-access-map/companies.md).
 
@@ -102,7 +102,7 @@ Capability ID: `companies/portability`.
 Scope: ui
 Storybook: Import/export preview, conflict choice, warnings, async progress/failure/success and restricted managed deployment.
 Production: Apply real small package to disposable target; inspect counts/references/conflicts, source immutability and credential exclusions; imported task requires separate runnable-account proof.
-Sources: Source: [CompanyImport.tsx](../../ui/src/pages/CompanyImport.tsx), [CompanyExport.tsx](../../ui/src/pages/CompanyExport.tsx), [companies.ts](../../ui/src/api/companies.ts). Tests: [CompanyImport.test.tsx](../../ui/src/pages/CompanyImport.test.tsx), [CompanyExport.test.tsx](../../ui/src/pages/CompanyExport.test.tsx), [company-portability-routes.test.ts](../../server/src/__tests__/company-portability-routes.test.ts), [company-import-export-e2e.test.ts](../../cli/src/__tests__/company-import-export-e2e.test.ts)
+Sources: Source: [companies.ts](../../ui/src/api/companies.ts). Tests: [company-portability-routes.test.ts](../../server/src/__tests__/company-portability-routes.test.ts), [company-import-export-e2e.test.ts](../../cli/src/__tests__/company-import-export-e2e.test.ts)
 
 ### Documentation scope: Company and instance administration
 

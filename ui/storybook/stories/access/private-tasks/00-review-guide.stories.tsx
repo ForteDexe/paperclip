@@ -96,13 +96,6 @@ const surfaces = [
     "ancestor-navigation",
     "Mixed readable and locked ancestors; also shown in the full task's Tasks tab.",
   ],
-  [
-    "DesignGuide",
-    "Changed",
-    "06 Full product pages",
-    "design-guide-locked-references",
-    "Actual design-guide page, scrolled to the new locked-reference section.",
-  ],
 ];
 function storyLink(group: string, story: string) {
   return `./?path=/story/private-tasks-${group.toLowerCase().replaceAll(" ", "-")}--${story}`;

@@ -1465,10 +1465,6 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "GET /api/companies/{companyId}/decision-model",
   "PUT /api/companies/{companyId}/decision-model",
   "POST /api/companies/{companyId}/decision-model/test",
-  "GET /api/companies/{companyId}/observability",
-  "PUT /api/companies/{companyId}/observability",
-  "DELETE /api/companies/{companyId}/observability",
-  "POST /api/companies/{companyId}/observability/test",
   ...browserUseOperations.map(([method, path]) => `${method.toUpperCase()} ${path}`),
   "POST /api/companies/{companyId}/ai-connections/local/attempts/{sessionId}/code",
 

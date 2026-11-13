@@ -271,9 +271,7 @@ function TaskChatBubbleContent({
       {bodyText.length > 0 ? (
         <div
           data-conversation-text={isHuman ? (isOwnMessage ? "human" : "progress") : item.channel === "progress" ? "progress" : "final"}
-          // Stable hook so the TaskChatLab bubble-treatment explorations
-          // (PAP-501) can scope background/border overrides to the agent
-          // bubble body without touching the live thread.
+          // Stable hook for focused message-bubble tests and styling.
           data-testid={
             isHuman ? "task-chat-human-bubble" : "task-chat-agent-bubble"
           }

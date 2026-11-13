@@ -4,21 +4,15 @@ import {
   CircleCheck,
   Target,
   LayoutDashboard,
-  History,
   Search,
   SquarePen,
   Network,
-  Boxes,
-  Repeat,
   Layers,
-  GitBranch,
   FolderOpen,
   Package,
   Settings,
   MessagesSquare,
   MessageCircle,
-  GanttChartSquare,
-  LayoutGrid,
   Users,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -96,8 +90,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
   // The merged Tasks page only exists in the streamlined shell, so the legacy
   // shell keeps its Inbox row even with the flag on.
   const combinedInboxTasks = streamlinedUiEnabled && experimentalSettings?.enableCombinedInboxTasks === true;
-  const showWorkspacesLink = experimentalSettings?.enableIsolatedWorkspaces === true;
-  const showStatusCards = experimentalSettings?.enableStatusCards === true;
   const goalsLinkPending = experimentalSettings === undefined;
   const showGoalsLink = experimentalSettings?.enableGoalsSidebarLink === true;
   // Decisions (attention home) is an experimental surface (PAP-13481): the nav
@@ -193,9 +185,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               badgeLabel="decisions"
             />
           ) : null}
-          {showStatusCards ? (
-            <SidebarNavItem to="/status" label="Status" icon={LayoutGrid} textBadge="beta" />
-          ) : null}
           {conferenceRoomChatEnabled ? (
             <SidebarNavItem to="/board-chat" label="Conference Room" icon={MessagesSquare} />
           ) : null}
@@ -224,7 +213,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
             <SidebarNavItem to="/issues" label="Tasks" icon={CircleCheck} />
           )}
           <SidebarNavItem to="/spaces" label="Spaces" icon={FolderOpen} />
-          <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
           <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
           {showCases ? (
             <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
@@ -237,9 +225,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               className="h-8 pointer-coarse:h-7"
               aria-hidden="true"
             />
-          ) : null}
-          {showWorkspacesLink ? (
-            <SidebarNavItem to="/workspaces" label="Workspaces" icon={GitBranch} />
           ) : null}
           <PluginSlotOutlet
             slotTypes={["sidebar"]}
@@ -262,8 +247,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
             collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
           >
             <SidebarNavItem to="/agents" label="Agents" icon={Users} />
-            <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
-            <SidebarNavItem to="/activity" label="Audit" icon={History} />
           </SidebarSection>
         ) : null}
 
@@ -279,9 +262,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
               <SidebarNavItem to="/org" label="Crew map" icon={Network} />
-              <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />
-              <SidebarNavItem to="/activity" label="Activity" icon={History} />
-              <SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />
               <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
             </SidebarSection>
           </>

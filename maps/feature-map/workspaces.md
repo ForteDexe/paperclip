@@ -8,7 +8,7 @@ A project or task can use a managed workspace with inspectable files, Git state,
 
 Feature ID: `workspaces`.
 
-Implementation: [workspace list](../../ui/src/pages/Workspaces.tsx), [execution workspace](../../ui/src/pages/ExecutionWorkspaceDetail.tsx), [project workspace](../../ui/src/pages/ProjectWorkspaceDetail.tsx).
+Implementation: [execution workspace](../../ui/src/pages/ExecutionWorkspaceDetail.tsx), [project workspace](../../ui/src/pages/ProjectWorkspaceDetail.tsx). The standalone workspace-list surface is retired; workspace data remains part of local task execution compatibility.
 
 Agent access: [companion](../agent-access-map/workspaces.md).
 
