@@ -88,10 +88,8 @@ import { createAssignedMcpTools } from "../services/native-runtime/assigned-mcp-
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { resolveGitHubOperationCredentials } from "../services/github-operation-credentials.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
-import { prepareHeartbeatExecutionConfiguration } from "../services/heartbeat/execution-configuration.js";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
 import { companySkillService } from "../services/company-skills.js";
-import { companyObservability } from "@paperclipai/db";
 import * as runIdentityModule from "../services/run-identity.js";
 import { chatGitHubRegistrations, chatGitHubReviews, chatGitHubConfigurations, toolCatalogEntries } from "@paperclipai/db";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -66168,7 +66166,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     },
   );
 
-  it.each(["contained", "prior_denied_intent", "observability_opencode", "observability_warning", "observability_reason", "observability_revision", "observability_provenance", "observability_extra", "other_reason", "wrong_issue", "provider_started", "result_extra", "profile", "usage", "output",
+  it.each(["contained", "prior_denied_intent", "other_reason", "wrong_issue", "provider_started", "result_extra", "profile", "usage", "output",
     "process", "controller", "active_control", "lease", "accepted_result", "event_source", "extra_event", "source_edited", "principal_revoked"] as const)(
     "retries an authenticated GitHub request after isolated-directory validation failed before allocation: %s", async mode => {
     const f = await failedChatRetryFixture("github", "42", true, false, true);
@@ -66184,42 +66182,6 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false }, stopReason: "adapter_failed",
           workspaceValidation: { reason: "isolated_task_directory_binding_mismatch", issueId } } })
         .where(eq(heartbeatRuns.id, f.runId));
-      if (mode.startsWith("observability_")) {
-        await db.insert(companyObservability).values({ companyId, revision: randomUUID(), enabled: true,
-          destination: { provider: "otlp", endpointBaseUrl: "https://collector.example/otel" },
-          capture: { userPrompts: false, assistantResponses: false, toolDetails: false, toolContent: false } });
-        const [agent] = await db.update(agents).set({ adapterConfig: mode === "observability_opencode"
-          ? { provider: "opencode", model: "openrouter/synthetic", homeMode: "preconfigured" }
-          : { provider: "acpx", acpxAgent: "pi", model: "synthetic", homeMode: "preconfigured" } })
-          .where(eq(agents.id, agentId)).returning();
-        const [run] = await readHeartbeatRunsById(f.runId);
-        const prepared = await prepareHeartbeatExecutionConfiguration(db, { run, agent,
-          task: { issueId, context: { ...run.contextSnapshot }, responsibleUserId: "owner-user",
-            acceptedPlanContinuationWake: false, acceptedPlanWakeRoutingDecision: null, taskProjectContext: null,
-            routineEnvContext: { routineId: null, env: null, responsibleUserId: null } },
-          config: { sourceWorkspaceConfig: agent.adapterConfig, aiBinding: undefined },
-          policy: { trustPreset: { kind: "standard", preset: "standard", boundary: null, sourcePresets: {} },
-            useIsolatedTaskDirectory: false, explicitTaskDirectory: false, requestedExecutionWorkspaceMode: "shared_workspace" },
-          environment: { selectedEnvironmentId: (await environmentService(db).ensureLocalEnvironment(agent.companyId)).id, selectedEnvironmentForConfig: null,
-            resolvedInstanceSettings: await instanceSettingsService(db).get(), persistedNativeExecutionInput: null },
-          services: { secretsSvc: secretService(db), companySkills: companySkillService(db),
-            appendRunEvent: async (source, event) => { await appendHeartbeatRunEvent(db, { companyId: source.companyId,
-              agentId: source.agentId, runId: source.id, ...event }); }, finalizeAiConnectionBusyDeferral: vi.fn() },
-          onFailureSecretsResolved: () => {}, onManagedAiRuntimeAcquired: () => {}, onIdentityRedactorPrepared: () => {},
-        });
-        expect(prepared.prepared).toBe(true);
-        const events = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId));
-        if (mode === "observability_opencode") {
-          if (!prepared.prepared) throw new Error("Configuration preparation did not finish");
-          expect(prepared.observability?.kind).toBe("opencode");
-          expect(prepared.observability?.environment).toMatchObject({ PAPERCLIP_OBSERVABILITY_OPENCODE: "1",
-            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://collector.example/otel/v1/traces" });
-          expect(events.filter(event => event.eventType === "agent_observability.unavailable")).toHaveLength(0);
-          expect(JSON.stringify(prepared.runtimeConfig)).not.toContain("collector.example");
-        } else {
-          expect(events).toMatchObject([{ eventType: "agent_observability.unavailable", payload: { reason: "unsupported_harness" } }]);
-        }
-      }
       await appendHeartbeatRunEvent(db, { companyId, agentId, runId: f.runId,
         eventType: "error", stream: "system", level: "error", message: diagnostic });
       await appendHeartbeatRunEvent(db, { companyId, agentId, runId: f.runId, eventType: "lifecycle", stream: "system", level: "info",
@@ -66235,14 +66197,6 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       app.use("/api", issueRoutes(db, createStorageService().storage, { chatRunRetries: f.service }));
       app.use(errorHandler);
       const [failed] = await readHeartbeatRunsById(f.runId);
-      if (mode === "observability_reason" || mode === "observability_revision" || mode === "observability_extra") {
-        const [warning] = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.seq, 1)));
-        await db.update(heartbeatRunEvents).set({ payload: { ...warning.payload,
-          ...(mode === "observability_reason" ? { reason: "unknown_preparation" } : mode === "observability_revision" ? { revision: null } : { providerWork: true }) } })
-          .where(eq(heartbeatRunEvents.id, warning.id));
-      }
-      if (mode === "observability_provenance") await db.update(heartbeatRunEvents).set({ sourceEventId: "untrusted-provider-warning" })
-        .where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.seq, 1)));
       const validation = failed.resultJson!.workspaceValidation as object;
       if (mode === "other_reason" || mode === "wrong_issue") await db.update(heartbeatRuns).set({ resultJson: { ...failed.resultJson,
         workspaceValidation: { ...validation, ...(mode === "other_reason" ? { reason: "plugin_workspace_strategy_unsupported" } : { issueId: randomUUID() }) } } })
@@ -66296,7 +66250,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         if (mode === "source_edited") await db.update(issueComments).set({ body: "Changed after Retry acceptance" }).where(eq(issueComments.id, String(f.action.payload.commentId)));
         await f.service.processFailedChatRunRetry(response.body.chatActionId);
       }
-      if (!["contained", "prior_denied_intent", "observability_opencode", "observability_warning"].includes(mode)) {
+      if (!["contained", "prior_denied_intent"].includes(mode)) {
         expect((await readHeartbeatRunsByCompanyId(companyId)).filter(run => run.retryOfRunId === f.runId)).toHaveLength(0);
         return;
       }

@@ -159,7 +159,7 @@ describe("CompanySettingsSidebar", () => {
     expect(container.textContent).not.toContain("Company Settings");
     expect(container.textContent).not.toContain("Instance Settings");
     expect(container.textContent).toContain("General");
-    expect(container.textContent).toContain("Connections");
+    expect(container.textContent).not.toContain("Connections");
     expect(container.textContent).toContain("Environments");
     expect(container.textContent).toContain("Export");
     expect(container.textContent).toContain("Import");
@@ -236,12 +236,12 @@ describe("CompanySettingsSidebar", () => {
     });
   });
 
-  it("shows Connections in the production sidebar without a Fast Responses query", async () => {
+  it("keeps Connections out of the production sidebar", async () => {
     const root = createRoot(container);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await act(async () => root.render(<QueryClientProvider client={queryClient}><ProductionCompanySettingsSidebar /></QueryClientProvider>));
     await flushReact();
-    expect(container.querySelector('a[href="/company/settings/connections"]')?.textContent).toBe("Connections");
+    expect(container.querySelector('a[href="/company/settings/connections"]')).toBeNull();
     expect(queryClient.getQueryCache().getAll().some(query => String(query.queryKey[0]).includes("experimental"))).toBe(false);
     await act(async () => root.unmount());
   });

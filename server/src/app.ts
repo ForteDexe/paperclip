@@ -50,7 +50,6 @@ import { createPublicMcpEvents, type PublicMcpEvents } from "./services/public-m
 import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "./routes/public-mcp.js";
 import { agentAvatarRoutes } from "./routes/agent-avatars.js";
 import { decisionModelRoutes } from "./routes/decision-models.js";
-import { agentObservabilityRoutes } from "./routes/agent-observability.js";
 import { aiConnectionRoutes } from "./routes/ai-connections.js";
 import { taskWorkspaceRoutes } from "./routes/task-workspaces.js";
 import { projectToolRoutes } from "./routes/project-tools.js";
@@ -919,7 +918,6 @@ export async function createApp(
   app.locals.toolActionDeliveries = toolActionDeliveries;
   app.use(mcpGatewayProtocolRoutes(toolGateway));
   api.use(decisionModelRoutes(db));
-  api.use(agentObservabilityRoutes(db, { deploymentMode: opts.deploymentMode, deploymentExposure: opts.deploymentExposure }));
   api.use(fastResponseRoutes(db));
   api.use(linkPreviewRoutes(db));
   api.use(promptInjectionPreventionRoutes(db));

@@ -52,7 +52,6 @@ import { createRunLogWriterAuthority } from "./heartbeat/run-log-authority.js";
 import { watchShutdownHandoff } from "./heartbeat/shutdown-handoff.js";
 import { createHeartbeatRunOutput } from "./heartbeat/run-output.js";
 import { readRecoverableRunLog } from "./native-runtime/native-run-log-recovery.js";
-import { observabilitySecretValues } from "@paperclipai/adapter-utils/agent-observability";
 import { prepareHeartbeatSession, resolveHeartbeatAdapterSession } from "./heartbeat/session-preparation.js";
 import { prepareHeartbeatTaskContext } from "./heartbeat/task-context.js";
 import { selectHeartbeatEnvironment } from "./heartbeat/environment-selection.js";
@@ -2834,7 +2833,7 @@ export function heartbeatService(
       const {
         mergedConfig, configSnapshot, runScopedMentionedSkillKeys, githubSelection, useHostGitHub,
         resolvedConfig, configuredTaskEnvironment, secretKeys, secretManifest,
-        runtimeSkillEntries, nativeRunnerPreparationSpans, agentIdentity, observability,
+        runtimeSkillEntries, nativeRunnerPreparationSpans, agentIdentity,
       } = executionConfiguration;
       let { runtimeConfig } = executionConfiguration;
       const resolvedFailureSecrets = readFailureReportSecrets();
@@ -2937,7 +2936,6 @@ export function heartbeatService(
         },
       }));
       const preparedInstructions = instructionWorkingCopy = createHeartbeatInstructionWorkingCopy({
-        observabilityCompatibilityKey: observability?.compatibilityKey,
         db, instructionCopies, readRun: () => run!, agent, context,
         session: { taskSession, taskSessionForRun, sessionConfigMetadata },
         workspace: { executionTarget, executionWorkspace, persistedExecutionWorkspace },
@@ -3291,7 +3289,7 @@ export function heartbeatService(
         run, runId, issueId, runLogStore, identityRedactor, secretKeys,
         appendRunEvent, getCurrentUserRedactionOptions,
         assertWriterAuthority: createRunLogWriterAuthority(db, run, runOptions.nativeLeaseOwner),
-        runtimeLogSecretValues: observabilitySecretValues(observability),
+        runtimeLogSecretValues: [],
         signal: executionControl.controller.signal,
       });
       const goalCheckpointSession: {
@@ -3584,7 +3582,6 @@ export function heartbeatService(
             configuredTaskEnvironment,
             adapterEnv,
             agentIdentity,
-            observability,
             managedAiRuntime,
             runtimeEnv,
             useHostGitHub,

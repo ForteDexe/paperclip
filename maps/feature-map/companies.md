@@ -19,7 +19,6 @@ Agent access: [companion](../agent-access-map/companies.md).
 - `decision-models`: `companies/decision-models` — configure and test the company's decision model, then inspect invocation history and recorded usage.
 - `prompt-injection-prevention`: `companies/prompt-injection-prevention` — opt into a shared OpenRouter classifier for existing tool-result guards, test fixed samples, and recover unavailable selections.
 - `fast-responses`: `companies/fast-responses` — configure and test the experimental fast-response service, then inspect acknowledgement history, failures, and recorded usage.
-- `agent-observability`: `companies/agent-observability` — configure one company OTLP destination for Codex, Claude Code and native OpenCode, test synthetic delivery, and disable export.
 - `archive`: `companies/archive` — archive and restore through the available controls without confusing archival with deletion.
 - `portability`: `companies/portability` — preview a company package and inspect imported agents, projects, skills, and conflicts.
 
@@ -35,10 +34,8 @@ Use `/company/export` and `/company/import` where enabled, or the corresponding 
 
 ### `company-ai-services`
 
-Use Settings → Connections (`/company/settings/connections`) for Decision model
-and Prompt Injection Prevention, independent of experimental flags. Fast response
-appears there only when its experiment is enabled.
-Open the Decisions and Fast responses tabs in Costs to inspect invocation history.
+There is no user-facing shared-connection configuration surface. Open the Decisions
+and Fast responses tabs in Costs to inspect retained invocation history.
 
 ## Driving it with Playwright and the Paperclip CLI
 
@@ -58,19 +55,13 @@ Manual: Export a small company, inspect the package preview, and import into a d
 
 ### `company-ai-services`
 
-Automated: [decision settings](../../ui/src/components/decision-models/DecisionModelSettings.test.tsx),
-[decision history](../../ui/src/components/decision-models/DecisionHistory.test.tsx),
-[fast-response settings](../../ui/src/components/fast-responses/FastResponseSettings.test.tsx),
+Automated: [decision history](../../ui/src/components/decision-models/DecisionHistory.test.tsx),
 [decision service](../../server/src/__tests__/decision-models.test.ts), and
 [fast-response service](../../server/src/__tests__/fast-responses.test.ts) cover
-component and service contracts with simulated providers.
+history and service contracts with simulated providers.
 
-Manual: As an authorized connection manager, select a disposable shared AI
-connection, save the provider/model and sponsorship options, reload, and run the
-bounded Test action. Inspect success and failure receipts and their history in
-Costs. Verify disabled or revoked connections remain clear and that a user
-without connection-management permission cannot configure or test the service.
-Use an owned provider fixture for failure states; record any actual provider usage.
+Manual: Inspect retained success and failure receipts in Costs. Shared provider
+configuration and model tests are intentionally unavailable in Outpost.
 
 ## Gotchas
 
@@ -81,10 +72,8 @@ Use an owned provider fixture for failure states; record any actual provider usa
 - Package presence does not prove a runnable imported company; credentials and environment bindings need separate verification.
 - Company deletion is a distinct gated operation; do not use it as the archive test.
 - Settings hidden in a managed deployment should be recorded as unavailable, not bypassed.
-- Decision tests and fast responses have different request and execution contracts.
-  A fast-response receipt is an acknowledgement, not completed agent work.
-  History visibility and connection-management authority are separate; task links
-  in history also require access to the underlying task.
+- A fast-response receipt is an acknowledgement, not completed agent work. Task
+  links in retained history still require access to the underlying task.
 
 ### Storybook verification
 
@@ -119,36 +108,16 @@ Sources: Source: [CompanyImport.tsx](../../ui/src/pages/CompanyImport.tsx), [Com
 
 Core administration/import/export/operator workflows are mapped; cloud/self-hosted differences, migration/restore compatibility, and platform-specific service variants need deeper recipes.
 
-### `agent-observability`
-
-Use Company Settings → General → Agent observability. Select Braintrust or Custom OTLP,
-save credentials and capture settings, then test the saved destination. Saving is offline;
-the test originates at the control plane and does not prove remote runner reachability.
-
-Automated: shared validation, encrypted configuration service, receiver tests, runtime projection,
-and production settings stories cover their respective boundaries. Provider delivery requires a real run.
-
-Manual: configure a disposable company, reload, test, run Codex, Claude Code and native OpenCode locally and remotely,
-inspect their unique markers at the destination, then disable and verify a new marker is absent.
-
-Storybook verification: `agent-observability-01-settings`, `agent-observability-02-states`,
-and `agent-observability-03-journey` mount production subjects with simulated APIs/providers.
-
 ### `prompt-injection-prevention`
 
 Capability ID: `companies/prompt-injection-prevention`.
 
-Scope: ui, api, runtime
-Storybook: Production PromptInjectionPreventionSettingsView states under Companies
-and portability → Prompt Injection Prevention. Provider data is simulated.
-Automated: [settings](../../ui/src/components/prompt-injection-prevention/PromptInjectionPreventionSettings.test.tsx),
-[service](../../server/src/__tests__/prompt-injection-prevention.test.ts),
+Scope: api, runtime
+Automated: [service](../../server/src/__tests__/prompt-injection-prevention.test.ts),
 [gateway](../../server/src/__tests__/prompt-injection-gateway.test.ts),
 [guards](../../server/src/__tests__/tool-content-guards.test.ts) including redaction
 that hides content still delivered under the existing return contract.
-Manual: Open Connections with Fast Responses off, save a shared OpenRouter
-connection/default model, reload, run both fixed samples, and inspect charges.
-Verify benign code reaches a gateway caller, malicious instructions are blocked,
-provider failure records regex fallback, and disabling makes no model call.
+Manual: Verify benign code reaches a gateway caller, malicious instructions are blocked,
+and provider failure records regex fallback. There is no user-facing connection setup.
 Root results with concealed instruction text use `input_redaction_mismatch`
 fallback without model dispatch.

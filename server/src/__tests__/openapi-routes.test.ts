@@ -32,7 +32,6 @@ const apiPrefixes: Record<string, string> = {
   "announcements.ts": "/api",
   "ai-connections.ts": "/api",
   "decision-models.ts": "/api",
-  "agent-observability.ts": "/api",
   "fast-responses.ts": "/api",
   "prompt-injection-prevention.ts": "/api",
   "attention.ts": "/api",
@@ -625,19 +624,6 @@ describe("openapi routes", () => {
     expect(Object.keys(remove.responses)).toEqual(expect.arrayContaining(["200", "400", "401", "403", "404", "409"]));
   });
 
-  it("documents masked board-only agent export settings and revision-checked writes", () => {
-    const { spec } = loadSpecRoutes();
-    const settings = spec.paths["/api/companies/{companyId}/observability"];
-    const test = spec.paths["/api/companies/{companyId}/observability/test"].post;
-    for (const operation of [settings.get, settings.put, settings.delete, test]) {
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
-    }
-    expect(settings.delete.requestBody.content["application/json"].schema).toMatchObject({ required: ["expectedRevision"], additionalProperties: false });
-    expect(test.responses["409"]).toBeDefined();
-    expect(JSON.stringify(settings.get.responses)).not.toMatch(/credentialsSecretId|ciphertext|apiKey/);
-    expect(test.responses["200"].content["application/json"].schema.properties.source).toMatchObject({ enum: ["control_plane"] });
-  });
-
   it("documents personal board-only announcements and private responses", () => {
     const { spec } = loadSpecRoutes();
     const current = spec.paths["/api/announcements/current"].get;
@@ -729,7 +715,7 @@ describe("openapi routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe("3.0.0");
-    expect(res.body.info.title).toBe("Paperclip API");
+    expect(res.body.info.title).toBe("Outpost API");
     expect(res.body.paths["/api/openapi.json"].get.summary).toBe(
       "Get the generated OpenAPI document",
     );

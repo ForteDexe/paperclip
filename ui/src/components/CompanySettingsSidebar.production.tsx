@@ -6,7 +6,6 @@ import {
   Download,
   FlaskConical,
   KeyRound,
-  Link2,
   MonitorCog,
   Puzzle,
   SlidersHorizontal,
@@ -100,7 +99,6 @@ export function CompanySettingsSidebar() {
               end
             />
           )}
-          <SidebarNavItem to="/company/settings/connections" label="Connections" icon={Link2} end />
           {showPage("instance.heartbeats") && (
             <SidebarNavItem
               to={`${INSTANCE_SETTINGS_PATH_PREFIX}/heartbeats`}

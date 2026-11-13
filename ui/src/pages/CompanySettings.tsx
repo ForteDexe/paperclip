@@ -1,5 +1,4 @@
 import { ChangeEvent, useEffect, useState } from "react";
-import { AgentObservabilitySettingsSection } from "../components/observability/AgentObservabilitySettings";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -358,8 +357,6 @@ export function CompanySettings() {
         isPending={governanceMutation.isPending}
         errorMessage={governanceMutation.error ? describeError(governanceMutation.error).body : null}
       />
-
-      <AgentObservabilitySettingsSection companyId={selectedCompanyId!} />
 
       <InstanceGeneralSettings embedded />
 

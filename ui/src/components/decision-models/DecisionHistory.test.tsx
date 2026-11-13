@@ -2,31 +2,22 @@
 
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DecisionHistoryTable } from "./DecisionHistory";
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompany: { issuePrefix: "ACM" } }),
-}));
-
-describe("model history setup links", () => {
+describe("empty model history", () => {
   it.each([
-    [false, true, "/ACM/company/settings/connections", "Configure a decision model"],
-    [false, false, "/ACM/company/settings/connections", "Configure a decision model"],
-    [true, true, "/ACM/company/settings/connections", "Configure fast response"],
-    [true, false, "/ACM/company/settings/instance/experimental", "Enable experimental fast responses"],
-  ] as const)("routes setup with fast response %s and experiment %s", (fastResponse, fastResponsesEnabled, href, label) => {
+    [false, "No decision requests in this period."],
+    [true, "No fast responses in this period."],
+  ] as const)("renders an inert empty state for fast response %s", (fastResponse, message) => {
     const container = document.createElement("div");
     const root = createRoot(container);
     try {
       flushSync(() => root.render(
-        <MemoryRouter>
-          <DecisionHistoryTable entries={[]} fastResponse={fastResponse} fastResponsesEnabled={fastResponsesEnabled} />
-        </MemoryRouter>,
+        <DecisionHistoryTable entries={[]} fastResponse={fastResponse} />,
       ));
-      expect(container.querySelector("a")?.getAttribute("href")).toBe(href);
-      expect(container.querySelector("a")?.textContent).toBe(label);
+      expect(container.textContent).toBe(message);
+      expect(container.querySelector("a")).toBeNull();
     } finally {
       flushSync(() => root.unmount());
     }

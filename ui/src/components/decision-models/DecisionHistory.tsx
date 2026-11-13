@@ -5,8 +5,8 @@ import { Link } from "@/lib/router";
 import { formatDateTime, formatTokens, formatDetailedCents } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-export function DecisionHistoryTable({ entries, fastResponse = false, fastResponsesEnabled = true }: { entries: (DecisionHistoryEntry & { publicationStatus?: string; connectionName?: string | null })[]; fastResponse?: boolean; fastResponsesEnabled?: boolean }) {
-  if (!entries.length) return <p className="text-sm text-muted-foreground">{fastResponse ? "No fast responses in this period." : "No decision requests in this period."} <Link to={fastResponse && !fastResponsesEnabled ? "/company/settings/instance/experimental" : "/company/settings/connections"} className="underline underline-offset-4">{fastResponse ? fastResponsesEnabled ? "Configure fast response" : "Enable experimental fast responses" : "Configure a decision model"}</Link> to run a test.</p>;
+export function DecisionHistoryTable({ entries, fastResponse = false }: { entries: (DecisionHistoryEntry & { publicationStatus?: string; connectionName?: string | null })[]; fastResponse?: boolean }) {
+  if (!entries.length) return <p className="text-sm text-muted-foreground">{fastResponse ? "No fast responses in this period." : "No decision requests in this period."}</p>;
   return <div className="space-y-3">
     <p className="text-xs text-muted-foreground">Recent requests. Inputs are not retained.</p>
     <div className="overflow-x-auto"><table className="w-full text-sm" aria-label={fastResponse ? "Fast responses" : "Decision requests"}>

@@ -5,7 +5,6 @@ import {
   Download,
   FlaskConical,
   KeyRound,
-  Link2,
   MonitorCog,
   Puzzle,
   SlidersHorizontal,
@@ -103,7 +102,6 @@ export function CompanySettingsSidebar() {
               end
             />
           )}
-          <SidebarNavItem to="/company/settings/connections" label="Connections" icon={Link2} end />
           {showPage("company.export") && (
             <SidebarNavItem to="/company/export" label="Export" icon={Download} />
           )}

@@ -50,10 +50,6 @@ vi.mock("../context/CompanyContext", () => ({
   }),
 }));
 
-vi.mock("../components/decision-models/DecisionModelSettings", () => ({
-  DecisionModelSettingsSection: () => <div data-testid="decision-model-settings" />,
-}));
-
 // Both panels below the name field own their own queries and are not part of
 // what this test covers.
 vi.mock("../components/InteractionGovernancePanel", () => ({
@@ -81,7 +77,7 @@ const CLOUD_HEALTH = {
 const SELF_HOSTED_HEALTH = { status: "ok" as const, cloud: null };
 
 const RENAME_HINT =
-  "Renaming can change this company's task ID prefix. Existing task IDs are renumbered and old task links stop resolving.";
+  "Renaming can change this outpost's task ID prefix. Existing task IDs are renumbered and old task links stop resolving.";
 
 describe("CompanySettings rename hint", () => {
   let container: HTMLDivElement;
@@ -97,14 +93,13 @@ describe("CompanySettings rename hint", () => {
     vi.clearAllMocks();
   });
 
-  function render(health: unknown, enableFastResponses = true) {
+  function render(health: unknown) {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
     // CloudAccessGate owns the health fetch in the app; seeding the cache is how
     // useCloudInstance sees a managed instance under test.
     queryClient.setQueryData(queryKeys.health, health);
-    queryClient.setQueryData(queryKeys.instance.experimentalSettings, { enableFastResponses });
     const root = createRoot(container);
     flushSync(() => {
       root.render(
@@ -126,8 +121,8 @@ describe("CompanySettings rename hint", () => {
     );
   }
 
-  it.each([false, true])("keeps decision setup out of General regardless of the fast response flag (%s)", (enabled) => {
-    const root = render(SELF_HOSTED_HEALTH, enabled);
+  it("keeps connection-backed decision setup out of General", () => {
+    const root = render(SELF_HOSTED_HEALTH);
     expect(container.querySelector("[data-testid=decision-model-settings]")).toBeNull();
     flushSync(() => root.unmount());
   });

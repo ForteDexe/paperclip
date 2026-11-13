@@ -75,7 +75,6 @@ const WhatNeedsMe = lazy(() => import("./pages/WhatNeedsMe").then((module) => ({
 const DecisionQueuePage = lazy(() => import("./pages/DecisionQueuePage").then((module) => ({ default: module.DecisionQueuePage })));
 const BoardChat = lazy(() => import("./pages/BoardChat").then((module) => ({ default: module.BoardChat })));
 const CompanySettings = lazy(() => import("./pages/CompanySettings").then((module) => ({ default: module.CompanySettings })));
-const CompanyConnections = lazy(() => import("./pages/CompanyConnections").then((module) => ({ default: module.CompanyConnections })));
 const CompanyEnvironments = lazy(() => import("./pages/CompanyEnvironments").then((module) => ({ default: module.CompanyEnvironments })));
 const CompanySettingsPluginPage = lazy(() => import("./pages/CompanySettingsPluginPage").then((module) => ({ default: module.CompanySettingsPluginPage })));
 const InstalledSkills = lazy(() => import("./pages/InstalledSkills").then((module) => ({ default: module.InstalledSkills })));
@@ -117,7 +116,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="spaces" element={<Companies />} />
       <Route path="companies" element={<Navigate to="/spaces" replace />} />
       <Route path="company/settings" element={<CompanySettings />} />
-      <Route path="company/settings/connections" element={<CompanyConnections />} />
+      <Route path="company/settings/connections" element={<Navigate to="/company/settings" replace />} />
       <Route path="company/settings/environments" element={<Navigate to="/company/settings/instance/environments" replace />} />
       <Route path="company/settings/cloud-upstream" element={<Navigate to="/company/export" replace />} />
       <Route path="company/settings/members" element={<Navigate to="/company/settings" replace />} />
