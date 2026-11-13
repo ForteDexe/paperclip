@@ -41,10 +41,6 @@ const mockCompanyArtifactsService = vi.hoisted(() => ({
   list: vi.fn(),
 }));
 
-const mockFeedbackService = vi.hoisted(() => ({
-  listFeedbackTraces: vi.fn(),
-}));
-
 const mockLogActivity = vi.hoisted(() => vi.fn());
 
 function registerCompanyRouteMocks() {
@@ -55,7 +51,6 @@ function registerCompanyRouteMocks() {
     companyArtifactsService: () => mockCompanyArtifactsService,
     companyPortabilityService: () => mockCompanyPortabilityService,
     companyService: () => mockCompanyService,
-    feedbackService: () => mockFeedbackService,
     logActivity: mockLogActivity,
   }));
 }

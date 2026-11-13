@@ -6,8 +6,6 @@ import {
 import { objectWithoutDefaults } from "./partial.js";
 
 const logoAssetIdSchema = z.string().guid().nullable().optional();
-const feedbackDataSharingTermsVersionSchema = z.string().min(1).nullable().optional();
-
 const interactionResolverKindGovernanceSchema = z.object({
   defaultPolicy: z.enum(ISSUE_THREAD_INTERACTION_RESOLVER_POLICIES).optional(),
   cap: z.enum(ISSUE_THREAD_INTERACTION_RESOLVER_POLICIES).optional(),
@@ -39,10 +37,6 @@ export const updateCompanySchema = objectWithoutDefaults(
       spentMonthlyCents: z.number().int().nonnegative().optional(),
       requireBoardApprovalForNewAgents: z.boolean().optional(),
       interactionResolverGovernance: interactionResolverGovernanceSchema.optional(),
-      feedbackDataSharingEnabled: z.boolean().optional(),
-      feedbackDataSharingConsentAt: z.coerce.date().nullable().optional(),
-      feedbackDataSharingConsentByUserId: z.string().min(1).nullable().optional(),
-      feedbackDataSharingTermsVersion: feedbackDataSharingTermsVersionSchema,
       logoAssetId: logoAssetIdSchema,
     }),
 );

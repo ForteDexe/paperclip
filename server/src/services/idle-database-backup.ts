@@ -10,8 +10,33 @@ import { createGunzip } from "node:zlib";
 export const idleBackupWakeMarker = (directory: string) => path.join(directory, ".idle-backup-wake-required");
 
 async function syncDirectory(directory: string): Promise<void> {
-  const handle = await open(directory, "r");
-  try { await handle.sync(); } finally { await handle.close(); }
+  let handle;
+  try {
+    handle = await open(directory, "r");
+    await handle.sync();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    // Windows does not support opening/fsyncing directory handles through
+    // Node's file API. File contents are still fsynced before this call.
+    if (process.platform !== "win32" || !["EPERM", "EACCES", "EINVAL"].includes(code ?? "")) {
+      throw error;
+    }
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function syncReadOnlyFile(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
+  try {
+    await handle.sync();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    // FlushFileBuffers rejects read-only handles on Windows. The backup
+    // producer has already closed its writer before verification begins.
+    if (process.platform !== "win32" || !["EPERM", "EACCES", "EINVAL"].includes(code ?? "")) {
+      throw error;
+    }
+  }
 }
 
 export async function markIdleBackupWakeRequired(directory: string): Promise<void> {
@@ -39,7 +64,7 @@ export async function verifyIdleDatabaseBackup(backupFile: string): Promise<void
       new Writable({ write(chunk, _encoding, done) { bytes += chunk.length; done(); } }),
     );
     if (bytes === 0) throw new Error("Idle backup archive contains no SQL");
-    await handle.sync();
+    await syncReadOnlyFile(handle);
   } finally { await handle.close(); }
   await syncDirectory(path.dirname(backupFile));
 }

@@ -45,7 +45,6 @@ export function AgentBasicsDialog({
   initialAdapter = "",
   initialName = "",
   setupAgentId,
-  onInvite,
 }: {
   open: boolean;
   onClose: () => void;
@@ -53,7 +52,6 @@ export function AgentBasicsDialog({
   initialAdapter?: string;
   initialName?: string;
   setupAgentId?: string;
-  onInvite?: () => void;
 }) {
   const id = useId();
   const { selectedCompanyId: companyId } = useCompany();
@@ -203,16 +201,6 @@ export function AgentBasicsDialog({
                   onChange={(event) => setName(event.target.value)}
                   className="h-12 text-base"
                 />
-                {onInvite && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="px-0 text-muted-foreground"
-                    onClick={onInvite}
-                  >
-                    Invite an external agent
-                  </Button>
-                )}
               </div>
             ) : (
               <fieldset className="space-y-4">

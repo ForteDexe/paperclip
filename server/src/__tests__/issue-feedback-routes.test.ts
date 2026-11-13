@@ -3,12 +3,8 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFeedbackService = vi.hoisted(() => ({
-  getFeedbackTraceById: vi.fn(),
-  getFeedbackTraceBundle: vi.fn(),
   listIssueVotesForUser: vi.fn(),
-  listFeedbackTraces: vi.fn(),
   saveIssueVote: vi.fn(),
-  flushPendingFeedbackTraces: vi.fn(() => new Promise(() => {})),
 }));
 
 const mockIssueService = vi.hoisted(() => ({
@@ -147,7 +143,7 @@ async function createApp(actor: Record<string, unknown>) {
   return app;
 }
 
-describe("issue feedback trace routes", () => {
+describe("local issue feedback routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHeartbeatService.wakeup.mockResolvedValue(undefined);
@@ -167,7 +163,7 @@ describe("issue feedback trace routes", () => {
     mockLogActivity.mockResolvedValue(undefined);
   });
 
-  it("returns the saved vote without waiting for feedback uploads", async () => {
+  it("stores and returns a local vote", async () => {
     const targetId = "11111111-1111-4111-8111-111111111111";
     mockIssueService.getById.mockResolvedValue({
       id: "issue-1",
@@ -175,21 +171,15 @@ describe("issue feedback trace routes", () => {
       identifier: "PAP-1",
     });
     mockFeedbackService.saveIssueVote.mockResolvedValue({
-      vote: {
-        targetType: "issue_comment",
-        targetId,
-        vote: "up",
-        reason: null,
-      },
-      traceId: "trace-1",
-      consentEnabledNow: false,
-      persistedSharingPreference: null,
-      sharingEnabled: true,
+      targetType: "issue_comment",
+      targetId,
+      vote: "up",
+      reason: null,
     });
     const app = await createApp({
       type: "board",
       userId: "user-1",
-      source: "session",
+      source: "local_implicit",
       isInstanceAdmin: true,
       companyIds: ["company-1"],
     });
@@ -200,68 +190,47 @@ describe("issue feedback trace routes", () => {
         targetType: "issue_comment",
         targetId,
         vote: "up",
-        allowSharing: true,
       });
 
     expect([200, 201]).toContain(res.status);
-    expect(mockFeedbackService.saveIssueVote).toHaveBeenCalledTimes(1);
-    expect(mockFeedbackService.flushPendingFeedbackTraces).not.toHaveBeenCalled();
-
-  });
-
-  it("rejects non-board callers before fetching a feedback trace", async () => {
-    const app = await createApp({
-      type: "agent",
-      agentId: "agent-1",
-      companyId: "company-1",
-      source: "agent_key",
-      runId: "run-1",
-    });
-
-    const res = await request(app).get("/api/feedback-traces/trace-1");
-    expect(res.status).toBe(403);
-    expect(mockFeedbackService.getFeedbackTraceById).not.toHaveBeenCalled();
-  });
-
-  it("returns 404 when a board user lacks access to the trace company", async () => {
-    mockFeedbackService.getFeedbackTraceById.mockResolvedValue({
-      id: "trace-1",
-      companyId: "company-2",
-    });
-    const app = await createApp({
-      type: "board",
-      userId: "user-1",
-      source: "session",
-      isInstanceAdmin: false,
-      companyIds: ["company-1"],
-    });
-
-    const res = await request(app).get("/api/feedback-traces/trace-1");
-
-    expect(res.status, JSON.stringify({ body: res.body, errors: app.locals.routeErrors })).toBe(404);
-    expect(mockFeedbackService.getFeedbackTraceById).toHaveBeenCalledExactlyOnceWith("trace-1", true);
-    expect(mockFeedbackService.getFeedbackTraceBundle).not.toHaveBeenCalled();
-  });
-
-  it("returns 404 for bundle fetches when a board user lacks access to the trace company", async () => {
-    mockFeedbackService.getFeedbackTraceBundle.mockResolvedValue({
-      id: "trace-1",
-      companyId: "company-2",
+    expect(res.body).toMatchObject({ targetId, vote: "up" });
+    expect(res.body).not.toHaveProperty("sharedWithLabs");
+    expect(mockFeedbackService.saveIssueVote).toHaveBeenCalledExactlyOnceWith({
       issueId: "issue-1",
-      files: [],
+      targetType: "issue_comment",
+      targetId,
+      vote: "up",
+      reason: undefined,
+      authorUserId: "user-1",
     });
+  }, 30_000);
+
+  it("lists only the current user's local votes", async () => {
+    mockIssueService.getById.mockResolvedValue({
+      id: "issue-1",
+      companyId: "company-1",
+      identifier: "PAP-1",
+    });
+    mockFeedbackService.listIssueVotesForUser.mockResolvedValue([
+      { id: "vote-1", vote: "down", reason: "Needs a test" },
+    ]);
     const app = await createApp({
       type: "board",
       userId: "user-1",
       source: "session",
-      isInstanceAdmin: false,
+      isInstanceAdmin: true,
       companyIds: ["company-1"],
     });
 
-    const res = await request(app).get("/api/feedback-traces/trace-1/bundle");
+    const res = await request(app).get("/api/issues/issue-1/feedback-votes");
 
-    expect(res.status, JSON.stringify({ body: res.body, errors: app.locals.routeErrors })).toBe(404);
-    expect(mockFeedbackService.getFeedbackTraceBundle).toHaveBeenCalledExactlyOnceWith("trace-1");
-    expect(mockFeedbackService.getFeedbackTraceById).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      { id: "vote-1", vote: "down", reason: "Needs a test" },
+    ]);
+    expect(mockFeedbackService.listIssueVotesForUser).toHaveBeenCalledExactlyOnceWith(
+      "issue-1",
+      "user-1",
+    );
   });
 });

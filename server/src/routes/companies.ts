@@ -12,16 +12,12 @@ import {
   readZipArchive,
 } from "@paperclipai/shared/portability-zip";
 import {
-  DEFAULT_FEEDBACK_DATA_SHARING_TERMS_VERSION,
   SETTINGS_OPERATOR_MANAGED_ERROR_CODE,
   companyArtifactsQuerySchema,
   companyPortabilityExportSchema,
   companyPortabilityImportSchema,
   companyPortabilityPreviewSchema,
   createCompanySchema,
-  feedbackTargetTypeSchema,
-  feedbackTraceStatusSchema,
-  feedbackVoteValueSchema,
   hidesCompanyPage,
   updateCompanyBrandingSchema,
   updateCompanySchema,
@@ -63,7 +59,6 @@ import {
   companyArtifactsService,
   companyPortabilityService,
   companyService,
-  feedbackService,
   logActivity,
   workTimelineService,
 } from "../services/index.js";
@@ -294,7 +289,6 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
   const access = accessService(db);
   const budgets = budgetService(db);
   const artifacts = companyArtifactsService(db, storage);
-  const feedback = feedbackService(db);
   const importJobs = new Map<string, ImportJobRecord>();
   // Terminal jobs are retained in memory for an hour after they settle. A long
   // import can outlast a user stepping away, and dropping the completion after
@@ -304,10 +298,6 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
   // no new persistence (jobs remain in-memory-only; a restart still 404s, which
   // the client now treats as a soft success once it has seen the job running).
   const importJobTerminalRetentionMs = 60 * 60 * 1000;
-
-  function parseBooleanQuery(value: unknown) {
-    return value === true || value === "true" || value === "1";
-  }
 
   function parseDateQuery(value: unknown, field: string) {
     if (typeof value !== "string" || value.trim().length === 0) return undefined;
@@ -509,34 +499,6 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       return;
     }
     res.json(company);
-  });
-
-  router.get("/:companyId/feedback-traces", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-
-    const targetTypeRaw = typeof req.query.targetType === "string" ? req.query.targetType : undefined;
-    const voteRaw = typeof req.query.vote === "string" ? req.query.vote : undefined;
-    const statusRaw = typeof req.query.status === "string" ? req.query.status : undefined;
-    const issueId = typeof req.query.issueId === "string" && req.query.issueId.trim().length > 0 ? req.query.issueId : undefined;
-    const projectId = typeof req.query.projectId === "string" && req.query.projectId.trim().length > 0
-      ? req.query.projectId
-      : undefined;
-
-    const traces = await feedback.listFeedbackTraces({
-      companyId,
-      issueId,
-      projectId,
-      targetType: targetTypeRaw ? feedbackTargetTypeSchema.parse(targetTypeRaw) : undefined,
-      vote: voteRaw ? feedbackVoteValueSchema.parse(voteRaw) : undefined,
-      status: statusRaw ? feedbackTraceStatusSchema.parse(statusRaw) : undefined,
-      from: parseDateQuery(req.query.from, "from"),
-      to: parseDateQuery(req.query.to, "to"),
-      sharedOnly: parseBooleanQuery(req.query.sharedOnly),
-      includePayload: parseBooleanQuery(req.query.includePayload),
-    });
-    res.json(traces);
   });
 
   router.post("/:companyId/export", async (req, res) => {
@@ -1320,20 +1282,6 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     if (!existingCompany) {
       res.status(404).json({ error: "Outpost not found" });
       return;
-    }
-
-    if (req.actor.type !== "agent") {
-      if (body.feedbackDataSharingEnabled === true && !existingCompany.feedbackDataSharingEnabled) {
-        body = {
-          ...body,
-          feedbackDataSharingConsentAt: new Date(),
-          feedbackDataSharingConsentByUserId: req.actor.userId ?? "local-board",
-          feedbackDataSharingTermsVersion:
-            typeof body.feedbackDataSharingTermsVersion === "string" && body.feedbackDataSharingTermsVersion.length > 0
-              ? body.feedbackDataSharingTermsVersion
-              : DEFAULT_FEEDBACK_DATA_SHARING_TERMS_VERSION,
-        };
-      }
     }
 
     const transitionsToArchived =

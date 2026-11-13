@@ -100,12 +100,6 @@ export type {
   FeedbackDataSharingPreference,
   FeedbackTargetType,
   FeedbackVoteValue,
-  FeedbackTrace,
-  FeedbackTraceStatus,
-  FeedbackTraceTargetSummary,
-  FeedbackTraceBundleCaptureStatus,
-  FeedbackTraceBundleFile,
-  FeedbackTraceBundle,
 } from "./feedback.js";
 export type {
   InstanceExecutionMode,

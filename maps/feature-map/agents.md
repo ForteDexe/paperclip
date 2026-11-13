@@ -173,7 +173,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 ### `hire-agent`
 
-Automated: [new agent page](../../ui/src/pages/NewAgent.test.tsx) and [configuration form](../../ui/src/components/AgentConfigForm.render.test.tsx) cover mocked UI behavior.
+Automated: [new agent dialog](../../ui/src/components/NewAgentDialog.test.tsx) and [configuration form](../../ui/src/components/AgentConfigForm.render.test.tsx) cover mocked UI behavior.
 
 For an agent-owned plugin environment, verify preparation before connecting,
 same-agent probes, account preservation after an environment change, failed

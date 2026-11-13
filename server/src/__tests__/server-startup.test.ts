@@ -78,8 +78,6 @@ const {
   executionWorkspaceServiceMock,
   externalObjectsServiceMock,
   externalObjectsServiceFactoryMock,
-  feedbackExportServiceMock,
-  feedbackServiceFactoryMock,
   createFakeServer,
   heartbeatServiceFactoryMock,
   heartbeatServiceMock,
@@ -245,11 +243,6 @@ const {
     tickScheduledTriggers: vi.fn(async () => ({ triggered: 0 })),
   };
   const routineServiceFactoryMock = vi.fn(() => routineServiceMock);
-  const feedbackExportServiceMock = {
-    hasPendingFeedbackTraces: vi.fn(async () => false),
-    flushPendingFeedbackTraces: vi.fn(async () => ({ attempted: 0, sent: 0, failed: 0 })),
-  };
-  const feedbackServiceFactoryMock = vi.fn(() => feedbackExportServiceMock);
   function createFakeServer() {
     const lifecycleListeners = new Map<string, Map<() => void, boolean>>();
     const addListener = (event: string, listener: () => void, once: boolean) => {
@@ -303,8 +296,6 @@ const {
     executionWorkspaceServiceMock,
     externalObjectsServiceMock,
     externalObjectsServiceFactoryMock,
-    feedbackExportServiceMock,
-    feedbackServiceFactoryMock,
     createFakeServer,
     heartbeatServiceFactoryMock,
     heartbeatServiceMock,
@@ -489,7 +480,6 @@ vi.mock("../services/index.js", () => ({
     deliverNotifications: vi.fn(async () => ({ notifiedAgents: 0, delivered: 0 })),
     nextArchiveNotificationAt: vi.fn(async () => null),
   })),
-  feedbackService: feedbackServiceFactoryMock,
   bootstrapExecutionPolicyFromEnv: vi.fn(async () => null),
   applyManagedEnvironments: managedEnvironmentMocks.apply,
   createManagedEnvironmentRecovery: managedEnvironmentMocks.factory,
@@ -680,7 +670,7 @@ beforeEach(() => {
   fakeServer = createFakeServer();
 });
 
-describe("startServer feedback export wiring", () => {
+describe("startServer wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     deliveryWorkErrors.length = 0;

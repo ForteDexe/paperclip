@@ -2184,15 +2184,6 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  method: "get",
-  path: "/api/companies/{companyId}/feedback-traces",
-  tags: ["companies"],
-  summary: "List company feedback traces",
-  request: { params: z.object({ companyId: z.string() }) },
-  responses: { 200: r.ok(), 401: r.unauthorized },
-});
-
-registry.registerPath({
   method: "post",
   path: "/api/companies/{companyId}/exports",
   tags: ["companies"],
@@ -4983,33 +4974,6 @@ registry.registerPath({
     body: jsonBody(upsertIssueFeedbackVoteSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/api/issues/{id}/feedback-traces",
-  tags: ["issues"],
-  summary: "List issue feedback traces",
-  request: { params: z.object({ id: z.string() }) },
-  responses: { 200: r.ok(), 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/api/feedback-traces/{traceId}",
-  tags: ["issues"],
-  summary: "Get a feedback trace",
-  request: { params: z.object({ traceId: z.string() }) },
-  responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/api/feedback-traces/{traceId}/bundle",
-  tags: ["issues"],
-  summary: "Get a feedback trace bundle",
-  request: { params: z.object({ traceId: z.string() }) },
-  responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({

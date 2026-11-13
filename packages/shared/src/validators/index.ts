@@ -121,7 +121,6 @@ export {
 export {
   feedbackDataSharingPreferenceSchema,
   feedbackTargetTypeSchema,
-  feedbackTraceStatusSchema,
   feedbackVoteValueSchema,
   upsertIssueFeedbackVoteSchema,
   type UpsertIssueFeedbackVote,
