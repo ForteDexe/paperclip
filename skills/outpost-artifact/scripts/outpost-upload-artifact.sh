@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  paperclip-upload-artifact.sh FILE [options]
+  outpost-upload-artifact.sh FILE [options]
 
 Uploads a generated file from the current workspace to the current Outpost
 task, then creates an attachment-backed artifact work product by default.
@@ -29,15 +29,15 @@ Options:
   --help, -h             Show this help
 
 Examples:
-  bash scripts/paperclip-upload-artifact.sh dist/demo.mp4 \
+  bash scripts/outpost-upload-artifact.sh dist/demo.mp4 \
     --title "Demo video render" \
     --summary "Requested MP4 render"
 
-  bash scripts/paperclip-upload-artifact.sh out/walkthrough.webm \
+  bash scripts/outpost-upload-artifact.sh out/walkthrough.webm \
     --title "Walkthrough video" \
     --content-type video/webm
 
-  bash scripts/paperclip-upload-artifact.sh out/result.png \
+  bash scripts/outpost-upload-artifact.sh out/result.png \
     --title "Generated image" \
     --chat-comment "Here is the requested image."
 EOF
@@ -114,7 +114,7 @@ sha256_text() {
 }
 
 helper_state_directory() {
-  printf '%s' "${PAPERCLIP_HELPER_STATE_DIR:-${PAPERCLIP_WORKSPACE_CWD:-$PWD}/.paperclip/artifact-helper}"
+  printf '%s' "${PAPERCLIP_HELPER_STATE_DIR:-${PAPERCLIP_WORKSPACE_CWD:-$PWD}/.outpost/artifact-helper}"
 }
 
 helper_response_file() {
@@ -597,7 +597,7 @@ if [[ -n "$work_product_id" ]]; then
   printf -- '- Work product ID: `%s`\n' "$work_product_id"
 fi
 if [[ -n "$chat_comment" ]]; then
-  printf -- '- Paperclip comment binding: saved. External publication requires an authorized active chat origin; this helper does not confirm provider delivery.\n'
+  printf -- '- Outpost comment binding: saved. External publication requires an authorized active chat origin; this helper does not confirm provider delivery.\n'
 fi
 printf '\nFinal comment snippet:\n\n'
 printf -- '- Artifact: [%s](%s)\n' "$title" "$content_path"

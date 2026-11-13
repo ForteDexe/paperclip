@@ -1,7 +1,10 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
+  buildMcpInventory,
+  buildSkillInventory,
   buildInventories,
+  decodeInventory,
   encodeInventory,
   renderContractModule,
   renderDocumentation,
@@ -20,7 +23,7 @@ const evalRoot = process.env.PAPERCLIP_EVALS_ROOT
     for (const candidate of evalCandidates) {
       if (await access(candidate).then(() => true, () => false)) return candidate;
     }
-    throw new Error(`Outpost eval corpus not found. Set PAPERCLIP_EVALS_ROOT. Checked:\n${evalCandidates.join("\n")}`);
+    return null;
   })());
 const outputPaths = {
   capabilities: resolve(packageRoot, "spec/capability/capabilities.yaml"),
@@ -30,7 +33,13 @@ const outputPaths = {
   documentation: resolve(packageRoot, "docs/capability-contract.md"),
 };
 
-const inventories = await buildInventories({ repoRoot, evalRoot });
+const inventories = evalRoot
+  ? await buildInventories({ repoRoot, evalRoot })
+  : {
+      capabilities: await buildSkillInventory(repoRoot),
+      evaluations: decodeInventory(await readFile(outputPaths.evaluations, "utf8")),
+      legacyMcpAliases: await buildMcpInventory(repoRoot),
+    };
 const inventorySchema = JSON.parse(await readFile(resolve(packageRoot, "spec/capability/inventory.schema.json"), "utf8"));
 const errors = [
   ...validateInventorySchema(inventories, inventorySchema),

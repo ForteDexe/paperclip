@@ -17,6 +17,7 @@ import type { PaperclipSkillEntry } from "@paperclipai/adapter-utils/server-util
 import { isToolConnectionAttentionHealth } from "@paperclipai/shared";
 import {
   PAPERCLIP_OPERATIONAL_SKILL_KEY,
+  resolveNativeOutpostDesiredSkillNames,
   resolvePaperclipDesiredSkillNames,
 } from "@paperclipai/adapter-utils/server-utils";
 import {
@@ -291,9 +292,9 @@ export async function rehydratePinnedSkillAssets(
 }
 
 export async function materializeSelectedSkills(runtimeConfig: Record<string, unknown>, entries: PaperclipSkillEntry[], omitLegacy: boolean) {
-  const desiredKeys = resolvePaperclipDesiredSkillNames(runtimeConfig, entries).filter(
-    (key) => !omitLegacy || key !== PAPERCLIP_OPERATIONAL_SKILL_KEY,
-  );
+  const desiredKeys = (omitLegacy
+    ? resolveNativeOutpostDesiredSkillNames(runtimeConfig, entries)
+    : resolvePaperclipDesiredSkillNames(runtimeConfig, entries));
   const byKey = new Map(entries.map((entry) => [entry.key, entry]));
   return Promise.all(desiredKeys.sort().map(async (key) => {
     const entry = byKey.get(key);

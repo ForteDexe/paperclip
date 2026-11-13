@@ -8,7 +8,7 @@ import {
   buildRuntimeMountedSkillSnapshot,
   readPaperclipRuntimeSkillEntries,
   resolveLegacyPaperclipDesiredSkillNames,
-  resolvePaperclipDesiredSkillNames,
+  resolveNativeOutpostDesiredSkillNames,
 } from "@paperclipai/adapter-utils/server-utils";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +19,7 @@ async function buildCodexSkillSnapshot(
 ): Promise<AdapterSkillSnapshot> {
   const availableEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
   const desiredSkills = adapterType === "paperclip_runner"
-    ? resolvePaperclipDesiredSkillNames(config, availableEntries)
+    ? resolveNativeOutpostDesiredSkillNames(config, availableEntries)
     : resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
   return buildRuntimeMountedSkillSnapshot({
     adapterType,

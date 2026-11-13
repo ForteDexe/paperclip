@@ -123,7 +123,7 @@ export interface SandboxCallbackBridgeRouteRule {
 // still enforces actor-level permissions on top of this allowlist; the list
 // exists to bound the surface area a compromised CLI could reach via the
 // reverse bridge. Keep this in sync with the Paperclip skill in
-// `skills/paperclip/SKILL.md` and `references/api-reference.md`.
+// `skills/outpost-task/SKILL.md` and `references/api-reference.md`.
 export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCallbackBridgeRouteRule[] = [
   // Runtime capability authentication is independently checked by the controller.
   { method: "POST", path: /^\/runtime-tools\/github\/credentials$/ },

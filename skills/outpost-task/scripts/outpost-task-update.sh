@@ -5,20 +5,20 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/paperclip-issue-update.sh [--issue-id ID] [--status STATUS] [--comment TEXT] [--dry-run]
+  scripts/outpost-task-update.sh [--task-id ID] [--status STATUS] [--comment TEXT] [--dry-run]
 
 Reads a multiline markdown comment from stdin when stdin is piped. This preserves
 newlines when building the JSON payload for PATCH /api/issues/{issueId}.
 
 Examples:
-  scripts/paperclip-issue-update.sh --issue-id "$PAPERCLIP_TASK_ID" --status in_progress <<'MD'
+  scripts/outpost-task-update.sh --task-id "$PAPERCLIP_TASK_ID" --status in_progress <<'MD'
   Investigating formatting
 
   - Pulled the raw comment body
   - Comparing it with the run transcript
   MD
 
-  scripts/paperclip-issue-update.sh --issue-id "$PAPERCLIP_TASK_ID" --status done --dry-run <<'MD'
+  scripts/outpost-task-update.sh --task-id "$PAPERCLIP_TASK_ID" --status done --dry-run <<'MD'
   Done
 
   - Fixed the issue update helper
@@ -40,7 +40,7 @@ dry_run=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --issue-id)
+    --task-id|--issue-id)
       issue_id="${2:-}"
       shift 2
       ;;
@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$issue_id" ]]; then
-  printf 'Missing issue id. Pass --issue-id or set PAPERCLIP_TASK_ID.\n' >&2
+  printf 'Missing task id. Pass --task-id or set PAPERCLIP_TASK_ID.\n' >&2
   exit 1
 fi
 
@@ -132,13 +132,13 @@ while :; do
 
   if [[ "$curl_exit" -eq 0 && "$http_code" == 2* ]]; then
     if [[ -z "$body" ]]; then
-      printf 'Issue update FAILED: HTTP %s with an empty response body. A real update echoes the issue JSON; treat this write as not saved.\n' "$http_code" >&2
+      printf 'Task update FAILED: HTTP %s with an empty response body. A real update echoes the task JSON; treat this write as not saved.\n' "$http_code" >&2
       exit 1
     fi
     if [[ -n "$status" ]]; then
       returned_status="$(jq -r '.status // empty' <<<"$body" 2>/dev/null || true)"
       if [[ "$returned_status" != "$status" ]]; then
-        printf 'Issue update FAILED: server echoed status %s instead of requested %s.\n' "${returned_status:-<none>}" "$status" >&2
+        printf 'Task update FAILED: server echoed status %s instead of requested %s.\n' "${returned_status:-<none>}" "$status" >&2
         printf '%s\n' "$body" >&2
         exit 1
       fi
@@ -149,18 +149,18 @@ while :; do
 
   # 4xx (other than 429) is a definitive rejection; retrying cannot change it.
   if [[ "$curl_exit" -eq 0 && "$http_code" == 4* && "$http_code" != "429" ]]; then
-    printf 'Issue update rejected (HTTP %s).\n' "$http_code" >&2
+    printf 'Task update rejected (HTTP %s).\n' "$http_code" >&2
     [[ -n "$body" ]] && printf '%s\n' "$body" >&2
     exit 1
   fi
 
   if (( attempt >= max_attempts )); then
-    printf 'Issue update FAILED after %d attempts (curl exit %s, HTTP %s). The status/comment was NOT saved — report this write as failed, do not assume it landed.\n' "$max_attempts" "$curl_exit" "${http_code:-000}" >&2
+    printf 'Task update FAILED after %d attempts (curl exit %s, HTTP %s). The status/comment was NOT saved — report this write as failed, do not assume it landed.\n' "$max_attempts" "$curl_exit" "${http_code:-000}" >&2
     [[ -n "$body" ]] && printf '%s\n' "$body" >&2
     exit 1
   fi
 
-  printf 'Issue update attempt %d/%d failed (curl exit %s, HTTP %s); retrying...\n' "$attempt" "$max_attempts" "$curl_exit" "${http_code:-000}" >&2
+  printf 'Task update attempt %d/%d failed (curl exit %s, HTTP %s); retrying...\n' "$attempt" "$max_attempts" "$curl_exit" "${http_code:-000}" >&2
   sleep $((attempt * 2))
   attempt=$((attempt + 1))
 done

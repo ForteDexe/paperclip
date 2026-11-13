@@ -16,6 +16,7 @@ import { heartbeatService } from "../services/heartbeat.js";
 import { bindHeartbeatRunnerHomeMode, prepareHeartbeatExecutionConfiguration, type HeartbeatExecutionConfigurationInput } from "../services/heartbeat/execution-configuration.js";
 import { buildEffectiveRunSessionConfigMetadata, resolveTaskSessionConfigFreshness } from "../services/heartbeat/workspaces.js";
 import { aiConnectionBindingSchema, type Environment } from "@paperclipai/shared";
+import { PAPERCLIP_OPERATIONAL_SKILL_KEY } from "@paperclipai/adapter-utils/server-utils";
 import { secretService } from "../services/secrets.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { aiConnectionService } from "../services/ai-connections.js";
@@ -670,7 +671,7 @@ describePostgres("heartbeat execution configuration through adapter dispatch", (
     } finally { release(); await holder; }
     const result = await pending;
     expect(result.prepared).toBe(true);
-    if (result.prepared) expect(result.runtimeSkillEntries.some(entry => entry.key === (kind === "selected native" ? selected.key : "paperclipai/paperclip/paperclip"))).toBe(true);
+    if (result.prepared) expect(result.runtimeSkillEntries.some(entry => entry.key === (kind === "selected native" ? selected.key : PAPERCLIP_OPERATIONAL_SKILL_KEY))).toBe(true);
   });
 
   it("applies project environment and issue overrides and replaces caller-supplied runtime fields", async () => {

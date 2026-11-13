@@ -2,15 +2,19 @@
   "schemaVersion": 1,
   "dispositions": ["control_plane_owned", "always_agent_tool", "optional_agent_tool"],
   "skillSources": [
-    "skills/paperclip/SKILL.md",
-    "skills/paperclip/references/api-reference.md",
-    "skills/paperclip/references/artifacts.md",
-    "skills/paperclip/references/cases.md",
-    "skills/paperclip/references/company-skills.md",
-    "skills/paperclip/references/issue-documents.md",
-    "skills/paperclip/references/issue-workspaces.md",
-    "skills/paperclip/references/routines.md",
-    "skills/paperclip/references/workflows.md"
+    "skills/outpost-task/SKILL.md",
+    "skills/outpost-task/references/api-reference.md",
+    "skills/outpost-task/references/task-documents.md",
+    "skills/outpost-decision/SKILL.md",
+    "skills/outpost-decision/references/api-reference.md",
+    "skills/outpost-artifact/SKILL.md",
+    "skills/outpost-artifact/references/api-reference.md",
+    "skills/outpost-case/SKILL.md",
+    "skills/outpost-case/references/api-reference.md",
+    "skills/outpost-north-star/SKILL.md",
+    "skills/outpost-north-star/references/api-reference.md",
+    "skills/outpost-delegation/SKILL.md",
+    "skills/outpost-delegation/references/api-reference.md"
   ],
   "toolMappings": {
     "paperclipMe": ["control_plane_owned", "injected_actor_context"],

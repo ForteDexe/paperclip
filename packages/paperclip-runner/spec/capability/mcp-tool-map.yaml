@@ -11,10 +11,10 @@
     {
       "id": "mcp:paperclipMe",
       "name": "paperclipMe",
-      "description": "Get the current authenticated Paperclip actor details",
+      "description": "Get the current authenticated Outpost actor details",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:290",
-      "expectedSemantics": "Get the current authenticated Paperclip actor details",
+      "expectedSemantics": "Get the current authenticated Outpost actor details",
       "foldedInto": "eval:hb-inbox-lite-01",
       "evidenceId": "mcp:paperclipMe"
     },
@@ -31,20 +31,20 @@
     {
       "id": "mcp:paperclipListAgents",
       "name": "paperclipListAgents",
-      "description": "List agents in a company",
+      "description": "List agents in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:302",
-      "expectedSemantics": "List agents in a company",
+      "expectedSemantics": "List agents in an Outpost",
       "foldedInto": "eval:rf-api-mgr-heartbeat-01",
       "evidenceId": "mcp:paperclipListAgents"
     },
     {
       "id": "mcp:paperclipListSkills",
       "name": "paperclipListSkills",
-      "description": "List the company skill library (all installed skills, independent of which agents have them enabled)",
+      "description": "List the Outpost skill library (all installed skills, independent of which agents have them enabled)",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:308",
-      "expectedSemantics": "List the company skill library (all installed skills, independent of which agents have them enabled)",
+      "expectedSemantics": "List the Outpost skill library (all installed skills, independent of which agents have them enabled)",
       "foldedInto": "eval:rf-cskill-audit-01",
       "evidenceId": "mcp:paperclipListSkills"
     },
@@ -61,10 +61,10 @@
     {
       "id": "mcp:paperclipListIssues",
       "name": "paperclipListIssues",
-      "description": "List issues for a company with optional filters",
+      "description": "List issues for an Outpost with optional filters",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:323",
-      "expectedSemantics": "List issues for a company with optional filters",
+      "expectedSemantics": "List issues for an Outpost with optional filters",
       "foldedInto": "eval:se-q-filters-01",
       "evidenceId": "mcp:paperclipListIssues"
     },
@@ -151,20 +151,20 @@
     {
       "id": "mcp:paperclipListProjects",
       "name": "paperclipListProjects",
-      "description": "List projects in a company",
+      "description": "List projects in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:402",
-      "expectedSemantics": "List projects in a company",
+      "expectedSemantics": "List projects in an Outpost",
       "foldedInto": "eval:rf-wf-project-setup-01",
       "evidenceId": "mcp:paperclipListProjects"
     },
     {
       "id": "mcp:paperclipGetProject",
       "name": "paperclipGetProject",
-      "description": "Get a project by id or company-scoped short reference",
+      "description": "Get a project by id or Outpost-scoped short reference",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:408",
-      "expectedSemantics": "Get a project by id or company-scoped short reference",
+      "expectedSemantics": "Get a project by id or Outpost-scoped short reference",
       "foldedInto": "eval:rf-wf-project-setup-01",
       "evidenceId": "mcp:paperclipGetProject"
     },
@@ -201,30 +201,30 @@
     {
       "id": "mcp:paperclipListGoals",
       "name": "paperclipListGoals",
-      "description": "List goals in a company",
+      "description": "List North Stars in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:466",
-      "expectedSemantics": "List goals in a company",
+      "expectedSemantics": "List North Stars in an Outpost",
       "foldedInto": "eval:su-parent-goal-01",
       "evidenceId": "mcp:paperclipListGoals"
     },
     {
       "id": "mcp:paperclipGetGoal",
       "name": "paperclipGetGoal",
-      "description": "Get a goal by id",
+      "description": "Get a North Star by id",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:472",
-      "expectedSemantics": "Get a goal by id",
+      "expectedSemantics": "Get a North Star by id",
       "foldedInto": "eval:su-parent-goal-01",
       "evidenceId": "mcp:paperclipGetGoal"
     },
     {
       "id": "mcp:paperclipListApprovals",
       "name": "paperclipListApprovals",
-      "description": "List approvals in a company",
+      "description": "List approvals in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:478",
-      "expectedSemantics": "List approvals in a company",
+      "expectedSemantics": "List approvals in an Outpost",
       "foldedInto": "eval:ap-approval-wake-01",
       "evidenceId": "mcp:paperclipListApprovals"
     },
@@ -421,10 +421,10 @@
     {
       "id": "mcp:paperclipApiRequest",
       "name": "paperclipApiRequest",
-      "description": "Make a JSON request to an existing Paperclip /api endpoint for unsupported operations",
+      "description": "Make a JSON request to an existing Outpost /api endpoint for unsupported operations",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:677",
-      "expectedSemantics": "Make a JSON request to an existing Paperclip /api endpoint for unsupported operations",
+      "expectedSemantics": "Make a JSON request to an existing Outpost /api endpoint for unsupported operations",
       "foldedInto": "eval:rf-api-404-report-01",
       "evidenceId": "mcp:paperclipApiRequest"
     }

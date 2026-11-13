@@ -3878,6 +3878,7 @@ export async function listPaperclipSkillEntries(
       "para-memory-files",
       "slack",
       "suggestion-box",
+      "paperclip",
     ]);
     const dirs = entries.filter((entry) => entry.isDirectory() && !retiredBundledSkills.has(entry.name));
     return dirs.map((entry) => ({
@@ -4330,7 +4331,41 @@ export function resolvePaperclipDesiredSkillNames(
  * resolver above.
  */
 export const PAPERCLIP_OPERATIONAL_SKILL_KEY =
-  "paperclipai/paperclip/paperclip";
+  "paperclipai/paperclip/outpost-task";
+
+/** Focused Outpost capabilities mounted for local Codex and Claude agents. */
+export const OUTPOST_REQUIRED_SKILL_KEYS = [
+  PAPERCLIP_OPERATIONAL_SKILL_KEY,
+  "paperclipai/paperclip/outpost-decision",
+  "paperclipai/paperclip/outpost-artifact",
+  "paperclipai/paperclip/outpost-case",
+  "paperclipai/paperclip/outpost-north-star",
+  "paperclipai/paperclip/outpost-delegation",
+] as const;
+
+export const OUTPOST_NATIVE_REQUIRED_SKILL_KEYS = OUTPOST_REQUIRED_SKILL_KEYS.filter(
+  (key) => key !== PAPERCLIP_OPERATIONAL_SKILL_KEY,
+);
+
+/**
+ * Native runners already receive the task lifecycle through PRP. Mount the
+ * remaining focused Outpost capabilities so their descriptions can trigger
+ * on demand without duplicating the task protocol in every prompt.
+ */
+export function resolveNativeOutpostDesiredSkillNames(
+  config: Record<string, unknown>,
+  availableEntries: Array<{ key: string; runtimeName?: string | null }>,
+): string[] {
+  const desiredSkills = resolvePaperclipDesiredSkillNames(config, availableEntries)
+    .filter((key) => key !== PAPERCLIP_OPERATIONAL_SKILL_KEY);
+  const requiredEntries = OUTPOST_NATIVE_REQUIRED_SKILL_KEYS.flatMap((requiredKey) => {
+    const match = availableEntries.find(
+      (entry) => entry.key.trim().toLowerCase() === requiredKey,
+    );
+    return match ? [match.key] : [];
+  });
+  return Array.from(new Set([...requiredEntries, ...desiredSkills]));
+}
 
 /**
  * Native Paperclip Runner sessions receive the control-plane contract through
@@ -4393,13 +4428,14 @@ export function resolveLegacyPaperclipDesiredSkillNames(
     config,
     availableEntries,
   );
-  const operationalEntry = availableEntries.find(
-    (entry) =>
-      entry.key.trim().toLowerCase() === PAPERCLIP_OPERATIONAL_SKILL_KEY,
-  );
-  if (!operationalEntry) return desiredSkills;
+  const requiredEntries = OUTPOST_REQUIRED_SKILL_KEYS.flatMap((requiredKey) => {
+    const match = availableEntries.find(
+      (entry) => entry.key.trim().toLowerCase() === requiredKey,
+    );
+    return match ? [match.key] : [];
+  });
 
-  return Array.from(new Set([operationalEntry.key, ...desiredSkills]));
+  return Array.from(new Set([...requiredEntries, ...desiredSkills]));
 }
 
 export function writePaperclipSkillSyncPreference(

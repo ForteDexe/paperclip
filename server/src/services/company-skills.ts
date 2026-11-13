@@ -668,9 +668,14 @@ function readCanonicalSkillKey(frontmatter: Record<string, unknown>, metadata: R
   );
 }
 
-/** The sole bundled operating skill used to access the Outpost control plane. */
+/** Focused bundled skills used by Outpost agents. */
 export const PAPERCLIP_CORE_SKILL_KEYS = [
-  "paperclipai/paperclip/paperclip",
+  "paperclipai/paperclip/outpost-task",
+  "paperclipai/paperclip/outpost-decision",
+  "paperclipai/paperclip/outpost-artifact",
+  "paperclipai/paperclip/outpost-case",
+  "paperclipai/paperclip/outpost-north-star",
+  "paperclipai/paperclip/outpost-delegation",
 ] as const;
 
 function deriveCanonicalSkillKey(
@@ -3108,7 +3113,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
   }
 
   async function ensureBundledSkillReleases(companyId: string, bundledSkills: CompanySkill[]) {
-    const paperclipSkill = bundledSkills.find((skill) => skill.key === "paperclipai/paperclip/paperclip");
+    const paperclipSkill = bundledSkills.find((skill) => skill.key === "paperclipai/paperclip/outpost-task");
     if (!paperclipSkill) return;
     for (const release of await readBundledSkillReleaseRegistry()) {
       const fileInventory = serializeVersionFileInventory(

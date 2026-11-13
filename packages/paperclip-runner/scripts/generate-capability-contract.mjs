@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../..");
@@ -30,7 +30,7 @@ function classifyHeading(path, heading) {
   if (/(authentication|identity|checkout|budget|error|wake|heartbeat|approval follow-up|activity|audit|release|terminology)/.test(normalized)) {
     return "control_plane_owned";
   }
-  if (/(artifact|comment|document|plan|interaction|final disposition|work product|report|question)/.test(normalized)) {
+  if (/(artifact|comment|document|plan|interaction|confirmation|final disposition|work product|report|question)/.test(normalized)) {
     return "always_agent_tool";
   }
   if (/(company|agent|project|goal|routine|workspace|approval|case|secret|import|export|skill)/.test(normalized) || path.includes("api-reference")) {
@@ -46,7 +46,7 @@ function semanticOperation(disposition, heading) {
   if (normalized.includes("document") || normalized.includes("plan")) return "write_document";
   if (normalized.includes("comment") || normalized.includes("report")) return "report_progress";
   if (normalized.includes("artifact") || normalized.includes("work product")) return "register_deliverable";
-  if (normalized.includes("interaction") || normalized.includes("question")) return "request_human_input";
+  if (normalized.includes("interaction") || normalized.includes("confirmation") || normalized.includes("question")) return "request_human_input";
   return disposition === "always_agent_tool" ? "get_task_context" : "scoped_discovery";
 }
 
@@ -209,7 +209,7 @@ export async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((error) => {
     console.error(error.message);
     process.exitCode = 1;

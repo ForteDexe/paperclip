@@ -59,7 +59,7 @@ describeDatabase("goal parent company validation", () => {
       .then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(HttpError);
     expect((failure as HttpError).status).toBe(422);
-    expect((failure as Error).message).toBe("Parent goal not found in this company");
+    expect((failure as Error).message).toBe("Parent north star not found in this company");
     expect(await service.list(home)).toEqual([]);
     expect(await service.getById(parent.id)).toMatchObject({ companyId: foreign });
   });
@@ -75,7 +75,7 @@ describeDatabase("goal parent company validation", () => {
       .then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(HttpError);
     expect((failure as HttpError).status).toBe(422);
-    expect((failure as Error).message).toBe("Parent goal not found in this company");
+    expect((failure as Error).message).toBe("Parent north star not found in this company");
     const [stored] = await db.select().from(goals).where(eq(goals.id, child.id));
     expect(stored).toMatchObject({ companyId: home, title: "Original", parentId: parent.id });
   });
@@ -92,7 +92,7 @@ describeDatabase("goal parent company validation", () => {
       const failure = await write().then(() => null, (error: unknown) => error);
       expect(failure).toBeInstanceOf(HttpError);
       expect((failure as HttpError).status).toBe(422);
-      expect((failure as Error).message).toBe("Parent goal not found in this company");
+      expect((failure as Error).message).toBe("Parent north star not found in this company");
     }
     expect(await service.list(companyId)).toMatchObject([{ id: child.id, title: "Original", parentId: null }]);
   });

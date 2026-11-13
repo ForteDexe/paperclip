@@ -11,11 +11,11 @@ the authoritative rows.
 
 Only two sources are normative:
 
-1. The Outpost skill and its seven references (`SKILL.md` plus
-   `references/*.md`), contributing **153 headings**.
+1. The focused Outpost skills and their references (`skills/outpost-*`),
+   contributing **29 headings**.
 2. The Outpost Evals corpus, contributing **106 cases across 16 groups**.
 
-Together these produce **259 normative rows**. The legacy Outpost MCP tool
+Together these produce **135 normative rows**. The legacy Outpost MCP tool
 surface (**41 tools**) is not a production capability surface; each MCP name is
 folded one-to-one into a normative eval row as a traceability alias and inherits
 that row's disposition. The contract prints the alias index only so the

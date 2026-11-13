@@ -3,7 +3,7 @@ import type { AuthorizationActor } from "../authorization.js";
 import { eq, sql } from "drizzle-orm";
 import { heartbeatRuns, type Db, type agents, type projects } from "@paperclipai/db";
 import type { AiConnectionBinding } from "@paperclipai/shared";
-import { readPaperclipSkillSyncPreference, resolvePaperclipDesiredSkillNames, resolveLegacyPaperclipDesiredSkillNames,
+import { readPaperclipSkillSyncPreference, resolveNativeOutpostDesiredSkillNames, resolveLegacyPaperclipDesiredSkillNames,
   writePaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
 import { parseObject } from "../../adapters/utils.js";
 import { logger } from "../../middleware/logger.js";
@@ -301,7 +301,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
           const desiredKeys = hasStoredVersions
             ? Object.keys(storedVersions)
             : agent.adapterType === "paperclip_runner"
-              ? resolvePaperclipDesiredSkillNames(effectiveResolvedConfig, available)
+              ? resolveNativeOutpostDesiredSkillNames(effectiveResolvedConfig, available)
               : resolveLegacyPaperclipDesiredSkillNames(effectiveResolvedConfig, available);
           const selectedKeys = new Set(desiredKeys.filter(key => availableKeys.has(key)));
           const resolved = available.filter(entry => selectedKeys.has(entry.key));

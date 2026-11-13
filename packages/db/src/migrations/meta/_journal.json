@@ -3298,6 +3298,13 @@
       "when": 1794592586038,
       "tag": "0472_explicit_agent_creation_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 473,
+      "version": "7",
+      "when": 1794597665601,
+      "tag": "0473_outpost_focused_skills",
+      "breakpoints": true
     }
   ]
 }
