@@ -7,7 +7,6 @@
 // It replaces this sequence, with the same results:
 //   pnpm install --frozen-lockfile
 //   pnpm --filter @outpost/plugin-sdk ensure-build-deps
-//   pnpm --filter @outpost/outpost-runner run ensure:eval-build-deps
 //   pnpm --filter @outpost/outpost-runner run build:rust
 //   pnpm --filter @outpost/outpost-runner build
 //   pnpm --filter @outpost/outpost-runner run build:runner-binaries
@@ -36,7 +35,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  cacheRoot, cloneInto, EVAL_KERNEL_PACKAGE, globFiles, hashFiles, makeKey, publishEntry, readEntry, removeTree,
+  cacheRoot, cloneInto, globFiles, hashFiles, makeKey, publishEntry, readEntry, removeTree,
   RUNNER_PACKAGE, scrubSeed, seedIsScrubbed, toolchainIdentity,
 } from "./agent-build-cache.mjs";
 import { DEBUG_INPUTS, debugContract } from "./runner-debug-crate-cache.mjs";
@@ -105,9 +104,9 @@ function installStep(root, options, toolchain) {
 
 // @outpost/plugin-sdk exports its built dist rather than its TypeScript
 // source, so plugin workers can load it under plain Node. Apart from the
-// Runner and eval kernel, which the Runner build step covers, it is the only
+// Runner, which its own build step covers, it is the only
 // workspace package the server imports that way. The server (and anything that imports
-// server modules, such as the restart-chaos harness) cannot start without it.
+// server modules cannot start without it.
 // ensure-plugin-build-deps builds it and its @outpost/shared dependency,
 // skips both when its content fingerprints show the outputs are current, and
 // takes the same lock as its other callers (CI, `outpost run`, typecheck).
@@ -179,7 +178,7 @@ function publishSeed(root, cache, toolchain, bins) {
 
 // --- Runner build (dist) ---------------------------------------------------
 
-const DIST_TREES = [`${RUNNER_PACKAGE}/dist`, `${EVAL_KERNEL_PACKAGE}/dist`];
+const DIST_TREES = [`${RUNNER_PACKAGE}/dist`];
 
 function runnerDistKey(digest, toolchain) {
   return makeKey("runner-dist", { digest, toolchain });

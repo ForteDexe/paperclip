@@ -40,7 +40,7 @@ export const SPEED_BUDGET_BASELINE = "2026-11-07-ttft-baseline (local)";
 export const SPEED_BUDGET_EXCEEDED_EVENT_TYPE = "run.performance.budget_exceeded";
 
 /** The provider events the baseline counts as a recovered run's next event
- * (tests/restart-chaos/ttft-baseline-stats.ts). Diagnostics do not count. */
+ * from historical timing baselines. Diagnostics do not count. */
 export const RESTART_RECOVERY_PROVIDER_EVENT_TYPES: ReadonlySet<string> = new Set([
   "turn.submitted", "turn.started", "turn.accepted", "item.started", "item.delta", "item.completed",
   "tool.execution.started", "tool.execution.progressed", "tool.execution.completed", "session.resumed",

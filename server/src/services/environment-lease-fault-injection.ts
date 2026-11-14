@@ -1,8 +1,6 @@
 /**
- * Restart-chaos fault EP1 (tests/restart-chaos/env-provider-faults.ts): make a
- * run's lease acquisition fail before any provider call, in the exact shapes
- * staging recorded, so the bounded retry and Retry paths can be exercised on a
- * local instance without a paid sandbox provider.
+ * Test-only lease fault: make a run's lease acquisition fail before any
+ * provider call so bounded retry and Retry paths can be exercised locally.
  *
  * Arming (test mode only; ignored when NODE_ENV=production):
  *

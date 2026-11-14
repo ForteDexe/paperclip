@@ -68,6 +68,9 @@ const retiredInfrastructure = [
   "packages/outpost-runner/scripts/materialize-opencode-binary.mjs",
   "packages/outpost-runner/scripts/materialize-opencode-binary.test.mjs",
   "packages/outpost-runner/scripts/qualify-opencode-runtime.test.mjs",
+  ".github/workflows/crash-points.yml",
+  "scripts/crash-points.mjs",
+  "tests/restart-chaos",
 ];
 
 async function exists(relativePath) {

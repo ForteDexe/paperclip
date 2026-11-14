@@ -4,8 +4,8 @@
  * `crashPoint(name)` marks a durable write boundary: the gap between two durable
  * writes, or between an outside effect and the record of its outcome. A restart
  * that lands in that gap leaves an in-progress record owned by a dead process.
- * The crash-point suite (`pnpm crash-points`) kills the control plane at each
- * named gap on purpose instead of hoping random chaos timing finds it.
+ * Focused fault-injection tests can stop the control plane at a named gap
+ * instead of hoping random timing reaches it.
  *
  * Arming (test mode only):
  *
@@ -24,8 +24,8 @@
  * killing the process, once. An optional `pid=<n>` binds a line to one process, so a
  * server started earlier (still draining) never counts its hits. The call site may name the error its real step throws
  * (`crashPoint(name, { fail: () => conflict("...") })`); otherwise it throws
- * `CrashPointInjectedFailure`. The restart-chaos harness uses it to fail the Nth
- * attempt of a recovery step (`--fail-recovery-step`), so recovery chains are exercised.
+ * `CrashPointInjectedFailure`. Tests may use it to fail the Nth attempt of a
+ * recovery step so recovery chains are exercised.
  *
  * The variable is read once, when this module is first imported. It is ignored
  * when `NODE_ENV=production`, and an unknown name throws at import so a typo

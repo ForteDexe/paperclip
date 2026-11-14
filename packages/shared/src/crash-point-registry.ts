@@ -3,8 +3,8 @@
  * crash points"). Browser-safe data only; the helper is in `crash-points.ts`.
  *
  * Each point marks one durable write boundary. Add a point by adding an entry
- * here and one `crashPoint("<name>")` call at the boundary; see
- * tests/restart-chaos/README.md, "Crash-point suite".
+ * here and one `crashPoint("<name>")` call at the boundary. Focused tests may
+ * arm a point to verify recovery at that durable-write boundary.
  *
  * Name: `<subsystem>.<record>.<before|after>_<step>`, lower snake case.
  * `kinds` are ownable kind ids from server/src/services/recovery/ownership-registry.ts

@@ -238,6 +238,14 @@ are removed from the package test lane and command surface. The still-shared
 OpenCode transport branches remain part of the deferred provider migration and
 must not be mistaken for a supported user-facing harness.
 
+### Remote Restart-Chaos Campaign
+
+The paid, on-demand restart-chaos campaign targeted Daytona sandboxes, cloud
+storage faults, provider credentials, remote deployment waves, and fleet image
+behavior. Its 131-file harness, launcher, and GitHub workflow are removed from
+the local product. Small deterministic crash-point and fault-injection helpers
+remain where focused unit tests still exercise retained recovery behavior.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

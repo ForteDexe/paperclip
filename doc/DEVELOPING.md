@@ -1169,23 +1169,22 @@ Prepare a new or updated agent worktree with one command:
 node scripts/agent-preflight.mjs
 ```
 
-It does what `pnpm install --frozen-lockfile`, the plugin SDK's `ensure-build-deps`,
-the Runner's `ensure:eval-build-deps`, `build:rust`, `build` and
+It does what `pnpm install --frozen-lockfile`, the plugin SDK's
+`ensure-build-deps`, and the Runner's `build:rust`, `build` and
 `build:runner-binaries` did, and skips work whose inputs are unchanged:
 
 - **install** is skipped when the lockfile, every `package.json`, `patches/`, Node
   and pnpm match this worktree's last install.
 - **plugin SDK build** runs `scripts/ensure-plugin-build-deps.mjs`, which builds
   `@outpost/plugin-sdk` and its `@outpost/shared` dependency and skips
-  them when their content fingerprints match the last build. Like the Runner and
-  the eval kernel, the SDK is imported through its built `dist` (plugin workers
-  load it under plain Node), so the server and the restart-chaos harness cannot
-  start without it. Both compile in about two seconds, so they do not use the
+  them when their content fingerprints match the last build. The SDK is imported
+  through its built `dist` because plugin workers load it under plain Node, so
+  the server cannot start without it. It compiles quickly and does not use the
   shared cache.
 - **Runner build** is skipped when the Runner's build stamp is current. When another
   worktree built the same inputs (the build-input digest described under
-  "Reused Runner build in the server build", plus the compiler), the Runner and eval
-  kernel `dist` are cloned from the shared cache. A restore skips the build's lint
+  "Reused Runner build in the server build", plus the compiler), the Runner
+  `dist` is cloned from the shared cache. A restore skips the build's lint
   checks; CI runs them.
 - **Runner debug binaries** (`runner/target/debug`) are reused the same way, keyed
   by every file the Rust build reads.

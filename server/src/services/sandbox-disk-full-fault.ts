@@ -1,5 +1,5 @@
 /**
- * Test-only sandbox disk-full fault (restart-chaos DF1, tests/restart-chaos/disk-full-faults.ts).
+ * Test-only sandbox disk-full fault.
  *
  * A real full sandbox disk cannot be made on demand, locally or on Daytona. This hook makes a
  * final workspace save see what a full sandbox returns, and leaves every decision after that to
@@ -18,7 +18,7 @@
  *
  * The variable is read once, when this module is first imported, and is ignored when
  * `NODE_ENV=production`. Disarmed, the hook is one comparison against a module constant and
- * returns the save's own target. Only the chaos harness sets the variable, on the server it starts.
+ * returns the save's own target. Focused tests set the variable on their server.
  *
  * This is test instrumentation, not Telemetry or Observability: nothing is recorded or sent
  * anywhere unless a test arms a save.
