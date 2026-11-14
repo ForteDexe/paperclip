@@ -1,6 +1,5 @@
 import { registerRuntimeCommands } from "./commands/runtime.js";
 import { registerEmailCommands } from "./commands/client/email.js";
-import { registerMcpCommands } from "./commands/mcp.js";
 import { Command } from "commander";
 import { warnIfUnsupportedNodeVersion } from "@outpost/shared/node-version";
 import { productLabel } from "@outpost/shared/product-vocabulary";
@@ -275,7 +274,6 @@ auth
   .action(bootstrapDefaultAgentInvite);
 
 registerClientAuthCommands(auth);
-registerMcpCommands(program);
 
 async function main(): Promise<void> {
   warnIfUnsupportedNodeVersion(process.versions.node, (message) => console.warn(message));
