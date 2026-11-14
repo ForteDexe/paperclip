@@ -132,7 +132,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
       spaceId,
       adapterConfig,
       { ...ownerScopedConsumer, responsibleUserId: "user-1" },
-      { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
+      { adapterType: "codex_local", userSecretMediation: "owner_scoped" },
     );
 
     expect(resolved.config.env).toEqual({ GH_TOKEN: "ghp_owner_value" });
@@ -165,7 +165,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
         spaceId,
         adapterConfig,
         { ...ownerScopedConsumer, actorId: null, responsibleUserId: null },
-        { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
+        { adapterType: "codex_local", userSecretMediation: "owner_scoped" },
       ),
     ).rejects.toMatchObject({
       status: 422,
@@ -198,7 +198,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
       spaceId,
       adapterConfig,
       { ...ownerScopedConsumer, responsibleUserId: "user-1" },
-      { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
+      { adapterType: "codex_local", userSecretMediation: "owner_scoped" },
     );
 
     expect(resolved.config.env).toEqual({ SPACE_TOKEN: "space-secret-value" });
@@ -235,7 +235,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
         spaceId,
         adapterConfig,
         { ...ownerScopedConsumer, responsibleUserId: "user-1", allowedBindingIds: ["some-binding-id"] },
-        { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
+        { adapterType: "codex_local", userSecretMediation: "owner_scoped" },
       ),
     ).rejects.toMatchObject({
       status: 422,
@@ -273,7 +273,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
         spaceId,
         adapterConfig,
         { ...ownerScopedConsumer, responsibleUserId: "user-1", allowedBindingIds: [] },
-        { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
+        { adapterType: "codex_local", userSecretMediation: "owner_scoped" },
       ),
     ).rejects.toMatchObject({
       status: 422,
@@ -321,7 +321,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
         spaceId,
         adapterConfig,
         declaredConsumer,
-        { adapterType: "hermes_gateway" },
+        { adapterType: "codex_local" },
       ),
     ).rejects.toMatchObject({
       status: 422,
@@ -345,7 +345,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
       spaceId,
       adapterConfig,
       declaredConsumer,
-      { adapterType: "hermes_gateway" },
+      { adapterType: "codex_local" },
     );
     expect(resolved.config.env).toEqual({ GH_TOKEN: "ghp_owner_value" });
   });

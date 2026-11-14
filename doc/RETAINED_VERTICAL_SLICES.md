@@ -139,6 +139,10 @@ also no longer generate OpenClaw device credentials or special-case Hermes
 probe keys, and heartbeat metadata no longer assigns gateway-only timeout
 defaults. Gateway connection-failure markers and Hermes-specific failure-report
 suppression are removed, so failures from unsupported providers cannot be
-silently excluded. Remaining gateway branches in secret schemas, portability,
-UI registries, and shared compatibility contracts are tracked as subsequent
-dependency-guided removal work and are not considered retained.
+silently excluded. Top-level adapter-schema secret normalization and runtime
+resolution are removed because the retained Codex and Claude adapters use local
+authentication plus explicit environment-variable bindings; environment secret
+bindings remain supported. Space portability also no longer injects OpenClaw
+defaults. Remaining gateway branches in UI registries and shared compatibility
+contracts are tracked as subsequent dependency-guided removal work and are not
+considered retained.

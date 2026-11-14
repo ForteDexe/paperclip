@@ -217,65 +217,6 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
     expect(persistedAgents).toHaveLength(0);
   });
 
-  it("converts Hermes gateway apiKey strings into persisted secret refs", async () => {
-    const spaceId = await seedSpace();
-    const literalApiKey = `hermes-key-${randomUUID()}`;
-
-    const created = await createAgentLifecycle(db).requestCreation(spaceId, {
-      name: "Hermes Gateway",
-      role: "engineer",
-      status: "idle",
-      adapterType: "hermes_gateway",
-      adapterConfig: {
-        apiBaseUrl: "https://hermes.example",
-        apiKey: literalApiKey,
-      },
-      runtimeConfig: {},
-      spentMonthlyCents: 0,
-      lastHeartbeatAt: null,
-    });
-
-    const persistedRows = await db
-      .select()
-      .from(agents)
-      .where(eq(agents.id, created.id));
-    const persistedConfig = persistedRows[0]?.adapterConfig as Record<string, unknown>;
-    expect(JSON.stringify(persistedConfig)).not.toContain(literalApiKey);
-    expect(persistedConfig.apiKey).toMatchObject({
-      type: "secret_ref",
-      version: "latest",
-    });
-
-    const secretId = (persistedConfig.apiKey as { secretId: string }).secretId;
-    const bindings = await db
-      .select()
-      .from(spaceSecretBindings)
-      .where(and(
-        eq(spaceSecretBindings.spaceId, spaceId),
-        eq(spaceSecretBindings.targetType, "agent"),
-        eq(spaceSecretBindings.targetId, created.id),
-      ));
-    expect(bindings).toHaveLength(1);
-    expect(bindings[0]).toMatchObject({
-      secretId,
-      configPath: "apiKey",
-      versionSelector: "latest",
-      required: true,
-    });
-
-    const resolved = await secretService(db).resolveAdapterConfigForRuntime(
-      spaceId,
-      persistedConfig,
-      {
-        consumerType: "agent",
-        consumerId: created.id,
-      },
-      { adapterType: "hermes_gateway" },
-    );
-    expect(resolved.config.apiKey).toBe(literalApiKey);
-    expect(JSON.stringify(persistedConfig)).not.toContain(literalApiKey);
-  });
-
   it("replaces agent secret bindings when adapterConfig env changes", async () => {
     const spaceId = await seedSpace();
     const secrets = secretService(db);
