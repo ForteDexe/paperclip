@@ -9357,9 +9357,9 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/plugins/examples",
+  path: "/api/plugins/bundled",
   tags: ["plugins"],
-  summary: "List example plugins",
+  summary: "List bundled plugins",
   responses: { 200: r.ok() },
 });
 

@@ -152,19 +152,17 @@ describe("plugin install and upgrade authz", () => {
   it("lists bundled monorepo plugin packages", async () => {
     const { app } = await createApp(operatorActor());
 
-    const res = await request(app).get("/api/plugins/examples");
+    const res = await request(app).get("/api/plugins/bundled");
 
     expect(res.status).toBe(200);
     const packageNames = res.body.map((plugin: { packageName: string }) => plugin.packageName);
     const byPackageName = new Map<string, { experimental: boolean; hasBuiltEntrypoints: boolean }>(
       res.body.map((plugin: { packageName: string; experimental: boolean; hasBuiltEntrypoints: boolean }) => [plugin.packageName, plugin]),
     );
-    expect(packageNames).toContain("@outpost/plugin-workspace-diff");
-    expect(packageNames).toContain("@outpost/plugin-authoring-smoke-example");
+    expect(packageNames).toContain("@forted/plugin-campfire");
     expect(packageNames).not.toContain("@outpost/plugin-sdk");
-    expect(byPackageName.get("@outpost/plugin-workspace-diff")?.experimental).toBe(true);
-    expect(byPackageName.get("@outpost/plugin-authoring-smoke-example")?.experimental).toBe(false);
-    expect(typeof byPackageName.get("@outpost/plugin-workspace-diff")?.hasBuiltEntrypoints).toBe("boolean");
+    expect(byPackageName.get("@forted/plugin-campfire")?.experimental).toBe(false);
+    expect(typeof byPackageName.get("@forted/plugin-campfire")?.hasBuiltEntrypoints).toBe("boolean");
   }, 20_000);
 
   it("rejects plugin installation for non-admin operator users", async () => {
@@ -1204,7 +1202,7 @@ describe("operator-hidden plugin management floor", () => {
     readyPlugin();
 
     const attempts: Array<[string, request.Test]> = [
-      ["install", request(app).post("/api/plugins/install").send({ packageName: "@outpost/plugin-workspace-diff" })],
+      ["install", request(app).post("/api/plugins/install").send({ packageName: "@forted/plugin-campfire" })],
       ["uninstall", request(app).delete(`/api/plugins/${pluginId}`)],
       ["enable", request(app).post(`/api/plugins/${pluginId}/enable`)],
       ["disable", request(app).post(`/api/plugins/${pluginId}/disable`).send({})],
@@ -1234,7 +1232,7 @@ describe("operator-hidden plugin management floor", () => {
   it("keeps plugin reads open while the surface is hidden", async () => {
     const { app } = await createApp(operatorActor());
 
-    const res = await request(app).get("/api/plugins/examples");
+    const res = await request(app).get("/api/plugins/bundled");
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
   }, 20_000);

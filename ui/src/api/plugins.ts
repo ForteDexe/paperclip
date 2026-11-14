@@ -220,7 +220,7 @@ export const pluginsApi = {
    * List bundled plugin packages available from the current repo checkout.
    */
   listBundled: () =>
-    api.get<AvailableBundledPlugin[]>("/plugins/examples"),
+    api.get<AvailableBundledPlugin[]>("/plugins/bundled"),
 
   /**
    * Fetch a single plugin record by its UUID or plugin key.

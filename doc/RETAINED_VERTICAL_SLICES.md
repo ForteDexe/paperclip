@@ -213,6 +213,12 @@ in the repository. Review evidence belongs in the pull request or review thread,
 as required by `CONTRIBUTING.md`; keeping it in `docs/pr-screenshots/` adds clone
 weight without supporting a retained runtime or user-facing feature.
 
+### Bundled Plugin Catalog
+
+Campfire is the retained first-party plugin. The generic example plugins and
+the former Workspace Diff plugin are removed; the plugin SDK, lifecycle,
+bundled-plugin discovery, and install UI remain available for Campfire.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

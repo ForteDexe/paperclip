@@ -23,8 +23,6 @@ export const PROGRAMS = [
   "packages/outpost-runner/tsconfig.browser.test.json",
   "packages/outpost-runner/tsconfig.surfaces.test.json",
   "packages/outpost-runner/tsconfig.test.json",
-  "packages/plugins/examples/plugin-orchestration-smoke-example/tsconfig.test.json",
-  "packages/plugins/plugin-workspace-diff/tsconfig.test.json",
   "packages/plugins/sdk/tsconfig.test.json",
   "tests/runner-acceptance/tsconfig.json",
   "tests/tsconfig.playwright.json",
@@ -35,7 +33,6 @@ export const CHECKED_ELSEWHERE = ["server/src/"];
 
 const PREPARE_STEPS = [
   ["--filter", "@outpost/plugin-sdk", "ensure-build-deps"],
-  ["--filter", "@outpost/outpost-runner", "run", "ensure:eval-build-deps"],
 ];
 export function findUncheckedTests({ trackedFiles, checkedFiles, checkedElsewhere = CHECKED_ELSEWHERE }) {
   const checked = new Set(checkedFiles);

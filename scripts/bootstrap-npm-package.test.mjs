@@ -37,7 +37,7 @@ test("parseArgs rejects unknown options", () => {
 
 test("validatePackageName accepts @outpost scoped names", () => {
   validatePackageName("@outpost/sample-package");
-  validatePackageName("@outpost/plugin-workspace-diff");
+  validatePackageName("@outpost/plugin-sdk");
 });
 
 test("validatePackageName rejects names outside the @outpost scope", () => {

@@ -625,14 +625,9 @@ export function WikiTree() {
 }
 ```
 
-Good fits:
-
-- Plugin page navigation in `packages/plugins/examples` builds a
-  `FileTreeNode[]` from worker query results and renders it through `FileTree`.
-- The example `plugin-file-browser-example` lazily fetches a directory's
-  children through a `loadFileList` action when `onToggleDir` fires, then
-  merges the children into the local tree state — letting the shared component
-  handle rendering and selection.
+Good fits include plugin page navigation that builds a `FileTreeNode[]` from
+worker query results and renders it through `FileTree`, with children loaded
+lazily when `onToggleDir` fires.
 
 Boundary rules:
 

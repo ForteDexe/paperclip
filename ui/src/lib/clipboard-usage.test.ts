@@ -17,10 +17,9 @@ function sourceFiles(root: URL): string[] {
 }
 
 describe("clipboard usage", () => {
-  it("routes core and first-party plugin copy actions through shared helpers", () => {
+  it("routes core copy actions through shared helpers", () => {
     const coreSource = new URL("../", import.meta.url);
-    const pluginSource = new URL("../../../packages/plugins/plugin-workspace-diff/src/ui/", import.meta.url);
-    const violations = [...sourceFiles(coreSource), ...sourceFiles(pluginSource)]
+    const violations = sourceFiles(coreSource)
       .filter((file) => !file.replaceAll("\\", "/").endsWith("/lib/clipboard.ts"))
       .filter((file) => DIRECT_CLIPBOARD_WRITE.test(readFileSync(file, "utf8")));
 

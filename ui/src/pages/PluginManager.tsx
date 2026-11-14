@@ -114,14 +114,14 @@ export function PluginManager() {
   const pluginsView = useQueryView(pluginsQuery);
 
   const bundledQuery = useQuery({
-    queryKey: queryKeys.plugins.examples,
+    queryKey: queryKeys.plugins.bundled,
     queryFn: () => pluginsApi.listBundled(),
   });
   const bundledView = useQueryView(bundledQuery);
 
   const invalidatePluginQueries = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.plugins.all });
-    queryClient.invalidateQueries({ queryKey: queryKeys.plugins.examples });
+    queryClient.invalidateQueries({ queryKey: queryKeys.plugins.bundled });
     queryClient.invalidateQueries({ queryKey: queryKeys.plugins.uiContributions });
   };
 

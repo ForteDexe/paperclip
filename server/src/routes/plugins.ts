@@ -183,9 +183,6 @@ const PLUGIN_SCOPED_API_RESPONSE_HEADER_ALLOWLIST = new Set([
 ]);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const EXPERIMENTAL_BUNDLED_PLUGIN_PACKAGE_NAMES = new Set([
-  "@outpost/plugin-workspace-diff",
-]);
 /**
  * Cached bundled-plugin discovery. Static metadata (name, key, display, paths)
  * is expensive to compute and never changes at runtime, so it is cached. The
@@ -298,11 +295,8 @@ async function bundledPluginMetadata(
   }
 }
 
-function isExperimentalBundledPlugin(packageRoot: string, packageName: string): boolean {
-  return (
-    EXPERIMENTAL_BUNDLED_PLUGIN_PACKAGE_NAMES.has(packageName)
-    || packageName.includes("sandbox")
-  );
+function isExperimentalBundledPlugin(packageName: string): boolean {
+  return packageName.includes("sandbox");
 }
 
 async function discoverBundledPlugins(): Promise<DiscoveredBundledPlugin[]> {
@@ -335,7 +329,7 @@ async function discoverBundledPlugins(): Promise<DiscoveredBundledPlugin[]> {
           ?? `Bundled Outpost plugin from ${path.relative(REPO_ROOT, packageRoot)}.`,
         localPath: packageRoot,
         tag,
-        experimental: isExperimentalBundledPlugin(packageRoot, packageName),
+        experimental: isExperimentalBundledPlugin(packageName),
       },
       packageRoot,
       pkgJson,
@@ -905,12 +899,12 @@ export function pluginRoutes(
   });
 
   /**
-   * GET /api/plugins/examples
+   * GET /api/plugins/bundled
    *
    * Return plugin packages bundled in this repo, if present.
    * These can be installed through the normal local-path install flow.
    */
-  router.get("/plugins/examples", async (req, res) => {
+  router.get("/plugins/bundled", async (req, res) => {
     assertOperatorOrgAccess(req);
     res.json(await listBundledPlugins());
   });

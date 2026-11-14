@@ -38,7 +38,7 @@ export function installPluginFixtures(
   return prepareFixtureApi(
     [
       { path: "/api/plugins", read: () => rows },
-      { path: "/api/plugins/examples", read: () => [] },
+      { path: "/api/plugins/bundled", read: () => [] },
       { path: "/api/plugins/ui-contributions", read: () => [] },
       {
         path: "/api/plugins/install",

@@ -523,12 +523,12 @@ export function registerPluginCommands(program: Command): void {
   );
 
   // -------------------------------------------------------------------------
-  // plugin examples
+  // bundled plugins
   // -------------------------------------------------------------------------
   addCommonClientOptions(
     plugin
-      .command("examples")
-      .description("List bundled example plugins available for local install")
+      .command("bundled")
+      .description("List bundled plugins available for local install")
       .action(async (opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -541,7 +541,7 @@ export function registerPluginCommands(program: Command): void {
               localPath: string;
               tag: string;
             }>
-          >("/api/plugins/examples");
+          >("/api/plugins/bundled");
 
           if (ctx.json) {
             printOutput(examples, { json: true });
@@ -550,7 +550,7 @@ export function registerPluginCommands(program: Command): void {
 
           const rows = examples ?? [];
           if (rows.length === 0) {
-            console.log(pc.dim("No bundled examples available."));
+            console.log(pc.dim("No bundled plugins available."));
             return;
           }
 

@@ -30,11 +30,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/plugins/plugin-workspace-diff",
-    "name": "@outpost/plugin-workspace-diff",
-    "publishFromCi": true
-  },
-  {
     "dir": "server",
     "name": "@outpost/server",
     "publishFromCi": true

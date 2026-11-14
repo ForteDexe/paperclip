@@ -159,7 +159,7 @@ test("verifyPackageRegistryState tolerates a stale root versions map when dist-t
 test("verifyPackageRegistryState fails when canary latest is left in place by default", () => {
   const packageDocsByName = new Map([
     [
-      "@outpost/plugin-workspace-diff",
+      "@outpost/test-package",
       {
         "dist-tags": {
           latest: "2026.425.0-canary.5",
@@ -191,8 +191,8 @@ test("verifyPackageRegistryState fails when canary latest is left in place by de
 
   assert.deepEqual(
     verifyPackageRegistryState({
-      packageName: "@outpost/plugin-workspace-diff",
-      packageDoc: packageDocsByName.get("@outpost/plugin-workspace-diff"),
+      packageName: "@outpost/test-package",
+      packageDoc: packageDocsByName.get("@outpost/test-package"),
       packageDocsByName,
       channel: "canary",
       distTag: "canary",
@@ -200,8 +200,8 @@ test("verifyPackageRegistryState fails when canary latest is left in place by de
       allowCanaryLatest: false,
     }),
     [
-      "@outpost/plugin-workspace-diff: latest dist-tag still resolves to prerelease 2026.425.0-canary.5; if that state is intentional, rerun the verification script directly with --allow-canary-latest",
-      "@outpost/plugin-workspace-diff@2026.425.0-canary.5 via latest: dependencies requires @outpost/plugin-sdk@2026.425.0-canary.5, but npm does not expose that version",
+      "@outpost/test-package: latest dist-tag still resolves to prerelease 2026.425.0-canary.5; if that state is intentional, rerun the verification script directly with --allow-canary-latest",
+      "@outpost/test-package@2026.425.0-canary.5 via latest: dependencies requires @outpost/plugin-sdk@2026.425.0-canary.5, but npm does not expose that version",
     ],
   );
 });
@@ -209,7 +209,7 @@ test("verifyPackageRegistryState fails when canary latest is left in place by de
 test("verifyPackageRegistryProblems marks canary latest drift as non-retriable", () => {
   const packageDocsByName = new Map([
     [
-      "@outpost/plugin-workspace-diff",
+      "@outpost/test-package",
       {
         "dist-tags": {
           latest: "2026.425.0-canary.5",
@@ -223,8 +223,8 @@ test("verifyPackageRegistryProblems marks canary latest drift as non-retriable",
   ]);
 
   const problems = verifyPackageRegistryProblems({
-    packageName: "@outpost/plugin-workspace-diff",
-    packageDoc: packageDocsByName.get("@outpost/plugin-workspace-diff"),
+    packageName: "@outpost/test-package",
+    packageDoc: packageDocsByName.get("@outpost/test-package"),
     packageDocsByName,
     channel: "canary",
     distTag: "canary",
@@ -239,7 +239,7 @@ test("verifyPackageRegistryProblems marks canary latest drift as non-retriable",
 test("verifyPackageRegistryProblems accepts the nightly channel and flags nightly latest drift", () => {
   const packageDocsByName = new Map([
     [
-      "@outpost/plugin-workspace-diff",
+      "@outpost/test-package",
       {
         "dist-tags": {
           latest: "2026.425.0-nightly.1",
@@ -253,8 +253,8 @@ test("verifyPackageRegistryProblems accepts the nightly channel and flags nightl
   ]);
 
   const problems = verifyPackageRegistryProblems({
-    packageName: "@outpost/plugin-workspace-diff",
-    packageDoc: packageDocsByName.get("@outpost/plugin-workspace-diff"),
+    packageName: "@outpost/test-package",
+    packageDoc: packageDocsByName.get("@outpost/test-package"),
     packageDocsByName,
     channel: "nightly",
     distTag: "nightly",
