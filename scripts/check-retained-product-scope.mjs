@@ -44,6 +44,7 @@ const registrationFiles = [
 const retiredInfrastructure = [
   "evals",
   "docs/pr-screenshots",
+  "screenshots",
   "packages/plugins/examples",
   "packages/plugins/plugin-workspace-diff",
   ".github/workflows/chat-catalog-testops.yml",

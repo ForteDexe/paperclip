@@ -212,8 +212,9 @@ remain.
 
 Historical pull-request screenshots are not product assets and are not retained
 in the repository. Review evidence belongs in the pull request or review thread,
-as required by `CONTRIBUTING.md`; keeping it in `docs/pr-screenshots/` adds clone
-weight without supporting a retained runtime or user-facing feature.
+as required by `CONTRIBUTING.md`; keeping it in `docs/pr-screenshots/` or the
+root `screenshots/` directory adds clone weight without supporting a retained
+runtime or user-facing feature.
 
 ### Bundled Plugin Catalog
 
