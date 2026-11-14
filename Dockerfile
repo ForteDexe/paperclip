@@ -29,7 +29,6 @@ COPY packages/adapters/claude-local/package.json packages/adapters/claude-local/
 COPY packages/adapters/codex-local/package.json packages/adapters/codex-local/
 COPY packages/plugins/sdk/package.json packages/plugins/sdk/
 COPY packages/plugins/outpost-plugin-fake-sandbox/package.json packages/plugins/outpost-plugin-fake-sandbox/
-COPY packages/plugins/plugin-llm-wiki/package.json packages/plugins/plugin-llm-wiki/
 COPY packages/plugins/plugin-workspace-diff/package.json packages/plugins/plugin-workspace-diff/
 COPY patches/ patches/
 COPY scripts/link-plugin-dev-sdk.mjs scripts/

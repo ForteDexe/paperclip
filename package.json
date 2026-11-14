@@ -51,6 +51,7 @@
     "terminology:check": "node scripts/outpost-visible-terminology.mjs --check",
     "terminology:report": "node scripts/outpost-visible-terminology.mjs --report",
     "test:terminology": "node --test scripts/outpost-visible-terminology.test.mjs",
+    "scope:check": "node scripts/check-retained-product-scope.mjs",
     "test:check-no-git-push": "node --test scripts/check-no-git-push.test.mjs",
     "test:install-sh-docker": "./scripts/test-install-sh-docker.sh",
     "docs:dev": "cd docs && npx mintlify dev",

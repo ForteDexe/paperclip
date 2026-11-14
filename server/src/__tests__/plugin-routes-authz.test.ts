@@ -160,11 +160,9 @@ describe("plugin install and upgrade authz", () => {
       res.body.map((plugin: { packageName: string; experimental: boolean; hasBuiltEntrypoints: boolean }) => [plugin.packageName, plugin]),
     );
     expect(packageNames).toContain("@outpost/plugin-workspace-diff");
-    expect(packageNames).toContain("@outpost/plugin-llm-wiki");
     expect(packageNames).toContain("@outpost/plugin-authoring-smoke-example");
     expect(packageNames).not.toContain("@outpost/plugin-sdk");
     expect(byPackageName.get("@outpost/plugin-workspace-diff")?.experimental).toBe(true);
-    expect(byPackageName.get("@outpost/plugin-llm-wiki")?.experimental).toBe(true);
     expect(byPackageName.get("@outpost/plugin-authoring-smoke-example")?.experimental).toBe(false);
     expect(typeof byPackageName.get("@outpost/plugin-workspace-diff")?.hasBuiltEntrypoints).toBe("boolean");
   }, 20_000);

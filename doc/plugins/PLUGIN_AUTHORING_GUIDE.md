@@ -639,7 +639,7 @@ export function WikiTree() {
 
 Good fits:
 
-- LLM Wiki page navigation in `packages/plugins/plugin-llm-wiki` builds a
+- Plugin page navigation in `packages/plugins/examples` builds a
   `FileTreeNode[]` from worker query results and renders it through `FileTree`.
 - The example `plugin-file-browser-example` lazily fetches a directory's
   children through a `loadFileList` action when `onToggleDir` fires, then

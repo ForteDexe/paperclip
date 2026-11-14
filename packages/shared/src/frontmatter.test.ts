@@ -16,7 +16,6 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const skillMarkdownSearchRoots = [
-  "packages/plugins/plugin-llm-wiki/skills",
   "skills",
 ];
 
