@@ -230,6 +230,14 @@ longer shipped or exposed as runner package commands. Historical provider
 compatibility inside the shared runner remains deferred until it can be removed
 without disturbing the local session transport.
 
+### OpenCode Qualification Utilities
+
+The standalone OpenCode binary materializer and opt-in live qualification test
+served a provider that is outside the retained Codex and Claude product. They
+are removed from the package test lane and command surface. The still-shared
+OpenCode transport branches remain part of the deferred provider migration and
+must not be mistaken for a supported user-facing harness.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

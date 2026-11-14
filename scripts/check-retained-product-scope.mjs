@@ -65,6 +65,9 @@ const retiredInfrastructure = [
   "packages/outpost-runner/scripts/aws-agentcore.sh",
   "packages/outpost-runner/scripts/aws-agentcore-provisioning.test.mjs",
   "packages/outpost-runner/scripts/capability-aws-agentcore-smoke.mjs",
+  "packages/outpost-runner/scripts/materialize-opencode-binary.mjs",
+  "packages/outpost-runner/scripts/materialize-opencode-binary.test.mjs",
+  "packages/outpost-runner/scripts/qualify-opencode-runtime.test.mjs",
 ];
 
 async function exists(relativePath) {
