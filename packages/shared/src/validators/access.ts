@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  AGENT_ADAPTER_TYPES,
   HUMAN_SPACE_MEMBERSHIP_ROLES,
   INVITE_JOIN_TYPES,
   JOIN_REQUEST_STATUSES,
@@ -24,12 +23,6 @@ export const acceptInviteSchema = z.object({
   adapterType: optionalAgentAdapterTypeSchema,
   capabilities: z.string().max(4000).optional().nullable(),
   agentDefaultsPayload: z.record(z.string(), z.unknown()).optional().nullable(),
-  // OpenClaw join compatibility fields accepted at top level.
-  responsesWebhookUrl: z.string().max(4000).optional().nullable(),
-  responsesWebhookMethod: z.string().max(32).optional().nullable(),
-  responsesWebhookHeaders: z.record(z.string(), z.unknown()).optional().nullable(),
-  outpostApiUrl: z.string().max(4000).optional().nullable(),
-  webhookAuthHeader: z.string().max(4000).optional().nullable(),
 });
 
 export type AcceptInvite = z.infer<typeof acceptInviteSchema>;

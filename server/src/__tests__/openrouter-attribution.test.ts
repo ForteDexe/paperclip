@@ -10,7 +10,7 @@ describe("Outpost OpenRouter connection attribution", () => {
     const runner = await readFile(new URL("../../../packages/outpost-runner/src/drivers/openrouter-attribution.ts", import.meta.url), "utf8");
     expect(runner.slice(runner.indexOf("/**"))).toBe(shared);
   });
-  it.each(["codex_local", "claude_local", "opencode_local", "hermes_local"])("attributes managed and custom OpenRouter connections for %s", harness => {
+  it.each(["codex_local", "claude_local", "opencode_local"])("attributes managed and custom OpenRouter connections for %s", harness => {
     for (const route of [
       { kind: "openrouter", protocol: "chat", auth: "bearer", models: [] },
       { kind: "gateway", protocol: "chat", auth: "bearer", models: [], baseUrl: "https://openrouter.ai/api/v1" },
@@ -22,7 +22,7 @@ describe("Outpost OpenRouter connection attribution", () => {
       for (const value of Object.values(OPENROUTER_ATTRIBUTION_HEADERS)) expect(output).toContain(value);
     }
   });
-  it.each(["codex_local", "claude_local", "opencode_local", "hermes_local"])("does not add attribution to unrelated %s endpoints", harness => {
+  it.each(["codex_local", "claude_local", "opencode_local"])("does not add attribution to unrelated %s endpoints", harness => {
     const result = managedProviderRouting({ kind: "gateway", protocol: "chat", auth: "bearer", models: [], baseUrl: "https://gateway.example/v1" }, harness, "fixture-key", "model");
     expect(JSON.stringify(result)).not.toMatch(/HTTP-Referer|X-Title|X-OpenRouter/);
   });
