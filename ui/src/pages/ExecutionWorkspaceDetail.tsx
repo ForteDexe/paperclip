@@ -23,7 +23,6 @@ import { projectsApi } from "../api/projects";
 import { routinesApi } from "../api/routines";
 import { IssuesList } from "../components/IssuesList";
 import { PageTabBar } from "../components/PageTabBar";
-import { SummarySlotCard } from "../components/SummarySlotCard";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
 import { PluginSlotMount, PluginSlotOutlet, usePluginSlots } from "@/plugins/slots";
 import {
@@ -1583,13 +1582,6 @@ export function ExecutionWorkspaceDetail() {
           </Card>
         ) : activeTab === "issues" ? (
           <div className="space-y-6">
-            <SummarySlotCard
-              spaceId={workspace.spaceId}
-              scopeKind="execution_workspace"
-              scopeId={workspace.id}
-              title="Workspace summary"
-              description="Summarizer keeps the latest workspace status, next step, and operator-needed items here."
-            />
             {linkedIssuesView.kind === "error" ? <QueryErrorState error={linkedIssuesView.error} action="load workspace tasks" onRetry={linkedIssuesView.retry} retrying={linkedIssuesView.isFetching} /> : (
             <ExecutionWorkspaceIssuesList
               spaceId={workspace.spaceId}

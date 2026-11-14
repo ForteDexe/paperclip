@@ -100,3 +100,12 @@ UI, shared contracts, API routes, scheduler and notification wiring, active
 database schema exports, agent prompt guidance, focused tests, and active
 documentation are removed. Historical database migrations remain so an older
 database can still be opened and migrated without rewriting migration history.
+
+### Summary Slots
+
+Summary Slots were an experimental generated-report layer rather than part of
+the retained task, artifact, or chat workflow. Their cards, streaming client,
+shared contracts, API and service layer, active schema exports, experimental
+setting, focused tests, and opt-in Summarizer agent bundle are removed. Normal
+task descriptions, run summaries, and other domain-specific summary fields are
+unchanged. Historical migrations and migration-focused tests remain intact.

@@ -261,7 +261,6 @@ import {
   type IssueLivenessFinding,
 } from "./recovery/issue-graph-liveness.js";
 import { visibleIssueCondition } from "./issue-visibility.js";
-import { finalizeSummarySlotsForTerminalIssue } from "./summary-slot-finalization.js";
 import {
   logActivity,
   persistActivity,
@@ -12154,10 +12153,9 @@ export function issueService(db: Db) {
             }
           }
           if (updated.status === "done" || updated.status === "cancelled") {
-            await finalizeSummarySlotsForTerminalIssue(tx, updated);
             // Every terminal transition funnels through here, including direct
-            // service callers (tree control, recovery, status cards)
-            // that never touch the HTTP routes. Controlled cards expire; ordinary
+            // service callers (tree control and recovery)
+            // that never touch the HTTP routes. Ordinary
             // historical questions remain answerable after completion.
             // Dynamic import breaks the module
             // cycle (issue-thread-interactions.js imports issueService).

@@ -196,7 +196,6 @@ export {
   type ActivityPublication,
   type LogActivityInput,
 } from "./activity-log.js";
-export { summarySlotService, SUMMARIZER_BUILT_IN_KEY } from "./summary-slots.js";
 export { notifyCreateApproved, type NotifyCreateApprovedInput } from "./create-hook.js";
 export { publishLiveEvent, subscribeSpaceLiveEvents } from "./live-events.js";
 export {

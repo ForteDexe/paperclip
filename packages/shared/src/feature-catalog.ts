@@ -281,14 +281,6 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
-  enableSummaries: {
-    title: "Summaries",
-    description:
-      "Show Summarizer-generated status slots on project and workspace pages, with on-demand refresh and revision history.",
-    tier: "managed",
-    cloudDefault: false,
-    selfHostedDefault: false,
-  },
   enableDecisions: {
     title: "Decisions",
     description:

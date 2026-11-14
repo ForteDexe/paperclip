@@ -77,7 +77,6 @@ export const instanceExperimentalSettingsSchema = z.object({
   enableSmokeLab: z.boolean().default(false),
   enableBuiltInAgents: z.boolean().default(false),
   enableBetaSkills: z.boolean().default(false),
-  enableSummaries: z.boolean().default(false),
   enableDecisions: z.boolean().default(false),
   enableFastResponses: z.boolean().default(false),
   enableGoalsSidebarLink: z.boolean().default(false),

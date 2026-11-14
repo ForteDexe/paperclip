@@ -1951,34 +1951,6 @@ function invalidateActivityQueries(
     return;
   }
 
-  if (entityType === "summary_slot") {
-    // The Summarizer's authoritative PUT logs `summary_slot.write`; refresh the
-    // affected slot + its revisions so the finished summary lands instantly
-    // instead of waiting for the card's 3s generating poll tick.
-    const scopeKind = readString(details?.scopeKind);
-    const slotKey = readString(details?.slotKey);
-    const scopeId = readString(details?.scopeId);
-    if (scopeKind && slotKey) {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.summarySlots.detail(
-          spaceId,
-          scopeKind,
-          slotKey,
-          scopeId,
-        ),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.summarySlots.revisions(
-          spaceId,
-          scopeKind,
-          slotKey,
-          scopeId,
-        ),
-      });
-    }
-    return;
-  }
-
   if (entityType === "space") {
     queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all });
   }

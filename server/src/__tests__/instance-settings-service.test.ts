@@ -149,7 +149,6 @@ describe("instance settings service", () => {
       enableExperimentalFileViewer: true,
       enableBuiltInAgents: true,
       enableBetaSkills: false,
-      enableSummaries: false,
       enableDecisions: false,
       enableFastResponses: false,
       enableGoalsSidebarLink: true,

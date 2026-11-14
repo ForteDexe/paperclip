@@ -185,35 +185,6 @@ const FALLBACK_REFLECTION_COACH_SKILL = [
   "",
 ].join("\n");
 
-const FALLBACK_SUMMARIZER_INSTRUCTIONS = [
-  "You are Summarizer, a built-in reporting agent at Outpost.",
-  "",
-  "Turn the current state of an Outpost scope (project, workspaces overview, project workspace, or execution workspace) into a short, honest, human-readable Markdown summary and write it back to that scope's summary slot as a new revision. Use the `summarize-status` skill as your operating procedure.",
-  "",
-  "Read-and-report only: never change issues, workspaces, or code. Cite issue identifiers, never fabricate status, keep every read space-scoped, and run on the low-cost model profile lane by default.",
-  "",
-].join("\n");
-
-const FALLBACK_SUMMARIZER_ROUTINE = [
-  "Regenerate summary slots whose scope has changed since their last revision.",
-  "",
-  "Paused by default; spends no tokens until an operator enables the schedule or runs it manually. Read-and-report only — the only write is the summary revision.",
-  "",
-].join("\n");
-
-const FALLBACK_SUMMARIZER_SKILL = [
-  "---",
-  "name: summarize-status",
-  "description: Write a short, colloquial summary for an Outpost summary slot: open with the 1–3 specific, concrete actions the reader needs to take right now to unblock the work, then a brief plain-language status, streaming progress as it works.",
-  "key: outpost/bundled/outpost-operations/summarize-status",
-  "---",
-  "",
-  "# Summarize status",
-  "",
-  "Turn an Outpost scope's current state into a short, colloquial Markdown summary and write it back to the scope's summary slot. Open with the 1–3 specific, concrete, actionable items the reader should do right now to unblock the work — each saying what to do and why it's the thing holding up progress, with an inline link — then a brief plain-prose status of where things stand, written for a reader who has not memorized issue ids or threads. Read whatever issues you need to understand the state, then focus on what's most important; never a task list or a dump of issue links. If genuinely nothing needs the reader, say so plainly in one line and name the next thing worth watching. Post the first `STATUS:` line immediately from the first task in context, keep streaming `STATUS:` lines while working, and emit the final Markdown between the summary-draft sentinels before the slot write. Read-and-report only; never fabricate status.",
-  "",
-].join("\n");
-
 const warnedBuiltInTextFallbacks = new Set<string>();
 const warnedBuiltInTextReadErrors = new Set<string>();
 
@@ -269,17 +240,6 @@ const REFLECTION_COACH_SKILL = readBuiltInTextWithFallback(
   "reflection-coach/SKILL.md",
   [path.join(BUILT_INS_DIR, "reflection-coach/SKILL.md"), path.join(SOURCE_BUILT_INS_DIR, "reflection-coach/SKILL.md")],
   FALLBACK_REFLECTION_COACH_SKILL,
-);
-
-const SUMMARIZER_INSTRUCTIONS = readBuiltInText("summarizer/AGENTS.md", FALLBACK_SUMMARIZER_INSTRUCTIONS);
-const SUMMARIZER_ROUTINE = readBuiltInText(
-  "summarizer/routines/refresh-stale-summaries.md",
-  FALLBACK_SUMMARIZER_ROUTINE,
-);
-const SUMMARIZER_SKILL = readBuiltInTextWithFallback(
-  "summarizer/SKILL.md",
-  [path.join(BUILT_INS_DIR, "summarizer/SKILL.md"), path.join(SOURCE_BUILT_INS_DIR, "summarizer/SKILL.md")],
-  FALLBACK_SUMMARIZER_SKILL,
 );
 
 const DEFINITIONS = validateBuiltInAgentDefinitions([
@@ -378,84 +338,13 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
       },
     },
   },
-  {
-    key: "summarizer",
-    displayName: "Summarizer",
-    featureKeys: ["summarizer"],
-    shortPurpose:
-      "Writes short, human-readable Markdown status summaries into project, workspaces-overview, project-workspace, and execution-workspace summary slots on demand.",
-    defaultInstructions: SUMMARIZER_INSTRUCTIONS,
-    defaultRole: "general",
-    defaultTitle: "Summarizer",
-    defaultIcon: "sparkles",
-    defaultPermissions: {
-      canCreateAgents: false,
-      canCreateSkills: false,
-    },
-    defaultStatus: "paused",
-    defaultLead: "single_root_agent",
-    allowedAdapterTypes: ["claude_local", "codex_local", "gemini_local", "opencode_local", "process"],
-    defaultAdapterType: "claude_local",
-    defaultAdapterConfig: {
-      model: "claude-haiku-4-5",
-    },
-    defaultBudgetMonthlyCents: 0,
-    bundle: {
-      stockVersion: "2026-08-02",
-      instructions: {
-        entryFile: "AGENTS.md",
-        files: {
-          "AGENTS.md": SUMMARIZER_INSTRUCTIONS,
-        },
-      },
-      skill: {
-        skillKey: "summarize-status",
-        displayName: "Summarize status",
-        slug: "summarize-status",
-        canonicalKey: "outpost/bundled/outpost-operations/summarize-status",
-        files: {
-          "summarize-status/SKILL.md": SUMMARIZER_SKILL,
-        },
-      },
-      routine: {
-        routineKey: "refresh-stale-summaries",
-        title: "Refresh stale summary slots",
-        description: SUMMARIZER_ROUTINE,
-        status: "paused",
-        priority: "medium",
-        concurrencyPolicy: "coalesce_if_active",
-        catchUpPolicy: "skip_missed",
-        variables: [
-          { name: "staleAfterHours", label: "Refresh slots older than (hours)", type: "number", defaultValue: 24, required: true, options: [] },
-          { name: "maxSlots", label: "Max slots to refresh per run", type: "number", defaultValue: 10, required: true, options: [] },
-          {
-            name: "scopeKinds",
-            label: "Scope kinds to include",
-            type: "select",
-            defaultValue: "all",
-            required: true,
-            options: ["all", "project", "workspaces_overview", "project_workspace", "execution_workspace"],
-          },
-        ],
-        triggers: [
-          {
-            kind: "schedule",
-            label: "Daily stale-summary refresh",
-            enabled: false,
-            cronExpression: "0 8 * * *",
-            timezone: "UTC",
-          },
-        ],
-      },
-    },
-  },
 ]);
 
 const DEFINITIONS_BY_KEY = new Map(DEFINITIONS.map((definition) => [definition.key, definition]));
 
 // Bundled built-in agents that should be provisioned automatically when a
 // space is created (and re-ensured on startup reconcile). Empty by default so
-// a new user starts clean — the Reflection Coach and Summarizer are opt-in, not
+// a new user starts clean — the Reflection Coach is opt-in, not
 // seeded. Add a definition key here to restore automatic provisioning.
 const AUTO_PROVISION_ON_SPACE_CREATE_KEYS = new Set<string>([]);
 

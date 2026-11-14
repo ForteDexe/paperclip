@@ -243,35 +243,6 @@ export const queryKeys = {
   builtInAgents: {
     list: (spaceId: string) => ["built-in-agents", spaceId] as const,
   },
-  summarySlots: {
-    detail: (
-      spaceId: string,
-      scopeKind: string,
-      slotKey: string,
-      scopeId?: string | null,
-    ) =>
-      [
-        "summary-slots",
-        spaceId,
-        scopeKind,
-        slotKey,
-        scopeId ?? null,
-      ] as const,
-    revisions: (
-      spaceId: string,
-      scopeKind: string,
-      slotKey: string,
-      scopeId?: string | null,
-    ) =>
-      [
-        "summary-slots",
-        spaceId,
-        scopeKind,
-        slotKey,
-        scopeId ?? null,
-        "revisions",
-      ] as const,
-  },
   issues: {
     recoveryActions: (id: string, actionId: string | null, runId: string | null) =>
       ["issues", id, "recovery-actions", actionId, runId] as const,

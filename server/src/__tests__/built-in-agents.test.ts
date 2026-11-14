@@ -217,13 +217,7 @@ describeEmbeddedPostgres("built-in agents", () => {
 
   it("validates the static registry and rejects invalid definitions", () => {
     const definitions = listBuiltInAgentDefinitions();
-    expect(definitions.map((definition) => definition.key).sort()).toEqual(["briefs", "learning", "reflection-coach", "summarizer"]);
-    const summarizer = definitions.find((definition) => definition.key === "summarizer");
-    expect(summarizer).toMatchObject({
-      defaultAdapterType: "claude_local",
-      defaultAdapterConfig: { model: "claude-haiku-4-5" },
-    });
-    expect(summarizer?.defaultRuntimeConfig).toBeUndefined();
+    expect(definitions.map((definition) => definition.key).sort()).toEqual(["briefs", "learning", "reflection-coach"]);
     expect(() => validateBuiltInAgentDefinitions([
       {
         key: "briefs",
@@ -536,16 +530,16 @@ describeEmbeddedPostgres("built-in agents", () => {
   it("rejects unknown built-in adapter models before saving setup", async () => {
     const spaceId = await seedSpace();
 
-    await expect(builtInAgentService(db).ensure(spaceId, "summarizer", {
-      adapterType: "claude_local",
-      adapterConfig: { model: "claude-haiku-4-6" },
+    await expect(builtInAgentService(db).ensure(spaceId, "briefs", {
+      adapterType: "codex_local",
+      adapterConfig: { model: "gpt-unknown" },
     })).rejects.toMatchObject({
       status: 422,
       details: {
         code: "built_in_agent_model_unknown",
-        key: "summarizer",
-        adapterType: "claude_local",
-        model: "claude-haiku-4-6",
+        key: "briefs",
+        adapterType: "codex_local",
+        model: "gpt-unknown",
       },
     });
 
@@ -1388,120 +1382,6 @@ describeEmbeddedPostgres("built-in agents", () => {
     expect(grantKeys).not.toContain("tasks:assign");
     expect(grantKeys).not.toContain("agents:configure");
     expect(grantKeys).not.toContain("skills:create");
-  });
-
-  it("materializes the Summarizer bundle paused on Claude Haiku with a disabled routine", async () => {
-    const spaceId = await seedSpace();
-    const root = await createAgentLifecycle(db).requestCreation(spaceId, {
-      name: "Default agent",
-      role: "lead",
-      status: "idle",
-      adapterType: "codex_local",
-      adapterConfig: { model: "gpt-5.4" },
-      runtimeConfig: {},
-      permissions: {},
-    });
-
-    const state = await builtInAgentService(db).ensure(spaceId, "summarizer");
-
-    expect(state.agent).toMatchObject({
-      spaceId,
-      name: "Summarizer",
-      title: "Summarizer",
-      icon: "sparkles",
-      role: "general",
-      leadAgentId: root.id,
-      adapterType: "outpost_runner",
-      adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-haiku-4-5" },
-      budgetMonthlyCents: 0,
-    });
-    expect(state.status).toBe("paused");
-    expect(state.pauseReason).toBe("Built-in Summarizer is disabled until explicitly configured.");
-    expect(readBuiltInAgentMarker(state.agent?.metadata)).toEqual({
-      key: "summarizer",
-      featureKeys: ["summarizer"],
-    });
-
-    expect(state.resources.map((resource) => [resource.resourceKind, resource.stockStatus])).toEqual([
-      ["instructions", "stock_current"],
-      ["skill", "stock_current"],
-      ["routine", "stock_current"],
-    ]);
-
-    const [skill] = await db
-      .select()
-      .from(spaceSkills)
-      .where(eq(spaceSkills.key, "outpost/bundled/outpost-operations/summarize-status"));
-    expect(skill).toMatchObject({
-      key: "outpost/bundled/outpost-operations/summarize-status",
-      slug: "summarize-status",
-    });
-    expect(readOutpostSkillSyncPreference(state.agent!.adapterConfig).desiredSkills).toContain(skill!.key);
-
-    const [routine] = await db
-      .select()
-      .from(routines)
-      .where(and(eq(routines.spaceId, spaceId), eq(routines.assigneeAgentId, state.agentId!)));
-    expect(routine).toMatchObject({
-      title: "Refresh stale summary slots",
-      status: "paused",
-      assigneeAgentId: state.agentId,
-      originKind: "built_in_agent_bundle",
-      originId: "summarizer:refresh-stale-summaries",
-    });
-    const [trigger] = await db.select().from(routineTriggers).where(eq(routineTriggers.routineId, routine!.id));
-    expect(trigger).toMatchObject({
-      kind: "schedule",
-      enabled: false,
-      cronExpression: "0 8 * * *",
-      timezone: "UTC",
-    });
-  });
-
-  it("keeps the Summarizer not-configured until an adapter model is set", async () => {
-    const spaceId = await seedSpace();
-
-    await expect(builtInAgentService(db).requireBuiltInAgent(spaceId, "summarizer")).rejects.toMatchObject({
-      status: 412,
-      details: {
-        code: "built_in_agent_not_configured",
-        key: "summarizer",
-      },
-    });
-
-    // Provisioning without a model leaves it paused (default), still not runnable as "ready".
-    const paused = await builtInAgentService(db).ensure(spaceId, "summarizer");
-    expect(paused.status).toBe("paused");
-    await expect(builtInAgentService(db).requireBuiltInAgent(spaceId, "summarizer")).resolves.toMatchObject({
-      warning: { code: "built_in_agent_paused", key: "summarizer" },
-    });
-  });
-
-  it("restores Summarizer instruction drift on reset", async () => {
-    const spaceId = await seedSpace();
-    const builtIns = builtInAgentService(db);
-    const created = await builtIns.ensure(spaceId, "summarizer");
-    const instructions = agentInstructionsService();
-
-    await writeInstructionEntry(created.agent!, "AGENTS.md", "# Custom Summarizer\n\nOperator edit.\n");
-
-    const reconciled = await builtIns.ensure(spaceId, "summarizer");
-    expect(reconciled.resources.find((resource) => resource.resourceKind === "instructions")).toMatchObject({
-      stockStatus: "operator_modified",
-      resetAvailable: true,
-      changedFiles: ["AGENTS.md"],
-    });
-
-    const reset = await builtIns.reset(spaceId, "summarizer", {}, instructionOperator);
-    expect(reset.resources.find((resource) => resource.resourceKind === "instructions")).toMatchObject({
-      stockStatus: "stock_current",
-      resetAvailable: false,
-    });
-    const resetFile = await instructions.readFile(reset.agent!, "AGENTS.md");
-    expect(resetFile.content).toContain("Summarizer");
-    expect(resetFile.content).toContain("<<<SUMMARY-DRAFT>>>");
-    expect(resetFile.content).toContain("<<<END-SUMMARY-DRAFT>>>");
-    expect(resetFile.content).not.toContain("Operator edit.");
   });
 
   it("keeps a built-in routine task while the agent prepares", async () => {
