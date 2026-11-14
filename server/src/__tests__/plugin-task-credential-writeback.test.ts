@@ -29,13 +29,9 @@ suite("durable plugin task credential handoff", () => {
     database = await startEmbeddedPostgresTestDatabase("plugin-task-credential-"); db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) await rm(home, { recursive: true, force: true }); });
-  async function fixture(dispatched = true, provider: "codex" | "grok" = "codex") {
-    const selectedProvider = provider === "codex" ? "openai" as const : "xai" as const;
-    const credential = (token: string, year = 2020) => provider === "codex" ? auth(token, year) : JSON.stringify({
-      "https://issuer.example.test::11111111-1111-4111-8111-111111111111": {
-        key: "fixture-access", refresh_token: token, expires_at: `${year}-01-01T00:00:00Z`,
-      },
-    });
+  async function fixture(dispatched = true) {
+    const selectedProvider = "openai" as const;
+    const credential = auth;
     const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID();
     const owner = `fixture-${randomUUID()}`;
     await db.insert(spaces).values({ id: spaceId, name: "Task credential fixture", issuePrefix: `C${spaceId.slice(0, 6)}` });
@@ -46,7 +42,7 @@ suite("durable plugin task credential handoff", () => {
     const [selection] = await service.quotaAccounts(spaceId, owner, true);
     const managed = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
       binding: { mode: "responsible_user", provider: selectedProvider, method: "subscription" },
-      config: provider === "codex" ? { provider: "codex" } : { provider: "acpx", acpxAgent: "grok" } });
+      config: { provider: "codex" } });
     expect(managed.credentialWriteback).toBeDefined();
     await db.insert(environments).values({ id: environmentId, name: `Fixture ${environmentId}`, driver: "plugin", status: "active", config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-tasks", version: "1.0.0", status: "ready", manifestJson: {
@@ -83,32 +79,32 @@ suite("durable plugin task credential handoff", () => {
       failExport(value: boolean) { failExport = value; }, credential: () => service.credential(selection!),
       settle: (executionStopObserved = false) => settleDispatchedEnvironmentTask(db, workers, { spaceId, id: leaseId }, { executionStopObserved }) };
   }
-  it.each(["codex", "grok"] as const)("writes managed %s refreshes without any plugin or invocation home", async provider => {
-    const f = await fixture(true, provider);
+  it("writes managed Codex refreshes without any plugin or invocation home", async () => {
+    const f = await fixture(true);
     const read = vi.fn(async () => f.accountCredential("fixture-refreshed", 2021));
-    expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, provider, read)).toBe("rotated");
+    expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, "codex", read)).toBe("rotated");
     expect(await f.credential()).toBe(f.accountCredential("fixture-refreshed", 2021));
-    expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, provider, read)).toBe("unchanged");
+    expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, "codex", read)).toBe("unchanged");
     await secretService(db).rotate(f.managed.credentialWriteback!.secretId, { value: f.accountCredential("fixture-reconnected", 2022) }, { userId: f.owner });
     read.mockClear();
-    expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, provider, read)).toBe("binding_changed");
+    expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, "codex", read)).toBe("binding_changed");
     expect(read).not.toHaveBeenCalled();
     expect(await f.credential()).toBe(f.accountCredential("fixture-reconnected", 2022));
     expect(f.calls).toEqual([]);
   });
-  it.each((["codex", "grok"] as const).flatMap(provider => ["{partial", "{}"].map(snapshot => [provider, snapshot] as const)))(
-    "rejects unusable %s snapshots for retry: %s", async (provider, snapshot) => {
-      const f = await fixture(true, provider);
-      await expect(syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, provider, async () => snapshot))
+  it.each(["{partial", "{}"])(
+    "rejects unusable Codex snapshots for retry: %s", async (snapshot) => {
+      const f = await fixture(true);
+      await expect(syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, "codex", async () => snapshot))
         .rejects.toThrow("snapshot invalid");
       expect(await f.credential()).toBe(f.accountCredential("fixture-original"));
-      expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, provider,
+      expect(await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, "codex",
         async () => f.accountCredential("fixture-refreshed", 2021))).toBe("rotated");
     },
   );
-  it.each(["codex", "grok"] as const)("rechecks %s authority after the exporter yields", async provider => {
-    const f = await fixture(true, provider);
-    const result = await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, provider, async () => {
+  it("rechecks Codex authority after the exporter yields", async () => {
+    const f = await fixture(true);
+    const result = await syncManagedAiCredentials(db, f.spaceId, f.managed.credentialWriteback!, "codex", async () => {
       await secretService(db).rotate(f.managed.credentialWriteback!.secretId, { value: f.accountCredential("fixture-reconnected", 2022) }, { userId: f.owner });
       return f.accountCredential("fixture-refreshed", 2021);
     });

@@ -5,7 +5,6 @@ import {
   type AiConnectionUsageLimit,
   type AiConnectionUsageOverage,
 } from "@outpost/shared";
-import { parseGrokAuthPayload } from "@outpost/adapter-grok-local/server";
 
 type Observation = Pick<AiConnectionUsage, "source" | "planType" | "limits" | "overage">;
 type ObjectValue = Record<string, unknown>;
@@ -258,64 +257,7 @@ async function claude(credential: string, request: typeof fetch): Promise<Observ
   };
 }
 
-async function grok(credential: string, request: typeof fetch): Promise<Observation> {
-  const payload = parseGrokAuthPayload(parseCredential(credential));
-  const body = await readUsage("https://cli-chat-proxy.grok.com/v1/billing?format=credits", {
-    Authorization: `Bearer ${requireToken(payload?.value.key)}`,
-    "x-xai-token-auth": "xai-grok-cli", Accept: "application/json",
-  }, request);
-  const config = object(body.config);
-  const period = object(config.currentPeriod);
-  const start = timestamp(period.start ?? config.billingPeriodStart);
-  const end = timestamp(period.end ?? config.billingPeriodEnd);
-  const duration = start && end ? (Date.parse(end) - Date.parse(start)) / 1000 : null;
-  const used = amount(config.used);
-  const cap = amount(config.monthlyLimit);
-  const usedPercent = number(config.creditUsagePercent);
-  // Do not derive included-plan consumption from the separate on-demand pool.
-  const limits = [limit({ id: "grok_credits", label: "Grok plan credits",
-    usedPercent, used, limit: cap, remaining: cap == null || used == null ? null : Math.max(0, cap - used),
-    unit: "cents", resetsAt: end, windowDurationSeconds: duration != null && duration > 0 ? duration : null,
-  })];
-  const extraUsed = amount(config.onDemandUsed);
-  const extraCap = amount(config.onDemandCap);
-  const remaining = extraUsed == null || extraCap == null ? null : Math.max(0, extraCap - extraUsed);
-  const enabled = bool(body.on_demand_enabled ?? body.onDemandEnabled);
-  const prepaidBalance = amount(config.prepaidBalance);
-  const extra = enabled == null && extraUsed == null && extraCap == null && prepaidBalance == null ? null
-    : overage({ enabled, available: enabled === false || (remaining === 0 && prepaidBalance === 0) ? false : null,
-      used: extraUsed, limit: extraCap, remaining, balance: prepaidBalance, unit: "cents" });
-  if (extra) limits.push(limit({ id: "grok_overage", label: "Grok on-demand credits", scope: "overage",
-    used: extraUsed, limit: extraCap, remaining, unit: "cents", resetsAt: timestamp(config.billingPeriodEnd) ?? end }));
-  return { source: "grok_cli_billing", planType: string(body.subscription_tier ?? body.subscriptionTier), limits, overage: extra };
-}
-
-async function openrouter(credential: string, request: typeof fetch): Promise<Observation> {
-  const body = await readUsage("https://openrouter.ai/api/v1/key", {
-    Authorization: `Bearer ${requireToken(credential)}`,
-  }, request);
-  const data = object(body.data);
-  const cap = number(data.limit);
-  const remaining = signedNumber(data.limit_remaining);
-  const resetInterval = string(data.limit_reset);
-  const limits = [limit({ id: "key_credits", label: "API key credit cap", scope: "api_key",
-    limit: cap, remaining, used: cap != null
-      ? remaining == null ? null : Math.max(0, cap - remaining)
-      : number(data.usage),
-    unit: "USD", resetInterval, windowDurationSeconds: resetInterval === "daily" ? 86400 : resetInterval === "weekly" ? 604800 : null,
-    limitReached: remaining == null ? null : remaining <= 0,
-  })];
-  const free = object(data.free_model_daily_requests);
-  if (Object.keys(free).length) limits.push(limit({ id: "free_requests", label: "Free model daily requests", scope: "free_models",
-    used: number(free.used), limit: number(free.limit), remaining: number(free.remaining),
-    unit: "requests", windowDurationSeconds: 86400,
-    limitReached: number(free.remaining) == null ? null : number(free.remaining) === 0,
-  }));
-  // An unlimited per-key cap says nothing about the account's funded balance.
-  return { source: "openrouter_key", planType: null, limits, overage: null };
-}
-
-const probes = { openai: codex, anthropic: claude, xai: grok, openrouter };
+const probes = { openai: codex, anthropic: claude };
 const messages: Record<NonNullable<AiConnectionUsage["errorCode"]>, string> = {
   unsupported: "This provider does not expose usage limits through this sign-in method.",
   connection_unavailable: "Reconnect or enable this AI connection before checking usage.",
@@ -332,7 +274,7 @@ export async function probeAiConnectionUsage(
   options: { request?: typeof fetch } = {},
 ): Promise<Omit<AiConnectionUsage, "connectionId" | "grantId">> {
   const base = { ...metadata, checkedAt: new Date().toISOString(), source: null, planType: null, limits: [], overage: null };
-  if (metadata.provider === "google" || metadata.provider === "github" || !supportsAiConnectionUsage(metadata.provider, metadata.method)) {
+  if ((metadata.provider !== "openai" && metadata.provider !== "anthropic") || !supportsAiConnectionUsage(metadata.provider, metadata.method)) {
     return { ...base, status: "unsupported", errorCode: "unsupported", message: messages.unsupported };
   }
   try {

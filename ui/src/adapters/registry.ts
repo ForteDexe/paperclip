@@ -1,17 +1,6 @@
 import type { UIAdapterModule } from "./types";
 import { claudeLocalUIAdapter } from "./claude-local";
 import { codexLocalUIAdapter } from "./codex-local";
-import { outpostRunnerUIAdapter } from "./outpost-runner";
-import { cursorCloudUIAdapter } from "./cursor-cloud";
-import { cursorLocalUIAdapter } from "./cursor";
-import { geminiLocalUIAdapter } from "./gemini-local";
-import { grokLocalUIAdapter } from "./grok-local";
-import { kimiLocalUIAdapter } from "./kimi-local";
-import { hermesGatewayUIAdapter } from "./hermes-gateway";
-import { hermesLocalUIAdapter } from "./hermes-local";
-import { openCodeLocalUIAdapter } from "./opencode-local";
-import { piLocalUIAdapter } from "./pi-local";
-import { openClawGatewayUIAdapter } from "./openclaw-gateway";
 import { processUIAdapter } from "./process";
 import { httpUIAdapter } from "./http";
 import { loadDynamicParser, invalidateDynamicParser, setDynamicParserResultNotifier } from "./dynamic-loader";
@@ -56,17 +45,6 @@ function registerBuiltInUIAdapters() {
   for (const adapter of [
     claudeLocalUIAdapter,
     codexLocalUIAdapter,
-    outpostRunnerUIAdapter,
-    cursorCloudUIAdapter,
-    geminiLocalUIAdapter,
-    grokLocalUIAdapter,
-    kimiLocalUIAdapter,
-    hermesGatewayUIAdapter,
-    hermesLocalUIAdapter,
-    openCodeLocalUIAdapter,
-    piLocalUIAdapter,
-    cursorLocalUIAdapter,
-    openClawGatewayUIAdapter,
     processUIAdapter,
     httpUIAdapter,
   ]) {

@@ -5,7 +5,6 @@ import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, spa
 import { aiConnectionRouterAppDefinition, aiConnectionRouterSlug, aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@outpost/shared";
 import { isCodexLocalKnownModel, codexLocalReasoningEffortsForModel } from "@outpost/adapter-codex-local";
 import { models as claudeModels, claudeLocalReasoningEffortsForModel } from "@outpost/adapter-claude-local";
-import { models as grokModels, grokLocalReasoningEffortsForModel } from "@outpost/adapter-grok-local";
 import { aiConnectionService } from "./ai-connections.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { logActivity } from "./activity-log.js";
@@ -31,12 +30,11 @@ export function poolMemberRuntimeConfig(member: AiConnectionPoolMember, adapterT
   const profile = member.profile;
   const expected = provider === "openai" ? profile.provider === "codex"
     : provider === "anthropic" ? profile.provider === "acpx" && profile.acpxAgent === "claude"
-    : provider === "xai" ? profile.provider === "acpx" && profile.acpxAgent === "grok"
-    : profile.provider === "opencode";
+    : false;
   if (!expected) throw unprocessable("Pool member harness does not match its account");
   const supportsModel = (value: string) => provider === "openai" ? isCodexLocalKnownModel(value)
     : provider === "anthropic" ? claudeModels.some((m) => m.id === value)
-    : provider === "xai" ? grokModels.some((m) => m.id === value) : value.startsWith("openrouter/");
+    : false;
   const config: Record<string, unknown> = { provider: profile.provider, ...(profile.acpxAgent ? { acpxAgent: profile.acpxAgent } : {}), model: profile.model };
   const validate = () => {
     if (!isAiConnectionCompatible(member.binding, adapterType, config.model, config.provider, config.acpxAgent)) throw unprocessable("Pool member is incompatible with this harness");
@@ -55,9 +53,9 @@ export function poolMemberRuntimeConfig(member: AiConnectionPoolMember, adapterT
   const model = String(config.model);
   const efforts = provider === "openai" ? codexLocalReasoningEffortsForModel(model)
     : provider === "anthropic" ? claudeLocalReasoningEffortsForModel(model)
-    : provider === "xai" ? grokLocalReasoningEffortsForModel(model) : [];
+    : [];
   const effortKey = adapterType === "outpost_runner" ? profile.provider === "codex" || (profile.provider === "acpx" && profile.acpxAgent === "claude") ? "modelReasoningEffort" : null
-    : provider === "anthropic" ? "effort" : provider === "xai" ? "reasoningEffort" : provider === "openai" ? "modelReasoningEffort" : "variant";
+    : provider === "anthropic" ? "effort" : provider === "openai" ? "modelReasoningEffort" : null;
   const requested = overrides.modelReasoningEffort ?? overrides.reasoningEffort ?? overrides.effort ?? overrides.variant;
   const effort = typeof requested === "string" && efforts.includes(requested) && effortKey ? requested
     : profile.effort && efforts.includes(profile.effort) && effortKey ? profile.effort : null;

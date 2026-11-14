@@ -310,12 +310,6 @@ vi.mock("./outpost-control-plane-port.js", async importOriginal => {
   } };
 });
 
-const grokCopyBack = vi.hoisted(() => vi.fn(async (_input: { readSandboxAuth: () => Promise<Buffer>; hostHomeDir: string }) => undefined));
-vi.mock("@outpost/adapter-grok-local/server", async importOriginal => ({
-  ...await importOriginal<typeof import("@outpost/adapter-grok-local/server")>(),
-  copyBackGrokAuth: grokCopyBack,
-}));
-
 vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => {
   const original = await importOriginal<
     typeof import("../../vendor/outpost-runner/index.js")
@@ -16370,79 +16364,6 @@ describe("runnerd provider runtime wiring", () => {
       provider: "acpx", acpxAgent: "claude", acpxPermissionMode: "approve-all",
       acpxPermissionModePinned: true, claudeEffort: "high", homeMode,
     });
-  });
-
-  it.each(["isolated", "preconfigured"].flatMap(homeMode =>
-    [true, false].map(disableWebSearch => ({ homeMode, disableWebSearch })),
-  ))("pins Grok v10 permissions, effort and search policy at daemon startup: $homeMode $disableWebSearch", async ({ homeMode, disableWebSearch }) => {
-    const current = { ...execution, schema: "outpost.native-execution-input.v10", homeMode,
-      provider: { kind: "acpx", agent: "grok", model: "grok-4.7", permissionMode: "approve-all",
-        grokEffort: "high", grokDisableWebSearch: disableWebSearch },
-      session: { ...execution.session, driverKind: "acpx_runtime" },
-    } as unknown as NativeExecutionInput;
-    const startup = { db: leaseDb(current), execution: current,
-      runnerInstanceId: `grok-v10-pinned-${homeMode}-${disableWebSearch}`,
-      managedAiCredentialHome: join(isolatedStateDirectory, "absent-grok-login") };
-    await createRunnerdBackend({ ...startup, runnerEnvironment: { XAI_API_KEY: "synthetic-grok-api-key" } });
-    state.createBackend.mock.calls.at(-1)![1].codexTransportFactory!();
-    expect(state.createTransport.mock.calls.at(-1)![0]).toMatchObject({
-      provider: "acpx", acpxAgent: "grok", acpxPermissionMode: "approve-all",
-      acpxPermissionModePinned: true, grokEffort: "high", grokDisableWebSearch: disableWebSearch, homeMode,
-    });
-  });
-
-  it("requires explicit Grok credentials before v10 daemon startup", async () => {
-    const current = { ...execution, schema: "outpost.native-execution-input.v10", homeMode: "isolated",
-      provider: { kind: "acpx", agent: "grok", model: "grok-4.7", permissionMode: "approve-all", grokEffort: "high" },
-      session: { ...execution.session, driverKind: "acpx_runtime" },
-    } as unknown as NativeExecutionInput;
-    await expect(createRunnerdBackend({ db: leaseDb(current), execution: current,
-      runnerInstanceId: "grok-v10-missing-credential", runnerEnvironment: {},
-      managedAiCredentialHome: join(isolatedStateDirectory, "absent-grok-login"),
-    })).rejects.toThrow("Grok subscription login is unavailable");
-  });
-
-  it("copies back and removes Grok credentials from the exact ACPX launch home", async () => {
-    const priorHome = process.env.OUTPOST_HOME;
-    const privateRoot = await realpath(isolatedStateDirectory);
-    process.env.OUTPOST_HOME = privateRoot;
-    const managedHome = join(privateRoot, "space-login");
-    await mkdir(managedHome, { mode: 0o700 });
-    await writeFile(join(managedHome, "auth.json"), "fixture-old-login", { mode: 0o600 });
-    const grokExecution = { ...execution,
-      provider: { kind: "acpx", agent: "grok", model: "grok-4.7", permissionMode: "deny-all" },
-      session: { ...execution.session, driverKind: "acpx_runtime" },
-    } as unknown as NativeExecutionInputV1;
-    state.createBackend.mockReturnValueOnce({
-      kind: "test", openSession: async () => ({ close: vi.fn(async () => undefined) }),
-    } as never);
-    try {
-      const backend = await createRunnerdBackend({ db: leaseDb(grokExecution), execution: grokExecution,
-        runnerInstanceId: "grok-cleanup", managedAiCredentialHome: managedHome });
-      state.createBackend.mock.calls.at(-1)![1].codexTransportFactory!();
-      const runtimeDirectory = state.createTransport.mock.calls.at(-1)![0].acpxRuntimeDirectory!;
-      await mkdir(runtimeDirectory, { recursive: true });
-      // Use the runtime's real resolver, so this test cannot reproduce a
-      // controller-side guess that omits the nested ACPX namespace.
-      const agentHome = join(await resolveAcpxRuntimeRoot(runtimeDirectory, execution.session.normalizedSessionId!), "grok-home");
-      await mkdir(agentHome, { recursive: true, mode: 0o700 });
-      for (const name of ["auth.json", "auth-refresh.json", "auth-refresh.json.tmp"]) {
-        await writeFile(join(agentHome, name), "fixture-refreshed-login", { mode: 0o600 });
-      }
-      grokCopyBack.mockReset().mockImplementationOnce(async input => {
-        expect(input.hostHomeDir).toBe(managedHome);
-        expect((await input.readSandboxAuth()).toString()).toBe("fixture-refreshed-login");
-      });
-      const session = await backend.openSession({} as never);
-      await session.close({ reason: "completed" });
-      expect(grokCopyBack).toHaveBeenCalledOnce();
-      for (const name of ["auth.json", "auth-refresh.json", "auth-refresh.json.tmp"]) {
-        await expect(access(join(agentHome, name))).rejects.toMatchObject({ code: "ENOENT" });
-      }
-    } finally {
-      if (priorHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = priorHome;
-    }
   });
 
   it("projects the selected Antigravity subscription and copies refreshes from the exact native home after close", async () => {

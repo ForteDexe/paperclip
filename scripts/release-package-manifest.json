@@ -15,56 +15,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/adapters/cursor-cloud",
-    "name": "@outpost/adapter-cursor-cloud",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/cursor-local",
-    "name": "@outpost/adapter-cursor-local",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/gemini-local",
-    "name": "@outpost/adapter-gemini-local",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/grok-local",
-    "name": "@outpost/adapter-grok-local",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/hermes",
-    "name": "@outpost/hermes-outpost-adapter",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/hermes-gateway",
-    "name": "@outpost/adapter-hermes-gateway",
-    "publishFromCi": false
-  },
-  {
-    "dir": "packages/adapters/kimi-local",
-    "name": "@outpost/adapter-kimi-local",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/opencode-local",
-    "name": "@outpost/adapter-opencode-local",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/pi-local",
-    "name": "@outpost/adapter-pi-local",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/adapters/openclaw-gateway",
-    "name": "@outpost/adapter-openclaw-gateway",
-    "publishFromCi": true
-  },
-  {
     "dir": "packages/shared",
     "name": "@outpost/shared",
     "publishFromCi": true

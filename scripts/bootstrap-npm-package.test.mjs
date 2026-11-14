@@ -11,17 +11,17 @@ import {
 } from "./bootstrap-npm-package.mjs";
 
 test("parseArgs recognizes the publish flag", () => {
-  assert.deepEqual(parseArgs(["@outpost/adapter-kimi-local", "--publish"]), {
+  assert.deepEqual(parseArgs(["@outpost/sample-package", "--publish"]), {
     help: false,
-    packageName: "@outpost/adapter-kimi-local",
+    packageName: "@outpost/sample-package",
     publish: true,
   });
 });
 
 test("parseArgs defaults to a dry run", () => {
-  assert.deepEqual(parseArgs(["@outpost/adapter-kimi-local"]), {
+  assert.deepEqual(parseArgs(["@outpost/sample-package"]), {
     help: false,
-    packageName: "@outpost/adapter-kimi-local",
+    packageName: "@outpost/sample-package",
     publish: false,
   });
 });
@@ -36,7 +36,7 @@ test("parseArgs rejects unknown options", () => {
 });
 
 test("validatePackageName accepts @outpost scoped names", () => {
-  validatePackageName("@outpost/adapter-kimi-local");
+  validatePackageName("@outpost/sample-package");
   validatePackageName("@outpost/plugin-workspace-diff");
 });
 
@@ -47,10 +47,10 @@ test("validatePackageName rejects names outside the @outpost scope", () => {
 });
 
 test("buildPlaceholderFiles produces a publishable manifest at the placeholder version", () => {
-  const files = buildPlaceholderFiles("@outpost/adapter-kimi-local");
+  const files = buildPlaceholderFiles("@outpost/sample-package");
   const manifest = JSON.parse(files["package.json"]);
 
-  assert.equal(manifest.name, "@outpost/adapter-kimi-local");
+  assert.equal(manifest.name, "@outpost/sample-package");
   assert.equal(manifest.version, PLACEHOLDER_VERSION);
   assert.equal(manifest.publishConfig.access, "public");
   assert.deepEqual(manifest.files, ["index.js"]);
@@ -58,7 +58,7 @@ test("buildPlaceholderFiles produces a publishable manifest at the placeholder v
 });
 
 test("buildPlaceholderFiles entry point throws with a pointer to the repo", () => {
-  const files = buildPlaceholderFiles("@outpost/adapter-kimi-local");
+  const files = buildPlaceholderFiles("@outpost/sample-package");
 
   assert.match(files["index.js"], /^throw new Error\(/);
   assert.match(files["index.js"], /placeholder/);
@@ -69,7 +69,7 @@ test("buildPlaceholderFiles entry point throws with a pointer to the repo", () =
 });
 
 test("buildPlaceholderFiles README explains the placeholder", () => {
-  const files = buildPlaceholderFiles("@outpost/adapter-kimi-local");
+  const files = buildPlaceholderFiles("@outpost/sample-package");
   assert.match(files["README.md"], /placeholder publish/);
   assert.match(files["README.md"], /release-bootstrap CI gate/);
 });

@@ -5,12 +5,8 @@ Container images for running coding-agent harnesses in sandboxed environments (f
 ## Image Lineup
 
 - **`agent-runtime-base`**: Foundation. Ubuntu 22.04 + Node 24 + git + tini + non-root user (uid 1000) + the agent shim.
-- **`agent-runtime-opencode`**: Extends base with `opencode-ai` globally installed.
-- **`agent-runtime-pi`**: Extends base with `@mariozechner/pi-coding-agent`.
 - **`agent-runtime-codex`**: Extends base with `@openai/codex`.
-- **`agent-runtime-gemini`**: Extends base with `@google/gemini-cli` plus headless auth-mode settings.
 - **`agent-runtime-claude`**: Extends base with `@anthropic-ai/claude-code` (symlinked as `claude-code`).
-- **`agent-runtime-hermes`**: Dockerfile included in the bake group, not in the default publish scope (stub until a CLI package exists).
 
 ## Base Image Contents
 
@@ -90,4 +86,4 @@ The shim makes no assumptions about command structure; it is harness-agnostic. N
 
 ## Publishing
 
-`.github/workflows/agent-runtime-images.yml` builds and pushes the default scope (base, opencode, pi, codex, gemini, claude) on `workflow_dispatch` (with an explicit version tag) or on pushes to `master` touching these paths, then signs each digest with cosign keyless OIDC.
+`.github/workflows/agent-runtime-images.yml` builds and pushes the default scope (base, Codex, and Claude) on `workflow_dispatch` (with an explicit version tag) or on pushes to `master` touching these paths, then signs each digest with cosign keyless OIDC.

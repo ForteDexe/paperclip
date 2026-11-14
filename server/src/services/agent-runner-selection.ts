@@ -3,7 +3,6 @@ import type { Db } from "@outpost/db";
 import { agentHarnessType, outpostRunnerProfileForHarness, isEnvironmentDriverSupportedForAdapter, outpostRunnerSupportsPlatform, type AgentRunnerChoice, type AgentRunnerAvailability } from "@outpost/shared";
 import { normalizeLegacyRunnerProvider, OUTPOST_RUNNER_DEFAULT_MODELS } from "@outpost/adapter-utils";
 import { resolveClaudeModel } from "@outpost/adapter-claude-local";
-import { DEFAULT_GROK_LOCAL_MODEL } from "@outpost/adapter-grok-local";
 import { findActiveServerAdapter, hasActiveAdapterOverride, waitForExternalAdapters } from "../adapters/registry.js";
 import { getDisabledAdapterTypes } from "./adapter-plugin-store.js";
 import { adapterSettingsService, effectiveDisabledAdapterTypes } from "./adapter-settings.js";
@@ -82,23 +81,6 @@ export function agentRunnerAvailability(harness: string, target: RunnerTarget = 
 
 function incompatible(fields: string[]): never {
   throw unprocessable(`Outpost Runner cannot honor these settings: ${fields.join(", ")}. Remove them before retrying.`, { code: "agent_runner_config_incompatible", fields });
-}
-
-function resolveGrokRunnerConfig(config: Record<string, unknown>): Record<string, unknown> {
-  const unsupported = ["extraArgs", "args", "permissionMode", "maxTurns"]
-    .filter(key => config[key] !== undefined && config[key] !== "" && config[key] !== 0 && !(Array.isArray(config[key]) && config[key].length === 0));
-  if (config.command && config.command !== "grok") unsupported.push("command");
-  if (config.alwaysApprove !== undefined && config.alwaysApprove !== true) unsupported.push("alwaysApprove");
-  if (config.disableWebSearch !== undefined && typeof config.disableWebSearch !== "boolean") unsupported.push("disableWebSearch");
-  if (config.model !== undefined && typeof config.model !== "string") unsupported.push("model");
-  if (unsupported.length) incompatible(unsupported);
-  const translated = { ...config };
-  const effort = config.reasoningEffort ?? config.modelReasoningEffort ?? config.effort;
-  for (const key of ["command", "extraArgs", "args", "alwaysApprove", "maxTurns", "permissionMode", "reasoningEffort", "modelReasoningEffort", "effort"]) delete translated[key];
-  return { ...translated, provider: "acpx", acpxAgent: "grok", disableWebSearch: config.disableWebSearch ?? true,
-    model: typeof config.model === "string" && config.model.trim() && config.model.trim() !== DEFAULT_GROK_LOCAL_MODEL ? config.model.trim() : "grok-4.7",
-    ...(effort === undefined || effort === "" ? {} : { reasoningEffort: effort }),
-    acpxPermissionMode: config.acpxPermissionMode ?? "approve-all", lifecycleMode: config.lifecycleMode ?? "per_turn" };
 }
 
 function resolvePiRunnerConfig(config: Record<string, unknown>): Record<string, unknown> {
@@ -216,14 +198,6 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
       for (const key of ["provider", "lifecycleMode", "idleTimeoutMs"]) delete config[key];
       return { adapterType: "cursor_cloud", adapterConfig: config };
     }
-    if (harness === "grok_local") {
-      if (!native) return { adapterType, adapterConfig: config };
-      if (config.acpxPermissionMode !== undefined && config.acpxPermissionMode !== "approve-all") incompatible(["acpxPermissionMode"]);
-      if (config.lifecycleMode !== undefined && config.lifecycleMode !== "per_turn") incompatible(["lifecycleMode"]);
-      const effort = config.modelReasoningEffort ?? config.reasoningEffort ?? config.effort;
-      for (const key of ["provider", "acpxAgent", "acpxPermissionMode", "lifecycleMode", "idleTimeoutMs", "modelReasoningEffort", "effort"]) delete config[key];
-      return { adapterType: "grok_local", adapterConfig: { ...config, disableWebSearch: config.disableWebSearch ?? false, ...(effort === undefined ? {} : { reasoningEffort: effort }) } };
-    }
     if (harness === "pi_local") {
       if (!native) return { adapterType, adapterConfig: config };
       const thinking = config.thinking ?? config.piThinkingLevel ?? "low";
@@ -279,15 +253,6 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
     config = { ...config, provider: "cursor_cloud", lifecycleMode: "per_turn" };
     if (input.setupOnly && !config.model) return { adapterType: "outpost_runner", adapterConfig: config };
     try { resolveOutpostRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: config }); }
-    catch (error) {
-      if (error instanceof OutpostRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
-      throw error;
-    }
-    return { adapterType: "outpost_runner", adapterConfig: config };
-  }
-  if (harness === "grok_local") {
-    config = resolveGrokRunnerConfig(config);
-    try { resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config }); }
     catch (error) {
       if (error instanceof OutpostRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
       throw error;
@@ -447,7 +412,7 @@ export async function resolveAgentRunnerTargetForSpace(db: Db, spaceId: string, 
   }
   const disabledForSsh = driver === "ssh" && environment
     ? disabledTypes ?? await adapterSettingsService(db).getDisabledTypes() : [];
-  if (driver === "ssh" && environment && ["codex_local", "claude_local", "opencode_local", "pi_local", "grok_local"].some(harness => runnerAdaptersAvailable(harness, driver, disabledForSsh))) {
+  if (driver === "ssh" && environment && ["codex_local", "claude_local"].some(harness => runnerAdaptersAvailable(harness, driver, disabledForSsh))) {
     const parsed = await resolveEnvironmentDriverConfigForRuntime(db, spaceId, environment);
     if (parsed.driver !== "ssh") throw unprocessable("The selected SSH environment is unavailable.");
     let output: string;

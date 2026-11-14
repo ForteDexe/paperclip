@@ -59,8 +59,6 @@ import { createAgentSchema } from "../../packages/shared/src/validators/agent.js
 import { createEnvironmentSchema } from "../../packages/shared/src/validators/environment.js";
 import { DEFAULT_CODEX_LOCAL_MODEL } from "../../packages/adapters/codex-local/src/index.js";
 import { models as claudeModels } from "../../packages/adapters/claude-local/src/index.js";
-import { DEFAULT_KIMI_LOCAL_MODEL } from "../../packages/adapters/kimi-local/src/index.js";
-import { DEFAULT_GROK_LOCAL_MODEL } from "../../packages/adapters/grok-local/src/index.js";
 import { QUALIFIED_ACPX_PROFILES } from "../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js";
 import { ACPX_QUALIFICATION_MODELS } from "../acpx-qualification-models.js";
 import { QUALIFIED_OPENCODE_MODEL } from "../../packages/outpost-runner/src/drivers/opencode/opencode-server-driver.js";
@@ -355,14 +353,6 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
     credential: "ANTHROPIC_API_KEY",
   }),
   nativeProfile({
-    id: "runner-acpx-grok",
-    label: "Runner Grok Build",
-    provider: "acpx",
-    acpxAgent: "grok",
-    model: ACPX_QUALIFICATION_MODELS.grok,
-    credential: "XAI_API_KEY",
-  }),
-  nativeProfile({
     id: "runner-acpx-codex",
     label: "Runner ACPX Codex",
     provider: "acpx",
@@ -416,34 +406,7 @@ export const legacyAcpxProfiles: readonly RunnerProfileFixture[] = [
 ] as const;
 
 /** Explicit-only context-integrity profiles; admission is blocked until qualification is complete. */
-export const pendingContextIntegrityProfiles: readonly RunnerProfileFixture[] = [
-  legacyProfile({
-    id: "legacy-kimi-cli",
-    label: "Legacy Kimi CLI (pending qualification)",
-    adapterType: "kimi_local",
-    provider: "kimi",
-    model: DEFAULT_KIMI_LOCAL_MODEL,
-    credential: "KIMI_MODEL_API_KEY",
-    extraConfig: { engine: "cli" },
-  }),
-  legacyProfile({
-    id: "legacy-kimi-acp",
-    label: "Legacy Kimi ACP (pending qualification)",
-    adapterType: "kimi_local",
-    provider: "kimi",
-    model: DEFAULT_KIMI_LOCAL_MODEL,
-    credential: "KIMI_MODEL_API_KEY",
-    extraConfig: { engine: "acp", mode: "oneshot" },
-  }),
-  legacyProfile({
-    id: "legacy-grok",
-    label: "Legacy Grok (pending qualification)",
-    adapterType: "grok_local",
-    provider: "grok",
-    model: DEFAULT_GROK_LOCAL_MODEL,
-    credential: "XAI_API_KEY",
-  }),
-] as const;
+export const pendingContextIntegrityProfiles: readonly RunnerProfileFixture[] = [];
 
 export const contextIntegrityProfiles: readonly RunnerProfileFixture[] = [
   ...runnerProfiles.filter((profile) => ["runner-codex", "runner-acpx-claude", "runner-opencode", "legacy-codex", "legacy-claude"].includes(profile.id)),

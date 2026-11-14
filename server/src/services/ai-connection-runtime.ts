@@ -22,7 +22,6 @@ import { decideCodexAuthMerge, withAccountHomeSecretMutationLock } from "@outpos
 import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@outpost/adapter-utils/workspace-restore-merge";
 import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { runAdapterExecutionTargetProcess } from "@outpost/adapter-utils/execution-target";
-import { decideGrokAuthMerge } from "@outpost/adapter-grok-local/server";
 import { NativeEnvironmentProbeCleanupError, sanitizeAntigravityCredential } from "../vendor/outpost-runner/index.js";
 import { readLocalAiCredentialFile } from "./local-ai-credential-file.js";
 import { prepareAntigravityCredentialWriteback } from "./native-runtime/antigravity-runner-credentials.js";
@@ -551,14 +550,9 @@ export async function prepareManagedAiRuntime(
                   "current-auth.json",
                 );
                 await writeFile(destination, current, { mode: 0o600 });
-                const decision =
-                  input.binding.provider === "openai"
-                    ? await decideCodexAuthMerge(authFile, destination, {
-                        errorLabel: "AI account refresh",
-                      })
-                    : await decideGrokAuthMerge(authFile, destination, {
-                        errorLabel: "AI account refresh",
-                      });
+                const decision = await decideCodexAuthMerge(authFile, destination, {
+                  errorLabel: "AI account refresh",
+                });
                 if (decision !== 10) return;
                 await secretService(tx).rotate(
                   ref.secretId,
@@ -606,7 +600,7 @@ export async function prepareManagedAiRuntime(
     return {
       sessionIdentity,
       ...(retainedCleanupScope ? { retainedCleanupScope } : {}),
-      ...(subscriptionFile && (input.binding.provider === "openai" || input.binding.provider === "xai") && credentialRef && freshness ? {
+      ...(subscriptionFile && input.binding.provider === "openai" && credentialRef && freshness ? {
         credentialWriteback: { grantId: selection.grant.id, secretId: credentialRef.secretId, sessionEpoch: freshness.epoch,
           versionSelector: credentialRef.versionSelector ?? "latest" } satisfies ManagedAiCredentialWritebackBinding,
       } : {}),

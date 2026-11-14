@@ -96,7 +96,7 @@ Cloud-managed instances load adapters from the release image. Installing,
 removing, or overriding adapters remains platform-managed.
 
 
-Automated: [adapter validation routes](../../server/src/__tests__/agent-adapter-validation-routes.test.ts) and [model refresh](../../server/src/__tests__/adapter-model-refresh-routes.test.ts) cover server behavior.
+Automated: [adapter validation routes](../../server/src/__tests__/agent-adapter-validation-routes.test.ts) cover server behavior for the retained Codex and Claude adapters.
 
 Cursor Cloud keeps Legacy as its automatic default. Choose Outpost Runner
 explicitly under Advanced for experimental native support on a local controller.

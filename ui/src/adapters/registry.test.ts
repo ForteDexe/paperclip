@@ -52,29 +52,16 @@ describe("ui adapter registry", () => {
     expect(fallback.ConfigFields).toBe(SchemaConfigFields);
   });
 
-  it("restores built-in Hermes adapters when external overrides are paused or removed", () => {
-    for (const type of ["hermes_local", "hermes_gateway"]) {
-      const builtin = getUIAdapter(type);
+  it("restores the Codex built-in when an external override is paused or removed", () => {
+    const builtin = getUIAdapter("codex_local");
 
-      syncExternalAdapters([{ type, label: "External Hermes" }]);
+    syncExternalAdapters([{ type: "codex_local", label: "External Codex" }]);
+    expect(getUIAdapter("codex_local")).not.toBe(builtin);
 
-      const overridden = getUIAdapter(type);
-      expect(overridden).not.toBe(builtin);
-      expect(overridden.type).toBe(type);
-      expect(overridden.label).toBe("External Hermes");
-      expect(overridden.ConfigFields).toBe(builtin.ConfigFields);
-      expect(overridden.buildAdapterConfig).toBe(builtin.buildAdapterConfig);
+    syncExternalAdapters([{ type: "codex_local", label: "External Codex", overrideDisabled: true }]);
+    expect(getUIAdapter("codex_local")).toBe(builtin);
 
-      syncExternalAdapters([{ type, label: "External Hermes", overrideDisabled: true }]);
-
-      expect(getUIAdapter(type)).toBe(builtin);
-
-      syncExternalAdapters([{ type, label: "External Hermes" }]);
-      expect(getUIAdapter(type)).not.toBe(builtin);
-
-      syncExternalAdapters([]);
-
-      expect(getUIAdapter(type)).toBe(builtin);
-    }
+    syncExternalAdapters([]);
+    expect(getUIAdapter("codex_local")).toBe(builtin);
   });
 });

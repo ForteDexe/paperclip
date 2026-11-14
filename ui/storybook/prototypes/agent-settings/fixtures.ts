@@ -11,7 +11,6 @@ import {
   storybookSecrets,
 } from "../../fixtures/outpostData";
 import { models as claudeModels } from "@outpost/adapter-claude-local";
-import { models as openCodeModels } from "@outpost/adapter-opencode-local";
 import { storybookEnvironments } from "../../fixtures/onboardingEnvironment";
 import { models as codexModels } from "@outpost/adapter-codex-local";
 import { runtimeTestResult, type TestOutcome } from "../new-agent-fixtures";
@@ -317,9 +316,7 @@ export function createSettingsFixtures(
               : url.pathname.includes("codex") ||
                   url.pathname.includes("outpost_runner")
                 ? codexModels
-                : url.pathname.includes("opencode")
-                  ? openCodeModels
-                  : [],
+                : [],
           );
         if (url.pathname.match(/\/adapters\/[^/]+\/test-environment$/)) {
           const data = await payload();

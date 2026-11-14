@@ -90,9 +90,7 @@ import { NativePermissionDeclinedError, readCompletedNativePermissionDecline } f
 import { activeIssueInteractionCondition } from "../issue-question-context.js";
 import { resolveAcpxQualification, resolveAntigravityCandidateAdmission, resolveKimiCandidateAdmission } from "./acpx-qualification.js";
 import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
-import { prepareGrokRunnerCredentials } from "./grok-runner-credentials.js";
 import { bindAntigravityCredentialTurn, bindAntigravityTransportRetirement, prepareAntigravityRunnerCredentials } from "./antigravity-runner-credentials.js";
-import { copyBackGrokAuth } from "@outpost/adapter-grok-local/server";
 
 import { inferOpenAiCompatibleBiller, type AdapterUsageCheckpoint } from "@outpost/adapter-utils";
 import { createAgentIdentityRedactor } from "../agent-identity-redaction.js";
@@ -17506,18 +17504,12 @@ async function createRunnerdBackendWithinSessionClaim(
       }
     : input.execution;
   const preconfiguredHome = "homeMode" in input.execution && input.execution.homeMode === "preconfigured";
-  const isGrok = input.execution.provider.kind === "acpx" && input.execution.provider.agent === "grok";
   const isAntigravity = input.execution.provider.kind === "acpx" && input.execution.provider.agent === "antigravity";
   let effectiveRunnerEnvironmentBase: NodeJS.ProcessEnv = {
-    ...(isGrok || isAntigravity
+    ...(isAntigravity
       ? runnerEnvironment ?? {}
       : resolveNativeProviderEnvironment(input.execution.provider, runnerEnvironment)),
   };
-  const grokCredential = isGrok ? await prepareGrokRunnerCredentials({
-    spaceId: input.execution.binding.spaceId, environment: effectiveRunnerEnvironmentBase, remote: Boolean(remoteTarget),
-    managedHome: input.managedAiCredentialHome,
-  }) : null;
-  if (grokCredential) effectiveRunnerEnvironmentBase = grokCredential.environment;
   const antigravityCredential = isAntigravity ? await prepareAntigravityRunnerCredentials({
     environment: effectiveRunnerEnvironmentBase, remote: Boolean(remoteTarget), managedHome: input.managedAiCredentialHome,
     lifecycleMode: input.execution.session.lifecyclePolicy.mode,
@@ -17696,9 +17688,9 @@ async function createRunnerdBackendWithinSessionClaim(
     owner => logger.warn({ spaceId: owner.spaceId, runId: owner.runId }, "Native session diagnostic recording failed"));
   const diagnosticLease = diagnostics.activate(diagnosticOwner, input.onLog);
   input.onDiagnosticLease?.(diagnosticLease);
-  const credentialProvider = input.execution.provider.kind === "codex" ? "codex"
-    : input.execution.provider.kind === "acpx" && (input.execution.provider.agent === "codex" || input.execution.provider.agent === "grok")
-      ? input.execution.provider.agent : null;
+  const credentialProvider = input.execution.provider.kind === "codex"
+    || input.execution.provider.kind === "acpx" && input.execution.provider.agent === "codex"
+    ? "codex" : null;
   const acpxCredential = input.execution.provider.kind === "acpx";
   const credentialRelativeHome = credentialProvider && acpxCredential
     ? `acpx/acpx/${acpxRuntimeSessionDirectoryName(nativeSessionKey(input.execution))}/${credentialProvider}-home` : "codex-home";
@@ -18096,14 +18088,12 @@ async function createRunnerdBackendWithinSessionClaim(
         managedHome: antigravityCredential.home, credential: antigravityCredential.credential, runtimeHome,
       });
     }
-    const destinationHome = credentialProvider === "grok" ? grokCredential?.home : input.managedAiCredentialHome;
+    const destinationHome = input.managedAiCredentialHome;
     if (!credentialProvider || !credentialStore || !destinationHome || boundManagedSessions.has(session)) return session;
     boundManagedSessions.add(session);
     return bindManagedNativeCredentialTurn(session, {
       copyBack: synchronizeCredentials ? async () => {} : async () => {
-        if (credentialProvider === "grok") await copyBackGrokAuth({ hostHomeDir: destinationHome,
-          readSandboxAuth: async () => Buffer.from(await credentialStore.read()), log: () => {} });
-        else await copyBackCodexAuth({ hostAuthPath: join(destinationHome, "auth.json"),
+        await copyBackCodexAuth({ hostAuthPath: join(destinationHome, "auth.json"),
           readSandboxAuth: async () => Buffer.from(await credentialStore.read()), log: () => {} });
       },
       retire: synchronizeCredentials,

@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@outpost/adapter-opencode-local";
 import { LOW_TRUST_REVIEW_PRESET } from "@outpost/shared";
 import { hoistModuleGraph } from "./helpers/hoist-module-graph.js";
 
@@ -116,7 +115,6 @@ const mockLogActivity = vi.hoisted(() => vi.fn());
 const mockTrackAgentCreated = vi.hoisted(() => vi.fn());
 const mockGetTelemetryClient = vi.hoisted(() => vi.fn());
 const mockSyncInstructionsBundleConfigFromFilePath = vi.hoisted(() => vi.fn());
-const mockEnsureOpenCodeModelConfiguredAndAvailable = vi.hoisted(() => vi.fn());
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
   listBoundSpaceIds: vi.fn(),
@@ -139,13 +137,6 @@ function registerModuleMocks() {
     ...(await importOriginal<typeof import("@outpost/adapter-utils/ssh")>()),
     runSshCommand: mockRunSshCommand,
   }));
-  vi.doMock("@outpost/adapter-opencode-local/server", async () => {
-    const actual = await vi.importActual<typeof import("@outpost/adapter-opencode-local/server")>("@outpost/adapter-opencode-local/server");
-    return {
-      ...actual,
-      ensureOpenCodeModelConfiguredAndAvailable: mockEnsureOpenCodeModelConfiguredAndAvailable,
-    };
-  });
 
   vi.doMock("@outpost/shared/telemetry", () => ({
     trackAgentCreated: mockTrackAgentCreated,
@@ -358,7 +349,6 @@ describe("agent permission routes", () => {
     mockEnvironmentService.listBoundSpaceIds.mockReset().mockResolvedValue([]);
     mockRunSshCommand.mockReset().mockResolvedValue({ stdout: "Linux\nx86_64\n", stderr: "", code: 0 });
     mockEnvironmentService.getById.mockReset();
-    mockEnsureOpenCodeModelConfiguredAndAvailable.mockReset();
     mockSyncInstructionsBundleConfigFromFilePath.mockImplementation((_agent, config) => config);
     mockGetTelemetryClient.mockReturnValue({ track: vi.fn() });
     mockAgentService.getById.mockResolvedValue(baseAgent);
@@ -1499,82 +1489,6 @@ describe("agent permission routes", () => {
             maxConcurrentRuns: 20,
           },
         },
-      }),
-      { runnerResolved: true, aiConnectionInstall: undefined, createdByAgentId: null, interactionTexts: [expect.any(String)], createdByUserId: "operator-user", responsibleUserId: "operator-user", claudeLogin: { storedSessionId: null, ownerUserId: "operator-user", applyExistingWithoutClaim: false } },
-    );
-  });
-
-  it("seeds explicit legacy opencode creation with the static default model without live discovery", async () => {
-    mockEnsureOpenCodeModelConfiguredAndAvailable.mockRejectedValue(
-      new Error("`opencode models` should not be called during creation"),
-    );
-
-    const app = await createApp({
-      type: "operator",
-      userId: "operator-user",
-      source: "local_implicit",
-      isInstanceAdmin: true,
-      spaceIds: [spaceId],
-    });
-
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .post(`/api/spaces/${spaceId}/agents`)
-      .send({
-        name: "OpenCode Builder",
-        role: "engineer",
-        adapterType: "opencode_local",
-        runner: "legacy",
-        adapterConfig: {},
-      }));
-
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(mockEnsureOpenCodeModelConfiguredAndAvailable).not.toHaveBeenCalled();
-    expect(mockAgentService.create).toHaveBeenCalledWith(
-      spaceId,
-      expect.objectContaining({
-        adapterType: "opencode_local",
-        adapterConfig: expect.objectContaining({
-          model: DEFAULT_OPENCODE_LOCAL_MODEL,
-        }),
-      }),
-      { runnerResolved: true, aiConnectionInstall: undefined, createdByAgentId: null, interactionTexts: [expect.any(String)], createdByUserId: "operator-user", responsibleUserId: "operator-user", claudeLogin: { storedSessionId: null, ownerUserId: "operator-user", applyExistingWithoutClaim: false } },
-    );
-  });
-
-  it("accepts manual opencode provider/model values without host-side discovery", async () => {
-    mockEnsureOpenCodeModelConfiguredAndAvailable.mockRejectedValue(
-      new Error("`opencode models` should not be called during creation"),
-    );
-
-    const app = await createApp({
-      type: "operator",
-      userId: "operator-user",
-      source: "local_implicit",
-      isInstanceAdmin: true,
-      spaceIds: [spaceId],
-    });
-
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .post(`/api/spaces/${spaceId}/agents`)
-      .send({
-        name: "OpenCode Builder",
-        role: "engineer",
-        adapterType: "opencode_local",
-        adapterConfig: {
-          model: "anthropic/claude-sonnet-4-5",
-        },
-      }));
-
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(mockEnsureOpenCodeModelConfiguredAndAvailable).not.toHaveBeenCalled();
-    expect(mockAgentService.create).toHaveBeenCalledWith(
-      spaceId,
-      expect.objectContaining({
-        adapterType: "outpost_runner",
-        adapterConfig: expect.objectContaining({
-          provider: "opencode",
-          model: "anthropic/claude-sonnet-4-5",
-        }),
       }),
       { runnerResolved: true, aiConnectionInstall: undefined, createdByAgentId: null, interactionTexts: [expect.any(String)], createdByUserId: "operator-user", responsibleUserId: "operator-user", claudeLogin: { storedSessionId: null, ownerUserId: "operator-user", applyExistingWithoutClaim: false } },
     );

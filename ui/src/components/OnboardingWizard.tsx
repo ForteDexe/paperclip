@@ -117,10 +117,6 @@ import {
 } from "../lib/onboarding-launch";
 import { buildNewAgentRuntimeConfig } from "../lib/new-agent-runtime-config";
 import { DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX } from "@outpost/adapter-codex-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@outpost/adapter-cursor-local";
-import { DEFAULT_GEMINI_LOCAL_MODEL } from "@outpost/adapter-gemini-local";
-import { DEFAULT_KIMI_LOCAL_MODEL } from "@outpost/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL, isValidOpenCodeModelId } from "@outpost/adapter-opencode-local";
 import {
   canGoBackFromOnboardingStep,
   canJumpToOnboardingStep,
@@ -1692,29 +1688,12 @@ function OnboardingWizardInner({
     // preselection this step was changed to stop doing. The saved answer was
     // unofferable, so the question is open again.
     setSourcePicked(false);
-    if (next === "opencode_local") {
-      setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
-      return;
-    }
-    if (next === "gemini_local") {
-      setModel(DEFAULT_GEMINI_LOCAL_MODEL);
-      return;
-    }
-    if (next === "cursor") {
-      setModel(DEFAULT_CURSOR_LOCAL_MODEL);
-      return;
-    }
     setModel("");
   }, [adapterRegistryLoaded, recommendedAdapters, moreAdapters, adapterType]);
 
   const COMMAND_PLACEHOLDERS: Record<string, string> = {
     claude_local: "claude",
     codex_local: "codex",
-    gemini_local: "gemini",
-    kimi_local: "kimi",
-    pi_local: "pi",
-    cursor: "agent",
-    opencode_local: "opencode",
   };
   const effectiveAdapterCommand =
     command.trim() ||
@@ -2081,16 +2060,7 @@ function OnboardingWizardInner({
       runner,
       ...(adapterType === "pi_local" ? { adapterSchemaValues: savedConfig } : {}),
       resolvedRunner: setupRunner ?? resolvedRunner,
-      model:
-        adapterType === "gemini_local"
-          ? model || DEFAULT_GEMINI_LOCAL_MODEL
-          : adapterType === "kimi_local"
-            ? model || DEFAULT_KIMI_LOCAL_MODEL
-          : adapterType === "cursor"
-            ? model || DEFAULT_CURSOR_LOCAL_MODEL
-            : adapterType === "opencode_local"
-              ? model || DEFAULT_OPENCODE_LOCAL_MODEL
-              : model,
+      model,
       command,
       args,
       url,
@@ -2414,39 +2384,6 @@ function OnboardingWizardInner({
     setError(null);
     let qualifiedDiscovery: { adapters: AdapterInfo[]; environmentId: string | null } | undefined;
     try {
-      if (adapterType === "opencode_local") {
-        const selectedModelId = model.trim();
-        if (!isValidOpenCodeModelId(selectedModelId)) {
-          setError(
-            "OpenCode requires an explicit model in provider/model format."
-          );
-          return;
-        }
-        if (adapterModelsError) {
-          setError(
-            adapterModelsError instanceof Error
-              ? adapterModelsError.message
-              : "Failed to load OpenCode models."
-          );
-          return;
-        }
-        if (adapterModelsLoading || adapterModelsFetching) {
-          setError(
-            "OpenCode models are still loading. Please wait and try again."
-          );
-          return;
-        }
-        const discoveredModels = adapterModels ?? [];
-        if (!discoveredModels.some((entry) => entry.id === selectedModelId)) {
-          setError(
-            discoveredModels.length === 0
-              ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
-              : `Configured OpenCode model is unavailable: ${selectedModelId}`
-          );
-          return;
-        }
-      }
-
       // Onboarding applies a stored Claude subscription login automatically,
       // with no extra control. A new user who signs in, leaves, and returns
       // should not sign in a second time — that is the operator's direction.
@@ -3109,10 +3046,7 @@ function OnboardingWizardInner({
                         setSourcePicked(true);
                         setAdapterType(id);
                         if (id !== adapterType) setRunner("auto");
-                        if (id !== adapterType) {
-                          if (id === "opencode_local") setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
-                          else if (id !== "codex_local") setModel("");
-                        }
+                        if (id !== adapterType && id !== "codex_local") setModel("");
                         setConnectPhase("collapsing");
                       }}
                     />

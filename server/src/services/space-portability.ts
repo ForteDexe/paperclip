@@ -77,7 +77,6 @@ import {
   readOutpostSkillSyncPreference,
   writeOutpostSkillSyncPreference,
 } from "@outpost/adapter-utils/server-utils";
-import { requireOpenCodeModelId } from "@outpost/adapter-opencode-local/server";
 import { findServerAdapter } from "../adapters/index.js";
 import { formatAttachmentSize, MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
 import { forbidden, notFound, unprocessable } from "../errors.js";
@@ -3665,13 +3664,7 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
       }
       return;
     }
-    if (adapterType !== "opencode_local") return;
-    try {
-      requireOpenCodeModelId(adapterConfig.model);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      throw unprocessable(`Invalid opencode_local adapterConfig: ${reason}`);
-    }
+    return;
   }
 
   async function prepareImportedAgentAdapter(

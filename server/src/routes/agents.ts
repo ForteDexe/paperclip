@@ -263,10 +263,6 @@ import {
   withCodexAccountHomePromotionLock,
 } from "@outpost/adapter-codex-local/server";
 import {
-  checkStagedGrokCredentialReadiness,
-  promoteGrokDeviceLoginCredential,
-} from "@outpost/adapter-grok-local/server";
-import {
   AdapterAuthSessionConflictError,
   createDeviceLoginService,
   createWorkerBoundLoginPtyOpener,
@@ -277,11 +273,6 @@ import {
   type CredentialPromotion,
 } from "../services/device-login-service.js";
 import type { AdapterAuthSessionOwnerResponse } from "@outpost/shared";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@outpost/adapter-cursor-local";
-import { DEFAULT_GEMINI_LOCAL_MODEL } from "@outpost/adapter-gemini-local";
-import { DEFAULT_KIMI_LOCAL_MODEL } from "@outpost/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@outpost/adapter-opencode-local";
-import { requireOpenCodeModelId } from "@outpost/adapter-opencode-local/server";
 import {
   loadDefaultAgentInstructionsBundle,
   resolveDefaultAgentInstructionsBundleRole,
@@ -1145,60 +1136,6 @@ export function agentRoutes(
               spaceIdentityDiffers: pending.spaceIdentityDiffers,
             });
           });
-        },
-      },
-      grok_local: {
-        async promote(authBytes, context) {
-          const managedSession = await adapterLoginStore.get(context.sessionId);
-          if (managedSession?.aiConnection) {
-            await adapterLoginStore.withSpaceAdapterPromotionLock(context.spaceId, context.startedByUserId, context.adapterType, async () => {
-              if (!(await checkStagedGrokCredentialReadiness(authBytes)).ready) throw new Error("Provider credential is not ready");
-              await aiConnectionService(db).save(context.spaceId, context.startedByUserId, managedSession.aiConnection!, authBytes.toString("utf8"), { id: context.sessionId }, undefined, context.managementContext);
-            });
-            return;
-          }
-
-          // The same promotion critical-section lock as the Codex entry above,
-          // keyed by the same `(spaceId, startedByUserId, adapterType)` tuple,
-          // so a Grok reclaim and a Grok write never interleave.
-          const outcome = await adapterLoginStore.withSpaceAdapterPromotionLock(
-            context.spaceId,
-            context.startedByUserId,
-            context.adapterType,
-            () =>
-              promoteGrokDeviceLoginCredential({
-                authBytes,
-                spaceId: context.spaceId,
-                userInitiated: true,
-                checkReadiness: (bytes) => checkStagedGrokCredentialReadiness(bytes),
-                isSoleActiveOwner: async () => {
-                  const row = await adapterLoginStore.get(context.sessionId);
-                  return row?.status === "promoting" && row.spaceId === context.spaceId;
-                },
-                log: (line) => {
-                  // The promotion lines carry no token bytes and no personal
-                  // field, so it is safe to log them with the session identifier.
-                  logger.info({ sessionId: context.sessionId }, line);
-                },
-              }),
-          );
-          if (outcome === "kept_foreign_identity") {
-            // The login produced a different account than the one the space
-            // credential home already holds. Fail the session, so the operator
-            // never sees a false `authenticated` for an account the system will
-            // not use.
-            throw new Error(
-              "device-login credential promotion rejected: the login is a different account than the one already set for this space; the existing account was kept",
-            );
-          }
-          // A `kept` outcome is a successful login too: the space home
-          // already holds a same-account credential that is not older than
-          // this one (for example, a teardown copy-back installed a fresher
-          // copy while this login was in progress), so a later run still
-          // authenticates as the same account.
-          if (outcome !== "promoted" && outcome !== "kept") {
-            throw new Error(`device-login credential promotion rejected: ${outcome}`);
-          }
         },
       },
     } satisfies Partial<Record<AgentAdapterType, CredentialPromotion>>,
@@ -2397,21 +2334,6 @@ export function agentRoutes(
       }
       return ensureGatewayDeviceKey(adapterType, next);
     }
-    if (adapterType === "gemini_local" && !asNonEmptyString(next.model)) {
-      next.model = DEFAULT_GEMINI_LOCAL_MODEL;
-      return ensureGatewayDeviceKey(adapterType, next);
-    }
-    if (adapterType === "kimi_local" && !asNonEmptyString(next.model)) {
-      next.model = DEFAULT_KIMI_LOCAL_MODEL;
-      return ensureGatewayDeviceKey(adapterType, next);
-    }
-    if (adapterType === "opencode_local" && !asNonEmptyString(next.model)) {
-      next.model = DEFAULT_OPENCODE_LOCAL_MODEL;
-      return ensureGatewayDeviceKey(adapterType, next);
-    }
-    if (adapterType === "cursor" && !asNonEmptyString(next.model)) {
-      next.model = DEFAULT_CURSOR_LOCAL_MODEL;
-    }
     return ensureGatewayDeviceKey(adapterType, next);
   }
 
@@ -2424,13 +2346,7 @@ export function agentRoutes(
       await assertFreshOutpostRunnerProvider(spaceId, adapterType, adapterConfig);
       return;
     }
-    if (adapterType !== "opencode_local") return;
-    try {
-      requireOpenCodeModelId(adapterConfig.model);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      throw unprocessable(`Invalid opencode_local adapterConfig: ${reason}`);
-    }
+    return;
   }
 
   function resolveInstructionsFilePath(candidatePath: string, adapterConfig: Record<string, unknown>) {

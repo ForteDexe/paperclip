@@ -6,7 +6,6 @@ import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decideCodexAuthMerge, readSubscriptionAccountId, withAccountHomeSecretMutationLock } from "@outpost/adapter-codex-local/server";
-import { decideGrokAuthMerge, parseGrokAuthPayload, hasUsableGrokAuthValue } from "@outpost/adapter-grok-local/server";
 import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@outpost/adapter-utils/workspace-restore-merge";
 import { aiConnectionService } from "./ai-connections.js";
 import { secretService } from "./secrets.js";
@@ -22,7 +21,7 @@ export async function syncManagedAiCredentials(
   db: Db,
   spaceId: string,
   binding: ManagedAiCredentialWritebackBinding,
-  provider: "codex" | "grok",
+  provider: "codex",
   fetchCredential: () => Promise<string | null>,
 ) {
   managedAiCredentialWritebackBindingSchema.parse(binding);
@@ -45,7 +44,7 @@ export async function syncManagedAiCredentials(
         eq(toolConnections.spaceId, spaceId), eq(toolConnections.id, grant.connectionId),
       ));
       const ai = aiConnectionMetadataSchema.safeParse(connection?.config.ai);
-      if (!connection || !ai.success || ai.data.provider !== (provider === "codex" ? "openai" : "xai") || ai.data.method !== "subscription") return null;
+      if (!connection || !ai.success || ai.data.provider !== "openai" || ai.data.method !== "subscription") return null;
       return { connection, grant };
     };
     const mutate = <T>(operation: (database: Db) => Promise<T>) => withAccountHomeSecretMutationLock(
@@ -57,14 +56,7 @@ export async function syncManagedAiCredentials(
     const credential = await fetchCredential();
     if (credential === null) return "no_credentials" as const;
     // A partial provider write must replay, not be acknowledged as unchanged.
-    let usable = false;
-    if (provider === "codex") usable = readSubscriptionAccountId(Buffer.from(credential)) !== null;
-    else {
-      try {
-        const parsed = parseGrokAuthPayload(JSON.parse(credential));
-        usable = parsed !== null && hasUsableGrokAuthValue(parsed.value);
-      } catch { /* Do not expose credential bytes through JSON parser errors. */ }
-    }
+    const usable = readSubscriptionAccountId(Buffer.from(credential)) !== null;
     if (!usable) throw new Error("Managed credential snapshot invalid");
     const incoming = join(home, "incoming.json"), destination = join(home, "current.json");
     await writeFile(incoming, credential, { mode: 0o600 });
@@ -73,7 +65,7 @@ export async function syncManagedAiCredentials(
       if (!selected) return "binding_changed" as const;
       const value = await aiConnectionService(database).credential(selected);
       await writeFile(destination, value, { mode: 0o600 });
-      if (await (provider === "codex" ? decideCodexAuthMerge : decideGrokAuthMerge)(incoming, destination, { errorLabel: "AI account refresh" }) !== 10) return "unchanged" as const;
+      if (await decideCodexAuthMerge(incoming, destination, { errorLabel: "AI account refresh" }) !== 10) return "unchanged" as const;
       await secretService(database).rotate(binding.secretId, {
         value: credential, preserveAiSessionEpoch: true,
       }, { userId: selected.grant.subjectUserId });

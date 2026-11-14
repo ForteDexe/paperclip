@@ -1,33 +1,21 @@
 import { readLocalAiCredentialFile } from "./local-ai-credential-file.js";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { readIsolatedClaudeKeychainToken } from "@outpost/adapter-claude-local/server";
 import { readCodexAuthInfo, fetchCodexQuota } from "@outpost/adapter-codex-local/server";
-import { parseGrokAuthPayload, hasUsableGrokAuthValue } from "@outpost/adapter-grok-local/server";
 import type { AiProvider } from "@outpost/shared";
 import { unprocessable } from "../errors.js";
-import { verifyAntigravityCredential } from "../vendor/outpost-runner/index.js";
 
 export async function readVerifiedLocalAiCredentialDetails(provider: AiProvider, loginHome: string) {
-  if (provider === "google") {
-    try {
-      const verified = await verifyAntigravityCredential(loginHome);
-      return { credential: verified.credential, accountLabel: verified.accountEmail };
-    } catch {
-      throw unprocessable("Could not verify the Google account. Finish browser sign-in, then try Connect again.");
-    }
-  }
   return { credential: await readVerifiedLocalAiCredential(provider, loginHome), accountLabel: undefined };
 }
 
 /** Read and verify a connection-specific login home. */
 export async function readVerifiedLocalAiCredential(provider: AiProvider, loginHome?: string): Promise<string> {
-  if (provider === "openrouter") throw unprocessable("OpenRouter requires an API key.");
-  if (!loginHome) throw unprocessable(provider === "xai"
-    ? "Start local sign-in for this connection before connecting."
-    : "Start browser sign-in for this connection before connecting.");
+  if (provider !== "openai" && provider !== "anthropic") {
+    throw unprocessable("This provider is not supported.");
+  }
+  if (!loginHome) throw unprocessable("Start browser sign-in for this connection before connecting.");
   try {
-    if (provider === "google") return (await verifyAntigravityCredential(loginHome)).credential;
     if (provider === "anthropic") {
       // Never change process.env or fall back to the server account when an
       // authenticated user's isolated login is missing or invalid.
@@ -57,20 +45,9 @@ export async function readVerifiedLocalAiCredential(provider: AiProvider, loginH
       await fetchCodexQuota(auth.accessToken, auth.accountId);
       return JSON.stringify({ tokens: { access_token: auth.accessToken, refresh_token: auth.refreshToken, id_token: auth.idToken, account_id: auth.accountId }, last_refresh: auth.lastRefresh });
     }
-    const raw = await fs.readFile(path.join(loginHome!, "auth.json"), "utf8");
-    const payload = parseGrokAuthPayload(JSON.parse(raw));
-    if (!payload || !hasUsableGrokAuthValue(payload.value)) throw new Error("Missing login");
-    const response = await fetch("https://api.x.ai/v1/models", {
-      headers: { Authorization: `Bearer ${payload.value.key}` },
-      redirect: "error", signal: AbortSignal.timeout(15000),
-    });
-    await response.body?.cancel();
-    if (!response.ok) throw new Error("Invalid login");
-    return raw;
+    throw new Error("Unsupported provider");
   } catch {
     // Provider/CLI errors may contain credential material; never return them.
-    throw unprocessable(provider === "xai"
-      ? "Could not verify the local subscription. Run the sign-in command shown for this connection, finish signing in, then try Connect again."
-      : "Could not verify the local subscription. Finish browser sign-in for this connection, then try Connect again.");
+    throw unprocessable("Could not verify the local subscription. Finish browser sign-in for this connection, then try Connect again.");
   }
 }

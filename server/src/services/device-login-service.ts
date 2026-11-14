@@ -25,10 +25,6 @@ import {
   type DeviceLoginPrompt,
   type SandboxLoginDriver,
 } from "@outpost/adapter-codex-local/server";
-import {
-  GROK_DEVICE_LOGIN_COMMAND as DEFAULT_GROK_LOGIN_COMMAND,
-  parseGrokDeviceLoginPrompt,
-} from "@outpost/adapter-grok-local/server";
 import type { AdapterLoginPrompt } from "@outpost/adapter-utils";
 import {
   createLoginPtyTransport,
@@ -87,7 +83,6 @@ export const LOGIN_LEASE_SESSION_TAG_KEY = "adapterLoginSessionId";
  */
 export const DISPLAYED_CODE_ADAPTER_TYPES: readonly AgentAdapterType[] = [
   "codex_local",
-  "grok_local",
 ];
 
 /**
@@ -864,13 +859,6 @@ export const DISPLAYED_CODE_PROFILES: Readonly<
     command: DEFAULT_CODEX_LOGIN_COMMAND,
     homeEnvVar: "CODEX_HOME",
     parsePrompt: parseDeviceLoginPrompt,
-    timeoutMs: DEVICE_LOGIN_TIMEOUT_MS,
-    promotion: UNCONFIGURED_PROMOTION,
-  },
-  grok_local: {
-    command: DEFAULT_GROK_LOGIN_COMMAND,
-    homeEnvVar: "GROK_HOME",
-    parsePrompt: parseGrokDeviceLoginPrompt,
     timeoutMs: DEVICE_LOGIN_TIMEOUT_MS,
     promotion: UNCONFIGURED_PROMOTION,
   },

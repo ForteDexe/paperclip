@@ -16,16 +16,6 @@ const cases: Array<{ name: string; execute: () => Promise<Execute>; event: unkno
     event: { type: "turn.completed", usage: { input_tokens: 120, cached_input_tokens: 100, output_tokens: 10 } }, tokens: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 }, price: null },
   { name: "claude", execute: async () => (await import("../../../packages/adapters/claude-local/src/server/execute.js")).execute,
     event: { type: "assistant", message: { id: "m1", usage: { input_tokens: 20, cache_read_input_tokens: 100, output_tokens: 10 }, content: [] } }, tokens: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 }, price: null },
-  { name: "opencode", execute: async () => (await import("../../../packages/adapters/opencode-local/src/server/execute.js")).execute,
-    event: { type: "step_finish", part: { tokens: { input: 20, output: 10, cache: { read: 100 } }, cost: 0.004 } }, tokens: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 }, price: 0.004 },
-  { name: "pi", execute: async () => (await import("../../../packages/adapters/pi-local/src/server/execute.js")).execute,
-    event: { type: "turn_end", message: { role: "assistant", content: [], usage: { input: 20, output: 10, cacheRead: 100, cost: { total: 0.004 } } } }, tokens: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 }, price: 0.004 },
-  { name: "cursor", execute: async () => (await import("../../../packages/adapters/cursor-local/src/server/execute.js")).execute,
-    event: { type: "result", usage: { input_tokens: 20, cache_read_input_tokens: 100, output_tokens: 10 }, total_cost_usd: 0.004 }, tokens: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 }, price: 0.004 },
-  { name: "gemini", execute: async () => (await import("../../../packages/adapters/gemini-local/src/server/execute.js")).execute,
-    event: { type: "result", usage: { input_tokens: 120, cached_input_tokens: 100, output_tokens: 10 }, total_cost_usd: 0.004 }, tokens: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 }, price: 0.004 },
-  { name: "kimi", execute: async () => (await import("../../../packages/adapters/kimi-local/src/server/execute.js")).execute,
-    event: { type: "assistant", content: "partial work" }, price: null },
 ];
 
 describe("CLI adapter accounting on timeout", () => {
@@ -281,13 +271,9 @@ describe("incremental protocol accounting", () => {
     const final = consume(JSON.stringify({ type: "result", total_cost_usd: 1, usage: { input_tokens: 9, output_tokens: 8 } }));
     expect(final).toMatchObject({ model: "actual-model", costUsd: 1, usage: { inputTokens: 9, outputTokens: 8 } });
   });
-  it.each(cases.filter(item => !["claude", "kimi"].includes(item.name)))("updates $name totals once per newly received record", async fixture => {
+  it.each(cases.filter(item => item.name === "codex"))("updates $name totals once per newly received record", async fixture => {
     const factories = {
       codex: async () => (await import("../../../packages/adapters/codex-local/src/server/parse.js")).createCodexJsonlParser(),
-      cursor: async () => (await import("../../../packages/adapters/cursor-local/src/server/parse.js")).createCursorJsonlParser(),
-      gemini: async () => (await import("../../../packages/adapters/gemini-local/src/server/parse.js")).createGeminiJsonlParser(),
-      pi: async () => (await import("../../../packages/adapters/pi-local/src/server/parse.js")).createPiJsonlParser(),
-      opencode: async () => (await import("../../../packages/adapters/opencode-local/src/server/parse.js")).createOpenCodeJsonlParser(),
     };
     const consume = await factories[fixture.name as keyof typeof factories]();
     const line = JSON.stringify(fixture.event);

@@ -41,10 +41,6 @@ import {
   DEFAULT_CODEX_LOCAL_MODEL,
 } from "@outpost/adapter-codex-local";
 import { DEFAULT_CLAUDE_LOCAL_MODEL } from "@outpost/adapter-claude-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@outpost/adapter-cursor-local";
-import { DEFAULT_GEMINI_LOCAL_MODEL } from "@outpost/adapter-gemini-local";
-import { DEFAULT_KIMI_LOCAL_MODEL } from "@outpost/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@outpost/adapter-opencode-local";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1834,14 +1830,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                     if (t === "codex_local") {
                       nextValues.dangerouslyBypassSandbox =
                         DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
-                    } else if (t === "gemini_local") {
-                      nextValues.model = DEFAULT_GEMINI_LOCAL_MODEL;
-                    } else if (t === "kimi_local") {
-                      nextValues.model = DEFAULT_KIMI_LOCAL_MODEL;
-                    } else if (t === "cursor") {
-                      nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
-                    } else if (t === "opencode_local") {
-                      nextValues.model = DEFAULT_OPENCODE_LOCAL_MODEL;
                     } else if (t === "outpost_runner") {
                       nextValues.model = DEFAULT_CODEX_LOCAL_MODEL;
                     }
@@ -1858,16 +1846,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                       adapterType: t,
                       runner: ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(t) ? "auto" : undefined,
                       adapterConfig: {
-                        model:
-                          t === "gemini_local"
-                            ? DEFAULT_GEMINI_LOCAL_MODEL
-                            : t === "kimi_local"
-                              ? DEFAULT_KIMI_LOCAL_MODEL
-                            : t === "opencode_local"
-                              ? DEFAULT_OPENCODE_LOCAL_MODEL
-                            : t === "cursor"
-                              ? DEFAULT_CURSOR_LOCAL_MODEL
-                            : external ? ""
+                        model: external ? ""
                             : t === "outpost_runner"
                               ? resolveOutpostRunnerTransitionModel(adapterType, config.model)
                               : "",

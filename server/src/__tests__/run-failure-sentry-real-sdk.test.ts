@@ -152,10 +152,10 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     setSentryRunLinkResolver(null);
   });
 
-  it("captures an early OpenCode timeout without inventing a deadline or exporting provider output", async () => {
+  it("captures an early Codex timeout without inventing a deadline or exporting provider output", async () => {
     const Sentry = sentryPackage!;
     const events: Array<Record<string, unknown>> = [];
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-sentry-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-sentry-"));
     const restore = vi.fn(async () => {});
     const stop = vi.fn(async () => {});
     const processResult = {
@@ -192,15 +192,15 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     }));
     vi.resetModules();
     try {
-      const { execute } = await import("@outpost/adapter-opencode-local/server");
+      const { execute } = await import("@outpost/adapter-codex-local/server");
       const { sentryReady, captureRunFailure, captureException } = await import("../sentry.js");
       await sentryReady;
       const result = await execute({
         runId: "22222222-2222-4222-8222-222222222222",
-        agent: { id: "agent-fixture", spaceId: "space-fixture", name: "Fixture", adapterType: "opencode_local", adapterConfig: {} },
+        agent: { id: "agent-fixture", spaceId: "space-fixture", name: "Fixture", adapterType: "codex_local", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
-        config: { command: "opencode", model: "openai/fixture", cwd: root, timeoutSec: 0,
-          env: { OPENCODE_ALLOW_ALL_MODELS: "1" } },
+        config: { command: "codex", model: "gpt-6.1-sol", cwd: root, timeoutSec: 0,
+          env: {} },
         context: {}, onLog: async () => {},
         executionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace" },
       });
@@ -209,19 +209,19 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
       expect(restore).toHaveBeenCalledTimes(1);
       expect(stop).toHaveBeenCalledTimes(1);
       const resultJson = mergeHeartbeatRunStopMetadata(result.resultJson,
-        buildHeartbeatRunStopMetadata({ adapterType: "opencode_local", adapterConfig: { timeoutSec: 0 }, outcome: "timed_out" }));
+        buildHeartbeatRunStopMetadata({ adapterType: "codex_local", adapterConfig: { timeoutSec: 0 }, outcome: "timed_out" }));
       const diagnostics = sanitizeRunFailureDiagnostics(collectRunFailureDiagnostics({
         errorCode: "timeout", resultJson,
         startedAt: new Date("2020-01-01T00:00:00.000Z"), finishedAt: new Date("2020-01-01T00:00:00.100Z"),
       } as typeof heartbeatRuns.$inferSelect, { phase: "execute" }));
       captureRunFailure({ taskId: "11111111-1111-4111-8111-111111111111", runId: "22222222-2222-4222-8222-222222222222",
-        errorMessage: result.errorMessage!, errorCode: "timeout", agentAdapter: "opencode_local",
+        errorMessage: result.errorMessage!, errorCode: "timeout", agentAdapter: "codex_local",
         runStatus: "timed_out", exitCode: result.exitCode, signal: result.signal, diagnostics });
       captureException(new Error("Unrelated timeout fixture"));
       await Sentry.flush(2000);
       expect(events).toHaveLength(2);
       const event = events.find(entry => (entry.tags as Record<string, unknown>)?.error_code === "timeout");
-      expect(event).toMatchObject({ exception: { values: [{ value: "OpenCode execution timed out" }] },
+      expect(event).toMatchObject({ exception: { values: [{ value: "Codex execution timed out" }] },
         contexts: { run_execution: { durationMs: 100, effectiveTimeoutSec: 14400,
           timeoutSource: "sandbox_default", timeoutConfigured: false, timeoutFired: true, stopReason: "timeout" } } });
       expect(JSON.stringify(events)).not.toMatch(/private-timeout-|<html>|504 Gateway|Timed out after/);

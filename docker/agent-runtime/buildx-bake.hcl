@@ -1,5 +1,5 @@
 group "default" {
-  targets = ["base", "claude", "codex", "gemini", "opencode", "pi", "hermes"]
+  targets = ["base", "claude", "codex"]
 }
 
 variable "VERSION" { default = "dev" }
@@ -30,58 +30,6 @@ target "codex" {
   dockerfile = "docker/agent-runtime/Dockerfile.codex"
   platforms = ["linux/amd64"]
   tags = ["${REGISTRY}/agent-runtime-codex:${VERSION}"]
-  args = {
-    BASE_TAG = "${VERSION}"
-  }
-  contexts = {
-    "fortedexe/agent-runtime-base:${VERSION}" = "target:base"
-  }
-}
-
-target "gemini" {
-  context = "."
-  dockerfile = "docker/agent-runtime/Dockerfile.gemini"
-  platforms = ["linux/amd64"]
-  tags = ["${REGISTRY}/agent-runtime-gemini:${VERSION}"]
-  args = {
-    BASE_TAG = "${VERSION}"
-  }
-  contexts = {
-    "fortedexe/agent-runtime-base:${VERSION}" = "target:base"
-  }
-}
-
-target "opencode" {
-  context = "."
-  dockerfile = "docker/agent-runtime/Dockerfile.opencode"
-  platforms = ["linux/amd64"]
-  tags = ["${REGISTRY}/agent-runtime-opencode:${VERSION}"]
-  args = {
-    BASE_TAG = "${VERSION}"
-  }
-  contexts = {
-    "fortedexe/agent-runtime-base:${VERSION}" = "target:base"
-  }
-}
-
-target "pi" {
-  context = "."
-  dockerfile = "docker/agent-runtime/Dockerfile.pi"
-  platforms = ["linux/amd64"]
-  tags = ["${REGISTRY}/agent-runtime-pi:${VERSION}"]
-  args = {
-    BASE_TAG = "${VERSION}"
-  }
-  contexts = {
-    "fortedexe/agent-runtime-base:${VERSION}" = "target:base"
-  }
-}
-
-target "hermes" {
-  context = "."
-  dockerfile = "docker/agent-runtime/Dockerfile.hermes"
-  platforms = ["linux/amd64"]
-  tags = ["${REGISTRY}/agent-runtime-hermes:${VERSION}"]
   args = {
     BASE_TAG = "${VERSION}"
   }
