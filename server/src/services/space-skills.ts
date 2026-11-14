@@ -51,7 +51,6 @@ import { REPOSITORY_CONTENT_DIR, repositorySkillProjection } from "./skill-repos
 import type { OutpostDesiredSkillEntry, OutpostSkillEntry } from "@outpost/adapter-utils/server-utils";
 import type {
   AgentDesiredSkillEntry,
-  CatalogSkill,
   SpaceSkill,
   SpaceSkillAuditFinding,
   SpaceSkillAuditResult,
@@ -73,8 +72,6 @@ import type {
   SpaceSkillForkReassignment,
   SpaceSkillForkSummary,
   SpaceSkillImportResult,
-  SpaceSkillInstallCatalogRequest,
-  SpaceSkillInstallCatalogResult,
   SpaceSkillListQuery,
   SpaceSkillListItem,
   SpaceSkillLastEditor,
@@ -133,17 +130,6 @@ import { toIssueWorkProduct } from "./work-products.js";
 import { projectService } from "./projects.js";
 import { normalizePortablePath } from "./portable-path.js";
 import { folderService } from "./folders.js";
-import {
-  copyCatalogSkillFile,
-  getCatalogPackageMetadata,
-  getCatalogSkillOrThrow,
-  resolveCatalogSkillReference,
-} from "./skills-catalog.js";
-import {
-  PORTABLE_CATALOG_PROVENANCE_STRING_KEYS,
-  readCatalogStringList,
-  readPortableCatalogProvenance,
-} from "./catalog-provenance.js";
 
 type SpaceSkillRow = typeof spaceSkills.$inferSelect;
 type SpaceSkillVersionRow = typeof spaceSkillVersions.$inferSelect;
@@ -1079,16 +1065,6 @@ function deriveImportedSkillSource(
         },
       };
     }
-  }
-
-  const catalogProvenance = readPortableCatalogProvenance(metadata, canonicalKey);
-  if (catalogProvenance) {
-    return {
-      sourceType: "catalog",
-      sourceLocator: null,
-      sourceRef: catalogProvenance.sourceRef,
-      metadata: catalogProvenance.metadata,
-    };
   }
 
   return {
@@ -2122,14 +2098,6 @@ function versionInventorySnapshotEqual(
 
 function getSkillMeta(skill: Pick<SpaceSkill, "metadata">): SkillSourceMeta {
   return isPlainRecord(skill.metadata) ? skill.metadata as SkillSourceMeta : {};
-}
-
-function resolveCatalogSkillIfPresent(reference: string): CatalogSkill | null {
-  const result = resolveCatalogSkillReference(reference);
-  if (result.ambiguous) {
-    throw conflict(`Catalog skill slug "${reference}" is ambiguous. Use an id or key.`);
-  }
-  return result.skill;
 }
 
 function getMissingSourceMarker(metadata: Record<string, unknown> | null): Record<string, unknown> | null {
@@ -3587,7 +3555,7 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
       });
     }
     if (skill.sourceType !== "catalog" && skill.sourceType !== "local_path") {
-      throw unprocessable("Only local-path and catalog-managed space skills support audit.");
+      throw unprocessable("Only local-path space skills support audit.");
     }
     return auditInstalledSkillBytes(skill);
   }
@@ -4342,7 +4310,7 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
     const skill = await getById(spaceId, skillId);
     if (!skill) return null;
     const audit = skill.sourceType === "catalog" || skill.sourceType === "local_path"
-      ? (skill.currentVersionId && skill.sourceType === "catalog" ? await auditSkill(spaceId, skill.id) : await auditInstalledSkillBytes(skill))
+      ? await auditInstalledSkillBytes(skill)
       : null;
     const metadata = getSkillMeta(skill);
     const statusMeta = {
@@ -4365,37 +4333,13 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
     };
 
     if (skill.sourceType === "catalog") {
-      const catalogId = asString(metadata.catalogId);
-      if (!catalogId) {
-        return {
-          supported: false,
-          reason: "This catalog skill does not have enough metadata to track updates.",
-          trackingRef: null,
-          currentRef: skill.sourceRef ?? statusMeta.originHash,
-          latestRef: null,
-          hasUpdate: false,
-          ...statusMeta,
-        };
-      }
-      const catalogSkill = resolveCatalogSkillIfPresent(catalogId);
-      if (!catalogSkill) {
-        return {
-          supported: false,
-          reason: "Catalog entry is no longer available in the shipped manifest.",
-          trackingRef: catalogId,
-          currentRef: skill.sourceRef ?? statusMeta.originHash,
-          latestRef: null,
-          hasUpdate: false,
-          ...statusMeta,
-        };
-      }
       return {
-        supported: true,
-        reason: null,
-        trackingRef: catalogSkill.id,
+        supported: false,
+        reason: "The public skill catalog has been retired. Re-import this skill from a local path or GitHub source.",
+        trackingRef: null,
         currentRef: skill.sourceRef ?? statusMeta.originHash,
-        latestRef: catalogSkill.contentHash,
-        hasUpdate: catalogSkill.contentHash !== (skill.sourceRef ?? statusMeta.originHash),
+        latestRef: null,
+        hasUpdate: false,
         ...statusMeta,
       };
     }
@@ -4977,8 +4921,8 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
     if (!status?.supported) {
       throw unprocessable(status?.reason ?? "This skill does not support updates.");
     }
-    if (skill.sourceType === "catalog" || skill.sourceType === "local_path") {
-      const audit = skill.sourceType === "catalog" && skill.currentVersionId ? (await auditSkill(spaceId, skill.id))! : await auditInstalledSkillBytes(skill);
+    if (skill.sourceType === "local_path") {
+      const audit = await auditInstalledSkillBytes(skill);
       await persistAuditMetadata(skill, audit);
       if (audit.verdict === "fail") {
         throw unprocessable("Skill update is blocked by hard-stop audit findings.", {
@@ -4994,13 +4938,6 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
       }
     }
 
-    if (skill.sourceType === "catalog") {
-      const catalogId = asString(getSkillMeta(skill).catalogId);
-      if (!catalogId) throw unprocessable("Catalog skill metadata is incomplete.");
-      return (await installFromCatalog(spaceId, { catalogSkillId: catalogId, slug: skill.slug, force: options.force },
-        () => ({ ...publication, expectedVersionId: skill.currentVersionId }))).skill;
-    }
-
     if (!skill.sourceLocator) {
       throw unprocessable("Skill source locator is missing.");
     }
@@ -5014,128 +4951,6 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
       snapshots: await snapshotRemoteImports([matching]), bases: new Map([[matching.key, skill]]), publication,
     });
     return imported[0] ?? null;
-  }
-
-  async function resetSkill(spaceId: string, skillId: string, options: { force?: boolean; expectedVersionId?: string | null } = {}, publication: SkillContentPublication = {}): Promise<SpaceSkill | null> {
-    await ensureSkillInventoryCurrent(spaceId);
-    const skill = await getById(spaceId, skillId);
-    if (!skill) return null;
-    if (skill.sourceType !== "catalog") {
-      throw unprocessable("Only catalog-managed space skills support reset.");
-    }
-
-    const metadata = getSkillMeta(skill);
-    const originVersionId = asString(metadata.originVersionId);
-    if (originVersionId) {
-      if (metadata.userModifiedAt && !options.force) throw unprocessable("Skill reset would discard saved modifications; rerun with --force after confirming reset.");
-      const { files } = await managedContent.read(spaceId, skillId, originVersionId);
-      const candidate = await managedContent.prepare(spaceId, files);
-      const markdown = files.find(file => file.path === "SKILL.md")!.content;
-      const parsed = parseFrontmatterMarkdown(markdown);
-      const audit = await executionContent.withVersion({ spaceId, skillId, versionId: originVersionId }, sourceLocator =>
-        auditInstalledSkillBytes({ ...skill, sourceType: "local_path", sourceLocator, fileInventory: files.map(({ path, kind }) => ({ path, kind })) }));
-      if (audit.verdict === "fail") throw unprocessable("Catalog reset is blocked by hard-stop audit findings.", { audit });
-      const saved = await managedContent.publish(skill, candidate, {
-        markdown, name: asString(parsed.frontmatter.name) ?? skill.name,
-        description: asString(parsed.frontmatter.description) ?? skill.description,
-        fileInventory: serializeFileInventory(files), trustLevel: deriveTrustLevel(files),
-        metadata: { ...metadata, userModifiedAt: null, updateHoldReason: null, installedHash: audit.installedHash,
-          auditVerdict: audit.verdict, auditCodes: audit.codes, auditScannedAt: audit.scannedAt, auditScanVersion: audit.scanVersion },
-      }, { type: "system" }, { ...publication, expectedVersionId: options.expectedVersionId, label: "Reset to installed catalog origin",
-        validate: async tx => {
-          await visibility(tx).assertSkill(spaceId, skill.id);
-          await publication.validate?.(tx);
-        } });
-      return toSpaceSkill(saved.skill);
-    }
-    const originHash = asString(metadata.originHash);
-    const snapshotLocator = asString(metadata.originSnapshotLocator);
-    const targetDir = normalizeSkillDirectory(skill);
-    if (!originHash || !targetDir) {
-      throw unprocessable("Catalog skill origin metadata is incomplete.", {
-        updateHoldReason: "origin_unavailable",
-      });
-    }
-
-    let sourceDir = snapshotLocator && (await statPath(path.join(snapshotLocator, "SKILL.md")))?.isFile()
-      ? snapshotLocator
-      : null;
-    if (!sourceDir) {
-      const catalogId = asString(metadata.catalogId);
-      const catalogSkill = catalogId ? resolveCatalogSkillIfPresent(catalogId) : null;
-      if (catalogSkill?.contentHash === originHash) {
-        sourceDir = await materializeCatalogOriginSnapshot(spaceId, catalogSkill, skill.slug);
-      }
-    }
-    if (!sourceDir) {
-      throw conflict("Pinned catalog origin bytes are unavailable; run skills update explicitly instead.", {
-        updateHoldReason: "origin_unavailable",
-      });
-    }
-
-    const originAudit = await auditInstalledSkillBytes({
-      ...skill,
-      sourceLocator: sourceDir,
-      metadata: {
-        ...(isPlainRecord(skill.metadata) ? skill.metadata : {}),
-        originHash,
-      },
-    });
-    if (originAudit.installedHash !== originHash || originAudit.verdict === "fail") {
-      throw unprocessable("Pinned catalog origin failed audit and cannot be restored.", {
-        updateHoldReason: originAudit.verdict === "fail" ? "audit_hard_stop" : "origin_unavailable",
-        audit: originAudit,
-      });
-    }
-
-    const preAudit = await auditInstalledSkillBytes(skill);
-    await persistAuditMetadata(skill, preAudit);
-    if (preAudit.installedHash !== originHash && !options.force) {
-      throw unprocessable("Skill reset would discard local modifications; rerun with --force after confirming reset.", {
-        updateHoldReason: "local_modifications",
-        audit: preAudit,
-      });
-    }
-
-    await copySkillDirectory(sourceDir, targetDir);
-    const markdown = await fs.readFile(path.join(targetDir, "SKILL.md"), "utf8");
-    const inventory = await collectLocalSkillInventory(targetDir);
-    const trustLevel = deriveTrustLevel(inventory);
-    const row = await db
-      .update(spaceSkills)
-      .set({
-        markdown,
-        sourceRef: originHash,
-        trustLevel,
-        compatibility: "compatible",
-        fileInventory: serializeFileInventory(inventory),
-        metadata: {
-          ...(isPlainRecord(skill.metadata) ? skill.metadata : {}),
-          originSnapshotLocator: sourceDir,
-          installedHash: originHash,
-          userModifiedAt: null,
-          updateHoldReason: null,
-          auditVerdict: "pass",
-          auditCodes: [],
-          auditScannedAt: new Date().toISOString(),
-          auditScanVersion: SKILL_AUDIT_SCAN_VERSION,
-        },
-        updatedAt: new Date(),
-      })
-      .where(and(eq(spaceSkills.id, skill.id), eq(spaceSkills.spaceId, spaceId)))
-      .returning()
-      .then((rows) => rows[0] ?? null);
-    if (!row) throw notFound("Skill not found");
-    const reset = toSpaceSkill(row);
-    const postAudit = await auditInstalledSkillBytes(reset);
-    if (postAudit.installedHash !== originHash || postAudit.verdict === "fail") {
-      await persistAuditMetadata(reset, postAudit);
-      throw unprocessable("Catalog reset did not restore a passing pinned origin.", {
-        updateHoldReason: postAudit.verdict === "fail" ? "audit_hard_stop" : "origin_unavailable",
-        audit: postAudit,
-      });
-    }
-    return persistAuditMetadata(reset, postAudit);
   }
 
   async function browseProjectWorkspace(
@@ -5625,298 +5440,6 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
         await fs.rm(stagingDir, { recursive: true, force: true });
       },
     };
-  }
-
-  async function materializeCatalogManifestSkillFiles(
-    spaceId: string,
-    catalogSkill: CatalogSkill,
-    slug: string,
-  ) {
-    const catalogRoot = path.resolve(resolveManagedSkillsRoot(spaceId), "__catalog__");
-    const skillDir = path.resolve(catalogRoot, buildSkillRuntimeName(catalogSkill.key, slug));
-    const replacement = await createDirectoryReplacement(skillDir);
-    try {
-      for (const entry of catalogSkill.files) {
-        const targetPath = path.resolve(replacement.stagingDir, entry.path);
-        if (targetPath !== replacement.stagingDir && !targetPath.startsWith(`${replacement.stagingDir}${path.sep}`)) {
-          throw unprocessable(`Catalog file path is invalid: ${entry.path}`);
-        }
-        await fs.mkdir(path.dirname(targetPath), { recursive: true });
-        await copyCatalogSkillFile(catalogSkill.id, entry.path, targetPath);
-      }
-      await replacement.commit();
-    } catch (error) {
-      await replacement.cleanup();
-      throw error;
-    }
-
-    return skillDir;
-  }
-
-  async function materializeCatalogOriginSnapshot(
-    spaceId: string,
-    catalogSkill: CatalogSkill,
-    slug: string,
-  ) {
-    const originsRoot = path.resolve(resolveManagedSkillsRoot(spaceId), "__catalog_origins__");
-    const snapshotDir = path.resolve(
-      originsRoot,
-      buildSkillRuntimeName(catalogSkill.key, slug),
-      catalogSkill.contentHash.replace(/^sha256:/, ""),
-    );
-    const replacement = await createDirectoryReplacement(snapshotDir);
-    try {
-      for (const entry of catalogSkill.files) {
-        const targetPath = path.resolve(replacement.stagingDir, entry.path);
-        if (targetPath !== replacement.stagingDir && !targetPath.startsWith(`${replacement.stagingDir}${path.sep}`)) {
-          throw unprocessable(`Catalog file path is invalid: ${entry.path}`);
-        }
-        await fs.mkdir(path.dirname(targetPath), { recursive: true });
-        await copyCatalogSkillFile(catalogSkill.id, entry.path, targetPath);
-      }
-      await replacement.commit();
-    } catch (error) {
-      await replacement.cleanup();
-      throw error;
-    }
-
-    return snapshotDir;
-  }
-
-  async function copySkillDirectory(sourceDir: string, targetDir: string) {
-    const { files } = await collectSkillFileBytes(sourceDir);
-    const replacement = await createDirectoryReplacement(targetDir);
-    try {
-      for (const file of files) {
-        const targetPath = path.resolve(replacement.stagingDir, file.path);
-        if (targetPath !== replacement.stagingDir && !targetPath.startsWith(`${replacement.stagingDir}${path.sep}`)) {
-          throw unprocessable(`Skill file path is invalid: ${file.path}`);
-        }
-        await fs.mkdir(path.dirname(targetPath), { recursive: true });
-        await fs.writeFile(targetPath, file.bytes);
-      }
-      await replacement.commit();
-    } catch (error) {
-      await replacement.cleanup();
-      throw error;
-    }
-  }
-
-  function buildCatalogSkillMetadata(
-    catalogSkill: CatalogSkill,
-    existing: SpaceSkill | null,
-    originSnapshotLocator: string | null,
-  ) {
-    const packageMetadata = getCatalogPackageMetadata();
-    const existingMetadata = existing && isPlainRecord(existing.metadata) ? existing.metadata : {};
-    return {
-      ...existingMetadata,
-      skillKey: catalogSkill.key,
-      sourceKind: "catalog",
-      catalogId: catalogSkill.id,
-      catalogKey: catalogSkill.key,
-      catalogKind: catalogSkill.kind,
-      catalogCategory: catalogSkill.category,
-      catalogPath: catalogSkill.path,
-      catalogSource: catalogSkill.source ?? null,
-      packageName: packageMetadata.packageName,
-      packageVersion: packageMetadata.packageVersion,
-      originHash: catalogSkill.contentHash,
-      originVersion: packageMetadata.packageVersion,
-      originSnapshotLocator,
-      userModifiedAt: existingMetadata.userModifiedAt ?? null,
-      updateHoldReason: existingMetadata.updateHoldReason ?? null,
-    };
-  }
-
-  function assertCatalogSkillInstallable(catalogSkill: CatalogSkill) {
-    if (catalogSkill.compatibility !== "compatible") {
-      throw unprocessable(`Catalog skill ${catalogSkill.id} is not compatible.`);
-    }
-  }
-
-  async function auditCatalogSkillSnapshot(
-    spaceId: string,
-    catalogSkill: CatalogSkill,
-    slug: string,
-    sourceDir: string,
-  ) {
-    return auditInstalledSkillBytes({
-      id: randomUUID(),
-      spaceId,
-      key: catalogSkill.key,
-      slug,
-      name: catalogSkill.name,
-      description: catalogSkill.description,
-      markdown: "",
-      sourceType: "catalog",
-      sourceLocator: sourceDir,
-      sourceRef: catalogSkill.contentHash,
-      trustLevel: catalogSkill.trustLevel,
-      compatibility: catalogSkill.compatibility,
-      fileInventory: catalogSkill.files.map((entry) => ({ path: entry.path, kind: entry.kind })),
-      iconUrl: null,
-      color: null,
-      tagline: null,
-      authorName: null,
-      homepageUrl: null,
-      categories: normalizeCategoryList([catalogSkill.category, ...catalogSkill.tags]),
-      sharingScope: "space",
-      publicShareToken: null,
-      forkedFromSkillId: null,
-      forkedFromSpaceId: null,
-      starCount: 0,
-      installCount: 0,
-      forkCount: 0,
-      currentVersionId: null,
-      metadata: {
-        sourceKind: "catalog",
-        catalogId: catalogSkill.id,
-        originHash: catalogSkill.contentHash,
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-
-  async function installFromCatalog(
-    spaceId: string,
-    input: SpaceSkillInstallCatalogRequest,
-    publicationForAction: (action: "created" | "updated") => SkillContentPublication = () => ({}),
-  ): Promise<SpaceSkillInstallCatalogResult> {
-    await ensureSkillInventoryCurrent(spaceId);
-    const catalogSkill = getCatalogSkillOrThrow(input.catalogSkillId);
-    assertCatalogSkillInstallable(catalogSkill);
-
-    const slug = normalizeSkillSlug(input.slug ?? catalogSkill.slug);
-    if (!slug) {
-      throw unprocessable("Catalog skill slug is invalid.");
-    }
-
-    const existingSkills = await listFull(spaceId);
-    const existingByKey = existingSkills.find((skill) => skill.key === catalogSkill.key) ?? null;
-    const slugConflict = existingSkills.find((skill) => skill.slug === slug && skill.id !== existingByKey?.id) ?? null;
-    if (slugConflict) {
-      throw conflict(`Skill slug "${slug}" is already used by ${slugConflict.key}.`);
-    }
-
-    if (existingByKey) {
-      const metadata = getSkillMeta(existingByKey);
-      const existingCatalogId = asString(metadata.catalogId);
-      const sameCatalog = existingByKey.sourceType === "catalog" && existingCatalogId === catalogSkill.id;
-      const catalogManaged = existingByKey.sourceType === "catalog";
-      if (!sameCatalog && (!catalogManaged || !input.force)) {
-        throw conflict(
-          `Skill key "${catalogSkill.key}" is already used by ${existingByKey.sourceLocator ?? existingByKey.slug}.`,
-        );
-      }
-      if (
-        sameCatalog
-        && existingByKey.slug === slug
-        && asString(metadata.originHash) === catalogSkill.contentHash
-      ) {
-        const audit = await auditSkillContents(existingByKey);
-        if (audit.installedHash === catalogSkill.contentHash && audit.verdict !== "fail") {
-          const audited = await persistAuditMetadata(existingByKey, audit);
-          return {
-            action: "unchanged",
-            skill: audited,
-            catalogSkill,
-            warnings: audit.findings.map((finding) => finding.message),
-          };
-        }
-        if (!input.force) {
-          await persistAuditMetadata(existingByKey, audit);
-          const holdReason = audit.verdict === "fail" ? "audit_hard_stop" : "local_modifications";
-          const message = audit.verdict === "fail"
-            ? "Catalog skill has hard-stop audit findings; rerun with --force to replace it."
-            : "Catalog skill has local modifications; rerun with --force to replace it.";
-          throw unprocessable(message, {
-            updateHoldReason: holdReason,
-            audit,
-          });
-        }
-      }
-    }
-
-    const scratch = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-catalog-candidate-"));
-    let files: SpaceSkillVersionFileInventoryEntry[];
-    let candidateAudit: Awaited<ReturnType<typeof auditCatalogSkillSnapshot>>;
-    try {
-      for (const entry of catalogSkill.files) {
-        assertSkillSnapshotPath(entry.path);
-        const target = path.join(scratch, entry.path);
-        await fs.mkdir(path.dirname(target), { recursive: true });
-        await copyCatalogSkillFile(catalogSkill.id, entry.path, target);
-      }
-      candidateAudit = await auditCatalogSkillSnapshot(spaceId, catalogSkill, slug, scratch);
-      if (candidateAudit.verdict === "fail") throw unprocessable("Catalog install is blocked by hard-stop audit findings.",
-        { updateHoldReason: "audit_hard_stop", audit: candidateAudit });
-      files = await collectVersionFileInventoryFromDirectory(scratch);
-    } finally { await fs.rm(scratch, { recursive: true, force: true }); }
-    const candidate = await managedContent.prepare(spaceId, files);
-    const markdown = files.find(file => file.path === "SKILL.md")!.content;
-    const metadata = { ...buildCatalogSkillMetadata(catalogSkill, existingByKey, null),
-      originPackageSnapshotId: candidate.packageSnapshotId,
-      installedHash: candidateAudit.installedHash, auditVerdict: candidateAudit.verdict,
-      auditCodes: candidateAudit.codes, auditScannedAt: candidateAudit.scannedAt, auditScanVersion: SKILL_AUDIT_SCAN_VERSION,
-      userModifiedAt: null, updateHoldReason: null };
-    const bundledCategory = outpostBundledFolderCategory(catalogSkill.key, metadata);
-    const bundledFolder = bundledCategory
-      ? await folderSvc.ensureBundledCategory(spaceId, bundledFolderLabel(bundledCategory))
-      : null;
-    const parsed = parseFrontmatterMarkdown(markdown);
-    const storeMetadata = readSkillStoreMetadata(parsed.frontmatter, {
-      ...metadata,
-      categories: [catalogSkill.category, ...catalogSkill.tags],
-    });
-    const values = {
-      spaceId,
-      folderId: bundledFolder?.id ?? existingByKey?.folderId ?? null,
-      key: catalogSkill.key,
-      slug,
-      name: catalogSkill.name,
-      description: catalogSkill.description,
-      markdown,
-      sourceType: "catalog",
-      sourceLocator: catalogSkill.source?.url ?? null,
-      sourceRef: catalogSkill.contentHash,
-      trustLevel: catalogSkill.trustLevel,
-      compatibility: catalogSkill.compatibility,
-      fileInventory: serializeFileInventory(catalogSkill.files.map((entry) => ({
-        path: entry.path,
-        kind: entry.kind,
-      }))),
-      iconUrl: storeMetadata.iconUrl ?? existingByKey?.iconUrl ?? null,
-      color: storeMetadata.color ?? existingByKey?.color ?? null,
-      tagline: storeMetadata.tagline ?? existingByKey?.tagline ?? catalogSkill.description.slice(0, 120),
-      authorName: storeMetadata.authorName ?? existingByKey?.authorName ?? "Outpost",
-      homepageUrl: storeMetadata.homepageUrl ?? existingByKey?.homepageUrl ?? catalogSkill.source?.url ?? null,
-      categories: storeMetadata.categories.length > 0 ? storeMetadata.categories : normalizeCategoryList([catalogSkill.category, ...catalogSkill.tags]),
-      sharingScope: existingByKey?.sharingScope ?? "space",
-      installCount: existingByKey?.installCount ?? 1,
-      metadata,
-      updatedAt: new Date(),
-    };
-
-    const requestedPublication = publicationForAction(existingByKey ? "updated" : "created");
-    const publication: SkillContentPublication = { ...requestedPublication, reuseCurrentVersion: true,
-      validate: async tx => {
-        if (existingByKey) await visibility(tx).assertSkill(spaceId, existingByKey.id);
-        await requestedPublication.validate?.(tx);
-      },
-      afterPublish: async (tx, skill, version) => {
-        const metadata = { ...skill.metadata, originVersionId: version.id };
-        await tx.update(spaceSkills).set({ metadata }).where(and(eq(spaceSkills.spaceId, spaceId), eq(spaceSkills.id, skill.id)));
-        skill.metadata = metadata;
-        await requestedPublication.afterPublish?.(tx, skill, version);
-      },
-    };
-    const saved = existingByKey
-      ? await managedContent.publish(existingByKey, candidate, values, { type: "system" }, publication)
-      : await managedContent.create(values, candidate, { type: "system" }, publication);
-    return { action: existingByKey ? "updated" : "created", skill: toSpaceSkill(saved.skill), catalogSkill,
-      warnings: candidateAudit.findings.map(finding => finding.message) };
   }
 
   async function materializeRuntimeSkillFiles(spaceId: string, skill: SpaceSkill) {
@@ -7538,13 +7061,11 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
     pruneExpiredTestHarnessIssues,
     importFromSource,
     captureLegacyInstallation,
-    installFromCatalog,
     browseProjectWorkspace,
     scanProjectWorkspaces,
     importPackageFiles,
     auditSkill,
     installUpdate,
-    resetSkill,
     listRuntimeSkillEntries,
     withRuntimeSkillEntries,
   };

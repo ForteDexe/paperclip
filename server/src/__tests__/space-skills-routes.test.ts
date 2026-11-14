@@ -36,7 +36,6 @@ const mockSpaceSkillService = vi.hoisted(() => ({
   updateComment: vi.fn(),
   deleteComment: vi.fn(),
   importFromSource: vi.fn(),
-  installFromCatalog: vi.fn(),
   createLocalSkill: vi.fn(),
   updateSkill: vi.fn(),
   updateFile: vi.fn(),
@@ -47,7 +46,6 @@ const mockSpaceSkillService = vi.hoisted(() => ({
   getById: vi.fn(),
   getByRouteRef: vi.fn(),
   installUpdate: vi.fn(),
-  resetSkill: vi.fn(),
   listTestInputs: vi.fn(),
   createTestInput: vi.fn(),
   updateTestInput: vi.fn(),
@@ -80,12 +78,6 @@ const mockHeartbeatService = vi.hoisted(() => ({
   cancelRun: vi.fn(),
 }));
 const mockHeartbeatFactory = vi.hoisted(() => vi.fn());
-
-const mockCatalogService = vi.hoisted(() => ({
-  listCatalogSkillsOrEmpty: vi.fn(),
-  getCatalogSkillOrThrow: vi.fn(),
-  readCatalogSkillFile: vi.fn(),
-}));
 
 const mockLogActivity = vi.hoisted(() => vi.fn());
 const mockTrackSkillImported = vi.hoisted(() => vi.fn());
@@ -198,8 +190,6 @@ function registerModuleMocks() {
     };
   });
 
-  vi.doMock("../services/skills-catalog.js", () => mockCatalogService);
-
   vi.doMock("../services/change-consent-gate.js", async () => {
     const actual = await vi.importActual<typeof import("../services/change-consent-gate.js")>(
       "../services/change-consent-gate.js",
@@ -236,28 +226,6 @@ function assignedAgentActor() {
     agentId: "55555555-5555-4555-8555-555555555555",
     spaceId: "space-1",
     runId: "run-1",
-  };
-}
-
-function createCatalogSkill() {
-  return {
-    id: "outpost:bundled:software-development:review",
-    key: "outpost/bundled/software-development/review",
-    kind: "bundled",
-    category: "software-development",
-    slug: "review",
-    name: "review",
-    description: "Review code",
-    path: "catalog/bundled/software-development/review",
-    entrypoint: "SKILL.md",
-    trustLevel: "markdown_only",
-    compatibility: "compatible",
-    defaultInstall: false,
-    recommendedForRoles: ["engineer"],
-    requires: [],
-    tags: ["review"],
-    files: [{ path: "SKILL.md", kind: "skill", sizeBytes: 8, sha256: "abc" }],
-    contentHash: "sha256:abc",
   };
 }
 
@@ -339,7 +307,6 @@ describe("space skill mutation permissions", () => {
       candidates: [],
       warnings: [],
     });
-    mockCatalogService.listCatalogSkillsOrEmpty.mockReturnValue([]);
     mockSpaceSkillService.list.mockResolvedValue([]);
     mockSpaceSkillService.categoryCounts.mockResolvedValue([]);
     mockSpaceSkillService.detail.mockResolvedValue(null);
@@ -470,33 +437,6 @@ describe("space skill mutation permissions", () => {
       createdAt: new Date("2026-05-26T00:00:00.000Z"),
       updatedAt: new Date("2026-05-26T00:01:00.000Z"),
     });
-    mockSpaceSkillService.installFromCatalog.mockResolvedValue({
-      action: "created",
-      skill: {
-        id: "skill-1",
-        spaceId: "space-1",
-        key: "outpost/bundled/software-development/review",
-        slug: "review",
-        name: "review",
-        description: "Review code",
-        markdown: "# Review",
-        sourceType: "catalog",
-        sourceLocator: "/tmp/review",
-        sourceRef: "sha256:abc",
-        trustLevel: "markdown_only",
-        compatibility: "compatible",
-        fileInventory: [{ path: "SKILL.md", kind: "skill" }],
-        metadata: {
-          sourceKind: "catalog",
-          catalogId: "outpost:bundled:software-development:review",
-          originHash: "sha256:abc",
-        },
-        createdAt: new Date("2026-05-26T00:00:00.000Z"),
-        updatedAt: new Date("2026-05-26T00:00:00.000Z"),
-      },
-      catalogSkill: createCatalogSkill(),
-      warnings: [],
-    });
     mockSpaceSkillService.createLocalSkill.mockResolvedValue({
       id: "skill-1",
       spaceId: "space-1",
@@ -582,12 +522,6 @@ describe("space skill mutation permissions", () => {
       metadata: { originHash: "sha256:abc" },
     });
     mockSpaceSkillService.installUpdate.mockResolvedValue({
-      id: "skill-1",
-      slug: "review",
-      sourceRef: "sha256:def",
-      metadata: { originHash: "sha256:def" },
-    });
-    mockSpaceSkillService.resetSkill.mockResolvedValue({
       id: "skill-1",
       slug: "review",
       sourceRef: "sha256:def",
@@ -695,16 +629,6 @@ describe("space skill mutation permissions", () => {
     mockIssueService.update.mockResolvedValue({});
     mockHeartbeatService.wakeup.mockResolvedValue({});
     mockHeartbeatService.cancelRun.mockResolvedValue({});
-    mockCatalogService.listCatalogSkillsOrEmpty.mockReturnValue([]);
-    mockCatalogService.getCatalogSkillOrThrow.mockReturnValue(createCatalogSkill());
-    mockCatalogService.readCatalogSkillFile.mockResolvedValue({
-      catalogSkillId: "outpost:bundled:software-development:review",
-      path: "SKILL.md",
-      kind: "skill",
-      content: "# Review",
-      language: "markdown",
-      markdown: true,
-    });
     mockLogActivity.mockResolvedValue(undefined);
     mockAccessService.canUser.mockResolvedValue(true);
     mockAccessService.decide.mockResolvedValue(allowSkillChangeDecision());
@@ -857,7 +781,7 @@ describe("space skill mutation permissions", () => {
     expect(mockSpaceSkillService.auditSkill).not.toHaveBeenCalled();
   });
 
-  it("allows operator users with skills:create to create, import, install, update, delete, audit, and reset space skills", async () => {
+  it("allows operator users with skills:create to create, import, update, delete, and audit space skills", async () => {
     const app = await createApp(operatorActor("operator-user", "session"));
 
     await request(app)
@@ -867,10 +791,6 @@ describe("space skill mutation permissions", () => {
     await request(app)
       .post("/api/spaces/space-1/skills/import")
       .send({ source: "https://github.com/vercel-labs/agent-browser" })
-      .expect(201);
-    await request(app)
-      .post("/api/spaces/space-1/skills/install-catalog")
-      .send({ catalogSkillId: "outpost:bundled:software-development:review" })
       .expect(201);
     await request(app)
       .patch("/api/spaces/space-1/skills/skill-1")
@@ -883,10 +803,6 @@ describe("space skill mutation permissions", () => {
       .post("/api/spaces/space-1/skills/skill-1/audit")
       .send({})
       .expect(200);
-    await request(app)
-      .post("/api/spaces/space-1/skills/skill-1/reset")
-      .send({})
-      .expect(200);
 
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
       action: "skill_config:update",
@@ -895,11 +811,9 @@ describe("space skill mutation permissions", () => {
     expect(mockAccessService.canUser).not.toHaveBeenCalledWith("space-1", "operator-user", "agents:create");
     expect(mockSpaceSkillService.createLocalSkill).toHaveBeenCalled();
     expect(mockSpaceSkillService.importFromSource).toHaveBeenCalled();
-    expect(mockSpaceSkillService.installFromCatalog).toHaveBeenCalled();
     expect(mockSpaceSkillService.updateSkill).toHaveBeenCalled();
     expect(mockSpaceSkillService.deleteSkill).toHaveBeenCalled();
     expect(mockSpaceSkillService.auditSkill).toHaveBeenCalled();
-    expect(mockSpaceSkillService.resetSkill).toHaveBeenCalled();
   });
 
   it("allows operator users without skills:create when no explicit skill policy exists", async () => {
@@ -1163,35 +1077,7 @@ describe("space skill mutation permissions", () => {
     expect(mockSpaceSkillService.importFromSource).not.toHaveBeenCalled();
   });
 
-  it("serves catalog listing without mutating space skills", async () => {
-    mockCatalogService.listCatalogSkillsOrEmpty.mockReturnValue([
-      createCatalogSkill(),
-    ]);
 
-    const res = await request(await createApp(operatorActor()))
-      .get("/api/skills/catalog?kind=bundled&q=review");
-
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(mockCatalogService.listCatalogSkillsOrEmpty).toHaveBeenCalledWith({ kind: "bundled", q: "review" });
-    expect(mockSpaceSkillService.importFromSource).not.toHaveBeenCalled();
-    expect(mockSpaceSkillService.installFromCatalog).not.toHaveBeenCalled();
-    expect(mockLogActivity).not.toHaveBeenCalled();
-  });
-
-  it("requires authentication for catalog read routes", async () => {
-    const app = await createApp({ type: "none" });
-
-    const list = await request(app).get("/api/skills/catalog");
-    const detail = await request(app).get("/api/skills/catalog/review");
-    const file = await request(app).get("/api/skills/catalog/review/files?path=SKILL.md");
-
-    expect(list.status, JSON.stringify(list.body)).toBe(401);
-    expect(detail.status, JSON.stringify(detail.body)).toBe(401);
-    expect(file.status, JSON.stringify(file.body)).toBe(401);
-    expect(mockCatalogService.listCatalogSkillsOrEmpty).not.toHaveBeenCalled();
-    expect(mockCatalogService.getCatalogSkillOrThrow).not.toHaveBeenCalled();
-    expect(mockCatalogService.readCatalogSkillFile).not.toHaveBeenCalled();
-  });
 
   it("rejects unauthenticated skill imports before parsing source details", async () => {
     const app = await createApp({ type: "none" });
@@ -1222,46 +1108,7 @@ describe("space skill mutation permissions", () => {
     expect(mockSpaceSkillService.updateSkill).not.toHaveBeenCalled();
   });
 
-  it("serves catalog detail and files by catalog reference", async () => {
-    const app = await createApp(operatorActor());
 
-    const detail = await request(app)
-      .get("/api/skills/catalog/review");
-    const file = await request(app)
-      .get("/api/skills/catalog/review/files?path=SKILL.md");
-
-    expect(detail.status, JSON.stringify(detail.body)).toBe(200);
-    expect(file.status, JSON.stringify(file.body)).toBe(200);
-    expect(mockCatalogService.getCatalogSkillOrThrow).toHaveBeenCalledWith("review");
-    expect(mockCatalogService.readCatalogSkillFile).toHaveBeenCalledWith("review", "SKILL.md");
-    expect(mockLogActivity).not.toHaveBeenCalled();
-  });
-
-  it("installs catalog skills with mutation permissions and logs provenance", async () => {
-    const res = await request(await createApp(operatorActor()))
-      .post("/api/spaces/space-1/skills/install-catalog")
-      .send({
-        catalogSkillId: "outpost:bundled:software-development:review",
-        slug: "review",
-      });
-
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(mockSpaceSkillService.installFromCatalog).toHaveBeenCalledWith("space-1", {
-      catalogSkillId: "outpost:bundled:software-development:review",
-      slug: "review",
-    }, expect.any(Function));
-    expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      spaceId: "space-1",
-      action: "space.skill_catalog_installed",
-      entityType: "space_skill",
-      entityId: "skill-1",
-      details: expect.objectContaining({
-        catalogId: "outpost:bundled:software-development:review",
-        catalogKey: "outpost/bundled/software-development/review",
-        originHash: "sha256:abc",
-      }),
-    }));
-  });
 
   it("tracks public GitHub skill imports with an explicit skill reference", async () => {
     mockSpaceSkillService.importFromSource.mockResolvedValue({
@@ -1538,20 +1385,6 @@ describe("space skill mutation permissions", () => {
     expect(mockSpaceSkillService.importFromSource).toHaveBeenCalled();
   });
 
-  it("blocks agent catalog installs for other spaces", async () => {
-    mockAgentService.getById.mockResolvedValue({
-      id: "55555555-5555-4555-8555-555555555555",
-      spaceId: "space-1",
-      permissions: { canCreateSkills: true },
-    });
-
-    const res = await request(await createApp(assignedAgentActor()))
-      .post("/api/spaces/space-2/skills/install-catalog")
-      .send({ catalogSkillId: "outpost:bundled:software-development:review" });
-
-    expect(res.status, JSON.stringify(res.body)).toBe(403);
-    expect(mockSpaceSkillService.installFromCatalog).not.toHaveBeenCalled();
-  });
 
   it("passes store list filters and category count requests to the service", async () => {
     const app = await createApp({ type: "operator", source: "local_implicit" });

@@ -1,7 +1,6 @@
 import { createAgentLifecycle } from "./agent-lifecycle.js";
 import fs from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readOutpostSkillSyncPreference, writeOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
@@ -154,7 +153,6 @@ export interface RequiredBuiltInAgent {
 const BUILT_IN_AGENT_KEY_PATTERN = /^[a-z][a-z0-9_-]*$/;
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
 const BUILT_INS_DIR = path.resolve(moduleDir, "../built-ins/agents");
 const SOURCE_BUILT_INS_DIR = path.resolve(moduleDir, "../../src/built-ins/agents");
 
@@ -219,14 +217,6 @@ const FALLBACK_SUMMARIZER_SKILL = [
 const warnedBuiltInTextFallbacks = new Set<string>();
 const warnedBuiltInTextReadErrors = new Set<string>();
 
-function resolvePackageRoot(packageName: string) {
-  try {
-    return path.dirname(require.resolve(`${packageName}/package.json`));
-  } catch {
-    return null;
-  }
-}
-
 export function readBuiltInTextWithFallback(
   label: string,
   candidatePaths: string[],
@@ -270,7 +260,6 @@ function readBuiltInText(relativePath: string, fallbackText: string) {
   );
 }
 
-const skillsCatalogRoot = resolvePackageRoot("@outpost/skills-catalog");
 const REFLECTION_COACH_INSTRUCTIONS = readBuiltInText("reflection-coach/AGENTS.md", FALLBACK_REFLECTION_COACH_INSTRUCTIONS);
 const REFLECTION_COACH_ROUTINE = readBuiltInText(
   "reflection-coach/routines/recent-agent-reflection.md",
@@ -278,15 +267,7 @@ const REFLECTION_COACH_ROUTINE = readBuiltInText(
 );
 const REFLECTION_COACH_SKILL = readBuiltInTextWithFallback(
   "reflection-coach/SKILL.md",
-  [
-    path.resolve(
-      moduleDir,
-      "../../../packages/skills-catalog/catalog/bundled/outpost-operations/reflection-coach/SKILL.md",
-    ),
-    ...(skillsCatalogRoot
-      ? [path.join(skillsCatalogRoot, "catalog/bundled/outpost-operations/reflection-coach/SKILL.md")]
-      : []),
-  ],
+  [path.join(BUILT_INS_DIR, "reflection-coach/SKILL.md"), path.join(SOURCE_BUILT_INS_DIR, "reflection-coach/SKILL.md")],
   FALLBACK_REFLECTION_COACH_SKILL,
 );
 
@@ -297,15 +278,7 @@ const SUMMARIZER_ROUTINE = readBuiltInText(
 );
 const SUMMARIZER_SKILL = readBuiltInTextWithFallback(
   "summarizer/SKILL.md",
-  [
-    path.resolve(
-      moduleDir,
-      "../../../packages/skills-catalog/catalog/bundled/outpost-operations/summarize-status/SKILL.md",
-    ),
-    ...(skillsCatalogRoot
-      ? [path.join(skillsCatalogRoot, "catalog/bundled/outpost-operations/summarize-status/SKILL.md")]
-      : []),
-  ],
+  [path.join(BUILT_INS_DIR, "summarizer/SKILL.md"), path.join(SOURCE_BUILT_INS_DIR, "summarizer/SKILL.md")],
   FALLBACK_SUMMARIZER_SKILL,
 );
 

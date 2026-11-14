@@ -187,18 +187,6 @@ export const queryKeys = {
       ["outpost-skills", spaceId, skillId, "fork-precheck"] as const,
     file: (spaceId: string, skillId: string, relativePath: string) =>
       ["outpost-skills", spaceId, skillId, "file", relativePath] as const,
-    catalog: (filters: { kind?: string; category?: string; q?: string } = {}) =>
-      [
-        "outpost-skills",
-        "catalog",
-        filters.kind ?? "__all-kinds__",
-        filters.category ?? "__all-categories__",
-        filters.q ?? "",
-      ] as const,
-    catalogDetail: (catalogRef: string) =>
-      ["outpost-skills", "catalog", "detail", catalogRef] as const,
-    catalogFile: (catalogRef: string, relativePath: string) =>
-      ["outpost-skills", "catalog", "file", catalogRef, relativePath] as const,
     testInputs: (spaceId: string, skillId: string) =>
       ["outpost-skills", spaceId, skillId, "test-inputs"] as const,
     testRunTemplates: (spaceId: string) =>

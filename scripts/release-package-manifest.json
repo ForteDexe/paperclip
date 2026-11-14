@@ -20,11 +20,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/skills-catalog",
-    "name": "@outpost/skills-catalog",
-    "publishFromCi": true
-  },
-  {
     "dir": "packages/db",
     "name": "@outpost/db",
     "publishFromCi": true

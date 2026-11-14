@@ -2403,43 +2403,6 @@
       ]
     },
     {
-      "id": "rf-cskill-install-attach-01",
-      "title": "Catalog install is followed by an agent skills sync — install ≠ attach",
-      "group": "rf",
-      "legacyGroup": 13,
-      "sourceKind": "eval_case",
-      "sourceAnchor": "outpost-evals/outpost-skill-optimization/skills/outpost/tests/cases/rf-cskill-install-attach-01.yaml",
-      "fixture": "baseline",
-      "skillElements": [
-        {
-          "file": "SKILL.md",
-          "section": "## Space Skills Workflow",
-          "lines": "318-327"
-        },
-        {
-          "file": "references/space-skills.md",
-          "section": "App-shipped catalog + Assign Skills To An Existing Agent",
-          "lines": "65-207"
-        }
-      ],
-      "expectedSemantics": [
-        "POST /api/spaces/c-mock-0001/skills/install-catalog",
-        "POST /api/agents/a-coder-0001/skills/sync"
-      ],
-      "forbiddenSemantics": [],
-      "primaryDisposition": "optional_agent_tool",
-      "requiredGrants": [
-        "admin:extended"
-      ],
-      "assertionClasses": [
-        "authorization_policy",
-        "combined_multi_hop"
-      ],
-      "evidenceIds": [
-        "eval:rf-cskill-install-attach-01"
-      ]
-    },
-    {
       "id": "rf-cskill-self-sync-01",
       "title": "Skills sync replaces the whole desired set — existing skills are preserved",
       "group": "rf",
@@ -2460,7 +2423,6 @@
         }
       ],
       "expectedSemantics": [
-        "POST /api/spaces/c-mock-0001/skills/install-catalog",
         "GET \"^/api/agents/(a-test-0001|me)/skills$\"",
         "POST \"^/api/agents/(a-test-0001|me)/skills/sync$\""
       ],

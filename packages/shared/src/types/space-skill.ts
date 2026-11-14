@@ -21,7 +21,6 @@ export interface SpaceSkillLastEditor {
   name: string | null;
   imageUrl: string | null;
 }
-
 export interface SpaceSkillFileInventoryEntry {
   path: string;
   kind: "skill" | "markdown" | "reference" | "script" | "asset" | "other";
@@ -330,11 +329,6 @@ export interface SpaceSkillAuditResult {
 }
 
 export interface SpaceSkillInstallUpdateRequest {
-  force?: boolean;
-  expectedVersionId?: string | null;
-}
-
-export interface SpaceSkillResetRequest {
   force?: boolean;
   expectedVersionId?: string | null;
 }
@@ -654,79 +648,4 @@ export interface SpaceSkillTestRunDetail extends SpaceSkillTestRun {
     summary: string | null;
     createdAt: Date;
   }>;
-}
-
-export type CatalogSkillKind = "bundled" | "optional";
-
-export type CatalogSkillFileKind = SpaceSkillFileInventoryEntry["kind"];
-
-export interface CatalogSkillFile {
-  path: string;
-  kind: CatalogSkillFileKind;
-  sizeBytes: number;
-  sha256: string;
-}
-
-export interface CatalogSkillGitHubSource {
-  type: "github";
-  hostname: string;
-  owner: string;
-  repo: string;
-  ref: string;
-  commit: string;
-  path: string;
-  url: string;
-}
-
-export type CatalogSkillSource = CatalogSkillGitHubSource;
-
-export interface CatalogSkill {
-  id: string;
-  key: string;
-  kind: CatalogSkillKind;
-  category: string;
-  slug: string;
-  name: string;
-  description: string;
-  path: string;
-  entrypoint: "SKILL.md";
-  trustLevel: SpaceSkillTrustLevel;
-  compatibility: SpaceSkillCompatibility;
-  defaultInstall: boolean;
-  recommendedForRoles: string[];
-  requires: string[];
-  tags: string[];
-  files: CatalogSkillFile[];
-  contentHash: string;
-  source?: CatalogSkillSource;
-  packageName?: string;
-  packageVersion?: string;
-}
-
-export interface CatalogSkillListQuery {
-  kind?: CatalogSkillKind;
-  category?: string;
-  q?: string;
-}
-
-export interface CatalogSkillFileDetail {
-  catalogSkillId: string;
-  path: string;
-  kind: CatalogSkillFileKind;
-  content: string;
-  language: string | null;
-  markdown: boolean;
-}
-
-export interface SpaceSkillInstallCatalogRequest {
-  catalogSkillId: string;
-  slug?: string | null;
-  force?: boolean;
-}
-
-export interface SpaceSkillInstallCatalogResult {
-  action: "created" | "updated" | "unchanged";
-  skill: SpaceSkill;
-  catalogSkill: CatalogSkill;
-  warnings: string[];
 }

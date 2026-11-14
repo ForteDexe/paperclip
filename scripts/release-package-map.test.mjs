@@ -59,14 +59,14 @@ test("guard flags a publishFromCi:true package depending on a publishFromCi:fals
   const problems = findUnpublishableWorkspaceEdges([
     pkg("@outpost/server", {
       publishFromCi: true,
-      dependencies: { "@outpost/skills-catalog": "workspace:*" },
+      dependencies: { "@outpost/private-runtime": "workspace:*" },
     }),
-    pkg("@outpost/skills-catalog", { publishFromCi: false }),
+    pkg("@outpost/private-runtime", { publishFromCi: false }),
   ]);
 
   assert.equal(problems.length, 1);
   assert.match(problems[0], /@outpost\/server/);
-  assert.match(problems[0], /@outpost\/skills-catalog/);
+  assert.match(problems[0], /@outpost\/private-runtime/);
 });
 
 test("guard inspects optional and peer dependency sections too", () => {

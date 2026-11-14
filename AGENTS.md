@@ -60,7 +60,6 @@ Greptile setup.
 - `packages/adapters/`: agent adapter implementations (Claude, Codex, Cursor, etc.)
 - `packages/adapter-utils/`: shared adapter utilities
 - `packages/plugins/`: plugin system packages
-- `packages/skills-catalog/`: app-shipped skills catalog (`@outpost/skills-catalog`)
 - `cli/`: `@outpost/cli` package (published bin, agent-facing commands)
 - `skills/`: Outpost runtime/operational skills (not part of the app catalog)
 - `doc/`: operational and product docs

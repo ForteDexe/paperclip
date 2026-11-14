@@ -10857,14 +10857,6 @@ registerCurrentRoute({
 });
 
 for (const route of [
-  ["get", "/api/skills/catalog", "List catalog skills"],
-  ["get", "/api/skills/catalog/{catalogId}", "Get a catalog skill"],
-  ["get", "/api/skills/catalog/{catalogId}/files", "List catalog skill files"],
-  [
-    "post",
-    "/api/spaces/{spaceId}/skills/install-catalog",
-    "Install a catalog skill",
-  ],
   [
     "get",
     "/api/spaces/{spaceId}/skills/categories",

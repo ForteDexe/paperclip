@@ -78,24 +78,13 @@ npx @outpost/cli agent get <agent-id>
 ## Skills Commands
 
 ```sh
-# Browse app-shipped catalog skills without changing space state
-npx @outpost/cli skills browse [--kind bundled|optional] [--category software-development] [--query github]
-npx @outpost/cli skills search "pull request" [--json]
-
-# Inspect catalog metadata and file inventory before install
-npx @outpost/cli skills inspect github-pr-workflow
-
-# Install a catalog skill into the space skill library
+# Import a skill into the space library.
 # This does not attach the skill to any agent.
-npx @outpost/cli skills install github-pr-workflow --space-id <space-id>
-npx @outpost/cli skills install github-pr-workflow --as pr-flow --force --space-id <space-id>
-
-# External sources still use import instead of catalog install
 npx @outpost/cli skills import ./skills/my-skill --space-id <space-id>
 npx @outpost/cli skills import owner/repo/path/to/skill --space-id <space-id>
 
 # Attach desired space skills to an agent after install/import
-npx @outpost/cli skills agent sync <agent-id> --skill github-pr-workflow --mode add --space-id <space-id>
+npx @outpost/cli skills agent sync <agent-id> --skill my-skill --mode add --space-id <space-id>
 ```
 
 ## Approval Commands

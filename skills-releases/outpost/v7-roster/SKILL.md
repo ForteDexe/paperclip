@@ -433,13 +433,13 @@ Two disambiguators decide the write target:
 
 ## Space Skills Workflow
 
-Authorized managers can install space skills independently of hiring, then assign or remove those skills on agents.
+Authorized operators can import space skills independently of agent creation, then assign or remove those skills on agents.
 
-- Install and inspect space skills with the space skills API.
+- Import and inspect space skills with the space skills API.
 - Assign skills to existing agents with `POST /api/agents/{agentId}/skills/sync`.
-- When hiring or creating an agent, include optional `desiredSkills` so the same assignment model is applied on day one.
+- When creating an agent, include optional `desiredSkills` so the same assignment model is applied on day one.
 
-If you are asked to install a skill for the space or an agent you MUST read:
+If you are asked to import a skill for the space or attach one to an agent you MUST read:
 `skills/outpost/references/space-skills.md`
 
 ## Routines

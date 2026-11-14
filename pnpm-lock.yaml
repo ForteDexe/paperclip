@@ -660,16 +660,6 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  packages/skills-catalog:
-    dependencies:
-      '@outpost/shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.13.3
-
   packages/tailscale-https-broker:
     devDependencies:
       '@types/node':
@@ -765,9 +755,6 @@ importers:
       '@outpost/shared':
         specifier: workspace:*
         version: link:../packages/shared
-      '@outpost/skills-catalog':
-        specifier: workspace:*
-        version: link:../packages/skills-catalog
       '@photon-ai/advanced-imessage':
         specifier: 2.2.0
         version: 2.2.0(@grpc/grpc-js@1.14.5)(nice-grpc-common@2.0.4)(nice-grpc@2.1.17)

@@ -3846,24 +3846,9 @@ selected skills, the effective default environment, or plugin requirements enque
 normal durable runtime events, so an idle ready computer receives updates without
 a new run. Failed synchronization retains the event for the existing retry path.
 
-The Outpost app ships a curated catalog of space skills out of the box. The
-catalog is a workspace package at `packages/skills-catalog`:
-
-```text
-packages/skills-catalog/
-  catalog/
-    bundled/<category>/<slug>/SKILL.md   # recommended defaults
-    optional/<category>/<slug>/SKILL.md  # role/domain-specific
-  generated/catalog.json                  # checked-in manifest
-  scripts/
-    build-catalog-manifest.ts             # regenerate generated/catalog.json
-    validate-catalog.ts                   # validation only
-  src/                                    # builder + types consumed by server/CLI
-```
-
-Server and CLI import the generated manifest; they do not crawl repository
-paths at request time. Root `skills/` remains reserved for Outpost runtime
-skills and is not part of the catalog.
+Outpost does not ship a public skill marketplace. Root `skills/` is reserved
+for required runtime skills. Optional space skills are imported explicitly from
+local paths, GitHub, `skills.sh`, or URLs and then attached to agents.
 
 Skill-capable legacy local adapters always select the bundled
 `outpost/outpost/outpost` operational skill when it is present in the
@@ -3879,41 +3864,6 @@ An empty native runtime selection returns before space skill inventory work.
 An explicit empty stored key set does the same. Nonempty selections still use
 the current inventory, version and access checks. Legacy automatic selections
 still resolve their operational and feedback skills.
-
-Validate the catalog without writing the manifest:
-
-```sh
-pnpm --filter @outpost/skills-catalog validate
-```
-
-Regenerate `generated/catalog.json` after editing any catalog `SKILL.md`,
-frontmatter, file inventory, category, or slug:
-
-```sh
-pnpm --filter @outpost/skills-catalog build:manifest
-```
-
-The package's `build` script runs `build:manifest` and then `tsc`; tests live
-under `pnpm --filter @outpost/skills-catalog test`. Validation fails when:
-
-- a catalog entry is not under `catalog/bundled/<category>/<slug>` or
-  `catalog/optional/<category>/<slug>`
-- `SKILL.md` is missing or the frontmatter `name`/`description` is empty
-- the frontmatter `key` disagrees with the generated canonical key
-- two catalog entries share an `id`, `key`, or `slug`
-- file inventory contains absolute paths, `..`, broken symlinks, or files
-  outside the skill directory
-- the regenerated manifest differs from the checked-in
-  `generated/catalog.json`
-
-Trust level is derived from inventory: `markdown_only` (markdown + references
-only), `assets` (other non-script files), or `scripts_executables` (any
-executable script). The build contract is documented in
-`doc/plans/2026-05-26-skills-cli-catalog-contract.md`.
-
-CI runs `pnpm --filter @outpost/skills-catalog validate` and the package's
-vitest suite, so always regenerate the manifest in the same commit as the
-catalog change.
 
 ## Skill Version Snapshot Retention
 

@@ -71,3 +71,12 @@ workflow. Its stdio package, robot-account setup method, spreadsheet allowlist,
 server templates, UI editors, release wiring, and focused tests are removed.
 The separate remote Google Sheets OAuth/MCP methods remain available until the
 broader external Connections slice is reviewed.
+
+### Public Skill Catalog
+
+Outpost no longer ships a curated skill marketplace. The catalog package,
+browse/detail/install API, CLI marketplace commands, unreachable Store UI,
+portable catalog provenance, release wiring, and focused tests are removed.
+Spaces can still import local, GitHub, `skills.sh`, and URL skills and attach
+them to agents. The two required internal agent instructions formerly sourced
+from the catalog now live under `server/src/built-ins/agents/`.

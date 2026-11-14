@@ -21,7 +21,6 @@ import { projectToolContext } from "../services/project-tool-context.js";
 import { Router, type Request } from "express";
 import type { Db } from "@outpost/db";
 import {
-  catalogSkillListQuerySchema,
   spaceSkillCommentCreateSchema,
   spaceSkillCommentUpdateSchema,
   spaceSkillCreateSchema,
@@ -29,13 +28,11 @@ import {
   spaceSkillFileUpdateSchema,
   spaceSkillForkSchema,
   spaceSkillImportSchema,
-  spaceSkillInstallCatalogSchema,
   spaceSkillInstallUpdateSchema,
   spaceSkillListQuerySchema,
   spaceSkillProjectBrowseRequestSchema,
   spaceSkillProjectScanRequestSchema,
   spaceSkillRenameSchema,
-  spaceSkillResetSchema,
   spaceSkillTestInputCreateSchema,
   spaceSkillTestInputUpdateSchema,
   spaceSkillTestRunTemplateCreateSchema,
@@ -55,11 +52,6 @@ import {
   logActivity,
 } from "../services/index.js";
 import { isGitRepoSkillImportSource, parseSkillImportSourceInput } from "../services/space-skills.js";
-import {
-  getCatalogSkillOrThrow,
-  listCatalogSkillsOrEmpty,
-  readCatalogSkillFile,
-} from "../services/skills-catalog.js";
 import { badRequest, conflict, forbidden, unauthorized, notFound, HttpError } from "../errors.js";
 import { assertAuthenticated, assertSpaceAccess, getActorInfo } from "./authz.js";
 import { getTelemetryClient } from "../telemetry.js";
@@ -479,29 +471,6 @@ export function spaceSkillRoutes(db: Db, options: { pluginWorkerManager?: Plugin
   }, validate(skillSourceDisconnectSchema), async (req, res) => {
     const spaceId = req.params.spaceId as string;
     res.json(await sourceOperation(req, spaceId, context => sourceSvc.disconnect(spaceId, req.params.sourceId as string, context, req.body)));
-  });
-
-  router.get("/skills/catalog", async (req, res) => {
-    assertAuthenticated(req);
-    const query = catalogSkillListQuerySchema.parse({
-      kind: firstQueryString(req.query.kind),
-      category: firstQueryString(req.query.category),
-      q: firstQueryString(req.query.q),
-    });
-    res.json(listCatalogSkillsOrEmpty(query));
-  });
-
-  router.get("/skills/catalog/:catalogId/files", async (req, res) => {
-    assertAuthenticated(req);
-    const catalogRef = firstQueryString(req.query.ref) ?? (req.params.catalogId as string);
-    const relativePath = firstQueryString(req.query.path) ?? "SKILL.md";
-    res.json(await readCatalogSkillFile(catalogRef, relativePath));
-  });
-
-  router.get("/skills/catalog/:catalogId", async (req, res) => {
-    assertAuthenticated(req);
-    const catalogRef = firstQueryString(req.query.ref) ?? (req.params.catalogId as string);
-    res.json(getCatalogSkillOrThrow(catalogRef));
   });
 
   router.get("/spaces/:spaceId/skills", async (req, res) => {
@@ -1633,57 +1602,6 @@ export function spaceSkillRoutes(db: Db, options: { pluginWorkerManager?: Plugin
   );
 
   router.post(
-    "/spaces/:spaceId/skills/install-catalog",
-    validate(spaceSkillInstallCatalogSchema),
-    async (req, res) => {
-      const spaceId = req.params.spaceId as string;
-      await assertCanMutateSpaceSkills(req, spaceId, "skills.install", {
-        sourceType: "catalog",
-        sourceLocator: req.body.catalogSkillId,
-      });
-      let committed: ActivityPublication | null = null;
-      const result = await svc.installFromCatalog(spaceId, req.body, action => ({
-        validate: async tx => assertCanMutateSpaceSkills(req, spaceId, "skills.install", {
-          sourceType: "catalog", sourceLocator: req.body.catalogSkillId,
-        }, tx as unknown as Db),
-        afterPublish: async (tx, skill) => {
-          committed = (await persistActivity(tx as unknown as Db, {
-            spaceId, ...getActorInfo(req),
-            action: action === "created" ? "space.skill_catalog_installed" : "space.skill_catalog_updated",
-            entityType: "space_skill", entityId: skill.id,
-            details: { action, catalogId: req.body.catalogSkillId, catalogKey: skill.key,
-              slug: skill.slug, originHash: skill.sourceRef },
-          })).publication;
-        },
-      }));
-
-      const actor = getActorInfo(req);
-      if (committed) publishCommittedActivity(committed);
-      else await logActivity(db, {
-        spaceId,
-        actorType: actor.actorType,
-        actorId: actor.actorId,
-        agentId: actor.agentId,
-        runId: actor.runId,
-        agentApiKeyId: actor.agentApiKeyId,
-        action: result.action === "created" ? "space.skill_catalog_installed" : "space.skill_catalog_updated",
-        entityType: "space_skill",
-        entityId: result.skill.id,
-        details: {
-          action: result.action,
-          catalogId: result.catalogSkill.id,
-          catalogKey: result.catalogSkill.key,
-          slug: result.skill.slug,
-          originHash: result.catalogSkill.contentHash,
-          warningCount: result.warnings.length,
-        },
-      });
-
-      res.status(result.action === "created" ? 201 : 200).json(result);
-    },
-  );
-
-  router.post(
     "/spaces/:spaceId/skills/browse-project",
     validate(spaceSkillProjectBrowseRequestSchema),
     async (req, res) => {
@@ -1849,57 +1767,6 @@ export function spaceSkillRoutes(db: Db, options: { pluginWorkerManager?: Plugin
         runId: actor.runId,
         agentApiKeyId: actor.agentApiKeyId,
         action: "space.skill_update_installed",
-        entityType: "space_skill",
-        entityId: result.id,
-        details: {
-          slug: result.slug,
-          previousOriginHash: before?.metadata?.originHash ?? before?.sourceRef ?? null,
-          previousOriginVersion: before?.metadata?.originVersion ?? null,
-          newOriginHash: result.metadata?.originHash ?? result.sourceRef,
-          newOriginVersion: result.metadata?.originVersion ?? null,
-          driftDetected: Boolean(before?.metadata?.userModifiedAt),
-          force: Boolean(req.body.force),
-          auditVerdict: result.metadata?.auditVerdict ?? null,
-        },
-      });
-
-      res.json(result);
-    },
-  );
-
-  router.post(
-    "/spaces/:spaceId/skills/:skillId/reset",
-    validate(spaceSkillResetSchema),
-    async (req, res) => {
-      const spaceId = req.params.spaceId as string;
-      const skillId = req.params.skillId as string;
-      await assertCanMutateSpaceSkills(req, spaceId, "skills.reset", () => skillPolicyResource({ spaceId, skillId }));
-      const before = await svc.getById(spaceId, skillId);
-      const publication = contentPublication(req, spaceId, skillId, "skills.reset", skill => ({
-        action: "space.skill_reset", details: {
-          slug: skill.slug, previousOriginHash: before?.metadata?.originHash ?? before?.sourceRef ?? null,
-          previousOriginVersion: before?.metadata?.originVersion ?? null,
-          newOriginHash: skill.metadata?.originHash ?? skill.sourceRef,
-          newOriginVersion: skill.metadata?.originVersion ?? null,
-          driftDetected: Boolean(before?.metadata?.userModifiedAt), force: Boolean(req.body.force),
-          auditVerdict: skill.metadata?.auditVerdict ?? null,
-        },
-      }));
-      const result = await svc.resetSkill(spaceId, skillId, req.body, publication.hooks);
-      if (!result) {
-        res.status(404).json({ error: "Skill not found" });
-        return;
-      }
-
-      const actor = getActorInfo(req);
-      if (!publication.publish()) await logActivity(db, {
-        spaceId,
-        actorType: actor.actorType,
-        actorId: actor.actorId,
-        agentId: actor.agentId,
-        runId: actor.runId,
-        agentApiKeyId: actor.agentApiKeyId,
-        action: "space.skill_reset",
         entityType: "space_skill",
         entityId: result.id,
         details: {

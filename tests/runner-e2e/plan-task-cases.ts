@@ -11,7 +11,7 @@ export const PLAN_MAX_RUNS = 8;
 export const PLAN_BASE_SHA = "72ff3a9f27e581a27acb49771e8658bbb0bbaa47";
 export const PLAN_SKILLS = [
   { key: "outpost/outpost/outpost-converting-plans-to-tasks", current: "tests/runner-e2e/fixtures/plan-task-guidance/current-conversion.md", short: "skills/outpost-converting-plans-to-tasks/SKILL.md" },
-  { key: "outpost/bundled/outpost-operations/task-planning", current: "tests/runner-e2e/fixtures/plan-task-guidance/current-planning.md", short: "packages/skills-catalog/catalog/bundled/outpost-operations/task-planning/SKILL.md" },
+  { key: "outpost/bundled/outpost-operations/task-planning", current: "tests/runner-e2e/fixtures/plan-task-guidance/current-planning.md", short: "tests/runner-e2e/fixtures/plan-task-guidance/short-planning.md" },
 ] as const;
 export const planHash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 export const planDefinitionDigest = planHash([

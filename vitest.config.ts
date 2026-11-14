@@ -11,7 +11,6 @@ export default defineConfig({
       ...(retryReporterEnabled() ? ["./scripts/ci/retry-reporter.mjs"] : [])],
     projects: [
       "packages/shared",
-      "packages/skills-catalog",
       "packages/db",
       "packages/adapter-utils",
       "packages/adapters/claude-local",

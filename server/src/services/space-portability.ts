@@ -100,11 +100,6 @@ import { workProductService } from "./work-products.js";
 import { routineService } from "./routines.js";
 import { secretService } from "./secrets.js";
 import { getConfiguredSecretProvider } from "../secrets/configured-provider.js";
-import {
-  PORTABLE_CATALOG_PROVENANCE_STRING_KEYS,
-  readCatalogStringList,
-  readPortableCatalogProvenance,
-} from "./catalog-provenance.js";
 import { resolvePortableExportAgentSelection } from "./space-portability-agent-selection.js";
 import { normalizePortablePath } from "./portable-path.js";
 import type {
@@ -399,28 +394,6 @@ function normalizeExportPathSegment(value: string | null | undefined, preserveCa
 function readSkillSourceKind(skill: SpaceSkill) {
   const metadata = isPlainRecord(skill.metadata) ? skill.metadata : null;
   return asString(metadata?.sourceKind);
-}
-
-function buildPortableCatalogProvenance(skill: SpaceSkill) {
-  if (skill.sourceType !== "catalog") return null;
-  const metadata = isPlainRecord(skill.metadata) ? skill.metadata : null;
-  const provenance: Record<string, unknown> = {
-    skillKey: skill.key,
-  };
-
-  const sourceRef = asString(skill.sourceRef) ?? asString(metadata?.originHash);
-  if (sourceRef) provenance.sourceRef = sourceRef;
-
-  for (const key of PORTABLE_CATALOG_PROVENANCE_STRING_KEYS) {
-    if (key === "sourceRef") continue;
-    const value = asString(metadata?.[key]);
-    if (value) provenance[key] = value;
-  }
-
-  const auditCodes = readCatalogStringList(metadata?.auditCodes);
-  if (auditCodes) provenance.auditCodes = auditCodes;
-
-  return Object.keys(provenance).length > 1 ? provenance : null;
 }
 
 function deriveLocalExportNamespace(skill: SpaceSkill, slug: string) {
@@ -2731,14 +2704,12 @@ async function withSkillSourceMetadata(skill: SpaceSkill, markdown: string) {
   if (sourceEntry) {
     metadata.sources = [...existingSources, sourceEntry];
   }
-  const catalogProvenance = buildPortableCatalogProvenance(skill);
   metadata.skillKey = skill.key;
   metadata.outpostSkillKey = skill.key;
   metadata.outpost = {
     ...(isPlainRecord(metadata.outpost) ? metadata.outpost : {}),
     skillKey: skill.key,
     slug: skill.slug,
-    ...(catalogProvenance ? { catalog: catalogProvenance } : {}),
   };
   const frontmatter = {
     ...parsed.frontmatter,
@@ -3329,7 +3300,7 @@ function buildManifestFromPackageFiles(
     const sources = metadata && Array.isArray(metadata.sources) ? metadata.sources : [];
     const primarySource = sources.find((entry) => isPlainRecord(entry)) as Record<string, unknown> | undefined;
     const sourceKind = asString(primarySource?.kind);
-    let sourceType = "catalog";
+    let sourceType = "managed";
     let sourceLocator: string | null = null;
     let sourceRef: string | null = null;
     let normalizedMetadata: Record<string, unknown> | null = null;
@@ -3368,17 +3339,6 @@ function buildManifestFromPackageFiles(
       normalizedMetadata = {
         sourceKind: "url",
       };
-    } else {
-      const catalogProvenance = readPortableCatalogProvenance(metadata);
-      if (catalogProvenance) {
-        sourceType = "catalog";
-        sourceRef = catalogProvenance.sourceRef;
-        normalizedMetadata = catalogProvenance.metadata;
-      } else if (metadata) {
-        normalizedMetadata = {
-          sourceKind: "catalog",
-        };
-      }
     }
     const key = deriveManifestSkillKey(frontmatter, slug, normalizedMetadata, sourceType, sourceLocator);
 

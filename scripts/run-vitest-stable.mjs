@@ -25,7 +25,6 @@ const serverTestsDir = path.join(repoRoot, "server", "src", "__tests__");
 const serverScriptsDir = path.join(repoRoot, "server", "scripts");
 const nonServerProjects = [
   "@outpost/shared",
-  "@outpost/skills-catalog",
   "@outpost/db",
   "@outpost/adapter-utils",
   "@outpost/adapter-claude-local",

@@ -1101,7 +1101,7 @@ describeEmbeddedPostgres("spaceSkillService.list", () => {
 
     await expect(svc.auditSkill(spaceId, skillId)).rejects.toMatchObject({
       status: 422,
-      message: "Only local-path and catalog-managed space skills support audit.",
+      message: "Only local-path space skills support audit.",
     });
     await expect(svc.getById(spaceId, skillId)).resolves.toMatchObject({
       metadata: { sourceKind: "github", owner: "acme", repo: "remote-skill" },

@@ -723,48 +723,7 @@ only an explicit space skill policy restriction does. Core safety and space
 boundary checks still apply, and `agents:create` remains required when a command
 also creates agents.
 
-### Catalog (app-shipped skills)
-
-The Outpost app ships a curated catalog under `@outpost/skills-catalog`.
-Browse and inspect commands never mutate space state; `install` adds a catalog
-skill to the space library.
-
-```sh
-npx @outpost/cli skills browse [--kind bundled|optional] [--category <slug>] [--query <text>]
-npx @outpost/cli skills search "<text>" [--kind bundled|optional] [--category <slug>]
-npx @outpost/cli skills inspect <catalog-id-or-key-or-slug>
-npx @outpost/cli skills install <catalog-id-or-key-or-slug> [--as <slug>] [--force] --space-id <space-id>
-```
-
-Catalog semantics:
-
-- **Bundled** skills live in `packages/skills-catalog/catalog/bundled/<category>/<slug>`
-  and are recommended defaults for most spaces. They use canonical key
-  `outpost/bundled/<category>/<slug>`.
-- **Optional** skills live in `packages/skills-catalog/catalog/optional/<category>/<slug>`
-  and are role-specific or domain-specific (browser, AWS ops, etc.). Same key
-  shape with `optional` in place of `bundled`.
-- `skills install` materializes the catalog files into a space-managed skill
-  directory and records provenance (`catalogId`, `catalogKey`, `packageVersion`,
-  `originHash`, …) so future updates and audit decisions stay consistent.
-- `--as <slug>` overrides the space skill slug. `--force` may replace a
-  same-key catalog-managed skill but never bypasses hard validation or hard-stop
-  audit findings.
-
-Examples:
-
-```sh
-npx @outpost/cli skills browse --kind bundled --space-id <space-id>
-npx @outpost/cli skills search "pull request" --kind bundled
-npx @outpost/cli skills inspect github-pr-workflow
-npx @outpost/cli skills install github-pr-workflow --space-id <space-id>
-npx @outpost/cli skills install outpost:optional:browser:agent-browser --space-id <space-id>
-```
-
-External GitHub, skills.sh, local-path, and URL sources still go through
-`skills import`; catalog commands are for the app-shipped catalog only.
-
-### Organization library
+### Space library
 
 ```sh
 npx @outpost/cli skills list --space-id <space-id>
@@ -777,7 +736,6 @@ npx @outpost/cli skills check [skill-id-or-key-or-slug] --space-id <space-id>
 npx @outpost/cli skills update <skill-id-or-key-or-slug> [--force] --space-id <space-id>
 npx @outpost/cli skills update --all [--force] --space-id <space-id>
 npx @outpost/cli skills audit [skill-id-or-key-or-slug] --space-id <space-id>
-npx @outpost/cli skills reset <skill-id-or-key-or-slug> [--yes] [--force] --space-id <space-id>
 npx @outpost/cli skills remove <skill-id-or-key-or-slug> --yes --space-id <space-id>
 ```
 
@@ -786,8 +744,8 @@ npx @outpost/cli skills remove <skill-id-or-key-or-slug> --yes --space-id <space
 `npx skills add …` command. See `references/space-skills.md` in the agent
 skill bundle for the source-type table.
 
-`skills check`, `skills update`, `skills audit`, and `skills reset` are the
-maintenance loop for catalog-installed skills:
+`skills check`, `skills update`, and `skills audit` are the maintenance loop
+for imported skills:
 
 - `check` reports whether each skill's installed bytes match its pinned origin
   (`hasUpdate`, `installedHash`, `originHash`, `updateHoldReason`,
@@ -798,8 +756,6 @@ maintenance loop for catalog-installed skills:
   hard-stop audit findings still block the update.
 - `audit` re-scans installed bytes and reports findings without executing
   anything.
-- `reset` reinstalls a catalog-managed skill from its pinned origin, discarding
-  local edits. Prompts in a TTY; requires `--yes` for non-interactive use.
 
 ### Agent attach
 
@@ -818,11 +774,10 @@ still enforced by the server in both cases.
 
 ### Notes
 
-- Skill references accept space skill `id`, canonical `key`, or unique
-  `slug`; catalog references accept catalog `id`, `key`, or unique `slug`.
+- Skill references accept space skill `id`, canonical `key`, or unique `slug`.
 - `skills file` prints raw file content in human mode so it can be piped.
 - `skills create --body-file -` reads the skill markdown body from stdin.
-- `skills remove`, `skills reset`, and `skills agent clear` prompt in a TTY and
+- `skills remove` and `skills agent clear` prompt in a TTY and
   require `--yes` in non-interactive use.
 - `--json` prints the raw API result for each command.
 

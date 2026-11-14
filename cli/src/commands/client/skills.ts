@@ -4,13 +4,11 @@ import {
   type AgentSkillAssignmentMode,
   type Agent,
   type AgentSkillSnapshot,
-  type CatalogSkill,
   type SpaceSkill,
   type SpaceSkillAuditResult,
   type SpaceSkillDetail,
   type SpaceSkillFileDetail,
   type SpaceSkillImportResult,
-  type SpaceSkillInstallCatalogResult,
   type SpaceSkillListItem,
   type SpaceSkillProjectScanResult,
   type SpaceSkillUpdateStatus,
@@ -48,17 +46,6 @@ interface SkillScanProjectsOptions extends SkillsOptions {
   workspaceId?: string[];
 }
 
-interface CatalogBrowseOptions extends BaseClientOptions {
-  kind?: string;
-  category?: string;
-  query?: string;
-}
-
-interface CatalogInstallOptions extends SkillsOptions {
-  as?: string;
-  force?: boolean;
-}
-
 interface SkillUpdateOptions extends SkillsOptions {
   all?: boolean;
   force?: boolean;
@@ -91,100 +78,6 @@ export interface SpaceSkillUpdateRow {
 
 export function registerSkillsCommands(program: Command): void {
   const skills = program.command("skills").description("Outpost and agent skill operations");
-
-  addCommonClientOptions(
-    skills
-      .command("browse")
-      .description("Browse app-shipped catalog skills without installing them")
-      .option("--kind <kind>", "Catalog kind filter (bundled or optional)")
-      .option("--category <slug>", "Catalog category filter")
-      .option("--query <text>", "Search catalog text")
-      .action(async (opts: CatalogBrowseOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts);
-          const rows = await listCatalogSkills(ctx, opts);
-          if (ctx.json) {
-            printOutput(rows, { json: true });
-            return;
-          }
-          printCatalogSkillRows(rows);
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-  );
-
-  addCommonClientOptions(
-    skills
-      .command("search")
-      .description("Search app-shipped catalog skills without installing them")
-      .argument("<query>", "Search text")
-      .option("--kind <kind>", "Catalog kind filter (bundled or optional)")
-      .option("--category <slug>", "Catalog category filter")
-      .action(async (query: string, opts: CatalogBrowseOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts);
-          const rows = await listCatalogSkills(ctx, { ...opts, query });
-          if (ctx.json) {
-            printOutput(rows, { json: true });
-            return;
-          }
-          printCatalogSkillRows(rows);
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-  );
-
-  addCommonClientOptions(
-    skills
-      .command("inspect")
-      .description("Inspect an app-shipped catalog skill before installing it")
-      .argument("<catalogRef>", "Catalog skill ID, key, or unique slug")
-      .action(async (catalogRef: string, opts: BaseClientOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts);
-          const detail = await getCatalogSkill(ctx, catalogRef);
-          if (ctx.json) {
-            printOutput(detail, { json: true });
-            return;
-          }
-          printCatalogSkillDetail(detail);
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-  );
-
-  addCommonClientOptions(
-    skills
-      .command("install")
-      .description("Install a catalog skill into the space skill library; does not attach it to agents")
-      .argument("<catalogRef>", "Catalog skill ID, key, or unique slug")
-      .option("--as <slug>", "Outpost skill slug override")
-      .option("--force", "Replace a same-key catalog-managed skill when the server allows it", false)
-      .action(async (catalogRef: string, opts: CatalogInstallOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts, { requireSpace: true });
-          const result = await ctx.api.post<SpaceSkillInstallCatalogResult>(
-            `/api/spaces/${ctx.spaceId}/skills/install-catalog`,
-            {
-              catalogSkillId: catalogRef,
-              slug: opts.as,
-              force: opts.force || undefined,
-            },
-          );
-          if (ctx.json) {
-            printOutput(result, { json: true });
-            return;
-          }
-          printCatalogInstallResult(result);
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-    { includeSpace: true },
-  );
 
   addCommonClientOptions(
     skills
@@ -420,34 +313,6 @@ export function registerSkillsCommands(program: Command): void {
 
   addCommonClientOptions(
     skills
-      .command("reset")
-      .description("Reset a catalog-managed space skill to its pinned installed origin")
-      .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
-      .option("--yes", "Confirm reset without prompting", false)
-      .option("--force", "Discard local modifications or accept soft audit warnings; hard-stop audit findings still fail", false)
-      .action(async (skillRef: string, opts: ConfirmedSkillOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts, { requireSpace: true });
-          const skill = await resolveSpaceSkill(ctx, skillRef);
-          await confirmDangerousAction(opts.yes, `Reset catalog skill "${skill.name}" (${skill.key}) to its pinned origin?`);
-          const reset = await ctx.api.post<SpaceSkill>(
-            `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}/reset`,
-            { force: opts.force || undefined },
-          );
-          if (ctx.json) {
-            printOutput(reset, { json: true });
-            return;
-          }
-          console.log(`Reset skill ${reset?.name ?? skill.name} (${reset?.key ?? skill.key}) to pinned origin.`);
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-    { includeSpace: true },
-  );
-
-  addCommonClientOptions(
-    skills
       .command("remove")
       .description("Remove a space skill")
       .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
@@ -576,30 +441,6 @@ function registerAgentSkillCommands(skills: Command): void {
 
 async function listSpaceSkills(ctx: ResolvedClientContext): Promise<SpaceSkillListItem[]> {
   return (await ctx.api.get<SpaceSkillListItem[]>(`/api/spaces/${ctx.spaceId}/skills`)) ?? [];
-}
-
-async function listCatalogSkills(
-  ctx: ResolvedClientContext,
-  opts: CatalogBrowseOptions,
-): Promise<CatalogSkill[]> {
-  const params = new URLSearchParams();
-  appendQueryParam(params, "kind", opts.kind);
-  appendQueryParam(params, "category", opts.category);
-  appendQueryParam(params, "q", opts.query);
-  const query = params.toString();
-  return (await ctx.api.get<CatalogSkill[]>(`/api/skills/catalog${query ? `?${query}` : ""}`)) ?? [];
-}
-
-async function getCatalogSkill(ctx: ResolvedClientContext, catalogRef: string): Promise<CatalogSkill> {
-  const ref = catalogRef.trim();
-  if (!ref) {
-    throw new Error("Catalog skill reference is required.");
-  }
-  const detail = await ctx.api.get<CatalogSkill>(`/api/skills/catalog/ref?ref=${encodeURIComponent(ref)}`);
-  if (!detail) {
-    throw new Error(`Catalog skill not found: ${catalogRef}`);
-  }
-  return detail;
 }
 
 export function resolveSpaceSkillReference(
@@ -765,65 +606,6 @@ function printSpaceSkillRows(rows: Array<SpaceSkillListItem | SpaceSkill>): void
   }
 }
 
-function printCatalogSkillRows(rows: CatalogSkill[]): void {
-  if (rows.length === 0) {
-    printOutput([], { json: false });
-    return;
-  }
-  printTable(rows.map((row) => ({
-    id: row.id,
-    key: row.key,
-    kind: row.kind,
-    category: row.category,
-    slug: row.slug,
-    name: row.name,
-    trust: row.trustLevel,
-    roles: row.recommendedForRoles.join(",") || "-",
-  })));
-}
-
-function printCatalogSkillDetail(skill: CatalogSkill): void {
-  console.log(
-    formatInlineRecord({
-      id: skill.id,
-      key: skill.key,
-      kind: skill.kind,
-      category: skill.category,
-      slug: skill.slug,
-      name: skill.name,
-      trust: skill.trustLevel,
-      compatibility: skill.compatibility,
-      contentHash: skill.contentHash,
-    }),
-  );
-  console.log(`description=${skill.description || "-"}`);
-  console.log(`recommendedForRoles=${skill.recommendedForRoles.join(",") || "-"}`);
-  console.log(`tags=${skill.tags.join(",") || "-"}`);
-  console.log("files:");
-  printTable(skill.files.map((file) => ({
-    path: file.path,
-    kind: file.kind,
-    sizeBytes: file.sizeBytes,
-    sha256: file.sha256,
-  })));
-}
-
-function printCatalogInstallResult(result: SpaceSkillInstallCatalogResult | null): void {
-  if (!result) {
-    console.log("Catalog install returned no result.");
-    return;
-  }
-  console.log(
-    `Catalog skill ${result.action}: ${result.skill.name} (${result.skill.key}) in space skill library.`,
-  );
-  console.log(
-    "This does not attach the skill to an agent. Use `outpost skills agent sync <agent> --skill <skill>` when you want an agent to use it.",
-  );
-  for (const warning of result.warnings) {
-    console.log(`warning=${warning}`);
-  }
-}
-
 function printSpaceSkillCheckRows(rows: SpaceSkillCheckRow[]): void {
   if (rows.length === 0) {
     printOutput([], { json: false });
@@ -953,43 +735,6 @@ function collectOptionValue(value: string, previous: string[]): string[] {
 
 function emptyToUndefined(values: string[] | undefined): string[] | undefined {
   return values && values.length > 0 ? values : undefined;
-}
-
-function appendQueryParam(params: URLSearchParams, key: string, value: string | undefined): void {
-  const trimmed = value?.trim();
-  if (trimmed) {
-    params.set(key, trimmed);
-  }
-}
-
-function printTable(rows: Array<Record<string, unknown>>): void {
-  if (rows.length === 0) {
-    printOutput([], { json: false });
-    return;
-  }
-  const columns = Object.keys(rows[0] ?? {});
-  const widths = new Map(columns.map((column) => [column, column.length]));
-  for (const row of rows) {
-    for (const column of columns) {
-      widths.set(column, Math.max(widths.get(column) ?? 0, renderTableValue(row[column]).length));
-    }
-  }
-  console.log(columns.map((column) => column.padEnd(widths.get(column) ?? column.length)).join("  "));
-  console.log(columns.map((column) => "-".repeat(widths.get(column) ?? column.length)).join("  "));
-  for (const row of rows) {
-    console.log(
-      columns
-        .map((column) => renderTableValue(row[column]).padEnd(widths.get(column) ?? column.length))
-        .join("  "),
-    );
-  }
-}
-
-function renderTableValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value);
 }
 
 async function readBodyFile(filePath: string): Promise<string> {

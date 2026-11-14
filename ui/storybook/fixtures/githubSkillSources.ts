@@ -140,7 +140,6 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
     spaceSkillsApi.list = async () => sourceSkills().map(skill => ({ ...detail(skill.id), catalogKind: null, originHash: null, packageName: null, packageVersion: null } satisfies SpaceSkillListItem));
     spaceSkillsApi.detail = async (_spaceId, id) => detail(id);
     spaceSkillsApi.categories = async () => [];
-    spaceSkillsApi.catalogList = async () => [];
     spaceSkillsApi.versions = async (_spaceId, id) => [version(detail(id))];
     spaceSkillsApi.file = async (_spaceId, id, path) => ({ skillId: id, path, kind: path === 'SKILL.md' ? 'skill' : 'reference',
       content: version(detail(id)).fileInventory.find(file => file.path === path)?.content ?? '', language: 'markdown', markdown: true, editable: false });
