@@ -25,7 +25,7 @@ const baseAgent = {
   status: "idle",
   leadAgentId: null,
   capabilities: null,
-  adapterType: "process",
+  adapterType: "codex_local",
   adapterConfig: {},
   runtimeConfig: {},
   budgetMonthlyCents: 0,
@@ -767,7 +767,7 @@ describe("agent permission routes", () => {
       .send({
         name: "Trace attempt",
         role: "engineer",
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: { debug: { providerTrace: "raw" } },
       }));
@@ -786,7 +786,7 @@ describe("agent permission routes", () => {
     });
     const body = {
       name: "Trace capture agent",
-      adapterType: "process",
+      adapterType: "codex_local",
       runtimeConfig: { debug: { providerTrace: "raw" } },
     };
 
@@ -810,7 +810,7 @@ describe("agent permission routes", () => {
     mockAgentService.getConfigRevision.mockResolvedValue({
       id: "33333333-3333-4333-8333-333333333333",
       afterConfig: {
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: { debug: { providerTrace: "raw" } },
       },
@@ -839,7 +839,7 @@ describe("agent permission routes", () => {
     mockAgentService.getConfigRevision.mockResolvedValue({
       id: revisionId,
       afterConfig: {
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: {},
       },
@@ -932,51 +932,8 @@ describe("agent permission routes", () => {
   });
 
   it.each([
-    ["command", { command: "sh" }],
-    ["arguments", { args: ["-c", "id"] }],
-    ["environment", { env: { PATH: "/tmp" } }],
-  ])("blocks agent-authenticated process adapter %s updates", async (_label, adapterConfig) => {
-    const app = await createApp({
-      type: "agent",
-      agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      spaceId,
-      source: "agent_key",
-      runId: "run-1",
-    });
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .patch(`/api/agents/${agentId}`)
-      .send({ adapterConfig }));
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toContain("host-executed process adapters");
-    expect(mockAgentService.update).not.toHaveBeenCalled();
-  });
-
-  it("blocks an agent from switching a peer onto the process adapter", async () => {
-    mockAgentService.getById.mockResolvedValue({ ...baseAgent, adapterType: "codex_local" });
-    const app = await createApp({
-      type: "agent",
-      agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      spaceId,
-      source: "agent_key",
-      runId: "run-1",
-    });
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .patch(`/api/agents/${agentId}`)
-      .send({ adapterType: "process" }));
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toContain("host-executed process adapters");
-    expect(mockAgentService.update).not.toHaveBeenCalled();
-  });
-
-  it.each([
     ["claude_local", { engine: "cli", command: "/tmp/untrusted" }],
     ["codex_local", { args: ["-c", "id"] }],
-    ["cursor_local", { env: { PATH: "/tmp" } }],
-    ["hermes_local", { hermesCommand: "/tmp/untrusted" }],
-    ["gemini_local", { cwd: "/tmp" }],
-    ["opencode_local", { filesystemSandboxCommand: "/tmp/untrusted" }],
   ])("blocks agent-authenticated host settings for %s", async (adapterType, adapterConfig) => {
     mockAgentService.getById.mockResolvedValue({ ...baseAgent, adapterType });
     const app = await createApp({
@@ -1018,8 +975,7 @@ describe("agent permission routes", () => {
   });
 
   it.each(["ANTHROPIC_BASE_URL", "HTTP_PROXY", "NODE_OPTIONS"])("blocks agent-supplied %s on native Claude updates", async key => {
-    mockAgentService.getById.mockResolvedValue({ ...baseAgent, adapterType: "outpost_runner",
-      adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
+    mockAgentService.getById.mockResolvedValue({ ...baseAgent, adapterType: "claude_local" });
     const app = await createApp({ type: "agent", agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId, source: "agent_key", runId: "run-1" });
     const res = await requestApp(app, baseUrl => request(baseUrl).patch(`/api/agents/${agentId}`)
       .send({ adapterConfig: { env: { [key]: "untrusted-setting" } } }));
@@ -1028,8 +984,7 @@ describe("agent permission routes", () => {
   });
 
   it("allows native Claude credential references in partial updates using the saved harness", async () => {
-    mockAgentService.getById.mockResolvedValue({ ...baseAgent, adapterType: "outpost_runner",
-      adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
+    mockAgentService.getById.mockResolvedValue({ ...baseAgent, adapterType: "claude_local" });
     const app = await createApp({ type: "agent", agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId, source: "agent_key", runId: "run-1" });
     const res = await requestApp(app, baseUrl => request(baseUrl).patch(`/api/agents/${agentId}`)
       .send({ adapterConfig: { env: { ANTHROPIC_API_KEY: { type: "secret_ref", secretId: "33333333-3333-4333-8333-333333333333" } } } }));
@@ -1040,7 +995,7 @@ describe("agent permission routes", () => {
   it("blocks an agent from activating inherited host settings by switching onto a local adapter", async () => {
     mockAgentService.getById.mockResolvedValue({
       ...baseAgent,
-      adapterType: "outpost_runner",
+      adapterType: "codex_local",
       adapterConfig: { env: { PATH: "/tmp" } },
     });
     const app = await createApp({ type: "agent", agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId, source: "agent_key", runId: "run-1" });
@@ -1056,20 +1011,6 @@ describe("agent permission routes", () => {
   it.each([
     ["create", `/api/spaces/${spaceId}/agents`],
     ["create", `/api/spaces/${spaceId}/agent-creations`],
-  ])("blocks agent-authenticated process adapter commands on %s", async (_label, path) => {
-    const app = await createApp({ type: "agent", agentId, spaceId, source: "agent_key", runId: "run-1" });
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .post(path)
-      .send({ name: "Host process", role: "engineer", adapterType: "process", adapterConfig: { command: "sh" } }));
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toContain("host-executed process adapters");
-    expect(mockAgentService.create).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["create", `/api/spaces/${spaceId}/agents`],
-    ["create", `/api/spaces/${spaceId}/agent-creations`],
   ])("blocks agent-authenticated local adapter commands on %s", async (_label, path) => {
     const app = await createApp({ type: "agent", agentId, spaceId, source: "agent_key", runId: "run-1" });
     const res = await requestApp(app, (baseUrl) => request(baseUrl)
@@ -1079,20 +1020,6 @@ describe("agent permission routes", () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toContain("host-executed local adapter settings");
     expect(mockAgentService.create).not.toHaveBeenCalled();
-  });
-
-  it("blocks agent-authenticated rollback into process adapter configuration", async () => {
-    mockAgentService.getConfigRevision.mockResolvedValue({
-      id: "33333333-3333-4333-8333-333333333333",
-      afterConfig: { adapterType: "process", adapterConfig: { command: "sh" }, runtimeConfig: {} },
-    });
-    const app = await createApp({ type: "agent", agentId, spaceId, source: "agent_key", runId: "run-1" });
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .post(`/api/agents/${agentId}/config-revisions/33333333-3333-4333-8333-333333333333/rollback`));
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toContain("host-executed process adapters");
-    expect(mockAgentService.rollbackConfigRevision).not.toHaveBeenCalled();
   });
 
   it("blocks agent-authenticated rollback into local adapter command configuration", async () => {
@@ -1251,7 +1178,7 @@ describe("agent permission routes", () => {
       .send({
         name: "Backdoor",
         role: "engineer",
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
       }));
 
@@ -1271,7 +1198,7 @@ describe("agent permission routes", () => {
     const app = createApp({ type: "agent", agentId, spaceId, source: "agent_jwt" });
     const res = await requestApp(app, (baseUrl) => request(baseUrl)
       .post(`/api/spaces/${spaceId}/${route}`)
-      .send({ name: "Morgan", role: "qa", adapterType: "process", adapterConfig: {} }));
+      .send({ name: "Morgan", role: "qa", adapterType: "codex_local", adapterConfig: {} }));
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(res.body.error).toContain("Missing permission: agents:create.");
@@ -1343,7 +1270,7 @@ describe("agent permission routes", () => {
       .send({
         name: "Builder",
         role: "engineer",
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
       }));
 
@@ -1382,7 +1309,7 @@ describe("agent permission routes", () => {
       .send({
         name: "Builder",
         role: "engineer",
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
       }));
 
@@ -1407,7 +1334,7 @@ describe("agent permission routes", () => {
       .send({
         name: "Builder",
         role: "engineer",
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
       }));
 
@@ -1889,7 +1816,7 @@ describe("agent permission routes", () => {
       .send({
         name: "Builder",
         role: "engineer",
-        adapterType: "process",
+        adapterType: "codex_local",
         adapterConfig: {},
         defaultEnvironmentId: environmentId,
       }));
@@ -1904,50 +1831,14 @@ describe("agent permission routes", () => {
     );
   });
 
-  it("rejects creating an agent with an unsupported default environment driver", async () => {
-    const environmentId = "33333333-3333-4333-8333-333333333333";
-    mockEnvironmentService.getById.mockResolvedValue({
-      id: environmentId,
-      spaceId,
-      driver: "ssh",
-      config: {},
-    });
-
-    const app = await createApp({
-      type: "operator",
-      userId: "operator-user",
-      source: "local_implicit",
-      isInstanceAdmin: true,
-      spaceIds: [spaceId],
-    });
-
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .post(`/api/spaces/${spaceId}/agents`)
-      .send({
-        name: "Builder",
-        role: "engineer",
-        adapterType: "process",
-        adapterConfig: {},
-        defaultEnvironmentId: environmentId,
-      }));
-
-    expect(res.status).toBe(422);
-    expect(res.body.error).toContain('Environment driver "ssh" is not allowed here');
-    expect(mockAgentService.create).not.toHaveBeenCalled();
-  });
-
   const sshCapableAdapterCases = [
     { adapterType: "codex_local", name: "Codex Builder", adapterConfig: {} },
     { adapterType: "claude_local", name: "Claude Builder", adapterConfig: {} },
-    { adapterType: "gemini_local", name: "Gemini Builder", adapterConfig: {} },
-    { adapterType: "opencode_local", name: "OpenCode Builder", adapterConfig: { model: "opencode/gpt-5-nano" } },
-    { adapterType: "cursor", name: "Cursor Builder", adapterConfig: {} },
-    { adapterType: "pi_local", name: "Pi Builder", adapterConfig: { model: "openai/gpt-5.4-mini" } },
   ];
 
   for (const adapterCase of sshCapableAdapterCases) {
     it(`allows creating a ${adapterCase.adapterType} agent with an SSH default environment`, async () => {
-      const expectedAdapterType = ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterCase.adapterType) ? "outpost_runner" : adapterCase.adapterType;
+      const expectedAdapterType = adapterCase.adapterType;
       const environmentId = "33333333-3333-4333-8333-333333333333";
       mockEnvironmentService.getById.mockResolvedValue({
         id: environmentId,
@@ -1989,46 +1880,8 @@ describe("agent permission routes", () => {
         }),
         { runnerResolved: true, aiConnectionInstall: undefined, createdByAgentId: null, interactionTexts: [expect.any(String)], createdByUserId: "operator-user", responsibleUserId: "operator-user", claudeLogin: { storedSessionId: null, ownerUserId: "operator-user", applyExistingWithoutClaim: false } },
       );
-      if (["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterCase.adapterType)) {
-        if (adapterCase.adapterType === "codex_local") expect(mockAgentService.create.mock.calls[0][1].adapterConfig).toMatchObject({ provider: "codex" });
-        else if (adapterCase.adapterType === "opencode_local") expect(mockAgentService.create.mock.calls[0][1].adapterConfig).toMatchObject({ provider: "opencode", model: adapterCase.adapterConfig.model });
-        else if (adapterCase.adapterType === "pi_local") expect(mockAgentService.create.mock.calls[0][1].adapterConfig).toMatchObject({ provider: "acpx", acpxAgent: "pi", model: adapterCase.adapterConfig.model });
-        else expect(mockAgentService.create.mock.calls[0][1].adapterConfig).toMatchObject({ provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" });
-        const { AGENT_RUNNER_SSH_PLATFORM_COMMAND } = await import("../services/agent-runner-selection.js");
-        expect(mockRunSshCommand).toHaveBeenCalledWith(expect.objectContaining({ host: "qa.example.invalid" }), AGENT_RUNNER_SSH_PLATFORM_COMMAND, { timeoutMs: 10_000 });
-      } else {
-        expect(mockRunSshCommand).not.toHaveBeenCalled();
-      }
     });
   }
-
-  it("rejects updating an agent with an unsupported default environment driver", async () => {
-    const environmentId = "33333333-3333-4333-8333-333333333333";
-    mockEnvironmentService.getById.mockResolvedValue({
-      id: environmentId,
-      spaceId,
-      driver: "ssh",
-      config: {},
-    });
-
-    const app = await createApp({
-      type: "operator",
-      userId: "operator-user",
-      source: "local_implicit",
-      isInstanceAdmin: true,
-      spaceIds: [spaceId],
-    });
-
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .patch(`/api/agents/${agentId}`)
-      .send({
-        defaultEnvironmentId: environmentId,
-      }));
-
-    expect(res.status).toBe(422);
-    expect(res.body.error).toContain('Environment driver "ssh" is not allowed here');
-    expect(mockAgentService.update).not.toHaveBeenCalled();
-  });
 
   for (const adapterCase of sshCapableAdapterCases) {
     it(`allows updating a ${adapterCase.adapterType} agent with an SSH default environment`, async () => {
@@ -2076,39 +1929,6 @@ describe("agent permission routes", () => {
       );
     });
   }
-
-  it("rejects switching an agent away from an SSH-capable runtime without clearing its SSH default", async () => {
-    const environmentId = "33333333-3333-4333-8333-333333333333";
-    mockEnvironmentService.getById.mockResolvedValue({
-      id: environmentId,
-      spaceId,
-      driver: "ssh",
-      config: {},
-    });
-    mockAgentService.getById.mockResolvedValue({
-      ...baseAgent,
-      adapterType: "codex_local",
-      defaultEnvironmentId: environmentId,
-    });
-
-    const app = await createApp({
-      type: "operator",
-      userId: "operator-user",
-      source: "local_implicit",
-      isInstanceAdmin: true,
-      spaceIds: [spaceId],
-    });
-
-    const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .patch(`/api/agents/${agentId}`)
-      .send({
-        adapterType: "process",
-      }));
-
-    expect(res.status).toBe(422);
-    expect(res.body.error).toContain('Environment driver "ssh" is not allowed here');
-    expect(mockAgentService.update).not.toHaveBeenCalled();
-  });
 
   it("exposes explicit task assignment access on agent detail", async () => {
     mockAccessService.listPrincipalGrants.mockResolvedValue([
@@ -2553,7 +2373,7 @@ describe("agent permission routes", () => {
     mockAgentService.getById.mockResolvedValue({ ...baseAgent, budgetMonthlyCents: 500 });
     mockAgentService.getConfigRevision.mockResolvedValue({
       id: "33333333-3333-4333-8333-333333333333",
-      afterConfig: { adapterType: "process", adapterConfig: {}, runtimeConfig: {}, budgetMonthlyCents: 50000 },
+      afterConfig: { adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, budgetMonthlyCents: 50000 },
     });
     const app = createApp({ type: "agent", agentId, spaceId, source: "agent_key", runId: "run-1" });
     const response = await requestApp(app, url => request(url).post(`/api/agents/${agentId}/config-revisions/33333333-3333-4333-8333-333333333333/rollback`));
@@ -2571,7 +2391,7 @@ describe("agent permission routes", () => {
   it.each(["agents", "agent-creations"])("budget authority: rejects agent immediate creation budgets through %s", async route => {
     mockAccessService.hasPermission.mockResolvedValue(true);
     const app = createApp({ type: "agent", agentId, spaceId, source: "agent_key" });
-    const response = await requestApp(app, url => request(url).post(`/api/spaces/${spaceId}/${route}`).send({ name: "New agent", role: "engineer", adapterType: "process", budgetMonthlyCents: 5000 }));
+    const response = await requestApp(app, url => request(url).post(`/api/spaces/${spaceId}/${route}`).send({ name: "New agent", role: "engineer", adapterType: "codex_local", budgetMonthlyCents: 5000 }));
     expect(response.status, JSON.stringify(response.body)).toBe(403);
     expect(response.body.code).toBe("operator_access_required");
     expect(response.body.remediation).toContain("[Open budgets](/<prefix>/activity/budgets)");
@@ -2584,7 +2404,7 @@ describe("agent permission routes", () => {
     mockAgentService.create.mockResolvedValue({ ...baseAgent, status: "pending_approval", budgetMonthlyCents: 5000 });
     mockApprovalService.create.mockResolvedValue({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "pending", type: "create_agent", spaceId });
     const app = createApp({ type: "agent", agentId, spaceId, source: "agent_key" }, { requireOperatorApprovalForNewAgents: true });
-    const response = await requestApp(app, url => request(url).post(`/api/spaces/${spaceId}/agent-creations`).send({ name: "Proposed agent", role: "engineer", adapterType: "process", budgetMonthlyCents: 5000 }));
+    const response = await requestApp(app, url => request(url).post(`/api/spaces/${spaceId}/agent-creations`).send({ name: "Proposed agent", role: "engineer", adapterType: "codex_local", budgetMonthlyCents: 5000 }));
     expect(response.status).toBe(201);
     expect(response.body.approval.status).toBe("pending");
     expect(mockApprovalService.create).toHaveBeenCalledWith(spaceId, expect.objectContaining({ payload: expect.objectContaining({ budgetMonthlyCents: 5000 }) }));
@@ -2600,7 +2420,7 @@ describe("agent permission routes", () => {
   it.each(["agents", "agent-creations"])("budget authority: records the real operator actor for immediate %s budgets", async route => {
     mockAgentService.create.mockResolvedValue({ ...baseAgent, budgetMonthlyCents: 5000 });
     const app = createApp({ type: "operator", userId: "operator-user", source: "local_implicit", spaceIds: [spaceId] });
-    const response = await requestApp(app, url => request(url).post(`/api/spaces/${spaceId}/${route}`).send({ name: "New agent", role: "engineer", adapterType: "process", budgetMonthlyCents: 5000 }));
+    const response = await requestApp(app, url => request(url).post(`/api/spaces/${spaceId}/${route}`).send({ name: "New agent", role: "engineer", adapterType: "codex_local", budgetMonthlyCents: 5000 }));
     expect(response.status).toBe(201);
     expect(mockAgentService.create).toHaveBeenCalledWith(spaceId, expect.objectContaining({ budgetMonthlyCents: 5000 }), expect.objectContaining({ createdByUserId: "operator-user" }));
     expect(mockBudgetService.upsertPolicy).not.toHaveBeenCalled();

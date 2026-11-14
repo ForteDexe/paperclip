@@ -53,8 +53,10 @@ runtime skill injection.
 Outpost supports Codex and Claude as user-facing agent harnesses. The retired
 Cursor, Gemini, Grok, Hermes, Kimi, OpenClaw, OpenCode, and Pi adapter packages,
 configuration surfaces, container images, release wiring, stories, and focused
-tests are removed. Shared ACP/session runtime code remains until its Codex and
-Claude dependencies can be separated from historical provider compatibility.
+tests are removed. Portability and permission contracts now exercise only the
+retained Codex and Claude adapters rather than preserving retired adapter test
+matrices. Shared ACP/session runtime code remains until its Codex and Claude
+dependencies can be separated from historical provider compatibility.
 
 ### KV Demo MCP Package
 

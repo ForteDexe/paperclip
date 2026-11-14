@@ -1905,7 +1905,7 @@ describe("space portability", () => {
           },
         },
       }),
-      { strictMode: false, adapterType: "outpost_runner" },
+      { strictMode: false, adapterType: "codex_local" },
     );
     expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
       adapterConfig: expect.objectContaining({
@@ -6000,13 +6000,11 @@ describe("space portability", () => {
   it.each([
     { runner: "legacy", platform: "linux" },
     { runner: "legacy", platform: "darwin" },
-    { runner: "outpost", platform: "linux" },
-    { runner: "outpost", platform: "darwin" },
   ] as const)("exports the resolved Codex runner and preserves it on import ($runner/$platform)", async ({ runner, platform }) => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = platform === "darwin" ? "arm64" : "x64";
     const [fixture] = await agentSvc.list();
-    agentSvc.list.mockResolvedValue([{ ...fixture, adapterType: runner === "legacy" ? "codex_local" : "outpost_runner", adapterConfig: { ...(runner === "outpost" ? { provider: "codex" } : {}), model: "gpt-5.4" } }]);
+    agentSvc.list.mockResolvedValue([{ ...fixture, adapterType: "codex_local", adapterConfig: { model: "gpt-5.4" } }]);
     const portability = spacePortabilityService({} as any);
     const exported = await portability.exportBundle("space-1", { include: { space: false, agents: true, projects: false, issues: false } });
     expect(exported.manifest.agents[0]?.runner).toBe(runner);
@@ -6014,9 +6012,9 @@ describe("space portability", () => {
     agentSvc.list.mockResolvedValue([]);
     agentSvc.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({ id: "agent-created", ...input }));
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files: exported.files }, include: { space: false, agents: true, projects: false, issues: false }, target: { mode: "existing_space", spaceId: "space-1" }, agents: "all", collisionStrategy: "rename" }, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ adapterType: runner === "legacy" ? "codex_local" : "outpost_runner", runner, adapterConfig: expect.objectContaining(runner === "outpost" ? { provider: "codex", model: "gpt-5.4" } : { model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
+    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ adapterType: "codex_local", runner, adapterConfig: expect.objectContaining({ model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files: exported.files }, include: { space: false, agents: true, projects: false, issues: false }, target: { mode: "existing_space", spaceId: "space-1" }, agents: "all", collisionStrategy: "rename", adapterOverrides: { claudecoder: { adapterType: "codex_local", adapterConfig: { model: "gpt-5.5" } } } }, "user-1");
-    expect(agentSvc.create).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ adapterType: runner === "legacy" ? "codex_local" : "outpost_runner", runner, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }) }), { createdByUserId: "user-1" });
+    expect(agentSvc.create).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ adapterType: "codex_local", runner, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }) }), { createdByUserId: "user-1" });
   });
 
   it("rejects an invalid package runner without selecting a default or creating an agent", async () => {
@@ -6029,9 +6027,9 @@ describe("space portability", () => {
   });
 
   it.each([
-    { action: "create", platform: "linux", expectedType: "outpost_runner" },
+    { action: "create", platform: "linux", expectedType: "codex_local" },
     { action: "update", platform: "linux", expectedType: "codex_local" },
-    { action: "create", platform: "darwin", expectedType: "outpost_runner" },
+    { action: "create", platform: "darwin", expectedType: "codex_local" },
     { action: "update", platform: "darwin", expectedType: "codex_local" },
     { action: "create", platform: "win32", expectedType: "codex_local" },
   ])("applies qualified Codex defaults only to new imports without a runner ($platform/$action)", async ({ action, platform, expectedType }) => {
@@ -6046,179 +6044,29 @@ describe("space portability", () => {
     agentSvc.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({ id: "agent-created", ...input }));
     agentSvc.update.mockImplementation(async (id: string, input: Record<string, unknown>) => ({ id, ...fixture, ...input }));
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files }, include: { space: false, agents: true, projects: false, issues: false }, target: { mode: "existing_space", spaceId: "space-1" }, agents: "all", collisionStrategy: action === "update" ? "replace" : "rename" }, "user-1");
-    if (action === "create") expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining(expectedType === "outpost_runner" ? { provider: "codex" } : { model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
+    if (action === "create") expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining({ model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
     else expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({ adapterType: "codex_local", adapterConfig: expect.objectContaining({ model: "gpt-5.4" }) }));
   });
 
   it.each([
     { existingRunner: "legacy", existingHarness: "codex_local", expectedType: "codex_local", platform: "linux" },
     { existingRunner: "legacy", existingHarness: "codex_local", expectedType: "codex_local", platform: "darwin" },
-    { existingRunner: "outpost", existingHarness: "codex_local", expectedType: "outpost_runner", platform: "linux" },
-    { existingRunner: "outpost", existingHarness: "codex_local", expectedType: "outpost_runner", platform: "darwin" },
-    { existingRunner: "legacy", existingHarness: "claude_local", expectedType: "outpost_runner", platform: "linux" },
+    { existingRunner: "legacy", existingHarness: "claude_local", expectedType: "codex_local", platform: "linux" },
   ])("keeps execution on same-harness replace-import edits and defaults genuine changes ($existingRunner/$existingHarness/$platform)", async ({ existingRunner, existingHarness, expectedType, platform }) => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = platform === "darwin" ? "arm64" : "x64";
     const [fixture] = await agentSvc.list();
-    const existing = { ...fixture, adapterType: existingRunner === "outpost" ? "outpost_runner" : existingHarness, adapterConfig: { ...(existingRunner === "outpost" ? { provider: "codex" } : {}), model: existingHarness === "codex_local" ? "gpt-5.4" : "claude-sonnet-4-6" } };
+    const existing = { ...fixture, adapterType: existingHarness, adapterConfig: { model: existingHarness === "codex_local" ? "gpt-5.4" : "claude-sonnet-4-6" } };
     agentSvc.list.mockResolvedValue([existing]);
     const portability = spacePortabilityService({} as any);
     const exported = await portability.exportBundle("space-1", { include: { space: false, agents: true, projects: false, issues: false } });
     const files = { ...exported.files, ".outpost.yaml": asTextFile(exported.files[".outpost.yaml"]).replace(/\n\s+runner: "(?:legacy|outpost)"/, "") };
     agentSvc.update.mockImplementation(async (id: string, input: Record<string, unknown>) => ({ id, ...existing, ...input }));
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files }, include: { space: false, agents: true, projects: false, issues: false }, target: { mode: "existing_space", spaceId: "space-1" }, agents: "all", collisionStrategy: "replace", adapterOverrides: { claudecoder: { adapterType: "codex_local", adapterConfig: { model: "gpt-5.5" } } } }, "user-1");
-    expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining({ model: "gpt-5.5", ...(expectedType === "outpost_runner" ? { provider: "codex" } : {}) }) }));
+    expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }) }));
     expect(agentSvc.create).not.toHaveBeenCalled();
   });
 
-  it("imports an unpaired Dot using its own option without enabling other Runner providers", async () => {
-    const portability = spacePortabilityService({} as any);
-    const exported = await portability.exportBundle("space-1", { include: { space: false, agents: true, projects: false, issues: false } });
-    agentSvc.list.mockResolvedValue([]);
-    agentSvc.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({ id: "agent-created", ...input }));
-    const input = {
-      source: { type: "inline" as const, rootPath: exported.rootPath, files: exported.files },
-      include: { space: false, agents: true, projects: false, issues: false },
-      target: { mode: "existing_space" as const, spaceId: "space-1" },
-      agents: "all" as const, collisionStrategy: "rename" as const,
-      adapterOverrides: { claudecoder: { adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot", allowUnmeteredProvider: true, lifecycleMode: "per_turn" } } },
-    };
-    instanceSettingsSvc.getExperimental.mockResolvedValue({ enableNativeRunner: true, enableOpenAiDot: false });
-    await expect(portability.importBundle(input, "user-1")).rejects.toMatchObject({ status: 422, details: { code: "outpost_runner_dot_disabled" } });
-    expect(agentSvc.create).not.toHaveBeenCalled();
-    instanceSettingsSvc.getExperimental.mockResolvedValue({ enableNativeRunner: false, enableOpenAiDot: true });
-    await expect(portability.importBundle({ ...input, adapterOverrides: { claudecoder: { adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.4" } } } }, "user-1"))
-      .rejects.toMatchObject({ status: 422, details: { code: "outpost_runner_rollout_disabled" } });
-    expect(agentSvc.create).not.toHaveBeenCalled();
-    await portability.importBundle(input, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ adapterType: "outpost_runner", adapterConfig: expect.objectContaining({ provider: "openai_dot", allowUnmeteredProvider: true }) }), { createdByUserId: "user-1" });
-    const createdConfig = agentSvc.create.mock.calls[0]![1].adapterConfig;
-    expect(createdConfig.dotBindingId).toBeUndefined();
-    const { resolveOutpostRunnerProviderProfile } = await import("../services/native-runtime/provider-profile.js");
-    expect(() => resolveOutpostRunnerProviderProfile(createdConfig)).toThrow(expect.objectContaining({ code: "outpost_runner_dot_config_invalid" }));
-  });
-
-  it("imports qualified Grok without the experimental flag and preserves its model and effort", async () => {
-    const portability = spacePortabilityService({} as any);
-    const exported = await portability.exportBundle("space-1", { include: { space: false, agents: true, projects: false, issues: false } });
-    agentSvc.list.mockResolvedValue([]);
-    agentSvc.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({ id: "agent-created", ...input }));
-    instanceSettingsSvc.getExperimental.mockResolvedValue({ enableNativeRunner: false });
-    const adapterConfig = { provider: "acpx", acpxAgent: "grok", model: "grok-4.7", reasoningEffort: "high" };
-
-    await portability.importBundle({
-      source: { type: "inline", rootPath: exported.rootPath, files: exported.files },
-      include: { space: false, agents: true, projects: false, issues: false },
-      target: { mode: "existing_space", spaceId: "space-1" },
-      agents: "all", collisionStrategy: "rename",
-      adapterOverrides: { claudecoder: { adapterType: "outpost_runner", adapterConfig } },
-    }, "user-1");
-
-    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
-      adapterType: "outpost_runner", adapterConfig: expect.objectContaining(adapterConfig),
-    }), { createdByUserId: "user-1" });
-  });
-
-  it("accepts native OpenCode imports without the experimental flag", async () => {
-    const portability = spacePortabilityService({} as any);
-    const exported = await portability.exportBundle("space-1", {
-      include: { space: false, agents: true, projects: false, issues: false },
-    });
-    agentSvc.list.mockResolvedValue([]);
-    agentSvc.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({
-      id: "agent-created",
-      ...input,
-    }));
-    const request = {
-      source: {
-        type: "inline" as const,
-        rootPath: exported.rootPath,
-        files: exported.files,
-      },
-      include: { space: false, agents: true, projects: false, issues: false },
-      target: { mode: "existing_space" as const, spaceId: "space-1" },
-      agents: "all" as const,
-      collisionStrategy: "rename" as const,
-      adapterOverrides: {
-        claudecoder: {
-          adapterType: "outpost_runner",
-          adapterConfig: { provider: "opencode", model: "openrouter/deepseek/deepseek-v4-flash-0731" },
-        },
-      },
-    };
-
-    await portability.importBundle(request, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
-      adapterType: "outpost_runner",
-      adapterConfig: expect.objectContaining({ provider: "opencode" }),
-    }), { createdByUserId: "user-1" });
-
-    instanceSettingsSvc.getExperimental.mockResolvedValue({ enableNativeRunner: true });
-    await portability.importBundle({
-      ...request,
-      adapterOverrides: {
-        claudecoder: {
-          adapterType: "outpost_runner",
-          adapterConfig: {
-            provider: "opencode",
-            model: "openrouter/deepseek/deepseek-v4-flash-0731",
-          },
-        },
-      },
-    }, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
-      adapterType: "outpost_runner",
-      adapterConfig: expect.objectContaining({ provider: "opencode" }),
-    }), { createdByUserId: "user-1" });
-
-    await portability.importBundle(request, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
-      adapterType: "outpost_runner",
-      adapterConfig: expect.objectContaining({ provider: "opencode" }),
-    }), { createdByUserId: "user-1" });
-
-    await portability.importBundle({
-      ...request,
-      adapterOverrides: {
-        claudecoder: {
-          adapterType: "outpost_runner",
-          adapterConfig: {
-            provider: "claude_managed",
-            managedProfileId: "managed-primary",
-            managedAgentsRetentionAcknowledged: true,
-          },
-        },
-      },
-    }, "user-1");
-    expect(managedAgentProfileSvc.requireQualified).toHaveBeenCalledWith(
-      "space-1",
-      "managed-primary",
-    );
-
-    const createCallsBeforeInvalidProfile = agentSvc.create.mock.calls.length;
-    const { notFound } = await import("../errors.js");
-    managedAgentProfileSvc.requireQualified.mockRejectedValueOnce(
-      notFound("Managed Agent profile not found"),
-    );
-    await expect(portability.importBundle({
-      ...request,
-      adapterOverrides: {
-        claudecoder: {
-          adapterType: "outpost_runner",
-          adapterConfig: {
-            provider: "claude_managed",
-            managedProfileId: "managed-other-space",
-            managedAgentsRetentionAcknowledged: true,
-          },
-        },
-      },
-    }, "user-1")).rejects.toMatchObject({ status: 404 });
-    expect(managedAgentProfileSvc.requireQualified).toHaveBeenLastCalledWith(
-      "space-1",
-      "managed-other-space",
-    );
-    expect(agentSvc.create).toHaveBeenCalledTimes(createCallsBeforeInvalidProfile);
-  });
 });
 
 describe("dedupeImportedSpaceName", () => {
