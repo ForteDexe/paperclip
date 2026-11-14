@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { spacesApi } from "../api/spaces";
@@ -33,9 +34,19 @@ import {
   Map,
 } from "lucide-react";
 
+const spaceVocabulary = {
+  product: productLabel("product"),
+  space: productLabel("space"),
+  spaces: productLabel("space", { count: 2 }),
+  agents: productLabel("agent", { count: 2, casing: "lower" }),
+  tasks: productLabel("task", { count: 2, casing: "lower" }),
+  decisions: productLabel("decision", { count: 2, casing: "lower" }),
+  campfireRooms: `${productLabel("campfire")} ${productLabel("room", { count: 2, casing: "lower" })}`,
+};
+
 function spaceNameFromPath(value: string) {
   const normalized = value.trim().replace(/[\\/]+$/, "");
-  return normalized.split(/[\\/]/).pop() || "Space";
+  return normalized.split(/[\\/]/).pop() || spaceVocabulary.space;
 }
 
 export function Spaces() {
@@ -111,7 +122,7 @@ export function Spaces() {
   });
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Spaces" }]);
+    setBreadcrumbs([{ label: spaceVocabulary.spaces }]);
   }, [setBreadcrumbs]);
 
   useEffect(() => {
@@ -157,7 +168,7 @@ export function Spaces() {
           onClick={() => createMutation.mutate()}
           disabled={!workspaceRoot.trim() || createMutation.isPending}
         >
-          {createMutation.isPending ? "Creating…" : "Create Space"}
+          {createMutation.isPending ? "Creating…" : `Create ${spaceVocabulary.space}`}
         </Button>
       </div>
     </Card>
@@ -170,10 +181,10 @@ export function Spaces() {
           <div className="mb-8 flex h-28 w-28 items-center justify-center rounded-3xl border border-border bg-muted/30 text-muted-foreground/40 shadow-sm">
             <Map className="h-14 w-14" strokeWidth={1.25} aria-hidden="true" />
           </div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Welcome to Outpost</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Create your first Space</h1>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Welcome to {spaceVocabulary.product}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Create your first {spaceVocabulary.space}</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-            A Space connects one repository to its agents, tasks, decisions, and Campfire rooms.
+            A {spaceVocabulary.space} connects one repository to its {spaceVocabulary.agents}, {spaceVocabulary.tasks}, {spaceVocabulary.decisions}, and {spaceVocabulary.campfireRooms}.
             Start by choosing its working directory.
           </p>
           <div className="mt-8 w-full">
@@ -185,7 +196,7 @@ export function Spaces() {
           </div>
           {!showCreate ? (
             <p className="mt-4 text-xs text-muted-foreground">
-              Outpost keeps each Space&apos;s agent and work context separate.
+              {spaceVocabulary.product} keeps each {spaceVocabulary.space}&apos;s agent and work context separate.
             </p>
           ) : null}
         </div>
@@ -197,11 +208,11 @@ export function Spaces() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">Spaces</h1>
-          <p className="text-sm text-muted-foreground">Each Space owns one repository and its complete agent context.</p>
+          <h1 className="text-xl font-semibold">{spaceVocabulary.spaces}</h1>
+          <p className="text-sm text-muted-foreground">Each {spaceVocabulary.space} owns one repository and its complete agent context.</p>
         </div>
         <Button onClick={() => setShowCreate((value) => !value)}>
-          <Plus className="h-4 w-4" /> New Space
+          <Plus className="h-4 w-4" /> New {spaceVocabulary.space}
         </Button>
       </div>
       {createSpaceForm}

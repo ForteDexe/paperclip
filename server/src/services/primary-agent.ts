@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { agents, spaces, type Db } from "@outpost/db";
-import type { PrimaryAgentPreference } from "@outpost/shared";
+import { productLabel, type PrimaryAgentPreference } from "@outpost/shared";
 import { notFound, unprocessable } from "../errors.js";
 import { persistActivity, publishActivity } from "./activity-log.js";
 
@@ -61,7 +61,7 @@ export function primaryAgentService(db: Db) {
           .where(and(eq(agents.spaceId, spaceId), eq(agents.id, agentId))).for("update");
         if (!agent) throw notFound("Agent not found");
         if (agent.status === "terminated" || agent.status === "pending_approval") {
-          throw unprocessable("Choose an active, approved agent as the default agent.");
+          throw unprocessable(`Choose an active, approved agent as the ${productLabel("defaultAgent", { casing: "lower" })}.`);
         }
         await tx.update(spaces).set({ primaryAgentId: agentId, updatedAt: new Date() })
           .where(eq(spaces.id, spaceId));

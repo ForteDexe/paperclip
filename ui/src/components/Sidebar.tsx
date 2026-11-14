@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { SidebarAgents } from "./SidebarAgents";
@@ -39,6 +40,17 @@ import { PluginSlotOutlet } from "@/plugins/slots";
 import { PluginLauncherOutlet } from "@/plugins/launchers";
 import { SidebarSpaceMenu } from "./SidebarSpaceMenu";
 import { primarySidebarStyles } from "./primary-sidebar-styles";
+
+const sidebarVocabulary = {
+  space: productLabel("space"),
+  spaces: productLabel("space", { count: 2 }),
+  tasks: productLabel("task", { count: 2 }),
+  decisions: productLabel("decision", { count: 2 }),
+  artifacts: productLabel("artifact", { count: 2 }),
+  cases: productLabel("case", { count: 2 }),
+  northStars: productLabel("northStar", { count: 2 }),
+  agents: productLabel("agent", { count: 2 }),
+};
 
 export function Sidebar({ children }: { children?: ReactNode }) {
   return <ClassicSidebar>{children}</ClassicSidebar>;
@@ -174,7 +186,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
           {showDecisions ? (
             <SidebarNavItem
               to="/decisions"
-              label="Decisions"
+              label={sidebarVocabulary.decisions}
               icon={ListChecks}
               badge={attentionCount}
               badgeLabel="decisions"
@@ -194,7 +206,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
           {combinedInboxTasks ? (
             <SidebarNavItem
               to="/issues"
-              label="Tasks"
+              label={sidebarVocabulary.tasks}
               icon={CircleCheck}
               badge={inboxBadge.inbox}
               badgeLabel="unread"
@@ -202,15 +214,15 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               alert={inboxBadge.failedRuns > 0}
             />
           ) : (
-            <SidebarNavItem to="/issues" label="Tasks" icon={CircleCheck} />
+            <SidebarNavItem to="/issues" label={sidebarVocabulary.tasks} icon={CircleCheck} />
           )}
-          <SidebarNavItem to="/spaces" label="Spaces" icon={FolderOpen} />
-          <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
+          <SidebarNavItem to="/spaces" label={sidebarVocabulary.spaces} icon={FolderOpen} />
+          <SidebarNavItem to="/artifacts" label={sidebarVocabulary.artifacts} icon={Package} />
           {showCases ? (
-            <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
+            <SidebarNavItem to="/cases" label={sidebarVocabulary.cases} icon={Layers} textBadge="beta" />
           ) : null}
           {showGoalsLink ? (
-            <SidebarNavItem to="/goals" label="North Stars" icon={Target} />
+            <SidebarNavItem to="/goals" label={sidebarVocabulary.northStars} icon={Target} />
           ) : goalsLinkPending ? (
             <div
               data-testid="sidebar-goals-placeholder"
@@ -235,10 +247,10 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
 
         {streamlinedUiEnabled ? (
           <SidebarSection
-            label="Space"
+            label={sidebarVocabulary.space}
             collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
           >
-            <SidebarNavItem to="/agents" label="Agents" icon={Users} />
+            <SidebarNavItem to="/agents" label={sidebarVocabulary.agents} icon={Users} />
           </SidebarSection>
         ) : null}
 
@@ -250,7 +262,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
           <>
             <SidebarAgents />
             <SidebarSection
-              label="Space"
+              label={sidebarVocabulary.space}
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
               <SidebarNavItem to="/org" label="Crew map" icon={Network} />

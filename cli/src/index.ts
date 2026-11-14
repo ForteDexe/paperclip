@@ -3,6 +3,7 @@ import { registerEmailCommands } from "./commands/client/email.js";
 import { registerMcpCommands } from "./commands/mcp.js";
 import { Command } from "commander";
 import { warnIfUnsupportedNodeVersion } from "@outpost/shared/node-version";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { onboard } from "./commands/onboard.js";
 import { doctor } from "./commands/doctor.js";
 import { envCommand } from "./commands/env.js";
@@ -59,19 +60,20 @@ import {
 } from "./commands/test-drive.js";
 
 const program = new Command();
+const productName = productLabel("product");
 const DATA_DIR_OPTION_HELP =
-  "Outpost data directory root (compatibility path remains ~/.outpost)";
+  `${productName} data directory root (compatibility path remains ~/.outpost)`;
 
 program.enablePositionalOptions();
 
 program
   .name("outpost")
-  .description("Outpost CLI — setup, diagnose, and configure your instance")
+  .description(`${productName} CLI — setup, diagnose, and configure your instance`)
   .version(cliVersion);
 
 program
   .command("install")
-  .description("Install Outpost into a managed per-user CLI store")
+  .description(`Install ${productName} into a managed per-user CLI store`)
   .option("--canary", "Install the npm canary channel")
   .option("--version <version>", "Install an exact published npm version")
   .option("--ref <ref>", "Install a GitHub branch, tag, or commit SHA")
@@ -87,7 +89,7 @@ program
 program
   .command("update")
   .alias("upgrade")
-  .description("Check, update, or roll back the Outpost CLI")
+  .description(`Check, update, or roll back the ${productName} CLI`)
   .option("--latest", "Switch to the latest stable channel")
   .option("--canary", "Switch to the canary channel")
   .option("--version <version>", "Install an exact published version")

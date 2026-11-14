@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight, MapPin } from "lucide-react";
-import type { Agent } from "@outpost/shared";
+import { productLabel, type Agent } from "@outpost/shared";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -28,6 +28,8 @@ export function usePrimaryAgentPresentation(spaceId?: string | null) {
 }
 
 const crownClass = "primary-crown relative";
+const defaultAgent = productLabel("defaultAgent", { casing: "lower" });
+const defaultAgentTitle = productLabel("defaultAgent");
 
 type CrownPop = { timing: "now" | "after-dialog"; bubbles: { angle: number; size: number; travel: number }[] };
 
@@ -74,18 +76,18 @@ export function PrimaryAgentCrownButton({ agent }: {
   const control = primary.error ? (
     <Tooltip {...tooltip}>
       <TooltipTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="Retry loading default agent" onClick={primary.onRetry}
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Retry loading ${defaultAgent}`} onClick={primary.onRetry}
           onPointerMove={wakeTooltip} onBlur={wakeTooltip}
           className={cn(crownClass, "text-destructive")}>
           <MapPin aria-hidden="true" className="size-5" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Couldn't load the default agent. Select to retry.</TooltipContent>
+      <TooltipContent>Couldn&apos;t load the {defaultAgent}. Select to retry.</TooltipContent>
     </Tooltip>
   ) : selected && !loading ? (
     <Tooltip {...tooltip}>
       <TooltipTrigger asChild>
-        <span ref={filledRef} role="img" aria-label="Default agent" tabIndex={-1} data-pop={pop?.timing}
+        <span ref={filledRef} role="img" aria-label={defaultAgentTitle} tabIndex={-1} data-pop={pop?.timing}
           onPointerMove={wakeTooltip} onBlur={wakeTooltip}
           onAnimationEnd={(event) => { if (event.animationName === "primary-crown-pop") setPop(null); }}
           className={cn(crownClass, "inline-flex size-9 shrink-0 items-center justify-center rounded-md text-primary outline-none focus-visible:ring-ring/50 focus-visible:ring-(length:--rad-3)")}>
@@ -96,18 +98,18 @@ export function PrimaryAgentCrownButton({ agent }: {
           ))}
         </span>
       </TooltipTrigger>
-      <TooltipContent>Default agent</TooltipContent>
+      <TooltipContent>{defaultAgentTitle}</TooltipContent>
     </Tooltip>
   ) : (
     <Tooltip {...tooltip}>
       <TooltipTrigger asChild>
-        <Button ref={buttonRef} type="button" variant="ghost" size="icon-sm" aria-label="Set as default agent" disabled={busy} onClick={request}
+        <Button ref={buttonRef} type="button" variant="ghost" size="icon-sm" aria-label={`Set as ${defaultAgent}`} disabled={busy} onClick={request}
           onPointerMove={wakeTooltip} onBlur={wakeTooltip}
           className={cn(crownClass, "text-muted-foreground/50 hover:text-foreground")}>
           <MapPin aria-hidden="true" className="size-5" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{loading ? "Loading the default agent…" : "Set as default agent"}</TooltipContent>
+      <TooltipContent>{loading ? `Loading the ${defaultAgent}…` : `Set as ${defaultAgent}`}</TooltipContent>
     </Tooltip>
   );
 

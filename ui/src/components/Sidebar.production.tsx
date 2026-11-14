@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem.production";
 import { SidebarAgents } from "./SidebarAgents.production";
@@ -32,6 +33,16 @@ import { cn, SIDEBAR_RAIL_HIDDEN_LABEL } from "../lib/utils";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { PluginLauncherOutlet } from "@/plugins/launchers";
 import { SidebarSpaceMenu } from "./SidebarSpaceMenu.production";
+
+const sidebarVocabulary = {
+  space: productLabel("space"),
+  spaces: productLabel("space", { count: 2 }),
+  tasks: productLabel("task", { count: 2 }),
+  decisions: productLabel("decision", { count: 2 }),
+  artifacts: productLabel("artifact", { count: 2 }),
+  cases: productLabel("case", { count: 2 }),
+  northStars: productLabel("northStar", { count: 2 }),
+};
 
 export function Sidebar() {
   const { openNewIssue } = useDialogActions();
@@ -146,7 +157,7 @@ export function Sidebar() {
           {showDecisions ? (
             <SidebarNavItem
               to="/decisions"
-              label="Decisions"
+              label={sidebarVocabulary.decisions}
               icon={ListChecks}
               badge={attentionCount}
               badgeLabel="decisions"
@@ -155,13 +166,13 @@ export function Sidebar() {
         </div>
 
         <SidebarSection label="Work" collapsible={{ open: workOpen, onOpenChange: setWorkOpen }}>
-          <SidebarNavItem to="/issues" label="Tasks" icon={CircleDot} />
-          <SidebarNavItem to="/spaces" label="Spaces" icon={FolderOpen} />
+          <SidebarNavItem to="/issues" label={sidebarVocabulary.tasks} icon={CircleDot} />
+          <SidebarNavItem to="/spaces" label={sidebarVocabulary.spaces} icon={FolderOpen} />
           {showCases ? (
-            <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
+            <SidebarNavItem to="/cases" label={sidebarVocabulary.cases} icon={Layers} textBadge="beta" />
           ) : null}
           {showGoalsLink ? (
-            <SidebarNavItem to="/goals" label="North Stars" icon={Target} />
+            <SidebarNavItem to="/goals" label={sidebarVocabulary.northStars} icon={Target} />
           ) : goalsLinkPending ? (
             <div
               data-testid="sidebar-goals-placeholder"
@@ -169,7 +180,7 @@ export function Sidebar() {
               aria-hidden="true"
             />
           ) : null}
-          <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
+          <SidebarNavItem to="/artifacts" label={sidebarVocabulary.artifacts} icon={Package} />
           <PluginSlotOutlet
             slotTypes={["sidebar"]}
             context={pluginContext}
@@ -187,7 +198,7 @@ export function Sidebar() {
 
         <SidebarAgents streamlined={streamlined} />
 
-        <SidebarSection label="Space" collapsible={{ open: spaceOpen, onOpenChange: setSpaceOpen }}>
+        <SidebarSection label={sidebarVocabulary.space} collapsible={{ open: spaceOpen, onOpenChange: setSpaceOpen }}>
           <SidebarNavItem to="/org" label="Crew map" icon={Network} />
           <SidebarNavItem to="/space/settings" label="Settings" icon={Settings} />
         </SidebarSection>

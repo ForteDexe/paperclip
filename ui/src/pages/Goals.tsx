@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { goalsApi } from "../api/goals";
 import { useSpace } from "../context/SpaceContext";
 import { useDialogActions } from "../context/DialogContext";
@@ -12,13 +13,18 @@ import { QueryErrorState, useQueryView } from "../components/QueryView";
 import { Button } from "@/components/ui/button";
 import { Target, Plus } from "lucide-react";
 
+const northStar = productLabel("northStar");
+const northStars = productLabel("northStar", { count: 2 });
+const lowerNorthStars = productLabel("northStar", { count: 2, casing: "lower" });
+const lowerSpace = productLabel("space", { casing: "lower" });
+
 export function Goals() {
   const { selectedSpaceId } = useSpace();
   const { openNewGoal } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "North Stars" }]);
+    setBreadcrumbs([{ label: northStars }]);
   }, [setBreadcrumbs]);
 
   const goalsQuery = useQuery({
@@ -30,7 +36,7 @@ export function Goals() {
   const goalsView = useQueryView(goalsQuery);
 
   if (!selectedSpaceId) {
-    return <EmptyState icon={Target} message="Select an outpost to view north stars." />;
+    return <EmptyState icon={Target} message={`Select a ${lowerSpace} to view ${lowerNorthStars}.`} />;
   }
 
   // Keep a loaded list on screen through a failed refetch; only a real
@@ -43,7 +49,7 @@ export function Goals() {
       <QueryErrorState
         size="page"
         error={goalsView.error}
-        action="load north stars"
+        action={`load ${lowerNorthStars}`}
         onRetry={goalsView.retry}
         retrying={goalsView.isFetching}
       />
@@ -55,8 +61,8 @@ export function Goals() {
       {goals && goals.length === 0 && (
         <EmptyState
           icon={Target}
-          message="No north stars yet."
-          action="Add North Star"
+          message={`No ${lowerNorthStars} yet.`}
+          action={`Add ${northStar}`}
           onAction={() => openNewGoal()}
         />
       )}
@@ -66,7 +72,7 @@ export function Goals() {
           <div className="flex items-center justify-start">
             <Button size="sm" variant="outline" onClick={() => openNewGoal()}>
               <Plus className="h-3.5 w-3.5 mr-1.5" />
-              New North Star
+              New {northStar}
             </Button>
           </div>
           <GoalTree goals={goals} goalLink={(goal) => `/goals/${goal.id}`} />
