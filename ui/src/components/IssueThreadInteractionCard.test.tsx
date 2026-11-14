@@ -817,7 +817,7 @@ describe("IssueThreadInteractionCard", () => {
     const error = host.querySelector('[data-testid="interaction-action-error"]');
     expect(error?.getAttribute("aria-live")).toBe("assertive");
     expect(error?.textContent).toContain("This issue-thread interaction is human-only.");
-    expect(error?.textContent).toContain("Only the board can respond.");
+    expect(error?.textContent).toContain("Only a human can respond.");
     expect(error?.textContent).not.toMatch(/try again/i);
     // PAP-17289: one live region, not two. `role="alert"` is itself an
     // assertive live region, so nesting it inside this wrapper can announce the
@@ -843,7 +843,7 @@ describe("IssueThreadInteractionCard", () => {
 
     expect(
       host.querySelector('[data-testid="interaction-action-error"]')?.textContent,
-    ).toBe("Paperclip is temporarily unavailable. Please try again in a moment.");
+    ).toBe("Outpost is temporarily unavailable. Please try again in a moment.");
   });
 
   it("surfaces a denied suggested-task acceptance instead of failing silently", async () => {
@@ -1104,7 +1104,7 @@ describe("IssueThreadInteractionCard", () => {
     expect((resumeFailed.firstElementChild as HTMLElement).className).toContain("border-amber-500/70");
     expect(resumeFailed.textContent).toContain("Approved — agent resume failed");
     expect(resumeFailed.textContent).toContain("Agent resume failed");
-    expect(resumeFailed.textContent).toContain("Paperclip needs attention before the agent can resume this approved work.");
+    expect(resumeFailed.textContent).toContain("Outpost needs attention before the agent can resume this approved work.");
     expect(resumeFailed.textContent).toContain("adapter_failed");
 
     act(() => root?.unmount());
@@ -1827,7 +1827,7 @@ describe("IssueThreadInteractionCard resolver audience", () => {
     expect(audience?.getAttribute("data-audience-policy")).toBe("anyone");
     expect(audience?.getAttribute("data-audience-open")).toBe("true");
     expect(audience?.textContent).toContain("Anyone");
-    expect(audience?.textContent).toContain("the board or any agent, including the one that asked");
+    expect(audience?.textContent).toContain("a human or any agent, including the one that asked");
     // An open card must never read as board-required.
     expect(audience?.textContent).not.toMatch(/only a person on the board/i);
     expect(host.querySelector('[data-testid="interaction-audience-note"]')).toBeNull();
@@ -1852,7 +1852,7 @@ describe("IssueThreadInteractionCard resolver audience", () => {
     const audience = host.querySelector('[data-testid="interaction-audience"]');
     expect(audience?.getAttribute("data-audience-policy")).toBe("human_only");
     expect(audience?.textContent).toContain("Human only");
-    expect(audience?.textContent).toContain("Only a person on the board can respond");
+    expect(audience?.textContent).toContain("Only a human can respond");
   });
 
   it("keeps addressee ownership copy on an agent-addressed card", () => {
@@ -1864,7 +1864,7 @@ describe("IssueThreadInteractionCard resolver audience", () => {
     const audience = host.querySelector('[data-testid="interaction-audience"]');
     expect(audience?.getAttribute("data-audience-open")).toBe("false");
     expect(audience?.textContent).toContain("Addressed");
-    expect(audience?.textContent).toContain("Only CodexCoder or a person on the board can respond");
+    expect(audience?.textContent).toContain("Only CodexCoder or a human can respond");
     expect(audience?.textContent).not.toContain("Anyone");
   });
 
@@ -1875,7 +1875,7 @@ describe("IssueThreadInteractionCard resolver audience", () => {
     expect(audience?.getAttribute("data-audience-policy")).toBe("human_only");
     expect(
       host.querySelector('[data-testid="interaction-audience-note"]')?.textContent,
-    ).toBe("Organization interaction governance narrowed this from Anyone to Human only.");
+    ).toBe("Outpost interaction governance narrowed this from Anyone to Human only.");
   });
 
   it("explains a legacy card that predates the open default", () => {

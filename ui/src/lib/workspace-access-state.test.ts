@@ -298,7 +298,7 @@ describe("resolveWorkspaceAccessState", () => {
       },
     });
     expect(access).toMatchObject({ state: "validating", action: { kind: "wait" } });
-    expect(access.description).toContain("restored no organization or issue rows");
+    expect(access.description).toContain("restored no outpost or issue rows");
   });
 
   it("degrades a verified clone whose database regressed and offers one repair", () => {
@@ -414,7 +414,7 @@ describe("describeWorkspaceReadinessCause", () => {
           failurePhase: "cloned_membership_missing",
         },
       }),
-    ).toBe("No cloned user has an active organization membership.");
+    ).toBe("No cloned user has an active outpost membership.");
   });
 
   it("falls back to the reason and finally to null", () => {

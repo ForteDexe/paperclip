@@ -327,7 +327,7 @@ describe("Read-only cases list", () => {
   it("does not request company data before a company is selected", async () => {
     companyState.selectedCompanyId = null;
     await renderPage();
-    expect(container.textContent).toContain("Select a company to view cases.");
+    expect(container.textContent).toContain("Select a Space to view cases.");
     expect(casesApi.list).not.toHaveBeenCalled();
     expect(casesApi.listTypes).not.toHaveBeenCalled();
     expect(projectsApi.list).not.toHaveBeenCalled();

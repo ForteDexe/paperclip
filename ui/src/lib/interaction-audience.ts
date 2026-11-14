@@ -4,7 +4,7 @@
  * `doc/execution-semantics.md`, "Issue-thread interaction resolution").
  *
  * The product default is open: an interaction created without an explicit
- * `resolverPolicy` is resolvable by `anyone` in the company — the board or any
+ * `resolverPolicy` is resolvable by `anyone` in the Space — a human or any
  * agent, including the agent that created it. `not_creator`, `human_only`, and a
  * named addressee are *narrowing* controls that a requester asks for on purpose.
  *
@@ -50,10 +50,10 @@ const RESOLVER_POLICY_LABELS: Record<IssueThreadInteractionCanonicalResolverPoli
  */
 const RESOLVER_POLICY_EFFECTS: Record<IssueThreadInteractionCanonicalResolverPolicy, string> = {
   anyone:
-    "Anyone in the outpost can respond — the board or any agent, including the one that asked.",
+    "Anyone in the Outpost can respond — a human or any agent, including the one that asked.",
   not_creator:
     "Anyone in the outpost except the agent that created the card, and its run. Use this when the answer has to come from someone else.",
-  human_only: "Only a person on the board can respond. Agents are turned away.",
+  human_only: "Only a human can respond. Agents are turned away.",
 };
 
 /** Accepts canonical values and the deprecated `board_*` compatibility aliases. */
@@ -191,12 +191,12 @@ export function describeResolverAudience({
   const summary = isUserAddressee
     ? `Only ${addressee} can respond.`
     : policy === "human_only"
-    ? `${hasAddressee ? `Assigned to ${addressee}. ` : ""}Only a person on the board can respond — agents cannot resolve this card.`
+    ? `${hasAddressee ? `Assigned to ${addressee}. ` : ""}Only a human can respond — agents cannot resolve this card.`
     : hasAddressee
-      ? `Only ${addressee} or a person on the board can respond.`
+      ? `Only ${addressee} or a human can respond.`
       : policy === "not_creator"
         ? `Anyone in the Outpost except ${creator} can respond.`
-        : "Anyone in the outpost can respond — the board or any agent, including the one that asked.";
+        : "Anyone in the Outpost can respond — a human or any agent, including the one that asked.";
 
   // Same fact, fewer words: a collapsed row has to answer "is this mine to
   // decide?" in one glance, next to the buttons that act on the answer.
@@ -204,10 +204,10 @@ export function describeResolverAudience({
     ? `Only ${addressee} can respond`
     : policy === "human_only"
     ? hasAddressee
-      ? `Assigned to ${addressee} · board only`
-      : "Only the board can respond"
+      ? `Assigned to ${addressee} · human only`
+      : "Only a human can respond"
     : hasAddressee
-      ? `Only ${addressee} or the board can respond`
+      ? `Only ${addressee} or a human can respond`
       : policy === "not_creator"
         ? `Anyone except ${creator} can respond`
         : "Anyone can respond";

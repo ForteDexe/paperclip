@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const companyAId = "11111111-1111-4111-8111-111111111111";
 const companyBId = "22222222-2222-4222-8222-222222222222";
-const ceoAgentId = "ceo-agent-a";
+const rootAgentId = "root-agent-a";
 
 const mockCompanyService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -24,6 +24,7 @@ const mockAgentService = vi.hoisted(() => ({
 const mockAccessService = vi.hoisted(() => ({
   ensureMembership: vi.fn(),
   ensureRoleDefaultGrants: vi.fn(),
+  decide: vi.fn(),
 }));
 
 const mockBudgetService = vi.hoisted(() => ({
@@ -162,7 +163,7 @@ function resetMockDefaults() {
   }));
   mockCompanyService.remove.mockImplementation(async (id: string) => createCompany(id));
   mockAgentService.getById.mockImplementation(async (id: string) => {
-    if (id === ceoAgentId) return { id, companyId: companyAId, role: "ceo" };
+    if (id === rootAgentId) return { id, companyId: companyAId, role: "general", reportsTo: null };
     return null;
   });
   mockAgentService.list.mockResolvedValue([]);
@@ -170,6 +171,12 @@ function resetMockDefaults() {
   mockCompanyPortabilityService.previewExport.mockResolvedValue(exportPreviewResult());
   mockCompanyPortabilityService.previewImport.mockResolvedValue({ ok: true });
   mockCompanyPortabilityService.importBundle.mockResolvedValue(importResult());
+  mockAccessService.decide.mockResolvedValue({
+    allowed: true,
+    action: "company_scope:read",
+    reason: "allow_explicit_grant",
+    explanation: "Explicit permission granted.",
+  });
 }
 
 function assertNoTargetMutationSideEffects() {
@@ -183,10 +190,10 @@ function assertNoTargetMutationSideEffects() {
   expect(mockLogActivity).not.toHaveBeenCalled();
 }
 
-function companyACeoActor() {
+function companyARootAgent() {
   return {
     type: "agent",
-    agentId: ceoAgentId,
+    agentId: rootAgentId,
     companyId: companyAId,
     source: "agent_key",
     runId: "run-1",
@@ -276,7 +283,7 @@ describe("company route cross-company authorization", () => {
     expect(res.body.map((company: { id: string }) => company.id)).toEqual([companyAId, companyBId]);
   });
 
-  it.each([{ type: "none", source: "none" }, companyACeoActor()])(
+  it.each([{ type: "none", source: "none" }, companyARootAgent()])(
     "rejects navigation list requests from a $type actor",
     async (actor) => {
       const app = await createApp(actor);
@@ -326,8 +333,8 @@ describe("company route cross-company authorization", () => {
       label: "POST /api/companies/:companyId/imports/apply",
       request: (app: express.Express) => request(app).post(`/api/companies/${companyBId}/imports/apply`).send(importRequest()),
     },
-  ])("rejects a company A CEO attempting company B operation: $label", async ({ request: buildRequest }) => {
-    const app = await createApp(companyACeoActor());
+  ])("rejects a company A agent attempting company B operation: $label", async ({ request: buildRequest }) => {
+    const app = await createApp(companyARootAgent());
 
     const res = await buildRequest(app);
 
@@ -336,12 +343,12 @@ describe("company route cross-company authorization", () => {
     assertNoTargetMutationSideEffects();
   });
 
-  it("allows a same-company CEO to use CEO-safe company routes without allowing board-only lifecycle routes", async () => {
-    const app = await createApp(companyACeoActor());
+  it("allows a same-Space root agent with explicit permissions to use portability routes without allowing board settings or lifecycle routes", async () => {
+    const app = await createApp(companyARootAgent());
 
     await request(app).get(`/api/companies/${companyAId}`).expect(200);
-    await request(app).patch(`/api/companies/${companyAId}`).send({ description: "Branding" }).expect(200);
-    await request(app).patch(`/api/companies/${companyAId}/branding`).send({ description: "Branding" }).expect(200);
+    await request(app).patch(`/api/companies/${companyAId}`).send({ description: "Branding" }).expect(403);
+    await request(app).patch(`/api/companies/${companyAId}/branding`).send({ description: "Branding" }).expect(403);
     await request(app).post(`/api/companies/${companyAId}/export`).send(exportRequest).expect(200);
     await request(app).post(`/api/companies/${companyAId}/exports/preview`).send(exportRequest).expect(200);
     await request(app).post(`/api/companies/${companyAId}/imports/preview`).send(importRequest(companyAId)).expect(200);

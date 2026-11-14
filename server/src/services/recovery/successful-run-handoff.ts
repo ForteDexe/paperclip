@@ -22,7 +22,7 @@ export const DEFAULT_MAX_SUCCESSFUL_RUN_HANDOFF_ATTEMPTS = 1;
 export const SUCCESSFUL_RUN_HANDOFF_REQUIRED_NOTICE_BODY =
   "Outpost needs a disposition before this issue can continue.";
 export const SUCCESSFUL_RUN_HANDOFF_EXHAUSTED_NOTICE_BODY =
-  "Outpost could not resolve this issue's missing disposition automatically. The source assignment is unchanged and a board decision is required.";
+  "Outpost could not resolve this issue's missing disposition automatically. The source assignment is unchanged and a human decision is required.";
 export const LEGACY_SUCCESSFUL_RUN_HANDOFF_NOTICE_PREFIXES = [
   "## This issue still needs a next step",
   "## Successful run missing issue disposition",

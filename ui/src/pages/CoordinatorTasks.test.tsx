@@ -415,7 +415,7 @@ describe("Coordinator tasks using the proposed table", () => {
     expect(Object.fromEntries(new URLSearchParams(host.querySelector(".design-task-list-panel output")!.textContent!))).toMatchObject({ view: "all", keep: "value" });
     flushSync(() => host.querySelector<HTMLButtonElement>('[role="checkbox"][aria-label="qa-task"]')!.click());
     await vi.waitFor(() => expect(host.querySelector("[data-route]")?.textContent).toBe("/issues?view=all&keep=value&label=qa#saved"));
-    expect(taskIds()).toEqual(["qa-high"]);
+    await vi.waitFor(() => expect(taskIds()).toEqual(["qa-high"]));
     flushSync(() => host.querySelector<HTMLButtonElement>('[role="checkbox"][aria-label="qa-task"]')!.click());
     await vi.waitFor(() => expect(host.querySelector("[data-route]")?.textContent).toBe("/issues?view=all&keep=value#saved"));
     const click = (label: string) => flushSync(() => [...host.querySelectorAll("button")].find(button => button.textContent === label)!.click());

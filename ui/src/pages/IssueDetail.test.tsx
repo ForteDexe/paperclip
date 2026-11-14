@@ -3012,67 +3012,6 @@ describe("IssueDetail", () => {
     }
   });
 
-  it("preserves hierarchy breadcrumbs and label chips when Streamlined UI is off", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableIssuePlanDecompositions: false,
-      enableExperimentalFileViewer: false,
-      enableExternalObjects: false,
-      enableStreamlinedUi: false,
-    });
-    mockIssuesApi.get.mockResolvedValue(
-      createIssue({
-        ancestors: [
-          {
-            id: "parent-1",
-            identifier: "PAP-0",
-            title: "Parent task breadcrumb",
-          },
-        ] as Issue["ancestors"],
-        labels: [
-          {
-            id: "label-1",
-            companyId: "company-1",
-            name: "Legacy label",
-            color: "#22c55e",
-            createdAt: new Date("2026-04-21T00:00:00.000Z"),
-            updatedAt: new Date("2026-04-21T00:00:00.000Z"),
-          },
-        ],
-        labelIds: ["label-1"],
-      }),
-    );
-
-    await act(async () => {
-      renderIssueView();
-    });
-    await flushReact();
-
-    expect(container.textContent).toContain("Parent task breadcrumb");
-    expect(container.textContent).toContain("Legacy label");
-  });
-
-  it("lifts the redesigned desktop thread into the side-panel header band", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableIssuePlanDecompositions: false,
-      enableExperimentalFileViewer: false,
-      enableExternalObjects: false,
-      enableStreamlinedUi: false,
-    });
-    mockIssuesApi.get.mockResolvedValue(createIssue());
-
-    await act(async () => {
-      renderIssueView();
-    });
-    await waitForAssertion(() => {
-      const content = container.querySelector(
-        '[data-testid="issue-detail-content"]',
-      );
-      expect(content).not.toBeNull();
-      expect(content!.className).toContain("-mt-4");
-      expect(content!.className).toContain("md:-mt-6");
-    });
-  });
-
   it.each([
     { coordinator: false, mobile: false }, { coordinator: false, mobile: true },
     { coordinator: true, mobile: false }, { coordinator: true, mobile: true },
@@ -3114,31 +3053,6 @@ describe("IssueDetail", () => {
     expect(
       mockSetBreadcrumbToolbar.mock.calls.every(([node]) => node === null),
     ).toBe(true);
-  });
-
-  it("retains the production breadcrumb side-panel toggle when Streamlined UI is off", async () => {
-    mockIssuesApi.get.mockResolvedValue(createIssue());
-    mockPanelState.panelVisible = false;
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableIssuePlanDecompositions: false,
-      enableExperimentalFileViewer: false,
-      enableExternalObjects: false,
-      enableStreamlinedUi: false,
-    });
-
-    await act(async () => {
-      renderIssueView();
-    });
-    await flushReact();
-
-    const toolbar = mockSetBreadcrumbToolbar.mock.calls
-      .map(([node]) => node)
-      .find((node) => node !== null) as ReactElement<{
-      children: ReactElement<{ onToggle: () => void }>;
-    }>;
-    expect(toolbar).toBeDefined();
-    toolbar.props.children.props.onToggle();
-    expect(mockSetPanelVisible).toHaveBeenCalledWith(true);
   });
 
   it("uses task activity for recency and ignores passive revisits", async () => {

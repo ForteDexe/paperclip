@@ -136,7 +136,7 @@ export function Cases() {
   };
   const clearFilters = () => setView({ q: "", status: "", type: "", project: "" });
 
-  if (!selectedCompanyId) return <EmptyState icon={FolderOpen} message="Select a outpost to view cases." />;
+  if (!selectedCompanyId) return <EmptyState icon={FolderOpen} message="Select a Space to view cases." />;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4" data-testid="case-pages">

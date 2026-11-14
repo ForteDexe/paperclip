@@ -56,7 +56,7 @@ Sources: [Apps setup](../../ui/src/pages/apps/AssistantConnection.tsx), [public 
 
 ### `browser-consent`
 
-Automated: [Public MCP integration](../../server/src/__tests__/public-mcp.test.ts) uses PostgreSQL and controlled clients for OAuth/device, protocol, scopes, company/gate checks, refresh, replay, and revocation. [Consent/device UI](../../ui/src/pages/McpConnect.test.tsx) mocks API responses. These tests do not qualify every external assistant or a live consent flow.
+Automated: [Public MCP integration](../../server/src/__tests__/public-mcp.test.ts) uses PostgreSQL and controlled clients for OAuth/device, protocol, scopes, company/gate checks, refresh, replay, and revocation. The retired browser consent UI is not part of Outpost's local-only product surface.
 
 Manual: Request a disposable connection from an actual MCP client. As the intended person, inspect the exact company and requested read/write/configuration access, approve the chosen scopes, and verify the client returns to the approved resource. Call paperclip_connection and one harmless permitted read; compare person/company/scopes, then reload Apps and inspect the saved grant. Repeat Cancel, expired request, a viewer requesting write access, missing company membership, a mismatched pinned company, and write opt-out. Verify no requested scope is silently upgraded and that the browser origin/return path cannot be replaced by an unrelated site.
 
@@ -64,7 +64,7 @@ Sources: [Public MCP routes](../../server/src/routes/public-mcp.ts), [OAuth poli
 
 ### `device-authorization`
 
-Automated: [Public MCP integration](../../server/src/__tests__/public-mcp.test.ts) uses PostgreSQL and controlled clients for OAuth/device, protocol, scopes, company/gate checks, refresh, replay, and revocation. [Consent/device UI](../../ui/src/pages/McpConnect.test.tsx) mocks API responses. These tests do not qualify every external assistant or a live consent flow. [MCP credential transport](../../cli/src/__tests__/mcp-auth.test.ts) covers credential protection, refresh serialization, resource/issuer validation, and failures; it does not run the complete device CLI command against a real server.
+Automated: [Public MCP integration](../../server/src/__tests__/public-mcp.test.ts) uses PostgreSQL and controlled clients for OAuth/device, protocol, scopes, company/gate checks, refresh, replay, and revocation. [MCP credential transport](../../cli/src/__tests__/mcp-auth.test.ts) covers historical credential protection, refresh serialization, resource/issuer validation, and failures; it does not run the complete device CLI command against a real server.
 
 Manual: Start a device request against the owned instance with explicit company and matching issuer/authorization origin. A server with separate browser authorization origin needs separate CLI qualification; do not report its rejected verification URL as a successful device flow. Compare terminal/browser request identity, approve as the real person, and verify the CLI’s paperclip_connection result matches the approved company before credentials are saved. Restart an owned client/proxy using the saved credential and prove a harmless remote call. In separate requests test a mistyped, declined, expired, or reused code, a wrong company/resource/issuer, and polling backoff. Keep codes and tokens out of captured artifacts; record outcomes and nonsecret request identity instead.
 

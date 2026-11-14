@@ -1739,20 +1739,21 @@ describe("MarkdownEditor", () => {
       {
         id: "project:project-123",
         kind: "project" as const,
-        name: "Paperclip App",
+        name: "Outpost App",
         projectId: "project-123",
         projectColor: "#336699",
       },
     ],
-    matchText = "Paperclip App",
+    matchText = "Outpost App",
     onSubmit?: () => void,
   ): Promise<{ option: HTMLButtonElement; root: ReturnType<typeof createRoot>; menu: HTMLElement }> {
     const root = createRoot(container);
+    const editorValue = `@${matchText.slice(0, 3)}`;
 
     await act(async () => {
       root.render(
         <MarkdownEditor
-          value="@Pap"
+          value={editorValue}
           onChange={handleChange}
           mentions={mentions}
           onSubmit={onSubmit}
@@ -1770,7 +1771,7 @@ describe("MarkdownEditor", () => {
 
     const selection = window.getSelection();
     const range = document.createRange();
-    range.setStart(textNode!, "@Pap".length);
+    range.setStart(textNode!, editorValue.length);
     range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -1955,7 +1956,7 @@ describe("MarkdownEditor", () => {
         <Dialog open>
           <DialogContent>
             <DialogTitle>Create task</DialogTitle>
-            <MarkdownEditor value="@Pap" onChange={() => {}} mentions={mentions} />
+            <MarkdownEditor value="@Out" onChange={() => {}} mentions={mentions} />
           </DialogContent>
         </Dialog>,
       );
@@ -1968,7 +1969,7 @@ describe("MarkdownEditor", () => {
 
     const selection = window.getSelection();
     const range = document.createRange();
-    range.setStart(textNode!, "@Pap".length);
+    range.setStart(textNode!, "@Out".length);
     range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);

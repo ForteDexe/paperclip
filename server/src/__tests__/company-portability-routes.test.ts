@@ -19,6 +19,7 @@ const mockAgentService = vi.hoisted(() => ({
 
 const mockAccessService = vi.hoisted(() => ({
   ensureMembership: vi.fn(),
+  decide: vi.fn(),
 }));
 
 const mockBudgetService = vi.hoisted(() => ({
@@ -113,8 +114,8 @@ async function createApp(actor: Record<string, unknown>) {
 
 const companyId = "11111111-1111-4111-8111-111111111111";
 const otherCompanyId = "22222222-2222-4222-8222-222222222222";
-const ceoAgentId = "ceo-agent";
-const engineerAgentId = "engineer-agent";
+const rootAgentId = "root-agent";
+const workerAgentId = "worker-agent";
 
 const exportRequest = {
   include: { company: true, agents: true, projects: true },
@@ -327,9 +328,16 @@ describe("company portability routes", () => {
     mockAgentService.getById.mockImplementation(async (id: string) => ({
       id,
       companyId,
-      role: id === ceoAgentId ? "ceo" : "engineer",
+      role: "general",
+      reportsTo: id === rootAgentId ? null : rootAgentId,
     }));
     mockAgentService.list.mockResolvedValue([]);
+    mockAccessService.decide.mockResolvedValue({
+      allowed: true,
+      action: "company_scope:read",
+      reason: "allow_explicit_grant",
+      explanation: "Explicit permission granted.",
+    });
     mockCompanyPortabilityService.exportBundle.mockResolvedValue(createExportResult());
     mockCompanyPortabilityService.previewExport.mockResolvedValue({
       rootPath: "paperclip",
@@ -348,10 +356,10 @@ describe("company portability routes", () => {
     });
   });
 
-  it("rejects non-CEO agents from CEO-safe export preview routes", async () => {
+  it("allows agents with an explicit company-scope grant to preview exports", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -361,15 +369,20 @@ describe("company portability routes", () => {
       .post(`/api/companies/${companyId}/exports/preview`)
       .send(exportRequest);
 
-    expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
-    expect(mockCompanyPortabilityService.previewExport).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(mockCompanyPortabilityService.previewExport).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects non-CEO export preview callers before validating request shape", async () => {
+  it("rejects export preview callers without an explicit grant before validating request shape", async () => {
+    mockAccessService.decide.mockResolvedValueOnce({
+      allowed: false,
+      action: "company_scope:read",
+      reason: "deny_missing_grant",
+      explanation: "Missing permission: company_scope:read.",
+    });
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -380,14 +393,20 @@ describe("company portability routes", () => {
       .send({ agents: [123] });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Missing explicit permission to manage company exports");
     expect(mockCompanyPortabilityService.previewExport).not.toHaveBeenCalled();
   });
 
-  it("rejects non-CEO agents from legacy and CEO-safe export bundle routes", async () => {
+  it("rejects agents without an explicit grant from legacy and scoped export bundle routes", async () => {
+    mockAccessService.decide.mockResolvedValue({
+      allowed: false,
+      action: "company_scope:read",
+      reason: "deny_missing_grant",
+      explanation: "Missing permission: company_scope:read.",
+    });
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -397,12 +416,12 @@ describe("company portability routes", () => {
       const res = await request(app).post(path).send(exportRequest);
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toContain("Only CEO agents");
+      expect(res.body.error).toContain("Missing explicit permission to manage company exports");
     }
     expect(mockCompanyPortabilityService.exportBundle).not.toHaveBeenCalled();
   });
 
-  it("allows CEO agents to use company-scoped export preview routes", async () => {
+  it("allows root agents with an explicit grant to use company-scoped export preview routes", async () => {
     mockCompanyPortabilityService.previewExport.mockResolvedValue({
       rootPath: "paperclip",
       manifest: { agents: [], skills: [], projects: [], issues: [], envInputs: [], includes: { company: true, agents: true, projects: true, issues: false, skills: false }, company: null, schemaVersion: 1, generatedAt: new Date().toISOString(), source: null },
@@ -414,7 +433,7 @@ describe("company portability routes", () => {
     });
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -428,11 +447,11 @@ describe("company portability routes", () => {
     expect(res.body.rootPath).toBe("paperclip");
   });
 
-  it("allows CEO agents to export through legacy and CEO-safe bundle routes", async () => {
+  it("allows root agents with an explicit grant to export through legacy and scoped bundle routes", async () => {
     mockCompanyPortabilityService.exportBundle.mockResolvedValue(createExportResult());
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -459,7 +478,7 @@ describe("company portability routes", () => {
     );
   });
 
-  it("allows board users to export through legacy and CEO-safe bundle routes", async () => {
+  it("allows board users to export through legacy and scoped bundle routes", async () => {
     mockCompanyPortabilityService.exportBundle.mockResolvedValue(createExportResult());
     const app = await createApp({
       type: "board",
@@ -498,7 +517,7 @@ describe("company portability routes", () => {
       },
       {
         type: "agent",
-        agentId: ceoAgentId,
+        agentId: rootAgentId,
         companyId,
         source: "agent_key",
         runId: "run-1",
@@ -638,10 +657,10 @@ describe("company portability routes", () => {
     );
   });
 
-  it("rejects CEO agents from exporting another company before services run", async () => {
+  it("rejects root agents from exporting another Space before services run", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -662,10 +681,10 @@ describe("company portability routes", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("rejects replace collision strategy on CEO-safe import routes", async () => {
+  it("rejects replace collision strategy on agent-safe import routes", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -685,10 +704,10 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.previewImport).not.toHaveBeenCalled();
   });
 
-  it("rejects CEO agents from previewing or applying imports against another route company", async () => {
+  it("rejects root agents from previewing or applying imports against another route Space", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -711,10 +730,10 @@ describe("company portability routes", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("rejects CEO-safe import bodies that target a different company than the route", async () => {
+  it("rejects agent-safe import bodies that target a different Space than the route", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -740,7 +759,7 @@ describe("company portability routes", () => {
   it("keeps global import preview routes board-only", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -762,7 +781,7 @@ describe("company portability routes", () => {
   it("keeps global import preview board-only before validating request shape", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -800,10 +819,10 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.previewImport).not.toHaveBeenCalled();
   });
 
-  it("rejects replace collision strategy on CEO-safe import apply routes", async () => {
+  it("rejects replace collision strategy on agent-safe import apply routes", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -823,10 +842,16 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.importBundle).not.toHaveBeenCalled();
   });
 
-  it("rejects non-CEO agents from CEO-safe import preview routes", async () => {
+  it("rejects agents without an explicit create grant from import preview routes", async () => {
+    mockAccessService.decide.mockResolvedValueOnce({
+      allowed: false,
+      action: "agents:create",
+      reason: "deny_missing_grant",
+      explanation: "Missing permission: agents:create.",
+    });
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -842,14 +867,20 @@ describe("company portability routes", () => {
       });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Missing explicit permission to manage company imports");
     expect(mockCompanyPortabilityService.previewImport).not.toHaveBeenCalled();
   });
 
-  it("rejects non-CEO import preview callers before validating request shape", async () => {
+  it("rejects import preview callers without an explicit grant before validating request shape", async () => {
+    mockAccessService.decide.mockResolvedValueOnce({
+      allowed: false,
+      action: "agents:create",
+      reason: "deny_missing_grant",
+      explanation: "Missing permission: agents:create.",
+    });
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -860,14 +891,20 @@ describe("company portability routes", () => {
       .send({ target: { mode: "existing_company", companyId: "not-a-uuid" } });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Missing explicit permission to manage company imports");
     expect(mockCompanyPortabilityService.previewImport).not.toHaveBeenCalled();
   });
 
-  it("rejects non-CEO agents from CEO-safe import apply routes", async () => {
+  it("rejects agents without an explicit create grant from import apply routes", async () => {
+    mockAccessService.decide.mockResolvedValueOnce({
+      allowed: false,
+      action: "agents:create",
+      reason: "deny_missing_grant",
+      explanation: "Missing permission: agents:create.",
+    });
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId: "11111111-1111-4111-8111-111111111111",
       source: "agent_key",
       runId: "run-1",
@@ -883,7 +920,7 @@ describe("company portability routes", () => {
       });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Missing explicit permission to manage company imports");
     expect(mockCompanyPortabilityService.importBundle).not.toHaveBeenCalled();
   });
 
@@ -1214,7 +1251,7 @@ describe("company portability routes", () => {
   it("keeps the import job status route board-only", async () => {
     const app = await createApp({
       type: "agent",
-      agentId: engineerAgentId,
+      agentId: workerAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -1237,11 +1274,11 @@ describe("company portability routes", () => {
     expect(res.body.error).toBe("Import job not found");
   });
 
-  it("forwards pauseAutomations from CEO-safe import apply bodies to the portability service", async () => {
+  it("forwards pauseAutomations from agent-safe import apply bodies to the portability service", async () => {
     mockCompanyPortabilityService.importBundle.mockResolvedValueOnce(createImportResult("created"));
     const app = await createApp({
       type: "agent",
-      agentId: ceoAgentId,
+      agentId: rootAgentId,
       companyId,
       source: "agent_key",
       runId: "run-1",
@@ -1255,26 +1292,36 @@ describe("company portability routes", () => {
     expect(mockCompanyPortabilityService.importBundle).toHaveBeenCalledWith(
       { ...importRequest, pauseAutomations: true },
       null,
-      { mode: "agent_safe", sourceCompanyId: companyId, actorAgentId: ceoAgentId, actorAgentCompanyId: companyId, pauseAutomations: true, assertCanCreateAgents: expect.any(Function) },
+      { mode: "agent_safe", sourceCompanyId: companyId, actorAgentId: rootAgentId, actorAgentCompanyId: companyId, pauseAutomations: true, assertCanCreateAgents: expect.any(Function) },
     );
   });
 
-  it("refuses a CEO agent whose hiring is denied when its import would create agents", async () => {
-    (mockAccessService as Record<string, unknown>).decide = vi.fn(async () => ({
-      allowed: false, action: "agents:create", reason: "deny_missing_grant", explanation: "Missing permission: agents:create.",
-    }));
+  it("refuses an agent whose create grant is revoked while its import creates agents", async () => {
+    mockAccessService.decide
+      .mockResolvedValueOnce({
+        allowed: true,
+        action: "agents:create",
+        reason: "allow_explicit_grant",
+        explanation: "Explicit permission granted.",
+      })
+      .mockResolvedValueOnce({
+        allowed: false,
+        action: "agents:create",
+        reason: "deny_missing_grant",
+        explanation: "Missing permission: agents:create.",
+      });
     mockCompanyPortabilityService.importBundle.mockImplementationOnce(async (_body: unknown, _user: unknown, options: { assertCanCreateAgents?: () => Promise<void> }) => {
       await options.assertCanCreateAgents?.();
       return createImportResult("created");
     });
-    const app = await createApp({ type: "agent", agentId: ceoAgentId, companyId, source: "agent_key", runId: "run-1" });
+    const app = await createApp({ type: "agent", agentId: rootAgentId, companyId, source: "agent_key", runId: "run-1" });
 
     const res = await request(app).post(`/api/companies/${companyId}/imports/apply`).send(importRequest);
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(res.body.error).toContain("Missing permission: agents:create.");
     expect(res.body.error).toContain("Importing new agents is hiring");
-    expect((mockAccessService as unknown as { decide: ReturnType<typeof vi.fn> }).decide).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
       action: "agents:create", resource: { type: "company", companyId },
     }));
     expect(mockLogActivity).not.toHaveBeenCalled();
@@ -1282,7 +1329,7 @@ describe("company portability routes", () => {
 
   it("imports a company from a multipart zip upload, unzipping into the same inline bundle", async () => {
     const app = await createBoardApp();
-    const files = { "COMPANY.md": "---\nname: Test\n---\n", "agents/ceo/AGENTS.md": "---\nname: CEO\n---\n" };
+    const files = { "COMPANY.md": "---\nname: Test\n---\n", "agents/lead/AGENTS.md": "---\nname: Lead\n---\n" };
     const zip = buildStoreZip(files, "paperclip");
 
     const res = await request(app)

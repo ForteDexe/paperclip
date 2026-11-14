@@ -437,92 +437,8 @@ describe("NewIssueDialog", () => {
 
   const defaultAgents = [
     { id: "worker", name: "Worker", role: "engineer", status: "idle", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
-    { id: "ceo", name: "CEO", role: "ceo", status: "idle", adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
+    { id: "ceo", name: "Lead", role: "general", status: "idle", adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
   ];
-
-  it("accepts a draft while agents and projects load, then fills defaults in place", async () => {
-    let resolveAgents!: (agents: typeof defaultAgents) => void;
-    let resolveProjects!: (projects: { id: string; name: string; archivedAt: null }[]) => void;
-    mockAgentsApi.list.mockImplementationOnce(() => new Promise((resolve) => { resolveAgents = resolve; }));
-    mockProjectsApi.list.mockImplementationOnce(() => new Promise((resolve) => { resolveProjects = resolve; }));
-    trackRecentProject("project-1", "company-1");
-
-    const { root } = renderDialog(container);
-    try {
-      const editor = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')!;
-      expect(editor).not.toBeNull();
-      expect(editor.disabled).toBe(false);
-      await typeTextareaValue(editor, "Keep writing while the lists load");
-
-      resolveAgents(defaultAgents);
-      resolveProjects([{ id: "project-1", name: "Alpha", archivedAt: null }]);
-      await waitForAssertion(() => {
-        expect(container.querySelector('[data-slot="new-issue-compact-control"]')?.textContent).toContain("project-1");
-        expect(container.textContent).toContain("CEO");
-      });
-      expect(container.querySelector('textarea[aria-label="Describe a task…"]')).toBe(editor);
-      expect(editor.value).toBe("Keep writing while the lists load");
-    } finally {
-      act(() => root.unmount());
-    }
-  });
-
-  it.each([
-    { remembered: "project-1", expected: "project-1" },
-    { remembered: "", expected: "Project" },
-    { remembered: "deleted", expected: "Project" },
-  ])("restores the last available project ($remembered)", async ({ remembered, expected }) => {
-    trackRecentProject(remembered, "company-1");
-    const { root } = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[data-slot="new-issue-compact-control"]')?.textContent).toContain(expected));
-    await typeTextareaValue(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')!, "Check project memory");
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
-    await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalled());
-    expect(mockIssuesApi.create.mock.calls[0][1].projectId).toBe(remembered === "project-1" ? "project-1" : undefined);
-    act(() => root.unmount());
-  });
-
-  it("keeps explicit launch context ahead of another company's project history", async () => {
-    trackRecentProject("project-1", "company-2");
-    trackRecentProject("deleted", "company-1");
-    dialogState.newIssueDefaults = { projectId: "project-1" };
-    const { root } = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[data-slot="new-issue-compact-control"]')?.textContent).toContain("project-1"));
-    act(() => root.unmount());
-    dialogState.newIssueDefaults = {};
-    const next = renderDialog(container);
-    await flush();
-    expect(container.querySelector('[data-slot="new-issue-compact-control"]')?.textContent).toContain("Project");
-    act(() => next.root.unmount());
-  });
-
-  it("remembers a project selection even when the composer is dismissed without submitting", async () => {
-    const { root } = renderDialog(container);
-    await flush();
-    act(() => container.querySelector<HTMLElement>('[data-slot="new-issue-compact-control"]')!.click());
-    expect(getLastProjectId("company-1")).toBe("project-1");
-    act(() => root.unmount());
-    const next = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[data-slot="new-issue-compact-control"]')?.textContent).toContain("project-1"));
-    act(() => next.root.unmount());
-  });
-
-  it("shows No project first and lets a selected project be cleared", async () => {
-    dialogState.newIssueDefaults = { projectId: "project-1" };
-    const { root } = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[data-slot="new-issue-compact-control"]')?.textContent).toContain("project-1"));
-
-    const projectPicker = container.querySelector<HTMLButtonElement>('[data-slot="new-issue-compact-control"]')!;
-    expect(projectPicker.dataset.noneAtTop).toBe("true");
-    act(() => projectPicker.click());
-
-    await typeTextareaValue(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')!, "Create without a project");
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
-    await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalled());
-    expect(mockIssuesApi.create.mock.calls[0][1].projectId).toBeUndefined();
-    expect(getLastProjectId("company-1")).toBe("");
-    act(() => root.unmount());
-  });
 
   it("submits remembered effort with the agent's default model", async () => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents.map((agent) => agent.id === "ceo"
@@ -539,10 +455,10 @@ describe("NewIssueDialog", () => {
   });
 
   it.each([
-    { recent: "", expected: "CEO" },
+    { recent: "", expected: "Lead" },
     { recent: "agent:worker", expected: "Worker" },
     { recent: "user:user-1", expected: "Me" },
-    { recent: "agent:deleted", expected: "CEO" },
+    { recent: "agent:deleted", expected: "Lead" },
   ])("defaults to $expected for recent selection $recent without inserting a mention", async ({ recent, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
     if (recent.startsWith("agent:")) trackRecentAssignee(recent.slice(6), "company-1");
@@ -550,15 +466,15 @@ describe("NewIssueDialog", () => {
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe(expected));
     expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')?.value).toBe("");
-    expect(container.textContent).not.toContain("@CEO");
+    expect(container.textContent).not.toContain("@Lead");
     act(() => root.unmount());
   });
 
   it.each([
     { recent: null, explicit: null, draft: null, primary: "worker", expected: "Worker" },
-    { recent: "ceo", explicit: null, draft: null, primary: "worker", expected: "CEO" },
-    { recent: "worker", explicit: "ceo", draft: null, primary: "worker", expected: "CEO" },
-    { recent: "worker", explicit: null, draft: "ceo", primary: "worker", expected: "CEO" },
+    { recent: "ceo", explicit: null, draft: null, primary: "worker", expected: "Lead" },
+    { recent: "worker", explicit: "ceo", draft: null, primary: "worker", expected: "Lead" },
+    { recent: "worker", explicit: null, draft: "ceo", primary: "worker", expected: "Lead" },
     { recent: null, explicit: null, draft: null, primary: "missing", expected: "Worker" },
   ])("preserves task selection precedence ($recent, $explicit, $draft, $primary)", async ({ recent, explicit, draft, primary, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
@@ -580,7 +496,7 @@ describe("NewIssueDialog", () => {
     act(() => root.unmount());
     dialogState.newIssueDefaults = {};
     const next = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("CEO"));
+    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("Lead"));
     act(() => next.root.unmount());
   });
 
@@ -596,7 +512,7 @@ describe("NewIssueDialog", () => {
   it("remembers a chosen human and leaves the request empty", async () => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
     const { root } = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("CEO"));
+    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("Lead"));
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Select assignee"]')!.click());
     const me = [...container.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((button) => button.textContent?.includes("Me"))!;
     act(() => me.click());
@@ -613,7 +529,7 @@ describe("NewIssueDialog", () => {
     await flush();
     await typeTextareaValue(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')!, "hello there");
     resolveAgents(defaultAgents);
-    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("CEO"));
+    await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("Lead"));
     expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')?.value).toBe("hello there");
     act(() => root.unmount());
   });
@@ -667,7 +583,7 @@ describe("NewIssueDialog", () => {
     mockAgentsApi.list.mockResolvedValue([{ id: "agent-1", name: "Coder", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} }]);
     const { root } = renderDialog(container);
     await flush();
-    const composer = container.querySelector(".paperclip-task-chat-composer");
+    const composer = container.querySelector('[data-editor-autocomplete-anchor]');
     expect(composer).not.toBeNull();
     expect(composer?.querySelector('[data-testid="task-chat-composer-input"]')).not.toBeNull();
     expect(composer?.querySelector('[aria-label="Create task"]')).not.toBeNull();
@@ -676,11 +592,7 @@ describe("NewIssueDialog", () => {
     expect(composer?.textContent).not.toContain("PAP");
     await waitForAssertion(() => expect(composer?.querySelector('[data-testid="task-chat-composer-assignee"]')).not.toBeNull());
     const toolbar = composer?.querySelector('[data-testid="task-chat-composer-actions"]');
-    const context = container.querySelector('[data-testid="task-chat-composer-context"]');
-    const project = context?.querySelector('[data-slot="new-issue-compact-control"]');
     const assignee = toolbar?.querySelector('[data-testid="task-chat-composer-assignee"]');
-    expect(project).not.toBeNull();
-    expect(context?.nextElementSibling).toBe(composer);
     expect(assignee).not.toBeNull();
     expect(toolbar?.querySelector('[data-slot="new-issue-compact-control"]')).toBeNull();
     act(() => root.unmount());
@@ -976,7 +888,7 @@ describe("NewIssueDialog", () => {
     mockAgentsApi.list.mockResolvedValue([
       {
         id: "agent-1",
-        name: "CEO",
+        name: "Lead",
         status: "paused",
         pauseReason: "import",
         adapterType: "claude_local",
@@ -990,7 +902,7 @@ describe("NewIssueDialog", () => {
     await waitForAssertion(() => {
       expect(container.querySelector('[data-testid="new-issue-paused-assignee-note"]')).not.toBeNull();
     });
-    expect(container.textContent).toContain("arrived paused from an organization import");
+    expect(container.textContent).toContain("Lead is paused and will not start");
 
     act(() => root.unmount());
   });
@@ -1232,30 +1144,6 @@ describe("NewIssueDialog", () => {
     act(() => option!.click());
   }
 
-  it.each(["isolated_workspace", "operator_branch", "adapter_managed"])("reuses a worktree with its actual mode (%s)", async (mode) => {
-    enableWorktrees();
-    mockExecutionWorkspacesApi.listSummaries.mockResolvedValue([{
-      id: "worktree-1", name: "Sign-in fix", mode, status: "active", branchName: "fix/sign-in",
-      cwd: "/tmp/worktree-1", projectWorkspaceId: "source-1", lastUsedAt: new Date(),
-    }]);
-    const { root } = renderDialog(container);
-    await waitForAssertion(() => expect(container.querySelector('[cmdk-item][data-value="reuse:worktree-1"]')).not.toBeNull());
-    const context = container.querySelector('[data-testid="task-chat-composer-context"]');
-    const project = context?.querySelector('[data-slot="new-issue-compact-control"]');
-    const worktrees = context?.querySelector('[aria-label="Worktrees"]');
-    expect(worktrees).not.toBeNull();
-    expect(project?.compareDocumentPosition(worktrees!)! & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    selectWorktree("reuse:worktree-1");
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
-    await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalled());
-    expect(mockIssuesApi.create.mock.calls[0][1]).toMatchObject({
-      projectId: "project-1", projectWorkspaceId: "source-1", executionWorkspaceId: "worktree-1",
-      executionWorkspacePreference: "reuse_existing",
-      executionWorkspaceSettings: { mode: mode === "adapter_managed" ? "agent_default" : mode },
-    });
-    act(() => root.unmount());
-  });
-
   it.each(["isolated_workspace", "shared_workspace"])("restores the project checkout and clears reuse when choosing %s", async (mode) => {
     enableWorktrees();
     mockExecutionWorkspacesApi.listSummaries.mockResolvedValue([{
@@ -1288,24 +1176,6 @@ describe("NewIssueDialog", () => {
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
     await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalled());
     expect(mockIssuesApi.create.mock.calls[0][1]).toMatchObject({ projectWorkspaceId: "source-2", executionWorkspaceId: "worktree-secondary" });
-    act(() => root.unmount());
-  });
-
-  it("clears a reused worktree when switching to a project without isolation", async () => {
-    enableWorktrees();
-    dialogState.newIssueDefaults.executionWorkspaceId = "worktree-1";
-    const { root } = renderDialog(container);
-    await flush();
-    act(() => container.querySelector<HTMLButtonElement>('[data-slot="new-issue-compact-control"]')!.click());
-    await flush();
-    expect(container.querySelector('[aria-label="Worktrees"]')).toBeNull();
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
-    await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalled());
-    const payload = mockIssuesApi.create.mock.calls[0][1];
-    expect(payload.projectId).toBe("project-2");
-    expect(payload).not.toHaveProperty("executionWorkspaceId");
-    expect(payload).not.toHaveProperty("executionWorkspacePreference");
-    expect(payload).not.toHaveProperty("executionWorkspaceSettings");
     act(() => root.unmount());
   });
 
@@ -1517,7 +1387,7 @@ describe("NewIssueDialog", () => {
     const submitButton = Array.from(container.querySelectorAll("button"))
       .find((button) => button.getAttribute("data-testid") === "task-chat-composer-send");
     expect(submitButton).not.toBeUndefined();
-    const composer = container.querySelector(".paperclip-task-chat-composer")!;
+    const composer = container.querySelector('[data-editor-autocomplete-anchor]')!;
     const sections = Array.from(composer.children);
 
     await act(async () => {
@@ -2150,7 +2020,7 @@ describe("NewIssueDialog", () => {
     expect(modeChip()).toBeNull();
 
     await act(async () => {
-      container.querySelector(".paperclip-task-chat-composer")?.dispatchEvent(new KeyboardEvent("keydown", {
+      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
         bubbles: true,
         code: "",
         key: ".",
@@ -2161,7 +2031,7 @@ describe("NewIssueDialog", () => {
     expect(modeChip()?.textContent).toContain("Plan mode");
 
     await act(async () => {
-      container.querySelector(".paperclip-task-chat-composer")?.dispatchEvent(new KeyboardEvent("keydown", {
+      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
         bubbles: true,
         code: "Period",
         key: ".",
@@ -2172,7 +2042,7 @@ describe("NewIssueDialog", () => {
     expect(modeChip()?.textContent).toContain("Ask mode");
 
     await act(async () => {
-      container.querySelector(".paperclip-task-chat-composer")?.dispatchEvent(new KeyboardEvent("keydown", {
+      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
         bubbles: true,
         code: "Period",
         key: ".",
@@ -2242,7 +2112,7 @@ describe("NewIssueDialog", () => {
     expect(modeChip()).toBeNull();
 
     await act(async () => {
-      container.querySelector(".paperclip-task-chat-composer")?.dispatchEvent(new KeyboardEvent("keydown", {
+      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
         bubbles: true,
         code: "Period",
         key: ".",

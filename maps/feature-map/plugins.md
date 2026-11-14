@@ -35,7 +35,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 ### `plugin-administration`
 
-Automated: [install authorization](../../server/src/__tests__/plugin-install-route-security.test.ts) and [plugin settings](../../ui/src/pages/PluginSettings.test.tsx) cover route/UI contracts.
+Automated: [install authorization](../../server/src/__tests__/plugin-install-route-security.test.ts) covers the retained route contract. The standalone plugin-settings UI is retired.
 
 Manual: Install the fixture, supply its configuration, activate it, and inspect status. Save an invalid configuration and verify a useful error. Disable/remove the disposable plugin and check its tools and managed resources no longer behave as active.
 
@@ -77,7 +77,7 @@ Capability ID: `plugins/configuration`.
 Scope: ui
 Storybook: Mount PluginSettings valid/invalid schema inputs, saved configuration, pending/failure and unavailable plugin.
 Production: GET/POST /plugins/{id}/config and POST config/test must preserve validation/company scope and deliver saved config to real plugin worker/startup.
-Sources: Source: [PluginSettings.tsx](../../ui/src/pages/PluginSettings.tsx), [plugins.ts](../../server/src/routes/plugins.ts), [plugin-config-validator.ts](../../server/src/services/plugin-config-validator.ts). Tests: [PluginSettings.test.tsx](../../ui/src/pages/PluginSettings.test.tsx), [plugin-config-startup-delivery.test.ts](../../server/src/__tests__/plugin-config-startup-delivery.test.ts), [plugin-routes-authz.test.ts](../../server/src/__tests__/plugin-routes-authz.test.ts)
+Sources: [plugins.ts](../../server/src/routes/plugins.ts), [plugin-config-validator.ts](../../server/src/services/plugin-config-validator.ts). Tests: [plugin-config-startup-delivery.test.ts](../../server/src/__tests__/plugin-config-startup-delivery.test.ts), [plugin-routes-authz.test.ts](../../server/src/__tests__/plugin-routes-authz.test.ts)
 
 #### `contributions`
 

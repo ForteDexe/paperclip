@@ -479,7 +479,7 @@ describe("Agents", () => {
     await select("Connection", "local");
     // Close the nonmodal popover before switching views.
     await act(() => container.querySelector<HTMLButtonElement>('[aria-label="Filter agents"]')!.click());
-    await act(() => container.querySelector<HTMLButtonElement>('[aria-label="Org chart view"]')!.click());
+    await act(() => container.querySelector<HTMLButtonElement>('[aria-label="Crew map view"]')!.click());
     await flushReact();
     await flushReact();
     expect(container.textContent).toContain("Alpha");
@@ -578,7 +578,7 @@ describe("Agents", () => {
     await flushReact();
 
     const listToggle = container.querySelector<HTMLButtonElement>('button[aria-label="List view"]');
-    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Org chart view"]');
+    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Crew map view"]');
     expect(listToggle?.getAttribute("aria-pressed")).toBe("true");
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("false");
     expect(orgToggle?.querySelector(".lucide-network")).not.toBeNull();
@@ -1051,7 +1051,7 @@ describe("Agents", () => {
     expect(container.querySelector('[aria-label="Star Alpha"]')).toBeNull();
 
     // Explicitly select the org view and assert no membership actions there.
-    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Org chart view"]');
+    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Crew map view"]');
     expect(orgToggle).not.toBeNull();
     await act(async () => {
       orgToggle!.click();

@@ -179,12 +179,6 @@ describe("StatusCardTile lifecycle rendering", () => {
     expect(container.textContent).toContain("Outside active hours");
   });
 
-  it("shows tokens and cost in the footer when provided", () => {
-    render(tile(baseCard({ todayTokens: 1100, todayCostCents: 62 })));
-    expect(container.textContent).toContain("1.1k tok");
-    expect(container.textContent).toContain("$0.62");
-  });
-
   it("opens the card when the tile body is clicked", () => {
     let opened = 0;
     render(tile(baseCard({}), { onOpen: () => (opened += 1) }));

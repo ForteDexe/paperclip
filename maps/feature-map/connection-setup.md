@@ -101,15 +101,11 @@ do not establish OAuth registration, public callbacks, or production provider ac
 
 ### `apps-catalog`
 
-Automated: [Browse](../../ui/src/pages/apps/Browse.test.tsx),
-[unconnected app](../../ui/src/pages/apps/AppNotConnected.test.tsx), and
-[AppsConnect](../../ui/src/pages/apps/AppsConnect.test.tsx) cover catalog entry,
-access selection, provider-specific method choices, and setup failures with
-mocked APIs. [Connection intents](../../tests/e2e/connection-intents.spec.ts)
-drives store and task setup against one fake provider through a useful continuation:
+The retired connection catalog UI is no longer part of Outpost. Historical
+[connection intents](../../tests/e2e/connection-intents.spec.ts) exercise the
+server flow against one fake provider:
 
 ```sh
-pnpm exec vitest run ui/src/pages/apps/Browse.test.tsx ui/src/pages/apps/AppsConnect.test.tsx
 pnpm exec playwright test -c tests/e2e/playwright.config.ts tests/e2e/connection-intents.spec.ts
 ```
 
@@ -197,10 +193,8 @@ task does not grant the right to resolve the request.
 
 ### `resume-connection`
 
-Automated: AppsConnect tests cover exact-draft resume, declined OAuth, reconnect
-lookup failure/retry, response-lost creation, archived connection revival, and
-saved account reuse. [App detail](../../ui/src/pages/apps/AppDetail.test.tsx) covers
-the connection host. These tests do not complete a real provider login.
+The retired connection UI no longer exposes this journey. Historical server
+records remain readable for compatibility.
 
 Manual: leave setup through its footer, reload Apps, choose Finish setup, and
 confirm the same connection is resumed. Decline provider login and recover from

@@ -49,7 +49,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 ### `library-sources`
 
-Automated: [library UI](../../ui/src/pages/CompanySkills.test.tsx) and [source service](../../server/src/__tests__/skill-sources.test.ts) cover their respective layers.
+Automated: [source service](../../server/src/__tests__/skill-sources.test.ts) covers the historical library contract. Agents now use skills managed by their local Codex or Claude harness.
 
 Manual: Install a fixture, locate it in Installed, inspect its source and files, and reload. Import a source update and compare versions before accepting it. Check a source requiring unavailable repository access and verify the failure is explicit.
 

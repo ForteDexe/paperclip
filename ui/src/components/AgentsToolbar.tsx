@@ -18,7 +18,7 @@ export function AgentsToolbar({ query, onQueryChange, view, onViewChange, hideVi
       <ToolbarSearch query={query} onQueryChange={onQueryChange} label="Search agents" placeholder="Search agents…" />
       {!hideViewToggle && <div className="design-view-toggle" role="group" aria-label="Agent view">
           <Button type="button" size="icon-sm" variant={view === "list" ? "secondary" : "ghost"} className="design-toolbar-icon" onClick={() => onViewChange("list")} title="List view" aria-label="List view" aria-pressed={view === "list"}><List aria-hidden /></Button>
-          <Button type="button" size="icon-sm" variant={view === "org" ? "secondary" : "ghost"} className="design-toolbar-icon" onClick={() => onViewChange("org")} title="CREW MAP view" aria-label="CREW MAP view" aria-pressed={view === "org"}><Network aria-hidden /></Button>
+          <Button type="button" size="icon-sm" variant={view === "org" ? "secondary" : "ghost"} className="design-toolbar-icon" onClick={() => onViewChange("org")} title="Crew map view" aria-label="Crew map view" aria-pressed={view === "org"}><Network aria-hidden /></Button>
       </div>}
       <div className="design-toolbar-actions">
         <Button size="sm" variant="outline" data-toolbar-primary onClick={onNewAgent}><Plus aria-hidden />New Agent</Button>

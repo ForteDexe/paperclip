@@ -31,20 +31,20 @@ describe("classifySkillDenial", () => {
         code: SKILL_POLICY_DENIAL_CODE,
         reason: "explicit_rule",
         action: "skills.install",
-        remediation: "Contact a company administrator to change the skill policy.",
+        remediation: "Contact an Outpost administrator to change the skill policy.",
       }),
       "Installing external skills",
     );
     expect(denial).not.toBeNull();
     expect(denial?.state).toBe("policy");
-    expect(denial?.title).toBe("Installing external skills is restricted by your organization policy.");
-    expect(denial?.remediation).toBe("Contact a company administrator to change the skill policy.");
+    expect(denial?.title).toBe("Installing external skills is restricted by your Outpost policy.");
+    expect(denial?.remediation).toBe("Contact an Outpost administrator to change the skill policy.");
   });
 
   it("recognises a policy denial from reason alone (policy_default) and falls back to default remediation", () => {
     const denial = classifySkillDenial(apiError(403, { reason: "policy_default" }));
     expect(denial?.state).toBe("policy");
-    expect(denial?.title).toBe("This action is restricted by your organization policy.");
+    expect(denial?.title).toBe("This action is restricted by your outpost policy.");
     expect(denial?.remediation).toContain("administrator can change the skill policy");
   });
 

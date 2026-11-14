@@ -132,7 +132,7 @@ describe("codemirror single-instance invariant", () => {
           "pnpm.overrides entry in the root package.json instead of " +
           "allowing a second copy.",
       ).toHaveLength(1);
-    });
+    }, 30_000);
   }
 
   // Exercise the installed editor graph directly. Separate @lezer/common

@@ -62,8 +62,8 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Reco
 Automated: [actual-auth connection integration](../../server/src/__tests__/connection-management.integration.test.ts)
 exercises account/pool persistence, responsible-user ownership, agent attribution,
 saved local-login access and native secret-response protection with provider fixtures.
-[Saved handoff UI tests](../../ui/src/pages/apps/AppsConnect.test.tsx)
-exercise setup routing with mocked APIs. Neither establishes live provider sign-in.
+The retired managed-account handoff UI is no longer part of Outpost. The server
+integration does not establish live provider sign-in.
 
 Manual: Start delegated managed-account setup, reload the exact saved human
 handoff, finish the required login, and inspect the saved account and original

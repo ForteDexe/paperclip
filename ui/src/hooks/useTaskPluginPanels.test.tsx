@@ -124,7 +124,7 @@ it("uses the running agent's authorized status and existing plugin slot", async 
   await render();
   expect(list).toHaveBeenCalledWith("task");
   expect(get).toHaveBeenCalledWith("/plugins/example-plugin/api/agents/agent/view/availability?runId=run&issueId=task", { signal: expect.any(AbortSignal), cache: "no-store" });
-  expect(current).toEqual([{ entityId: "agent", runId: "run", slot }]);
+  await vi.waitFor(() => expect(current).toEqual([{ entityId: "agent", runId: "run", slot }]));
 });
 it("keeps unavailable panels hidden", async () => {
   get.mockResolvedValue({ available: false }); await render(); expect(current).toEqual([]);
@@ -158,9 +158,9 @@ it("clears automatic activation when the run ends even if its view is still read
   });
 });
 it("does not carry an old task's ready panel to a new task or disabled plugin", async () => {
-  await render(); expect(current).not.toEqual([]);
-  list.mockResolvedValue([]); await render({ ...issue, id: "next-task" }); expect(current).toEqual([]);
-  plugin.slots = []; await render(); expect(current).toEqual([]);
+  await render(); await vi.waitFor(() => expect(current).not.toEqual([]));
+  list.mockResolvedValue([]); await render({ ...issue, id: "next-task" }); await vi.waitFor(() => expect(current).toEqual([]));
+  plugin.slots = []; await render(); await vi.waitFor(() => expect(current).toEqual([]));
 });
 
 it("stops idle polling with live updates and resumes fallback polling on disconnect", async () => {

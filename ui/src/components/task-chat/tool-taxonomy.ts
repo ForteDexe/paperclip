@@ -397,7 +397,9 @@ export function toolActivityPresentation(input: ToolActivityPresentationInput): 
   const semanticFamily = exact?.family ?? actionFamily(action);
   const family = transport === "mcp" ? "mcp" : semanticFamily;
   const sourceLabel = namespace
-    ? humanizeToolName(namespace)
+    ? namespace.toLowerCase() === "paperclip"
+      ? "Outpost"
+      : humanizeToolName(namespace)
     : transport === "mcp"
       ? "MCP"
       : undefined;

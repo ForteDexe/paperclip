@@ -488,50 +488,6 @@ describe("IssuesList", () => {
     await act(() => root.unmount()); queryClient.clear();
   });
 
-  it("uses the master list and legacy persistence when Streamlined UI is off", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableIsolatedWorkspaces: false,
-      enableExternalObjects: false,
-      enableStreamlinedUi: false,
-    });
-    localStorage.setItem(
-      taskCollectionPreferencesStorageKey({
-        companyId: "company-1",
-        collectionKey: "paperclip:test-issues",
-      }),
-      JSON.stringify({
-        version: 1,
-        companyId: "company-1",
-        collectionKey: "paperclip:test-issues",
-        viewState: { viewMode: "board" },
-        columns: [],
-      }),
-    );
-
-    const { root } = renderWithQueryClient(
-      <IssuesList
-        issues={[createIssue({ id: "legacy-issue", title: "Master task row" })]}
-        isLoading={false}
-        agents={[]}
-        projects={[]}
-        viewStateKey="paperclip:test-issues"
-        rowPresentation="task"
-        toolbarPresentation="collection"
-        onUpdateIssue={() => undefined}
-      />,
-      container,
-    );
-
-    await waitForAssertion(() => {
-      const row = container.querySelector("[data-testid='issue-row']");
-      expect(row).not.toBeNull();
-      expect(row?.getAttribute("data-presentation")).toBeNull();
-      expect(container.querySelector("[data-testid='kanban-board']")).toBeNull();
-    });
-
-    act(() => root.unmount());
-  });
-
   it("forwards external-object summaries into issue rows", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableIsolatedWorkspaces: false,

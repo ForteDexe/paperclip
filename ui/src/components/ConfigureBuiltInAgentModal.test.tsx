@@ -293,44 +293,6 @@ describe("ConfigureBuiltInAgentModal (PAP-12978)", () => {
     expect(provisionMock).not.toHaveBeenCalled();
   });
 
-  it("sends the budget with provisioning so approval-gated setup preserves it", async () => {
-    provisionMock.mockResolvedValue({
-      ...makeState(),
-      status: "pending_approval",
-      agentId: "a1",
-      approval: { id: "approval-1", status: "pending" },
-    });
-    await renderModal();
-
-    const modelInput = document.body.querySelector('[data-testid="model-input"]') as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
-    flushSync(() => {
-      setter.call(modelInput, "gpt-5");
-      modelInput.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await flushReact();
-
-    const budgetInput = document.body.querySelector('input[type="number"]') as HTMLInputElement;
-    flushSync(() => {
-      setter.call(budgetInput, "50");
-      budgetInput.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await flushReact();
-
-    flushSync(() => {
-      findButton("Configure")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-
-    expect(provisionMock).toHaveBeenCalled();
-    expect(provisionMock).toHaveBeenCalledWith("c1", "briefs", {
-      adapterType: "codex_local",
-      adapterConfig: { model: "gpt-5" },
-      budgetMonthlyCents: 5000,
-    });
-    expect(updateMock).not.toHaveBeenCalled();
-  });
-
   it("provisions non-model adapters so command fields can be completed later", async () => {
     provisionMock.mockResolvedValue({ ...makeState(), status: "needs_setup", agentId: "a1" });
     await renderModal(makeState({

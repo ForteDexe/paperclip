@@ -119,7 +119,7 @@ describe("Goals", () => {
 
     const alert = container.querySelector('[data-query-view="error"]');
     expect(alert).not.toBeNull();
-    expect(alert?.textContent).toContain("Couldn't load goals");
+    expect(alert?.textContent).toContain("Couldn't load north stars");
     expect(alert?.textContent).toContain("unexpected error");
     expect(alert?.textContent).not.toContain("boom_stack_trace");
     expect(alert?.querySelector("button")?.textContent).toContain("Retry");

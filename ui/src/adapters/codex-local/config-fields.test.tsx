@@ -209,124 +209,7 @@ describe("Outpost Runner Codex configuration", () => {
       expect(saved()).toMatchObject({ engine: "acp", mode: "persistent", nonInteractivePermissions: "deny", env: account });
     });
   });
-  it("preserves an unknown native provider instead of presenting it as Codex", async () => {
-    const html = await renderRunner({ provider: "future-provider" });
-    expect(html).toContain("future-provider");
-    expect(html).not.toContain('aria-label="Permission mode"');
-  });
-  it("shows cloud repository settings without local permission or warm-process controls", async () => {
-    const html = await renderRunner({ provider: "cursor_cloud", repoUrl: "https://github.com/acme/repo", repoRef: "feature" });
-    expect(html).toContain("GitHub repository");
-    expect(html).toContain("Cursor cloud environment");
-    expect(html).toContain("effective model identity is unavailable");
-    expect(html).toContain("Agent environment settings support only CURSOR_API_KEY");
-    expect(html).toContain("Configure hosted secrets in your Cursor Cloud environment");
-    expect(html).toContain("https://github.com/acme/repo");
-    expect(html).not.toContain('aria-label="Permission mode"');
-    expect(html).not.toContain("Runner lifecycle");
-    expect(html).not.toContain("Warm idle timeout");
-  });
-  it.each(["create", "edit"] as const)("clears hidden Codex settings when explicitly choosing Cursor Cloud during %s", async mode => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    const initial = { provider: "codex", model: "gpt-5.6-sol", codexPermissionMode: "never", lifecycleMode: "warm",
-      modelReasoningEffort: "high", reasoningEffort: "high", effort: "high", modelParams: [{ id: "reasoning", value: "high" }], homeMode: "preconfigured" };
-    let currentConfig: Record<string, unknown> = initial;
-    let currentValues: CreateConfigValues = { ...defaultCreateValues, adapterType: "paperclip_runner", model: initial.model,
-      thinkingEffort: "high", adapterSchemaValues: initial };
-    function Fixture() {
-      const [config, setConfig] = useState(currentConfig);
-      const [values, setValues] = useState(currentValues);
-      currentConfig = config;
-      currentValues = values;
-      return <CodexLocalConfigFields mode={mode} isCreate={mode === "create"} adapterType="paperclip_runner"
-        values={mode === "create" ? values : null} set={patch => setValues(previous => ({ ...previous, ...patch }))}
-        config={config} eff={(_group, _field, original) => original}
-        mark={(_group, field, value) => setConfig(previous => ({ ...previous, [field]: value }))}
-        models={[]} hideInstructionsFile />;
-    }
-    try {
-      await act(async () => root.render(<QueryClientProvider client={new QueryClient()}><TooltipProvider><Fixture /></TooltipProvider></QueryClientProvider>));
-      const picker = container.querySelector<HTMLButtonElement>('[aria-label="Harness"]')!;
-      await act(async () => picker.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      const cloudOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent?.includes("Cursor Cloud"));
-      expect(cloudOption).toBeDefined();
-      await act(async () => cloudOption!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      const saved = mode === "create" ? currentValues.adapterSchemaValues! : currentConfig;
-      expect(saved.provider).toBe("cursor_cloud");
-      expect(saved.lifecycleMode).toBe("per_turn");
-      for (const key of ["modelReasoningEffort", "reasoningEffort", "effort", "modelParams", "homeMode", "codexPermissionMode"]) expect(saved[key], key).toBeUndefined();
-      if (mode === "create") {
-        expect(currentValues.thinkingEffort).toBe("");
-        expect(buildPaperclipRunnerConfig({ ...currentValues, model: "caller-cloud-model" })).toMatchObject({ provider: "cursor_cloud", model: "caller-cloud-model", lifecycleMode: "per_turn" });
-      }
-      expect(container.textContent).toContain("Cursor manages command permissions");
-    } finally { await act(async () => root.unmount()); container.remove(); }
-  });
-  it("keeps Dot out of the general harness picker and hides that picker for Dot", async () => {
-    expect(await renderRunner({ provider: "codex" }, "Harness", true)).not.toContain("OpenAI Dot");
-    const dot = await renderRunner({ provider: "openai_dot" });
-    expect(dot).not.toContain('aria-label="Harness"');
-    expect(dot).toContain("Dot connection");
-    expect(dot).toContain("Allow externally billed provider");
-  });
-  it("uses the shared Muse connection and excludes local harness, workspace, and lifecycle fields", async () => {
-    const muse = await renderRunner({ provider: "muse" });
-    expect(muse).toContain("Muse connection");
-    expect(muse).toContain("Allow externally billed provider");
-    expect(muse).not.toContain('aria-label="Harness"');
-    expect(muse).not.toContain("Runner lifecycle");
-    expect(muse).not.toContain("Workspace files and commands");
-    expect(muse).not.toContain("Capture raw provider traces");
-  });
-  it("keeps the general harness picker hidden for an existing Grok Bot", async () => {
-    const html = await renderRunner({ provider: "grok_bot" });
-    expect(html).not.toContain('aria-label="Harness"');
-    expect(html).toContain("Save the Grok Bot agent before connecting it.");
-  });
-  it.each([
-    [undefined, "Full auto (approve all)"],
-    ["approve-paperclip", "Automatic Outpost actions"],
-    ["approve-reads", "Allow Outpost reads"],
-    ["deny-all", "Deny all"],
-  ])("displays Grok's default or saved permission mode %s", async (acpxPermissionMode, label) => {
-    const html = await renderRunner({ provider: "acpx", acpxAgent: "grok", acpxPermissionMode });
-    expect(html).toContain('Grok Build');
-    expect(html).toContain('aria-label="Permission mode"');
-    expect(html).toContain(label);
-  });
-
-  it("exposes all qualified provider choices", async () => {
-    const html = await renderRunner({ provider: "codex" }, "Harness");
-
-    expect(html).toContain('aria-label="Harness"');
-    expect(html).toContain("OpenCode 1.18.34");
-    expect(html).toContain('ACP agents');
-    expect(html).not.toContain("Permission mode");
-    expect(html).not.toContain("Ask when requested");
-    expect(html).not.toContain("Ask for untrusted operations");
-    expect(html).toContain("Claude Managed");
-    expect(html).toContain("AWS AgentCore");
-    expect(html).not.toContain("Bypass sandbox");
-  });
-
-  it("renders OpenCode's bounded permission modes", async () => {
-    const html = await renderRunner({
-      provider: "opencode",
-      opencodePermissionMode: "allow",
-    });
-
-    expect(html).toContain(
-      'OpenCode 1.18.34',
-    );
-    expect(html).toContain("Full auto (allow)");
-    expect(html).toContain('aria-label="Permission mode"');
-    expect(html).toContain("font-sans");
-    expect(html).not.toContain("Ask for untrusted operations");
-  });
-
-  it("offers qualified Claude, Cursor, Pi and Copilot", async () => {
+  it("keeps Claude available as the supported non-Codex harness", async () => {
     const html = await renderRunner({
       provider: "acpx",
       acpxAgent: "claude",
@@ -336,37 +219,8 @@ describe("Outpost Runner Codex configuration", () => {
     expect(html).toContain('ACP agents');
     expect(html).toContain("ACP agent");
     const options = new DOMParser().parseFromString(html, "text/html").querySelectorAll('[role="option"]');
-    expect(Array.from(options, option => ({ label: option.textContent?.trim(), disabled: option.hasAttribute("data-disabled") })))
-      .toEqual(expect.arrayContaining([
-        { label: "Claude", disabled: false }, { label: "Cursor", disabled: false },
-        { label: "Pi", disabled: false }, { label: "GitHub Copilot", disabled: false },
-      ]));
-    expect(html).not.toContain("Codex via ACPX");
-    expect(html).not.toContain("ACPX Codex");
-    expect(html).not.toContain("Pi via ACPX");
+    expect(Array.from(options, option => option.textContent?.trim())).toContain("Claude");
     expect(html).toContain("Allow Outpost reads");
-  });
-
-  it.each([undefined, "agent", "plan", "ask"])("displays saved Cursor mode %s", async acpxSessionMode => {
-    const selected = acpxSessionMode ?? "agent";
-    await renderRunner({ provider: "acpx", acpxAgent: "cursor", acpxSessionMode }, undefined, container => {
-      const modes = container.querySelectorAll('[aria-label="Cursor mode"]');
-      expect(modes).toHaveLength(1);
-      expect((modes[0] as HTMLSelectElement).value).toBe(selected);
-    });
-  });
-
-  it.each([undefined, "off", "low", "high", "max"])("displays saved Pi thinking level %s", async piThinkingLevel => {
-    await renderRunner({ provider: "acpx", acpxAgent: "pi", piThinkingLevel }, undefined, container => {
-      const mode = container.querySelector('[aria-label="Pi thinking level"]');
-      expect((mode as HTMLSelectElement).value).toBe(piThinkingLevel ?? "low");
-    });
-  });
-  it("shows unsupported saved Pi level without aliasing it", async () => {
-    expect(await renderRunner({ provider: "acpx", acpxAgent: "pi", piThinkingLevel: "medium" })).toContain("Unsupported saved thinking level");
-  });
-  it.each(["claude", "copilot", "pi"])("does not expose Cursor mode for %s", async acpxAgent => {
-    expect(await renderRunner({ provider: "acpx", acpxAgent })).not.toContain('aria-label="Cursor mode"');
   });
 
   it("falls back to the fail-closed Codex permission mode", async () => {

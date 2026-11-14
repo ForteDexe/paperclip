@@ -78,7 +78,7 @@ describe("session goal dialogs", () => {
     vi.mocked(issuesApi.actOnRunnerGoal).mockResolvedValue({
       accepted: true, projection: { ...projection, goal: null, revision: 8 },
     } as never);
-    await click("Clear goal");
+    await click("Clear north star");
     await vi.waitFor(() => expect(document.querySelector('[data-testid="runner-goal-widget"]')).toBeNull());
   });
 
@@ -113,11 +113,11 @@ describe("session goal dialogs", () => {
   });
 
   it("opens a prefilled in-app editor and saves with the reviewed revision", async () => {
-    await click("Edit goal");
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Edit session goal");
+    await click("Edit north star");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Edit session north star");
     expect(document.querySelector("textarea")?.value).toBe("Original objective");
     await objective("Revised objective");
-    await click("Save goal");
+    await click("Save north star");
     expect(issuesApi.actOnRunnerGoal).toHaveBeenCalledWith("issue-goal", expect.objectContaining({
       action: "edit", objective: "Revised objective", expectedRevision: 7, agentId: "agent-goal",
     }));
@@ -126,13 +126,13 @@ describe("session goal dialogs", () => {
 
   it("requires explicit replacement confirmation and lets cancellation preserve the goal", async () => {
     await click("Request replacement");
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Replace session goal?");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Replace session north star?");
     expect(document.querySelector("textarea")?.value).toBe("Replacement objective");
     expect(issuesApi.actOnRunnerGoal).not.toHaveBeenCalled();
     await click("Cancel");
     expect(issuesApi.actOnRunnerGoal).not.toHaveBeenCalled();
     await click("Request replacement");
-    await click("Replace goal");
+    await click("Replace north star");
     expect(issuesApi.actOnRunnerGoal).toHaveBeenCalledWith("issue-goal", expect.objectContaining({
       action: "replace", objective: "Replacement objective", confirmReplace: true, expectedRevision: 7,
     }));
@@ -140,15 +140,15 @@ describe("session goal dialogs", () => {
 
   it("rejects whitespace and retains edited text with a visible server error", async () => {
     vi.mocked(issuesApi.actOnRunnerGoal).mockRejectedValue(new Error("Goal changed; reopen the editor to review the latest goal."));
-    await click("Edit goal");
+    await click("Edit north star");
     await objective("   ");
-    expect(button("Save goal").disabled).toBe(true);
+    expect(button("Save north star").disabled).toBe(true);
     await objective("Keep my draft");
-    await click("Save goal");
+    await click("Save north star");
     await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Goal changed"));
     expect(document.querySelector("textarea")?.value).toBe("Keep my draft");
     await click("Cancel");
-    await click("Edit goal");
+    await click("Edit north star");
     expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Goal changed");
     await click("Cancel");
     await click("Request replacement");
@@ -156,7 +156,7 @@ describe("session goal dialogs", () => {
   });
 
   it("dismisses an editor when the selected agent changes", async () => {
-    await click("Edit goal");
+    await click("Edit north star");
     await render("another-agent");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(issuesApi.actOnRunnerGoal).not.toHaveBeenCalled();

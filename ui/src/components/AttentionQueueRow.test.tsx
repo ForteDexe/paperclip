@@ -905,7 +905,7 @@ describe("AttentionQueueRow", () => {
 
     const audience = container?.querySelector('[data-testid="interaction-audience"]');
     expect(audience?.getAttribute("data-audience-open")).toBe("false");
-    expect(audience?.textContent).toContain("Only CodexCoder or the board can respond");
+    expect(audience?.textContent).toContain("Only CodexCoder or a human can respond");
     // A collapsed row spends its line on the responder, not on a badge that
     // repeats the clause beside it.
     expect(audience?.textContent).not.toContain("Addressed —");
@@ -932,7 +932,7 @@ describe("AttentionQueueRow", () => {
 
     const audience = container?.querySelector('[data-testid="interaction-audience"]');
     const summary = audience?.querySelector('[data-testid="interaction-audience-summary"]');
-    expect(summary?.textContent).toBe(`Only ${addresseeName} or the board can respond`);
+    expect(summary?.textContent).toBe(`Only ${addresseeName} or a human can respond`);
     expect(summary?.parentElement?.className).toContain("break-words");
   });
 
@@ -982,7 +982,7 @@ describe("AttentionQueueRow", () => {
 
     const feedback = document.body.textContent ?? "";
     expect(feedback).toContain("This issue-thread interaction is human-only.");
-    expect(feedback).toContain("Only the board can respond.");
+    expect(feedback).toContain("Only a human can respond.");
     expect(feedback).not.toMatch(/try again/i);
   });
 

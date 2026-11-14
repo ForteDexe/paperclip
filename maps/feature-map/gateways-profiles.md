@@ -53,7 +53,7 @@ Manual: Create a disposable gateway with one harmless tool, connect a client usi
 
 ### `access-profile`
 
-Automated: [profile wizard](../../ui/src/pages/tools/profiles/ProfileWizard.test.tsx) and [profile detail](../../ui/src/pages/tools/profiles/ProfileDetail.test.tsx) cover component behavior with mocks.
+Automated: [profile wizard](../../ui/src/pages/tools/profiles/ProfileWizard.test.tsx) covers the remaining historical component contract. The standalone profile-detail UI is retired.
 
 Backend: [profile entry validation](../../server/src/__tests__/tool-profile-entry-validation.test.ts)
 uses isolated PostgreSQL to create and replace a 518-selector assignment with

@@ -43,7 +43,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 ### `company-switcher`
 
-Automated: [company list](../../ui/src/pages/Companies.test.tsx) and [archive UI](../../ui/src/pages/CompanySettingsArchive.test.tsx) cover UI behavior with mocks.
+Automated: [Space list](../../ui/src/pages/Companies.test.tsx) covers the retained UI behavior with mocks. The archive UI is retired.
 
 Manual: Create or select a company, rename it, and reload. Switch to the second company and back; verify tasks, agents, and settings follow the selection. Archive the disposable company and verify its visibility and offered restoration path.
 
@@ -93,7 +93,7 @@ Capability ID: `companies/archive`.
 Scope: ui
 Storybook: Archive confirmation, pending/error and departure navigation; archived list entry and Unarchive action.
 Production: Archive eligible agents/runs without deleting history; restoration handles archival-specific pause and navigates to correct company.
-Sources: Source: [CompanySettings.tsx](../../ui/src/pages/CompanySettings.tsx), [Companies.tsx](../../ui/src/pages/Companies.tsx), [companies.ts](../../ui/src/api/companies.ts). Tests: [CompanySettingsArchive.test.tsx](../../ui/src/pages/CompanySettingsArchive.test.tsx), [Companies.test.tsx](../../ui/src/pages/Companies.test.tsx), [companies-service.test.ts](../../server/src/__tests__/companies-service.test.ts)
+Sources: [CompanySettings.tsx](../../ui/src/pages/CompanySettings.tsx), [Companies.tsx](../../ui/src/pages/Companies.tsx), [companies.ts](../../ui/src/api/companies.ts). Tests: [Companies.test.tsx](../../ui/src/pages/Companies.test.tsx), [companies-service.test.ts](../../server/src/__tests__/companies-service.test.ts)
 
 #### `portability`
 

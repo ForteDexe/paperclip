@@ -112,10 +112,6 @@ vi.mock("./SidebarAgents", () => ({
   ),
 }));
 
-vi.mock("./SidebarProjects", () => ({
-  SidebarProjects: () => <div data-testid="sidebar-projects">Classic projects</div>,
-}));
-
 vi.mock("./SidebarStarredProjects", () => ({
   SidebarStarredProjects: () => <div data-testid="sidebar-starred-projects" />,
 }));

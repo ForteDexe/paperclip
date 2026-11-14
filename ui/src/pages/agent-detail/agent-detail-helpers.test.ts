@@ -9,7 +9,7 @@ describe("revisionSummary", () => {
     expect(revisionSummary({ changedKeys: ["adapterConfig"], rolledBackFromRevisionId: null })).toBe("Changed harness settings");
     expect(revisionSummary({ changedKeys: ["name", "title"], rolledBackFromRevisionId: null })).toBe("Changed name and title");
     expect(revisionSummary({ changedKeys: ["name", "runtimeConfig", "budgetMonthlyCents"], rolledBackFromRevisionId: null })).toBe(
-      "Changed name, runtime settings and budget",
+      "Changed name, runtime settings and legacy policy",
     );
   });
 

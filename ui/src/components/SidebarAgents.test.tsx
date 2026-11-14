@@ -915,7 +915,7 @@ describe("SidebarAgents", () => {
     expect(seeAllAgentsLink(container)).toBeNull();
   });
 
-  it("does not offer sidebar resume for budget-paused agents", async () => {
+  it("offers sidebar resume for agents paused by the retired budget policy", async () => {
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({
         status: "paused",
@@ -927,17 +927,17 @@ describe("SidebarAgents", () => {
     await renderSidebarAgents();
     await openAgentMenu();
 
-    const budgetPausedItem = Array.from(
+    const resumeItem = Array.from(
       document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'),
     )
-      .find((element) => element.textContent?.includes("Budget paused"));
-    expect(budgetPausedItem).toBeTruthy();
+      .find((element) => element.textContent?.includes("Resume"));
+    expect(resumeItem).toBeTruthy();
 
     await act(async () => {
-      budgetPausedItem?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      resumeItem?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
 
-    expect(mockAgentsApi.resume).not.toHaveBeenCalled();
+    expect(mockAgentsApi.resume).toHaveBeenCalledTimes(1);
   });
 });

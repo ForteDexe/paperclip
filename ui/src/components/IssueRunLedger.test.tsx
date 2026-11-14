@@ -391,7 +391,7 @@ describe("IssueRunLedger", () => {
 
     expect(container.textContent).toContain("timeout (30s timeout)");
     expect(container.textContent).toContain("cancelled");
-    expect(container.textContent).toContain("budget paused");
+    expect(container.textContent).toContain("paused by a legacy policy");
     expect(container.textContent).toContain("unmanaged background task stopped");
     expect(container.textContent).toContain("paused by board");
   });

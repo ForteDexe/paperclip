@@ -93,7 +93,7 @@ describe("PATCH /api/companies/:companyId/branding", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects non-CEO agent callers", async () => {
+  it("keeps Space branding board-only for agents regardless of title", async () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
       companyId: "company-1",
@@ -112,11 +112,11 @@ describe("PATCH /api/companies/:companyId/branding", () => {
       .send({ logoAssetId: "11111111-1111-4111-8111-111111111111" });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Only board users can manage company branding");
     expect(mockCompanyService.update).not.toHaveBeenCalled();
   });
 
-  it("rejects non-CEO agent callers before validating branding body shape", async () => {
+  it("rejects agent callers before validating branding body shape", async () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
       companyId: "company-1",
@@ -135,18 +135,17 @@ describe("PATCH /api/companies/:companyId/branding", () => {
       .send({ status: "archived" });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Only board users can manage company branding");
     expect(mockCompanyService.update).not.toHaveBeenCalled();
   });
 
-  it("allows CEO agent callers to update branding fields", async () => {
-    const company = createCompany();
+  it("does not derive branding authority from a root agent's legacy title", async () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
       companyId: "company-1",
       role: "ceo",
+      reportsTo: null,
     });
-    mockCompanyService.update.mockResolvedValue(company);
     const app = await createApp({
       type: "agent",
       agentId: "agent-1",
@@ -161,25 +160,10 @@ describe("PATCH /api/companies/:companyId/branding", () => {
         logoAssetId: "11111111-1111-4111-8111-111111111111",
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.logoAssetId).toBe(company.logoAssetId);
-    expect(mockCompanyService.update).toHaveBeenCalledWith("company-1", {
-      logoAssetId: "11111111-1111-4111-8111-111111111111",
-    });
-    expect(mockLogActivity).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        companyId: "company-1",
-        actorType: "agent",
-        actorId: "agent-1",
-        agentId: "agent-1",
-        runId: "run-1",
-        action: "company.branding_updated",
-        details: {
-          logoAssetId: "11111111-1111-4111-8111-111111111111",
-        },
-      }),
-    );
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("Only board users can manage company branding");
+    expect(mockCompanyService.update).not.toHaveBeenCalled();
+    expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
   it("allows board callers to update branding fields", async () => {
@@ -251,7 +235,7 @@ describe("PATCH /api/companies/:companyId", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects non-CEO agent callers before loading the company or validating settings body shape", async () => {
+  it("rejects agent callers before loading the company or validating settings body shape", async () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
       companyId: "company-1",
@@ -270,22 +254,16 @@ describe("PATCH /api/companies/:companyId", () => {
       .send({ status: "archived" });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Only CEO agents");
+    expect(res.body.error).toContain("Only board users can manage company settings");
     expect(mockCompanyService.getById).not.toHaveBeenCalled();
     expect(mockCompanyService.update).not.toHaveBeenCalled();
   });
 
-  it("allows CEO agent callers to update only branding fields through the general settings route", async () => {
-    const company = createCompany();
+  it("does not derive Space settings authority from a root agent's legacy title", async () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
       companyId: "company-1",
       role: "ceo",
-    });
-    mockCompanyService.getById.mockResolvedValue(company);
-    mockCompanyService.update.mockResolvedValue({
-      ...company,
-      name: "New Name",
     });
     const app = await createApp({
       type: "agent",
@@ -299,14 +277,13 @@ describe("PATCH /api/companies/:companyId", () => {
       .patch("/api/companies/company-1")
       .send({ name: "New Name" });
 
-    expect(res.status).toBe(200);
-    expect(mockCompanyService.update).toHaveBeenCalledWith("company-1", { name: "New Name" }, expect.objectContaining({
-      actorType: "agent",
-      actorId: "agent-1",
-    }));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("Only board users can manage company settings");
+    expect(mockCompanyService.getById).not.toHaveBeenCalled();
+    expect(mockCompanyService.update).not.toHaveBeenCalled();
   });
 
-  it("rejects CEO agent attempts to update lifecycle, budget, consent, or prefix fields", async () => {
+  it("rejects root-agent attempts to update lifecycle, budget, consent, or prefix fields before validation", async () => {
     const company = createCompany();
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
@@ -333,8 +310,8 @@ describe("PATCH /api/companies/:companyId", () => {
         issuePrefix: "BAD",
       });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Validation error");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("Only board users can manage company settings");
     expect(mockCompanyService.update).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
