@@ -246,6 +246,14 @@ behavior. Its 131-file harness, launcher, and GitHub workflow are removed from
 the local product. Small deterministic crash-point and fault-injection helpers
 remain where focused unit tests still exercise retained recovery behavior.
 
+### Paid Agent-Creation Acceptance Harness
+
+The opt-in browser harness for AI-assisted agent creation required real provider
+credentials and also exercised the retired Daytona environment. Its live and
+Storybook scenarios, provider-spend instructions, and remote image setup are
+removed. Deterministic local tests remain the required coverage for creating
+Codex and Claude agents and running them with the user's existing local login.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

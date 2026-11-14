@@ -71,6 +71,7 @@ const retiredInfrastructure = [
   ".github/workflows/crash-points.yml",
   "scripts/crash-points.mjs",
   "tests/restart-chaos",
+  "tests/hiring-ai-connections",
 ];
 
 async function exists(relativePath) {

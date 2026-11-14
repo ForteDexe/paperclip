@@ -622,13 +622,6 @@ retain their atomic storage transactions and generation checks. Historical
 scheduled retries still revalidate the account and task eligibility, including
 assignee execution-lock ownership at scheduling, promotion, and dispatch.
 
-`server/src/__tests__/agent-hire-ai-connections.test.ts` covers both creation routes,
-both providers and methods, approval gates, native provider mapping, shared access
-boundaries, and concurrent runs of one subscription for both providers. The opt-in
-[`tests/hiring-ai-connections/README.md`](../../tests/hiring-ai-connections/README.md)
-describes real browser hiring, subtask, connection, and automatic-resume checks on
-local and Daytona environments, plus the production component Storybook checks.
-
 ### Managed session compatibility
 
 Resume checks compare the selected account identity with the server-owned
