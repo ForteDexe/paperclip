@@ -241,22 +241,7 @@ try {
   // `workspace:` specs. The npm cache warm-up reads the same closure, so both
   // take it from one module.
   const { packages, needed } = publicInstallClosure(repo);
-  // release.sh also builds the standalone public packages (the sandbox-provider
-  // plugins outside the pnpm workspace) before it stages anything, because it
-  // publishes them. Nothing staged here reaches them: `needed` is closed under
-  // `workspace:` specs, so every package staged below is a workspace package
-  // that `pnpm build` already built, and that build would only cost one
-  // network install and compile per plugin whose output no tarball reads.
-  // Canary Dry Run still runs it through release.sh. The one path that does
-  // read a standalone build is qualification-package retention at the end:
-  // it packs the Daytona plugin from its `dist`, which only this build
-  // produces, so the build runs when retention is requested and nowhere else.
   const retainQualificationPackages = Boolean(process.env.OUTPOST_RUNNER_QUALIFICATION_PACKAGES_DIR);
-  if (retainQualificationPackages) {
-    const standaloneStarted = performance.now();
-    run(process.execPath, [join(repo, 'scripts/build-standalone-public-packages.mjs')], repo);
-    timing.stage_standalone_build_ms = Math.round(performance.now() - standaloneStarted);
-  }
   // The server's `ui-dist` payload is prepared here; with the reuse flag set
   // above, that copies the `ui/dist` that `pnpm build` produced instead of
   // building the UI again.
@@ -451,8 +436,7 @@ try {
   // prefetch that had not finished yet; zero means the overlap hid it entirely.
   // `stage_ui_dist_ms`, `stage_sources_ms`, `stage_bundled_ms` and
   // `stage_pack_ms` split the staging phase, and `stage_bundled_<package>_ms`
-  // is each concurrent install. `stage_standalone_build_ms` appears only when
-  // qualification-package retention made the standalone build necessary.
+  // is each concurrent install.
   const downloaded = Object.fromEntries(downloads.map(({ name, durationMs }) => [`${name}_prefetch_ms`, durationMs]));
   console.log(JSON.stringify({ schema: 'outpost.public-npm-install.timing.v1', ...timing, ...downloaded, ...bundledInstallTimings(installs) }));
   if (retainQualificationPackages) {

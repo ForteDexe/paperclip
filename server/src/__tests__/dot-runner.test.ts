@@ -964,12 +964,10 @@ describe("durable Dot Runner integration", () => {
   }, 30000);
 
   it.each([
-    { name: "Dot local Rust", managed: false, provider: "openai_dot" as const, revokeDuringUpload: false },
-    { name: "Grok local Rust", managed: false, provider: "grok_bot" as const, revokeDuringUpload: false },
-    { name: "Grok upload revocation Rust", managed: false, provider: "grok_bot" as const, revokeDuringUpload: true },
-    ...(process.env.OUTPOST_DOT_DAYTONA_LIVE === "1" ? [{ name: "private Daytona Rust", managed: true, provider: "openai_dot" as const, revokeDuringUpload: false }] : []),
-  ])("signed readiness, native tools and finalization through $name", async ({ managed, provider, revokeDuringUpload }) => {
-    const remote = managed ? await (await import("./helpers/dot-daytona.js")).startDotDaytona(root) : null;
+    { name: "Dot local Rust", provider: "openai_dot" as const, revokeDuringUpload: false },
+    { name: "Grok local Rust", provider: "grok_bot" as const, revokeDuringUpload: false },
+    { name: "Grok upload revocation Rust", provider: "grok_bot" as const, revokeDuringUpload: true },
+  ])("signed readiness, native tools and finalization through $name", async ({ provider, revokeDuringUpload }) => {
     try {
       const f = await fixture({ provider });
       const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Save the arithmetic report", description: provider === "grok_bot" ? "Save 17 + 25 = 42 as a task document and attach report.txt." : "Save 17 + 25 = 42 as a task document.",
@@ -1010,9 +1008,7 @@ describe("durable Dot Runner integration", () => {
             .rejects.toThrow("dot_cloud_requires_managed_runner");
         }
       } finally { vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", ""); }
-      const resultPromise = executeOutpostNativeSession({ db, execution,
-        ...(remote ? { runnerExecutionTarget: remote.target, runnerRemoteBinaryPath: remote.runnerBinary, runnerIngressAuthorized: true }
-          : { dotWorkspaceRoot: root }),
+      const resultPromise = executeOutpostNativeSession({ db, execution, dotWorkspaceRoot: root,
         runnerInstanceId: prepared.runnerInstanceId,
         runnerEnvironment: { OUTPOST_NATIVE_MCP_NAME: "outpost-assigned", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/dot-fixture", OUTPOST_NATIVE_MCP_TOKEN: "fixture-gateway-secret" },
         useRunnerd: true, turnTimeoutMs: 45000, onEvent: async event => { observed.push(event); }, onLog: async () => {} });
@@ -1155,13 +1151,9 @@ describe("durable Dot Runner integration", () => {
         const app = (work.tools as Array<{ operationId: string }>).find(tool => tool.operationId.startsWith("app_"))!;
         if (provider === "openai_dot") {
         expect(app).toBeTruthy();
-        if (remote) {
-          expect((work.tools as Array<{ operationId: string }>).some(tool => tool.operationId.startsWith("workspace_"))).toBe(false);
-        } else {
         const missingReadId = randomUUID();
         await f.broker.operation(f.principal, assignment!.id, missingReadId, "tool", { name: "workspace_read", arguments: { path: "missing-fixture.txt", offset: 0 } });
         await vi.waitFor(async () => expect(await f.broker.operationStatus(f.principal, assignment!.id, missingReadId)).toMatchObject({ status: "completed", isError: true, result: { outcome: "failed", code: "runner_bridge_file_not_found" } }), { timeout: 10000 });
-        }
         // A definite read failure must not poison later calls or finalization.
         const attachmentListId = randomUUID();
         expect((work.tools as Array<{ operationId: string }>).some(tool => tool.operationId === "read_task_attachment")).toBe(true);
@@ -1239,7 +1231,7 @@ describe("durable Dot Runner integration", () => {
         if (startupError) throw startupError;
         throw error;
       } finally { if (provider === "openai_dot") await f.events.unsubscribe(f.principal, f.subscription); await f.events.stop(); server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())); }
-    } finally { await remote?.close(); }
+    } finally { }
   }, 360000);
 
   it.each(["failed", "cancelled", "timed_out"])("reports %s admission without creating another wake or waiting for a nonexistent assignment", async status => {

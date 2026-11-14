@@ -60,7 +60,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const workspaces = JSON.parse(command(['-r', 'list', '--depth=-1', '--json']));
   const packageDirs = ['.',
     ...workspaces.map((workspace) => path.relative(root, workspace.path).split(path.sep).join('/') || '.'),
-    ...readPluginsUnder(path.join(root, 'packages/plugins/sandbox-providers')).map((directory) => path.relative(root, directory).split(path.sep).join('/')),
     'packages/plugins/examples/plugin-orchestration-smoke-example',
   ];
   const plan = cachePlan({

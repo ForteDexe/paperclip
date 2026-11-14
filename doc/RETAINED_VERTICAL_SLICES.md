@@ -80,3 +80,14 @@ portable catalog provenance, release wiring, and focused tests are removed.
 Spaces can still import local, GitHub, `skills.sh`, and URL skills and attach
 them to agents. The two required internal agent instructions formerly sourced
 from the catalog now live under `server/src/built-ins/agents/`.
+
+### Remote Sandbox Providers
+
+Outpost runs Codex and Claude locally in the working directory owned by their
+Space. The Boxd, Cloudflare, CreateOS, Daytona, E2B, exe.dev, Kubernetes, Modal,
+and Novita sandbox-provider packages are outside that boundary. Their package
+sources, standalone dependency workspaces, provider-specific CI and release
+wiring, hosted full-stack qualification workflow, credential passthrough, and
+focused tests are removed. Generic local plugin support remains for retained
+extensions such as Campfire; historical environment schemas and managed-runtime
+internals remain until their dependencies are audited as a separate slice.

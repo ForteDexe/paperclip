@@ -22,8 +22,7 @@ image runs the harness directly with that `PATH`. The shim does not source a
 login profile, and the runtime never writes a profile or an rc file. Some
 sandbox providers instead wrap each command in a login shell. That shell sources
 `/etc/profile` and the user profile files to read an owner-supplied `PATH`. No
-exec path sources `nvm`. For the full exec-path contract, see
-`packages/plugins/sandbox-providers/SANDBOX-REQUIREMENTS.md`.
+exec path sources `nvm`.
 
 **Outpost Binaries:**
 - `/usr/local/bin/outpost-agent-shim`: Go binary compiled from `tools/agent-shim/`. Reads `/run/outpost/runtime-command.json` and `syscall.Exec`s the harness CLI.

@@ -55,51 +55,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/plugins/sandbox-providers/boxd",
-    "name": "@outpost/plugin-boxd",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/cloudflare",
-    "name": "@outpost/plugin-cloudflare-sandbox",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/createos",
-    "name": "@outpost/plugin-createos",
-    "publishFromCi": false
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/daytona",
-    "name": "@outpost/plugin-daytona",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/exe-dev",
-    "name": "@outpost/plugin-exe-dev",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/e2b",
-    "name": "@outpost/plugin-e2b",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/modal",
-    "name": "@outpost/plugin-modal",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/kubernetes",
-    "name": "@outpost/plugin-kubernetes",
-    "publishFromCi": true
-  },
-  {
-    "dir": "packages/plugins/sandbox-providers/novita",
-    "name": "@outpost/plugin-novita-sandbox",
-    "publishFromCi": true
-  },
-  {
     "dir": "ui",
     "name": "@outpost/ui",
     "publishFromCi": true

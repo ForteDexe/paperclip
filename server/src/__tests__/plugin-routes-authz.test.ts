@@ -161,12 +161,10 @@ describe("plugin install and upgrade authz", () => {
     );
     expect(packageNames).toContain("@outpost/plugin-workspace-diff");
     expect(packageNames).toContain("@outpost/plugin-llm-wiki");
-    expect(packageNames).toContain("@outpost/plugin-modal");
     expect(packageNames).toContain("@outpost/plugin-authoring-smoke-example");
     expect(packageNames).not.toContain("@outpost/plugin-sdk");
     expect(byPackageName.get("@outpost/plugin-workspace-diff")?.experimental).toBe(true);
     expect(byPackageName.get("@outpost/plugin-llm-wiki")?.experimental).toBe(true);
-    expect(byPackageName.get("@outpost/plugin-modal")?.experimental).toBe(true);
     expect(byPackageName.get("@outpost/plugin-authoring-smoke-example")?.experimental).toBe(false);
     expect(typeof byPackageName.get("@outpost/plugin-workspace-diff")?.hasBuiltEntrypoints).toBe("boolean");
   }, 20_000);
@@ -1208,7 +1206,7 @@ describe("operator-hidden plugin management floor", () => {
     readyPlugin();
 
     const attempts: Array<[string, request.Test]> = [
-      ["install", request(app).post("/api/plugins/install").send({ packageName: "@outpost/plugin-modal" })],
+      ["install", request(app).post("/api/plugins/install").send({ packageName: "@outpost/plugin-workspace-diff" })],
       ["uninstall", request(app).delete(`/api/plugins/${pluginId}`)],
       ["enable", request(app).post(`/api/plugins/${pluginId}/enable`)],
       ["disable", request(app).post(`/api/plugins/${pluginId}/disable`).send({})],

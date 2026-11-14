@@ -37,20 +37,6 @@ export function retainRunnerQualificationPackages({ repo, output, sourceRevision
   };
   try {
     for (const archive of publicArchives) retain(archive.name, archive.file);
-    // Match the plugin's normal release prepack. Its source manifest omits
-    // the SDK dependency; the hook adds the publishable SDK version.
-    const pluginRelative = 'packages/plugins/sandbox-providers/daytona';
-    const plugin = join(staging, pluginRelative);
-    mkdirSync(plugin, { recursive: true });
-    cpSync(join(repo, pluginRelative, 'dist'), join(plugin, 'dist'), { recursive: true });
-    const pluginManifest = JSON.parse(readFileSync(join(repo, pluginRelative, 'package.json')));
-    writeFileSync(join(plugin, 'package.json'), JSON.stringify({ ...pluginManifest, version: releaseVersion }));
-    mkdirSync(join(staging, 'scripts'));
-    cpSync(join(repo, 'scripts/generate-plugin-package-json.mjs'), join(staging, 'scripts/generate-plugin-package-json.mjs'));
-    mkdirSync(join(staging, 'packages/plugins/sdk'), { recursive: true });
-    const sdk = JSON.parse(readFileSync(join(repo, 'packages/plugins/sdk/package.json')));
-    writeFileSync(join(staging, 'packages/plugins/sdk/package.json'), JSON.stringify({ ...sdk, version: releaseVersion }));
-    pack(plugin, pluginManifest.name, false);
     // The separate private eval SDK is already built by pnpm build. Packing
     // it does not substitute for the public server's packaged runner.
     const runner = join(staging, 'runner');

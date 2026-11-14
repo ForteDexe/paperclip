@@ -25,11 +25,10 @@ jobs:
       contents: write
       pull-requests: write
     env:
-      # Every lockfile this workflow owns: the root one, then the sandbox
-      # providers' own lockfiles. Keep it equal to LOCKFILES in
+      # Every lockfile this workflow owns. Keep it equal to LOCKFILES in
       # .github/scripts/lockfile-trust.mjs, which blocks contributor edits to
       # the same files. A test checks that the two lists match.
-      LOCKFILES: pnpm-lock.yaml scripts/typecheck-sandbox-providers/pnpm-lock.yaml packages/plugins/sandbox-providers/daytona/pnpm-lock.yaml
+      LOCKFILES: pnpm-lock.yaml
 
     steps:
       - name: Checkout repository
@@ -87,13 +86,6 @@ jobs:
 
       - name: Refresh pnpm lockfile
         run: pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile
-
-      # Sandbox providers stay out of the root workspace. The shared typecheck
-      # workspace has its own pnpm-workspace.yaml, and Daytona installs alone.
-      - name: Refresh sandbox provider lockfiles
-        run: |
-          pnpm --dir scripts/typecheck-sandbox-providers install --resolution-only --ignore-scripts --no-frozen-lockfile
-          pnpm --dir packages/plugins/sandbox-providers/daytona install --ignore-workspace --resolution-only --ignore-scripts --no-frozen-lockfile
 
       # A verified Dependabot lockfile merged to master is trusted lock content.
       # Report its hash so the proof refresh can admit it.

@@ -298,7 +298,6 @@ if [ -n "${OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR:-}" ]; then
 elif [ "$dry_run" = false ]; then
   release_fail "Public releases require the four hosted runner daemon artifacts; use the supported Release workflow."
 fi
-node "$REPO_ROOT/scripts/build-standalone-public-packages.mjs"
 bash "$REPO_ROOT/scripts/prepare-server-ui-dist.sh"
 for pkg_dir in server packages/adapters/claude-local packages/adapters/codex-local; do
   rm -rf "$REPO_ROOT/$pkg_dir/skills"

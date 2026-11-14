@@ -54,22 +54,16 @@ type FixturePlugin = {
 };
 
 const repoPluginRoot = path.join(REPO_ROOT, "packages", "plugins");
-const standaloneRepoPluginRoot = path.join(repoPluginRoot, "sandbox-providers");
 
 async function createBundledPluginFixture(
   nameSuffix: string,
-  options: { rootDir?: string; buildDistImmediately?: boolean } = {},
+  options: { rootDir?: string } = {},
 ): Promise<FixturePlugin> {
   const slug = `plugin-autobuild-${nameSuffix}-${randomUUID().slice(0, 8)}`;
   const packageName = `@outpost/${slug}`;
   const pluginKey = `outpost.${slug.replace(/^plugin-/, "").replace(/-/g, "_")}`;
   const packageRoot = path.join(options.rootDir ?? repoPluginRoot, slug);
   const distDir = path.join(packageRoot, "dist");
-  const isStandaloneFixture = (options.rootDir ?? repoPluginRoot) === standaloneRepoPluginRoot;
-  const postinstallScript = isStandaloneFixture
-    ? `node ${path.relative(packageRoot, path.join(REPO_ROOT, "scripts", "link-plugin-dev-sdk.mjs"))}`
-    : null;
-
   await mkdir(path.join(packageRoot, "scripts"), { recursive: true });
   await writeFile(
     path.join(packageRoot, "package.json"),
@@ -79,7 +73,6 @@ async function createBundledPluginFixture(
       private: true,
       type: "module",
       scripts: {
-        ...(postinstallScript ? { postinstall: postinstallScript } : {}),
         build: "node ./scripts/build.mjs",
       },
       outpostPlugin: {
@@ -125,13 +118,6 @@ async function createBundledPluginFixture(
     ].join("\n"),
     "utf8",
   );
-
-  if (options.buildDistImmediately) {
-    await mkdir(path.join(distDir, "ui"), { recursive: true });
-    await writeFile(path.join(distDir, "manifest.js"), `export default ${JSON.stringify(manifest, null, 2)};\n`, "utf8");
-    await writeFile(path.join(distDir, "worker.js"), "export {};\n", "utf8");
-    await writeFile(path.join(distDir, "ui", "index.js"), "export default {};\n", "utf8");
-  }
 
   return { packageName, pluginKey, packageRoot, distDir };
 }
@@ -213,74 +199,6 @@ describe("ensureLocalPluginBuilt", () => {
     expect(execStub).not.toHaveBeenCalled();
   });
 
-  it.each([
-    undefined,
-    "allowBuilds:\n  protobufjs: false\n",
-    "packages:\n  - ../untrusted\ndangerouslyAllowAllBuilds: true\n",
-  ])("bootstraps standalone plugins without trusting workspace policy: %s", async (localPolicy) => {
-    const fixture = await createBundledPluginFixture("standalone", { rootDir: standaloneRepoPluginRoot });
-    cleanupPaths.add(fixture.packageRoot);
-
-    if (localPolicy) await writeFile(path.join(fixture.packageRoot, "pnpm-workspace.yaml"), localPolicy);
-    const installArgs = ["install", "--ignore-workspace", ...(localPolicy ? ["--ignore-scripts"] : []), "--no-lockfile"];
-    const execStub = vi.fn(async (_file: string, args: readonly string[]) => {
-      if (args.join(" ") === installArgs.join(" ")) {
-        await mkdir(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"), { recursive: true });
-      }
-      if (args.join(" ") === "build") {
-        await mkdir(path.join(fixture.distDir, "ui"), { recursive: true });
-        await writeFile(path.join(fixture.distDir, "manifest.js"), "export default {};\n", "utf8");
-        await writeFile(path.join(fixture.distDir, "worker.js"), "export {};\n", "utf8");
-        await writeFile(path.join(fixture.distDir, "ui", "index.js"), "export default {};\n", "utf8");
-      }
-      return { stdout: "", stderr: "" };
-    });
-    await ensureLocalPluginBuilt(
-      fixture.packageRoot,
-      JSON.parse(await readFile(path.join(fixture.packageRoot, "package.json"), "utf8")) as Record<string, unknown>,
-      { execFileAsyncImpl: execStub },
-    );
-
-    expect(execStub).toHaveBeenCalledTimes(2);
-    expect(execStub).toHaveBeenNthCalledWith(
-      1,
-      "pnpm",
-      installArgs,
-      { cwd: fixture.packageRoot, timeout: 120_000 },
-    );
-    expect(execStub).toHaveBeenNthCalledWith(
-      2,
-      "pnpm",
-      ["build"],
-      { cwd: fixture.packageRoot, timeout: 120_000 },
-    );
-  });
-
-  it("bootstraps standalone bundled plugin runtime dependencies when dist already exists", async () => {
-    const fixture = await createBundledPluginFixture("standalone-runtime", {
-      rootDir: standaloneRepoPluginRoot,
-      buildDistImmediately: true,
-    });
-    cleanupPaths.add(fixture.packageRoot);
-
-    const execStub = vi.fn(async () => {
-      await mkdir(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"), { recursive: true });
-      return { stdout: "", stderr: "" };
-    });
-    await ensureLocalPluginBuilt(
-      fixture.packageRoot,
-      JSON.parse(await readFile(path.join(fixture.packageRoot, "package.json"), "utf8")) as Record<string, unknown>,
-      { execFileAsyncImpl: execStub },
-    );
-
-    expect(execStub).toHaveBeenCalledTimes(1);
-    expect(execStub).toHaveBeenNthCalledWith(
-      1,
-      "pnpm",
-      ["install", "--ignore-workspace", "--no-lockfile"],
-      { cwd: fixture.packageRoot, timeout: 120_000 },
-    );
-  });
 });
 
 describeEmbeddedPostgres("plugin install auto-build route", () => {
@@ -327,50 +245,6 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
     expect(mockLifecycle.load).toHaveBeenCalledTimes(1);
   }, 60_000);
 
-  it("auto-builds standalone bundled local plugins outside the root pnpm workspace", async () => {
-    const fixture = await createBundledPluginFixture("standalone-success", { rootDir: standaloneRepoPluginRoot });
-    cleanupPaths.add(fixture.packageRoot);
-    const app = await createInstallApp(db);
-
-    expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules"))).toBe(false);
-
-    const res = await request(app)
-      .post("/api/plugins/install")
-      .send({ packageName: fixture.packageRoot, isLocalPath: true });
-
-    expect(res.status).toBe(200);
-    expect(res.body.packageName).toBe(fixture.packageName);
-    expect(res.body.pluginKey).toBe(fixture.pluginKey);
-    expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(true);
-    expect(existsSync(path.join(fixture.distDir, "worker.js"))).toBe(true);
-    expect(existsSync(path.join(fixture.distDir, "ui", "index.js"))).toBe(true);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"))).toBe(true);
-    expect(mockLifecycle.load).toHaveBeenCalledTimes(1);
-  }, 60_000);
-
-  it("bootstraps standalone bundled local plugin runtime dependencies when dist already exists", async () => {
-    const fixture = await createBundledPluginFixture("standalone-runtime-success", {
-      rootDir: standaloneRepoPluginRoot,
-      buildDistImmediately: true,
-    });
-    cleanupPaths.add(fixture.packageRoot);
-    const app = await createInstallApp(db);
-
-    expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(true);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"))).toBe(false);
-
-    const res = await request(app)
-      .post("/api/plugins/install")
-      .send({ packageName: fixture.packageRoot, isLocalPath: true });
-
-    expect(res.status).toBe(200);
-    expect(res.body.packageName).toBe(fixture.packageName);
-    expect(res.body.pluginKey).toBe(fixture.pluginKey);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"))).toBe(true);
-    expect(mockLifecycle.load).toHaveBeenCalledTimes(1);
-  }, 60_000);
-
   it("returns the manual build command when auto-build is disabled and dist is missing", async () => {
     process.env["OUTPOST_DISABLE_PLUGIN_AUTOBUILD"] = "1";
     const fixture = await createBundledPluginFixture("disabled");
@@ -382,27 +256,10 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
       .send({ packageName: fixture.packageRoot, isLocalPath: true });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toContain("does not appear to be a Outpost plugin (no manifest found)");
+    expect(res.body.error).toContain("does not appear to be an Outpost plugin (no manifest found)");
     expect(res.body.error).toContain(`pnpm --filter ${fixture.packageName} build`);
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);
     expect(mockLifecycle.load).not.toHaveBeenCalled();
   }, 20_000);
 
-  it("returns the standalone bootstrap command when auto-build is disabled for sandbox-provider plugins", async () => {
-    process.env["OUTPOST_DISABLE_PLUGIN_AUTOBUILD"] = "1";
-    const fixture = await createBundledPluginFixture("standalone-disabled", { rootDir: standaloneRepoPluginRoot });
-    cleanupPaths.add(fixture.packageRoot);
-    const app = await createInstallApp(db);
-
-    const res = await request(app)
-      .post("/api/plugins/install")
-      .send({ packageName: fixture.packageRoot, isLocalPath: true });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toContain("does not appear to be a Outpost plugin (no manifest found)");
-    expect(res.body.error).toContain(path.relative(REPO_ROOT, fixture.packageRoot));
-    expect(res.body.error).toContain("pnpm install --ignore-workspace --no-lockfile && pnpm build");
-    expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);
-    expect(mockLifecycle.load).not.toHaveBeenCalled();
-  }, 20_000);
 });

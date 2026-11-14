@@ -55,16 +55,13 @@ import type { PluginJobStore } from "./plugin-job-store.js";
 import type { PluginToolDispatcher } from "./plugin-tool-dispatcher.js";
 import type { PluginLifecycleManager } from "./plugin-lifecycle.js";
 import { pluginDatabaseService } from "./plugin-database.js";
-import { resolveBundledCatalogRoot } from "./bundled-plugins.js";
 import { managedPluginWorkerEnvGrant } from "./managed-plugin-worker-env.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(__dirname, "../../..");
 export const BUNDLED_LOCAL_PLUGIN_ROOT = path.join(REPO_ROOT, "packages", "plugins");
-export const STANDALONE_BUNDLED_PLUGIN_ROOT = path.join(BUNDLED_LOCAL_PLUGIN_ROOT, "sandbox-providers");
 export const LOCAL_PLUGIN_AUTOBUILD_TIMEOUT_MS = 120_000;
-const STANDALONE_BUNDLED_PLUGIN_SDK_PACKAGE = "@outpost/plugin-sdk";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -92,69 +89,6 @@ export const DEFAULT_LOCAL_PLUGIN_DIR = path.join(
 
 const DEV_TSX_LOADER_PATH = path.resolve(__dirname, "../../../cli/node_modules/tsx/dist/loader.mjs");
 
-/**
- * Model-provider API keys that sandbox-provider plugins (e.g.
- * `@outpost/plugin-kubernetes`) are allowed to read from the
- * server's process environment so they can inject them into per-run
- * pod Secrets. All other host env vars remain stripped from plugin
- * workers (see `PluginWorkerManager.spawnProcess`). The passthrough
- * is gated on the plugin manifest declaring
- * `environment.drivers.register` — non-sandbox plugins never receive
- * these keys.
- */
-const ADAPTER_ENV_PASSTHROUGH = [
-  "ANTHROPIC_API_KEY",
-  "OPENAI_API_KEY",
-  "GOOGLE_API_KEY",
-  "GEMINI_API_KEY",
-  "OPENROUTER_API_KEY",
-];
-
-/**
- * In-cluster Kubernetes service-discovery vars. A sandbox-provider plugin that
- * runs in-cluster (e.g. `@outpost/plugin-kubernetes` with inCluster=true)
- * builds its API client via `KubeConfig.loadFromCluster()`, which reads these
- * to construct the apiserver URL. Without them the worker fails with "Invalid
- * URL" at lease acquisition. The CA + token are files under
- * /var/run/secrets/kubernetes.io/serviceaccount and are readable directly.
- * Gated, like ADAPTER_ENV_PASSTHROUGH, on environment-driver registration.
- */
-const K8S_IN_CLUSTER_ENV_PASSTHROUGH = [
-  "KUBERNETES_SERVICE_HOST",
-  "KUBERNETES_SERVICE_PORT",
-  "KUBERNETES_SERVICE_PORT_HTTPS",
-];
-
-/**
- * Each first-party sandbox provider's documented credential fallback env
- * var. Environment rows may omit `config.apiKey` (managed/platform-
- * provisioned rows always do — see `managed-environments.ts`), in which
- * case the provider reads its documented process env var. That fallback
- * executes inside the plugin worker, whose environment is scrubbed, so
- * the deployment-level var must be forwarded explicitly.
- *
- * Keyed by the installed npm package name and cross-checked against the
- * manifest's declared driver key — but name and manifest are both
- * plugin-authored, so neither is proof of identity on its own. The gate
- * therefore also requires a trusted install origin: a registry install
- * (`packagePath` null — the `@outpost` scope is project-controlled at
- * the registry), or a local path inside the repo/bundled plugin catalog,
- * which ships inside the release image and is as trusted as the server
- * code itself. An operator-added local plugin directory can claim any
- * name and driver key and still receives nothing.
- */
-const SANDBOX_PROVIDER_CREDENTIAL_ENV_PASSTHROUGH: Record<
-  string,
-  { driverKey: string; envVars: readonly string[] }
-> = {
-  "@outpost/plugin-boxd": { driverKey: "boxd", envVars: ["BOXD_API_KEY"] },
-  "@outpost/plugin-createos": { driverKey: "createos", envVars: ["CREATEOS_API_KEY"] },
-  "@outpost/plugin-daytona": { driverKey: "daytona", envVars: ["DAYTONA_API_KEY"] },
-  "@outpost/plugin-e2b": { driverKey: "e2b", envVars: ["E2B_API_KEY"] },
-  "@outpost/plugin-exe-dev": { driverKey: "exe-dev", envVars: ["EXE_API_KEY"] },
-  "@outpost/plugin-novita-sandbox": { driverKey: "novita", envVars: ["NOVITA_API_KEY"] },
-};
-
 export function buildPluginWorkerEnv(input: {
   manifest: Pick<OutpostPluginManifestV1, "capabilities"> & {
     environmentDrivers?: ReadonlyArray<{ driverKey: string }>;
@@ -176,31 +110,6 @@ export function buildPluginWorkerEnv(input: {
   for (const key of input.grantedEnvVars ?? []) {
     const value = processEnv[key];
     if (value && value.trim().length > 0) env[key] = value;
-  }
-  const canRegisterEnvironmentDrivers = Array.isArray(input.manifest.capabilities)
-    && input.manifest.capabilities.includes("environment.drivers.register");
-  if (!canRegisterEnvironmentDrivers) return env;
-
-  const trustedLocalRoots = input.trustedLocalPluginRoots
-    ?? [BUNDLED_LOCAL_PLUGIN_ROOT, resolveBundledCatalogRoot(processEnv)];
-  const installOriginTrusted =
-    input.packagePath == null
-    || trustedLocalRoots.some((root) => isPathWithin(root, path.resolve(input.packagePath as string)));
-  const credentialEntry = installOriginTrusted && input.packageName
-    ? SANDBOX_PROVIDER_CREDENTIAL_ENV_PASSTHROUGH[input.packageName]
-    : undefined;
-  const credentialKeys =
-    credentialEntry
-      && (input.manifest.environmentDrivers ?? []).some(
-        (driver) => driver.driverKey === credentialEntry.driverKey,
-      )
-      ? credentialEntry.envVars
-      : [];
-  for (const key of [...ADAPTER_ENV_PASSTHROUGH, ...K8S_IN_CLUSTER_ENV_PASSTHROUGH, ...credentialKeys]) {
-    const value = processEnv[key];
-    if (value && value.trim().length > 0) {
-      env[key] = value;
-    }
   }
   return env;
 }
@@ -710,19 +619,6 @@ function buildLocalPluginBuildCommand(pkgJson: Record<string, unknown>): string 
   return `pnpm --filter ${packageName} build`;
 }
 
-function readPackageDependencyNames(
-  pkgJson: Record<string, unknown>,
-  field: "dependencies" | "optionalDependencies",
-): string[] {
-  const deps = pkgJson[field];
-  if (deps === null || typeof deps !== "object" || Array.isArray(deps)) return [];
-  return Object.keys(deps as Record<string, unknown>);
-}
-
-function resolvePackageInstallPath(packageRoot: string, packageName: string): string {
-  return path.join(packageRoot, "node_modules", ...packageName.split("/"));
-}
-
 function isPathWithin(root: string, target: string): boolean {
   const relativePath = path.relative(root, target);
   return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
@@ -734,14 +630,6 @@ export function isRepoBundledPluginPath(
 ): boolean {
   const repoPluginsRoot = path.join(options.repoRoot ?? REPO_ROOT, "packages", "plugins");
   return isPathWithin(repoPluginsRoot, packageRoot);
-}
-
-export function isStandaloneBundledPluginPath(
-  packageRoot: string,
-  options: { repoRoot?: string } = {},
-): boolean {
-  const repoRoot = options.repoRoot ?? REPO_ROOT;
-  return isPathWithin(path.join(repoRoot, "packages", "plugins", "sandbox-providers"), packageRoot);
 }
 
 export function resolveDeclaredPluginEntrypoints(
@@ -780,23 +668,6 @@ export function listMissingDeclaredPluginEntrypoints(
   );
 }
 
-function listMissingStandaloneBundledPluginRuntimeDependencies(
-  packageRoot: string,
-  pkgJson: Record<string, unknown>,
-): string[] {
-  // optionalDependencies are intentionally allowed to be absent (e.g.
-  // platform-specific packages), so they must not be treated as required here —
-  // otherwise post-build verification fails even when install/build succeeded.
-  const dependencyNames = new Set<string>([
-    STANDALONE_BUNDLED_PLUGIN_SDK_PACKAGE,
-    ...readPackageDependencyNames(pkgJson, "dependencies"),
-  ]);
-
-  return [...dependencyNames].filter(
-    (packageName) => !existsSync(resolvePackageInstallPath(packageRoot, packageName)),
-  );
-}
-
 function formatLocalPluginManualBuildHint(
   packageRoot: string,
   pkgJson: Record<string, unknown>,
@@ -814,71 +685,18 @@ function formatLocalPluginManualBuildHint(
   return `${autoBuildDisabled} Run \`${manualBuildCommand}\` from the repo root and retry.`;
 }
 
-function buildStandaloneBundledPluginInstallArgs(
-  packageRoot: string,
-): string[] {
-  const packageLockfilePath = path.join(packageRoot, "pnpm-lock.yaml");
-  // Never let plugin-supplied workspace settings broaden dependency resolution
-  // or script execution. When a plugin declares a local install policy, disable
-  // dependency lifecycle scripts instead of loading that workspace configuration.
-  const scriptArgs = existsSync(path.join(packageRoot, "pnpm-workspace.yaml")) ? ["--ignore-scripts"] : [];
-  return ["install", "--ignore-workspace", ...scriptArgs, existsSync(packageLockfilePath) ? "--frozen-lockfile" : "--no-lockfile"];
-}
-
-function buildStandaloneBundledPluginInstallCommand(
-  packageRoot: string,
-): string {
-  return `pnpm ${buildStandaloneBundledPluginInstallArgs(packageRoot).join(" ")}`;
-}
-
 function buildLocalPluginRecoveryCommand(
-  packageRoot: string,
+  _packageRoot: string,
   pkgJson: Record<string, unknown>,
-  options: { repoRoot?: string } = {},
+  _options: { repoRoot?: string } = {},
 ): string | null {
-  if (isStandaloneBundledPluginPath(packageRoot, { repoRoot: options.repoRoot })) {
-    const repoRoot = options.repoRoot ?? REPO_ROOT;
-    const relativePath = path.relative(repoRoot, packageRoot) || ".";
-    const installCommand = buildStandaloneBundledPluginInstallCommand(packageRoot);
-    return `cd ${relativePath} && ${installCommand} && pnpm build`;
-  }
-
   return buildLocalPluginBuildCommand(pkgJson);
 }
 
 function buildLocalPluginBuildCommands(
-  packageRoot: string,
   pkgJson: Record<string, unknown>,
-  options: {
-    repoRoot?: string;
-    needsBuild?: boolean;
-    needsStandaloneRuntimeBootstrap?: boolean;
-  } = {},
+  options: { repoRoot?: string } = {},
 ): LocalPluginBuildCommand[] {
-  if (isStandaloneBundledPluginPath(packageRoot, { repoRoot: options.repoRoot })) {
-    const commands: LocalPluginBuildCommand[] = [];
-    const shouldInstallStandaloneRuntime =
-      options.needsStandaloneRuntimeBootstrap === true
-      || (!existsSync(path.join(packageRoot, "node_modules")) && options.needsBuild !== false);
-
-    if (shouldInstallStandaloneRuntime) {
-      commands.push({
-        file: "pnpm",
-        args: buildStandaloneBundledPluginInstallArgs(packageRoot),
-        cwd: packageRoot,
-      });
-    }
-
-    if (options.needsBuild !== false) {
-      commands.push({
-        file: "pnpm",
-        args: ["build"],
-        cwd: packageRoot,
-      });
-    }
-    return commands;
-  }
-
   const packageName = pkgJson["name"];
   if (typeof packageName !== "string" || packageName.trim().length === 0) return [];
   return [{
@@ -906,21 +724,14 @@ export async function ensureLocalPluginBuilt(
   if (!isRepoBundledPluginPath(packageRoot, { repoRoot: options.repoRoot })) return;
 
   const missingEntrypoints = listMissingDeclaredPluginEntrypoints(packageRoot, pkgJson);
-  const missingStandaloneRuntimeDeps = isStandaloneBundledPluginPath(packageRoot, { repoRoot: options.repoRoot })
-    ? listMissingStandaloneBundledPluginRuntimeDependencies(packageRoot, pkgJson)
-    : [];
-  if (missingEntrypoints.length === 0 && missingStandaloneRuntimeDeps.length === 0) return;
+  if (missingEntrypoints.length === 0) return;
 
   const packageName = pkgJson["name"];
   const manualBuildCommand = buildLocalPluginRecoveryCommand(packageRoot, pkgJson, { repoRoot: options.repoRoot });
   if (typeof packageName !== "string" || packageName.trim().length === 0 || !manualBuildCommand) return;
 
   const runExecFileAsync = options.execFileAsyncImpl ?? execFileAsync;
-  const buildCommands = buildLocalPluginBuildCommands(packageRoot, pkgJson, {
-    repoRoot: options.repoRoot,
-    needsBuild: missingEntrypoints.length > 0,
-    needsStandaloneRuntimeBootstrap: missingStandaloneRuntimeDeps.length > 0,
-  });
+  const buildCommands = buildLocalPluginBuildCommands(pkgJson, { repoRoot: options.repoRoot });
 
   try {
     for (const command of buildCommands) {
@@ -945,16 +756,10 @@ export async function ensureLocalPluginBuilt(
   }
 
   const stillMissingEntrypoints = listMissingDeclaredPluginEntrypoints(packageRoot, pkgJson);
-  const stillMissingStandaloneRuntimeDeps = isStandaloneBundledPluginPath(packageRoot, { repoRoot: options.repoRoot })
-    ? listMissingStandaloneBundledPluginRuntimeDependencies(packageRoot, pkgJson)
-    : [];
-  if (stillMissingEntrypoints.length > 0 || stillMissingStandaloneRuntimeDeps.length > 0) {
+  if (stillMissingEntrypoints.length > 0) {
     const missingDetails: string[] = [];
     if (stillMissingEntrypoints.length > 0) {
       missingDetails.push(`built entrypoints: ${stillMissingEntrypoints.map((entrypoint) => entrypoint.key).join(", ")}`);
-    }
-    if (stillMissingStandaloneRuntimeDeps.length > 0) {
-      missingDetails.push(`runtime dependencies: ${stillMissingStandaloneRuntimeDeps.join(", ")}`);
     }
     throw new Error(
       `Bundled local plugin ${packageName} is still missing ${missingDetails.join("; ")} after auto-build. ` +

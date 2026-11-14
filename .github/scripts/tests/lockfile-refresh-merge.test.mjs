@@ -102,11 +102,6 @@ test("the workflow owns the same lockfiles that the trust policy guards", () => 
   const env = workflow.match(/^      LOCKFILES: (.+)$/m)?.[1];
   assert.ok(env, "the refresh job must define LOCKFILES");
   assert.deepEqual(env.trim().split(/\s+/), LOCKFILES);
-  assert.match(step("Refresh sandbox provider lockfiles"),
-    /pnpm --dir scripts\/typecheck-sandbox-providers install --resolution-only --ignore-scripts --no-frozen-lockfile/);
-  assert.match(step("Refresh sandbox provider lockfiles"),
-    /pnpm --dir packages\/plugins\/sandbox-providers\/daytona install --ignore-workspace --resolution-only --ignore-scripts --no-frozen-lockfile/);
-  assert.ok(stepNames.indexOf("Refresh sandbox provider lockfiles") < stepNames.indexOf("Fail on unexpected file changes"));
   assert.match(step("Check release age of added package versions"), /for lock in \$LOCKFILES; do[\s\S]*?pairs\+=\(--base "\$base\/\$lock" --head "\$lock"\)/);
 });
 

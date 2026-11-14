@@ -10,11 +10,8 @@ import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command
 import { runChildProcess } from "@outpost/adapter-utils/server-utils";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
-import { readVerifiedRemoteWorkspaceFile } from "../services/native-runtime/remote-deliverable-file.js";
-import { startFileDeliveryDaytona } from "./helpers/file-delivery-daytona.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 
-const liveDaytona = process.env.OUTPOST_FILE_DELIVERY_DAYTONA === "1";
 const helper = path.resolve(import.meta.dirname, "../../../skills/outpost-artifact/scripts/outpost-upload-artifact.sh");
 // A real PNG and a PDF with binary bytes in its comment exercise UTF-8 corruption.
 const files = [
@@ -42,16 +39,15 @@ function localProcessRunner(): CommandManagedRuntimeRunner {
   };
 }
 
-describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})`, () => {
+describe("durable file delivery (local processes)", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
   const cleanup: Array<() => Promise<void>> = [];
   afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
   async function execution(localWorkspace: string) {
-    const live = liveDaytona ? await startFileDeliveryDaytona() : null;
-    const workspace = live?.workspace ?? localWorkspace;
-    const runner = live?.runner ?? localProcessRunner();
+    const workspace = localWorkspace;
+    const runner = localProcessRunner();
     let closed = false;
-    const close = async () => { if (closed) return; closed = true; await live?.close(); };
+    const close = async () => { if (closed) return; closed = true; };
     cleanup.push(close);
     const run = async (command: string, args: string[], env: Record<string, string> = {}) => {
       const result = await runner.execute({ command, args, env, timeoutMs: 90_000 });
@@ -84,7 +80,7 @@ describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})
     const remote = await execution(fixture.workspace);
     const installedHelper = await remote.write("outpost-upload-artifact.sh", await readFile(helper));
     const target: AdapterSandboxExecutionTarget = {
-      kind: "remote", transport: "sandbox", providerKey: liveDaytona ? "daytona" : "local-test", remoteCwd: remote.workspace,
+      kind: "remote", transport: "sandbox", providerKey: "local-test", remoteCwd: remote.workspace,
       runner: remote.runner, timeoutMs: 30_000,
       effectiveCapabilities: {
         reusableLeases: false, nativeSyncIn: false, nativeSyncOut: false,
@@ -136,14 +132,13 @@ describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})
       expect(download.status).toBe(200);
       expect(Buffer.from(await download.arrayBuffer())).toEqual(files[index].body);
     }
-  }, liveDaytona ? 240_000 : 60_000);
+  }, 60_000);
 
   it("registers native files with API tools disabled and returns durable download receipts", async () => {
     const fixture = await server.fixture({ apiToolsEnabled: false });
     const remote = await execution(fixture.workspace);
     const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture,
-      workspaceRoot: remote.workspace, executionTargetKind: liveDaytona ? "remote" : "local",
-      readRemoteWorkspaceFile: liveDaytona ? request => readVerifiedRemoteWorkspaceFile({ ...request, runner: remote.runner, workspaceRoot: remote.workspace }) : undefined,
+      workspaceRoot: remote.workspace, executionTargetKind: "local",
     });
     expect(authority.definitions().some(definition => definition.name === "register_deliverable")).toBe(true);
     expect(authority.definitions().some(definition => definition.name === "api_post")).toBe(false);
@@ -172,5 +167,5 @@ describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})
     expect(rows.every(row => row.originatingRunId === fixture.runId && row.issueCommentId)).toBe(true);
     await server.db.update(issues).set({ executionRunId: null }).where(eq(issues.id, fixture.issueId));
     await expect(authority.execute({ tool: "register_deliverable", callId: "stale", arguments: {} })).rejects.toThrow();
-  }, liveDaytona ? 240_000 : 15_000);
+  }, 15_000);
 });

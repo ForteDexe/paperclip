@@ -185,7 +185,6 @@ const PLUGIN_SCOPED_API_RESPONSE_HEADER_ALLOWLIST = new Set([
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXPERIMENTAL_BUNDLED_PLUGIN_PACKAGE_NAMES = new Set([
   "@outpost/plugin-llm-wiki",
-  "@outpost/plugin-modal",
   "@outpost/plugin-workspace-diff",
 ]);
 /**
@@ -303,7 +302,6 @@ async function bundledPluginMetadata(
 function isExperimentalBundledPlugin(packageRoot: string, packageName: string): boolean {
   return (
     EXPERIMENTAL_BUNDLED_PLUGIN_PACKAGE_NAMES.has(packageName)
-    || packageRoot.includes(`${path.sep}sandbox-providers${path.sep}`)
     || packageName.includes("sandbox")
   );
 }

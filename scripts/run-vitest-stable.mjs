@@ -29,7 +29,6 @@ const nonServerProjects = [
   "@outpost/adapter-utils",
   "@outpost/adapter-claude-local",
   "@outpost/adapter-codex-local",
-  "@outpost/plugin-daytona",
   "@outpost/plugin-sdk",
   "@outpost/create-outpost-plugin",
   "@outpost/ui",

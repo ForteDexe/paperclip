@@ -959,7 +959,7 @@ test("release daemon production uses exact-source native hosts and no publisher 
     assert.match(block, /OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR/);
   }
   const script = readFileSync(path.join(repoRoot, 'scripts/release.sh'), 'utf8');
-  assert.ok(script.indexOf('assemble-daemons "$OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR"') < script.indexOf('scripts/build-standalone-public-packages.mjs'));
+  assert.ok(script.indexOf('assemble-daemons "$OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR"') < script.indexOf('scripts/prepare-server-ui-dist.sh'));
   assert.match(script, /cp -R .*outpost-runner\/dist\/bin\/\." .*server\/dist\/vendor\/outpost-runner\/bin\//);
   assert.match(script, /elif \[ "\$dry_run" = false \]; then[\s\S]*?release_fail "Public releases require/);
 });
@@ -1526,7 +1526,6 @@ test("mixed npm errors and noncanonical or unreleased tarballs never read config
       canaryTarball.replace("https:", "http:"), canaryTarball.replace("@outpost/server", "%40outpost%2Fserver"),
       canaryTarball.replace("@outpost/server", "@outpost/../server"), canaryTarball.replace(exactCanary, "2026.1009.0-canary.2"),
       "https://registry.npmjs.org/@outpost/not-released/-/not-released-2026.1009.0-canary.1.tgz",
-      "https://registry.npmjs.org/@outpost/plugin-createos/-/plugin-createos-2026.1009.0-canary.1.tgz",
       "https://registry.npmjs.org/%40outpost%2Fserver/2026.1009.0-canary.1",
     ].map((url) => tarballFailure(url)),
   ];

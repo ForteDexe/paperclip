@@ -63,61 +63,14 @@ export interface BundledPluginCatalogEntry {
  * Keys outside this table can never be installed through this path,
  * regardless of what the managed config document says.
  */
-export const BUNDLED_PLUGIN_CATALOG: readonly BundledPluginCatalogEntry[] = [
-  {
-    key: "boxd",
-    pluginKey: "outpost.boxd-sandbox-provider",
-    relativePath: "sandbox-providers/boxd",
-  },
-  {
-    key: "createos",
-    pluginKey: "outpost.createos-sandbox-provider",
-    relativePath: "sandbox-providers/createos",
-  },
-  {
-    key: "cloudflare",
-    pluginKey: "outpost.cloudflare-sandbox-provider",
-    relativePath: "sandbox-providers/cloudflare",
-  },
-  {
-    key: "daytona",
-    pluginKey: "outpost.daytona-sandbox-provider",
-    relativePath: "sandbox-providers/daytona",
-  },
-  {
-    key: "e2b",
-    pluginKey: "outpost.e2b-sandbox-provider",
-    relativePath: "sandbox-providers/e2b",
-  },
-  {
-    key: "exe-dev",
-    pluginKey: "outpost.exe-dev-sandbox-provider",
-    relativePath: "sandbox-providers/exe-dev",
-  },
-  {
-    key: "kubernetes",
-    pluginKey: "outpost.kubernetes-sandbox-provider",
-    relativePath: "sandbox-providers/kubernetes",
-    pathOverrideEnvVar: "OUTPOST_KUBERNETES_PLUGIN_PATH",
-  },
-  {
-    key: "modal",
-    pluginKey: "outpost.modal-sandbox-provider",
-    relativePath: "sandbox-providers/modal",
-  },
-  {
-    key: "novita",
-    pluginKey: "outpost.novita-sandbox-provider",
-    relativePath: "sandbox-providers/novita",
-  },
-];
+export const BUNDLED_PLUGIN_CATALOG: readonly BundledPluginCatalogEntry[] = [];
 
 /**
  * Keys ensured on a self-hosted instance (no managed config present).
  * Exactly the pre-refactor behavior: the kubernetes sandbox provider is
  * auto-installed when its bundle is present, nothing else.
  */
-export const SELF_HOSTED_AUTO_INSTALL_KEYS: readonly string[] = ["kubernetes"];
+export const SELF_HOSTED_AUTO_INSTALL_KEYS: readonly string[] = [];
 
 export function resolveManagedBundledPluginKeys(
   keys: readonly string[] | null | undefined,

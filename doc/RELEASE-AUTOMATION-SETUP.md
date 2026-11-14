@@ -221,7 +221,7 @@ If `@cryppadotta` is not the right reviewer identity in the public repo, change 
 
 ## 8.1. Let the Lockfile Bot Merge Lockfile Refreshes
 
-`.github/workflows/refresh-lockfile.yml` regenerates `pnpm-lock.yaml` from the manifests on `master` and merges the result without CI or review. It also regenerates the sandbox provider lockfiles, `scripts/typecheck-sandbox-providers/pnpm-lock.yaml` and `packages/plugins/sandbox-providers/daytona/pnpm-lock.yaml`, in the same pull request. `LOCKFILES` in `.github/scripts/lockfile-trust.mjs` and in the workflow lists all three. Only trusted environments write lock content, and contributors never commit it. Two writers can change these lockfiles:
+`.github/workflows/refresh-lockfile.yml` regenerates `pnpm-lock.yaml` from the manifests on `master` and merges the result without CI or review. `LOCKFILES` in `.github/scripts/lockfile-trust.mjs` and in the workflow lists this managed lockfile. Only trusted environments write lock content, and contributors never commit it. Two writers can change this lockfile:
 
 - this workflow, on its `chore/refresh-lockfile` branch
 - Dependabot, but only when the lockfile in its pull request matches a verified Dependabot commit

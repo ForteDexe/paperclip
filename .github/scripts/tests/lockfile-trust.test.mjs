@@ -11,7 +11,6 @@ import {
   isDependabotCommit,
   isGitHubSignedCommit,
   LOCKFILES,
-  PROVIDER_LOCKFILES,
 } from '../lockfile-trust.mjs';
 
 const repo = 'paperclipai/paperclip';
@@ -81,36 +80,12 @@ test('blocks a Dependabot author from a fork', () => {
   assert.equal(result.allowed, false);
 });
 
-test('guards the sandbox provider lockfiles as well as the root lockfile', () => {
-  assert.deepEqual(LOCKFILES, ['pnpm-lock.yaml', ...PROVIDER_LOCKFILES]);
-  for (const file of PROVIDER_LOCKFILES) {
-    const result = classifyPullRequest({ ...base, changedPaths: [file] });
-    assert.equal(result.allowed, false, file);
-    assert.ok(result.reason.includes(file), result.reason);
-  }
-});
-
-test('allows the refresh workflow to change the provider lockfiles', () => {
+test('allows the refresh workflow to change the root lockfile', () => {
+  assert.deepEqual(LOCKFILES, ['pnpm-lock.yaml']);
   const result = classifyPullRequest({ ...base, author: 'github-actions[bot]', headRef: 'chore/refresh-lockfile',
     changedPaths: LOCKFILES });
   assert.equal(result.allowed, true);
   assert.equal(result.writer, 'refresh-bot');
-});
-
-test('allows a Dependabot provider lockfile that matches a verified Dependabot commit', () => {
-  const [file] = PROVIDER_LOCKFILES;
-  const result = classifyPullRequest({ ...base, author: 'dependabot[bot]',
-    changedPaths: ['packages/plugins/sandbox-providers/e2b/package.json', file], dependabotLockCommits: { [file]: 'abc123' } });
-  assert.equal(result.allowed, true);
-  assert.equal(result.writer, 'dependabot');
-});
-
-test('blocks a Dependabot pull request when any changed lockfile is unverified', () => {
-  const [file] = PROVIDER_LOCKFILES;
-  const result = classifyPullRequest({ ...base, author: 'dependabot[bot]',
-    changedPaths: ['pnpm-lock.yaml', file], dependabotLockCommits: { 'pnpm-lock.yaml': 'abc123', [file]: null } });
-  assert.equal(result.allowed, false);
-  assert.ok(result.reason.startsWith(`${file} does not match`), result.reason);
 });
 
 test('finds only verified Dependabot commits that hold the exact lockfile', () => {
@@ -225,36 +200,6 @@ test('pr command blocks a lockfile commit whose Dependabot author another commit
   });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /Untrusted lockfile change/);
-});
-
-test('pr command checks each lockfile a Dependabot pull request changes', () => {
-  const [file] = PROVIDER_LOCKFILES;
-  const admitted = runPrCheck((commit) => {
-    const sha = commit('dependabot', { [file]: 'lock: dependabot\n', 'package.json': '{"zod":"4.6.6"}\n' });
-    return { author: 'dependabot[bot]', commits: [{ sha, login: 'dependabot[bot]', committer: 'web-flow', verified: true }] };
-  });
-  assert.equal(admitted.status, 0, admitted.stdout);
-  assert.match(admitted.output, /^writer=dependabot$/m);
-
-  const edited = runPrCheck((commit) => {
-    const sha = commit('dependabot', { 'pnpm-lock.yaml': 'lock: dependabot\n', [file]: 'lock: dependabot\n' });
-    const edit = commit('maintainer', { [file]: 'lock: edited\n' });
-    return { author: 'dependabot[bot]', commits: [
-      { sha, login: 'dependabot[bot]', committer: 'web-flow', verified: true },
-      { sha: edit, login: 'maintainer', committer: 'web-flow', verified: true },
-    ] };
-  });
-  assert.equal(edited.status, 1, edited.stdout);
-  assert.ok(edited.stdout.includes(`${file} does not match`), edited.stdout);
-});
-
-test('pr command blocks a contributor change to a provider lockfile', () => {
-  const result = runPrCheck((commit) => {
-    commit('someuser', { [PROVIDER_LOCKFILES[1]]: 'lock: contributor\n' });
-    return { author: 'someuser', commits: [] };
-  });
-  assert.equal(result.status, 1);
-  assert.match(result.output, /^writer=none$/m);
 });
 
 test('pr command blocks a contributor lockfile change', () => {

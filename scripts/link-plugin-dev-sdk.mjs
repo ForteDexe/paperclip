@@ -20,7 +20,6 @@ const sdkDir = join(repoRoot, "packages", "plugins", "sdk");
 // linked in for local dev. Keep in sync with pnpm-workspace.yaml exclusions.
 function excludedPluginDirs() {
   return [
-    ...readPluginsUnder(join(repoRoot, "packages", "plugins", "sandbox-providers")),
     join(repoRoot, "packages", "plugins", "examples", "plugin-orchestration-smoke-example"),
   ];
 }
@@ -48,9 +47,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 }
 
 // Recursively collect package directories (those containing a package.json)
-// under parentDir. The matching pnpm-workspace.yaml exclusion uses a recursive
-// glob (e.g. "!packages/plugins/sandbox-providers/**"), so a provider nested
-// deeper than one level must still be discovered here.
+// under parentDir.
 export function readPluginsUnder(parentDir) {
   if (!existsSync(parentDir)) return [];
   const found = [];

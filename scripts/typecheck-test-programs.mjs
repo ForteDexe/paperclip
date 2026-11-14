@@ -3,11 +3,7 @@
 //
 // Most package tsconfigs exclude tests so that `tsc` does not emit them, and
 // Vitest strips types, so a type error in those tests fails nothing. Each program
-// in PROGRAMS reads them without emitting. Sandbox providers are outside the
-// workspace, so the root install has none of their dependencies. They install from
-// typecheck-sandbox-providers/pnpm-lock.yaml here, because their SDK types are part
-// of what a test checks. A provider with its own lockfile (LOCKED_PROVIDERS) installs
-// from that lockfile instead, so each lockfile has one owner and one Dependabot entry.
+// in PROGRAMS reads them without emitting.
 //
 // The script then fails if a tracked test file is in no program. tsc decides that,
 // not a glob: `include` silently drops foo.test.tsx when foo.test.ts exists.
@@ -19,28 +15,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { linkExcludedPlugins } from "./link-plugin-dev-sdk.mjs";
 import { LOW_MEMORY_VARIABLE, runTsc } from "./run-tsc.mjs";
 import { PROJECTS } from "./typecheck-test-projects.mjs";
-
-export const PROVIDER_WORKSPACE = "scripts/typecheck-sandbox-providers";
-
-export const SANDBOX_PROVIDERS = [
-  "packages/plugins/sandbox-providers/boxd",
-  "packages/plugins/sandbox-providers/cloudflare",
-  "packages/plugins/sandbox-providers/cloudflare/bridge-template",
-  "packages/plugins/sandbox-providers/createos",
-  "packages/plugins/sandbox-providers/daytona",
-  "packages/plugins/sandbox-providers/e2b",
-  "packages/plugins/sandbox-providers/exe-dev",
-  "packages/plugins/sandbox-providers/kubernetes",
-  "packages/plugins/sandbox-providers/modal",
-  "packages/plugins/sandbox-providers/novita",
-];
-
-// Providers that commit their own pnpm-lock.yaml. The release build and the Daytona
-// end-to-end job install it frozen, so the shared workspace leaves them out.
-export const LOCKED_PROVIDERS = ["packages/plugins/sandbox-providers/daytona"];
 
 export const PROGRAMS = [
   "packages/db/tsconfig.test.json",
@@ -50,7 +26,6 @@ export const PROGRAMS = [
   "packages/plugins/examples/plugin-orchestration-smoke-example/tsconfig.test.json",
   "packages/plugins/plugin-workspace-diff/tsconfig.test.json",
   "packages/plugins/sdk/tsconfig.test.json",
-  ...SANDBOX_PROVIDERS.map((directory) => `${directory}/tsconfig.test.json`),
   "tests/runner-acceptance/tsconfig.json",
   "tests/tsconfig.playwright.json",
 ];
@@ -62,15 +37,6 @@ const PREPARE_STEPS = [
   ["--filter", "@outpost/plugin-sdk", "ensure-build-deps"],
   ["--filter", "@outpost/outpost-runner", "run", "ensure:eval-build-deps"],
 ];
-// Replacing a provider's standalone node_modules would otherwise ask for confirmation.
-const INSTALL_ARGS = ["install", "--frozen-lockfile", "--ignore-scripts", "--prefer-offline", "--config.confirmModulesPurge=false"];
-const LOCKED_INSTALL_ARGS = ["install", "--ignore-workspace", ...INSTALL_ARGS.slice(1)];
-// Contributors do not commit provider lockfiles: the lockfile refresh workflow regenerates them after
-// merge, as it does the root pnpm-lock.yaml. Until then a changed manifest leaves the lockfile stale,
-// so resolve it in place, like the root install in CI.
-export const RESOLVE_ARGS = ["install", "--resolution-only", "--ignore-scripts", "--no-frozen-lockfile"];
-const LOCKED_RESOLVE_ARGS = ["install", "--ignore-workspace", ...RESOLVE_ARGS.slice(1)];
-
 export function findUncheckedTests({ trackedFiles, checkedFiles, checkedElsewhere = CHECKED_ELSEWHERE }) {
   const checked = new Set(checkedFiles);
   return trackedFiles.filter(
@@ -164,7 +130,6 @@ export function typecheckTestPrograms({
   programs = PROGRAMS,
   coverage = true,
   pnpm = runPnpm,
-  linkPlugins = linkExcludedPlugins,
   run = runTsc,
   checkFiles = checkCoverage,
   log = console.log,
@@ -174,29 +139,6 @@ export function typecheckTestPrograms({
     const status = pnpm(args, { cwd: root, env });
     if (status !== 0) return status;
   }
-  const install = (directory, frozenArgs, resolveArgs) => {
-    const cwd = path.join(root, directory);
-    let status = pnpm(frozenArgs, { cwd, env });
-    if (status !== 0) {
-      log(
-        `typecheck:test-programs: ${directory}/pnpm-lock.yaml does not match its manifests. ` +
-          `Resolving it in place. Do not commit it: the lockfile refresh workflow updates it after merge.`,
-      );
-      status = pnpm(resolveArgs, { cwd, env });
-      if (status === 0) status = pnpm(frozenArgs, { cwd, env });
-    }
-    if (status !== 0) logError(`typecheck:test-programs: could not install the sandbox providers in ${directory}`);
-    return status;
-  };
-  const installed = install(PROVIDER_WORKSPACE, INSTALL_ARGS, RESOLVE_ARGS);
-  if (installed !== 0) return installed;
-  for (const provider of LOCKED_PROVIDERS) {
-    const status = install(provider, LOCKED_INSTALL_ARGS, LOCKED_RESOLVE_ARGS);
-    if (status !== 0) return status;
-  }
-  // The installs remove the SDK link from each provider's node_modules.
-  linkPlugins();
-
   let exitCode = 0;
   for (const config of programs) {
     log(`typecheck:test-programs: ${config}`);

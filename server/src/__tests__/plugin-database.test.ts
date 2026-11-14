@@ -162,7 +162,7 @@ describe("buildPluginWorkerEnv", () => {
     });
   });
 
-  it("passes only model provider keys through to environment driver plugins", () => {
+  it("does not implicitly expose provider credentials to environment driver plugins", () => {
     const env = buildPluginWorkerEnv({
       manifest: { capabilities: ["environment.drivers.register"] },
       instanceInfo,
@@ -177,28 +177,25 @@ describe("buildPluginWorkerEnv", () => {
     expect(env).toEqual({
       OUTPOST_DEPLOYMENT_MODE: "authenticated",
       OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-      ANTHROPIC_API_KEY: "anthropic-token",
-      OPENAI_API_KEY: "openai-token",
     });
   });
 
-  it("passes in-cluster Kubernetes service-discovery vars to environment driver plugins", () => {
+  it("forwards explicitly granted variables to environment driver plugins", () => {
     const env = buildPluginWorkerEnv({
       manifest: { capabilities: ["environment.drivers.register"] },
       instanceInfo,
+      grantedEnvVars: ["CUSTOM_RUNTIME_TOKEN", "CUSTOM_BLANK"],
       processEnv: {
-        KUBERNETES_SERVICE_HOST: "10.0.0.1",
-        KUBERNETES_SERVICE_PORT: "443",
-        KUBERNETES_SERVICE_PORT_HTTPS: " ",
-        AWS_SECRET_ACCESS_KEY: "aws-secret",
+        CUSTOM_RUNTIME_TOKEN: "runtime-token",
+        CUSTOM_BLANK: " ",
+        OPENAI_API_KEY: "openai-token",
       },
     });
 
     expect(env).toEqual({
       OUTPOST_DEPLOYMENT_MODE: "authenticated",
       OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-      KUBERNETES_SERVICE_HOST: "10.0.0.1",
-      KUBERNETES_SERVICE_PORT: "443",
+      CUSTOM_RUNTIME_TOKEN: "runtime-token",
     });
   });
 
@@ -217,157 +214,6 @@ describe("buildPluginWorkerEnv", () => {
     });
   });
 
-  it.each([
-    { packagePath: null, packageName: "@outpost/plugin-createos", driverKey: "createos", allowed: true },
-    { packagePath: "/app/packages/plugins/sandbox-providers/createos", packageName: "@outpost/plugin-createos", driverKey: "createos", allowed: true },
-    { packagePath: "/home/operator/plugins/fake-createos", packageName: "@outpost/plugin-createos", driverKey: "createos", allowed: false },
-    { packagePath: null, packageName: "@acme/plugin-createos", driverKey: "createos", allowed: false },
-    { packagePath: null, packageName: "@outpost/plugin-createos", driverKey: "daytona", allowed: false },
-  ])("confines the CreateOS fallback credential to its trusted worker: $packageName / $packagePath / $driverKey", ({ allowed, driverKey, ...installation }) => {
-    const env = buildPluginWorkerEnv({
-      ...installation,
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey }],
-      },
-      trustedLocalPluginRoots: ["/app/packages/plugins"],
-      instanceInfo,
-      processEnv: { CREATEOS_API_KEY: "createos-token", DAYTONA_API_KEY: "daytona-token" },
-    });
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-      ...(allowed ? { CREATEOS_API_KEY: "createos-token" } : {}),
-    });
-  });
-
-  it.each([
-    { packagePath: null, packageName: "@outpost/plugin-boxd", driverKey: "boxd", allowed: true },
-    { packagePath: "/app/packages/plugins/sandbox-providers/boxd", packageName: "@outpost/plugin-boxd", driverKey: "boxd", allowed: true },
-    { packagePath: "/home/operator/plugins/fake-boxd", packageName: "@outpost/plugin-boxd", driverKey: "boxd", allowed: false },
-    { packagePath: null, packageName: "@acme/plugin-boxd", driverKey: "boxd", allowed: false },
-    { packagePath: null, packageName: "@outpost/plugin-boxd", driverKey: "daytona", allowed: false },
-  ])("confines the boxd fallback credential to its trusted worker: $packageName / $packagePath / $driverKey", ({ allowed, driverKey, ...installation }) => {
-    const env = buildPluginWorkerEnv({
-      ...installation,
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey }],
-      },
-      trustedLocalPluginRoots: ["/app/packages/plugins"],
-      instanceInfo,
-      processEnv: { BOXD_API_KEY: "boxd-token", DAYTONA_API_KEY: "daytona-token" },
-    });
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-      ...(allowed ? { BOXD_API_KEY: "boxd-token" } : {}),
-    });
-  });
-
-  it("passes a first-party sandbox provider's documented credential env var to its own worker", () => {
-    const env = buildPluginWorkerEnv({
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey: "daytona" }],
-      },
-      packageName: "@outpost/plugin-daytona",
-      packagePath: null,
-      instanceInfo,
-      processEnv: {
-        DAYTONA_API_KEY: "daytona-token",
-        NOVITA_API_KEY: "novita-token",
-        E2B_API_KEY: " ",
-      },
-    });
-
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-      DAYTONA_API_KEY: "daytona-token",
-    });
-  });
-
-  it("passes the credential to a first-party plugin installed from the bundled catalog", () => {
-    const env = buildPluginWorkerEnv({
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey: "daytona" }],
-      },
-      packageName: "@outpost/plugin-daytona",
-      packagePath: "/app/packages/plugins/sandbox-providers/daytona",
-      trustedLocalPluginRoots: ["/app/packages/plugins"],
-      instanceInfo,
-      processEnv: {
-        DAYTONA_API_KEY: "daytona-token",
-      },
-    });
-
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-      DAYTONA_API_KEY: "daytona-token",
-    });
-  });
-
-  it("does not pass the credential to a local plugin that self-declares the first-party name", () => {
-    const env = buildPluginWorkerEnv({
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey: "daytona" }],
-      },
-      packageName: "@outpost/plugin-daytona",
-      packagePath: "/home/operator/.outpost/plugins/fake-daytona",
-      trustedLocalPluginRoots: ["/app/packages/plugins"],
-      instanceInfo,
-      processEnv: {
-        DAYTONA_API_KEY: "daytona-token",
-      },
-    });
-
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-    });
-  });
-
-  it("does not pass a credential to a third-party plugin that claims a first-party driver key", () => {
-    const env = buildPluginWorkerEnv({
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey: "daytona" }],
-      },
-      packageName: "@acme/plugin-fake-daytona",
-      instanceInfo,
-      processEnv: {
-        DAYTONA_API_KEY: "daytona-token",
-      },
-    });
-
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-    });
-  });
-
-  it("does not pass a credential when the first-party package omits its expected driver key", () => {
-    const env = buildPluginWorkerEnv({
-      manifest: {
-        capabilities: ["environment.drivers.register"],
-        environmentDrivers: [{ driverKey: "kubernetes" }],
-      },
-      packageName: "@outpost/plugin-daytona",
-      instanceInfo,
-      processEnv: {
-        DAYTONA_API_KEY: "daytona-token",
-      },
-    });
-
-    expect(env).toEqual({
-      OUTPOST_DEPLOYMENT_MODE: "authenticated",
-      OUTPOST_DEPLOYMENT_EXPOSURE: "public",
-    });
-  });
 });
 
 describeEmbeddedPostgres("plugin database namespaces", () => {

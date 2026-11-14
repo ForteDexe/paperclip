@@ -26,14 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 // The root lockfile. The reporting-lock proof and the `merged` command follow this one only.
 export const LOCKFILE = 'pnpm-lock.yaml';
-// Sandbox providers stay out of the root workspace (see doc/DEVELOPING.md), so they have their own
-// pnpm lockfiles. The refresh workflow regenerates these too, and its LOCKFILES env lists the same
-// paths. Hand-managed pins, such as the Pi and Kimi distributions, are not listed.
-export const PROVIDER_LOCKFILES = [
-  'scripts/typecheck-sandbox-providers/pnpm-lock.yaml',
-  'packages/plugins/sandbox-providers/daytona/pnpm-lock.yaml',
-];
-export const LOCKFILES = [LOCKFILE, ...PROVIDER_LOCKFILES];
+export const LOCKFILES = [LOCKFILE];
 export const REPORT_LOCK_FILES = ['tests/runner-e2e/report-lock.json', 'tests/runner-e2e/report-lock.patch'];
 export const DEPENDABOT_LOGIN = 'dependabot[bot]';
 export const REFRESH_BRANCH = 'chore/refresh-lockfile';

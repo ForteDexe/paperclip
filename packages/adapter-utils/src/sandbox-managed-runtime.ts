@@ -712,9 +712,7 @@ function buildWorkspaceTarExtractCommand(input: {
   // workspace root. A concurrent referenced-project upload stages a scratch
   // tarball named `.outpost-upload-<uuid>.tar` there. Without this preserve
   // term the wipe unlinks the in-flight tarball and the later extract fails.
-  // The static pattern must agree with the daytona scratch prefix
-  // `SCRATCH_PREFIX` in
-  // `packages/plugins/sandbox-providers/daytona/src/file-sync.ts:80`.
+  // The static pattern must agree with the managed-runtime scratch prefix.
   // The term is a static literal; `preserveFindArgs` shell-quotes it, so the
   // shell passes it to `find -name` as a pattern (Security Conditions C1/C3).
   const wipe = input.wipeExceptNames
@@ -1490,8 +1488,8 @@ export async function prepareSandboxManagedRuntime(input: {
   // the orchestrator no longer inlines `writeFile`+`run` or chooses a transport,
   // and there is no `usesCustomProvision` native-diversion gate. `syncIn` is
   // ALWAYS present in production — the command-managed client exposes a native
-  // transport (Daytona/Kubernetes `uploadFiles` + provider-executed post-upload
-  // commands) or a byte-identical base64-tar fallback that reproduces the prior
+  // transport (provider `uploadFiles` plus post-upload commands) or a
+  // byte-identical base64-tar fallback that reproduces the prior
   // `writeFile`+`run` sequence. Require it explicitly so a misconfigured client
   // fails loud rather than silently skipping staging. `syncOut` stays optional
   // (native-only) with a tar fallback on the restore path below.

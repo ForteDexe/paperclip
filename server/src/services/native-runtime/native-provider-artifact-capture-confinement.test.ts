@@ -11,14 +11,12 @@ import { captureRemoteNativeProviderArtifacts } from "./native-provider-artifact
 
 const run = promisify(execFile);
 
-// Mirrors the Daytona provider's outbound source guard (`assertConfinedSandboxPath`
-// in packages/plugins/sandbox-providers/daytona/src/file-sync.ts). Kubernetes and
-// CreateOS apply the same workspace-root confinement to export sources.
+// Models the workspace-root confinement required for remote export sources.
 function assertConfinedSandboxPath(remoteDir: string, candidate: string, label: string) {
   const root = posix.normalize(remoteDir);
   const normalized = posix.normalize(candidate);
   if (normalized !== root && !normalized.startsWith(`${root}/`)) {
-    throw new Error(`Daytona sync ${label} path escapes the workspace remote dir: ${candidate}`);
+    throw new Error(`Remote sync ${label} path escapes the workspace remote dir: ${candidate}`);
   }
 }
 const names = ["nodeCommand", "opencodeProxy", "opencodeExecutable"] as const;
@@ -28,9 +26,9 @@ afterEach(async () => {
 });
 
 /**
- * A sandbox whose bulk export is confined to the workspace remote dir, as the
- * Daytona, Kubernetes, and CreateOS providers are. The qualified launch root
- * lives under the sandbox account's home, outside that workspace.
+ * A sandbox whose bulk export is confined to the workspace remote dir. The
+ * qualified launch root lives under the sandbox account's home, outside that
+ * workspace.
  */
 async function confinedSandbox() {
   const sandbox = await mkdtemp(join(tmpdir(), "pc-confined-sandbox-"));

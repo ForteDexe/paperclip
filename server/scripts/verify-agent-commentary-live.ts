@@ -18,7 +18,6 @@ import { executeOutpostNativeSession } from "../src/services/native-runtime/nati
 import { buildNativeExecutionInput } from "../src/services/native-runtime/native-execution-input.js";
 import { buildNativeRuntimeContext } from "../src/services/native-runtime/runtime-context.js";
 import { ensureNativeCompletionContract } from "../src/services/native-runtime/completion-contracts.js";
-import { acquireCommentaryDaytonaTarget } from "./agent-commentary-daytona.js";
 import { redactSensitiveText } from "../src/redaction.js";
 
 const root = await mkdtemp(join(tmpdir(), "outpost-commentary-live-"));
@@ -33,9 +32,6 @@ async function makeRemovable(path: string): Promise<void> {
 }
 try {
   assert.ok(!process.argv[2] || ["legacy", "native"].includes(process.argv[2]), "Choose legacy, native, or omit the argument for both");
-  if (process.env.OUTPOST_LIVE_ENVIRONMENT === "daytona" && process.argv[2] !== "legacy") {
-    assert.ok(process.env.OUTPOST_LIVE_LINUX_RUNNER, "Build and specify the current Linux runner before the native Daytona smoke");
-  }
   const authSource = process.env.OUTPOST_LIVE_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
   const codexHome = join(root, "codex");
   await mkdir(codexHome, { mode: 0o700 });
@@ -55,8 +51,7 @@ try {
   for (const mode of ["legacy", "native"] as const) {
     if (process.argv[2] && process.argv[2] !== mode) continue;
     const f: Awaited<ReturnType<typeof server.fixture>> = await server.fixture({ disableWakeOnDemand: true });
-    const remote: Awaited<ReturnType<typeof acquireCommentaryDaytonaTarget>> | null = process.env.OUTPOST_LIVE_ENVIRONMENT === "daytona" ? await acquireCommentaryDaytonaTarget(server.db, f, mode) : null;
-    try {
+    {
       const prompt = `This is a bounded integration test in a disposable Outpost instance. Use the available feedback interface to submit exactly one complaint (body: "Live ${mode} complaint: the fixture made me repeat the same setup. UGH.", key: "live-complaint") and one suggestion (body: "Live ${mode} suggestion: repeated setup wastes time; cache the fixture after initialization.", key: "live-suggestion"). ${mode === "legacy" ? "Read the automatically installed complain and suggestion-box skills and use their operational-skill stdin helper, passing each key as its second argument." : "Use the submit_complaint and submit_suggestion native tools with body and idempotencyKey."} Then continue the primary task by writing continued.txt in the working directory containing exactly continued-after-feedback. End with a brief final response. Do not create task comments or modify task status; the test harness owns disposition. Do not retry submissions. Do not access other workspaces or any external messaging tools.`;
       let log = "";
       const onLog = async (_stream: "stdout" | "stderr", chunk: string) => { log += chunk; };
@@ -71,7 +66,6 @@ try {
           runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: f.issueId },
           config: { engine: "cli", cwd: f.workspace, timeoutSec: 180, promptTemplate: prompt, extraArgs: ["--skip-git-repo-check"], env: { CODEX_HOME: codexHome } },
           context: { issueId: f.issueId },
-          executionTarget: remote?.target,
           authToken: createLocalAgentJwt(f.agentId, f.spaceId, "codex_local", f.runId)!, onLog,
         });
         for (const skill of ["complain", "suggestion-box", "outpost"]) {
@@ -79,7 +73,7 @@ try {
         }
       } else {
         const [run] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-        const native = await prepareNativeHeartbeatRun({ db: server.db, run, issue: { id: f.issueId, title: "Feedback smoke", description: prompt, reviewPolicy: null }, environmentLeaseId: remote?.target.leaseId ?? randomUUID() });
+        const native = await prepareNativeHeartbeatRun({ db: server.db, run, issue: { id: f.issueId, title: "Feedback smoke", description: prompt, reviewPolicy: null }, environmentLeaseId: randomUUID() });
         const [agent] = await server.db.select().from(agents).where(eq(agents.id, f.agentId));
         const completion = await ensureNativeCompletionContract({ db: server.db, spaceId: f.spaceId, issue: { id: f.issueId, title: "Feedback smoke", description: prompt }, actorId: f.agentId });
         const execution = buildNativeExecutionInput({
@@ -95,9 +89,6 @@ try {
         result = await executeOutpostNativeSession({
           db: server.db, execution, runnerInstanceId: native.runnerInstanceId, turnTimeoutMs: 180_000,
           runnerEnvironment: { ...process.env, CODEX_HOME: codexHome }, useRunnerd: true, onLog,
-          runnerExecutionTarget: remote?.target, runnerIngressAuthorized: Boolean(remote),
-          runnerRemoteBinaryPath: remote ? process.env.OUTPOST_LIVE_LINUX_RUNNER : undefined,
-          runnerRemoteCodexNpmSpec: remote ? "@openai/codex@0.160.0" : undefined,
           managedAiCredentialHome: codexHome,
         }).catch((error) => { throw new Error(redactSensitiveText(log.slice(-3000)), { cause: error }); });
       }
@@ -108,9 +99,7 @@ try {
       assert.equal(rows.length, 2, `${mode}: expected two persisted rows (adapter exit ${result.exitCode}, timed out ${result.timedOut})`);
       assert.deepEqual(rows.map(r => r.kind).sort(), ["complaint", "suggestion"]);
       assert.ok(rows.every(r => r.spaceId === f.spaceId && r.agentId === f.agentId && r.runId === f.runId && r.issueId === f.issueId));
-      const continued: string = remote && mode === "native"
-        ? (await remote.target.runner!.execute({ command: "cat", args: ["continued.txt"], cwd: remote.target.remoteCwd, bypassSession: true })).stdout
-        : await readFile(join(f.workspace, "continued.txt"), "utf8");
+      const continued = await readFile(join(f.workspace, "continued.txt"), "utf8");
       assert.equal(continued.trim(), "continued-after-feedback");
       const snapshot = await f.snapshot();
       assert.equal(snapshot.comments.length, 0);
@@ -119,16 +108,11 @@ try {
       const feedbackAudit = audit.filter(a => a.action === "agent.commentary_submitted");
       assert.equal(feedbackAudit.length, 2);
       assert.ok(feedbackAudit.every(a => Object.keys(a.details ?? {}).join() === "kind"));
-      evidence.push({ environment: remote ? "daytona" : "local", image: remote?.image, providerLeaseId: remote?.providerLeaseId, mode, exitCode: result.exitCode, timedOut: result.timedOut, spaceId: f.spaceId, agentId: f.agentId, runId: f.runId, issueId: f.issueId, rows: rows.map(({id, kind, createdAt}) => ({id, kind, createdAt})), continued: true, taskComments: 0, taskStatus: "in_progress", contentFreeAuditEntries: feedbackAudit.length });
+      evidence.push({ environment: "local", mode, exitCode: result.exitCode, timedOut: result.timedOut, spaceId: f.spaceId, agentId: f.agentId, runId: f.runId, issueId: f.issueId, rows: rows.map(({id, kind, createdAt}) => ({id, kind, createdAt})), continued: true, taskComments: 0, taskStatus: "in_progress", contentFreeAuditEntries: feedbackAudit.length });
       // Stop the fixture run so no subsequent sweep treats it as live work.
       await server.db.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
       await server.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
       log = "";
-    } finally {
-      if (remote) {
-        await remote.cleanup();
-        console.error(`Destroyed disposable ${mode} Daytona sandbox.`);
-      }
     }
   }
   const report = JSON.stringify({ verifiedAt: new Date().toISOString(), evidence }, null, 2);

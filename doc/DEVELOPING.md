@@ -135,8 +135,6 @@ Current implementation status:
 GitHub Actions owns every managed pnpm lockfile:
 
 - `pnpm-lock.yaml` at the repository root
-- `scripts/typecheck-sandbox-providers/pnpm-lock.yaml`, for the sandbox providers
-- `packages/plugins/sandbox-providers/daytona/pnpm-lock.yaml`
 
 `LOCKFILES` in `.github/scripts/lockfile-trust.mjs` lists them.
 
@@ -1518,53 +1516,6 @@ exists.
 
 To add a test directory, add it to the `include` of the package's
 `tsconfig.test.json`. To add a package, add a program to `PROGRAMS` in the script.
-
-Sandbox providers are outside the root workspace, so the root install has none of
-their SDKs. `scripts/typecheck-sandbox-providers` is a small workspace that lists
-them and holds one lockfile. Its install replaces any standalone `node_modules` in
-those providers. After you change a provider's `package.json`, do not refresh or
-commit that lockfile. `typecheck:test-programs` resolves a stale lockfile in place
-for the run, and the lockfile refresh workflow commits the new one after merge (see
-[Dependency Lockfile Policy](#dependency-lockfile-policy)).
-
-Do not add a lockfile inside a provider.
-`scripts/build-standalone-public-packages.mjs` uses a frozen install when one
-exists, which changes what a release resolves. Daytona already has one; the
-release build resolves it in place when it is stale.
-
-Daytona is the one exception: it commits its own lockfile, so the workspace
-leaves it out and the script installs it from that lockfile (`LOCKED_PROVIDERS`).
-The same rule applies to it: do not refresh or commit that lockfile. The script
-resolves a stale one in place for the run, and the lockfile refresh workflow
-commits the new one after merge.
-
-Dependabot updates the providers through this workspace (see
-`.github/dependabot.yml`), and Daytona through a second entry. Dependabot does
-not expand a workspace glob that starts with `../`, so
-`scripts/typecheck-sandbox-providers/pnpm-workspace.yaml` lists each provider by
-its full path. When you add a provider, add it there and to `SANDBOX_PROVIDERS`
-in `scripts/typecheck-test-programs.mjs`. A test checks that the two lists match.
-
-#### Sandbox provider tests
-
-`pnpm test:run` does not reach the sandbox providers, because they are outside the
-root workspace. `scripts/test-sandbox-providers.mjs` installs them the same way as
-the typecheck above, then runs every provider's `pnpm test`, four at a time:
-
-```sh
-node scripts/test-sandbox-providers.mjs
-```
-
-The required `Sandbox provider tests` job runs it when a pull request changes a
-provider, the plugin SDK, or `packages/shared`, which the SDK imports. Those paths
-are the `//#ci:sandbox-providers` inputs in `turbo.json`. Global CI inputs, such as
-`scripts/**` or a `package.json`, select every job. If the SDK gets a new workspace
-dependency, add that package to the inputs. A test in
-`.github/scripts/tests/ci-plan.test.mjs` fails until you do.
-
-Some Daytona file-sync tests need GNU `tar` and coreutils. They skip on macOS
-unless those tools are on `PATH`, so they run only on Linux. The job turns off
-core dumps: a core file in an exported directory changes the transferred file count.
 
 #### Reused Runner build in the server build
 
