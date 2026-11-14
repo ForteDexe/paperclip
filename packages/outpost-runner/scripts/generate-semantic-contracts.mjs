@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { serializeCapabilityGeneratedSemanticContracts } from "../dist/semantic-tools/provider-neutral.js";
-import { OUTPOST_RUNNER_BUILD_METADATA } from "../dist/evals/build-metadata.js";
+import { OUTPOST_RUNNER_BUILD_METADATA } from "../dist/release/build-metadata.js";
 import { buildProtocolManifest } from "./generate-protocol-manifest.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");

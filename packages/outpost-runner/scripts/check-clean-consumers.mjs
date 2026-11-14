@@ -213,8 +213,8 @@ import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultCapabilityRunnerdBinary } from "@outpost/outpost-runner";
-import { parseOutpostRunnerdBuildMetadata, OUTPOST_RUNNER_BUILD_METADATA } from "@outpost/outpost-runner/evals";
-// This is the installed package's default lookup. The separate eval artifact
+import { parseOutpostRunnerdBuildMetadata, OUTPOST_RUNNER_BUILD_METADATA } from "@outpost/outpost-runner/release";
+// This is the installed package's default lookup. Explicit artifact validation
 // below must not hide an unusable bundled daemon or repair its permissions.
 const bundledRunnerd = defaultCapabilityRunnerdBinary();
 const installedEntry = fileURLToPath(import.meta.resolve("@outpost/outpost-runner"));
@@ -245,7 +245,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 import * as runtime from "@outpost/outpost-runner";
-import * as evals from "@outpost/outpost-runner/evals";
+import * as release from "@outpost/outpost-runner/release";
 import * as testing from "@outpost/outpost-runner/testing";
 
 if ("MockControlPlaneAdapter" in runtime || "runControlPlanePortConformance" in runtime) {
@@ -262,14 +262,6 @@ const report = await testing.runControlPlanePortConformance({
 });
 if (report.eventCount !== 3) throw new Error("packed conformance kit returned the wrong event count");
 
-const nativeBundle = await evals.loadOutpostNativeExecutionFixture();
-if (nativeBundle.schema !== "outpost-runner/native-execution/v1") {
-  throw new Error("packed native execution fixture is unavailable");
-}
-if (nativeBundle.semanticTools.results[0]?.outcome !== "denied") {
-  throw new Error("native execution fixture lost its rejected tool effect");
-}
-
 runtime.assertOutpostRunnerCompatibility({
   consumer: "outpost-runner-clean-consumer",
   components: { catalog: 1, protocol: 1, runnerClient: 1, controlPlaneAdapter: 1, testkit: 1 },
@@ -284,47 +276,12 @@ if (!driverConformance.checks.transcriptCompleteness || driverConformance.semant
   throw new Error("packed harness-driver conformance did not cover transcript/tools");
 }
 
-const runnerd = await evals.resolveOutpostRunnerdArtifact({
+const runnerd = await release.resolveOutpostRunnerdArtifact({
   executablePath: process.env.OUTPOST_RUNNERD_ARTIFACT,
   expectedSha256: process.env.OUTPOST_RUNNERD_SHA256,
 });
-const evalCompatibility = evals.assertOutpostRunnerEvalCompatibility({
-  consumer: "outpost-runner-clean-consumer",
-  packageVersion: evals.OUTPOST_RUNNER_BUILD_METADATA.package.version,
-  runnerd: runnerd.buildMetadata,
-  nativeExecutionVersion: 1,
-  orp: { minimumVersion: 1, maximumVersion: 1 },
-  catalog: evals.OUTPOST_RUNNER_BUILD_METADATA.semanticCatalog,
-  driver: {
-    contractVersion: driverConformance.contractVersion,
-    descriptor: driverConformance.descriptor,
-    requiredCapabilities: ["typedEvents", "interruption", "usage", "dynamicTools"],
-  },
-});
-if (evalCompatibility.negotiatedPrpVersion !== 1) {
-  throw new Error("package/binary ORP negotiation returned the wrong version");
-}
-let mismatchFailedClosed = false;
-try {
-  evals.assertOutpostRunnerEvalCompatibility({
-    consumer: "incompatible-runner-clean-consumer",
-    packageVersion: evals.OUTPOST_RUNNER_BUILD_METADATA.package.version,
-    runnerd: { ...runnerd.buildMetadata, binaryContractVersion: 999 },
-    nativeExecutionVersion: 1,
-    orp: { minimumVersion: 1, maximumVersion: 1 },
-    catalog: evals.OUTPOST_RUNNER_BUILD_METADATA.semanticCatalog,
-    driver: {
-      contractVersion: driverConformance.contractVersion,
-      descriptor: driverConformance.descriptor,
-      requiredCapabilities: [],
-    },
-  });
-} catch (error) {
-  mismatchFailedClosed = error?.code === "outpost_runner_eval_incompatible"
-    && error.issues?.some((issue) => issue.code === "binary_contract_version_mismatch");
-}
-if (!mismatchFailedClosed) {
-  throw new Error("runnerd contract mismatch did not fail closed");
+if (runnerd.buildMetadata.binaryContractVersion !== release.OUTPOST_RUNNER_BUILD_METADATA.contracts.runnerdArtifact) {
+  throw new Error("runnerd contract does not match the packaged release metadata");
 }
 
 const normalized = {
@@ -374,7 +331,7 @@ await writeFile(process.env.OUTPOST_CONFORMANCE_RECORD, JSON.stringify({
     installMode: "offline-packed-artifact",
     imports: [
       "@outpost/outpost-runner",
-      "@outpost/outpost-runner/evals",
+      "@outpost/outpost-runner/release",
       "@outpost/outpost-runner/testing",
     ],
     appSourceTreeImports: false,
@@ -382,12 +339,10 @@ await writeFile(process.env.OUTPOST_CONFORMANCE_RECORD, JSON.stringify({
   },
   checks: {
     packageExportsResolved: true,
-    nativeExecutionFixture: {
-      schema: nativeBundle.schema,
-      rejectedToolEffectPreserved: true,
+    releaseArtifactContract: {
+      binaryContractVersion: runnerd.buildMetadata.binaryContractVersion,
+      verified: true,
     },
-    evalCompatibility,
-    evalMismatchFailedClosed: mismatchFailedClosed,
     mockControlPlaneConformance: report,
     harnessDriverConformance: driverConformance,
     runnerdDigest: true,

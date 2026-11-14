@@ -32,8 +32,8 @@ function regularFile(path, maximumSize) {
 }
 
 async function metadataContract() {
-  const { OUTPOST_RUNNER_BUILD_METADATA } = await import("../dist/evals/build-metadata.js");
-  const { parseOutpostRunnerdBuildMetadata } = await import("../dist/evals/runnerd-artifact.js");
+  const { OUTPOST_RUNNER_BUILD_METADATA } = await import("../dist/release/build-metadata.js");
+  const { parseOutpostRunnerdBuildMetadata } = await import("../dist/release/runnerd-artifact.js");
   return metadata => verifyReleaseRunnerMetadata(parseOutpostRunnerdBuildMetadata(metadata), OUTPOST_RUNNER_BUILD_METADATA);
 }
 export function verifyReleaseRunnerMetadata(metadata, expected) {

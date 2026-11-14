@@ -22,6 +22,10 @@
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
     },
+    "./release": {
+      "types": "./dist/release/index.d.ts",
+      "import": "./dist/release/index.js"
+    },
     "./live": {
       "types": "./dist/live/index.d.ts",
       "import": "./dist/live/index.js"
