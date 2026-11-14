@@ -756,47 +756,6 @@ JSON file and omit `CODEX_NOTIFICATION_SANDBOX_COMMAND`; that only exports a
 synthetic producer fixture for a separately controlled Linux sandbox. Exporting
 the fixture does not execute or verify the sandbox.
 
-## AWS AgentCore operations
-
-The AgentCore proof-of-concept uses an AWS CLI v2 profile to provision a
-dedicated invocation role and scoped resources. Its local mode-`0600` metadata
-file contains no access keys; probes assume short-lived STS credentials and
-clear them after use. Validate locally, provision or inspect the stack, run the
-bounded lab/smoke, and tear it down explicitly with:
-
-```sh
-pnpm --filter @outpost/outpost-runner test:aws-agentcore-provisioning
-pnpm --filter @outpost/outpost-runner aws-agentcore:provision -- --dry-run
-pnpm --filter @outpost/outpost-runner aws-agentcore:provision
-pnpm --filter @outpost/outpost-runner aws-agentcore:probe
-pnpm --filter @outpost/outpost-runner aws-agentcore:lab
-pnpm --filter @outpost/outpost-runner smoke:capability:aws-agentcore
-pnpm --filter @outpost/outpost-runner aws-agentcore:destroy -- --yes
-```
-
-To admit the hosted direct-eval workflow, provision with the account-local
-GitHub Actions OIDC provider and keep the default exact repository and protected
-environment binding:
-
-```sh
-pnpm --filter @outpost/outpost-runner aws-agentcore:provision -- \
-  --aws-profile outpost-dev \
-  --github-oidc-provider-arn arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com
-```
-
-This adds only `repo:paperclipai/paperclip:environment:runner-e2e-paid` as a
-web-identity subject on the scoped invocation role. The generated nonsecret
-profile records that role as both the local invocation role and the hosted
-execution role.
-
-Provisioning can incur Bedrock, AgentCore Runtime/Memory, storage, and private
-networking charges. Provisioning refuses to modify a colliding stack unless its
-Outpost ownership tags and template description match. A verified
-`ROLLBACK_COMPLETE` stack still requires `--replace-failed-stack` plus an
-interactive confirmation (or `--yes`) before it can be deleted and recreated.
-Destruction requires `--yes` and refuses to remove a stack with an active
-recorded lab unless `--force` is also supplied.
-
 ## Package-owned commands
 
 | Command                                                 | Purpose                                                                                                                                     |
@@ -809,9 +768,6 @@ recorded lab unless `--force` is also supplied.
 | `check:numbered-milestones`                             | Reject numbered construction-milestone names in tracked package paths and source.                                                           |
 | `check:package-boundaries`                              | Enforce the runtime/testing dependency and manifest boundary.                                                                               |
 | `check:clean-consumers`                                 | Pack the runner and install its root, release, and testing exports in a clean consumer.                                                     |
-| `test:aws-agentcore-provisioning`                       | Validate the AgentCore template and wrapper safety contracts without provisioning.                                                          |
-| `aws-agentcore:provision` / `probe` / `lab` / `destroy` | Manage the scoped AgentCore proof-of-concept lifecycle.                                                                                     |
-| `smoke:capability:aws-agentcore`                        | Exercise the qualified AgentCore profile through the capability harness.                                                                    |
 | `check:conformance-parity`                              | Require byte-for-byte equivalent Rust and TypeScript tracer output.                                                                         |
 | `check:replay-goldens`                                  | Require all reducer snapshots and cross-language summaries to match checked goldens.                                                        |
 | `check:replay-parity`                                   | Run TypeScript and Rust against the same Replay fixture summaries.                                                                          |

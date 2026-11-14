@@ -221,6 +221,15 @@ Campfire is the retained first-party plugin. The generic example plugins and
 the former Workspace Diff plugin are removed; the plugin SDK, lifecycle,
 bundled-plugin discovery, and install UI remain available for Campfire.
 
+### AWS AgentCore Provisioning Lab
+
+The CloudFormation template, AWS CLI lifecycle wrapper, paid live smoke, and
+their provisioning-contract test were a remote-provider proof of concept rather
+than part of Outpost's retained local Codex and Claude workflow. They are no
+longer shipped or exposed as runner package commands. Historical provider
+compatibility inside the shared runner remains deferred until it can be removed
+without disturbing the local session transport.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

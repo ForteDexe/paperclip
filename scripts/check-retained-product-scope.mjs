@@ -61,6 +61,10 @@ const retiredInfrastructure = [
   "packages/outpost-runner/src/eval",
   "packages/outpost-runner/src/evals",
   "packages/outpost-runner/src/cli/eval-session.ts",
+  "packages/outpost-runner/infra/aws-agentcore-outpost.yaml",
+  "packages/outpost-runner/scripts/aws-agentcore.sh",
+  "packages/outpost-runner/scripts/aws-agentcore-provisioning.test.mjs",
+  "packages/outpost-runner/scripts/capability-aws-agentcore-smoke.mjs",
 ];
 
 async function exists(relativePath) {

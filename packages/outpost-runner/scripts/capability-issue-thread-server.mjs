@@ -324,7 +324,7 @@ function resolveManagedProfile(configuration) {
 function resolveAgentCoreProfile(configuration) {
   const required = (name) => {
     const value = process.env[name]?.trim();
-    if (!value) throw new RouteError(503, "agentcore_profile_unavailable", `AWS AgentCore profile is missing ${name}. Run aws-agentcore:provision and aws-agentcore:lab.`);
+    if (!value) throw new RouteError(503, "agentcore_profile_unavailable", `AWS AgentCore profile is missing ${name}.`);
     return value;
   };
   const profileId = required("OUTPOST_AWS_AGENTCORE_PROFILE_ID");
