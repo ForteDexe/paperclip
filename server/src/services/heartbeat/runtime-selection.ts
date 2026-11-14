@@ -2,7 +2,6 @@ import { assertOutpostRunnerBinaryConfiguration } from "../native-runtime/native
 import { readNativeWorkspaceMigration, migratedNativeExecutionCwd } from "../native-runtime/native-workspace-migration.js";
 import { resolveProviderApiPlacement } from "../native-runtime/provider-api-placement.js";
 import { readClaimedNativeStopRecovery } from "../native-runtime/native-cancellation-request.js";
-import { museRunnerBroker } from "../muse-runner-broker.js";
 import { assertEphemeralNativeRuntime, readRemoteWorkspaceAuthority } from "../remote-workspaces.js";
 import { measureRunTransaction } from "../execution-transaction-timing.js";
 import { measureRunPhase } from "../execution-preparation-timing.js";
@@ -11,7 +10,6 @@ import {
   type buildOutpostWakePayload,
   type createHeartbeatRunPreparation,
 } from "./run-preparation.js";
-import { dotRunnerBroker } from "../dot-runner-broker.js";
 import { isAgentDirectoryCopy } from "../agent-directory-working-copies.js";
 import { isConversation } from "../agent-conversations.js";
 import { renewLegacyControllerLease } from "../legacy-controller-lease.js";
@@ -747,10 +745,6 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
             })
           : null;
       const pinnedPlanMarkdown = pinnedPlan?.body ?? "";
-      const museBinding = nativeRuntimeResolution.profile.backend === "muse_external"
-        ? await museRunnerBroker(db).snapshot(agent.spaceId, agent.id, String(parseObject(agent.adapterConfig).museBindingId ?? "")) : undefined;
-      const dotBinding = ["openai_dot_mcp", "grok_bot_mcp"].includes(nativeRuntimeResolution.profile.backend)
-        ? await dotRunnerBroker(db).snapshot(agent.spaceId, agent.id, String(parseObject(agent.adapterConfig)[nativeRuntimeResolution.profile.backend === "grok_bot_mcp" ? "externalBindingId" : "dotBindingId"] ?? "")) : undefined;
       const nativeRuntimeContext = await measureRunPhase("runtime_selection.runtime_context", () => buildNativeRuntimeContext({
         db,
         agent,
@@ -776,7 +770,7 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
       const requestedNativeProvider = resolveOutpostRunnerNativeProviderInput({
         spaceId: agent.spaceId,
         backend: nativeRuntimeResolution.profile.backend,
-        adapterConfig: nativeProviderConfig, managedProfile, agentCoreProfile, dotBinding, museBinding,
+        adapterConfig: nativeProviderConfig, managedProfile, agentCoreProfile,
       });
       const codexCliVersion = agent.adapterType === "outpost_runner" && requestedNativeProvider.provider === "codex"
         ? await measureRunPhase("runtime_selection.codex_cli_version", () => readRemoteCodexModelCliVersion({
@@ -789,7 +783,7 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
         ? resolveOutpostRunnerNativeProviderInput({
             spaceId: agent.spaceId,
             backend: nativeRuntimeResolution.profile.backend,
-            adapterConfig: nativeProviderConfig, codexCliVersion, managedProfile, agentCoreProfile, dotBinding, museBinding,
+            adapterConfig: nativeProviderConfig, codexCliVersion, managedProfile, agentCoreProfile,
           }) : requestedNativeProvider;
       if (nativeProvider.model !== requestedNativeProvider.model) {
         await postNativeModelFallbackWarning({
@@ -814,7 +808,7 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
                   }),
                 ) ??
                 `# ${issueRef.identifier ?? issueRef.id}: ${issueRef.title}`,
-                !["openai_dot_mcp", "grok_bot_mcp", "muse_external", "cursor_cloud_api"].includes(nativeRuntimeResolution.profile.backend) && projectRepositoryPaths.length > 0
+                nativeRuntimeResolution.profile.backend !== "cursor_cloud_api" && projectRepositoryPaths.length > 0
                   ? `## Project repositories\nThe task workspace also contains these editable Git repositories:\n${projectRepositoryPaths.map((repo) => `- ${repo}`).join("\n")}`
                   : null,
               ].filter(Boolean).join("\n\n"),

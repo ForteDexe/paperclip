@@ -51,9 +51,6 @@ export type NativeRuntimeResolution =
           | "claude_managed_agents_api"
           | "aws_agentcore_harness_api"
           | "acpx_runtime"
-          | "openai_dot_mcp"
-          | "grok_bot_mcp"
-          | "muse_external"
           | "cursor_cloud_api";
         protocolVersion: 1;
       };
@@ -131,15 +128,7 @@ export function resolveNativeRuntimeMode(input: {
     }
     throw error;
   }
-  // Dot has its own rollout; enabling it does not opt in other Runner providers.
-  if (runnerProfile.provider === "muse") {
-    if (!input.enabled) throw ineligible("outpost_runner_rollout_disabled", "Outpost Runner is experimental and disabled on this instance.");
-    if (input.museEnabled !== true) throw ineligible("outpost_runner_muse_disabled", "Enable Muse personal-agent connections in experimental settings before assigning new work.");
-  } else if (runnerProfile.provider === "openai_dot") {
-    if (input.dotEnabled !== true) throw ineligible("outpost_runner_dot_disabled", "Enable OpenAI Dot and Assistant connections (MCP) in experimental settings before assigning new work.");
-  } else if (runnerProfile.provider === "grok_bot" && (input.grokEnabled !== true || !input.enabled)) {
-    throw ineligible("outpost_runner_grok_disabled", "Enable Grok Bot, Outpost Runner, and Assistant connections (MCP) before assigning new work.");
-  } else if (runnerProfile.provider !== "codex" && runnerProfile.provider !== "opencode"
+  if (runnerProfile.provider !== "codex" && runnerProfile.provider !== "opencode"
     && !(runnerProfile.provider === "acpx"
       && (["claude", "copilot", "pi", "antigravity"].includes(runnerProfile.acpxAgent ?? "")))
     && !input.enabled) {
@@ -269,9 +258,6 @@ export function resolveHeartbeatRuntimeMode(input: {
         ? "claude_managed"
         : resolution.profile.backend === "aws_agentcore_harness_api"
           ? "aws_agentcore"
-      : resolution.profile.backend === "muse_external" ? "muse"
-      : resolution.profile.backend === "grok_bot_mcp" ? "grok_bot"
-      : resolution.profile.backend === "openai_dot_mcp" ? "openai_dot"
       : resolution.profile.backend === "cursor_cloud_api" ? "cursor_cloud"
       : resolution.profile.backend === "acpx_runtime"
           ? "acpx"
@@ -326,9 +312,6 @@ export function resolveHeartbeatNativeRuntimeMode(input: {
           ? "claude_managed_agents_api"
           : driverKind === "aws_agentcore_harness_api"
             ? "aws_agentcore_harness_api"
-        : driverKind === "muse_external" ? "muse_external"
-        : driverKind === "grok_bot_mcp" ? "grok_bot_mcp"
-        : driverKind === "openai_dot_mcp" ? "openai_dot_mcp"
         : driverKind === "cursor_cloud_api" ? "cursor_cloud_api"
         : driverKind === "acpx_runtime"
             ? "acpx_runtime"

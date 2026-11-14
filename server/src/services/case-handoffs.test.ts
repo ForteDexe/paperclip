@@ -5,7 +5,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agentApiKeys, agentWakeupRequests, agents, authSessions, authUsers, operatorApiKeys, spaceMemberships, principalPermissionGrants, caseAccessSources, caseEvents, caseHandoffs, caseIssueLinks, cases, spaces, createDb, documentRevisions, documents, dotAgentBindings, heartbeatRuns, issueComments, issueDocuments, issues, issueWorkProducts } from "@outpost/db";
+import { activityLog, agentApiKeys, agentWakeupRequests, agents, authSessions, authUsers, operatorApiKeys, spaceMemberships, principalPermissionGrants, caseAccessSources, caseEvents, caseHandoffs, caseIssueLinks, cases, spaces, createDb, documentRevisions, documents, heartbeatRuns, issueComments, issueDocuments, issues, issueWorkProducts } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { caseHandoffRoutes } from "../routes/case-handoffs.js";
 import { errorHandler } from "../middleware/error-handler.js";
@@ -17,8 +17,6 @@ import { assertAgentRunWriteAllowed } from "../agent-run-cancellation.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { getCaseExecutionContext } from "./case-context.js";
 import { canActorReadCase, retainCaseAccessSource } from "./case-access.js";
-import { buildNativeExecutionInput } from "./native-runtime/native-execution-input.js";
-import { nativeRuntimeContextFixture } from "./native-runtime/runtime-context.test-fixture.js";
 import { buildLowTrustSourceTrust } from "./source-trust.js";
 import { issueService } from "./issues.js";
 import { documentService } from "./documents.js";
@@ -729,31 +727,6 @@ describe("durable same-task case handoffs", () => {
       expect((await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, next.handoffId)))[0]!.state).toBe("awaiting_release");
       expect((await db.select().from(issues).where(eq(issues.id, first.taskId)))[0]!.assigneeAgentId).toBe(f.triage);
     } finally { await instanceSettingsService(db).updateExperimental({ enableCases: true }); }
-  });
-
-  it("does not advance a settled source whose pinned external binding was revoked", async () => {
-    const f = await fixture(), at = new Date(Date.now() + 60_000), q = queue(() => at);
-    const first = await f.service.handoff(f.spaceId, operator, f.input); await q.worker.sweepPending();
-    const runId = await sourceRun(f.spaceId, f.triage, first.taskId), bindingId = randomUUID();
-    const [issue] = await db.select().from(issues).where(eq(issues.id, first.taskId));
-    const next = await f.service.handoff(f.spaceId, operator, { case: { id: first.caseId }, idempotencyKey: randomUUID(), expectedHandoffVersion: 1,
-      expectedIssueStatusVersion: issue!.statusVersion, toAgentId: f.engineer, phase: "implementation", instructions: "Continue" });
-    const pinned = buildNativeExecutionInput({ spaceId: f.spaceId, runId, agentId: f.triage,
-      issue: { id: first.taskId, identifier: issue!.identifier, title: issue!.title, description: issue!.description, workMode: "standard" },
-      taskPrompt: "Handoff", provider: "openai_dot", dotBinding: { spaceId: f.spaceId, agentId: f.triage, bindingId, bindingGeneration: 1,
-        acceptByUnixMs: Date.now() + 60_000, expiresAtUnixMs: Date.now() + 120_000 },
-      workspace: { id: randomUUID(), cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null }, normalizedSessionId: null,
-      runtimeContext: nativeRuntimeContextFixture(), completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
-        contract: { revision: "1", objective: "Handoff", criteria: [{ id: "work", requirement: "Continue the task" }] } },
-    });
-    await db.insert(dotAgentBindings).values({ id: bindingId, spaceId: f.spaceId, agentId: f.triage, operatorId: "operator", status: "revoked", revokedAt: new Date() });
-    await db.update(heartbeatRuns).set({ status: "succeeded", driverKind: "openai_dot_mcp", runnerProfileJson: { nativeExecutionInput: pinned } }).where(eq(heartbeatRuns.id, runId));
-    await recordCaseHandoffExecutionReleased(db, runId, first.taskId);
-    await q.worker.sweepPending();
-    const [waiting] = await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, next.handoffId));
-    expect(waiting).toMatchObject({ state: "awaiting_release", lastErrorCode: "access_or_admission_blocked" });
-    expect(q.wakeup).toHaveBeenCalledTimes(1);
-    expect((await db.select().from(issues).where(eq(issues.id, first.taskId)))[0]!.assigneeAgentId).toBe(f.triage);
   });
 
   it("holds delayed assignment after recipient policy revocation and resumes when restored", async () => {

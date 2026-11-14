@@ -26,8 +26,7 @@ describe("admitted native lifecycle policy", () => {
       managedAiAttribution: { provider: "github", method: "subscription" } }, expected: perTurn },
     { name: "non-native adapter does not gain managed warm support", change: { adapterType: "codex_local", managedAiSelected: true }, expected: perTurn },
     { name: "task-owned provider keeps its existing ownership gate", change: { backend: "acpx_runtime", acpxAgent: "claude", managedAiSelected: true, taskOwned: true }, expected: warm },
-    ...(["openai_dot_mcp", "grok_bot_mcp", "muse_external", "cursor_cloud_api"] as const).map(backend =>
-      ({ name: `${backend} remains per-turn`, change: { backend, environmentPolicy: warm }, expected: perTurn })),
+    { name: "cursor cloud remains per-turn", change: { backend: "cursor_cloud_api", environmentPolicy: warm }, expected: perTurn },
   ])("$name", ({ change, expected }) => {
     expect(resolveHeartbeatNativeLifecyclePolicy({ ...base, ...change })).toEqual(expected);
   });

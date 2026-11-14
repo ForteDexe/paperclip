@@ -74,9 +74,9 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     vi.mocked(executeOutpostNativeSession).mockResolvedValue({ exitCode: 0, signal: null, timedOut: false });
   });
 
-  async function fixture(native = false, provider: "codex" | "grok_bot" | "openai_dot" = "codex") {
+  async function fixture(native = false) {
     const [space] = await db.insert(spaces).values({ name: "Runtime execution", issuePrefix: "EXE" }).returning();
-    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Executing agent", status: "running", adapterType: native ? "outpost_runner" : "process", adapterConfig: provider === "codex" ? { provider } : { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: true, [provider === "grok_bot" ? "externalBindingId" : "dotBindingId"]: randomUUID() } }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Executing agent", status: "running", adapterType: native ? "outpost_runner" : "process", adapterConfig: { provider: "codex" } }).returning();
     const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Complete this task", assigneeAgentId: agent.id }).returning();
     const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id, scopeKind: "issue", status: "running", runtimeMode: native ? "native" : "legacy" }).returning();
     const state = createHeartbeatRunState(db);
@@ -86,8 +86,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     const nativeExecution = native ? buildNativeExecutionInput({
       spaceId: space.id, agentId: agent.id, runId: run.id, issue,
       taskPrompt: issue.title, workspace: { id: run.id, cwd: home, repoUrl: null, repoRef: null, branchName: null },
-      normalizedSessionId: null, provider, runtimeContext: nativeRuntimeContextFixture(),
-      dotBinding: { bindingId: randomUUID(), bindingGeneration: 1, spaceId: space.id, agentId: agent.id, acceptByUnixMs: Date.now() + 60_000, expiresAtUnixMs: Date.now() + 120_000 },
+      normalizedSessionId: null, provider: "codex", runtimeContext: nativeRuntimeContextFixture(),
       completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1", contract: { revision: "1", objective: issue.title, criteria: [{ id: "output", requirement: issue.title }] } },
     }) : null;
     const input: HeartbeatRuntimeExecutionInput = {
@@ -700,8 +699,8 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     }
   });
 
-  it.each(["codex", "grok_bot", "openai_dot"] as const)("retains user files only when %s can access the workspace after a dispatch failure", async provider => {
-    const { input, run } = await fixture(true, provider);
+  it("retains user files when the local provider can access the workspace after a dispatch failure", async () => {
+    const { input, run } = await fixture(true);
     input.workspace.nativeWorkspaceSync = {
       mode: "host_current",
       reference: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
@@ -712,8 +711,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     const error = new Error("runner_remote_process_identity_unavailable");
     vi.mocked(executeOutpostNativeSession).mockRejectedValueOnce(error);
     input.instructions.releaseInstructionCopy = vi.fn(async () => {
-      if (provider === "codex") expect(input.effects.onProviderResourceDisposition).toHaveBeenCalledWith("stop_and_retain");
-      else expect(input.effects.onProviderResourceDisposition).not.toHaveBeenCalledWith("stop_and_retain");
+      expect(input.effects.onProviderResourceDisposition).toHaveBeenCalledWith("stop_and_retain");
     });
     await expect(executeHeartbeatRuntime(db, input)).rejects.toBe(error);
     expect(input.workspace.nativeWorkspaceSync.restoreWorkspace).not.toHaveBeenCalled();

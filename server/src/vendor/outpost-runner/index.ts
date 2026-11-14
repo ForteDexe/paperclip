@@ -12,8 +12,6 @@ type RunnerModule = typeof import("@outpost/outpost-runner");
 export type {
   NativeCursorCloudConfig,
   AcpxCandidateAdmission,
-  DotHarnessDriver,
-  DotAssignment,
   OutpostJsonValue,
   OutpostQuestionResponse,
   OutpostSemanticActionBinding,
@@ -37,14 +35,8 @@ export type {
   NativeExecutionInput,
   NativeExecutionInputV4,
   NativeExecutionInputV5,
-  NativeExecutionInputV6,
-  NativeExecutionInputV8,
   NativeExecutionInputV9,
   NativeExecutionInputV10,
-  MuseBindingSnapshot,
-  DotBindingSnapshot,
-  ExternalProviderPort,
-  ExternalProviderOperation,
   NativeExecutionInputV7,
   NativeCompletionSource,
   NativeCompletionSources,
@@ -222,7 +214,6 @@ export const bundledRemoteRunnerBinary = runner.bundledRemoteRunnerBinary;
 export const bundledRemoteRunnerRelease = runner.bundledRemoteRunnerRelease;
 export const BUNDLED_REMOTE_RUNNER_IDENTITY_MISMATCH = runner.BUNDLED_REMOTE_RUNNER_IDENTITY_MISMATCH;
 
-export const externalOperationDigest = runner.externalOperationDigest;
 export const digestOutpostSemanticContent = runner.digestOutpostSemanticContent;
 export const CONFIGURED_ENVIRONMENT_KEYS = runner.CONFIGURED_ENVIRONMENT_KEYS;
 export const GENERATED_RUNTIME_ENVIRONMENT_KEYS = runner.GENERATED_RUNTIME_ENVIRONMENT_KEYS;

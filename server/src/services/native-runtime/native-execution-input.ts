@@ -15,12 +15,8 @@ import type {
   NativeAcpxPermissionMode,
   NativeCodexApprovalPolicy,
   NativeExecutionInputV5,
-  NativeExecutionInputV6,
-  NativeExecutionInputV8,
   NativeExecutionInputV9,
   NativeExecutionInputV10,
-  MuseBindingSnapshot,
-  DotBindingSnapshot,
   NativeExecutionInputV7,
   NativeCompletionSource,
   NativeInteractionResponseEnvelope,
@@ -96,9 +92,7 @@ export interface BuildNativeExecutionInput {
     branchName: string | null;
   };
   normalizedSessionId: string | null;
-  provider?: "cursor_cloud" | "codex" | "opencode" | "claude_managed" | "aws_agentcore" | "acpx" | "openai_dot" | "grok_bot" | "muse";
-  museBinding?: MuseBindingSnapshot;
-  dotBinding?: DotBindingSnapshot;
+  provider?: "cursor_cloud" | "codex" | "opencode" | "claude_managed" | "aws_agentcore" | "acpx";
   acpxAgent?: NativeAcpxAgent;
   homeMode?: "isolated" | "preconfigured";
   codexApprovalPolicy?: NativeCodexApprovalPolicy;
@@ -140,11 +134,7 @@ export interface BuildNativeExecutionInput {
   };
   runtimeContext: NativeRuntimeContextSnapshot;
 }
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider: "muse"; museBinding: MuseBindingSnapshot }): NativeExecutionInputV8;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider: "openai_dot" | "grok_bot"; dotBinding: DotBindingSnapshot }): NativeExecutionInputV6;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider?: Exclude<BuildNativeExecutionInput["provider"], "openai_dot" | "grok_bot" | "muse"> }): NativeExecutionInputV5 | NativeExecutionInputV7 | NativeExecutionInputV9 | NativeExecutionInputV10;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 | NativeExecutionInputV8 | NativeExecutionInputV9 | NativeExecutionInputV10;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 | NativeExecutionInputV8 | NativeExecutionInputV9 | NativeExecutionInputV10 {
+export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV7 | NativeExecutionInputV9 | NativeExecutionInputV10 {
   if (input.issue.workMode !== "standard" && input.issue.workMode !== "planning" && input.issue.workMode !== "ask" && input.issue.workMode !== "skill_test") {
     throw new Error("native_execution_input_invalid: issue work mode must be standard, planning, ask, or skill_test");
   }
@@ -389,15 +379,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     credentialBindings: [],
     runtimeContext: input.runtimeContext,
   };
-  return parseNativeExecutionInput(input.provider === "muse" ? { ...prepared,
-    schema: "outpost.native-execution-input.v8", provider: { kind: "muse", model: null, binding: input.museBinding, bridgeRevision: "muse-v1" },
-    workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
-    session: { ...prepared.session, driverKind: "muse_external", lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } }
-  } : ["openai_dot", "grok_bot"].includes(input.provider ?? "") ? { ...prepared,
-    schema: "outpost.native-execution-input.v6", provider: { kind: input.provider, model: null, binding: input.dotBinding },
-    workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
-    session: { ...prepared.session, driverKind: input.provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp", lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } }
-  } : prepared) as NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 | NativeExecutionInputV8 | NativeExecutionInputV9 | NativeExecutionInputV10;
+  return parseNativeExecutionInput(prepared) as NativeExecutionInputV5 | NativeExecutionInputV7 | NativeExecutionInputV9 | NativeExecutionInputV10;
 }
 
 

@@ -2353,8 +2353,7 @@ export async function executeNativeSession(
   if ("runtimeContext" in input) {
     const capabilities = descriptor.runtimeContextCapabilities;
     const unsupported = (["instructions", "skills", "mcp"] as const).filter(
-      (key) => capabilities?.[key] !== "native" && (input.provider.kind !== "openai_dot"
-        || key === "instructions" || (key === "skills" ? input.runtimeContext.skills.length > 0 : input.runtimeContext.mcp.bindingId !== null)),
+      (key) => capabilities?.[key] !== "native",
     );
     if (unsupported.length)
       throw new Error(

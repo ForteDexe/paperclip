@@ -5,8 +5,6 @@ import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { activityLog } from "@outpost/db";
 import { projectToolContext } from "../services/project-tool-context.js";
-import { museExternalAgents, withExternalExecutionAdmission } from "../modules/external-agents/index.js";
-import { parseNativeExecutionInput } from "../vendor/outpost-runner/index.js";
 import { persistActivity, publishActivity } from "../services/activity-log.js";
 import { z } from "zod";
 import { normalizeProjectRepositoryUrl, resolveProjectRepositorySelection } from "../services/project-repositories.js";
@@ -408,30 +406,7 @@ export function projectRoutes(db: Db) {
       if (receiptKey) {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${receiptKey}, 0))`);
       }
-      const museActor = runContext && req.actor.type === "agent" && req.actor.authorizingUserId ? req.actor : null;
-      if (museActor) {
-        const { spaceId: actorSpaceId, agentId, runId, authorizingUserId } = museActor;
-        if (!actorSpaceId || !agentId || !runId) throw forbidden("Muse native tool authority is unavailable");
-        // The receipt lock can wait too. Keep current authority behind every
-        // admission wait and ahead of both receipt replay and project creation.
-        await withExternalExecutionAdmission(tx, actorSpaceId, agentId, runId, async () => {
-          const current = await projectToolContext(tx as unknown as Db, museActor, true, "Project", { includeExecutionInput: true });
-          try {
-            const execution = parseNativeExecutionInput(current.run.runnerProfileJson?.nativeExecutionInput);
-            const broker = museExternalAgents(db);
-            if (current.run.runtimeMode !== "native" || execution.schema !== "outpost.native-execution-input.v8"
-              || execution.binding.spaceId !== actorSpaceId || execution.binding.agentId !== agentId
-              || execution.binding.runId !== runId || execution.binding.issueId !== current.issue.id
-              || await broker.authorizingUserIdForBinding(execution.provider.binding) !== authorizingUserId) {
-              throw new Error("Muse internal tool authority mismatch");
-            }
-            await broker.assertRunAuthority(execution, tx as unknown as Db);
-          } catch {
-            throw forbidden("Muse native tool authority is unavailable");
-          }
-        });
-      }
-      if (receiptOnly && runContext && !museActor) await projectToolContext(tx as unknown as Db, req.actor, true);
+      if (receiptOnly && runContext) await projectToolContext(tx as unknown as Db, req.actor, true);
       if (receiptKey) {
         const [prior] = await tx.select().from(activityLog).where(and(
           eq(activityLog.spaceId, spaceId), eq(activityLog.action, "project.created"),
@@ -445,7 +420,7 @@ export function projectRoutes(db: Db) {
         }
       }
       if (receiptOnly) return null;
-      if (runContext && !museActor) await projectToolContext(tx as unknown as Db, req.actor, true);
+      if (runContext) await projectToolContext(tx as unknown as Db, req.actor, true);
       const service = projectService(tx as unknown as Db);
       const environment = {
         environmentId,

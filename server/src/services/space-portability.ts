@@ -111,8 +111,6 @@ import type {
 import {
   OutpostRunnerProviderProfileError,
   resolveOutpostRunnerProviderProfile,
-  validateOutpostRunnerDotConfig,
-  validateOutpostRunnerMuseConfig,
 } from "./native-runtime/provider-profile.js";
 import { managedAgentProfileService } from "./managed-agent-profiles.js";
 import { remoteAgentProfileService } from "./remote-agent-profiles.js";
@@ -3586,14 +3584,6 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
     if (adapterType === "outpost_runner") {
       let profile;
       try {
-        if (adapterConfig.provider === "muse") {
-          validateOutpostRunnerMuseConfig(adapterConfig, false);
-          return;
-        }
-        if (adapterConfig.provider === "openai_dot") {
-          validateOutpostRunnerDotConfig(adapterConfig, false);
-          return;
-        }
         profile = resolveOutpostRunnerProviderProfile(adapterConfig);
       } catch (error) {
         if (error instanceof OutpostRunnerProviderProfileError) {

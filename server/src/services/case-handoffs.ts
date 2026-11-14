@@ -7,8 +7,6 @@ import { handoffCaseSchema, isUuidLike, type DoneCaseHandoffInput, type HandoffC
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { casesDisabledError } from "./cases-disabled.js";
 import { assertAgentRunWriteAllowed } from "../agent-run-cancellation.js";
-import { withExternalAdmissionGuard, type ExternalAdmissionTransaction } from "../modules/external-agents/index.js";
-import { parseNativeExecutionInput } from "../vendor/outpost-runner/index.js";
 import { assertAssignableAgent } from "./agent-assignability.js";
 import { persistActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
 import { authorizationDeniedDetails, authorizationService, type AuthorizationActor } from "./authorization.js";
@@ -397,15 +395,6 @@ export function caseHandoffService(db: Db) {
           if (!authorizedSource || authorizedSource.status !== "running") throw conflict("Source run no longer has execution authority");
           [source] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, actor.agentId!)));
           if (!source) throw conflict("Source run no longer exists");
-          const pinned = source.runnerProfileJson?.nativeExecutionInput as Record<string, unknown> | undefined;
-          const provider = pinned?.provider as Record<string, unknown> | undefined;
-          if (["openai_dot_mcp", "grok_bot_mcp", "muse_external"].includes(source.driverKind ?? "") || ["openai_dot", "grok_bot", "muse"].includes(String(provider?.kind))) {
-            let execution: ReturnType<typeof parseNativeExecutionInput>;
-            try { execution = parseNativeExecutionInput(pinned); } catch { throw forbidden("External handoff requires its pinned execution authority"); }
-            if (execution.binding.spaceId !== spaceId || execution.binding.agentId !== actor.agentId || execution.binding.runId !== source.id || execution.binding.issueId !== sourceIssue?.id) throw forbidden("External handoff execution binding changed");
-            const { assertExternalNativeRunAuthority } = await import("./native-runtime/external-native-authority.js");
-            await withExternalAdmissionGuard(tx as unknown as ExternalAdmissionTransaction, spaceId, actor.agentId!, () => assertExternalNativeRunAuthority(tx, execution, tx));
-          }
           const [sourceAgent] = await tx.select({ status: agents.status }).from(agents).where(and(eq(agents.id, actor.agentId!), eq(agents.spaceId, spaceId)));
           if (!sourceAgent || ["paused", "terminated", "pending_approval", "error"].includes(sourceAgent.status)) throw forbidden("Source agent no longer has execution authority");
           if (!sourceIssue || sourceIssue.assigneeAgentId !== actor.agentId || sourceIssue.assigneeUserId || sourceIssue.executionRunId !== source.id) throw conflict("Source run no longer owns its task");

@@ -1,6 +1,3 @@
-import { RunnerdMuseDriver, type RunnerdMuseDriverOptions } from "../drivers/muse/runnerd-muse-driver.js";
-import { RunnerdDotDriver, type RunnerdDotDriverOptions } from "../drivers/dot/runnerd-dot-driver.js";
-import { HarnessDriverBackend } from "./harness-driver-backend.js";
 import type { NativeExecutionInput } from "../contracts/native-execution.js";
 import type { PersistedHarnessSession } from "../contracts/harness-driver.js";
 import type {
@@ -23,8 +20,6 @@ export interface NativeBackendFactoryOptions extends Omit<
   CodexNativeSessionBackendOptions,
   "transportFactory"
 > {
-  museRunnerOptions?: Omit<RunnerdMuseDriverOptions, "execution" | "dynamicTools" | "dynamicToolHandler" | "completionFeedback" | "onSpawn">;
-  dotRunnerOptions?: Omit<RunnerdDotDriverOptions, "execution" | "dynamicTools" | "dynamicToolHandler" | "completionFeedback" | "onSpawn">;
   codexTransportFactory?: (context?: {
     baseInstructions?: string;
     providerRecoveryPolicy?: PersistedNativeSession["providerRecoveryPolicy"];
@@ -54,18 +49,6 @@ export function createNativeSessionBackend(
   input: NativeExecutionInput,
   options: NativeBackendFactoryOptions = {},
 ): NativeSessionBackend {
-  if (input.schema === "outpost.native-execution-input.v8") {
-    if (!options.museRunnerOptions) throw new Error("Muse requires an admitted broker port and Rust Runner authority");
-    return new HarnessDriverBackend(new RunnerdMuseDriver({ ...options.museRunnerOptions, execution: input,
-      dynamicTools: options.dynamicTools, dynamicToolHandler: options.dynamicToolHandler,
-      completionFeedback: options.completionFeedback, onSpawn: options.onSpawn }));
-  }
-  if (input.schema === "outpost.native-execution-input.v6") {
-    if (!options.dotRunnerOptions) throw new Error("External bots require an admitted broker port and Rust Runner authority");
-    return new HarnessDriverBackend(new RunnerdDotDriver({ ...options.dotRunnerOptions, execution: input,
-      dynamicTools: options.dynamicTools, dynamicToolHandler: options.dynamicToolHandler,
-      completionFeedback: options.completionFeedback, onSpawn: options.onSpawn }));
-  }
   if (options.codexTransportFactory) {
     return createRunnerdNativeSessionBackend(input, {
       retainedSystemInstructions: options.retainedSystemInstructions,

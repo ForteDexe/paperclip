@@ -44,9 +44,6 @@ type AdmittedOutpostRunnerAcpxAgent = QualifiedOutpostRunnerAcpxAgent | AcpxQual
 
 export type OutpostRunnerProviderProfile =
   | { provider: "cursor_cloud"; backend: "cursor_cloud_api"; model: string }
-  | { provider: "muse"; backend: "muse_external"; model: null; museBindingId: string }
-  | { provider: "grok_bot"; backend: "grok_bot_mcp"; model: null; externalBindingId: string }
-  | { provider: "openai_dot"; backend: "openai_dot_mcp"; model: null; dotBindingId: string }
   | {
       provider: "codex";
       backend: "codex_app_server";
@@ -80,9 +77,6 @@ export type OutpostRunnerProviderProfile =
 
 export type OutpostRunnerNativeProviderInput =
   | { provider: "cursor_cloud"; model: string; cursorCloud: NativeCursorCloudConfig }
-  | { provider: "muse"; model: null; museBinding: import("../../vendor/outpost-runner/index.js").MuseBindingSnapshot }
-  | { provider: "grok_bot"; model: null; dotBinding: import("../../vendor/outpost-runner/index.js").DotBindingSnapshot }
-  | { provider: "openai_dot"; model: null; dotBinding: import("../../vendor/outpost-runner/index.js").DotBindingSnapshot }
   | {
       provider: "codex";
       model: string | null;
@@ -202,39 +196,6 @@ export function resolveOutpostRunnerCursorCloudConfig(config: Record<string, unk
   } catch {
     throw new OutpostRunnerProviderProfileError("outpost_runner_cursor_cloud_config_invalid", "Cursor Cloud requires an HTTPS repository or named Cursor cloud environment, cloud-hosted execution, and supported settings. Its timeout must be between 1 second and 1 hour.");
   }
-}
-
-/** Configuration can be saved before pairing; task admission requires a binding. */
-export function validateOutpostRunnerDotConfig(config: Record<string, unknown>, requireBinding = true): string | null {
-  const bindingId = optionalString(config.dotBindingId);
-  if ((requireBinding && !bindingId) || (bindingId && !/^[0-9a-f-]{36}$/i.test(bindingId))
-      || config.allowUnmeteredProvider !== true || (config.lifecycleMode && config.lifecycleMode !== "per_turn")
-      || optionalString(config.model)) {
-    throw new OutpostRunnerProviderProfileError("outpost_runner_dot_config_invalid", "Dot requires per-turn lifecycle and explicit externally billed, unmetered-provider acknowledgement. Pair a binding before assigning work.");
-  }
-  return bindingId;
-}
-
-/** Closed personal runtime configuration; model and workspace grants are excluded. */
-export function validateOutpostRunnerMuseConfig(config: Record<string, unknown>, requireBinding = true): string | null {
-  const bindingId = optionalString(config.museBindingId);
-  if ((requireBinding && !bindingId) || (bindingId && !/^[0-9a-f-]{36}$/i.test(bindingId))
-      || config.allowUnmeteredProvider !== true || (config.lifecycleMode && config.lifecycleMode !== "per_turn")
-      || optionalString(config.model) || config.dotWorkspaceAccess === true || config.dotAttachmentAccess === true) {
-    throw new OutpostRunnerProviderProfileError("outpost_runner_muse_config_invalid", "Muse requires a paired personal-agent binding, per-turn lifecycle and unavailable-usage acknowledgement.");
-  }
-  return bindingId;
-}
-
-export function validateOutpostRunnerGrokConfig(config: Record<string, unknown>, requireBinding = true): string | null {
-  const bindingId = optionalString(config.externalBindingId);
-  if ((requireBinding && !bindingId) || (bindingId && !/^[0-9a-f-]{36}$/i.test(bindingId))
-      || config.allowUnmeteredProvider !== true || (config.lifecycleMode && config.lifecycleMode !== "per_turn")
-      || optionalString(config.model) || config.dotWorkspaceAccess === true || config.dotAttachmentAccess === true
-      || optionalString(config.cwd) || optionalString(config.command)) {
-    throw new OutpostRunnerProviderProfileError("outpost_runner_grok_config_invalid", "Grok Bot requires a bound per-turn work session and an explicit acknowledgement of unreported provider spending. Outpost workspace, shell and third-party app tools are unavailable.");
-  }
-  return bindingId;
 }
 
 /** A task may change a Runner model (and supported effort), but not provider identity. */
@@ -466,17 +427,6 @@ export function resolveOutpostRunnerProviderProfile(
     return { provider: "cursor_cloud", backend: "cursor_cloud_api", model };
   }
 
-  if (candidate === "muse") {
-    const bindingId = validateOutpostRunnerMuseConfig(config)!;
-    return { provider: "muse", backend: "muse_external", model: null, museBindingId: bindingId };
-  }
-  if (candidate === "grok_bot") {
-    return { provider: "grok_bot", backend: "grok_bot_mcp", model: null, externalBindingId: validateOutpostRunnerGrokConfig(config)! };
-  }
-  if (candidate === "openai_dot") {
-    const bindingId = validateOutpostRunnerDotConfig(config)!;
-    return { provider: "openai_dot", backend: "openai_dot_mcp", model: null, dotBindingId: bindingId };
-  }
   if (candidate === "acpx" && agentHarnessType("outpost_runner", config) === "claude_local") {
     const unsupported = claudeRunnerUnsupportedSettings(config);
     if (unsupported.length) throw new OutpostRunnerProviderProfileError("agent_runner_config_incompatible",
@@ -670,8 +620,6 @@ export function resolveOutpostRunnerNativeProviderInput(input: {
   adapterConfig: unknown;
   /** Verified image CLI version for a fresh remote Codex run only. */
   codexCliVersion?: string | null;
-  museBinding?: import("../../vendor/outpost-runner/index.js").MuseBindingSnapshot;
-  dotBinding?: import("../../vendor/outpost-runner/index.js").DotBindingSnapshot;
   managedProfile?: {
     id: string;
     profileKey: string;
@@ -711,18 +659,6 @@ export function resolveOutpostRunnerNativeProviderInput(input: {
   }
   if (profile.provider === "cursor_cloud") {
     return { provider: "cursor_cloud", model: profile.model, cursorCloud: resolveOutpostRunnerCursorCloudConfig(config) };
-  }
-  if (profile.provider === "muse") {
-    if (!input.museBinding || input.museBinding.bindingId !== profile.museBindingId) throw new OutpostRunnerProviderProfileError("outpost_runner_muse_binding_unavailable", "Muse binding must be resolved by the server after normal admission.");
-    return { provider: "muse", model: null, museBinding: input.museBinding };
-  }
-  if (profile.provider === "grok_bot") {
-    if (!input.dotBinding || input.dotBinding.bindingId !== profile.externalBindingId) throw new OutpostRunnerProviderProfileError("outpost_runner_grok_binding_unavailable", "The Grok binding must be resolved by the server after normal admission.");
-    return { provider: "grok_bot", model: null, dotBinding: input.dotBinding };
-  }
-  if (profile.provider === "openai_dot") {
-    if (!input.dotBinding || input.dotBinding.bindingId !== profile.dotBindingId) throw new OutpostRunnerProviderProfileError("outpost_runner_dot_binding_unavailable", "Dot binding must be resolved by the server after normal admission.");
-    return { provider: "openai_dot", model: null, dotBinding: input.dotBinding };
   }
   if (profile.provider === "opencode") {
     return {

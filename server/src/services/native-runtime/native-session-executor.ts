@@ -64,9 +64,7 @@ import { NativeStartupCleanupPendingError, clearNativeStartupContext } from "./n
 import { readUnreadSteeredMessages } from "./unread-steered-messages.js";
 import { coldAdmissionTimeoutMs } from "../../vendor/outpost-runner/index.js";
 import { applyObservabilityEnvironment, type ProviderObservabilityLaunch } from "@outpost/adapter-utils/agent-observability";
-import { museRunnerBroker } from "../muse-runner-broker.js";
 import { nativeCaseHandoffResult } from "./native-case-handoff.js";
-import { assertExternalNativeRunAuthority } from "./external-native-authority.js";
 import { stageRemoteLaunchAssets } from "./remote-launch-assets.js";
 import {
   NATIVE_CONTINUITY_STATE_ENTRIES, NATIVE_SESSION_ROOT_HELD_ENTRIES, describeUnexpectedNativeSessionRootEntries,
@@ -76,9 +74,7 @@ import { createRunPreparationTiming } from "../execution-preparation-timing.js";
 import { configuredEnvironment, PROVIDER_CREDENTIAL_ENVIRONMENT_KEYS } from "../../vendor/outpost-runner/index.js";
 import { parseProviderPerformanceSpans } from "../../vendor/outpost-runner/index.js";
 import { apiKeyBillingType } from "@outpost/adapter-utils/api-billing-type";
-import { agents } from "@outpost/db";
 import { isCloudManagedInstance } from "../cloud-instance.js";
-import { dotRunnerBroker } from "../dot-runner-broker.js";
 import { CURSOR_DISTRIBUTION_PINS, KIMI_DISTRIBUTION_CLOSURE_SHA256, QUALIFIED_ACPX_PROFILES, QUALIFIED_ACPX_VERSION } from "../../vendor/outpost-runner/index.js";
 import { isProviderMode } from "../../vendor/outpost-runner/index.js";
 import { codexUsageBaselineForNextRun } from "../../vendor/outpost-runner/index.js";
@@ -2239,9 +2235,6 @@ export function nativeSessionWorkspaceScope(execution: { binding: Pick<NativeExe
 
 function nativeProviderSessionScope(execution: NativeExecutionInput) {
   switch (execution.provider.kind) {
-    case "muse":
-    case "grok_bot":
-    case "openai_dot": return { kind: execution.provider.kind, bindingId: execution.provider.binding.bindingId, generation: execution.provider.binding.bindingGeneration };
     case "claude_managed":
       return {
         kind: execution.provider.kind,
@@ -7654,10 +7647,6 @@ function canonicalJson(value: unknown): string {
 
 function runnerProviderStateFilename(execution: NativeExecutionInput): string {
   switch (execution.provider.kind) {
-    case "muse": return "muse-provider-state.json";
-    case "grok_bot":
-    case "openai_dot":
-      return "dot-provider-state.json";
     case "cursor_cloud":
     case "codex":
     case "opencode":
@@ -7691,11 +7680,6 @@ export function providerSessionIdentityFromDurableProviderState(input: {
     providerSessionIdentity: null,
   });
   switch (input.execution.provider.kind) {
-    case "muse":
-    case "grok_bot":
-    case "openai_dot":
-      // External checkpoints recover the bridge only; there is no native provider thread.
-      return emptyIdentity();
     case "acpx": {
       const descriptor = record(state.descriptor);
       const identity = record(state.identity);
@@ -10157,7 +10141,6 @@ export async function executeOutpostNativeSession(input: {
   /** Use a session-owned GitHub broker, rebound only after run ownership is acquired. */
   managedGitHub?: boolean;
   /** Resolved adapter env; the runner transport applies a provider allowlist before spawn. */
-  dotWorkspaceRoot?: string;
   observability?: ProviderObservabilityLaunch;
   runnerEnvironment?: NodeJS.ProcessEnv;
   /** Private grant materialization; never a user-configured host path. */
@@ -10266,11 +10249,6 @@ export async function executeOutpostNativeSession(input: {
       ownerScope, nativeSessionScopeKey(input.execution), nativeSessionKey(input.execution), runId,
       undefined, input.runnerExecutionTarget,
     );
-    if ((input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8") && isCloudManagedInstance()
-        && (!input.useRunnerd || input.runnerExecutionTarget?.kind !== "remote"
-          || input.runnerExecutionTarget.transport !== "sandbox")) {
-      throw new Error(input.execution.provider.kind === "muse" ? "muse_cloud_requires_managed_runner" : "dot_cloud_requires_managed_runner");
-    }
     if (!input.useRunnerd) {
       return await executeOutpostNativeSessionWithinScope(input, undefined, false, ownDiagnosticLease);
     }
@@ -10291,9 +10269,6 @@ export async function executeOutpostNativeSession(input: {
     // a later sweep from closing an owner this turn is about to acquire.
     await closingWarmNativeSessions.get(sessionScopeId);
 
-    if (input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8") {
-      return await executeOutpostNativeSessionWithinScope(input, undefined, false, ownDiagnosticLease);
-    }
     if (input.restartRecovery?.kind === "reattach_remote_runner"
       && input.restartRecovery.runId === input.execution.binding.runId
       && input.restartRecovery.leaseOwner === input.leaseOwner) {
@@ -10576,9 +10551,7 @@ async function executeOutpostNativeSessionAttempt(
     input.execution.provider.kind !== "opencode" &&
     input.execution.provider.kind !== "claude_managed" &&
     input.execution.provider.kind !== "aws_agentcore" &&
-    input.execution.provider.kind !== "acpx" &&
-    input.execution.schema !== "outpost.native-execution-input.v6" &&
-    input.execution.schema !== "outpost.native-execution-input.v8"
+    input.execution.provider.kind !== "acpx"
   ) {
     throw new Error("outpost_runner_provider_unsupported");
   }
@@ -11905,7 +11878,7 @@ async function executeOutpostNativeSessionAttempt(
       : null;
   }
   const runnerExecution: NativeExecutionInput =
-    input.execution.schema !== "outpost.native-execution-input.v6" && input.execution.schema !== "outpost.native-execution-input.v8" && input.useRunnerd && input.runnerExecutionTarget?.kind === "remote"
+    input.useRunnerd && input.runnerExecutionTarget?.kind === "remote"
       ? {
           ...input.execution,
           workspace: {
@@ -11919,7 +11892,7 @@ async function executeOutpostNativeSessionAttempt(
   try {
     const usesPluginTask = input.runnerExecutionTarget?.kind === "remote" && input.runnerExecutionTarget.transport === "sandbox" && !!input.runnerExecutionTarget.runnerTask;
     const prepareRunnerEnvironment = async () => {
-      if (needsCoreGitHubAccess(input) && input.execution.schema !== "outpost.native-execution-input.v6" && input.execution.schema !== "outpost.native-execution-input.v8") {
+      if (needsCoreGitHubAccess(input)) {
         if (!input.execution.workspace.cwd) throw new Error("native_workspace_required");
         githubAccess ??= await timeController("github_access", () => createNativeGitHubAccess({
           scope: input.execution.binding,
@@ -11937,9 +11910,7 @@ async function executeOutpostNativeSessionAttempt(
     };
     const overlapGitHubPreparation = needsCoreGitHubAccess(input) && input.useRunnerd && input.backend === undefined
       && input.runnerExecutionTarget?.kind === "remote"
-      && (input.execution.provider.kind === "codex" || input.execution.provider.kind === "opencode")
-      && input.execution.schema !== "outpost.native-execution-input.v6"
-      && input.execution.schema !== "outpost.native-execution-input.v8";
+      && (input.execution.provider.kind === "codex" || input.execution.provider.kind === "opencode");
     if (!overlapGitHubPreparation) {
       if (executionContext) await executionContext.wait(prepareRunnerEnvironment); else await prepareRunnerEnvironment();
     }
@@ -13522,7 +13493,6 @@ async function executeOutpostNativeSessionAttempt(
     resultJson: {
       nativeResult: native.result as unknown as Record<string, unknown>,
       nativeTerminal: native.terminal as unknown as Record<string, unknown>,
-      ...((input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8") ? { providerAccounting: { usage: null, cost: null, externallyBilled: true }, externalStopConfirmed: false } : {}),
       ...(input.execution.provider.kind === "cursor_cloud" ? { providerAccounting: { usage: null, cost: null, externallyBilled: true } } : {}),
       ...(providerFailure ? { nativeProviderFailure: providerFailure.diagnostic } : {}),
       ...(unclassifiedTurnFailure ? { nativeTurnFailure: unclassifiedTurnFailure } : {}),
@@ -13536,7 +13506,7 @@ async function executeOutpostNativeSessionAttempt(
     ...resolveNativeBilling(input.execution.provider, input.runnerEnvironment, input.billingIdentity),
     model: input.execution.provider.model,
     usage: input.execution.provider.kind === "cursor_cloud" ? undefined : normalizeNativeUsage(native.usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" }),
-    costUsd: input.execution.schema !== "outpost.native-execution-input.v6" && input.execution.schema !== "outpost.native-execution-input.v8" && normalizeNativeUsage(native.usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" })
+    costUsd: normalizeNativeUsage(native.usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" })
       ? nativeUsageCostUsd(native.usage, input.execution.provider) ?? null : null,
     costUsdExact: input.execution.provider.kind !== "cursor_cloud" && typeof native.usage?.accountingCostUsdExact === "string" ? native.usage.accountingCostUsdExact : undefined,
     costStatus: input.execution.provider.kind !== "cursor_cloud" && nativeAccountingComplete && native.usage?.accountingCostIncomplete !== true
@@ -13562,7 +13532,6 @@ async function executeOutpostNativeSessionAttempt(
  * Unknown authentication remains unknown; a provider name does not prove billing mode. */
 export function resolveNativeBilling(provider: NativeExecutionInput["provider"], env: NodeJS.ProcessEnv = {}, identity?: Pick<AdapterExecutionResult, "provider" | "biller" | "billingType">): Pick<AdapterExecutionResult, "provider" | "biller" | "billingType"> {
   if (provider.kind === "cursor_cloud") return { provider: "cursor", biller: "cursor", billingType: "unknown" };
-  if (provider.kind === "grok_bot") return { provider: "grok_bot", biller: "unknown", billingType: "unknown" };
   if (identity) return identity.provider === "openai" && identity.billingType === "metered_api"
     ? { ...identity, biller: inferOpenAiCompatibleBiller(env, identity.biller ?? "unknown") }
     : identity;
@@ -13973,7 +13942,6 @@ function* providerPackIdentityChecks(
 export function assertRemoteRunnerBuildMetadata(
   value: unknown,
   requiredMode: "dial_wss" | "listen_ws",
-  requiredExternalProvider?: "openai_dot_mcp" | "grok_bot_mcp" | "muse_external_v1",
 ): void {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("runner_remote_artifact_metadata_invalid");
@@ -13990,10 +13958,6 @@ export function assertRemoteRunnerBuildMetadata(
   // Older sandbox images share binary contract v2, but reject the zero
   // lifetime now used by the controller and cannot renew connection leases.
   // Reject them before launch so preparation stages the bundled runner instead.
-  if (requiredExternalProvider && (!Array.isArray(metadata.externalProviderCapabilities)
-      || !metadata.externalProviderCapabilities.includes(requiredExternalProvider))) {
-    throw new Error(requiredExternalProvider === "muse_external_v1" ? "runner_remote_muse_capability_missing: install the current Outpost Runner artifact" : "runner_remote_dot_capability_missing: install the current Outpost Runner artifact");
-  }
   const sessionCapabilities = Array.isArray(metadata.durableSessionCapabilities)
     ? metadata.durableSessionCapabilities
     : [];
@@ -14924,7 +14888,7 @@ export async function verifyRemoteRunnerReattachment(input: {
         ...describeExitedRemoteRunner(runnerState),
         // Why the Runner exited, from its own durable state and sandbox-local files, so the run log names it.
         ...describeExitedRemoteRunnerReason(runnerState, redactSensitiveText),
-        // A session Runner logs beside its state; external (Dot, Muse, grok_bot) Runners log in the shared runtime root.
+        // A session Runner logs beside its state.
         ...await readRemoteRunnerExitEvidence(runner, [posix.join(posix.dirname(stateDirectory), "diagnostics"),
           posix.join(target.remoteCwd, ".outpost-runtime", "outpost-runner", "diagnostics")],
           Math.min(input.recoveryDeadline ?? Number.POSITIVE_INFINITY, Date.now() + 10_000)),
@@ -15505,7 +15469,6 @@ export async function createRunnerdBackend(input: {
     processGroupId: number | null;
     startedAt: string;
   }) => Promise<void>;
-  dotWorkspaceRoot?: string;
   observability?: ProviderObservabilityLaunch;
   runnerEnvironment?: NodeJS.ProcessEnv;
   prepareRunnerEnvironment?: () => Promise<NodeJS.ProcessEnv | undefined>;
@@ -15612,111 +15575,6 @@ export async function createRunnerdBackend(input: {
   }
 }
 
-/** Dot uses the same managed process launcher and authenticated ORP transports.
- * Its execution contract still exposes no workspace, shell, or provider secrets. */
-async function prepareRemoteExternalRunner({ input, target, runner, root, identity }: {
-  input: Parameters<typeof createRunnerdBackend>[0];
-  target: Extract<AdapterExecutionTarget, { kind: "remote" }>;
-  runner: CommandManagedRuntimeRunner;
-  root: string;
-  identity: NonNullable<NonNullable<Parameters<typeof createNativeSessionBackend>[1]>["dotRunnerOptions"]>["identity"];
-}) {
-  const muse = input.execution.provider.kind === "muse";
-  const checkpointFile = muse ? "muse-provider-state.json" : "dot-provider-state.json";
-  const checkpointSchema = muse ? "outpost.runner.muse-provider-state.v1" : "outpost.runner.dot-provider-state.v1";
-  const runnerBinary = input.runnerRemoteBinaryPath?.trim() || resolveOutpostRunnerBinary();
-  const remoteRoot = posix.join(target.remoteCwd, ".outpost-runtime", "outpost-runner");
-  const remoteBinary = posix.join(remoteRoot, "bin", "outpost-runnerd");
-  const runnerStateDirectory = posix.join(remoteRoot, "sessions",
-    createHash("sha256").update(identity.normalizedSessionId).digest("hex"), "runner");
-  const requiredMode = resolveRemoteRunnerTransportMode({ target, runnerIngressAuthorized: input.runnerIngressAuthorized === true });
-  const artifact = input.controllerPersistence?.runnerArtifact ?? readRunnerdArtifactBinding(runnerBinary);
-  const prepare = async () => {
-    if (input.restartRecovery?.kind === "reattach_remote_runner" && input.controllerPersistence?.runnerArtifact) return;
-    if (input.restartRecovery?.kind !== "reattach_remote_runner") {
-      if (!input.runnerRemoteBinaryPath?.trim()) {
-        const platform = await runner.execute({ command: "sh", args: ["-c", "uname -s; uname -m"], bypassSession: true, timeoutMs: 10000 });
-        const [os, arch] = platform.stdout.trim().split(/\r?\n/);
-        if (platform.exitCode !== 0 || platform.timedOut || os !== (process.platform === "darwin" ? "Darwin" : "Linux")
-          || ![process.arch === "x64" ? "x86_64" : "aarch64", process.arch].includes(arch)) {
-          throw new Error("runner_remote_artifact_platform_mismatch: configure OUTPOST_RUNNER_REMOTE_BINARY_PATH for the sandbox platform");
-        }
-      }
-      await stageRemoteRunnerFile({ target, runner, sourcePath: runnerBinary, targetPath: remoteBinary, mode: 0o700 });
-    }
-    const metadata = await runner.execute({ command: remoteBinary, args: ["--build-metadata"], bypassSession: true, timeoutMs: 30000 });
-    if (metadata.exitCode !== 0 || metadata.timedOut) throw new Error("runner_remote_artifact_verification_failed");
-    assertRemoteRunnerBuildMetadata(JSON.parse(metadata.stdout), requiredMode, muse ? "muse_external_v1" : input.execution.provider.kind === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp");
-    const checksum = await runner.execute({ command: "sh", args: ["-c",
-      'if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi', "outpost-dot-artifact", remoteBinary],
-      bypassSession: true, timeoutMs: 10000 });
-    if (checksum.exitCode !== 0 || checksum.timedOut || `sha256:${checksum.stdout.trim().split(/\s+/)[0]}` !== artifact.digest) {
-      throw new Error("runner_remote_artifact_verification_failed");
-    }
-  };
-  const readProviderState = async () => {
-    const result = await runner.execute({ command: "sh", args: ["-c",
-      'set -eu; if test ! -e "$1" && test ! -L "$1"; then exit 3; fi; test -f "$1" && test ! -L "$1"; test "$(wc -c < "$1")" -le 33554432; base64 < "$1"',
-      "outpost-dot-checkpoint", posix.join(runnerStateDirectory, checkpointFile)], bypassSession: true, timeoutMs: 10000 });
-    if (result.exitCode === 3 && !result.timedOut) return null;
-    if (result.exitCode !== 0 || result.timedOut) throw new Error("dot_provider_checkpoint_unavailable");
-    const state = record(JSON.parse(Buffer.from(result.stdout.replace(/\s+/g, ""), "base64").toString("utf8")));
-    if (state.schema !== checkpointSchema || state.runId !== identity.runId
-      || state.sessionId !== identity.normalizedSessionId || state.turnId !== identity.turnId) throw new Error("dot_runner_checkpoint_authority_mismatch");
-    // Retain inspectable recovery evidence on the controller without changing
-    // which execution target is authoritative for replay.
-    mkdirSync(join(root, "runner"), { recursive: true, mode: 0o700 });
-    const saved = join(root, "runner", checkpointFile);
-    const temporary = `${saved}.${randomUUID()}.tmp`;
-    writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 });
-    renameSync(temporary, saved);
-    return state;
-  };
-  let spawned: () => void = () => {};
-  const processStarted = new Promise<void>(resolve => { spawned = resolve; });
-  // A transport handshake alone does not prove a recoverable process owner.
-  // Do not attach the Dot broker until the exact sandbox marker is validated.
-  let identityReady: () => void = () => {};
-  let identityFailed: (error: unknown) => void = () => {};
-  const processIdentityReady = new Promise<void>((resolve, reject) => { identityReady = resolve; identityFailed = reject; });
-  void processIdentityReady.catch(() => {});
-  const adoptExistingRunner = input.restartRecovery?.kind === "reattach_remote_runner"
-    ? await verifyRemoteRunnerOrSettledExit({ claim: input.restartRecovery, target, identity: { ...identity },
-        runId: input.execution.binding.runId, normalizedSessionId: nativeSessionKey(input.execution),
-        providerAttempt: input.restartRecovery.providerAttempt }) : undefined;
-  if (adoptExistingRunner) { spawned(); identityReady(); }
-  const launch = createRemoteRunnerProcessLauncher({ target, runner, remoteBinary,
-    processIdentityPath: posix.join(runnerStateDirectory, "runner-process.identity"), stateDirectory: runnerStateDirectory,
-    diagnosticsDirectory: posix.join(remoteRoot, "diagnostics"), runnerInstanceId: input.runnerInstanceId,
-    requireProcessStartFingerprint: true,
-    onSpawn: async meta => { await input.onSpawn?.(meta); identityReady(); },
-    onLog: input.onLog, trace: input.trace, onRunnerProcessSpawned: () => spawned() });
-  const runnerProcessLauncher: typeof launch = spec => {
-    const handle = launch(spec);
-    void handle.completion.then(() => identityFailed(new Error("runner_remote_process_identity_unavailable")), identityFailed);
-    return handle;
-  };
-  const executionDriver = createNativeRunnerExecutionDriver({
-    target, binding: input.execution.binding,
-    controllerPersistence: input.controllerPersistence ? nativeRunnerCheckpointPersistence(
-      input.db, input.controllerPersistence.bootId, input.execution.binding.runId, detachNativeSessionsForRestart) : undefined,
-    runnerIngressAuthorized: input.runnerIngressAuthorized,
-    runnerPublicUrl: input.runnerPublicUrl,
-    runnerCaBundlePath: input.runnerCaBundlePath,
-    prepareRemote: prepare,
-    processStarted, processIdentityReady,
-    mapCaBundle: async sourcePath => {
-      const targetPath = posix.join(remoteRoot, "bin", "runner-ca-bundle.pem");
-      await stageRemoteRunnerFile({ target, runner, sourcePath, targetPath, mode: 0o600 });
-      return targetPath;
-    },
-    process: { runnerStateDirectory, runnerProcessLauncher, adoptExistingRunner },
-    onLog: input.onLog,
-    trace: input.trace,
-  });
-  return { runnerBinary, readProviderState, ...executionDriver };
-}
-
 type ManagedRunnerdBackend = NativeSessionBackend & {
   bindManagedSession(session: NativeSession, options?: { releaseResumeOnly: true }): NativeSession;
   bindDiagnosticSession?(session: NativeSession): void;
@@ -15748,9 +15606,6 @@ async function createRunnerdBackendWithinSessionClaim(
   } : rawPluginTask;
   let runnerControlPlane: DurablePrpControlPlane | undefined;
   if (pluginTask && input.runnerIngressAuthorized !== true) throw new Error("runner_ingress_unavailable");
-  if (pluginTask && (input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8")) {
-    throw new Error("Plugin Runner tasks require a workspace session");
-  }
   const remoteCommandRunner = remoteTarget
     ? remoteTarget.transport === "ssh"
       ? createNativeSshCommandRunner({
@@ -15769,7 +15624,7 @@ async function createRunnerdBackendWithinSessionClaim(
     input.execution.binding,
   ));
   const pinnedSkills = new Set("runtimeContext" in input.execution ? input.execution.runtimeContext.skills.map((skill) => skill.key) : []);
-  const connectorAssignments = input.execution.provider.kind !== "muse" ? connectorToolDefinitionsForSkills(pinnedSkills) : [];
+  const connectorAssignments = connectorToolDefinitionsForSkills(pinnedSkills);
   const reviewRun = await input.db.select({ contextSnapshot: heartbeatRuns.contextSnapshot })
     .from(heartbeatRuns).where(and(
       eq(heartbeatRuns.id, input.execution.binding.runId),
@@ -15782,7 +15637,7 @@ async function createRunnerdBackendWithinSessionClaim(
   // Codex and OpenCode send dynamic tool calls over authenticated ORP. Keep
   // the assigned gateway on the control plane instead of asking the sandbox to
   // reach the host's HTTP origin (which may be private or loopback-only).
-  const relayAssignedMcp = Boolean(pluginTask) || input.execution.provider.kind === "cursor_cloud" || input.execution.provider.kind === "opencode" || (remoteTarget !== null && input.execution.provider.kind === "codex") || input.execution.schema === "outpost.native-execution-input.v6";
+  const relayAssignedMcp = Boolean(pluginTask) || input.execution.provider.kind === "cursor_cloud" || input.execution.provider.kind === "opencode" || (remoteTarget !== null && input.execution.provider.kind === "codex");
   const assignedMcpUrl = input.runnerEnvironment?.OUTPOST_NATIVE_MCP_URL;
   const assignedMcpToken = input.runnerEnvironment?.OUTPOST_NATIVE_MCP_TOKEN;
   const assignedMcpName = input.runnerEnvironment?.OUTPOST_NATIVE_MCP_NAME;
@@ -15820,10 +15675,6 @@ async function createRunnerdBackendWithinSessionClaim(
   if (preparedPluginTaskOwner.status === "rejected") throw preparedPluginTaskOwner.reason;
   const runnerEnvironment = preparedEnvironment.value;
   const assignedMcpTools = preparedAssignedMcp.value;
-  const dotAttachmentActor = input.execution.schema === "outpost.native-execution-input.v6"
-    ? await input.db.select({ config: agents.adapterConfig }).from(agents).where(and(
-        eq(agents.id, input.execution.binding.agentId), eq(agents.spaceId, input.execution.binding.spaceId),
-      )).limit(1).then(rows => rows[0]) : undefined;
   input.executionContext?.signal.throwIfAborted();
   const authority = new OutpostRunnerToolAuthority(input.db, {
     apiUrl: resolveLocalRuntimeApiUrl(),
@@ -15842,15 +15693,7 @@ async function createRunnerdBackendWithinSessionClaim(
         : undefined,
     workMode: input.execution.task.workMode,
     runtimeContext: "runtimeContext" in input.execution ? input.execution.runtimeContext : undefined,
-    workspaceBridge: input.execution.schema === "outpost.native-execution-input.v6" && !!input.dotWorkspaceRoot,
-    taskAttachmentRead: dotAttachmentActor?.config.dotAttachmentAccess === true,
-    dotRuntime: input.execution.schema === "outpost.native-execution-input.v6",
-    firstPartyOnly: input.execution.provider.kind === "grok_bot",
-    museRuntime: input.execution.provider.kind === "muse",
-    externalAuthorizingUserId: input.execution.provider.kind === "muse"
-      ? await museRunnerBroker(input.db).authorizingUserIdForBinding(input.execution.provider.binding) : undefined,
-    assertBridgeAuthority: input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8" ? (database = input.db) => assertExternalNativeRunAuthority(input.db, input.execution, database) : undefined,
-    workspaceRoot: cloudArtifactRoot ?? input.dotWorkspaceRoot ?? remoteTarget?.remoteCwd ?? input.execution.workspace.cwd ?? undefined,
+    workspaceRoot: cloudArtifactRoot ?? remoteTarget?.remoteCwd ?? input.execution.workspace.cwd ?? undefined,
     executionTargetKind: target.kind,
     installRemoteArtifact: !pluginTask && remoteTarget && remoteCommandRunner
       ? createArtifactInstaller(remoteTarget.remoteCwd, remoteCommandRunner) : undefined,
@@ -15887,8 +15730,6 @@ async function createRunnerdBackendWithinSessionClaim(
     ? await verifyStagedAttachmentRestart(input) : null;
   const retainedSystemInstructions = input.restartRecovery?.kind === "reattach_remote_runner"
     && "runtimeContext" in input.execution
-    && input.execution.schema !== "outpost.native-execution-input.v6"
-    && input.execution.schema !== "outpost.native-execution-input.v8"
     ? inspectRetainedRunInstructions(JSON.parse(readBoundedNativeFile(
         resolve(root, "control-plane", "control-plane-state.json"), NATIVE_CONTROL_PLANE_STATE_MAX_BYTES,
         "native_runner_recovery_instructions_unavailable").toString("utf8")), {
@@ -15954,7 +15795,7 @@ async function createRunnerdBackendWithinSessionClaim(
     return { root, durableIdentity, durableBinding };
   }
   async function preparePluginTaskOwner() {
-    if (!pluginTask || remoteTarget?.transport !== "sandbox" || input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8") {
+    if (!pluginTask || remoteTarget?.transport !== "sandbox") {
       throw new Error("Plugin Runner tasks require a workspace session");
     }
     const { root, durableIdentity, durableBinding } = durableState ??= readDurableState();
@@ -16059,7 +15900,7 @@ async function createRunnerdBackendWithinSessionClaim(
     if (retainedOwner) retainedOwner.rebind(ownerInput);
     return { provider, description, prior, adoptionIdentity, adopting, owner };
   }
-  if (pluginTask && remoteTarget?.transport === "sandbox" && input.execution.schema !== "outpost.native-execution-input.v6" && input.execution.schema !== "outpost.native-execution-input.v8") {
+  if (pluginTask && remoteTarget?.transport === "sandbox") {
     const { provider, description, prior, adoptionIdentity, adopting, owner } = await (pluginTaskOwner ??= preparePluginTaskOwner());
     if (description.workspaceFileReadVersion === 1) {
       authority.binding.readRemoteApiFile = owner.readWorkspaceFile;
@@ -16139,51 +15980,6 @@ async function createRunnerdBackendWithinSessionClaim(
         if (!options?.releaseResumeOnly || description.releaseResumeVersion === 1) pluginTaskSessionOwners.set(session, owner);
         return session;
       } };
-  }
-  if (input.execution.schema === "outpost.native-execution-input.v6" || input.execution.schema === "outpost.native-execution-input.v8") {
-    if (target.kind === "remote" && input.dotWorkspaceRoot) throw new Error("dot_remote_workspace_access_unavailable");
-    const remoteDot = target.kind === "remote"
-      ? await prepareRemoteExternalRunner({ input, target, runner: remoteCommandRunner!, root,
-          identity: { runnerInstanceId: effectiveRunnerInstanceId, environmentLeaseId: effectiveEnvironmentLeaseId,
-            runId: input.execution.binding.runId, normalizedSessionId: nativeSessionKey(input.execution),
-            turnId: `turn-${input.execution.binding.runId}`, itemId: `item-${input.execution.binding.runId}` } })
-      : null;
-    const recoveredProcess = input.restartRecovery?.kind === "reattach_existing_runner" ? input.restartRecovery.process : null;
-    const externalExecution = input.execution;
-    const externalOptions = {
-        stateDirectory: root, runnerBinary: remoteDot?.runnerBinary ?? resolveOutpostRunnerBinary(),
-        runnerArtifact: input.controllerPersistence?.runnerArtifact,
-        runnerReconnectGraceMs: remoteDot ? REMOTE_RUNNER_RECONNECT_GRACE_MS : undefined,
-        recoverSemanticToolInput: (call: { operationId: string; callId: string; input: unknown; admission: SemanticInputAdmission }) =>
-          authorityEpoch.recover({ tool: call.operationId, callId: call.callId, arguments: call.input }, call.admission),
-        ...(remoteDot ?? {}),
-        identity: { runnerInstanceId: effectiveRunnerInstanceId, environmentLeaseId: effectiveEnvironmentLeaseId,
-          runId: input.execution.binding.runId, normalizedSessionId: nativeSessionKey(input.execution),
-          turnId: `turn-${input.execution.binding.runId}`, itemId: `item-${input.execution.binding.runId}` },
-        controlPlaneRegistration: remoteDot?.controlPlaneRegistration ?? createNativeRunnerExecutionDriver({
-          target, binding: input.execution.binding, trace: input.trace, onLog: input.onLog,
-        }).controlPlaneRegistration,
-        adoptExistingRunner: remoteDot?.adoptExistingRunner ?? (recoveredProcess ? { ...recoveredProcess,
-          isAlive: () => recoveryProcessMayBeAlive(recoveredProcess),
-          signal: (signal: NodeJS.Signals = "SIGTERM") => signalVerifiedRecoveryProcess(recoveredProcess, signal) } : undefined),
-    };
-    const backendOptions = {
-      onSpawn: input.onSpawn, dynamicTools,
-      dynamicToolHandler: async (call: Parameters<SessionAuthorityEpoch["execute"]>[0]) => {
-        await assertExternalNativeRunAuthority(input.db, externalExecution); return authorityEpoch.execute(call);
-      },
-      completionFeedback: async (result: PrpStructuredRunResult) => {
-        await assertExternalNativeRunAuthority(input.db, externalExecution); await timeController("tool_authority", () => authorityEpoch.definitions());
-        return nativeCompletionFeedback(input.db, externalExecution.binding.runId, result);
-      },
-    };
-    const backend = externalExecution.schema === "outpost.native-execution-input.v8"
-      ? createNativeSessionBackend(externalExecution, { ...backendOptions, museRunnerOptions: { ...externalOptions, port: museRunnerBroker(input.db).port(externalExecution) } })
-      : createNativeSessionBackend(externalExecution, { ...backendOptions, dotRunnerOptions: { ...externalOptions, port: dotRunnerBroker(input.db).port(externalExecution) } });
-    const prior = sessionToolAuthorityEpochs.get(sessionScopeId); if (prior) prior.revoke();
-    sessionToolAuthorityEpochs.set(sessionScopeId, authorityEpoch);
-    return { ...backend, descriptor: () => backend.descriptor(), openSession: input => backend.openSession(input),
-      recoverSession: (snapshot, options) => backend.recoverSession!(snapshot, options), bindManagedSession: session => session };
   }
   if (remoteTarget && input.controllerPersistence && durableNativeHarnessStorage()) {
     sessionHarnessBackupOwners.set(authorityEpoch, await nativeHarnessBackupOwner(input.db, {

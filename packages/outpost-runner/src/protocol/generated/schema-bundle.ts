@@ -1225,9 +1225,6 @@ export const providerDescriptorSchema = {
         "claude_managed",
         "aws_agentcore",
         "acpx",
-        "openai_dot",
-        "grok_bot",
-        "muse",
         "cursor_cloud"
       ]
     },
@@ -1238,9 +1235,6 @@ export const providerDescriptorSchema = {
         "claude_managed_agents_api",
         "aws_agentcore_harness_api",
         "acpx_runtime",
-        "openai_dot_mcp",
-        "grok_bot_mcp",
-        "muse_external",
         "cursor_cloud_api"
       ]
     },
@@ -1265,10 +1259,7 @@ export const providerDescriptorSchema = {
     "service": {
       "enum": [
         "anthropic_managed_agents",
-        "aws_bedrock_agentcore_harness",
-        "openai_dot",
-        "grok_bot",
-        "muse"
+        "aws_bedrock_agentcore_harness"
       ]
     },
     "providerSessionId": {
@@ -1502,45 +1493,6 @@ export const providerDescriptorSchema = {
         {
           "properties": {
             "provider": {
-              "const": "openai_dot"
-            },
-            "driver": {
-              "const": "openai_dot_mcp"
-            },
-            "executionKind": {
-              "const": "remote_service"
-            }
-          }
-        },
-        {
-          "properties": {
-            "provider": {
-              "const": "grok_bot"
-            },
-            "driver": {
-              "const": "grok_bot_mcp"
-            },
-            "executionKind": {
-              "const": "remote_service"
-            }
-          }
-        },
-        {
-          "properties": {
-            "provider": {
-              "const": "muse"
-            },
-            "driver": {
-              "const": "muse_external"
-            },
-            "executionKind": {
-              "const": "remote_service"
-            }
-          }
-        },
-        {
-          "properties": {
-            "provider": {
               "const": "cursor_cloud"
             },
             "driver": {
@@ -1655,102 +1607,6 @@ export const providerDescriptorSchema = {
           "acpxRecordId",
           "agentProcessId"
         ]
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "provider": {
-            "const": "openai_dot"
-          }
-        },
-        "required": [
-          "provider"
-        ]
-      },
-      "then": {
-        "required": [
-          "service",
-          "providerSessionId"
-        ],
-        "properties": {
-          "service": {
-            "const": "openai_dot"
-          },
-          "model": {
-            "const": null
-          },
-          "providerSessionId": {
-            "const": null
-          },
-          "agentProcessId": {
-            "const": null
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "provider": {
-            "const": "grok_bot"
-          }
-        },
-        "required": [
-          "provider"
-        ]
-      },
-      "then": {
-        "required": [
-          "service",
-          "providerSessionId"
-        ],
-        "properties": {
-          "service": {
-            "const": "grok_bot"
-          },
-          "model": {
-            "const": null
-          },
-          "providerSessionId": {
-            "const": null
-          },
-          "agentProcessId": {
-            "const": null
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "provider": {
-            "const": "muse"
-          }
-        },
-        "required": [
-          "provider"
-        ]
-      },
-      "then": {
-        "required": [
-          "service",
-          "providerSessionId"
-        ],
-        "properties": {
-          "service": {
-            "const": "muse"
-          },
-          "model": {
-            "const": null
-          },
-          "providerSessionId": {
-            "const": null
-          },
-          "agentProcessId": {
-            "const": null
-          }
-        }
       }
     },
     {

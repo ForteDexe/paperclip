@@ -297,8 +297,6 @@ import {
 import {
   OutpostRunnerProviderProfileError,
   resolveOutpostRunnerProviderProfile,
-  validateOutpostRunnerDotConfig,
-  validateOutpostRunnerGrokConfig,
 } from "../services/native-runtime/provider-profile.js";
 import { managedAgentProfileService } from "../services/managed-agent-profiles.js";
 import { remoteAgentProfileService } from "../services/remote-agent-profiles.js";
@@ -1838,8 +1836,6 @@ export function agentRoutes(
         );
       } else if (asRecord(config)?.provider === "muse") {
         if (experimental.enableMuse !== true || experimental.enableNativeRunner !== true) throw unprocessable("Muse is experimental and disabled on this instance.", { code: "outpost_runner_muse_disabled" });
-      } else if (asRecord(config)?.provider === "grok_bot" && (experimental.enableGrokBot !== true || experimental.enablePublicMcp !== true || experimental.enableNativeRunner !== true)) {
-        throw unprocessable("Enable Grok Bot, Assistant connections (MCP), and Outpost Runner before connecting this agent.", { code: "outpost_runner_grok_disabled" });
       } else if (!([undefined, "codex", "opencode"].includes(asRecord(config)?.provider as string | undefined)) &&
         !(asRecord(config)?.provider === "acpx" && asRecord(config)?.acpxAgent === "copilot") &&
         !["claude_local", "pi_local", "grok_local"].includes(agentHarnessType("outpost_runner", asRecord(config) ?? {})) &&
@@ -1870,14 +1866,6 @@ export function agentRoutes(
     if (adapterType !== "outpost_runner") return;
     let profile;
     try {
-      if (adapterConfig.provider === "grok_bot") {
-        validateOutpostRunnerGrokConfig(adapterConfig, false);
-        return;
-      }
-      if (adapterConfig.provider === "openai_dot") {
-        validateOutpostRunnerDotConfig(adapterConfig, false);
-        return;
-      }
       profile = resolveOutpostRunnerProviderProfile(adapterConfig, { spaceId });
     } catch (error) {
       if (error instanceof OutpostRunnerProviderProfileError) {

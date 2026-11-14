@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { QUALIFIED_ACPX_PROFILES } from "../drivers/acpx/qualified-profiles.js";
 import { describe, expect, it } from "vitest";
 
-import { buildNativeModelEnvelope, parseNativeExecutionInput, NATIVE_EXECUTION_INPUT_SCHEMA, NATIVE_EXECUTION_INPUT_SCHEMA_V6, NATIVE_EXECUTION_INPUT_SCHEMA_V7, NATIVE_EXECUTION_INPUT_SCHEMA_V9, NATIVE_EXECUTION_INPUT_SCHEMA_V10, type NativeExecutionInputV1 } from "./native-execution.js";
+import { buildNativeModelEnvelope, parseNativeExecutionInput, NATIVE_EXECUTION_INPUT_SCHEMA, NATIVE_EXECUTION_INPUT_SCHEMA_V7, NATIVE_EXECUTION_INPUT_SCHEMA_V9, NATIVE_EXECUTION_INPUT_SCHEMA_V10, type NativeExecutionInputV1 } from "./native-execution.js";
 import {
   NATIVE_RUNTIME_ASSET_SCHEMA,
   OUTPOST_EXECUTION_PROMPT,
@@ -668,11 +668,6 @@ describe("native task context ownership", () => {
         agentServerPackage: "pi-acp", agentServerVersion: "0.0.33", agentRuntimePackage: "@earendil-works/pi-coding-agent",
         agentRuntimeVersion: "0.84.2", commandDigest: `sha256:${"a".repeat(64)}` },
     } },
-    { driverKind: "openai_dot_mcp", provider: {
-      kind: "openai_dot", model: null,
-      binding: { bindingId: "dot-binding", bindingGeneration: 1, spaceId: input.binding.spaceId, agentId: input.binding.agentId,
-        acceptByUnixMs: 1_000, expiresAtUnixMs: 2_000 },
-    } },
   ])("preserves an unregistered saved prompt for $provider.kind", ({ driverKind, provider }) => {
     const current = currentInput();
     if (!("runtimeContext" in current)) throw new Error("Expected a runtime context");
@@ -682,11 +677,6 @@ describe("native task context ownership", () => {
     context.aggregateDigest = canonicalNativeRuntimeContextDigest(context);
     const persisted = JSON.parse(JSON.stringify({
       ...current, provider, session: { ...current.session, driverKind }, runtimeContext: context,
-      ...(provider.kind === "openai_dot" ? {
-        schema: NATIVE_EXECUTION_INPUT_SCHEMA_V6,
-        workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
-        credentialBindings: [],
-      } : {}),
     }));
     const recovered = parseNativeExecutionInput(persisted);
     if (!("runtimeContext" in recovered)) throw new Error("Expected a runtime context");

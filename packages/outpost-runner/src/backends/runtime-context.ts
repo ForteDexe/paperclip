@@ -2,7 +2,7 @@ import { explicitTaskSkillNames } from "../contracts/runtime-context.js";
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { CODEX_SKILLLESS_BASE_INSTRUCTIONS } from "../contracts/codex.js";
-import { NATIVE_EXECUTION_INPUT_SCHEMA, NATIVE_EXECUTION_INPUT_SCHEMA_V6, NATIVE_EXECUTION_INPUT_SCHEMA_V7, NATIVE_EXECUTION_INPUT_SCHEMA_V8, NATIVE_EXECUTION_INPUT_SCHEMA_V9, NATIVE_EXECUTION_INPUT_SCHEMA_V10, type NativeExecutionInput } from "../contracts/native-execution.js";
+import { NATIVE_EXECUTION_INPUT_SCHEMA, NATIVE_EXECUTION_INPUT_SCHEMA_V7, NATIVE_EXECUTION_INPUT_SCHEMA_V9, NATIVE_EXECUTION_INPUT_SCHEMA_V10, type NativeExecutionInput } from "../contracts/native-execution.js";
 import {
   type NativeRuntimeContextSnapshot,
   type NativeSkillInput,
@@ -27,18 +27,6 @@ export function nativeSystemInstructions(input: NativeExecutionInput): string {
     throw new Error("native_runtime_context_entry_outside_bundle");
   }
   const entry = readFileSync(entryPath, "utf8");
-  if (input.provider.kind === "muse") {
-    return ["You are running as a named Outpost agent. Complete the assigned task, follow the attached agent instructions, and use the admitted Outpost catalog for coordination. Record durable text deliverables with write_document. When work depends on another task, preserve the existing dependencies with set_dependencies and report the concrete blocker through outpost_block. Follow each tool's approval and completion rules.", entry.trim(),
-      "Use the private Muse client's operation command for the admitted first-party Outpost task and document catalog. Use your own approved tools for external work. Outpost supplies no connector credentials or filesystem command grants. Keep all Outpost data within this connection's space, agent, and current task. Use the client's ask command for questions; persist the exact saved answer into this run's continuation before consuming its input receipt. Pending or unconsumed answers block completion. Invoke outpost_finish or outpost_block through the native tool catalog, then submit that exact accepted report with the client's finish command."].join("\n\n");
-  }
-  if (input.schema === "outpost.native-execution-input.v6") {
-    const grok = input.provider.kind === "grok_bot";
-    return [input.runtimeContext.prompt.text, entry.trim(),
-      grok ? "Grok Bot has no Outpost filesystem or shell access. Use first-party Outpost tools for authoritative task context, progress, questions, documents and deliverables. Use your own native apps and tools under their existing permissions. Provider memory persists; retrieve current task instructions for each work session." : "This provider has no mounted workspace. Use Outpost semantic tools for task coordination and write_document for durable text deliverables. Read pinned skills with list_assigned_skills and read_assigned_skill. Assigned app tools run through the Outpost MCP gateway with normal permissions and approvals. If workspace tools are advertised, use them for files and sandboxed commands, then register_deliverable for requested downloadable files. Use get_identity and list_people to discover the responsible person and assignees. Read the current catalog before concluding a capability is unavailable.",
-      // Keep tool-use guidance aligned with shared external-agent onboarding; the standalone Runner has no shared-package dependency.
-      "When you receive an Outpost assignment or message, use your own available tools, apps, plugins, skills, and capabilities to complete the requested work, then return the result to Outpost. For example, use your existing Slack connection when the task calls for Slack. Outpost's app catalog describes what this connection exposes; it is not a list of everything you can use in your own runtime. A missing Outpost app connection does not make your own connection unavailable. Respect each tool's existing permissions, approvals, and the user's current instructions. Keep Outpost data and actions within this connection's authorized space, agent, and task. Never use another Outpost connection or identity to bypass a denial. Setup or test restrictions apply only to their stated scope; do not carry them into later requests unless the user explicitly says they continue.\n\nUse the assignment catalog through outpost_dot_tool for Outpost operations. Use your native tools directly for the rest of the work; they do not need to appear in that catalog. Record useful results and deliverables on the task and follow the Outpost completion instructions.".replaceAll("outpost_dot_", grok ? "outpost_grok_" : "outpost_dot_"),
-      `Assigned Outpost skills: ${input.runtimeContext.skills.map(skill => skill.runtimeName).join(", ") || "none"}.`].join("\n\n");
-  }
   return composeNativeSystemInstructions(input.runtimeContext, entry);
 }
 
@@ -105,9 +93,7 @@ export function nativeTaskConstraints(input: NativeExecutionInput): string[] {
       })
     : [];
   const compactEnvelope = input.schema === NATIVE_EXECUTION_INPUT_SCHEMA
-    || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V6
     || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V7
-    || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V8
     || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V9 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V10;
   const answeredQuestionConstraint =
     answeredQuestions.length > 0

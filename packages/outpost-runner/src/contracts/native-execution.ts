@@ -2,7 +2,6 @@ import { parseNativeCursorCloudConfig, type NativeCursorCloudConfig } from "./cu
 import { resolveGrokDisableWebSearch } from "../drivers/acpx/grok-web-search.js";
 import { resolveGrokEffort } from "../drivers/acpx/grok-effort.js";
 import { resolveClaudeEffort } from "../drivers/acpx/claude-effort.js";
-import type { DotBindingSnapshot, MuseBindingSnapshot, ExternalBotProviderKind } from "./external-provider.js";
 import { QUALIFIED_ACPX_VERSION, QUALIFIED_ACPX_PROFILE_DATA } from "../drivers/acpx/generated-profiles.js";
 import { isSupportedAcpxProfileVersion, type AcpxProfileVersion } from "../drivers/acpx/profile-compatibility.js";
 import { isProviderMode } from "./provider-mode.js";
@@ -15,8 +14,6 @@ export const NATIVE_EXECUTION_INPUT_SCHEMA_V2 = "outpost.native-execution-input.
 export const NATIVE_EXECUTION_INPUT_SCHEMA_V3 = "outpost.native-execution-input.v3" as const;
 export const NATIVE_EXECUTION_INPUT_SCHEMA_V10 = "outpost.native-execution-input.v10" as const;
 export const NATIVE_EXECUTION_INPUT_SCHEMA_V9 = "outpost.native-execution-input.v9" as const;
-export const NATIVE_EXECUTION_INPUT_SCHEMA_V8 = "outpost.native-execution-input.v8" as const;
-export const NATIVE_EXECUTION_INPUT_SCHEMA_V6 = "outpost.native-execution-input.v6" as const;
 export const NATIVE_EXECUTION_INPUT_SCHEMA_V4 = "outpost.native-execution-input.v4" as const;
 export const NATIVE_EXECUTION_INPUT_SCHEMA = "outpost.native-execution-input.v5" as const;
 export const NATIVE_EXECUTION_INPUT_SCHEMA_V7 = "outpost.native-execution-input.v7" as const;
@@ -255,13 +252,6 @@ export interface NativeExecutionInputV5 extends Omit<NativeExecutionInputV4, "sc
   completionSources?: NativeCompletionSources;
 }
 
-export interface NativeExecutionInputV6 extends Omit<NativeExecutionInputV5, "schema" | "provider" | "workspace" | "session"> {
-  schema: typeof NATIVE_EXECUTION_INPUT_SCHEMA_V6;
-  provider: { kind: ExternalBotProviderKind; model: null; binding: DotBindingSnapshot };
-  workspace: { access: "none"; cwd: null; repoUrl: null; repoRef: null; branchName: null };
-  session: Omit<NativeExecutionInputV5["session"], "driverKind"> & { driverKind: "openai_dot_mcp" | "grok_bot_mcp" };
-}
-
 export interface NativeExecutionInputV7 extends Omit<NativeExecutionInputV5, "schema"> {
   schema: typeof NATIVE_EXECUTION_INPUT_SCHEMA_V7;
   homeMode: NativeHomeMode;
@@ -281,13 +271,7 @@ export interface NativeExecutionInputV10 extends Omit<NativeExecutionInputV9, "s
   provider: NativeProviderConfigV10;
 }
 
-export interface NativeExecutionInputV8 extends Omit<NativeExecutionInputV6, "schema" | "provider" | "session"> {
-  schema: typeof NATIVE_EXECUTION_INPUT_SCHEMA_V8;
-  provider: { kind: "muse"; model: null; binding: MuseBindingSnapshot; bridgeRevision: "muse-v1" };
-  session: Omit<NativeExecutionInputV6["session"], "driverKind"> & { driverKind: "muse_external" };
-}
-
-export type NativeExecutionInput = NativeExecutionInputV1 | NativeExecutionInputV2 | NativeExecutionInputV3 | NativeExecutionInputV4 | NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 | NativeExecutionInputV8 | NativeExecutionInputV9 | NativeExecutionInputV10;
+export type NativeExecutionInput = NativeExecutionInputV1 | NativeExecutionInputV2 | NativeExecutionInputV3 | NativeExecutionInputV4 | NativeExecutionInputV5 | NativeExecutionInputV7 | NativeExecutionInputV9 | NativeExecutionInputV10;
 
 /** The only task data that may enter provider-visible model input. */
 export interface NativeModelEnvelopeV1 {
@@ -376,61 +360,8 @@ function nullableText(value: unknown, path: string): string | null {
  * intentionally not an extensible metadata bag: new fields require a contract
  * revision and an explicit security review.
  */
-function parseExternalNativeExecutionInput(input: Record<string, unknown>): NativeExecutionInputV6 {
-  const provider = record(input.provider, "input.provider");
-  exactKeys(provider, ["kind", "model", "binding"], "input.provider");
-  const b = record(provider.binding, "input.provider.binding");
-  exactKeys(b, ["bindingId", "bindingGeneration", "spaceId", "agentId", "acceptByUnixMs", "expiresAtUnixMs"], "input.provider.binding");
-  const binding = record(input.binding, "input.binding");
-  const workspace = record(input.workspace, "input.workspace");
-  exactKeys(workspace, ["access", "cwd", "repoUrl", "repoRef", "branchName"], "input.workspace");
-  const session = record(input.session, "input.session");
-  const driverKind = provider.kind === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp";
-  if (!["openai_dot", "grok_bot"].includes(String(provider.kind)) || provider.model !== null || workspace.access !== "none"
-      || [workspace.cwd, workspace.repoUrl, workspace.repoRef, workspace.branchName].some(v => v !== null)
-      || session.driverKind !== driverKind || record(session.lifecyclePolicy, "input.session.lifecyclePolicy").mode !== "per_turn"
-      || binding.spaceId !== b.spaceId || binding.agentId !== b.agentId
-      || !Number.isSafeInteger(b.bindingGeneration) || Number(b.bindingGeneration) < 1
-      || !Number.isSafeInteger(b.acceptByUnixMs) || !Number.isSafeInteger(b.expiresAtUnixMs)
-      || Number(b.acceptByUnixMs) < 1 || Number(b.acceptByUnixMs) >= Number(b.expiresAtUnixMs)
-      || Number(b.expiresAtUnixMs) - Number(b.acceptByUnixMs) > 86_400_000
-      || !Array.isArray(input.credentialBindings) || input.credentialBindings.length !== 0) {
-    throw new NativeExecutionInputError("External v6 requires a bound per-turn remote service with no filesystem or credential access");
-  }
-  // Reuse the preceding closed contract's task/context validation. The local
-  // validation value never leaves this function or becomes an execution path.
-  const common = parseNativeExecutionInput({ ...input, schema: NATIVE_EXECUTION_INPUT_SCHEMA,
-    provider: { kind: "codex", model: null, approvalPolicy: "never" },
-    session: { ...session, driverKind: "codex_app_server" },
-    workspace: { cwd: "/", repoUrl: null, repoRef: null, branchName: null } }) as NativeExecutionInputV5;
-  return { ...common, schema: NATIVE_EXECUTION_INPUT_SCHEMA_V6,
-    provider: { kind: provider.kind as ExternalBotProviderKind, model: null, binding: {
-      bindingId: text(b.bindingId, "input.provider.binding.bindingId"), bindingGeneration: Number(b.bindingGeneration),
-      spaceId: text(b.spaceId, "input.provider.binding.spaceId"), agentId: text(b.agentId, "input.provider.binding.agentId"),
-      acceptByUnixMs: Number(b.acceptByUnixMs), expiresAtUnixMs: Number(b.expiresAtUnixMs),
-    } }, workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
-    session: { ...common.session, driverKind } };
-}
-
-function parseMuseNativeExecutionInput(input: Record<string, unknown>): NativeExecutionInputV8 {
-  const provider = record(input.provider, "input.provider");
-  exactKeys(provider, ["kind", "model", "binding", "bridgeRevision"], "input.provider");
-  const session = record(input.session, "input.session");
-  if (provider.kind !== "muse" || provider.bridgeRevision !== "muse-v1" || session.driverKind !== "muse_external") {
-    throw new NativeExecutionInputError("Muse v8 requires the muse-v1 bridge and muse_external driver");
-  }
-  const common = parseExternalNativeExecutionInput({ ...input, schema: NATIVE_EXECUTION_INPUT_SCHEMA_V6,
-    provider: { kind: "openai_dot", model: provider.model, binding: provider.binding },
-    session: { ...session, driverKind: "openai_dot_mcp" } });
-  return { ...common, schema: NATIVE_EXECUTION_INPUT_SCHEMA_V8,
-    provider: { kind: "muse", model: null, binding: common.provider.binding, bridgeRevision: "muse-v1" },
-    session: { ...common.session, driverKind: "muse_external" } };
-}
-
 export function parseNativeExecutionInput(value: unknown): NativeExecutionInput {
   const input = record(value, "input");
-  if (input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V8) return parseMuseNativeExecutionInput(input);
-  if (input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V6) return parseExternalNativeExecutionInput(input);
   const isV10 = input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V10;
   const isV9 = isV10 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V9;
   const isV7 = isV9 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V7;
@@ -1013,7 +944,7 @@ export function buildNativeModelEnvelope(input: NativeExecutionInput, options?: 
       interactionResponses: structuredClone(input.interactionResponses),
     };
   }
-  if (input.schema === NATIVE_EXECUTION_INPUT_SCHEMA || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V6 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V7 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V8 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V9 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V10) {
+  if (input.schema === NATIVE_EXECUTION_INPUT_SCHEMA || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V7 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V9 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V10) {
     const sourceBinding = input.completionSources;
     const references = sourceBinding?.contractRevision === input.completionContract.contract.revision
       && sourceBinding.promptSha256 === createHash("sha256").update(input.task.prompt).digest("hex")
@@ -1032,7 +963,7 @@ export function buildNativeModelEnvelope(input: NativeExecutionInput, options?: 
       },
       executionMode: input.executionMode,
       planningContext: structuredClone(input.planningContext),
-      workspace: input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V6 || input.schema === NATIVE_EXECUTION_INPUT_SCHEMA_V8 || input.provider.kind === "cursor_cloud" || input.provider.kind === "claude_managed" || input.provider.kind === "aws_agentcore" ? null : { cwd: input.workspace.cwd },
+      workspace: input.provider.kind === "cursor_cloud" || input.provider.kind === "claude_managed" || input.provider.kind === "aws_agentcore" ? null : { cwd: input.workspace.cwd },
       completionContract: {
         ...structuredClone(input.completionContract.contract),
         criteria: input.completionContract.contract.criteria.map((criterion) => {

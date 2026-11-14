@@ -1,4 +1,3 @@
-import { describeRunnerdMuseDriver } from "../drivers/muse/runnerd-muse-driver.js";
 import { createCodexTaskEnvelope } from "../contracts/codex.js";
 import { ACPX_CAPABILITY_PROFILES } from "../drivers/acpx/capability-profiles.js";
 import { QUALIFIED_ACPX_VERSION } from "../drivers/acpx/generated-profiles.js";
@@ -15,7 +14,6 @@ import { CodexAppServerDriver } from "../drivers/codex/codex-app-server-driver.j
 import { CURSOR_CLOUD_TERMINAL_DRAIN_TIMEOUT_MS } from "../contracts/cursor-cloud.js";
 import { cursorCloudDriverDescriptor } from "../drivers/cursor-cloud/cursor-cloud-driver.js";
 import type { CodexWorkingDirectoryAuthority } from "../drivers/codex/codex-boundaries.js";
-import { describeRunnerdExternalBotDriver } from "../drivers/dot/runnerd-dot-driver.js";
 import { HarnessDriverBackend } from "./harness-driver-backend.js";
 import {
   nativeSystemInstructions,
@@ -244,18 +242,6 @@ function createTransportBackedNativeSessionBackend(
 export function describeRunnerdNativeSessionBackend(
   input: NativeExecutionInput,
 ): Promise<NativeSessionBackendDescriptor> {
-  if (input.schema === "outpost.native-execution-input.v6" || input.schema === "outpost.native-execution-input.v8") {
-    // External bots use the shared Rust bridge and retain their provider identity.
-    const descriptor = input.schema === "outpost.native-execution-input.v8"
-      ? describeRunnerdMuseDriver() : describeRunnerdExternalBotDriver(input.provider.kind);
-    return Promise.resolve({
-      kind: "runner",
-      name: descriptor.kind,
-      version: descriptor.version,
-      capabilities: descriptor.capabilities,
-      runtimeContextCapabilities: descriptor.runtimeContextCapabilities,
-    });
-  }
   return createTransportBackedNativeSessionBackend(input, {}).descriptor();
 }
 

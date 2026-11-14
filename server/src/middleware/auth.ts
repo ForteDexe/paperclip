@@ -416,27 +416,8 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
         identityRun.responsibleUserId = captured.context?.responsibleUserId ?? null;
       }
       if (claims.authorizing_user_id) {
-        // This signed projection exists only for internal native tools. Recheck
-        // the admitted run and current immutable binding on every API call.
-        try {
-          const { parseNativeExecutionInput } = await import("../vendor/outpost-runner/index.js");
-          const { museRunnerBroker } = await import("../services/muse-runner-broker.js");
-          const [nativeRun] = await db.select({ status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode,
-            nativeExecutionInput: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'`,
-          }).from(heartbeatRuns).where(and(
-            eq(heartbeatRuns.id, claims.run_id), eq(heartbeatRuns.spaceId, claims.space_id), eq(heartbeatRuns.agentId, claims.sub),
-          ));
-          const execution = parseNativeExecutionInput(nativeRun?.nativeExecutionInput);
-          if (nativeRun?.status !== "running" || nativeRun.runtimeMode !== "native" || execution.schema !== "outpost.native-execution-input.v8"
-            || execution.binding.runId !== claims.run_id || execution.binding.agentId !== claims.sub || execution.binding.spaceId !== claims.space_id
-            || await museRunnerBroker(db).authorizingUserIdForBinding(execution.provider.binding) !== claims.authorizing_user_id) {
-            throw new Error("Muse internal tool authority mismatch");
-          }
-          await museRunnerBroker(db).assertRunAuthority(execution);
-        } catch {
-          _res.status(403).json({ error: "Muse native tool authority is unavailable" });
-          return;
-        }
+        _res.status(403).json({ error: "External provider authority is no longer supported" });
+        return;
       }
       const onBehalfOfUserId = identityRun?.activeIdentityContextId
         ? identityRun.responsibleUserId
