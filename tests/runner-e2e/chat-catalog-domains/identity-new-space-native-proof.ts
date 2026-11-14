@@ -22,7 +22,7 @@ export interface NewSpaceNativeReceipt {
   environmentId: string; environmentDriver: "local"; actualProbeEnvironmentId: string;
   beforeSpaceIds: string[]; afterSpaceIds: string[]; beforeReadyAgents: number; afterAgentIds: string[];
   noAgentBeforeRouteDeparture: true; publicSetupRoute: string; savedSetupAgentId: string;
-  hello: NativeSetupProbe; helloCount: number; hiredThroughPublicSetup: true; hireCount: number;
+  hello: NativeSetupProbe; helloCount: number; createdThroughPublicSetup: true; createCount: number;
   firstAgentReady: true; chatComposerVisible: true; heartbeatRunIds: string[]; readyConversationPath: string;
   account: { id: string; grantId: string; provider: "openrouter"; method: "api_key"; status: "connected"; ownership: "personal"; ownerUserId: string; currentUserId: string; responsibleUserId: string; bindingMode: "delegated" };
   exactPublicGrantAndAgentInstall: true; draftContainsCredential: boolean; publicAgentContainsCredential: boolean;

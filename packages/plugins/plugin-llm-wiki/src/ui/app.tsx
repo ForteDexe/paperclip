@@ -5564,7 +5564,7 @@ function DistillationSettingsPanel({ context, settings }: { context: { spaceId: 
             <CardBody padding={14}>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: tokens.muted, lineHeight: 1.5 }}>
                 <li>Project overviews at <Mono>wiki/projects/&lt;slug&gt;/index.md</Mono></li>
-                <li>Executive standups at <Mono>wiki/projects/&lt;slug&gt;/standup.md</Mono></li>
+                <li>Current-state views at <Mono>wiki/projects/&lt;slug&gt;/standup.md</Mono></li>
                 <li>Decisions and history under <Mono>wiki/projects/&lt;slug&gt;/</Mono></li>
                 <li>Source bundles cached under <Mono>raw/distill/</Mono></li>
               </ul>
@@ -5675,7 +5675,7 @@ function DistillationSettingsPanel({ context, settings }: { context: { spaceId: 
         <CardBody padding={14}>
           <div style={{ display: "grid", gap: 8 }}>
             <RadioRow name="autoapply" value="never" label="Never — every patch goes to review-required." />
-            <RadioRow name="autoapply" value="status" label="Executive-status sections only — standup, current direction, and risks." />
+            <RadioRow name="autoapply" value="status" label="Current-state sections only — standup, current direction, and risks." />
             <RadioRow name="autoapply" value="all" label="All sections — apply when source hash matches and confidence ≥ 0.8 (default)." defaultChecked />
             <Tiny>Stale-hash collisions always fall through to review, regardless of policy.</Tiny>
           </div>

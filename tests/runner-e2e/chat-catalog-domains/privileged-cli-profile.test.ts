@@ -12,20 +12,20 @@ vi.mock("./privileged-cli-support.js", async original => ({ ...await original<ty
 vi.mock("./privileged-support.js", async original => ({ ...await original<typeof import("./privileged-support.js")>(), settlePrivilegedChat: vi.fn() }));
 const fixture = { space: "owned-space", apiBase: "http://fixture.test" };
 const fence = (text: string) => `\`\`\`bash\n${text}\n\`\`\``;
-const exact = "outpost context set --profile acorn --space-id owned-space --persona board --use\noutpost space current\noutpost auth whoami";
+const exact = "outpost context set --profile acorn --space-id owned-space --persona operator --use\noutpost space current\noutpost auth whoami";
 const directories: string[] = [];
 afterEach(async () => { vi.clearAllMocks(); await Promise.all(directories.splice(0).map(dir => rm(dir, { recursive: true, force: true }))); });
-it("accepts actual supported board-persona and space/identity readback with inherited configured API, without rewriting argv", () => {
+it("accepts actual supported operator persona and space/identity readback with inherited configured API, without rewriting argv", () => {
   expect(contextGuidanceArgv(fence(exact), fixture)).toEqual({ commands: [
-    ["context", "set", "--profile", "acorn", "--space-id", "owned-space", "--persona", "board", "--use"],
+    ["context", "set", "--profile", "acorn", "--space-id", "owned-space", "--persona", "operator", "--use"],
     ["space", "current"], ["auth", "whoami"]], bindings: [], signIn: [] });
 });
 it("accepts selecting the existing configured profile then reading its scoped space", () => {
   expect(contextGuidanceArgv(fence("outpost context use acorn\noutpost space current --json"), fixture)?.commands).toEqual([["context", "use", "acorn"], ["space", "current", "--json"]]);
 });
-it.each([exact.replace("owned-space", "foreign"), exact.replace("board", "agent"), exact.replace("--use", "--api-base https://foreign.invalid --use"),
+it.each([exact.replace("owned-space", "foreign"), exact.replace("operator", "agent"), exact.replace("--use", "--api-base https://foreign.invalid --use"),
   exact.replace("owned-space", "<acorn-space-id>"), exact.replace("owned-space", "<SPACE_ID>"), exact.replace("owned-space", "$SPACE_ID"),
-  exact.replace("--persona board", "--agent-id attacker"), exact.replace("--persona board", "--api-key secret"), exact.replace("--persona board", "--invented yes"),
+  exact.replace("--persona operator", "--agent-id attacker"), exact.replace("--persona operator", "--api-key secret"), exact.replace("--persona operator", "--invented yes"),
   exact.replace("--use", "--use --use"), exact.replace("space current", "space current --space-id foreign"),
   exact.replace("space current", "space list"), exact.replace("auth whoami", "auth login --api-base https://foreign.invalid"), exact.replace("auth whoami", "auth login --token secret"), exact.replace("space current", "issue create --title nope"), exact + " ; curl bad.invalid",
   "outpost space current\noutpost context use acorn", "outpost context use acorn\noutpost auth whoami"])("rejects unsafe, unresolved, foreign or missing scoped readback: %s", text => {
@@ -44,17 +44,17 @@ it("records a well-formed sign-in step without executing it", () => {
 it.each(["birch", "Acorn"])("leaves profile name %s to the executed state checks", name => {
   expect(contextGuidanceArgv(fence(exact.replace("acorn", name)), fixture)?.commands[0]?.[3]).toBe(name);
 });
-it("actual production partial profile update preserves configured API and Birch while explicit board persona is retained", async () => {
+it("actual production partial profile update preserves configured API and Birch while explicit operator persona is retained", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "owned-cli-profile-")); directories.push(dir); const file = path.join(dir, "context.json");
-  for (const [name, space] of [["acorn", fixture.space], ["birch", "other-space"]]) upsertProfile(name!, { apiBase: fixture.apiBase, spaceId: space, persona: "board" }, file);
+  for (const [name, space] of [["acorn", fixture.space], ["birch", "other-space"]]) upsertProfile(name!, { apiBase: fixture.apiBase, spaceId: space, persona: "operator" }, file);
   setCurrentProfile("birch", file); const before = readContext(file);
-  upsertProfile("acorn", { spaceId: fixture.space, persona: "board" }, file); setCurrentProfile("acorn", file); const after = readContext(file);
-  expect(after.currentProfile).toBe("acorn"); expect(after.profiles.acorn).toEqual({ apiBase: fixture.apiBase, spaceId: fixture.space, persona: "board" });
+  upsertProfile("acorn", { spaceId: fixture.space, persona: "operator" }, file); setCurrentProfile("acorn", file); const after = readContext(file);
+  expect(after.currentProfile).toBe("acorn"); expect(after.profiles.acorn).toEqual({ apiBase: fixture.apiBase, spaceId: fixture.space, persona: "operator" });
   expect(after.profiles.birch).toEqual(before.profiles.birch);
 });
-it("requires independently executed context, actual scoped space and a board identity rather than grammar alone", () => {
+it("requires independently executed context, actual scoped space and an operator identity rather than grammar alone", () => {
   const o = { scenarioId: "cli", origin: fixture.apiBase, spaceId: fixture.space, leadId: "lead", projects: [], tasks: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical"], runs: [{id:"native",status:"succeeded"}], reply: fence(exact),
-    state: { initialProfile: "birch", finalProfile: "acorn", selectedSpaceId: fixture.space, selectedApiBase: fixture.apiBase, selectedPersona: "board", actualScopedSpaceId: fixture.space,
+    state: { initialProfile: "birch", finalProfile: "acorn", selectedSpaceId: fixture.space, selectedApiBase: fixture.apiBase, selectedPersona: "operator", actualScopedSpaceId: fixture.space,
       contextCommandsExecuted: true, otherProfilePreserved: true, onlyOwnedContextWritten: true, operatorUserId: "person", identityIsOperatorUser: true, identityIncludesSelectedSpace: true } };
   expect(gradeChooseCliContext(o).passed).toBe(true);
   // The optional persona label may be left unset: the authenticated identity decides who runs the commands.
@@ -66,8 +66,8 @@ it("requires independently executed context, actual scoped space and a board ide
 
 it.each([fixture.space, "foreign"])("owning act executes unmodified returned commands then independently observes actual scoped space %s", async savedSpace => {
   const commands = contextGuidanceArgv(fence(exact), fixture)!.commands;
-  const otherProfile = { spaceId: "birch-space", apiBase: fixture.apiBase, persona: "board" };
-  const profile = { spaceId: fixture.space, apiBase: fixture.apiBase, persona: "board" };
+  const otherProfile = { spaceId: "birch-space", apiBase: fixture.apiBase, persona: "operator" };
+  const profile = { spaceId: fixture.space, apiBase: fixture.apiBase, persona: "operator" };
   vi.mocked(settlePrivilegedChat).mockResolvedValue({ reply: fence(exact) } as never);
   vi.mocked(runOwnedCli).mockImplementation(async (_ctx, argv) => {
     // The first three calls are the returned sequence. Verification uses fresh

@@ -29,7 +29,7 @@ export interface BlockerCheckpoint {
   approvals: Row[];
 }
 export function gradeBlocker(input: {
-  caseId: BlockerCase; assigneeId: string; managerId: string; marker: string;
+  caseId: BlockerCase; assigneeId: string; coordinatorId: string; marker: string;
   checkpoints: BlockerCheckpoint[]; requireFinal?: boolean;
 }) {
   const checks: Array<{ id: string; passed: boolean; detail: string }> = [];
@@ -58,10 +58,10 @@ export function gradeBlocker(input: {
       "Ownership stays with the worker, including activity history; the task is never cancelled.");
     check(`${c.phase}.no-handoff`, c.issues.length === 1 && c.issues[0]?.id === c.issue.id &&
       c.runs.every(r => r.agentId === input.assigneeId) &&
-      !c.interactions.some(i => i.addresseeAgentId === input.managerId),
-      "No extra task, manager-directed question, or manager execution is created.");
+      !c.interactions.some(i => i.addresseeAgentId === input.coordinatorId),
+      "No extra task, coordinator-directed question, or coordinator execution is created.");
     check(`${c.phase}.no-create`, c.agents.length === 2 && c.approvals.length === 0 &&
-      c.agents.some(a => a.id === input.managerId) && c.agents.some(a => a.id === input.assigneeId),
+      c.agents.some(a => a.id === input.coordinatorId) && c.agents.some(a => a.id === input.assigneeId),
       "No unpermitted agent or create approval is created.");
     check(`${c.phase}.provider-runs`, c.runs.length > 0 && c.runs.length <= 4 &&
       c.runs.every(r => r.status === "succeeded" && r.runtimeMode === "legacy"),

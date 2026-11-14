@@ -51,8 +51,8 @@ Run procedure:
 Target space: default (slug: default). Outpost-derived indexing currently writes only into the default space, so this routine never sweeps other spaces. Per-space Outpost ingestion profiles are a later phase; until they ship, treat any prompt to operate on a non-default space here as a bug and stop.
 1. Resolve the configured wiki root, then read the default space AGENTS.md, wiki/index.md, and the recent entries in wiki/log.md.
 2. Review recent Outpost issue, comment, and document activity for non-plugin-operation work. Skip LLM Wiki operation issues so routine output does not feed back into itself.
-3. Synthesize Outpost project state into wiki/projects/<slug>/standup.md for the executive current-state view, then durable project or root-issue knowledge into focused pages under wiki/projects/<slug>/index.md, wiki/concepts/, or wiki/synthesis/. Keep transient run logs out of durable pages unless they change the project's state or decisions.
-4. Write project material as concept-grouped executive synthesis. Link readable issue identifiers when useful, but do not turn project pages into issue-ID lists, UUID dumps, date ledgers, or metadata reports. Always pass wikiId \`default\` and spaceSlug \`default\` to LLM Wiki tools.
+3. Synthesize Outpost project state into wiki/projects/<slug>/standup.md for the concise current-state view, then durable project or root-issue knowledge into focused pages under wiki/projects/<slug>/index.md, wiki/concepts/, or wiki/synthesis/. Keep transient run logs out of durable pages unless they change the project's state or decisions.
+4. Write project material as clear, concept-grouped synthesis. Link readable issue identifiers when useful, but do not turn project pages into issue-ID lists, UUID dumps, date ledgers, or metadata reports. Always pass wikiId \`default\` and spaceSlug \`default\` to LLM Wiki tools.
 5. Refresh wiki/index.md and append a short wiki/log.md entry listing the source window, affected pages, skipped windows, warnings, and any follow-up issue needed.
 6. If there is no new durable signal, record that in wiki/log.md and close the routine issue with a concise note.`;
 

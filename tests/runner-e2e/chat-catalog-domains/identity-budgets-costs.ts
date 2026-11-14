@@ -28,7 +28,7 @@ export function gradeBudget(value: unknown) {
 }
 export const budgetIdentityCases = [identityDefinition("budgets-costs.set-budget", async ctx => {
   const worker = await identityWorker(ctx); const other = await identityWorker(ctx, "Morgan Research");
-  const workerConfig = await employeeConfiguration(ctx, worker.id);
+  const workerConfig = await agentConfiguration(ctx, worker.id);
   return { worker, other, workerConfig };
 }, gradeBudget, {
   oracleVersion: "outpost.chat-catalog.identity.set-budget.v2",
@@ -64,11 +64,11 @@ export const budgetIdentityCases = [identityDefinition("budgets-costs.set-budget
   },
   async observe(ctx, state) {
     const worker = entity(state, "worker");
-    state.currentWorkerConfig = await employeeConfiguration(ctx, worker.id);
+    state.currentWorkerConfig = await agentConfiguration(ctx, worker.id);
     return { ...await observeIdentity(ctx, state), budget: await ctx.input.api.get<BudgetOverview>(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/overview`) };
   },
 })] as const;
-async function employeeConfiguration(ctx: Parameters<typeof identityWorker>[0], id: string) {
+async function agentConfiguration(ctx: Parameters<typeof identityWorker>[0], id: string) {
   const config = await ctx.input.api.get<Record<string, unknown>>(`/api/agents/${id}/configuration`);
   return { adapterType: config.adapterType, adapterConfig: config.adapterConfig, runtimeConfig: config.runtimeConfig, instructions: config.instructions };
 }

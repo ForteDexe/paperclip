@@ -3043,7 +3043,7 @@ function standupPageContents(input: {
     "",
     `# ${title} Standup`,
     "",
-    "## Executive Readout",
+    "## Current-State Readout",
     "",
     lead
       ? `The current center of gravity is **${issueConcept(lead)}** (${issueReferenceFor(lead)}). ${input.bundle.clipped ? "The source window was clipped, so treat this as a bounded readout rather than the full live state." : "This is a high-level readout of the meaningful Outpost work in the current source window."}`
@@ -3197,7 +3197,7 @@ function historyPageContents(input: { project: Project | null; rootIssue: Issue 
 
 function updateProjectIndexContents(current: string | null, input: { pagePath: string; standupPath: string; title: string }): string {
   const base = current?.trimEnd() || "# Index\n\n## Sources\n\n_(none yet)_\n\n## Projects\n\n_(none yet)_\n\n## Entities\n\n_(none yet)_\n\n## Concepts\n\n_(none yet)_\n\n## Synthesis\n\n_(none yet)_";
-  const entry = `- [[${input.pagePath}]] — ${input.title} project overview. Current executive standup: [[${input.standupPath}]].`;
+  const entry = `- [[${input.pagePath}]] — ${input.title} project overview. Current status view: [[${input.standupPath}]].`;
   const projectsMatch = base.match(/(^## Projects\n)([\s\S]*?)(?=^## |\s*$)/m);
   if (!projectsMatch || projectsMatch.index == null) {
     return `${base}\n\n## Projects\n\n${entry}\n`;

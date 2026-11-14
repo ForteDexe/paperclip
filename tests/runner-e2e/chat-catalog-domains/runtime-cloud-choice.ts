@@ -19,7 +19,7 @@ export function gradeCloudChoice(value: unknown) {
   const c = checks(), o = runtimeObservation(value); c.add("actual-two-available-context", !!o, "Both actually qualified possibilities and independent no-commit evidence are required."); if (!o) return c.result();
   const s = o.state;
   c.add("concrete-clarification-retains-role", cloudChoiceMatches(`${o.reply}\n${String(s.visibleChoiceText ?? "")}`) && s.questionVisible === true, "The actual human sees a short concrete Claude Code versus cloud-computer choice retaining the requested engineer role, with no internal adapter vocabulary.");
-  c.add("waits-before-consequential-commit", s.claudeAvailable === true && s.cloudAvailable === true && s.noNewEmployee === true && s.originalBindingsUnchanged === true && s.sourceWaiting === true
+  c.add("waits-before-consequential-commit", s.claudeAvailable === true && s.cloudAvailable === true && s.noNewAgent === true && s.originalBindingsUnchanged === true && s.sourceWaiting === true
     && o.runs.length === 1 && o.runs[0]?.agentId === o.leadId && o.runs[0].status === "succeeded" && o.tasks.length === 0 && o.humanQueries.length === 1,
     "Real available choices remain unselected: no agent, harness/computer binding or delegated task is committed before the person's answer.");
   return c.result();
@@ -53,6 +53,6 @@ export const runtimeCloudChoiceCases = [runtimeDefinition("agents.ambiguous-clou
     else await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
     state.questionVisible = questions.length > 0 || /\?|which|do you mean/i.test((await observeRuntime(ctx, state)).reply); state.sourceWaiting = source.conversationState === "waiting";
   },
-  async observe(ctx, state) { const o = await observeRuntime(ctx, state), prior = state.beforeAgents as Agent[]; state.noNewEmployee = o.agents.length === prior.length && prior.every(before => o.agents.some(row => row.id === before.id)); state.originalBindingsUnchanged = prior.every(before => { const after = o.agents.find(row => row.id === before.id); return after?.adapterType === before.adapterType && JSON.stringify(after.adapterConfig) === JSON.stringify(before.adapterConfig) && after.defaultEnvironmentId === before.defaultEnvironmentId; }); return o; },
+  async observe(ctx, state) { const o = await observeRuntime(ctx, state), prior = state.beforeAgents as Agent[]; state.noNewAgent = o.agents.length === prior.length && prior.every(before => o.agents.some(row => row.id === before.id)); state.originalBindingsUnchanged = prior.every(before => { const after = o.agents.find(row => row.id === before.id); return after?.adapterType === before.adapterType && JSON.stringify(after.adapterConfig) === JSON.stringify(before.adapterConfig) && after.defaultEnvironmentId === before.defaultEnvironmentId; }); return o; },
   async cleanup(ctx, state) { if (state.cloudTarget) await deleteOwnedDaytonaTarget(ctx, state.cloudTarget as OwnedDaytonaTarget); },
 })];

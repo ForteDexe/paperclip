@@ -25,12 +25,12 @@ export async function runBlockerFlow(input: {
   const checkpoints: BlockerCheckpoint[] = [];
   let issue: Row | undefined;
   let runs: Row[] = [];
-  let managerId = "";
+  let coordinatorId = "";
   let checks: ReturnType<typeof gradeBlocker> = [];
   const space = `/api/spaces/${fixtures.space.id}`;
   const hashes: Record<string, string> = {};
   const grade = (requireFinal: boolean) => gradeBlocker({ caseId: scenario.id, assigneeId: fixtures.agent.id,
-    managerId, marker: scenario.marker, checkpoints, requireFinal });
+    coordinatorId, marker: scenario.marker, checkpoints, requireFinal });
   async function state(phase: BlockerCheckpoint["phase"]): Promise<BlockerCheckpoint> {
     issue = await api.get<Row>(`/api/issues/${issue!.id}`);
     const listed = await api.get<Row[]>(`${space}/heartbeat-runs?limit=100`);
@@ -74,7 +74,7 @@ export async function runBlockerFlow(input: {
       hashes[file] = createHash("sha256").update(await readFile(path.resolve(import.meta.dirname, "../..", file))).digest("hex");
     }
     const setup = await setupBlockerFixtures(input);
-    managerId = setup.manager.id;
+    coordinatorId = setup.coordinator.id;
     const skill = (await api.get<Row[]>(`${space}/skills`)).find(s => s.key === "outpost/outpost/outpost");
     if (!skill) throw new Error("Missing assigned operational skill");
     const servedHashes: Record<string, string> = {};
@@ -132,6 +132,6 @@ export async function runBlockerFlow(input: {
     await input.evidence("api-state.json", { capturePhase: "blocker-final", issue, runs, checks, lastObservation });
     await input.evidence("blocker-guidance.json", { schema: BLOCKER_GRADER_VERSION, graderVersion: BLOCKER_GRADER_VERSION,
       inputUx: gradeBlockerInputUx(checkpoints.find(c => c.phase === "waiting")), caseId: scenario.id,
-      prompt: scenario.prompt, answer: scenario.answer, hashes, managerId, assigneeId: fixtures.agent.id, checks, checkpoints, lastObservation });
+      prompt: scenario.prompt, answer: scenario.answer, hashes, coordinatorId, assigneeId: fixtures.agent.id, checks, checkpoints, lastObservation });
   }
 }

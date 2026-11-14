@@ -2474,7 +2474,7 @@ Duplicate headings receive stable suffixes.
     ]);
     const standupPatch = result.patches[0];
     expect(standupPatch.pagePath).toBe("wiki/projects/existing-wiki-project/standup.md");
-    expect(standupPatch.proposedContents).toContain("## Executive Readout");
+    expect(standupPatch.proposedContents).toContain("## Current-State Readout");
     expect(standupPatch.proposedContents).toContain("## What Changed");
     const projectPatch = result.patches[1];
     expect(projectPatch.currentHash).toBeNull();
@@ -2606,7 +2606,7 @@ Duplicate headings receive stable suffixes.
       "wiki/index.md",
       "wiki/log.md",
     ]);
-    expect(files.get("wiki/projects/existing-wiki-project/standup.md")).toContain("## Executive Readout");
+    expect(files.get("wiki/projects/existing-wiki-project/standup.md")).toContain("## Current-State Readout");
     expect(files.get("wiki/projects/existing-wiki-project/index.md")).toContain("## Current Direction");
     expect(files.get("wiki/projects/existing-wiki-project/index.md")).toContain("## References");
     expect(files.get("wiki/index.md")).toContain("wiki/projects/existing-wiki-project/index.md");

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
-import { boardMutationGuard } from "../../../server/src/middleware/board-mutation-guard.js";
+import { operatorMutationGuard } from "../../../server/src/middleware/operator-mutation-guard.js";
 import { transition } from "../../../server/src/modules/agent-lifecycle/domain/policy.js";
 const mock = vi.hoisted(() => ({ gate: vi.fn() }));
 vi.mock("./runtime-busy-worker.js", async original => ({ ...await original<object>(), prepareRuntimeWorkerGate: mock.gate }));
@@ -22,8 +22,8 @@ it("actual inventory preflight accepts real completed manual pauses instead of i
  tasks[0]!.status="todo";
  expect((await inventory.taskInventoryCases[0]!.verifySetup!(ctx,state)).checks.find(check=>check.id==="inventory-settled")?.passed).toBe(false);
 });
-function passesOperatorGuard(headers:Record<string,string>) { let passed=false;let status=200;const req={method:"POST",actor:{type:"board",source:"session"},header:(k:string)=>k==="host"?"127.0.0.1:3218":headers[k]??headers[k[0]!.toUpperCase()+k.slice(1)],socket:{},app:{get:()=>undefined}} as unknown as Request;const res={status:(value:number)=>{status=value;return res;},json:()=>{}} as unknown as Response;boardMutationGuard()(req,res,()=>{passed=true;});return{passed,status}; }
-it("actual delegation upload uses the owned browser Origin and reaches the unchanged authenticated board guard", async () => {
+function passesOperatorGuard(headers:Record<string,string>) { let passed=false;let status=200;const req={method:"POST",actor:{type:"operator",source:"session"},header:(k:string)=>k==="host"?"127.0.0.1:3218":headers[k]??headers[k[0]!.toUpperCase()+k.slice(1)],socket:{},app:{get:()=>undefined}} as unknown as Request;const res={status:(value:number)=>{status=value;return res;},json:()=>{}} as unknown as Response;operatorMutationGuard()(req,res,()=>{passed=true;});return{passed,status}; }
+it("actual delegation upload uses the owned browser Origin and reaches the unchanged authenticated operator guard", async () => {
  const stop=new Error("Controlled authenticated upload boundary; no server or file write");mock.gate.mockResolvedValue({worker:{id:firstId},gate:{scriptPath:"/synthetic/gate"}});
  const ctx={input:{nonce:"synthetic",fixtures:{space:{id:spaceId},agent:{id:leadId}},api:{baseURL,post:async(path:string)=>path.endsWith("/comments")?{id:secondId}:{id:firstId}},page:{url:()=>baseURL+"/RUN/chat",request:{post:async(_url:string,options:{headers?:Record<string,string>})=>{const g=passesOperatorGuard(options.headers??{});if(g.passed)throw stop;return{status:()=>g.status,dispose:async()=>{}};}}}},allRuns:async()=>[]} as unknown as ChatCatalogContext;
  await expect(delegation.runtimeDelegationCases[0]!.setup(ctx)).rejects.toBe(stop);
@@ -58,7 +58,7 @@ it("requires distinct actual paused owners in the real preflight", async () => {
  const r=pause();const ctx={input:{fixtures:{space:{id:spaceId},agent:{id:leadId}},api:{get:async(p:string)=>p.endsWith(leadId)?owner(leadId):r.settled,getRunObservation:async()=>[]}}} as unknown as ChatCatalogContext;
  const grade=await inventory.taskInventoryCases[0]!.verifySetup!(ctx,{workerIds:[firstId,firstId],ownerPauseReceipts:[r,r]});expect(grade.passed).toBe(false);
 });
-it.each(["absent", "foreign"])("the actual unchanged board guard rejects %s Origin", kind => {
+it.each(["absent", "foreign"])("the actual unchanged operator guard rejects %s Origin", kind => {
  const headers:Record<string,string>=kind==="absent"?{}:{Origin:"https://foreign.invalid"};expect(passesOperatorGuard(headers)).toEqual({passed:false,status:403});
 });
 it.each(["blank-browser", "foreign-browser", "foreign-upload", "wrong-space", "wrong-task", "query", "credentials"])("rejects %s before human attachment upload", kind => {

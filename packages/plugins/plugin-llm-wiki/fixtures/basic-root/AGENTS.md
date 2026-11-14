@@ -30,11 +30,11 @@ The subdirectories under `wiki/` are conventional, not enforced. Add new categor
 
 Outpost project material lives only under `wiki/projects/<project-slug>/`. Do not create a top-level `projects/` directory.
 
-- `wiki/projects/<project-slug>/standup.md` is the executive-level project standup. It answers where the project stands today, what changed recently, current blockers/risks, and the next concrete actions.
+- `wiki/projects/<project-slug>/standup.md` is the concise project status view. It answers where the project stands today, what changed recently, current blockers/risks, and the next concrete actions.
 - `wiki/projects/<project-slug>/index.md` is the durable knowledge page. It explains what the project is, why it exists, decisions made, history, and long-lived context.
 - Keep the two linked. A standup should link to the durable project page, and the durable project page should point at the current standup for live status.
 - Update `standup.md` whenever Outpost project, issue, plan, comment, blocker, approval, or status history materially changes the project's current state. Do not append endless dated sections; rewrite it as today's concise status.
-- Project writing should be editorial and concept-grouped. Do not dump issue queues, UUIDs, raw metadata, or date-heavy ledgers into project pages. Reference Outpost tasks with human issue links where useful, but make headings and paragraphs explain the concepts, decisions, completed work, next work, and blockers in plain executive language.
+- Project writing should be editorial and concept-grouped. Do not dump issue queues, UUIDs, raw metadata, or date-heavy ledgers into project pages. Reference Outpost tasks with human issue links where useful, but make headings and paragraphs explain the concepts, decisions, completed work, next work, and blockers in plain language.
 
 ## Page conventions
 
@@ -80,7 +80,7 @@ When new information contradicts an existing page, do **not** silently overwrite
 
 Triggered when Outpost project, issue, plan, comment, blocker, or status history is distilled into the wiki.
 
-1. Create or update `wiki/projects/<project-slug>/standup.md` first. Every Outpost project represented in the wiki must have one. Keep stable sections for executive readout, what changed, decisions, blockers/risks, next actions, and links.
+1. Create or update `wiki/projects/<project-slug>/standup.md` first. Every Outpost project represented in the wiki must have one. Keep stable sections for current-state readout, what changed, decisions, blockers/risks, next actions, and links.
 2. Create or update `wiki/projects/<project-slug>/index.md` as the durable project overview. Keep stable sections for overview, current direction, workstreams, decisions, open risks/blockers, and references.
 3. Use `wiki/projects/<project-slug>/decisions.md` for accepted/rejected plans, architectural decisions, approval outcomes, and reversals when a project has enough decision history to warrant a separate page.
 4. Use `wiki/projects/<project-slug>/history.md` for compact narrative history of meaningful project movement. Group by phase or concept; do not mirror every issue comment.

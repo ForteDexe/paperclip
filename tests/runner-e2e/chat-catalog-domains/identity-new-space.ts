@@ -13,16 +13,16 @@ export function gradeNewSpace(value: unknown) {
   const wizard = o.state.wizard as NewSpaceNativeReceipt | undefined; const agent = o.state.newAgent as Agent | undefined;
   c.add("guidance-before-human-creation", o.state.spaceCountAfterReply === 1 && /website|business/i.test(o.reply) && /onboarding|creat.*(?:space|organization)|space.*(?:flow|wizard|switcher)|organization.*(?:wizard|switcher)/i.test(o.reply)
     && !/\bI(?:'ve| have)?\s+(?:created|set up)\s+(?:a |the |your )?(?:new )?(?:space|organization)/i.test(o.reply), "The source agent preserves the website-business request and guides the actual person without claiming it created another space.");
-  c.add("actual-ready-space-and-ceo", !!wizard && wizard.spaceId !== o.spaceId && agent?.id === wizard.firstAgentId && agent.spaceId === wizard.spaceId
-    && agent.role === "ceo" && agent.lifecycleState === "ready" && wizard.firstAgentReady && wizard.hiredThroughPublicSetup && wizard.actualHarness === "opencode_local"
+  c.add("actual-ready-space-and-lead", !!wizard && wizard.spaceId !== o.spaceId && agent?.id === wizard.firstAgentId && agent.spaceId === wizard.spaceId
+    && agent.role === "lead" && agent.lifecycleState === "ready" && wizard.firstAgentReady && wizard.createdThroughPublicSetup && wizard.actualHarness === "opencode_local"
     && wizard.model === NEW_SPACE_NATIVE_MODEL && wizard.noAgentBeforeRouteDeparture && wizard.savedSetupAgentId === agent.id
-    && wizard.helloCount === 1 && wizard.hireCount === 1 && wizard.exactPublicGrantAndAgentInstall
+    && wizard.helloCount === 1 && wizard.createCount === 1 && wizard.exactPublicGrantAndAgentInstall
     && wizard.hello.checks.some(check => check.code === "opencode_hello_probe_passed") && wizard.account.ownership === "personal"
     && wizard.account.ownerUserId === o.state.humanId && wizard.account.responsibleUserId === o.state.humanId && o.state.humanRoleConfigurationStatus === 200,
-    "The human creates a real space and reuses its saved first-CEO setup through the public OpenCode1017 local native test and create; account/grant, space and agent remain independently bound.");
+    "The human creates a real space and reuses its saved first-agent setup through the public OpenCode1017 local native test and create; account/grant, space and agent remain independently bound.");
   c.add("distinct-human-and-agent-authority", !!wizard && wizard.spaceId !== wizard.firstAgentId && wizard.firstAgentId !== o.leadId
     && o.state.newSpaceOwnedByHuman === true && o.state.oldAgentForeignReadStatus === 403 && o.state.newAgentVisible === true && o.state.oldAgentStillSourceSpace === true,
-    "The same real human owns the new space, its CEO is a separate actual agent, and the original agent retains only its source-space access.");
+    "The same real human owns the new space, its lead is a separate actual agent, and the original agent retains only its source-space access.");
   c.add("no-duplicate-or-secret-leak", !!wizard && wizard.beforeSpaceIds.length === 1 && wizard.beforeSpaceIds[0] === o.spaceId
     && wizard.afterSpaceIds.length === 2 && new Set(wizard.afterSpaceIds).size === 2 && wizard.afterAgentIds.length === 1
     && wizard.draftContainsCredential === false && wizard.publicAgentContainsCredential === false && wizard.heartbeatRunIds.length === 0
@@ -51,7 +51,7 @@ export const newSpaceIdentityCases: readonly ChatCatalogCase[] = [identityDefini
     state.wizard = wizard;
     // Retain the explicit authenticated human role configuration/readback.
     // The normal first-agent dialog already selected CEO for this empty space.
-    const configured = await ctx.input.page.context().request.patch(`${ctx.input.api.baseURL}/api/agents/${wizard.firstAgentId}`, { data: { role: "ceo", title: "Website business CEO" }, headers: { Origin: ctx.input.api.baseURL } });
+    const configured = await ctx.input.page.context().request.patch(`${ctx.input.api.baseURL}/api/agents/${wizard.firstAgentId}`, { data: { role: "lead", title: "Website Lead" }, headers: { Origin: ctx.input.api.baseURL } });
     state.humanRoleConfigurationStatus = configured.status(); if (!configured.ok()) throw new Error("Human public CEO configuration failed");
     state.newAgent = await ctx.input.api.get<Agent>(`/api/agents/${wizard.firstAgentId}`);
     const membership = await ctx.input.api.get<{ members: Array<{ principalId: string; membershipRole: string }> }>(`/api/spaces/${wizard.spaceId}/members`);

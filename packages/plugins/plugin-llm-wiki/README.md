@@ -19,7 +19,7 @@ The alpha surface includes:
 - opt-in space-scoped Outpost event ingestion controls for issues, comments, and documents; event ingestion is disabled by default and routes captured raw provenance into the default space only
 - manual Outpost project/root issue distillation and bounded backfill actions with explicit work items, operation issues, source caps, and estimated cost recording
 - Outpost-derived distillation (cursor windows, manual `distill-now`, backfill) always writes into the default wiki space in Phase 1; non-default spaces remain on manual / raw-file ingest until per-space Outpost ingestion profiles ship
-- Outpost-derived distillation maintains `wiki/projects/<slug>/standup.md` as the executive current-state view for each represented project, alongside durable `wiki/projects/<slug>/index.md` knowledge pages
+- Outpost-derived distillation maintains `wiki/projects/<slug>/standup.md` as the concise current-state view for each represented project, alongside durable `wiki/projects/<slug>/index.md` knowledge pages
 - wiki page writes with plugin path validation, atomic local-folder writes, metadata/revision rows, backlink extraction, and optional stale-hash protection
 - wiki tools for search/read/write/propose patch/source/log/index/backlinks workflows
 

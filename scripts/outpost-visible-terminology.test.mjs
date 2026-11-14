@@ -8,6 +8,18 @@ test("terminology checker catches forbidden active presentation copy", () => {
   assert.deepEqual(hits.map((hit) => hit.rule), ["executive-rank", "employment-language", "corporate-hierarchy"]);
 });
 
+test("terminology checker catches indirect corporate presentation copy", () => {
+  const hits = findForbiddenInText(
+    "ui/src/Fake.tsx",
+    "The executive coordinates staffing while a subordinate waits.",
+  );
+  assert.deepEqual(hits.map((hit) => hit.rule), [
+    "executive-rank",
+    "employment-language",
+    "corporate-hierarchy",
+  ]);
+});
+
 test("terminology checker respects reviewed external attribution", () => {
   assert.deepEqual(
     findForbiddenInText("packages/shared/package.json", "https://github.com/paperclipai/paperclip"),

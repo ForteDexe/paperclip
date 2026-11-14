@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertHireAuditCoverage, assertHireBinding, assertHireDocument, assertHireRuns, assertHireTaskCreation, hireDelegateNames, observedHireResources, readHireConnectionChoice, type HireScope } from "./create-delegate-evidence.js";
-import { defaultAiConnectionForHire } from "../../../server/src/services/agent-ai-connection-default.js";
+import { defaultAiConnectionForCreate } from "../../../server/src/services/agent-ai-connection-default.js";
 import { agentJourneyRuns, journeyRequiredChecks } from "./success-contract.js";
 
 type Row = Record<string, any>;
@@ -76,7 +76,7 @@ describe("deployment creation qualification", () => {
   });
   it("uses the production delegated fallback and the actual requesting user's same approved personal default", async () => {
     const binding = { provider: "openrouter", method: "api_key", mode: "delegated", connectionId: "00000000-0000-4000-8000-000000000001", grantId: "00000000-0000-4000-8000-000000000002" };
-    expect(defaultAiConnectionForHire("outpost_runner", { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, binding))
+    expect(defaultAiConnectionForCreate("outpost_runner", { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, binding))
       .toEqual({ provider: "openrouter", method: "api_key", mode: "responsible_user" });
     const selected = { id: binding.connectionId, grantId: binding.grantId, spaceId: scope.spaceId, provider: binding.provider,
       method: binding.method, ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" };
@@ -96,7 +96,7 @@ describe("deployment creation qualification", () => {
   it("distinguishes the subscription create placeholder from the approved resolved native method", async () => {
     const f = fixture(), binding = { provider: "openai", method: "subscription", mode: "delegated",
       connectionId: "00000000-0000-4000-8000-000000000001", grantId: "00000000-0000-4000-8000-000000000002" };
-    const placeholder = defaultAiConnectionForHire("outpost_runner", { provider: "codex", model: "fixed-model" }, binding);
+    const placeholder = defaultAiConnectionForCreate("outpost_runner", { provider: "codex", model: "fixed-model" }, binding);
     expect(placeholder).toEqual({ provider: "openai", method: "api_key", mode: "responsible_user" });
     const selected = { id: binding.connectionId, grantId: binding.grantId, spaceId: scope.spaceId, provider: binding.provider,
       method: binding.method, ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" };

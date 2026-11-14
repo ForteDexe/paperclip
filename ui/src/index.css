@@ -1828,7 +1828,7 @@ html:has(.outpost-app-shell[data-mobile="true"] [data-task-chat-shell]) #root {
 }
 
 /* Muted variant (task-chat v7 activity rows): the sweep runs over the
-   muted-foreground tier so live "Thinking…"/"Working…" labels stay subordinate
+   muted-foreground tier so live "Thinking…"/"Working…" labels stay secondary
    to real content. */
 .shimmer-text-muted {
   --shimmer-base: var(--muted-foreground);

@@ -63,7 +63,7 @@ export function gradeHireRevision(value: unknown) {
   const c = checks(); const o = identityObservation(value); c.add("complete-formal-revision", !!o, "Actual governance proposal, catalog choice, saved history and attributed resubmission are required."); if (!o) return c.result();
   const approval = o.state.currentApproval as Approval | undefined; const original = o.state.originalApproval as Approval | undefined;
   const adapter = approval?.payload.adapterConfig as { model?: string; provider?: string } | undefined;
-  c.add("same-unapproved-governed-create", !!approval && approval.id === original?.id && approval.spaceId === o.spaceId && approval.type === "hire_agent"
+  c.add("same-unapproved-governed-create", !!approval && approval.id === original?.id && approval.spaceId === o.spaceId && approval.type === "create_agent"
     && approval.requestedByAgentId === o.leadId && approval.status === "pending" && approval.decidedByUserId === null && approval.decidedAt === null,
     "Revision returns the same actual creation proposal to pending board review; it is never promoted to approved or a ready agent.");
   c.add("actual-board-selected-cheaper-choice", typeof o.state.cheaperModel === "string" && adapter?.model === o.state.cheaperModel
@@ -96,7 +96,7 @@ export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDe
   const { originalModel, cheaperModel } = modelChoice;
   await ctx.input.evidence("identity-create-model-choice.json", { ...modelChoice, originalConfigurationExecuted: false, publishedRateComparisonOnly: true });
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
-  const originalApproval = await ctx.input.api.post<Approval>(`/api/spaces/${fixtures.space.id}/approvals`, { type: "hire_agent", requestedByAgentId: fixtures.agent.id, issueIds: [source.id],
+  const originalApproval = await ctx.input.api.post<Approval>(`/api/spaces/${fixtures.space.id}/approvals`, { type: "create_agent", requestedByAgentId: fixtures.agent.id, issueIds: [source.id],
     payload: { ...configuration, name: `Launch researcher ${nonce}`, role: "researcher", leadAgentId: fixtures.agent.id, adapterConfig: { ...config, model: originalModel } } });
   const history = await ctx.input.api.post<ApprovalComment>(`/api/approvals/${originalApproval.id}/comments`, { body: `Original proposed create configuration: model ${originalModel}. Board-selected lower-cost alternative for this proposal: ${cheaperModel}. Preserve all other creation scope, use this selected alternative and resubmit for board approval. This is a request for revision, not approval. No provider prices or savings estimate are asserted.` });
   const url = ctx.input.page.url(); await ctx.input.page.goto(`/${fixtures.space.issuePrefix}/approvals/${originalApproval.id}`, { waitUntil: "domcontentloaded" });

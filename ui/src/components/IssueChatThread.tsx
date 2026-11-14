@@ -3666,7 +3666,7 @@ function SystemNoticeCommentContent({
 }
 
 // Non-comment timeline items (run/status events, "updated this task",
-// "worked for N minutes") render as quiet, subordinate metadata rows hung off a
+// "worked for N minutes") render as quiet, supporting metadata rows hung off a
 // left rail — visually distinct from the bubbles used for genuine comments.
 // Virtualized rows are absolutely positioned, so each row carries its own rail
 // segment; stacked rows read as one continuous rail. See PAP-95 mockup rev 5.

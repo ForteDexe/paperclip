@@ -5,14 +5,14 @@ import { parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { gradeBlocker, gradeBlockerInputUx, type BlockerCheckpoint } from "./blocker-scoring.js";
 function fixture() {
   const waiting: BlockerCheckpoint = { phase: "waiting", issue: { id: "task", status: "in_review", assigneeAgentId: "worker", createdByUserId: "requester" },
-    issues: [{ id: "task" }], agents: [{ id: "worker" }, { id: "manager" }], approvals: [], activity: [], comments: [],
+    issues: [{ id: "task" }], agents: [{ id: "worker" }, { id: "coordinator" }], approvals: [], activity: [], comments: [],
     interactions: [{ id: "question", kind: "ask_user_questions", status: "pending", resolverPolicy: "human_only", addresseeUserId: "requester", continuationPolicy: "wake_assignee", payload: { prompt: "Clarify salary scope?" } }],
     runs: [{ id: "first", agentId: "worker", status: "succeeded", runtimeMode: "legacy" }] };
   const final: BlockerCheckpoint = { ...structuredClone(waiting), phase: "final", issue: { ...waiting.issue, status: "done" },
     comments: [{ id: "worker-reply", authorAgentId: "worker", body: blockerWelcomeNote("DECISION_test") }],
     interactions: [{ ...waiting.interactions[0], status: "answered", resolvedByUserId: "requester", result: { text: "DECISION_test" } }],
     runs: [...waiting.runs, { ...waiting.runs[0], id: "second" }] };
-  return { caseId: "requester-scope" as const, assigneeId: "worker", managerId: "manager", marker: "DECISION_test", checkpoints: [waiting, final] };
+  return { caseId: "requester-scope" as const, assigneeId: "worker", coordinatorId: "coordinator", marker: "DECISION_test", checkpoints: [waiting, final] };
 }
 describe("blocker guidance oracle calibration", () => {
   it("isolates Claude's skill home without replacing the provider secret reference", () => {
@@ -71,14 +71,14 @@ describe("blocker guidance oracle calibration", () => {
     ["wrong requester", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.interactions[0]!.addresseeUserId = "someone-else"; }],
     ["different user answered", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.interactions[0]!.resolvedByUserId = "someone-else"; }],
     ["anyone can resolve", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.interactions[0]!.effectiveResolverPolicy = "anyone"; }],
-    ["agent resolved human input", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.interactions[0]!.resolvedByAgentId = "manager"; }],
+    ["agent resolved human input", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.interactions[0]!.resolvedByAgentId = "coordinator"; }],
     ["unsupported saved card", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.interactions[0]!.kind = "suggest_tasks"; }],
     ["missing wake", (f: ReturnType<typeof fixture>) => { delete f.checkpoints[0]!.interactions[0]!.continuationPolicy; }],
-    ["agent escalation", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.interactions[0]!.addresseeAgentId = "manager"; }],
-    ["handoff then restored ownership", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.activity.push({ action: "issue.updated", details: { assigneeAgentId: "manager" } }); }],
-    ["nested ownership history", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.activity.push({ action: "issue.updated", details: { changes: { assigneeAgentId: { from: "worker", to: "manager" } } } }); }],
+    ["agent escalation", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.interactions[0]!.addresseeAgentId = "coordinator"; }],
+    ["handoff then restored ownership", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.activity.push({ action: "issue.updated", details: { assigneeAgentId: "coordinator" } }); }],
+    ["nested ownership history", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.activity.push({ action: "issue.updated", details: { changes: { assigneeAgentId: { from: "worker", to: "coordinator" } } } }); }],
     ["extra task", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.issues.push({ id: "handoff" }); }],
-    ["manager run", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.runs.push({ id: "manager-run", agentId: "manager", status: "succeeded", runtimeMode: "legacy" }); }],
+    ["coordinator run", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.runs.push({ id: "coordinator-run", agentId: "coordinator", status: "succeeded", runtimeMode: "legacy" }); }],
     ["unpermitted create", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.agents.push({ id: "casey" }); }],
     ["premature done", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.issue.status = "done"; }],
     ["invented acknowledgement", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.comments[0]!.authorAgentId = "requester"; }],

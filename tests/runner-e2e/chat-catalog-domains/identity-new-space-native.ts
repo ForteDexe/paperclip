@@ -143,7 +143,7 @@ export async function runNativeNewSpaceInPrivateBrowser(input: Input & {
   return { spaceId: space.id, spacePrefix: space.issuePrefix, firstAgentId: agent.id, spaceName: space.name, agentName: agent.name,
     requestedHarness: "opencode_local", actualHarness: "opencode_local", model: NEW_SPACE_NATIVE_MODEL, environmentId: environment.id, environmentDriver: "local", actualProbeEnvironmentId: probes[0]!.environmentId,
     beforeSpaceIds: before.map(row => row.id), afterSpaceIds: after.map(row => row.id), beforeReadyAgents: 0, afterAgentIds: agents.map(row => row.id),
-    noAgentBeforeRouteDeparture: true, publicSetupRoute, savedSetupAgentId: provisional.id, hello: probes[0]!, helloCount: probes.length, hiredThroughPublicSetup: true, hireCount: hires.length,
+    noAgentBeforeRouteDeparture: true, publicSetupRoute, savedSetupAgentId: provisional.id, hello: probes[0]!, helloCount: probes.length, createdThroughPublicSetup: true, createCount: hires.length,
     firstAgentReady: true, chatComposerVisible: true, heartbeatRunIds, readyConversationPath: new URL(page.url()).pathname,
     account: { id: account.id, grantId: account.grantId, provider: "openrouter", method: "api_key", status: "connected", ownership: "personal", ownerUserId: account.ownerUserId!, currentUserId: session.user.id, responsibleUserId: responsibleSpace.defaultResponsibleUserId!, bindingMode: "delegated" },
     exactPublicGrantAndAgentInstall: true, draftContainsCredential: false, publicAgentContainsCredential: false, verificationKind: "public-native-hello-probe", firstWorkExecuted: false, probeUsage: "unavailable-outside-heartbeat-accounting" };

@@ -54,16 +54,16 @@ The deterministic templating this skill replaces produced these failure modes �
 3. **One-line-per-issue dumps.** A page that is mostly `- PAP-1234: title (in_progress, updated 2026-...)` is an issue list, not a wiki page. Group issues by what they are *about* (a decision, a risk, a workstream) and cite multiple issues per bullet when they share a story.
 4. **Mechanical "Current as of" timestamps everywhere.** One `current_as_of` in frontmatter is enough.
 5. **No interpretation.** "Active issues: PAP-A, PAP-B, PAP-C" is bookkeeping. "The team is concentrating on the schema migration ([PAP-A], [PAP-B]) and has parked the index work pending capacity ([PAP-C])." is wiki-insightful.
-6. **Opaque identifiers in prose.** UUIDs, cursor ids, source hashes, run ids, and raw metadata belong in logs or frontmatter when needed, not in executive-facing project narrative.
+6. **Opaque identifiers in prose.** UUIDs, cursor ids, source hashes, run ids, and raw metadata belong in logs or frontmatter when needed, not in the project narrative.
 
 ## Workflow
 
 1. **Read the bundle in full.** Don't sample. Read every issue title, every comment, every document key the bundle includes. Note: which issues are decisions, which are risks/blockers, which are recently completed, which are inflight.
 2. **Read the existing project page** (if any) so you write a patch, not a rewrite. The "Decisions" section in particular accumulates over time — never wipe accepted decisions; supersede them with `> ⚠ reversed by ...` callouts when something later overrides them.
 3. **Read the target space's `AGENTS.md`** for page conventions: filename style, YAML frontmatter shape, link style, voice. Always pass the operation issue's `wikiId` and `spaceSlug` to LLM Wiki tools.
-4. **Write `wiki/projects/<slug>/standup.md` first.** Every Outpost project represented in the wiki must have this file. It is the executive standup: where the project stands today, what changed recently, what is blocked or risky, and what happens next. Use stable sections, in this order:
+4. **Write `wiki/projects/<slug>/standup.md` first.** Every Outpost project represented in the wiki must have this file. It is the concise current-state view: where the project stands today, what changed recently, what is blocked or risky, and what happens next. Use stable sections, in this order:
    - Frontmatter (`type: project-standup`, `project: <slug>`, `current_as_of: YYYY-MM-DD`, `sources`).
-   - **Executive Readout** — one short paragraph that explains the current project posture in plain language.
+   - **Current-State Readout** — one short paragraph that explains the current project posture in plain language.
    - **What Changed** — the meaningful work completed or advanced since the last window. Group by concept; cite issues/comments/documents only as evidence.
    - **Decisions** — accepted/rejected/reversed decisions that changed the project direction. Omit when none exist.
    - **Blockers / Risks** — current blockers and risks with named owner or next action when the source provides one.
@@ -113,7 +113,7 @@ If the bundle has no durable signal — no decisions, no risk, no completed work
 Before closing the operation issue:
 
 - [ ] The project page reads as wiki content, not as an Outpost status report. A reader new to the space should understand what the project is.
-- [ ] `wiki/projects/<slug>/standup.md` exists for the represented project and reads as an executive current-state update, not a raw issue dump.
+- [ ] `wiki/projects/<slug>/standup.md` exists for the represented project and reads as a concise current-state update, not a raw issue dump.
 - [ ] Decisions section names decisions, not issues — every decision has a one-paragraph rationale and a citation.
 - [ ] The page contains exactly one `current_as_of` (in frontmatter), zero `## [YYYY-MM-DD]` headings (those go to the log).
 - [ ] Bundle warnings (clipped, low signal, stale hash) are surfaced; the patch carries `human_review_required: true` when the deployment is authenticated/public.

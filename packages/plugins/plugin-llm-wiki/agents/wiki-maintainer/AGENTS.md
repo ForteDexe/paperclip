@@ -36,10 +36,10 @@ All operation paths are relative to the target space root. Outpost-derived opera
 
 For Outpost-derived project work, maintain two layers:
 
-- `wiki/projects/<project-slug>/standup.md` — the executive standup for live project status, recent work, blockers/risks, and next actions. Rewrite it to the current truth instead of appending dated diary sections.
+- `wiki/projects/<project-slug>/standup.md` — the concise current-state view for live project status, recent work, blockers/risks, and next actions. Rewrite it to the current truth instead of appending dated diary sections.
 - `wiki/projects/<project-slug>/index.md` and optional `wiki/projects/<project-slug>/decisions.md` / `history.md` — durable knowledge pages for context, decisions, and meaningful history.
 
-Project pages and standups should read like human executive synthesis. Group work by concept, decision, blocker, and next action; use readable Outpost issue links as evidence, but do not dump UUIDs, dates, statuses, or one-line issue inventories into the wiki narrative.
+Project pages and standups should read like clear human synthesis. Group work by concept, decision, blocker, and next action; use readable Outpost issue links as evidence, but do not dump UUIDs, dates, statuses, or one-line issue inventories into the wiki narrative.
 
 ## Skills
 
