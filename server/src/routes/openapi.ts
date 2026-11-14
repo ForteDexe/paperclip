@@ -1,4 +1,4 @@
-import { catalogTeamInstallSchema, catalogTeamPreviewSchema, updateWorkspacePreferenceSchema } from "@outpost/shared";
+import { updateWorkspacePreferenceSchema } from "@outpost/shared";
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@outpost/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@outpost/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
@@ -3137,60 +3137,6 @@ registry.registerPath({
     404: r.notFound,
   },
 });
-
-// ─── Teams Catalog ──────────────────────────────────────────────────────────
-
-/** Ready-made teams are found here, so these entries must match how people ask for them. */
-const TEAM_CATALOG_DESCRIPTIONS: Record<string, string> = {
-  "/api/teams/catalog":
-    "Lists Outpost's ready-made teams: installable team packages, not agents already in a space. Each entry gives its name, description, roles (agentSlugs), project and routine counts, required skills (requiredSkills) and configuration inputs (envInputs). This catalog is the only source of ready-made teams; choose by description and roles rather than an exact name. Optional q filters by text in names, descriptions and tags. The web app has no teams catalog page; people browse it with the outpost teams browse CLI command.",
-  "/api/spaces/{spaceId}/teams/catalog/{catalogId}/preview":
-    "Shows what installing a catalog team would add to this space: planned agents, projects, routines and skills, and any name or slug conflicts with existing resources. Creates no resources, so it is also allowed in Ask and Plan modes. Outpost members and agents in the space can preview.",
-};
-
-for (const route of [
-  ["get", "/api/teams/catalog", "List catalog teams"],
-  ["get", "/api/teams/catalog/{catalogId}/files", "Get catalog team file"],
-  ["get", "/api/teams/catalog/{catalogId}", "Get catalog team"],
-  [
-    "get",
-    "/api/spaces/{spaceId}/teams/catalog/installed",
-    "List installed catalog teams",
-  ],
-  [
-    "post",
-    "/api/spaces/{spaceId}/teams/catalog/{catalogId}/preview",
-    "Preview catalog team install",
-  ],
-  [
-    "post",
-    "/api/spaces/{spaceId}/teams/catalog/{catalogId}/install",
-    "Install catalog team",
-  ],
-] as const) {
-  registerCurrentRoute({
-    method: route[0],
-    path: route[1],
-    tags: ["teams"],
-    summary: route[2],
-    body: route[1].endsWith("/preview") ? catalogTeamPreviewSchema
-      : route[1].endsWith("/install") ? catalogTeamInstallSchema : undefined,
-    ...(route[1] === "/api/teams/catalog" ? {
-      query: z.object({
-        q: z.string().optional().describe("Case-insensitive text matched against team names, descriptions and tags."),
-        kind: z.string().optional().describe("Catalog kind, such as bundled or optional."),
-        category: z.string().optional().describe("Catalog category, such as software-development."),
-      }),
-    } : {}),
-    ...(TEAM_CATALOG_DESCRIPTIONS[route[1]] ? { description: TEAM_CATALOG_DESCRIPTIONS[route[1]] } : {}),
-    ...(route[1].endsWith("/install") ? {
-      description: "Installs a catalog team into this space. Requires an operator user with permission to create agents, or an agent with permission to create agents; without it, an operator user can run outpost teams install <team id> --space-id <spaceId>. Imports team resources; HTTP success does not prove every required skill is ready. Read warnings for post-import failures and skillPreparations for required sources; a preparation plan is not proof of installation. Report unresolved requirements as partial completion and preserve existing resources. Use the actual returned portabilityImport agents and projects for space-scoped resource links. Before repeating an uncertain install, inspect installed teams and saved resource identities rather than creating another copy. resourceLinks provides canonical space-scoped hrefs for actual saved agents, projects and routines, including reused resources; share these links with the installation outcome.",
-      responses: { 201: r.ok(z.object({ resourceLinks: z.array(z.object({
-        kind: z.enum(["agent", "project", "routine"]), id: z.string(), name: z.string(), href: z.string(),
-      })) }).passthrough()), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
-    } : {}),
-  });
-}
 
 // ─── Agents ──────────────────────────────────────────────────────────────────
 

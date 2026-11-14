@@ -61,7 +61,6 @@ Greptile setup.
 - `packages/adapter-utils/`: shared adapter utilities
 - `packages/plugins/`: plugin system packages
 - `packages/skills-catalog/`: app-shipped skills catalog (`@outpost/skills-catalog`)
-- `packages/teams-catalog/`: app-shipped teams catalog (`@outpost/teams-catalog`)
 - `cli/`: `@outpost/cli` package (published bin, agent-facing commands)
 - `skills/`: Outpost runtime/operational skills (not part of the app catalog)
 - `doc/`: operational and product docs

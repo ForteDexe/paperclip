@@ -4,7 +4,6 @@ const OPERATOR_ROUTE_ROOTS = new Set([
   "spaces",
   "space",
   "skills",
-  "teams-catalog",
   "agent-hierarchy",
   "agents",
   "chats",

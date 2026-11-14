@@ -1008,17 +1008,6 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("say plainly that no earlier version was saved, and ask the person for the text they want");
   });
 
-  it("points chat at the teams catalog for ready-made teams and stops the search there", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Ready-made teams are installable packages in Outpost's teams catalog");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("list the catalog with GET /api/teams/catalog");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("do not look for others in package registries, repositories or the web");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("The web app has no teams catalog page, so do not link one");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("outpost teams install <team id> --space-id <spaceId>");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("When you recommend a team, name its roles (agentSlugs), every required skill (requiredSkills, by its ref) and every configuration input (envInputs)");
-    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
-    expect(prompt).toContain("GET /api/teams/catalog");
-  });
-
   it("tells chat to answer terminal requests with the person's own CLI commands", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("they mean their own terminal: give them commands using the Outpost CLI, npx @outpost/cli");
     expect(AGENT_CHAT_DIRECTIVE).toContain("instead of doing the work yourself, saving a file in your workspace or writing curl");

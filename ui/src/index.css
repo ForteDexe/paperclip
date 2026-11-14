@@ -3127,7 +3127,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --sz-460px: 460px; /* Extracted from ui/src/pages/RunTranscriptUxLab.tsx (max-h-[460px]). */
   --sz-960px: 960px; /* Extracted from ui/src/pages/Search.tsx (max-w-[960px]). */
   --sz-calc-43: min(98vw,90rem); /* RunnerInspector sheet width. */
-  --sz-14rem: 14rem; /* Extracted from ui/src/pages/TeamCatalog.tsx (max-w-[14rem]). */
   --rad-3: 3px; /* Extracted from ui/src/components/ExternalObjectPill.tsx (ring-[3px]). */
   --rad-4: 4px; /* Extracted from ui/src/components/IssueChatThread.tsx (rounded-br-[4px]). */
   --rad-2: 2px; /* Extracted from ui/src/components/SidebarSpaceMenu.tsx (ring-[2px]). */
@@ -3232,7 +3231,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --gtc-40: minmax(0,1fr) 320px; /* Extracted from ui/src/pages/IssueChatLongThreadPerf.tsx (grid-cols-[minmax(0,1fr)_320px]). */
   --gtc-52: minmax(0,1.4fr) minmax(220px,0.8fr); /* Extracted from ui/src/pages/PluginSettings.tsx (grid-cols-[minmax(0,1.4fr)_minmax(220px,0.8fr)]). */
   --gtc-53: minmax(0,1.4fr) minmax(18rem,0.9fr); /* Extracted from ui/src/pages/ProjectWorkspaceDetail.tsx (grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]). */
-  --gtc-56: minmax(0,1fr) minmax(14rem,18rem); /* Extracted from ui/src/pages/TeamCatalog.tsx (grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)]). */
   --gtc-59: 8rem 1fr;
   --gtc-60: 1fr 1fr;
   --gtc-61: 1fr 1fr 1fr;

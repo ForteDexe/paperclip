@@ -149,7 +149,6 @@ export { bootstrapExecutionPolicyFromEnv } from "./execution-policy-bootstrap.js
 export { applyManagedEnvironments, createManagedEnvironmentRecovery } from "./managed-environments.js";
 export { buildExportFidelityReport, collectExportFidelityCounts } from "./export-fidelity.js";
 export { spacePortabilityService } from "./space-portability.js";
-export { teamsCatalogService } from "./teams-catalog.js";
 export { environmentService } from "./environments.js";
 export {
   applyCustomImageTemplateToSandboxConfig,

@@ -7,7 +7,7 @@ import type { RunnerProfileFixture } from "./types.js";
 
 it("uses the production native cap only in the catalog while preserving every finite scenario budget and run bound", () => {
   const cells = runnerMatrix.filter(row => row.suite.id === "chat-features" && row.profile.id === "runner-opencode");
-  expect(cells).toHaveLength(244);
+  expect(cells).toHaveLength(240);
   for (const cell of cells) {
     expect(cell.task.turnTimeoutMs).toBe(["create-backlog", "delegate-announcement"].includes(cell.task.id) ? 120_000 : 0);
     const declaration = chatCatalogCases.find(row => row.scenarioId === cell.task.id);

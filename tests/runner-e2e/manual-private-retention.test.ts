@@ -63,8 +63,8 @@ function approvedSelection(ids: string[]) {
  return { version: 1, approvals: [{ ...approval().approvals[0]!, executionIds: ids }] };
 }
 it("the full frozen registry preserves exact run authority while a private run remains bounded to eight", () => {
- expect(MANUAL_PRIVATE_EXECUTIONS).toHaveLength(244);
- expect(new Set(MANUAL_PRIVATE_EXECUTIONS).size).toBe(244);
+ expect(MANUAL_PRIVATE_EXECUTIONS).toHaveLength(240);
+ expect(new Set(MANUAL_PRIVATE_EXECUTIONS).size).toBe(240);
  expect(MAX_MANUAL_PRIVATE_CELLS).toBe(8);
  for (const ids of [...enrolled.map(id => [id]), MANUAL_PRIVATE_EXECUTIONS.slice(0, 8)]) {
   expect(authorizeManualPrivateEvidence({ ...identity, executionIds: ids }, JSON.stringify(approvedSelection(ids))).executionIds).toEqual([...ids].sort());

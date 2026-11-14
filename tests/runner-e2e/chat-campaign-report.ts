@@ -93,7 +93,7 @@ export function readCampaignReportEvidence(root: string, attempt: CampaignAttemp
   return documents;
 }
 export function buildChatCampaignReport(campaign: ChatCampaign, root: string) {
-  if (campaign.denominator !== 244 || campaign.areas !== 35 || campaign.capabilities !== 191 || campaign.requiredPasses !== 196 || campaign.scenarios.length !== 244 || new Set(campaign.scenarios.map(s => s.id)).size !== 244 || new Set(campaign.scenarios.map(s => s.feature)).size !== 35 || new Set(campaign.scenarios.flatMap(s => s.capabilities)).size !== 191) throw new Error("Report requires the complete frozen 244/35/191 inventory and 196 gate");
+  if (campaign.denominator !== 240 || campaign.areas !== 34 || campaign.capabilities !== 188 || campaign.requiredPasses !== 192 || campaign.scenarios.length !== 240 || new Set(campaign.scenarios.map(s => s.id)).size !== 240 || new Set(campaign.scenarios.map(s => s.feature)).size !== 34 || new Set(campaign.scenarios.flatMap(s => s.capabilities)).size !== 188) throw new Error("Report requires the complete frozen 240/34/188 inventory and 192 gate");
   const summary = campaignSummary(campaign, root);
   const scenarios = campaign.scenarios.map(scenario => {
     const eligibility = campaignSummary({ ...campaign, scenarios: [scenario] }, root);
@@ -108,7 +108,7 @@ export function buildChatCampaignReport(campaign: ChatCampaign, root: string) {
   });
   const attempts = scenarios.flatMap(s => s.attempts);
   return { schema: "outpost.chat-campaign-report/v1", disposition: "incomplete-read-only-proof-summary", campaignId: campaign.campaignId, campaignSnapshotSha256: sha(JSON.stringify(campaign)), reportGeneratorSha256: sha(readFileSync(import.meta.filename, "utf8")), baselineRevision: campaign.baselineRevision, inventoryDigest: campaign.inventoryDigest,
-    frozen: { denominator: 244, areas: 35, capabilities: 191, requiredPasses: 196 }, eligibility: summary,
+    frozen: { denominator: 240, areas: 34, capabilities: 188, requiredPasses: 192 }, eligibility: summary,
     stageSemantics: { canonicalDispatch: "Exact persisted source human proves dispatch; query intent or unbound HTTP traffic does not.", canonicalPersisted: "Exact original/audited-rendered human body on independently bound source, excluding setup comments.", canonicalNativeAdmission: "Native run on that source bound to the exact new canonical comment; saved comment alone is insufficient.", featureGradingReturned: "Exact independent checks returned after verification, plus canonical or explicit boundary proof.", observationGradeRecorded: "Snapshot grade may originate in finally; does not establish completed grading.", setupBlockedBeforeCanonical: "Explicit reserved-setup blocker receipt only; missing outputs/zero runs remain unknown.", intentionalNoChatBoundary: "Selected fingerprinted boundary definition and actual exact unsent-query intent; not feature success." },
     proofCounts: Object.fromEntries(Object.keys(attempts[0]?.stages ?? {}).map(key => [key, { proven: attempts.filter(a => a.stages[key as keyof typeof a.stages].state === "proven").length, unknown: attempts.filter(a => a.stages[key as keyof typeof a.stages].state === "unknown").length, notApplicable: attempts.filter(a => a.stages[key as keyof typeof a.stages].state === "not-applicable").length }])),
     scenarios };

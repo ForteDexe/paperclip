@@ -1878,7 +1878,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
   },
   {
     id: CHAT_SETUP_HEALTH_SUITE, label: "Chat provider setup health", manualOnly: true,
-    description: "Diagnostic only: one normal lifecycle hello, zero chat/task work; excluded from the 244 catalog scenarios.",
+    description: "Diagnostic only: one normal lifecycle hello, zero chat/task work; excluded from the 240 catalog scenarios.",
     groups: [], profiles: [chatFeatureExecutionProfile], environments: [localEnvironment], tasks: [chatSetupHealthTask], expectedMatrixSize: 1,
     definitionMetadata: { version: 1, sourceDigest: chatSetupHealthDigest, scheduling: "explicit-only", catalogScenario: false,
       maximumAttemptsPerCell: 1, maximumAutomaticSetupHellos: 1, expectedHeartbeatRuns: 0, canonicalQueries: 0,
@@ -1897,7 +1897,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
       ...chatCatalogTasks.map(task => `chat-features.runner-codex-subscription.local.${task.id}`),
       ...[...chatFeatureTasks, ...chatCatalogTasks].filter(task => task.id !== "create-backlog").map(task => `chat-features.runner-opencode-deepseek-1017.local.${task.id}`),
     ],
-    definitionMetadata: { version: 3, nativeTimeoutPolicy: CHAT_NATIVE_TIMEOUT_POLICY, authoredTurnTimeouts: "legacy-declarations-retained-separately-not-effective-native-caps", definitionDigest: chatFeatureDefinitionDigest, inventoryDigest: chatCatalogInventoryDigest, frozenScenarioCount: 244, scheduling: "explicit-only",
+    definitionMetadata: { version: 3, nativeTimeoutPolicy: CHAT_NATIVE_TIMEOUT_POLICY, authoredTurnTimeouts: "legacy-declarations-retained-separately-not-effective-native-caps", definitionDigest: chatFeatureDefinitionDigest, inventoryDigest: chatCatalogInventoryDigest, frozenScenarioCount: 240, scheduling: "explicit-only",
       instructions: "production-role-defaults", spaceAndAgentBudgetCents: CHAT_FEATURE_BUDGET_CENTS,
       unpricedUsagePolicy: "allow-through-public-budget-policy", taskRunLimits: "per-case-declared; agent daily admission ceiling 3",
       maximumAttemptsPerCell: 1, setupProbeUsage: "unavailable-outside-heartbeat-accounting",

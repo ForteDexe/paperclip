@@ -204,5 +204,4 @@ and authority. Each YAML file can also reference capabilities from other areas.
 | [steering](steering.yaml) | [Feature](../../../maps/feature-map/steering.md) | [Access](../../../maps/agent-access-map/steering.md) |
 | [task-coordination](task-coordination.yaml) | [Feature](../../../maps/feature-map/task-coordination.md) | [Access](../../../maps/agent-access-map/task-coordination.md) |
 | [tasks](tasks.yaml) | [Feature](../../../maps/feature-map/tasks.md) | [Access](../../../maps/agent-access-map/tasks.md) |
-| [teams](teams.yaml) | [Feature](../../../maps/feature-map/teams.md) | [Access](../../../maps/agent-access-map/teams.md) |
 | [workspaces](workspaces.yaml) | [Feature](../../../maps/feature-map/workspaces.md) | [Access](../../../maps/agent-access-map/workspaces.md) |

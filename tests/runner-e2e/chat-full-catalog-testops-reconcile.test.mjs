@@ -67,11 +67,11 @@ function fixture({ existing = true, partialPlan = false, transform = value => va
 }
 const writes = f => f.calls.filter(row => row.method && row.method !== 'GET');
 
-test('reconciles the actual 244-row manifest while retaining legacy388, pilot identities, history and unrelated plans', async () => {
+test('reconciles the actual 240-row manifest while retaining legacy388, pilot identities, history and unrelated plans', async () => {
   const f = fixture(), oldPlans = clone([...f.plans.values()]);
   const receipt = await reconcileFullCatalog(f.api, f.markOnce);
-  assert.equal(receipt.cases.length, 244); assert.equal(receipt.planId, 90);
-  assert.equal(new Set(receipt.cases.map(row => row.caseId)).size, 244);
+  assert.equal(receipt.cases.length, 240); assert.equal(receipt.planId, 90);
+  assert.equal(new Set(receipt.cases.map(row => row.caseId)).size, 240);
   const boundBacklog = receipt.cases.find(row => row.key === backlog.key);
   assert.equal(boundBacklog.caseId, 388); assert.equal(boundBacklog.fullName, backlog.fullName);
   assert.equal(boundBacklog.registeredFullName, backlog.aliases[0]);
@@ -118,7 +118,7 @@ test('resumes an owned partial plan by extending only its explicit known-case se
   assert.equal(value.planId, 90);
   assert.equal(writes(f).filter(row => row.route === '/api/testplan').length, 0);
   assert.deepEqual(writes(f).filter(row => row.route === '/api/testplan/90').map(row => Object.keys(row.body)), [['treeSelection']]);
-  assert.equal(f.plans.get(90).testCasesCount, 244);
+  assert.equal(f.plans.get(90).testCasesCount, 240);
 });
 
 for (const kind of ['alias', 'canonical']) {
@@ -179,8 +179,8 @@ test('resumption reuses a case durably created before an uncertain response rath
   const createdId = [...f.cases.keys()].find(id => id !== 2);
   const value = await reconcileFullCatalog(f.api, f.markOnce);
   assert.equal(value.cases[0].caseId, createdId);
-  assert.equal(writes(f).filter(row => row.route === '/api/testcase').length, 244);
-  assert.equal(new Set(value.cases.map(row => row.caseId)).size, 244);
+  assert.equal(writes(f).filter(row => row.route === '/api/testcase').length, 240);
+  assert.equal(new Set(value.cases.map(row => row.caseId)).size, 240);
 });
 
 test('a duplicate appearing after case updates prevents final plan admission', async () => {

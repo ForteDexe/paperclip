@@ -806,8 +806,6 @@
     "server/src/__tests__/task-workspace-repositories.test.ts": 3489,
     "server/src/__tests__/task-workspace-source-copy-privacy.test.ts": 4724,
     "server/src/__tests__/task-workspace-tools.test.ts": 1400,
-    "server/src/__tests__/teams-catalog-install-no-overrides.test.ts": 12970,
-    "server/src/__tests__/teams-catalog-service.test.ts": 947,
     "server/src/__tests__/telemetry-client-flush.test.ts": 108,
     "server/src/__tests__/terminal-workspace-work.test.ts": 256,
     "server/src/__tests__/tool-access-connector-telemetry.test.ts": 4671,

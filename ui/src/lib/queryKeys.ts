@@ -214,22 +214,6 @@ export const queryKeys = {
     testRunDetail: (spaceId: string, skillId: string, runId: string) =>
       ["outpost-skills", spaceId, skillId, "test-run", runId] as const,
   },
-  teamCatalog: {
-    catalog: (filters: { kind?: string; category?: string; q?: string } = {}) =>
-      [
-        "team-catalog",
-        "catalog",
-        filters.kind ?? "__all-kinds__",
-        filters.category ?? "__all-categories__",
-        filters.q ?? "",
-      ] as const,
-    catalogDetail: (catalogRef: string) =>
-      ["team-catalog", "catalog", "detail", catalogRef] as const,
-    catalogFile: (catalogRef: string, relativePath: string) =>
-      ["team-catalog", "catalog", "file", catalogRef, relativePath] as const,
-    installed: (spaceId: string) =>
-      ["team-catalog", "installed", spaceId] as const,
-  },
   agents: {
     projectAccess: (id: string) => ["agents", "detail", id, "project-access"] as const,
     identity: (id: string) => ["agents", "identity", id] as const,

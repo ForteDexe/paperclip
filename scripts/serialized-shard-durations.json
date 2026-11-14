@@ -171,7 +171,6 @@
     "server/src/__tests__/summary-slot-routes.test.ts": 5656,
     "server/src/__tests__/task-connector-read-routes.test.ts": 6058,
     "server/src/__tests__/task-title-routes.test.ts": 13080,
-    "server/src/__tests__/teams-catalog-routes.test.ts": 4167,
     "server/src/__tests__/user-profile-routes.test.ts": 2245,
     "server/src/__tests__/workspace-command-authz.test.ts": 100,
     "server/src/__tests__/workspace-preferences-routes.test.ts": 1477,

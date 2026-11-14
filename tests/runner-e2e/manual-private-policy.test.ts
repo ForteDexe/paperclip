@@ -63,8 +63,8 @@ function frozenExecutionIds() {
 }
 it("full catalog routes every frozen execution through private classification and cell binding", () => {
  const ids = frozenExecutionIds();
- expect(ids).toHaveLength(244);
- expect(new Set(ids).size).toBe(244);
+ expect(ids).toHaveLength(240);
+ expect(new Set(ids).size).toBe(240);
  expect(createHash("sha256").update(JSON.stringify(ids)).digest("hex")).toBe("a215d1c3b010d0cb1b72efd45a564bcb662c2caffd87a34316ff8e657b4f02e5");
  for (const id of ids) {
   expect(manualEvidenceRouting({ ...env, SELECT_ID: id })).toEqual({ retention: "private", executionIds: [id] });

@@ -18,7 +18,7 @@ it.each(["cell-read", "cell-write", "report-write"] as const)("keeps the shipped
   expect(() => manualPrivateSessionPolicy({ bucket: "private-evidence", runId: "123", executionIds: [id.replace("create-backlog", "delegate-announcement")], mode })).toThrow();
 });
 it("preserves the frozen244 candidate approval registry and refuses shipped authority through that old authorizer", () => {
-  expect(MANUAL_PRIVATE_EXECUTIONS).toHaveLength(244);
+  expect(MANUAL_PRIVATE_EXECUTIONS).toHaveLength(240);
   expect(MANUAL_PRIVATE_EXECUTIONS).not.toContain(id);
   const identity = { workflowSha: "a".repeat(40), targetSha: "b".repeat(40), runId: "123", attempt: "1", executionIds: [id] };
   expect(() => authorizeManualPrivateEvidence(identity, JSON.stringify({ version: 1, approvals: [{ ...identity, protocol: MANUAL_PRIVATE_PROTOCOL, launchSha256: "c".repeat(64) }] }))).toThrow("Unsupported private manual evidence selection");

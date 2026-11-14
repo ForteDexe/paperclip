@@ -336,7 +336,7 @@ describe("runner E2E catalog", () => {
     const frozenDirectory = new URL("./chat-scenarios/", import.meta.url);
     const frozenIds = readdirSync(frozenDirectory).filter(name => name.endsWith(".yaml") && name !== "defaults.yaml")
       .flatMap(name => parseDocument(readFileSync(new URL(name, frozenDirectory), "utf8")).toJS().scenarios.map((scenario: { id: string }) => scenario.id));
-    expect(frozenIds).toHaveLength(244);
+    expect(frozenIds).toHaveLength(240);
     const chat = selectRunnerExecutions(parseRunnerSelectors(["--suite", "chat-features", "--profile", "runner-opencode"]));
     // These two historical execution aliases retain their exact frozen YAML identity.
     const legacyScenarioIds: Record<string, string> = { "create-backlog": "tasks.create-backlog", "delegate-announcement": "tasks.delegate-announcement" };

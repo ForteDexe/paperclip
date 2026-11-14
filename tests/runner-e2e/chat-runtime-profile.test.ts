@@ -6,7 +6,11 @@ import { chatFeatureProfile } from "./chat-feature-cases.js";
 import type { RunnerProfileFixture } from "./types.js";
 import { setupLiveFixtures } from "./live-fixtures.js";
 import type { RunnerApi } from "./api.js";
-import { missingTeamAccountEnvironment } from "./chat-catalog-domains/external-team-configure.js";
+function missingAccountEnvironment(subscription: boolean, emptyHome: string) {
+  return subscription
+    ? { CODEX_HOME: emptyHome, OPENAI_API_KEY: "", CODEX_API_KEY: "" }
+    : { OPENROUTER_API_KEY: "" };
+}
 const profile = { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "outpost_runner", credential: "OPENROUTER_API_KEY" };
 it("pins the new controller identity and rejects model/provider/credential substitution", () => {
   expect(reviewedChatProfile(profile)).toBe(true);
@@ -16,7 +20,7 @@ it("pins the new controller identity and rejects model/provider/credential subst
 });
 it("changes the complete chat matrix without relabeling the existing global qualification model", () => {
   const cells = runnerMatrix.filter(cell => cell.suite.id === "chat-features" && cell.profile.id === "runner-opencode");
-  expect(cells.length).toBe(244);
+  expect(cells.length).toBe(240);
   expect(cells.every(cell => cell.profile.model === CHAT_OPENCODE_MODEL && reviewedChatProfile(cell.profile))).toBe(true);
   expect(runnerProfiles.find(row => row.id === "runner-opencode")!.model).not.toBe(CHAT_OPENCODE_MODEL);
   const cell = cells[0]!;
@@ -34,8 +38,8 @@ it("changes the complete chat matrix without relabeling the existing global qual
   expect(Object.keys(env).sort()).toEqual(["OPENCODE_CONFIG_CONTENT", "OPENROUTER_API_KEY"]);
 });
 it("withholds only the selected account from the missing OpenRouter member", () => {
-  expect(missingTeamAccountEnvironment(false, "/owned/empty")).toEqual({ OPENROUTER_API_KEY: "" });
-  expect(missingTeamAccountEnvironment(true, "/owned/empty")).toEqual({ CODEX_HOME: "/owned/empty", OPENAI_API_KEY: "", CODEX_API_KEY: "" });
+  expect(missingAccountEnvironment(false, "/owned/empty")).toEqual({ OPENROUTER_API_KEY: "" });
+  expect(missingAccountEnvironment(true, "/owned/empty")).toEqual({ CODEX_HOME: "/owned/empty", OPENAI_API_KEY: "", CODEX_API_KEY: "" });
 });
 
 it("scopes routing preference to the reviewed chat profile while preserving its configured environment", () => {

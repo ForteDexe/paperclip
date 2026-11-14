@@ -826,45 +826,6 @@ still enforced by the server in both cases.
   require `--yes` in non-interactive use.
 - `--json` prints the raw API result for each command.
 
-## Teams Commands
-
-`outpost teams` works with the app-shipped team catalog in
-`@outpost/teams-catalog`. Browse, search, inspect, and file reads do not
-change space state. `preview` runs the space import planner, and `install`
-imports the catalog team into an existing space.
-
-```sh
-npx @outpost/cli teams browse [--kind bundled|optional] [--category <slug>] [--query <text>]
-npx @outpost/cli teams search "<text>" [--kind bundled|optional] [--category <slug>]
-npx @outpost/cli teams inspect <catalog-id-or-key-or-slug> [--file TEAM.md]
-npx @outpost/cli teams preview <catalog-id-or-key-or-slug> --space-id <space-id>
-npx @outpost/cli teams install <catalog-id-or-key-or-slug> --space-id <space-id>
-```
-
-Preview/install options:
-
-- Under agent authentication, use `outpost space list --json`,
-  `outpost space current --json`, or `OUTPOST_SPACE_ID` to select the
-  target space. `space list` falls back to the scoped current space when
-  board-wide listing is forbidden. `teams install` creates agents and therefore
-  requires board authentication, an `agents:create` grant, or an agent with the
-  `canCreateAgents` permission (enabled by default for newly created
-  standard-trust agents; low-trust agents and pre-existing agents without an
-  explicit value stay disabled).
-- `--request-approval-on-forbidden` turns a 403 install denial into a linked
-  board approval request instead of a raw failed command; use
-  `--approval-issue-id <id>` to attach it to a specific issue. During Outpost
-  task runs with `OUTPOST_TASK_ID` set, this fallback is automatic so
-  agent-run walkthroughs leave a pending approval path instead of a raw 403.
-- `--target-manager-agent-id <id>` or `--target-manager-slug <slug>` reparents
-  catalog root agents under an existing manager.
-- `--agent <slug>` and `--selected-file <path>` narrow the import.
-- `--collision-strategy rename|skip|replace` controls name/key collisions.
-- `--allow-external-sources`, `--allow-unpinned-optional-sources`, and
-  `--allow-local-path-sources` explicitly opt into higher-trust source policy.
-  Local-path sources are development-only and stay blocked unless that flag is
-  passed.
-
 ## Secrets Commands
 
 ```sh

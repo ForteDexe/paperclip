@@ -3,12 +3,12 @@
   "campaignId": "chat-catalog-2026-10-26",
   "frozenAt": "2026-10-26T21:31:30.775Z",
   "baselineRevision": "8373d7867963674ff960d2345d0d28086f799bc7",
-  "inventoryDigest": "9dc9cf6a5426cf1b56bc30a3571851f233f9dd5e93a1292eaee414d33b52df77",
+  "inventoryDigest": "c3c0d5ec1365081dee8f4f50db8ea37f927c9518bc523225e4e239341e5cf4bd",
   "defaultsSha256": "ca64a5d202d8a332408bb2bc55d33428bfbc0a6a95aacc33b659d4be452e0cd9",
-  "denominator": 244,
-  "areas": 35,
-  "capabilities": 191,
-  "requiredPasses": 196,
+  "denominator": 240,
+  "areas": 34,
+  "capabilities": 188,
+  "requiredPasses": 192,
   "corePrs": [
     "https://github.com/paperclipai/paperclip/pull/17847",
     "https://github.com/paperclipai/paperclip/pull/17848",
@@ -13890,210 +13890,6 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "teams.configure-team",
-      "capabilities": [
-        "teams/configuration",
-        "runs-adapters/validation"
-      ],
-      "context": "A team is installed but one member lacks an eligible account and another is ready.",
-      "query": "Get this team ready to start the website.",
-      "expected_outcome": "The agent identifies the specific incomplete member and uses the supported configuration or human connection request. Readiness is verified per member; the already working member keeps its configuration. Chat does not label the whole team ready until required bindings and runtime checks are satisfied.",
-      "feature": "teams",
-      "sourceFile": "tests/runner-e2e/chat-scenarios/teams.yaml",
-      "sourceSha256": "a7580fd090c62ad9b8a0d27dd0ae11512d6df965109f6f4622e0934583def056",
-      "scenarioSha256": "31d1af3f9097f47dab5418d031da40d529056d9df7a6051b15b94e1be6ddc2d3",
-      "owner": "eval_external",
-      "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.teams.configure-team",
-      "blocker": null,
-      "attempts": [],
-      "qualifyingDefinitionDigest": "1f26fe44abbf652e11deb0701be693b5deb5af34953c9823544244bff31b00b9",
-      "qualifyingGraderDigest": "1f26fe44abbf652e11deb0701be693b5deb5af34953c9823544244bff31b00b9",
-      "productPolicy": {
-        "lane": "source-build",
-        "sourceBaselineRevision": "8373d7867963674ff960d2345d0d28086f799bc7"
-      },
-      "authoringStatus": "complete"
-    },
-    {
-      "id": "teams.find-team",
-      "capabilities": [
-        "teams/discovery"
-      ],
-      "context": "The team catalog contains several available packages with different intended roles.",
-      "query": "Do we have a ready-made team for building a website?",
-      "expected_outcome": "The agent reads available package descriptions and summarizes the relevant team and included roles. It links the catalog entry and calls out requirements visible in its metadata. It does not invent a package or promise that catalog availability means the team's accounts are already configured.",
-      "feature": "teams",
-      "sourceFile": "tests/runner-e2e/chat-scenarios/teams.yaml",
-      "sourceSha256": "a7580fd090c62ad9b8a0d27dd0ae11512d6df965109f6f4622e0934583def056",
-      "scenarioSha256": "6e29d447a9411b9ea73ffc29ed4934af8f9d0ce8bd2a700e5de70a2f77e5d3b1",
-      "owner": "eval_external",
-      "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.teams.find-team",
-      "blocker": null,
-      "attempts": [
-        {
-          "ordinal": 1,
-          "outcome": "failed",
-          "executionId": "chat-features.runner-codex-subscription.local.teams.find-team",
-          "startedAt": "2026-10-27T10:12:32.354Z",
-          "finishedAt": "2026-10-27T10:13:50.001Z",
-          "sourceRevision": "efbbb88a70dc6bcd0e6893702d8a482e46753fdf",
-          "workingTreeDigest": "1b21e3c0fd1340747b39de72ce2ac0b3fdb01df4de11298c4281fe4892eb778d",
-          "definitionDigest": "a08e94733ee8f8ac25dd879e03e8dac3900332d53107081d9c42b436bf0c9880",
-          "suiteDefinitionDigest": "3e4dd6bab0b717855ed15a758f00d9506ac29e53600b8c383304fa44e847e4a3",
-          "graderDigest": "a08e94733ee8f8ac25dd879e03e8dac3900332d53107081d9c42b436bf0c9880",
-          "model": "gpt-5.6-sol",
-          "profile": "runner-codex-subscription",
-          "environment": "local",
-          "automaticRetries": 0,
-          "correction": null,
-          "classification": "candidate_failure",
-          "observedFailure": "Stopped waiting for teams.find-team: Settled scenario failed: existing-package-grounding, package-requirements-described",
-          "evidencePaths": [
-            "tests/runner-e2e/results/chat-catalog-campaign/next30-initial-batch-efbbb88a70.json",
-            "tests/runner-e2e/results/catalog-initial-2026-10-27T10-12-32-354Z-teams-find-team/chat-features/runner-codex-subscription/local/teams.find-team/attempt-1/result.json",
-            "tests/runner-e2e/results/chat-catalog-campaign/active-teams.find-team.json"
-          ],
-          "usage": {
-            "costUsd": null,
-            "tokens": 191246,
-            "coverage": "Actual heartbeat usage receipts, including cache; subscription cost unpriced unless complete billing; fixture costs excluded."
-          },
-          "cleanup": "passed",
-          "corePrDependencies": [],
-          "databaseLane": {
-            "lane": "owned-docker-postgres",
-            "image": "postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336",
-            "imageId": "sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336",
-            "version": "18.6-1.pgdg13+2"
-          },
-          "productIdentity": {
-            "kind": "source-build",
-            "productionSourceRevision": "8373d7867963674ff960d2345d0d28086f799bc7",
-            "snapshotSourceRevision": "efbbb88a70dc6bcd0e6893702d8a482e46753fdf",
-            "nativeBinarySha256": "9d8af6b85b836a03092ade2273be6f29f5c2f6ec67ee891d83ee9693ba39d3b4",
-            "workspaceBuildDigest": "222e10a8a2a20d3015ec4470b952e2dd9b927dfe9390c4a5ed1e19d740c0e35b",
-            "receiptPaths": [
-              "tests/runner-e2e/results/chat-catalog-campaign/snapshot-efbbb88a70.json",
-              "tests/runner-e2e/results/chat-catalog-campaign/snapshot-10d0ce63610.json",
-              "tests/runner-e2e/results/chat-catalog-campaign/snapshot-0fdcb539a8.json"
-            ],
-            "coreCandidate": false
-          }
-        }
-      ],
-      "qualifyingDefinitionDigest": "a08e94733ee8f8ac25dd879e03e8dac3900332d53107081d9c42b436bf0c9880",
-      "qualifyingGraderDigest": "a08e94733ee8f8ac25dd879e03e8dac3900332d53107081d9c42b436bf0c9880",
-      "productPolicy": {
-        "lane": "source-build",
-        "sourceBaselineRevision": "8373d7867963674ff960d2345d0d28086f799bc7"
-      },
-      "authoringStatus": "complete"
-    },
-    {
-      "id": "teams.install-team",
-      "capabilities": [
-        "teams/install",
-        "agents/create"
-      ],
-      "context": "The preview is accepted, required accounts exist, and the agent has effective installation and resource-creation authority.",
-      "query": "Install that website team in this space.",
-      "expected_outcome": "The supported installer creates the intended resources once in the active space and reports conflicts or partial failures truthfully. Chat links to the installed agents and project. Repeating an uncertain request reconciles the existing installation rather than blindly duplicating the team.",
-      "feature": "teams",
-      "sourceFile": "tests/runner-e2e/chat-scenarios/teams.yaml",
-      "sourceSha256": "a7580fd090c62ad9b8a0d27dd0ae11512d6df965109f6f4622e0934583def056",
-      "scenarioSha256": "1c72931bf4a9e13daf3cd4a26dea88665bceae1816308ea9c9575cc3b219a1a2",
-      "owner": "eval_external",
-      "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.teams.install-team",
-      "blocker": null,
-      "attempts": [],
-      "qualifyingDefinitionDigest": "09613965e57da0d759b4613715d925c4293a59db347049b21b95024aacf9c56a",
-      "qualifyingGraderDigest": "09613965e57da0d759b4613715d925c4293a59db347049b21b95024aacf9c56a",
-      "productPolicy": {
-        "lane": "source-build",
-        "sourceBaselineRevision": "8373d7867963674ff960d2345d0d28086f799bc7"
-      },
-      "authoringStatus": "complete"
-    },
-    {
-      "id": "teams.preview-install",
-      "capabilities": [
-        "teams/preview"
-      ],
-      "context": "The selected package would add multiple agents and a project; nothing has been installed yet.",
-      "query": "Show me what installing the website team would add.",
-      "expected_outcome": "A preview describes the proposed resources, options and conflicts in the current space without creating them. Chat distinguishes preview from installation and identifies any missing configuration needed for an eventual working team.",
-      "feature": "teams",
-      "sourceFile": "tests/runner-e2e/chat-scenarios/teams.yaml",
-      "sourceSha256": "a7580fd090c62ad9b8a0d27dd0ae11512d6df965109f6f4622e0934583def056",
-      "scenarioSha256": "fe4e5a415f9f614827c9a222dfd7cce803387d03610ad67afc6a87cbe5dc4533",
-      "owner": "eval_external",
-      "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.teams.preview-install",
-      "blocker": null,
-      "attempts": [
-        {
-          "ordinal": 1,
-          "outcome": "failed",
-          "executionId": "chat-features.runner-codex-subscription.local.teams.preview-install",
-          "startedAt": "2026-10-27T10:13:50.886Z",
-          "finishedAt": "2026-10-27T10:15:55.859Z",
-          "sourceRevision": "efbbb88a70dc6bcd0e6893702d8a482e46753fdf",
-          "workingTreeDigest": "1b21e3c0fd1340747b39de72ce2ac0b3fdb01df4de11298c4281fe4892eb778d",
-          "definitionDigest": "c72ce96d035526a28c3a8f8a6ffc12b4f65422f9582723356331a97b2dfa81c7",
-          "suiteDefinitionDigest": "3e4dd6bab0b717855ed15a758f00d9506ac29e53600b8c383304fa44e847e4a3",
-          "graderDigest": "c72ce96d035526a28c3a8f8a6ffc12b4f65422f9582723356331a97b2dfa81c7",
-          "model": "gpt-5.6-sol",
-          "profile": "runner-codex-subscription",
-          "environment": "local",
-          "automaticRetries": 0,
-          "correction": null,
-          "classification": "transient_infrastructure",
-          "observedFailure": "Stopped waiting for teams.preview-install: Settled scenario failed: existing-package-grounding, package-requirements-described, preview-resources-described",
-          "evidencePaths": [
-            "tests/runner-e2e/results/chat-catalog-campaign/next30-initial-batch-efbbb88a70.json",
-            "tests/runner-e2e/results/catalog-initial-2026-10-27T10-13-50-886Z-teams-preview-install/chat-features/runner-codex-subscription/local/teams.preview-install/attempt-1/result.json",
-            "tests/runner-e2e/results/chat-catalog-campaign/active-teams.preview-install.json"
-          ],
-          "usage": {
-            "costUsd": null,
-            "tokens": 413504,
-            "coverage": "Actual heartbeat usage receipts, including cache; subscription cost unpriced unless complete billing; fixture costs excluded."
-          },
-          "cleanup": "passed",
-          "corePrDependencies": [],
-          "databaseLane": {
-            "lane": "owned-docker-postgres",
-            "image": "postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336",
-            "imageId": "sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336",
-            "version": "18.6-1.pgdg13+2"
-          },
-          "productIdentity": {
-            "kind": "source-build",
-            "productionSourceRevision": "8373d7867963674ff960d2345d0d28086f799bc7",
-            "snapshotSourceRevision": "efbbb88a70dc6bcd0e6893702d8a482e46753fdf",
-            "nativeBinarySha256": "9d8af6b85b836a03092ade2273be6f29f5c2f6ec67ee891d83ee9693ba39d3b4",
-            "workspaceBuildDigest": "222e10a8a2a20d3015ec4470b952e2dd9b927dfe9390c4a5ed1e19d740c0e35b",
-            "receiptPaths": [
-              "tests/runner-e2e/results/chat-catalog-campaign/snapshot-efbbb88a70.json",
-              "tests/runner-e2e/results/chat-catalog-campaign/snapshot-10d0ce63610.json",
-              "tests/runner-e2e/results/chat-catalog-campaign/snapshot-0fdcb539a8.json"
-            ],
-            "coreCandidate": false
-          }
-        }
-      ],
-      "qualifyingDefinitionDigest": "c72ce96d035526a28c3a8f8a6ffc12b4f65422f9582723356331a97b2dfa81c7",
-      "qualifyingGraderDigest": "c72ce96d035526a28c3a8f8a6ffc12b4f65422f9582723356331a97b2dfa81c7",
-      "productPolicy": {
-        "lane": "source-build",
-        "sourceBaselineRevision": "8373d7867963674ff960d2345d0d28086f799bc7"
-      },
-      "authoringStatus": "complete"
-    },
-    {
       "id": "workspaces.close-and-reopen",
       "capabilities": [
         "workspaces/closure"
@@ -14377,9 +14173,9 @@
   ],
   "implementationCheckpoint": {
     "sourceRevision": "d110207cd8fc9a297bae2b3839b5cb766e6b5026",
-    "descriptorSha256": "a2b41bc1cd86f9bf63fb46a8208bf1998466ebe50733c15a7b03e4ae6113cab6",
-    "authored": 244,
-    "complete": 238,
+    "descriptorSha256": "0e16a7b41602cf2b2e99ab2a80babb7712165666beb6cba663211255c71dcd24",
+    "authored": 240,
+    "complete": 234,
     "partial": 6,
     "unimplemented": 0
   }

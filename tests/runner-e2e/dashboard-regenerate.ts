@@ -102,7 +102,7 @@ export async function regenerateCatalogOverview(input: { metadataFile: string; o
       descriptions.set(row.id, { query: row.query, expectedOutcome: row.expected_outcome });
     }
   }
-  if (catalogIds.size !== 244 || overview.rows.some(row => !catalogIds.has(row.scenarioId))) throw new Error("Catalog overview must match the frozen scenario IDs");
+  if (catalogIds.size !== 240 || overview.rows.some(row => !catalogIds.has(row.scenarioId))) throw new Error("Catalog overview must match the frozen scenario IDs");
   const dashboard = renderRunnerE2EDashboard({ title: "Chat feature catalog", generatedAt: overview.asOf, expected: [], catalog: [], entries: [], catalogOverview: overview, catalogOverviewDescriptions: descriptions });
   await mkdir(input.outputDirectory, { mode: 0o700 });
   await writeFile(path.join(input.outputDirectory, "index.html"), dashboard, { mode: 0o600, flag: "wx" });

@@ -58,7 +58,7 @@ describe("space routes", () => {
   it("rewrites space package paths with the active prefix", () => {
     expect(applySpacePrefix("/space/export", "NEU")).toBe("/NEU/space/export");
     expect(applySpacePrefix("/space/import", "NEU")).toBe("/NEU/space/import");
-    expect(applySpacePrefix("/org", "NEU")).toBe("/NEU/org");
+    expect(applySpacePrefix("/agent-hierarchy", "NEU")).toBe("/NEU/agent-hierarchy");
   });
 
   it("does not double-apply the space prefix", () => {
@@ -68,35 +68,6 @@ describe("space routes", () => {
   it("normalizes prefixed space export file URLs for parsing", () => {
     expect(toSpaceRelativePath("/NEU/space/export/files/agents/lead/AGENTS.md")).toBe(
       "/space/export/files/agents/lead/AGENTS.md",
-    );
-  });
-
-  // Regression for PAP-10257: Team Catalog navigation (auto-select + row/file
-  // clicks) produces space-relative `/teams-catalog/<key>` paths. Without
-  // `teams-catalog` in the operator-route allowlist, `extractSpacePrefixFromPath`
-  // misread the first segment as a space prefix and `useNavigate` skipped the
-  // rewrite, dropping the `/PAP/` prefix and crashing into "Space not found".
-  it("re-prefixes team catalog routes so navigate preserves the space prefix", () => {
-    expect(isOperatorPathWithoutPrefix("/teams")).toBe(false);
-    expect(isOperatorPathWithoutPrefix("/teams-catalog")).toBe(true);
-    expect(isOperatorPathWithoutPrefix("/teams-catalog/core-crew")).toBe(true);
-    expect(extractSpacePrefixFromPath("/teams-catalog/core-crew")).toBeNull();
-
-    // Auto-select effect: `/teams-catalog/<first-key>` must gain the `/PAP/` prefix.
-    expect(applySpacePrefix("/teams-catalog/core-crew", "PAP")).toBe(
-      "/PAP/teams-catalog/core-crew",
-    );
-    // File-tree click: nested `/files/<encoded>` path is preserved under the prefix.
-    expect(applySpacePrefix("/teams-catalog/core-crew/files/TEAM.md", "PAP")).toBe(
-      "/PAP/teams-catalog/core-crew/files/TEAM.md",
-    );
-    // Already-prefixed paths are left untouched (idempotent — no double prefix).
-    expect(applySpacePrefix("/PAP/teams-catalog/core-crew", "PAP")).toBe(
-      "/PAP/teams-catalog/core-crew",
-    );
-    // Round-trips back to a space-relative path.
-    expect(toSpaceRelativePath("/PAP/teams-catalog/core-crew")).toBe(
-      "/teams-catalog/core-crew",
     );
   });
 

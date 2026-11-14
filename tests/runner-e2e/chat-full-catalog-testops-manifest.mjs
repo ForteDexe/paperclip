@@ -33,7 +33,7 @@ export function validateFullCatalogManifest(value) {
     || !/^[a-f0-9]{64}$/.test(value.launcherSha256 ?? '')
     || !/^[a-f0-9]{40}$/.test(value.targetSha ?? '') || !/^[a-f0-9]{40}$/.test(value.metadataSourceSha ?? '')
     || value.profile !== 'runner-opencode' || value.model !== 'openrouter/deepseek/deepseek-v4.1-flash-1017'
-    || !Array.isArray(value.cases) || value.cases.length !== 244) throw new Error('chat_full_catalog_manifest_invalid');
+    || !Array.isArray(value.cases) || value.cases.length !== 240) throw new Error('chat_full_catalog_manifest_invalid');
   for (const row of value.cases) {
     spaceSecretBindingApprovalMetadata({ ...row, scenarioId: row.key,
       expectedRunCount: row.maximumRuns, minimumRunCount: row.minimumRuns });
@@ -58,9 +58,9 @@ export function validateFullCatalogManifest(value) {
       || row.screenshot !== null && !/^[a-z0-9-]+\.png$/.test(row.screenshot)) throw new Error('chat_full_catalog_row_invalid');
   }
   for (const key of ['key', 'executionId', 'fullName']) {
-    if (new Set(value.cases.map(row => row[key])).size !== 244) throw new Error('chat_full_catalog_identity_conflict');
+    if (new Set(value.cases.map(row => row[key])).size !== 240) throw new Error('chat_full_catalog_identity_conflict');
   }
-  if (!Array.isArray(value.source?.scenarioFiles) || value.source.scenarioFiles.length !== 35
+  if (!Array.isArray(value.source?.scenarioFiles) || value.source.scenarioFiles.length !== 34
     || !/^[a-f0-9]{64}$/.test(value.source.descriptorSha256 ?? '')) throw new Error('chat_full_catalog_provenance_invalid');
   return value;
 }

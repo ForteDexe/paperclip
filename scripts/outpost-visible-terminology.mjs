@@ -43,7 +43,7 @@ export const TERMINOLOGY_ALLOWLIST = Object.freeze([
   },
   {
     id: "agent-companies-protocol",
-    path: /(?:space-portability|agentcompanies|companies-spec|teams-catalog)/i,
+    path: /(?:space-portability|agentcompanies|companies-spec)/i,
     value: /(?:agentcompanies\/v1|COMPANY\.md)/i,
     reason: "External Agent Companies protocol identifiers.",
   },

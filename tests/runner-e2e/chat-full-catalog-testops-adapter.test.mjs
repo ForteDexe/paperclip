@@ -33,8 +33,8 @@ function api(replace = {}) {
       return { id: row.caseId, projectId: 1, fullName: row.registeredFullName, automated: true };
     }
     if (route === '/api/testplan/10') return { id: 10, projectId: 1, name: fullCatalogPlanName,
-      testCasesCount: 244, treeSelection: { inverted: false, leafsInclude: selected.map(row => row.caseId) } };
-    if (route === '/api/testplan/10/job') return [{ job: { id: 11 }, testCasesCount: 244 }];
+      testCasesCount: 240, treeSelection: { inverted: false, leafsInclude: selected.map(row => row.caseId) } };
+    if (route === '/api/testplan/10/job') return [{ job: { id: 11 }, testCasesCount: 240 }];
     if (route === '/api/job/11') return { id: 11, type: 'github', url: 'https://github.com/paperclipai/paperclip/actions/workflows/chat-catalog-testops.yml',
       parameters: [{ id: 34, name: 'Branch', defaultValue: 'refs/heads/master' }] };
     if (route === '/api/jobrun/77') return { id: 77, job: { id: 11, type: 'github' }, stage: 'in_progress', launchId: 12, url: runUrl };
@@ -43,7 +43,7 @@ function api(replace = {}) {
     if ((match = route.match(/^\/api\/testresult\?launchId=12&page=(\d)&size=100$/))) {
       const index = Number(match[1]);
       return { content: selected.slice(index * 100, (index + 1) * 100).map((row, offset) => ({ id: 2000 + index * 100 + offset, testCaseId: row.caseId })),
-        totalElements: 244, totalPages: 3, number: index };
+        totalElements: 240, totalPages: 3, number: index };
     }
     if ((match = route.match(/^\/api\/testresult\/(\d+)$/))) {
       const id = Number(match[1]), row = selected[id - 2000];
@@ -57,11 +57,11 @@ function api(replace = {}) {
   return { get, calls };
 }
 
-test('the complete 244 mapping uses compact actual IDs and preserves the legacy case388 alias', async () => {
+test('the complete 240 mapping uses compact actual IDs and preserves the legacy case388 alias', async () => {
   assert.ok(Buffer.byteLength(env.CHAT_FULL_CATALOG_TESTOPS_BINDING) < 48_000);
-  assert.equal(bindingFromEnv(env, context).cases.length, 244);
+  assert.equal(bindingFromEnv(env, context).cases.length, 240);
   const f = api(), value = await validatePilotSelection(f.get, env, context, 99);
-  assert.equal(validateSelection(value, context, '77').length, 244);
+  assert.equal(validateSelection(value, context, '77').length, 240);
   assert.equal(value.cases.find(row => row.caseId === 388).registeredFullName, 'outpost.Product E2E.chat-features.create-backlog');
   assert.equal(value.targetSha, catalogTargetSha);
 });
@@ -88,13 +88,13 @@ test('the actual full registration receipt fits one protected variable without a
   const f = api();
   const receipt = await completePilotRegistration(f.get, prepared, { jobRunId: '77', launchId: 12 }, context, 99, async () => {});
   assert.ok(Buffer.byteLength(JSON.stringify(receipt.binding)) < 48_000);
-  assert.equal(bindingFromEnv({ CHAT_FULL_CATALOG_TESTOPS_BINDING: JSON.stringify(receipt.binding) }, context).cases.length, 244);
+  assert.equal(bindingFromEnv({ CHAT_FULL_CATALOG_TESTOPS_BINDING: JSON.stringify(receipt.binding) }, context).cases.length, 240);
   assert.equal(receipt.binding.cases.find(row => row.caseId === 388).registeredFullName, 'outpost.Product E2E.chat-features.create-backlog');
 });
 
 test('every case has a singleton private approval instead of broadening the original eight-cell authority', () => {
   const matrix = executionMatrix(selection, context, '77');
-  assert.equal(matrix.include.length, 244);
+  assert.equal(matrix.include.length, 240);
   for (const row of selected) {
     const policy = evidencePolicy({ ...selection, cases: [row] }, context, '77');
     assert.deepEqual(policy.approvals[0].executionIds, [row.executionId]);
@@ -140,7 +140,7 @@ test('native and external partitions preserve exact selections, bounded overlapp
 test('full server readback verifies every result across three complete pages', async () => {
   const f = api();
   const value = await verifyPilotUpload(f.get, selection, context, exported);
-  assert.equal(value.verification, 'VERIFIED'); assert.equal(value.results.length, 244);
+  assert.equal(value.verification, 'VERIFIED'); assert.equal(value.results.length, 240);
   assert.ok(f.calls.includes('/api/testresult?launchId=12&page=2&size=100'));
 });
 
@@ -164,11 +164,11 @@ test('a full ready snapshot fits its read budget while a late snapshot still fai
   }
   const ready = await replay(1000);
   assert.ifError(ready.error);
-  assert.equal(ready.value.verification, 'VERIFIED'); assert.equal(ready.value.results.length, 244);
+  assert.equal(ready.value.verification, 'VERIFIED'); assert.equal(ready.value.results.length, 240);
   assert.ok(ready.clock > 120_000);
   const late = await replay(3000);
   assert.match(late.error?.message ?? '', /upload_unverified/);
-  t.diagnostic(JSON.stringify({ fixtureOnly: true, selectedCases: 244, readyElapsedMs: ready.clock, lateElapsedMs: late.clock }));
+  t.diagnostic(JSON.stringify({ fixtureOnly: true, selectedCases: 240, readyElapsedMs: ready.clock, lateElapsedMs: late.clock }));
 });
 
 test('changing valid page counts retry only within the existing snapshot bounds', async () => {
@@ -180,7 +180,7 @@ test('changing valid page counts retry only within the existing snapshot bounds'
       if (route === '/api/testresult?launchId=12&page=0&size=100' && (alwaysChanging || polls === 1)) {
         return { ...page, totalElements: 150, totalPages: 2 };
       }
-      if (malformed && route === '/api/testresult?launchId=12&page=1&size=100') return { ...page, totalElements: '244' };
+      if (malformed && route === '/api/testresult?launchId=12&page=1&size=100') return { ...page, totalElements: '240' };
       return page;
     };
     try {
@@ -191,7 +191,7 @@ test('changing valid page counts retry only within the existing snapshot bounds'
   }
   const converged = await replay(false);
   assert.ifError(converged.error);
-  assert.equal(converged.value.verification, 'VERIFIED'); assert.equal(converged.value.results.length, 244);
+  assert.equal(converged.value.verification, 'VERIFIED'); assert.equal(converged.value.results.length, 240);
   assert.equal(converged.polls, 2); assert.equal(converged.waits, 1);
   const moving = await replay(true);
   assert.match(moving.error?.message ?? '', /upload_unverified/);
@@ -202,7 +202,7 @@ test('changing valid page counts retry only within the existing snapshot bounds'
 });
 
 test('an incomplete last page and a wrong registered selector cannot qualify a full catalog run', async () => {
-  const missing = api({ '/api/testresult?launchId=12&page=2&size=100': { content: [], totalElements: 244, totalPages: 3, number: 2 } });
+  const missing = api({ '/api/testresult?launchId=12&page=2&size=100': { content: [], totalElements: 240, totalPages: 3, number: 2 } });
   await assert.rejects(verifyPilotUpload(missing.get, selection, context, exported), /result_page/);
   const wrong = api({ '/api/jobrun/77/plan?expected=true': [{ id: 388, selector: fullCatalogCases[0].fullName }] });
   await assert.rejects(validatePilotSelection(wrong.get, env, context, 99), /foreign_selection/);

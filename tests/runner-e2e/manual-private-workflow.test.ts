@@ -52,7 +52,7 @@ it("requires downloaded complete private cell receipts before retaining merged r
 it("uses one exact read session per approved cell and a distinct write-only report session",()=>{
  const report=jobs.report.steps;
  expect(MAX_MANUAL_PRIVATE_CELLS).toBe(8);
- expect(MANUAL_PRIVATE_EXECUTIONS).toHaveLength(244);
+ expect(MANUAL_PRIVATE_EXECUTIONS).toHaveLength(240);
  const indices=report.filter((row:any)=>/^manual_read_credentials_/.test(row.id??""))
   .map((row:any)=>Number(row.id.replace("manual_read_credentials_","")));
  expect(indices).toEqual(Array.from({length:MAX_MANUAL_PRIVATE_CELLS},(_,i)=>i));

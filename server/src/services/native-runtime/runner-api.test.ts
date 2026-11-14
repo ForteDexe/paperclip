@@ -202,17 +202,6 @@ describe("runner API catalog", () => {
     expect(operation.authorization.actor).toBeTruthy();
   });
 
-  it("exposes team preview and install bodies through the actual adapter override search", () => {
-    const results = searchRunnerApi({ query: "adapterOverrides install team under manager parentAgentId", limit: 10 }).results;
-    const preview = results.find(row => row.operationId === "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/preview")!;
-    const install = results.find(row => row.operationId === "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install")!;
-    const previewBody = preview.requestBody?.content["application/json"].schema;
-    const installBody = install.requestBody?.content["application/json"].schema;
-    expect(previewBody).toMatchObject({ additionalProperties: false, properties: { targetLeadAgentId: expect.any(Object), nameOverrides: expect.any(Object) } });
-    expect(installBody).toMatchObject({ additionalProperties: false, properties: { targetLeadAgentId: expect.any(Object), adapterOverrides: expect.any(Object), secretValues: expect.any(Object) } });
-    expect(previewBody.properties).not.toHaveProperty("adapterOverrides");
-  });
-
   it("discovers proposal revision without confusing it with creation, approval decisions, or reads", () => {
     const resubmit = "POST /api/approvals/{id}/resubmit";
     for (const query of [
@@ -264,22 +253,6 @@ describe("runner API catalog", () => {
     expect(operation.description).toMatch(/authenticated.*operator/i);
     expect(operation.description).toMatch(/agent credential/i);
     expect(operation.description).toMatch(/supervisor/i);
-  });
-  it("finds the teams catalog when asked for a ready-made team", () => {
-    const operation = searchRunnerApi({ query: "ready-made team", limit: 1 }).results[0]!;
-    expect(operation.operationId).toBe("GET /api/teams/catalog");
-    expect(operation.description).toMatch(/only source of ready-made teams/i);
-    expect(operation.description).toContain("no teams catalog page");
-    expect(operation.parameters.map(parameter => parameter.name)).toContain("q");
-    const preview = runnerApiOperation("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/preview")!;
-    expect(preview.description).toMatch(/creates no resources/i);
-    expect(preview.allowedModes).toEqual(expect.arrayContaining(["standard", "ask", "planning"]));
-    expect(runnerApiOperation("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install")!.allowedModes).not.toContain("ask");
-    const askContext = { ...context, workMode: "ask" };
-    expect(validateRunnerApiCall({ operationId: preview.operationId, pathParams: { catalogId: "team" }, body: {} }, askContext).operation.operationId).toBe(preview.operationId);
-    expect(() => validateRunnerApiCall({ operationId: "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install", pathParams: { catalogId: "team" }, body: {} }, askContext)).toThrow();
-    const install = runnerApiOperation("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install")!;
-    expect(install.description).toMatch(/permission to create agents/i);
   });
   it("discovers where to save project defaults without rewriting existing tasks", () => {
     const operation = searchRunnerApi({ query: "save project defaults", limit: 1 }).results[0]!;

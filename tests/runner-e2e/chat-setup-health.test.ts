@@ -22,7 +22,7 @@ describe("explicit setup-only diagnostic cell", () => {
     expect(cell.task.buildPrompt("nonce")).toBe("");
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"]), runnerMatrix).some(row => row.id === cell.id)).toBe(false);
     expect(selectRunnerExecutions(parseRunnerSelectors(["--id", CHAT_SETUP_HEALTH_ID]), runnerMatrix)).toEqual([cell]);
-    expect(runnerMatrix.filter(row => row.suite.id === "chat-features" && row.profile.id === "runner-opencode").length).toBe(244);
+    expect(runnerMatrix.filter(row => row.suite.id === "chat-features" && row.profile.id === "runner-opencode").length).toBe(240);
   });
   it("accepts one real successful setup without any chat/task/native work", () => expect(gradeSetupHealth(valid()).every(check => check.passed)).toBe(true));
   it.each(["ready", "configMatches", "agentCount", "issues", "conversations", "comments", "humanComments", "runs"])("rejects wrong %s", field => {
@@ -69,7 +69,7 @@ it.each([[false, false], [true, false], [false, true]])("uses only readiness GET
   expect(evidence).toHaveBeenCalledTimes(3);
   expect((evidence.mock.calls[1]![1] as { state: { probes: unknown[] } }).state.probes).toHaveLength(lateProbe ? 2 : 1);
   expect(evidence.mock.calls[1]![1]).toMatchObject({ canonicalQueries: 0, state: { issues: 0, conversations: 0, runs: 0 } });
-  expect(evidence.mock.calls[2]).toEqual(["api-state.json", expect.objectContaining({ scope: "diagnostic-outside-244", capturePhase: "after-public-pause",
+  expect(evidence.mock.calls[2]).toEqual(["api-state.json", expect.objectContaining({ scope: "diagnostic-outside-240", capturePhase: "after-public-pause",
     observed: expect.objectContaining({ issues: 0, conversations: 0, runs: 0, configMatches: true }) })]);
 });
 

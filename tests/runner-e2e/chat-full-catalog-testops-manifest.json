@@ -6,7 +6,7 @@
   "model": "openrouter/deepseek/deepseek-v4.1-flash-1017",
   "source": {
     "descriptorPath": "tests/runner-e2e/chat-catalog-descriptors.json",
-    "descriptorSha256": "9a352c6a7be1de18263760b59f55c2764c3fe87fe202053112fd04aa3e0552f9",
+    "descriptorSha256": "0e16a7b41602cf2b2e99ab2a80babb7712165666beb6cba663211255c71dcd24",
     "scenarioFiles": [
       {
         "path": "tests/runner-e2e/chat-scenarios/access.yaml",
@@ -141,19 +141,15 @@
         "sha256": "31fca6be61221bb970b7c67f1b9234aa0705162571b46c99592926a286b240f0"
       },
       {
-        "path": "tests/runner-e2e/chat-scenarios/teams.yaml",
-        "sha256": "a7580fd090c62ad9b8a0d27dd0ae11512d6df965109f6f4622e0934583def056"
-      },
-      {
         "path": "tests/runner-e2e/chat-scenarios/workspaces.yaml",
         "sha256": "6b4be6151f155981ae7a68ac69c3a31420d54fe33f1ac567de0db73b651b3ae7"
       }
     ],
     "timeoutPolicy": "expanded task turnTimeoutMs=0; descriptor turn limit retained as declaredTurnTimeoutMs; legacy tasks retain120000",
     "sourceCounts": {
-      "areas": 35,
-      "scenarios": 244,
-      "descriptorRows": 242,
+      "areas": 34,
+      "scenarios": 240,
+      "descriptorRows": 238,
       "legacyRows": 2,
       "declaredGapRows": 5,
       "requiredCredentialRows": 18,
@@ -172,7 +168,7 @@
       "baseTargetSha": "3b66c3c144360ddf32714a0742fd774b8ceafb16",
       "previousTargetSha": "ab2019e976076ec0eb60b026844f3d9211cb0208",
       "definitionSourceSha": "de0941835cc8f0d01c982574ee258e110babdbeb",
-      "candidateDescriptorSha256": "3b62889da60db1c8daafcc23f0fefa7cfcda165224ba90214b2ac391215d3be0",
+      "candidateDescriptorSha256": "a145191bca600edd855cb68381423bd0d7fcd5b08536be023322d6af436a5dec",
       "changedDefinitionFiles": [
         {
           "path": "tests/runner-e2e/chat-scenarios/spaces.yaml",
@@ -13497,194 +13493,6 @@
         "chat-scenarios/tasks.yaml",
         "chat-catalog-domains/internal-task-creation.ts",
         "lost-send.ts"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "teams.configure-team",
-      "scenario": "teams.configure-team",
-      "canonicalScenario": "teams.configure-team",
-      "name": "teams.configure-team",
-      "title": "teams.configure-team",
-      "area": "teams",
-      "executionId": "chat-features.runner-opencode.local.teams.configure-team",
-      "fullName": "outpost.Product E2E.chat-features.teams.configure-team",
-      "aliases": [],
-      "minimumRuns": 2,
-      "maximumRuns": 2,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 600000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Get this team ready to start the website.",
-      "expectedOutcome": "The agent identifies the specific incomplete member and uses the supported configuration or human connection request. Readiness is verified per member; the already working member keeps its configuration. Chat does not label the whole team ready until required bindings and runtime checks are satisfied.",
-      "originalContext": "A team is installed but one member lacks an eligible account and another is ready.",
-      "capabilities": [
-        "teams/configuration",
-        "runs-adapters/validation"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.team-configure.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/external-team-configure.ts",
-        "chat-catalog-domains/external-team-install.ts",
-        "../../server/src/adapters/registry.ts",
-        "../../packages/adapters/opencode-local/src/server/test.ts",
-        "codex-subscription-fixture.ts",
-        "chat-catalog-domains/external-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-flow.ts",
-        "chat-scenarios/teams.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "teams.find-team",
-      "scenario": "teams.find-team",
-      "canonicalScenario": "teams.find-team",
-      "name": "teams.find-team",
-      "title": "teams.find-team",
-      "area": "teams",
-      "executionId": "chat-features.runner-opencode.local.teams.find-team",
-      "fullName": "outpost.Product E2E.chat-features.teams.find-team",
-      "aliases": [],
-      "minimumRuns": 1,
-      "maximumRuns": 1,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 300000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Do we have a ready-made team for building a website?",
-      "expectedOutcome": "The agent reads available package descriptions and summarizes the relevant team and included roles. It links the catalog entry and calls out requirements visible in its metadata. It does not invent a package or promise that catalog availability means the team's accounts are already configured.",
-      "originalContext": "The team catalog contains several available packages with different intended roles.",
-      "capabilities": [
-        "teams/discovery"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.external.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/external-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/external-teams.ts",
-        "chat-scenarios/teams.yaml",
-        "chat-catalog-domains/identity-support.ts"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "teams.install-team",
-      "scenario": "teams.install-team",
-      "canonicalScenario": "teams.install-team",
-      "name": "teams.install-team",
-      "title": "teams.install-team",
-      "area": "teams",
-      "executionId": "chat-features.runner-opencode.local.teams.install-team",
-      "fullName": "outpost.Product E2E.chat-features.teams.install-team",
-      "aliases": [],
-      "minimumRuns": 2,
-      "maximumRuns": 2,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 480000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Install that website team in this space.",
-      "expectedOutcome": "The supported installer creates the intended resources once in the active space and reports conflicts or partial failures truthfully. Chat links to the installed agents and project. Repeating an uncertain request reconciles the existing installation rather than blindly duplicating the team.",
-      "originalContext": "The preview is accepted, required accounts exist, and the agent has effective installation and resource-creation authority.",
-      "capabilities": [
-        "teams/install",
-        "agents/create"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.team-install.v10",
-      "sourceFiles": [
-        "chat-catalog-domains/external-team-install.ts",
-        "chat-catalog-domains/external-team-conditional.ts",
-        "chat-catalog-domains/external-team-runtime-fixture.ts",
-        "server.ts",
-        "../../packages/teams-catalog/src/catalog-builder.ts",
-        "../../server/src/services/teams-catalog.ts",
-        "../../server/src/services/space-skills.ts",
-        "../../server/src/services/space-portability.ts",
-        "../../packages/teams-catalog/generated/catalog.json",
-        "chat-catalog-domains/external-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-flow.ts",
-        "chat-scenarios/teams.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "teams.preview-install",
-      "scenario": "teams.preview-install",
-      "canonicalScenario": "teams.preview-install",
-      "name": "teams.preview-install",
-      "title": "teams.preview-install",
-      "area": "teams",
-      "executionId": "chat-features.runner-opencode.local.teams.preview-install",
-      "fullName": "outpost.Product E2E.chat-features.teams.preview-install",
-      "aliases": [],
-      "minimumRuns": 1,
-      "maximumRuns": 1,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 300000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Show me what installing the website team would add.",
-      "expectedOutcome": "A preview describes the proposed resources, options and conflicts in the current space without creating them. Chat distinguishes preview from installation and identifies any missing configuration needed for an eventual working team.",
-      "originalContext": "The selected package would add multiple agents and a project; nothing has been installed yet.",
-      "capabilities": [
-        "teams/preview"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.external.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/external-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/external-teams.ts",
-        "chat-scenarios/teams.yaml",
-        "chat-catalog-domains/identity-support.ts"
       ],
       "screenshot": "final-state.png",
       "evidenceKind": "private-final-state-png",

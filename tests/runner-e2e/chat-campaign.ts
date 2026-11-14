@@ -150,7 +150,7 @@ export function freezeChatCampaign(root: string, baselineRevision: string): Chat
   }
   scenarios.sort((a, b) => a.id.localeCompare(b.id));
   const capabilities = new Set(scenarios.flatMap(scenario => scenario.capabilities)).size;
-  if (scenarios.length !== 244 || files.length !== 35 || capabilities !== 191) throw new Error("Frozen denominator changed; reconcile explicitly");
+  if (scenarios.length !== 240 || files.length !== 34 || capabilities !== 188) throw new Error("Frozen denominator changed; reconcile explicitly");
   const defaultsSha256 = digest(readFileSync(path.join(directory, "defaults.yaml"), "utf8"));
   return { version: 1, campaignId: "chat-catalog-2026-10-26", frozenAt: new Date().toISOString(), baselineRevision,
     inventoryDigest: digest(JSON.stringify({ defaultsSha256, scenarios: scenarios.map(({ id, scenarioSha256, sourceSha256 }) => ({ id, scenarioSha256, sourceSha256 })) })),
@@ -158,8 +158,8 @@ export function freezeChatCampaign(root: string, baselineRevision: string): Chat
 }
 export function validateFrozenCampaign(campaign: ChatCampaign, root: string): void {
   const fresh = freezeChatCampaign(root, campaign.baselineRevision);
-  if (campaign.version !== 1 || campaign.denominator !== 244 || campaign.areas !== 35 || campaign.capabilities !== 191
-    || campaign.requiredPasses !== 196 || campaign.scenarios.length !== 244 || campaign.defaultsSha256 !== fresh.defaultsSha256
+  if (campaign.version !== 1 || campaign.denominator !== 240 || campaign.areas !== 34 || campaign.capabilities !== 188
+    || campaign.requiredPasses !== 192 || campaign.scenarios.length !== 240 || campaign.defaultsSha256 !== fresh.defaultsSha256
     || campaign.inventoryDigest !== fresh.inventoryDigest) throw new Error("Frozen campaign inventory metadata changed");
   for (let index = 0; index < campaign.scenarios.length; index++) {
     const actual = campaign.scenarios[index]!; const expected = fresh.scenarios[index]!;

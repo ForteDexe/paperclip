@@ -64,11 +64,11 @@ function attempt(ordinal: 1 | 2, executionId: string): CampaignAttempt {
 }
 it("freezes all intended requests and keeps unrun scenarios in the denominator", () => {
   const campaign = freezeChatCampaign(root, base);
-  expect(campaign.scenarios).toHaveLength(244);
-  expect(campaign.areas).toBe(35);
-  expect(campaign.capabilities).toBe(191);
+  expect(campaign.scenarios).toHaveLength(240);
+  expect(campaign.areas).toBe(34);
+  expect(campaign.capabilities).toBe(188);
   expect(campaign.scenarios.every(scenario => scenario.query && scenario.context && scenario.expected_outcome)).toBe(true);
-  expect(campaignSummary(campaign)).toMatchObject({ denominator: 244, unrun: 244, finalPassed: 0, requiredPasses: 196, mergeEligible: false });
+  expect(campaignSummary(campaign)).toMatchObject({ denominator: 240, unrun: 240, finalPassed: 0, requiredPasses: 192, mergeEligible: false });
 });
 it("preserves failures and enforces one correction cycle with no retries after passing", () => {
   const scenario = freezeChatCampaign(root, base).scenarios.find(scenario => scenario.id === "tasks.create-backlog")!;
@@ -212,7 +212,7 @@ it("permits a processed unsupported remainder while requiring every unfinished b
       s.readiness = "implemented"; s.authoringStatus = "complete"; s.executionId = `chat-features.runner-codex-subscription.local.${s.id}`;
       s.qualifyingDefinitionDigest = "fixture"; s.qualifyingGraderDigest = "fixture";
       const a = attempt(1, s.executionId); a.finishedAt = a.startedAt; a.cleanup = "passed";
-      a.outcome = s.productPolicy?.lane === "source-build" && passes < 196 ? "passed" : "blocked";
+      a.outcome = s.productPolicy?.lane === "source-build" && passes < 192 ? "passed" : "blocked";
       if (a.outcome === "passed") passes++;
       const relative = `tests/runner-e2e/results/gate-${index}/result.json`, filename = path.join(temporary, relative);
       mkdirSync(path.dirname(filename), { recursive: true });
@@ -221,7 +221,7 @@ it("permits a processed unsupported remainder while requiring every unfinished b
     }
     const blocked = campaign.scenarios.find(s => s.attempts[0]!.outcome === "blocked")!;
     blocked.readiness = "partial"; blocked.authoringStatus = "concrete-blocker"; blocked.blockerProbeSources = ["actual-supported-surface-probe.ts"];
-    expect(campaignSummary(campaign, temporary)).toMatchObject({ authoringResolved: 244, processed: 244, finalPassed: 196, mergeEligible: true });
+    expect(campaignSummary(campaign, temporary)).toMatchObject({ authoringResolved: 240, processed: 240, finalPassed: 192, mergeEligible: true });
     blocked.authoringStatus = "unfinished";
     expect(campaignSummary(campaign, temporary)).toMatchObject({ authoringResolved: 243, unfinished: 1, mergeEligible: false });
   } finally { rmSync(temporary, { recursive: true, force: true }); }

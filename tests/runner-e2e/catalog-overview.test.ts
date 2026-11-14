@@ -14,7 +14,7 @@ function fixture(): CatalogOverview {
   const ids = readdirSync(catalog).filter(name => name.endsWith(".yaml")).flatMap(name => [...readFileSync(new URL(name,catalog),"utf8").matchAll(/^  - id: ([a-z0-9.-]+)$/gm)].map(match => match[1]!));
   const example = ids.indexOf("projects.create-project"); [ids[0],ids[example]]=[ids[example]!,ids[0]!];
   const rows: CatalogOverview["rows"] = ids.map((scenarioId,i)=>({scenarioId, mainOutcome:i<25?"passed":i<169?"failed":"unmeasured",allowance:i<102?"exhausted":i>=169&&i<218?"unused-initial":i===243?"unknown":"final-available",sourceReadiness:"not-assessed",executionRecord:i<169?"main-measured":i<218?"never-run":i===243?"unknown":"candidate-measured"}));
-  return { schema:"outpost.catalog-overview/v2", asOf:"2026-10-29T17:54:00Z", definitions:{lazy:242,legacy:2,featureAreas:35,capabilities:191,declaredGaps:5}, accounting:{mainMeasurements:215,retainedRawResults:295,closedSlots:296,exhaustedFinals:102,theoreticalMainCeiling:152}, rows };
+  return { schema:"outpost.catalog-overview/v2", asOf:"2026-10-29T17:54:00Z", definitions:{lazy:238,legacy:2,featureAreas:34,capabilities:188,declaredGaps:5}, accounting:{mainMeasurements:215,retainedRawResults:295,closedSlots:296,exhaustedFinals:102,theoreticalMainCeiling:152}, rows };
 }
 function page(data: CatalogOverview) {
   return renderRunnerE2EDashboard({title:"Catalog",generatedAt:data.asOf,expected:[],catalog:[],entries:[],catalogOverview:data});
@@ -23,7 +23,7 @@ function page(data: CatalogOverview) {
 describe("display-only catalog overview", () => {
   it("requires the fixed scope and rejects private carrier fields rather than serializing them", () => {
     const data=fixture();
-    expect(parseCatalogOverview(data).rows).toHaveLength(244);
+    expect(parseCatalogOverview(data).rows).toHaveLength(240);
     expect(() => parseCatalogOverview({...data,privatePath:"/private/hidden"})).toThrow("Unexpected");
     expect(() => parseCatalogOverview({...data,rows:data.rows.map((r,i)=>i? r : {...r,errorBody:"secret"})})).toThrow("Unexpected");
     expect(() => parseCatalogOverview({...data,definitions:{...data.definitions,legacy:0}})).toThrow("Frozen");
@@ -38,11 +38,11 @@ describe("display-only catalog overview", () => {
   });
   it("renders metadata counts and scopes without fake result cards or evidence links", () => {
     const data=fixture(); const doc=new JSDOM(page(data)).window.document;
-    expect(doc.querySelectorAll('[data-catalog-row]')).toHaveLength(244);
+    expect(doc.querySelectorAll('[data-catalog-row]')).toHaveLength(240);
     expect(doc.querySelectorAll('[data-report-case]')).toHaveLength(0);
     expect(doc.querySelector('[data-report-scope]')?.getAttribute('data-report-scope')).toBe('global');
     const text=doc.querySelector('main')!.textContent!;
-    for(const value of ['25','144','75','49 unused initials','295 retained results','296 closed ordinal slots','102 exhausted finals','152/244','242 lazy definitions plus 2 implemented legacy']) expect(text).toContain(value);
+    for(const value of ['25','144','71','49 unused initials','295 retained results','296 closed ordinal slots','102 exhausted finals','152/240','238 lazy definitions plus 2 implemented legacy']) expect(text).toContain(value);
     expect(text).toContain('Fully native auxiliary setup and complete usage qualification are not established');
     expect(text).not.toContain('No result artifact was uploaded');
     expect(text).not.toContain('2 unimplemented');
@@ -59,7 +59,7 @@ describe("display-only catalog overview", () => {
     expect(row.textContent).toContain('Candidate run: FAIL');
     expect(row.querySelector('details')!.textContent).toContain('Explain <this> & that');
     expect(html).toContain('Explain &lt;this&gt; &amp; that');
-    expect(doc.querySelector('[data-execution-scope]')!.textContent).toContain('25 cases measured outside main · 49 never run · 1');
+    expect(doc.querySelector('[data-execution-scope]')!.textContent).toContain('22 cases measured outside main · 49 never run · 0');
     expect(() => parseCatalogOverview({...data,rows:data.rows.map((r,i)=>i===218?{...r,executionRecord:'never-run'}:r)})).toThrow('Inconsistent recorded');
   });
   it("preserves a valid main outcome when its allowance is unknown", () => {
@@ -83,16 +83,16 @@ describe("display-only catalog overview", () => {
     expect(row.getAttribute('data-outcome')).toBe('failed');
     expect(row.textContent).toContain('Recorded fail');
     expect(row.textContent).toContain('Main measurement recorded · Latest candidate run: PASS');
-    expect(doc.querySelector('.summary')!.textContent).toContain('25Recorded feature-work passes144Latest main failures75Without a main measurement');
+    expect(doc.querySelector('.summary')!.textContent).toContain('25Recorded feature-work passes144Latest main failures71Without a main measurement');
     expect(doc.querySelector('[data-execution-scope]')!.textContent).toContain('26 cases measured outside main');
     expect(doc.querySelectorAll('[data-report-case]')).toHaveLength(0);
     expect(parseCatalogOverview(data).rows[25]!.mainOutcome).toBe('failed');
     expect(() => parseCatalogOverview({...data,rows:data.rows.map((r,i)=>i===25?{...r,latestCandidateOutcome:'made-up'}:r)})).toThrow('Invalid catalog overview state');
     expect(() => parseCatalogOverview({...fixture(),rows:fixture().rows.map((r,i)=>i===169?{...r,latestCandidateOutcome:'passed'}:r)})).toThrow('Inconsistent recorded');
   });
-  it.each([[152,"below"],[196,"equal to"],[200,"above"]] as const)("compares a ceiling of %i accurately", (ceiling, comparison) => {
+  it.each([[152,"below"],[192,"equal to"],[200,"above"]] as const)("compares a ceiling of %i accurately", (ceiling, comparison) => {
     const data=fixture(); data.accounting.theoreticalMainCeiling=ceiling;
-    expect(new JSDOM(page(data)).window.document.querySelector('main')!.textContent).toContain(`${ceiling}/244, ${comparison} the 196-case target`);
+    expect(new JSDOM(page(data)).window.document.querySelector('main')!.textContent).toContain(`${ceiling}/240, ${comparison} the 192-case target`);
   });
   it("filters and resets actual DOM rows without treating unused initials as failures", () => {
     const dom=new JSDOM(page(fixture()),{runScripts:'dangerously',pretendToBeVisual:true});
@@ -102,11 +102,11 @@ describe("display-only catalog overview", () => {
     const select=doc.querySelector<HTMLSelectElement>('[data-catalog-outcome]')!;select.value='unmeasured';select.dispatchEvent(new dom.window.Event('input'));
     expect([...doc.querySelectorAll<HTMLElement>('[data-catalog-row]')].filter(r=>!r.hidden)).toHaveLength(75);
     const allowance=doc.querySelector<HTMLSelectElement>('[data-catalog-allowance]')!;allowance.value='unknown';allowance.dispatchEvent(new dom.window.Event('input'));
-    expect(doc.querySelector('[data-catalog-count]')!.textContent).toBe('1 of 244 scenarios');
+    expect(doc.querySelector('[data-catalog-count]')!.textContent).toBe('1 of 240 scenarios');
     doc.querySelector<HTMLButtonElement>('[data-catalog-reset]')!.click();
-    expect([...doc.querySelectorAll<HTMLElement>('[data-catalog-row]')].filter(r=>!r.hidden)).toHaveLength(244);
+    expect([...doc.querySelectorAll<HTMLElement>('[data-catalog-row]')].filter(r=>!r.hidden)).toHaveLength(240);
     const search=doc.querySelector<HTMLInputElement>('[data-catalog-query]')!;search.value='create project';search.dispatchEvent(new dom.window.Event('input'));
-    expect(doc.querySelector('[data-catalog-count]')!.textContent).toBe('1 of 244 scenarios');
+    expect(doc.querySelector('[data-catalog-count]')!.textContent).toBe('1 of 240 scenarios');
     dom.window.close();
   });
   it("loads only bounded display metadata and refuses existing outputs and symlink inputs", async () => {
@@ -117,7 +117,7 @@ describe("display-only catalog overview", () => {
       await regenerateCatalogOverview({metadataFile:metadata,outputDirectory:output});
       expect((await stat(output)).mode & 0o777).toBe(0o700);
       expect((await stat(path.join(output,'index.html'))).mode & 0o777).toBe(0o600);
-      expect(await readFile(path.join(output,'index.html'),'utf8')).toContain('All 244 scenarios');
+      expect(await readFile(path.join(output,'index.html'),'utf8')).toContain('All 240 scenarios');
       expect(await readFile(path.join(output,'index.html'),'utf8')).toContain('What this test asks');
       await expect(regenerateCatalogOverview({metadataFile:metadata,outputDirectory:output})).rejects.toThrow();
       await writeFile(metadata,JSON.stringify({...fixture(),rows:fixture().rows.map((r,i)=>i?r:{...r,scenarioId:'projects.invented-scenario'})}));

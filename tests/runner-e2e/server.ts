@@ -2,7 +2,6 @@ import { isRollingWebDeployment } from "./controller-rolling-deployment.js";
 import { superviseRollingDeployment } from "./rolling-deployment-supervisor.js";
 import { isLegacyWorkspaceMigration } from "./legacy-workspace-migration.js";
 import { superviseLegacyWorkspaceMigration } from "./legacy-workspace-migration-supervisor.js";
-import { teamRuntimeCatalogServerEnvironment } from "./chat-catalog-domains/external-team-runtime-fixture.js";
 import { stopSetupHealthIfRequested } from "./chat-setup-health.js";
 import { publishInvitationSourceProof, invitationSourceProofPath } from "./chat-catalog-domains/identity-invite-source-proof.js";
 import { readSelectedVaultServerEnvironment } from "./chat-vault-private-server.js";
@@ -82,7 +81,6 @@ const publicOriginReceipt = process.env[PUBLIC_ORIGIN_RECEIPT_ENV] ? await readV
 if (publicOriginReceipt && process.env.OUTPOST_RUNNER_E2E_PUBLIC_MCP !== "1") throw new Error("Owned public origin requires the exact authenticated selected case");
 for (const key of [PUBLIC_ORIGIN_RECEIPT_ENV, PUBLIC_ORIGIN_CONTROL_ENV, "OUTPOST_PUBLIC_URL", "OUTPOST_AUTH_PUBLIC_BASE_URL", "OUTPOST_MANAGED_RUNTIME_PUBLIC_URL", "OUTPOST_ALLOWED_HOSTNAMES"]) delete sourceEnvironment[key];
 const vaultEnvironment = await readSelectedVaultServerEnvironment({ executionIds, temporaryRoot, backendOrigin: `http://127.0.0.1:${port}`, env: process.env });
-const teamCatalogEnvironment = await teamRuntimeCatalogServerEnvironment({ executionIds, temporaryRoot, repositoryRoot });
 const serverEnvironment = buildOutpostServerEnvironment(installedRelease
   ? installedReleaseEnvironment(sourceEnvironment, repositoryRoot, path.join(temporaryRoot, "provider-bin"))
   : sourceEnvironment, {
@@ -127,7 +125,6 @@ const serverEnvironment = buildOutpostServerEnvironment(installedRelease
   // to Playwright in this harness, so never create a developer desktop tab.
   OUTPOST_OPEN_ON_LISTEN: "false",
   ...vaultEnvironment,
-  ...teamCatalogEnvironment,
   ...workspaceStorage,
 });
 assertIsolatedServerEnvironment(serverEnvironment, {

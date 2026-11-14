@@ -8,7 +8,7 @@ const metadataFields = ['name', 'automated', 'description', 'precondition', 'exp
 const marker = (operation, key) => `${operation}_${createHash('sha256').update(key).digest('hex').replace(/[0-9a-f]/g, value => String.fromCharCode(97 + parseInt(value, 16)))}`;
 
 function manifestIndex() {
-  if (!Array.isArray(fullCatalogCases) || fullCatalogCases.length !== 244
+  if (!Array.isArray(fullCatalogCases) || fullCatalogCases.length !== 240
     || !/^[a-f0-9]{40}$/.test(catalogTargetSha) || !fullCatalogPlanName) fail('manifest');
   const names = new Map(), keys = new Set();
   for (const row of fullCatalogCases) {

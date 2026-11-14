@@ -50,9 +50,9 @@ it("exports the complete244 fixture selection without treating registration as a
   }
   await exportCompletionPilot(f.report, f.output, context, f.campaign.expected);
   const exported = await exportPilotAllure(f.output, f.allure, context, f.selected);
-  expect(exported).toHaveLength(244);
+  expect(exported).toHaveLength(240);
   const serialized = (await readdir(f.allure)).filter(name => name.endsWith("-result.json"));
-  expect(serialized).toHaveLength(244);
+  expect(serialized).toHaveLength(240);
   const rendered = await Promise.all(serialized.map(async name => JSON.parse(await readFile(path.join(f.allure, name), "utf8"))));
   expect(rendered.find(row => row.fullName === "outpost.Product E2E.chat-features.tasks.create-backlog").parameters)
     .toContainEqual({ name: "canonicalScenario", value: "tasks.create-backlog" });

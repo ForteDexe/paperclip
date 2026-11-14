@@ -23,7 +23,7 @@ async function fixture(lifecycle = "spot") {
     receipt: async () => JSON.parse(await readFile(path.join(root, "chat-remote-host.json"), "utf8")) };
 }
 describe("remote-only chat host qualification without native/provider calls", () => {
-  it("admits the finite 244-case catalog only through its own trusted TestOps workflow", async () => {
+  it("admits the finite 240-case catalog only through its own trusted TestOps workflow", async () => {
     const f = await fixture();
     f.env.GITHUB_WORKFLOW_REF = "paperclipai/paperclip/.github/workflows/chat-catalog-testops.yml@refs/heads/master";
     Object.assign(f.env, { OUTPOST_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77" });
@@ -31,7 +31,7 @@ describe("remote-only chat host qualification without native/provider calls", ()
       const id = row.id === "tasks.create-backlog" ? "create-backlog" : row.id === "tasks.delegate-announcement" ? "delegate-announcement" : row.id;
       return { ...f.executions[0]!, id: `chat-features.runner-opencode.local.${id}`, task: { ...f.executions[0]!.task, id } };
     });
-    expect(f.executions).toHaveLength(244);
+    expect(f.executions).toHaveLength(240);
     expect(await prepareChatRemoteHost(f)).toMatchObject({ maxAutomaticRetries: 0 });
     const invalid = { ...f.executions[0]!, id: "chat-features.runner-opencode.local.foreign", task: { ...f.executions[0]!.task, id: "foreign" } };
     f.fetch.mockClear(); f.executions = [invalid];

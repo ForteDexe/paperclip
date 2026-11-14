@@ -3973,38 +3973,6 @@ support space-scoped diagnosis and bounded instance-wide continuations.
 Server logs report candidates, allocated bytes reclaimed, and skip reasons.
 Compare volume usage separately because concurrent writes affect net savings.
 
-## App-Shipped Teams Catalog
-
-The team catalog package mirrors the skills catalog workflow for
-agentcompanies/v1 team packages:
-
-```text
-packages/teams-catalog/
-  catalog/
-    bundled/<category>/<slug>/TEAM.md
-    optional/<category>/<slug>/TEAM.md
-  generated/catalog.json
-  scripts/
-    build-catalog-manifest.ts
-    validate-catalog.ts
-```
-
-Validate without writing the manifest:
-
-```sh
-pnpm --filter @outpost/teams-catalog validate
-```
-
-Regenerate `generated/catalog.json` after editing catalog team files:
-
-```sh
-pnpm --filter @outpost/teams-catalog build:manifest
-```
-
-Team install/preview APIs enforce source policy. External skill sources require
-explicit approval flags, and local-path skill sources are development-only
-unless `allowLocalPathSources` is set by the caller.
-
 ## Starting a prepared task
 
 An integration can create a task in `backlog`, save its initial documents, and

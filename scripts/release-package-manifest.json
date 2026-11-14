@@ -75,11 +75,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/teams-catalog",
-    "name": "@outpost/teams-catalog",
-    "publishFromCi": true
-  },
-  {
     "dir": "packages/db",
     "name": "@outpost/db",
     "publishFromCi": true
