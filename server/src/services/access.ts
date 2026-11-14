@@ -1,4 +1,3 @@
-import { notifyMuseContactVerification } from "../modules/external-agents/index.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyNativeStatusReassessment } from "./native-status-reassessment-notifications.js";
@@ -562,7 +561,6 @@ export function accessService(db: Db) {
 
       if(nextStatus==="active"&&(existing.principalType==="agent"||nextMembershipRole!=="viewer")
         &&(existing.status!=="active"||existing.principalType==="user"&&existing.membershipRole==="viewer"))
-        await notifyMuseContactVerification(tx,{spaceId,...(existing.principalType==="user"?{operatorId:existing.principalId}:{agentId:existing.principalId})});
 
       if (existing.principalType === "user" && nextStatus === "active" && nextMembershipRole !== "viewer"
         && (existing.status !== "active" || existing.membershipRole === "viewer")) {
@@ -908,7 +906,6 @@ export function accessService(db: Db) {
           if (existingMembership.status !== "active") {
             if (existingMembership.membershipRole !== "viewer") {
               await notifyChatSpaceAuthorityChange(tx, { spaceId });
-              await notifyMuseContactVerification(tx,{spaceId,operatorId:userId});
             }
             await tx
               .update(spaceMemberships)
@@ -922,7 +919,6 @@ export function accessService(db: Db) {
           continue;
         }
         await notifyChatSpaceAuthorityChange(tx, { spaceId });
-        await notifyMuseContactVerification(tx,{spaceId,operatorId:userId});
         await tx.insert(spaceMemberships).values({
           spaceId,
           principalType: "user",
@@ -952,7 +948,6 @@ export function accessService(db: Db) {
         if (existing.status !== status || existing.membershipRole !== membershipRole) {
           if(status==="active"&&(principalType==="agent"||membershipRole!=="viewer")
             &&(existing.status!=="active"||principalType==="user"&&existing.membershipRole==="viewer"))
-            await notifyMuseContactVerification(tx,{spaceId,...(principalType==="user"?{operatorId:principalId}:{agentId:principalId})});
           if (principalType === "user" && status === "active" && membershipRole !== "viewer"
             && (existing.status !== "active" || existing.membershipRole === "viewer")) {
             await notifyChatSpaceAuthorityChange(tx, { spaceId });
@@ -968,7 +963,6 @@ export function accessService(db: Db) {
         return existing;
       }
 
-      if(status==="active"&&(principalType==="agent"||membershipRole!=="viewer"))await notifyMuseContactVerification(tx,{spaceId,...(principalType==="user"?{operatorId:principalId}:{agentId:principalId})});
       if (principalType === "user" && status === "active" && membershipRole !== "viewer") {
         await notifyChatSpaceAuthorityChange(tx, { spaceId });
       }
@@ -1166,7 +1160,6 @@ export function accessService(db: Db) {
 
       if(nextStatus==="active"&&(existing.principalType==="agent"||nextMembershipRole!=="viewer")
         &&(existing.status!=="active"||existing.principalType==="user"&&existing.membershipRole==="viewer"))
-        await notifyMuseContactVerification(tx,{spaceId,...(existing.principalType==="user"?{operatorId:existing.principalId}:{agentId:existing.principalId})});
 
       if (existing.principalType === "user" && nextStatus === "active" && nextMembershipRole !== "viewer"
         && (existing.status !== "active" || existing.membershipRole === "viewer")) {

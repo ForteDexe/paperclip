@@ -33,7 +33,6 @@ import { crashPoint } from "@outpost/shared/crash-points";
 export { nativeUsageCostUsd, nativeUsageBiller, normalizeNativeUsage } from "./native-usage-accounting.js";
 import { measureRunnerOperation, recordRunnerTimingReceipt } from "./runner-operation-timing.js";
 import { formatNativeRunLogEvent } from "./native-run-log-export.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyNativeResultCommit } from "../native-result-commit-notifications.js";
 import { releaseRetainedNativeSessionCleanup } from "../retained-native-session-cleanup-notifications.js";
 import { registerIdleLocalWorkProbe, type IdleLocalWork } from "../idle-local-work.js";
@@ -12998,7 +12997,6 @@ async function executeOutpostNativeSessionAttempt(
         const unusedTerminal = !!recoveryEvidence.unclaimedBootstrap && phase === "terminal_failure"
           && !runBeforeWrite?.costAccountedAt;
         if (unusedTerminal) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, input.execution.binding.spaceId);
-        if (!ownershipUnverified) await notifyExternalAgentSettlement(tx, input.execution.binding);
         if (!ownershipUnverified) await notifyInstructionCollection(tx, { spaceId: input.execution.binding.spaceId, runId: input.execution.binding.runId });
         if (!ownershipUnverified) await notifyCancelledWorkspacePreservation(tx, { spaceId: input.execution.binding.spaceId, runId: input.execution.binding.runId });
         if (!ownershipUnverified) await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.execution.binding.spaceId, issueId: input.execution.binding.issueId });

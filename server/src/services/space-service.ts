@@ -1,4 +1,3 @@
-import { notifyMuseContactVerification } from "../modules/external-agents/index.js";
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
@@ -348,7 +347,6 @@ export function spaceService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         const renamedPrefix = await resolveRenamedIssuePrefix(tx, id, spacePatch);
 
         if (spacePatch.status !== undefined && spacePatch.status !== existing.status) {
-          if(willReactivate)await notifyMuseContactVerification(tx,{spaceId:id});
           await notifyRunDispatch(tx, { spaceId: id });
           await notifyGitHubSpaceChange(tx, id);
           await notifyDeferredExecutionEligibility(tx, { spaceId: id });

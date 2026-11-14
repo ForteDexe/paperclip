@@ -1,7 +1,6 @@
 import { notifyStrandedAgentStatus } from "../../../services/live-run-recovery-notifications.js";
 import { assertAgentInteraction } from "../../../services/agent-interaction-policy.js";
 import { notifyExecutionRunWork } from "../../../services/execution-control-notifications.js";
-import { notifyExternalAgentSettlement } from "../../external-agents/index.js";
 import { notifyNativeStatusReassessment } from "../../../services/native-status-reassessment-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "../../../services/unsafe-workspace-export-notifications.js";
 import { notifyCancelledWorkspacePreservation } from "../../../services/cancelled-workspace-preservation-notifications.js";
@@ -137,7 +136,6 @@ function buildTransaction(tx: Db, spaceId: string, issueId: string, deps: Queued
       await notifyExecutionRunWork(tx, { spaceId, runId: queueRunId });
       await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId, issueId });
       await notifyInstructionCollection(tx, { spaceId, runId: queueRunId });
-      await notifyExternalAgentSettlement(tx, { spaceId, runId: queueRunId });
       await notifyCancelledWorkspacePreservation(tx, { spaceId, runId: queueRunId });
       await notifyChatRunMilestones(tx, { spaceId, issueId });
       const row = await tx

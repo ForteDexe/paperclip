@@ -1,6 +1,5 @@
 import { notifyActiveRunSilence, notifyLiveRunRecovery, notifyLiveResourceRecovery } from "../../../services/live-run-recovery-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../../services/delivery-work-notifications.js";
-import { notifyExternalAgentSettlement } from "../../external-agents/index.js";
 import { notifyNativeStatusReassessment } from "../../../services/native-status-reassessment-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "../../../services/unsafe-workspace-export-notifications.js";
 import { notifyCancelledWorkspacePreservation } from "../../../services/cancelled-workspace-preservation-notifications.js";
@@ -351,7 +350,6 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
       await notifyLiveRunRecovery(tx, input.run);
       await notifyLiveResourceRecovery(tx, input.run);
       await notifyInstructionCollection(tx, { spaceId, runId: input.run.id });
-      await notifyExternalAgentSettlement(tx, { spaceId, runId: input.run.id });
       await notifyCancelledWorkspacePreservation(tx, { spaceId, runId: input.run.id });
       await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId, issueId: input.sourceIssue.id });
       await notifyNativeStatusReassessment(tx, { spaceId, issueId: input.sourceIssue.id });

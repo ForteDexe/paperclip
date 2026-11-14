@@ -1,4 +1,3 @@
-import { notifyMuseContactVerification } from "./modules/external-agents/index.js";
 import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
@@ -127,7 +126,6 @@ export async function claimOperatorOwnership(
 
       if (!existing) {
         await notifyChatSpaceAuthorityChange(tx, { spaceId: space.id });
-        await notifyMuseContactVerification(tx,{spaceId:space.id,operatorId:opts.userId});
         await tx.insert(spaceMemberships).values({
           spaceId: space.id,
           principalType: "user",
@@ -140,7 +138,6 @@ export async function claimOperatorOwnership(
 
       if (existing.status !== "active") {
         await notifyChatSpaceAuthorityChange(tx, { spaceId: space.id });
-        await notifyMuseContactVerification(tx,{spaceId:space.id,operatorId:opts.userId});
         await tx
           .update(spaceMemberships)
           .set({ status: "active", membershipRole: "owner", updatedAt: new Date() })

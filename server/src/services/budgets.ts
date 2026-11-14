@@ -1,5 +1,4 @@
 import { markBudgetCancelledWorkForResume } from "./budget-resume-continuation.js";
-import { notifyMuseContactVerification } from "../modules/external-agents/index.js";
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
@@ -448,7 +447,6 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
     await notifyDeliveryWork(db, DELIVERY_QUEUES.skillSourceSync);
     const scope = await resolveScopeRecord(db, "space", policy.scopeId);
     if (scope.pauseReason !== "budget") return;
-    await notifyMuseContactVerification(db,{spaceId:policy.spaceId});
     await notifyRunDispatch(db, { spaceId: policy.spaceId });
     await notifyDeferredExecutionEligibility(db, { spaceId: policy.spaceId });
     await notifySpaceRetentionWork(db, policy.spaceId);

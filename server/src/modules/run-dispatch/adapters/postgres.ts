@@ -6,7 +6,6 @@ import { isPreDispatchExecutionWaitVerified } from "../../../services/pre-dispat
 import { isAgentDirectoryPreparationWait } from "../../../services/pre-dispatch-execution-evidence.js";
 import { isUserCommentContinuationReason } from "../../../services/explicit-native-continuation.js";
 import { queuedCommentIdsFromRunContext, withQueuedCommentIdsInRunContext, withQueuedCommentIdsInWakePayload } from "../../../services/issue-queued-comment-queue.js";
-import { notifyExternalAgentSettlement } from "../../external-agents/index.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "../../../services/unsafe-workspace-export-notifications.js";
 import { notifyCancelledWorkspacePreservation } from "../../../services/cancelled-workspace-preservation-notifications.js";
 import { notifyInstructionCollection } from "../../../services/instruction-collection-notifications.js";
@@ -807,7 +806,6 @@ export function createPostgresRunDispatchAdapter(
     }
     await notifyExecutionRunWork(tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyInstructionCollection(tx, { spaceId: input.spaceId, runId: input.runId });
-    await notifyExternalAgentSettlement(tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyCancelledWorkspacePreservation(tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyScheduledRetryCancellation(tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.issueId ?? undefined });
@@ -1158,7 +1156,6 @@ export function createPostgresRunDispatchAdapter(
   ): Promise<CancelStaleQueuedRunOutcome> {
       await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
       await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
-      await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
       await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.spaceId);
       await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: run.spaceId, issueId });

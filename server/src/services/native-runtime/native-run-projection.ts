@@ -2,7 +2,6 @@ import { notifyExternalConversationSettlement } from "../external-conversation-s
 import { promoteDeferredWorkIntents } from "../work-intent-outbox.js";
 import { notifyStrandedAgentStatus } from "../live-run-recovery-notifications.js";
 import { notifyNativeEnvironmentSettlement } from "../native-environment-settlement-notifications.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyNativeRecoveryNotices } from "../native-recovery-notice-notifications.js";
 import { pendingNativeStatusEffectsCondition } from "./native-pending-effect-work.js";
 import { notifyNativeRunProjection } from "../native-run-projection-notifications.js";
@@ -164,7 +163,6 @@ export async function projectCommittedRun(input: {
       nativePhase: heartbeatRuns.nativePhase, finishedAt: heartbeatRuns.finishedAt })
       .from(heartbeatRuns).where(needsRepair).for("update").limit(1);
     if (!before) return null;
-    await notifyExternalAgentSettlement(tx, { spaceId: input.run.spaceId, runId: input.run.id });
     await notifyNativeRecoveryNotices(tx, { spaceId: input.run.spaceId, runId: input.run.id });
     await notifyNativeRunProjection(tx, { spaceId: input.run.spaceId, runId: input.run.id });
     await notifyNativeEnvironmentSettlement(tx, { spaceId: input.run.spaceId, runId: input.run.id });

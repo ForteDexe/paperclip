@@ -15,7 +15,6 @@ import type { DeferredReceiptRecoveryOptions } from "../deferred-execution-notif
 import { notifyRunDispatch } from "../run-dispatch-notifications.js";
 import { notifyRoutineExecutionStatus } from "../routine-execution-status-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyNativeStatusReassessment } from "../native-status-reassessment-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery, notifyUnsafeWorkspaceExportRunChange } from "../unsafe-workspace-export-notifications.js";
 import { notifyCancelledWorkspacePreservation } from "../cancelled-workspace-preservation-notifications.js";
@@ -26,7 +25,6 @@ import { notifyChatInboundWakeNotices } from "../chat-inbound-wake-notice-notifi
 import { notifyChatRunMilestones } from "../chat-run-milestone-notifications.js";
 import { assertTaskRetryConversationAllowed, readTaskRetryIntent, readTaskRetryOperatorMessageOrigin, retireSupersededTaskRetry, taskRetryMutationAllowed } from "../task-retry.js";
 import { insertIssueComment } from "../issue-comment-writes.js";
-import { withExternalAdmissionGuard, assertNoExternalOverlap } from "../../modules/external-agents/index.js";
 import { isAgentAwaitingSetup } from "../../modules/agent-lifecycle/index.js";
 import { normalizeAgentNameKey } from "./retries.js";
 import {
@@ -754,7 +752,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           : "Automatic continuation source could not be verified before provider admission. Review the task and send a fresh request; this attempt will not automatically retry.";
         await notifyChatRunMilestones(tx, { spaceId: current.spaceId, issueId });
         await notifyInstructionCollection(tx, { spaceId: current.spaceId, runId: current.id });
-        await notifyExternalAgentSettlement(tx, { spaceId: current.spaceId, runId: current.id });
         await notifyCancelledWorkspacePreservation(tx, { spaceId: current.spaceId, runId: current.id });
         await notifyExecutionRunWork(tx, { spaceId: current.spaceId, agentId: current.agentId, runId: current.id });
         await notifyUnsafeWorkspaceExportRunChange(tx, current);
@@ -899,7 +896,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           await notifyChatRunMilestones(tx, { spaceId: run.spaceId, runId: run.id,
             issueId: run.nativeIssueId ?? run.issueId ?? readNonEmptyString(parseObject(run.contextSnapshot).issueId) ?? undefined });
           await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
-          await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
           await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
           await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
           await notifyUnsafeWorkspaceExportRunChange(tx, run);
@@ -1339,7 +1335,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                     "Automatic continuation stopped by the committed chat conversation close. Send a fresh request in chat or on the Operator.";
                   await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
                   await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
-                  await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
                   await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
                   await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
                   await notifyUnsafeWorkspaceExportRunChange(tx, run);
@@ -1420,7 +1415,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 // envelope. Preserve their established claim path; only an
                 // explicitly bound queued-message envelope is subject to the
                 // live-comment discard gate below.
-                await withExternalAdmissionGuard(tx, run.spaceId, run.agentId, () => assertNoExternalOverlap(tx, run.spaceId, run.agentId));
                 await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
                 const [claimedRun] = await tx
                   .update(heartbeatRuns)
@@ -1465,7 +1459,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 const reason = "Queued messages were discarded before dispatch";
                 await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
                 await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
-                await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
                 await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
                 await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
                 await notifyUnsafeWorkspaceExportRunChange(tx, run);
@@ -1515,7 +1508,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 };
               }
 
-              await withExternalAdmissionGuard(tx, run.spaceId, run.agentId, () => assertNoExternalOverlap(tx, run.spaceId, run.agentId));
               await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
               await tx
                 .update(agentWakeupRequests)
@@ -1626,7 +1618,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
             )).for("update");
             if (!lockedRun || lockedRun.status !== "queued") return null;
-            await withExternalAdmissionGuard(claimTx, run.spaceId, run.agentId, () => assertNoExternalOverlap(claimTx, run.spaceId, run.agentId));
             await notifyChatRunMilestones(claimTx, { spaceId: run.spaceId, runId: run.id, issueId: issueId ?? undefined });
             const claimedRun = await claimTx.update(heartbeatRuns).set(claimValues).where(and(
               eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.status, "queued"),
@@ -3709,7 +3700,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               ? "Cancelled because the issue was cancelled before the scheduled retry became due"
               : "Cancelled because the issue was reassigned before the scheduled retry became due";
             await notifyInstructionCollection(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
-            await notifyExternalAgentSettlement(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
             await notifyCancelledWorkspacePreservation(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
             await notifyUnsafeWorkspaceExportRunChange(tx, scheduledRun);
             await notifyScheduledRetryCancellation(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
@@ -3855,7 +3845,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             activeExecutionRun.agentId !== issue.assigneeAgentId
           ) {
             await notifyInstructionCollection(tx, { spaceId: activeExecutionRun.spaceId, runId: activeExecutionRun.id });
-            await notifyExternalAgentSettlement(tx, { spaceId: activeExecutionRun.spaceId, runId: activeExecutionRun.id });
             await notifyCancelledWorkspacePreservation(tx, { spaceId: activeExecutionRun.spaceId, runId: activeExecutionRun.id });
             await notifyUnsafeWorkspaceExportRunChange(tx, activeExecutionRun);
             await notifyChatRunMilestones(tx, { spaceId: activeExecutionRun.spaceId, issueId: issue.id });

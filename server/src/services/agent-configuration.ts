@@ -2,7 +2,6 @@ import { isDeepStrictEqual } from "node:util";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { preserveAgentInteractionPermissions } from "../lib/agent-interaction-permissions.js";
-import { notifyMuseContactVerification } from "../modules/external-agents/index.js";
 import { assertEphemeralAgentInstructions } from "./agent-instructions.js";
 import { notifyStrandedAgentStatus } from "./live-run-recovery-notifications.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
@@ -113,7 +112,6 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
   }
   if(normalizedPatch.adapterType!==undefined&&normalizedPatch.adapterType!==existing.adapterType
     ||normalizedPatch.adapterConfig!==undefined&&!jsonEqual(normalizedPatch.adapterConfig,existing.adapterConfig))
-    await notifyMuseContactVerification(db,{spaceId:existing.spaceId,agentId:existing.id});
   await notifyStrandedAgentStatus(db, { spaceId: existing.spaceId, agentId: existing.id });
   await notifyRunDispatch(db, { spaceId: existing.spaceId });
   await notifyDeferredExecutionEligibility(db, { spaceId: existing.spaceId });

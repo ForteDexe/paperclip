@@ -3,7 +3,6 @@ import { appendBoundedRecoveryHistory } from "./native-restart-recovery.js";
 import { notifyLiveRunRecovery } from "../live-run-recovery-notifications.js";
 import { currentControllerProcessStamp } from "../controller-process-identity.js";
 import { NATIVE_SESSION_RESUMPTION_ISSUE_STATUSES } from "./native-session-resumption-statuses.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { pendingNativeRunProjectionCondition } from "./native-run-projection.js";
 import { nativeStatusReassessmentSourceIsSuperseded, reassessNativeStatusFromSource } from "./native-status-reassessment.js";
 import { resolveNativeReconciliationStatus } from "./native-reconciliation-status.js";
@@ -259,7 +258,6 @@ export async function claimNativeSessionResumptions(input: {
           nextAttemptAt: null,
           updatedAt: now,
         }).where(eq(nativeRunFinalizations.runId, row.run.id));
-        await notifyExternalAgentSettlement(tx, { spaceId: row.run.spaceId, runId: row.run.id });
         await notifyInstructionCollection(tx, { spaceId: row.run.spaceId, runId: row.run.id });
         await notifyCancelledWorkspacePreservation(tx, { spaceId: row.run.spaceId, runId: row.run.id });
         await notifyUnsafeWorkspaceExportRunChange(tx, row.run);

@@ -23,12 +23,10 @@ import { idleToolActionHistoryChecks } from "./tool-action-idle-proof.js";
 import { idleBrowserHistoryChecks } from "./browser-use-idle-proof.js";
 import { idleDecisionHistoryChecks } from "./decision-idle-proof.js";
 import { idleWorkspaceHistoryChecks } from "./workspace-history-idle-proof.js";
-import { idleExternalAgentHistoryChecks } from "../modules/external-agents/index.js";
 
 export const completedHistoryChecks = [
   ...idleChatHistoryChecks, ...idleToolActionHistoryChecks, ...idleBrowserHistoryChecks,
   ...idleDecisionHistoryChecks, ...idleWorkspaceHistoryChecks,
-  ...idleExternalAgentHistoryChecks,
 ] as const;
 
 const ordinaryIssues = `SELECT 1 FROM issues i WHERE i.status NOT IN ('done', 'cancelled')

@@ -3,7 +3,6 @@ import { notifyDeferredExecutionEligibility } from "./deferred-execution-notific
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
 import { notifySkillVersionRetentionReconstruction } from "./skill-version-retention-notifications.js";
 import { notifyNativeEnvironmentSettlement } from "./native-environment-settlement-notifications.js";
-import { notifyMuseContactVerification, notifyExternalAgentSettlement } from "../modules/external-agents/index.js";
 import { notifyExternalConversationSettlement } from "./external-conversation-settlement-notifications.js";
 import { notifyNativeRecoveryNotices } from "./native-recovery-notice-notifications.js";
 import { notifyNativeRunProjection } from "./native-run-projection-notifications.js";
@@ -644,7 +643,6 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpEvents, "*");
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.dotEvents, "*");
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.grokDispatch);
-        if (toExperimentalView(current.experimental).enableMuse !== toExperimentalView(nextExperimental).enableMuse || toExperimentalView(current.experimental).enableNativeRunner !== toExperimentalView(nextExperimental).enableNativeRunner) await notifyMuseContactVerification(tx);
         if (patch.enableExternalObjects !== undefined) await notifyExternalObjectRefresh(tx);
         if (chatBecameEnabled) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAssignments, "*");
         if (patch.enableWorktreeRunExecution !== undefined) await notifyScheduledRetryCancellation(tx);
@@ -654,7 +652,6 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
           await notifyLiveRunRecovery(tx);
           await notifyLiveResourceRecovery(tx);
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-          await notifyExternalAgentSettlement(tx);
           await notifyInstructionCommit(tx);
           await notifyDirectoryCleanup(tx);
           await notifySkillVersionRetentionReconstruction(tx);

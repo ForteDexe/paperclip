@@ -1,4 +1,3 @@
-import { notifyMuseContactVerification } from "../modules/external-agents/index.js";
 import { notifyBudgetResumeAgentReady } from "./budget-resume-continuation.js";
 import { currentControllerProcessStamp } from "./controller-process-identity.js";
 import { notifyStrandedAgentStatus } from "./live-run-recovery-notifications.js";
@@ -55,7 +54,6 @@ export function createAgentLifecycleEffects(_hooks: BudgetServiceHooks = {}): li
     notifyWork: tx => notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle),
     leaseHolder: () => currentControllerProcessStamp(),
     beforeConnectionEligibilityRestore: async (tx, spaceId, agentId) => {
-      await notifyMuseContactVerification(tx, { spaceId, agentId });
     },
     async beforeStatusChange(tx, spaceId, agentId, before, after) {
       await notifyAttentionRetentionWork(tx, { spaceId });

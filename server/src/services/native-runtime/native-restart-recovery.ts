@@ -8,7 +8,6 @@ import { notifyLiveRunRecovery } from "../live-run-recovery-notifications.js";
 import { NATIVE_RETAINED_OWNER_WAIT } from "./native-controller-recovery.js";
 import { notifyNativeEnvironmentSettlement } from "../native-environment-settlement-notifications.js";
 import { remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyNativeStatusReassessment } from "../native-status-reassessment-notifications.js";
 import { notifyUnsafeWorkspaceExportRunChange } from "../unsafe-workspace-export-notifications.js";
 import { notifyCancelledWorkspacePreservation } from "../cancelled-workspace-preservation-notifications.js";
@@ -1775,7 +1774,6 @@ export async function claimNativeRestartRecoveries(input: {
             ),
           );
         if (!preserveExecutionBinding) {
-          await notifyExternalAgentSettlement(tx, { spaceId: row.run.spaceId, runId: row.run.id });
           await notifyNativeEnvironmentSettlement(tx, { spaceId: row.run.spaceId, runId: row.run.id });
           await notifyInstructionCollection(tx, { spaceId: row.run.spaceId, runId: row.run.id });
           await notifyCancelledWorkspacePreservation(tx, { spaceId: row.run.spaceId, runId: row.run.id });

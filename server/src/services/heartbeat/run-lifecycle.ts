@@ -5,7 +5,6 @@ import { notifyRunDispatch } from "../run-dispatch-notifications.js";
 import { wakeWorkspaceBusyWaitersInTx } from "../../modules/run-dispatch/index.js";
 import { preserveAcceptedRunUsageProjectionSql } from "../usage-receipts.js";
 import { notifyNativeEnvironmentSettlement } from "../native-environment-settlement-notifications.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyExternalConversationSettlement } from "../external-conversation-settlement-notifications.js";
 import { notifyNativeRecoveryNotices } from "../native-recovery-notice-notifications.js";
 import { notifyNativeRunProjection } from "../native-run-projection-notifications.js";
@@ -1102,7 +1101,6 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     return db.transaction(async transaction => {
       const tx = transaction as unknown as Db;
       if (previous?.runtimeMode === "native" && isHeartbeatRunTerminalStatus(status))
-        await notifyExternalAgentSettlement(tx, { spaceId: previous.spaceId, runId: previous.id });
       if (previous?.runtimeMode === "native") await notifyNativeRecoveryNotices(tx, { spaceId: previous.spaceId, runId: previous.id });
       if (previous?.runtimeMode === "native") await notifyNativeRunProjection(tx, { spaceId: previous.spaceId, runId: previous.id });
       if (previous?.runtimeMode === "native") await notifyNativeEnvironmentSettlement(tx, { spaceId: previous.spaceId, runId: previous.id });

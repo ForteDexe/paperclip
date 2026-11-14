@@ -1,7 +1,6 @@
 import { notifyNativeEnvironmentSettlement } from "../native-environment-settlement-notifications.js";
 import { isContextCompactionRun } from "../context-compaction.js";
 import { REMOTE_WORKSPACE_SANDBOX_DISK_FULL_CODE } from "../remote-workspace-transport.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyNativeRecoveryNotices } from "../native-recovery-notice-notifications.js";
 import { resolveCommittedNativeRecoveryNotices } from "./native-recovery-notices.js";
 import { nativeLeaseHolder, notifyNativeTokenLeaseClaimed } from "./native-token-lease-settlement.js";
@@ -1966,7 +1965,6 @@ export async function finalizeNativeRun(input: {
           .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId)))
           .for("update").limit(1);
         if (!before) return null;
-        if (input.projectRunStatus) await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
         await notifyNativeRecoveryNotices(tx, { spaceId: run.spaceId, runId: run.id });
         await notifyNativeRunProjection(tx, { spaceId: run.spaceId, runId: run.id });
         await notifyNativeEnvironmentSettlement(tx, { spaceId: run.spaceId, runId: run.id });

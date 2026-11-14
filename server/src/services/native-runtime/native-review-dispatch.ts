@@ -1,5 +1,4 @@
 import { notifyChatRunMilestones } from "../chat-run-milestone-notifications.js";
-import { withExternalAdmissionGuard, assertNoExternalOverlap } from "../../modules/external-agents/index.js";
 import { agentWakeupRequests, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
@@ -35,7 +34,6 @@ export async function claimQueuedNativeReviewRun(db: Db, input: {
     )).for("update");
     if (!run || run.status !== "queued" || run.wakeupRequestId !== input.run.wakeupRequestId) return null;
     if ((run.contextSnapshot as Record<string, unknown> | null)?.issueId !== issueId) return null;
-    await withExternalAdmissionGuard(tx, run.spaceId, run.agentId, () => assertNoExternalOverlap(tx, run.spaceId, run.agentId));
     const locked = await claimNativeReviewExecutionLock(tx as unknown as Db, {
       spaceId: run.spaceId, issueId, agentId: run.agentId, runId: run.id,
       contextSnapshot: context, agentNameKey: input.agentNameKey, claimedAt: input.claimedAt,

@@ -2,7 +2,6 @@ import { notifyNativeStatusWakeWork } from "../deferred-execution-notifications.
 import { assertAgentInteraction } from "../agent-interaction-policy.js";
 import { forbidden, HttpError } from "../../errors.js";
 import { agentInteractionDeliveryDenial, agentWakeInteractionTexts, INTERACTION_DELIVERY_DENIED, withInteractionDeliveryOrigin } from "../agent-interaction-delivery.js";
-import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { lockCurrentNativeWorkAssessmentEvidence } from "./work-assessments.js";
 import { hasNativeWorkspaceFinalizationOwner } from "./native-workspace-finalization-recovery-state.js";
 import { tryLockNativeWorkspaceFinalization } from "./native-workspace-finalization-ownership.js";
@@ -1152,7 +1151,6 @@ async function materializeDecisionEffect(input: {
           ),
         );
     }
-    await notifyExternalAgentSettlement(input.tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyInstructionCollection(input.tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyCancelledWorkspacePreservation(input.tx, { spaceId: input.spaceId, runId: input.runId });
     await notifyUnsafeWorkspaceExportRecovery(input.tx, { spaceId: input.spaceId, issueId: input.issue.id });
