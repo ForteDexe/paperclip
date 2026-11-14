@@ -90,6 +90,60 @@ describe("codex managed home", () => {
     }
   });
 
+  it("falls back to one shared auth hard link when symbolic links are denied", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-hardlink-"));
+    const sharedAuth = path.join(root, "shared", "auth.json");
+    const managedAuth = path.join(root, "managed", "auth.json");
+    await fs.mkdir(path.dirname(sharedAuth), { recursive: true });
+    await fs.writeFile(sharedAuth, '{"token":"initial"}', "utf8");
+
+    const denied = new Error("symbolic links require privilege") as NodeJS.ErrnoException;
+    denied.code = "EPERM";
+    vi.spyOn(fs, "symlink").mockRejectedValue(denied);
+
+    try {
+      await ensureSymlink(managedAuth, sharedAuth);
+
+      expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(false);
+      expect(await fs.readFile(managedAuth, "utf8")).toBe('{"token":"initial"}');
+      await fs.writeFile(managedAuth, '{"token":"refreshed"}', "utf8");
+      expect(await fs.readFile(sharedAuth, "utf8")).toBe('{"token":"refreshed"}');
+
+      // A later seed recognizes the existing hard link and does not retry the
+      // denied symbolic-link operation.
+      vi.mocked(fs.symlink).mockClear();
+      await ensureSymlink(managedAuth, sharedAuth);
+      expect(fs.symlink).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails clearly instead of copying credentials when both link types are unavailable", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-link-failure-"));
+    const sharedAuth = path.join(root, "shared", "auth.json");
+    const managedAuth = path.join(root, "managed", "auth.json");
+    await fs.mkdir(path.dirname(sharedAuth), { recursive: true });
+    await fs.writeFile(sharedAuth, '{"token":"sensitive"}', "utf8");
+
+    const denied = new Error("symbolic links require privilege") as NodeJS.ErrnoException;
+    denied.code = "EPERM";
+    const crossDevice = new Error("hard links require one volume") as NodeJS.ErrnoException;
+    crossDevice.code = "EXDEV";
+    vi.spyOn(fs, "symlink").mockRejectedValue(denied);
+    vi.spyOn(fs, "link").mockRejectedValue(crossDevice);
+
+    try {
+      await expect(ensureSymlink(managedAuth, sharedAuth)).rejects.toMatchObject({
+        code: "CODEX_AUTH_LINK_FAILED",
+        message: expect.stringContaining("hard-link fallback also failed"),
+      });
+      await expect(fs.readFile(managedAuth, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("still throws on EEXIST when a raced-in auth symlink points elsewhere", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-"));
     const sharedCodexHome = path.join(root, "shared-codex-home");

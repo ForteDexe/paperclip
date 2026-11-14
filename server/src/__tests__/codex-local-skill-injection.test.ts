@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ensureCodexSkillsInjected } from "@paperclipai/adapter-codex-local/server";
 
 async function makeTempDir(prefix: string): Promise<string> {
@@ -36,8 +36,44 @@ describe("codex local adapter skill injection", () => {
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await Promise.all(Array.from(cleanupDirs).map((dir) => fs.rm(dir, { recursive: true, force: true })));
     cleanupDirs.clear();
+  });
+
+  it.runIf(process.platform === "win32")("falls back to a Windows junction when directory symlinks are denied", async () => {
+    const skillRoot = await makeTempDir("paperclip-codex-junction-source-");
+    const skillsHome = await makeTempDir("paperclip-codex-junction-home-");
+    cleanupDirs.add(skillRoot);
+    cleanupDirs.add(skillsHome);
+    await createCustomSkill(skillRoot, "review");
+    const source = path.join(skillRoot, "custom", "review");
+    const target = path.join(skillsHome, "review");
+
+    const realSymlink = fs.symlink.bind(fs);
+    const symlink = vi.spyOn(fs, "symlink").mockImplementation(async (from, to, type) => {
+      if (type !== "junction") {
+        const denied = new Error("symbolic links require privilege") as NodeJS.ErrnoException;
+        denied.code = "EPERM";
+        throw denied;
+      }
+      await realSymlink(from, to, type);
+    });
+
+    const logs: Array<{ stream: "stdout" | "stderr"; chunk: string }> = [];
+    await ensureCodexSkillsInjected(async (stream, chunk) => logs.push({ stream, chunk }), {
+      skillsHome,
+      skillsEntries: [{ key: "outpost/review", runtimeName: "review", source }],
+    });
+
+    expect(await fs.realpath(target)).toBe(await fs.realpath(source));
+    expect(symlink).toHaveBeenNthCalledWith(1, source, target, "dir");
+    expect(symlink).toHaveBeenNthCalledWith(2, path.resolve(source), target, "junction");
+    expect(logs).toContainEqual(expect.objectContaining({
+      stream: "stdout",
+      chunk: expect.stringContaining('Injected Codex skill "review"'),
+    }));
+    expect(logs.some((entry) => entry.stream === "stderr")).toBe(false);
   });
 
   it("repairs a Codex Paperclip skill symlink that still points at another live checkout", async () => {

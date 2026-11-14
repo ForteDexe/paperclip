@@ -247,12 +247,45 @@ async function isExpectedSymlink(target: string, source: string): Promise<boolea
   return path.resolve(path.dirname(target), linkedPath) === path.resolve(source);
 }
 
+async function isExpectedHardLink(target: string, source: string): Promise<boolean> {
+  const [targetStat, sourceStat] = await Promise.all([
+    fs.stat(target).catch(() => null),
+    fs.stat(source).catch(() => null),
+  ]);
+  if (!targetStat?.isFile() || !sourceStat?.isFile()) return false;
+  // NTFS exposes its file ID through ino. Refuse to infer identity when the
+  // platform reports the placeholder zero value for both files.
+  return targetStat.dev === sourceStat.dev && targetStat.ino !== 0 && targetStat.ino === sourceStat.ino;
+}
+
+async function isExpectedAuthLink(target: string, source: string): Promise<boolean> {
+  return await isExpectedSymlink(target, source) || await isExpectedHardLink(target, source);
+}
+
 async function createExpectedSymlink(target: string, source: string): Promise<void> {
   try {
     await fs.symlink(source, target);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === "EEXIST" && await isExpectedSymlink(target, source)) return;
+    if (code === "EEXIST" && await isExpectedAuthLink(target, source)) return;
+    if (code === "EPERM" || code === "EACCES") {
+      try {
+        // Windows commonly denies symbolic-link creation to an ordinary
+        // process. A hard link retains the single-file credential semantics:
+        // Codex reads and refreshes one auth.json inode rather than a copied,
+        // independently-stale refresh token.
+        await fs.link(source, target);
+        return;
+      } catch (linkError) {
+        if ((linkError as NodeJS.ErrnoException).code === "EEXIST" && await isExpectedAuthLink(target, source)) return;
+        const failure = new Error(
+          "Could not link Codex authentication into the agent runtime. Windows denied the symbolic link and the hard-link fallback also failed. Keep the Outpost data directory and Codex authentication on the same local NTFS volume, or enable Windows Developer Mode.",
+          { cause: linkError },
+        ) as NodeJS.ErrnoException;
+        failure.code = "CODEX_AUTH_LINK_FAILED";
+        throw failure;
+      }
+    }
     throw error;
   }
 }
@@ -264,6 +297,8 @@ export async function ensureSymlink(target: string, source: string): Promise<voi
     await createExpectedSymlink(target, source);
     return;
   }
+
+  if (await isExpectedAuthLink(target, source)) return;
 
   if (!existing.isSymbolicLink()) {
     // A previous Paperclip version copied this file into the managed home
@@ -281,8 +316,6 @@ export async function ensureSymlink(target: string, source: string): Promise<voi
     await createExpectedSymlink(target, source);
     return;
   }
-
-  if (await isExpectedSymlink(target, source)) return;
 
   await fs.unlink(target);
   await createExpectedSymlink(target, source);

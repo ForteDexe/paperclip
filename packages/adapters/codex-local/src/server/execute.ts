@@ -523,7 +523,30 @@ export async function ensureCodexSkillsInjected(
 
   const skillsHome = options.skillsHome ?? resolveCodexSkillsDir(resolveSharedCodexHomeDir());
   await fs.mkdir(skillsHome, { recursive: true });
-  const linkSkill = options.linkSkill;
+  const linkSkill = options.linkSkill ?? (async (source: string, target: string) => {
+    try {
+      await fs.symlink(source, target, "dir");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (process.platform !== "win32" || (code !== "EPERM" && code !== "EACCES")) {
+        throw error;
+      }
+
+      try {
+        // Ordinary Windows processes commonly cannot create directory
+        // symlinks. Directory junctions do not require that privilege and
+        // retain the same live, no-copy skill-directory behavior.
+        await fs.symlink(path.resolve(source), target, "junction");
+      } catch (junctionError) {
+        const failure = new Error(
+          "Could not link the Outpost skill into the Codex runtime. Windows denied both the directory symlink and junction fallback.",
+          { cause: junctionError },
+        ) as NodeJS.ErrnoException;
+        failure.code = "CODEX_SKILL_LINK_FAILED";
+        throw failure;
+      }
+    }
+  });
   for (const entry of skillsEntries) {
     const target = path.join(skillsHome, entry.runtimeName);
 
@@ -540,11 +563,7 @@ export async function ensureCodexSkillsInjected(
           (await isLikelyPaperclipRuntimeSkillPath(resolvedLinkedPath, entry.runtimeName))
         ) {
           await fs.unlink(target);
-          if (linkSkill) {
-            await linkSkill(entry.source, target);
-          } else {
-            await fs.symlink(entry.source, target);
-          }
+          await linkSkill(entry.source, target);
           await onLog(
             "stdout",
             `[paperclip] Repaired Codex skill "${entry.runtimeName}" into ${skillsHome}\n`,
