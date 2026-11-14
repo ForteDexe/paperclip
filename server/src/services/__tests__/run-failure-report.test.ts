@@ -151,16 +151,15 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
 
-  it.each(["quota", "git", "secret", "selection", "workspace", "hermes"])("reports known %s failures in all mode", async kind => {
+  it.each(["quota", "git", "secret", "selection", "workspace"])("reports known %s failures in all mode", async kind => {
     vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
-    await seedSpaceAndAgent(kind === "hermes" ? { adapterType: "hermes_gateway" } : {});
+    await seedSpaceAndAgent();
     const fixtures = {
       quota: providerQuotaRun,
       git: gitConnectionRun,
       secret: missingSecretRun,
       selection: aiSelectionRun,
       workspace: localPathConfigurationRun,
-      hermes: hermesConnectionRun,
     };
     const fixture = fixtures[kind as keyof typeof fixtures]();
     const phase = ["git", "secret", "selection", "workspace"].includes(kind) ? "setup" : "execute";
@@ -210,7 +209,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   const gitConnection = { schemaVersion: 1, provider: "git", operation: "clone", reason: "authentication_failed" };
-  const hermesConnection = { schemaVersion: 1, provider: "hermes_gateway", operation: "create_run", reason: "connection_refused" };
+  const mcpConnection = { schemaVersion: 1, provider: "mcp_http", operation: "discover_tools", reason: "connection_refused" };
 
   function gitConnectionRun(overrides: Partial<typeof heartbeatRuns.$inferSelect> = {}) {
     return buildRun({
@@ -218,13 +217,6 @@ describeEmbeddedPostgres("reportRunFailure", () => {
       resultJson: { connectionFailure: gitConnection,
         executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
       ...overrides,
-    });
-  }
-
-  function hermesConnectionRun(overrides: Partial<typeof heartbeatRuns.$inferSelect> = {}) {
-    return buildRun({
-      errorCode: "hermes_gateway_connect_failed", executionStage: "executing", exitCode: 1, signal: null,
-      resultJson: { connectionFailure: hermesConnection }, ...overrides,
     });
   }
 
@@ -257,7 +249,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { errorCode: "adapter_failed" }, { exitCode: 1 }, { exitCode: 0 }, { signal: "SIGTERM" },
     { resultJson: {} },
     { resultJson: { connectionFailure: { ...gitConnection, schemaVersion: 2 }, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } },
-    { resultJson: { connectionFailure: hermesConnection, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } },
+    { resultJson: { connectionFailure: mcpConnection, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } },
   ])("reports a Git marker without its matching setup outcome: %j", async (overrides) => {
     await seedSpaceAndAgent();
     await reportRunFailure(db, gitConnectionRun(overrides), { phase: "setup" });
@@ -281,7 +273,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
 
   it.each([
     [], [null], [{ connectionFailure: gitConnection }, {}],
-    [{ connectionFailure: gitConnection }, { connectionFailure: hermesConnection }],
+    [{ connectionFailure: gitConnection }, { connectionFailure: mcpConnection }],
     [{ connectionFailure: gitConnection }, { connectionFailure: { ...gitConnection, reason: "unknown" } }],
     [{ connectionFailure: { ...gitConnection, reason: "repository_unavailable" } }],
   ].map((failures) => ({ failures })))("reports mixed, malformed, or inconsistent Git materialization evidence: %j", async ({ failures }) => {
@@ -301,78 +293,6 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     run.resultJson!.workspaceValidation = validation;
     await reportRunFailure(db, run, { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    ["configuration", "endpoint_missing", "hermes_gateway_api_base_url_missing"],
-    ["configuration", "endpoint_invalid", "hermes_gateway_api_base_url_invalid"],
-    ["configuration", "insecure_transport", "hermes_gateway_plain_http_remote_denied"],
-    ["configuration", "credentials_missing", "hermes_gateway_api_key_missing"],
-    ["create_run", "authentication_failed", "hermes_gateway_auth_failed"],
-    ["create_run", "endpoint_not_found", "hermes_gateway_runs_unsupported"],
-    ["create_run", "rate_limited", "hermes_gateway_rate_limited"],
-    ["create_run", "remote_unavailable", "hermes_gateway_upstream_error"],
-    ...["connection_refused", "dns_failure", "network_unreachable", "connection_reset", "connection_timeout", "tls_failure"]
-      .flatMap((reason) => ["hermes_gateway_connect_failed", "hermes_gateway_protocol_error"].map((code) => ["create_run", reason, code])),
-  ])("keeps the matching Hermes %s/%s task error local", async (operation, reason, errorCode) => {
-    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
-    const run = hermesConnectionRun({ errorCode, resultJson: { connectionFailure: { ...hermesConnection, operation, reason } } });
-    const before = structuredClone(run);
-    await reportRunFailure(db, run, { phase: "execute" });
-    expect(mockCaptureRunFailure).not.toHaveBeenCalled();
-    expect(run).toEqual(before);
-  });
-
-  it.each([undefined, { kind: "bootstrap", providerWorkStarted: true }, { kind: "runtime", providerWorkStarted: true }])(
-    "does not infer remote nonacceptance from a classified Hermes connection failure: %j", async (recovery) => {
-      await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
-      const input = hermesConnectionRun();
-      input.resultJson!.executionRecovery = recovery;
-      const [run] = await db.insert(heartbeatRuns).values(input).returning();
-      const before = structuredClone(run);
-      await reportRunFailure(db, run!);
-      expect(mockCaptureRunFailure).not.toHaveBeenCalled();
-      expect(await db.select().from(heartbeatRuns)).toEqual([before]);
-    },
-  );
-
-  it.each([
-    { status: "timed_out" }, { status: "cancelled", startedAt: new Date(0) },
-    { exitCode: 0 }, { exitCode: null }, { signal: "SIGTERM" },
-    { errorCode: "hermes_gateway_timeout" }, { errorCode: "hermes_gateway_run_failed" },
-    { errorCode: "hermes_gateway_auth_failed" },
-    { resultJson: {} },
-    { resultJson: { connectionFailure: { ...hermesConnection, reason: "unknown" } } },
-    { resultJson: { connectionFailure: { ...hermesConnection, privateUrl: "https://private.example.test" } } },
-    { resultJson: { connectionFailure: gitConnection } },
-    { resultJson: { connectionFailure: { ...hermesConnection, operation: "configuration", reason: "credentials_missing" } } },
-  ])("reports an unproven or mismatched Hermes outcome: %j", async (overrides) => {
-    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
-    const run = hermesConnectionRun(overrides);
-    const before = structuredClone(run);
-    await reportRunFailure(db, run, { phase: "execute" });
-    expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
-    expect(run).toEqual(before);
-  });
-
-  it("keeps setup errors reportable even when they carry a matching Hermes marker", async () => {
-    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
-    await reportRunFailure(db, hermesConnectionRun(), { phase: "setup" });
-    expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
-  });
-
-  it.each(["codex_local", "hermes_local"])("requires the actual database adapter, not a Hermes marker on %s", async (adapterType) => {
-    await seedSpaceAndAgent({ adapterType });
-    const run = hermesConnectionRun({ contextSnapshot: { adapterType: "hermes_gateway" } });
-    await reportRunFailure(db, run);
-    expect(mockCaptureRunFailure).toHaveBeenCalledWith(expect.objectContaining({ agentAdapter: adapterType }));
-  });
-
-  it.each(["missing", "other_space"])("does not suppress Hermes when its database agent is %s", async (kind) => {
-    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
-    const run = hermesConnectionRun(kind === "missing" ? { agentId: randomUUID() } : { spaceId: randomUUID() });
-    await reportRunFailure(db, run);
-    expect(mockCaptureRunFailure).toHaveBeenCalledWith(expect.objectContaining({ agentAdapter: "unknown" }));
   });
 
   function providerQuotaRun(overrides: Partial<typeof heartbeatRuns.$inferSelect> = {}) {

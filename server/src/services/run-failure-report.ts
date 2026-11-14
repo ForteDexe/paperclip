@@ -13,7 +13,7 @@ import {
 } from "./run-failure-diagnostics.js";
 import { logger } from "../middleware/logger.js";
 import { isUnexpectedRunCancellation } from "./run-cancellation.js";
-import { readConnectionFailure, type ConnectionFailure } from "@outpost/adapter-utils/connection-failure";
+import { readConnectionFailure } from "@outpost/adapter-utils/connection-failure";
 import { isAiConnectionConfigurationReason } from "./ai-connection-configuration-failure.js";
 import { readRunFailureReportingMode, type RunFailureReportingMode } from "../sentry-run-failure-policy.js";
 import { RESTRICTED_WORKSPACE_SOURCE_REASON } from "./workspace-source-restriction.js";
@@ -206,32 +206,6 @@ function isGitConnectionFailure(run: HeartbeatRun, options: RunFailureReportOpti
   }) && readConnectionFailure(asRecord(failures[0])?.connectionFailure)?.reason === connection.reason;
 }
 
-const hermesTransportReasons = new Set([
-  "connection_refused", "dns_failure", "network_unreachable", "connection_reset", "connection_timeout", "tls_failure",
-]);
-
-/** An adapter result remains failed; this only excludes its proven external cause. */
-function isHermesConnectionFailure(run: HeartbeatRun, options: RunFailureReportOptions, adapterType: string | undefined): boolean {
-  if (adapterType !== "hermes_gateway" || run.status !== "failed" || run.exitCode !== 1 || run.signal != null || options.phase === "setup") return false;
-  const connection = readConnectionFailure(run.resultJson?.connectionFailure);
-  if (connection?.provider !== "hermes_gateway") return false;
-  const code = run.errorCode;
-  if (connection.operation === "configuration") {
-    const codes: Record<Extract<ConnectionFailure, { provider: "hermes_gateway"; operation: "configuration" }>["reason"], string> = {
-      endpoint_missing: "hermes_gateway_api_base_url_missing",
-      endpoint_invalid: "hermes_gateway_api_base_url_invalid",
-      insecure_transport: "hermes_gateway_plain_http_remote_denied",
-      credentials_missing: "hermes_gateway_api_key_missing",
-    };
-    return code === codes[connection.reason];
-  }
-  if (hermesTransportReasons.has(connection.reason)) return code === "hermes_gateway_connect_failed" || code === "hermes_gateway_protocol_error";
-  return (connection.reason === "authentication_failed" && code === "hermes_gateway_auth_failed") ||
-    (connection.reason === "endpoint_not_found" && code === "hermes_gateway_runs_unsupported") ||
-    (connection.reason === "rate_limited" && code === "hermes_gateway_rate_limited") ||
-    (connection.reason === "remote_unavailable" && code === "hermes_gateway_upstream_error");
-}
-
 /**
  * The orphan reaper proved a server restart stopped legacy setup before
  * dispatch and made the run eligible for its bounded retry. Only that reaper
@@ -403,7 +377,6 @@ async function captureTerminalRunFailure(
       .then((rows) => rows[0] ?? null);
 
     if (mode === "unexpected") {
-      if (isHermesConnectionFailure(run, options, agent?.adapterType)) return;
       const rejectedExternally = await isRejectedExternalBotWake(db, run).catch((err) => {
         logger.warn({ err, runId: run.id }, "failed to read bot wake receipts for run failure report");
         return false;

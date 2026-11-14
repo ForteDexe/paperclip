@@ -137,6 +137,8 @@ credentials, generates OpenClaw device keys, stores Hermes secrets, or permits
 gateway-only replay of accepted invites. Agent creation and environment probes
 also no longer generate OpenClaw device credentials or special-case Hermes
 probe keys, and heartbeat metadata no longer assigns gateway-only timeout
-defaults. Remaining gateway branches in failure reporting, secret schemas,
-portability, UI registries, and shared compatibility contracts are tracked as
-subsequent dependency-guided removal work and are not considered retained.
+defaults. Gateway connection-failure markers and Hermes-specific failure-report
+suppression are removed, so failures from unsupported providers cannot be
+silently excluded. Remaining gateway branches in secret schemas, portability,
+UI registries, and shared compatibility contracts are tracked as subsequent
+dependency-guided removal work and are not considered retained.
