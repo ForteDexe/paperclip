@@ -57,7 +57,7 @@ describe("agent cryptographic identity", () => {
     expect(await agentIdentityService(db).getPublicIdentity(spaceId, agent.id)).toBeNull();
     expect((await agentIdentityService(db).createExistingLogRedactor(spaceId, agent.id)).values).toEqual([]);
     expect(await db.select().from(agentIdentityKeys).where(eq(agentIdentityKeys.agentId, agent.id))).toHaveLength(0);
-    for (const type of ["http", "openclaw_gateway", "hermes_gateway"]) expect(supportsManagedAgentIdentity(type)).toBe(false);
+    for (const type of ["http", "retired_remote_gateway", "hermes_local"]) expect(supportsManagedAgentIdentity(type)).toBe(false);
     for (const provider of ["claude_managed", "aws_agentcore"]) expect(supportsManagedAgentIdentity("outpost_runner", { provider })).toBe(false);
     expect(supportsManagedAgentIdentity("outpost_runner", { provider: "codex" }, "claude_managed_agents_api")).toBe(false);
     expect(supportsManagedAgentIdentity("outpost_runner", { provider: "claude_managed" }, "codex_app_server")).toBe(true);

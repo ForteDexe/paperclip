@@ -147,6 +147,8 @@ defaults. Gateway-specific display metadata, onboarding fields, credentials,
 external-agent presets, model ordering, and chat labels are removed from the
 UI. The shared adapter catalog, invite schema, provider-routing compatibility,
 managed credential-home projection, and create-form contract also no longer
-carry Hermes or OpenClaw. Remaining Hermes branches in session compaction,
-identity, continuation, watchdog, and heartbeat recovery are tracked as the
-next dependency-guided runtime removal and are not considered retained.
+carry Hermes or OpenClaw. Session compaction, identity, continuation, watchdog,
+workspace validation, heartbeat recovery, and the Hermes-only canonical session
+algorithm are removed as well. Remaining names in historical migrations and
+retired gateway test fixtures are compatibility-cleanup work, not retained
+product behavior.

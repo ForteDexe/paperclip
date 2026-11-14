@@ -476,10 +476,8 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
     }
 
     const nextSessionState = resolveNextSessionState({
-      adapterType: agent.adapterType,
       codec: sessionCodec,
       adapterResult,
-      outcome,
       previousParams: previousSessionParams,
       previousDisplayId: runtimeForAdapter.sessionDisplayId,
       previousLegacySessionId: runtimeForAdapter.sessionId,

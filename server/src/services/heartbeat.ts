@@ -139,7 +139,6 @@ import {
   getAdapterSessionCodec,
   shouldResetTaskSessionForWake,
   normalizeSessionParams,
-  normalizeResumeParamsForAdapter,
   truncateDisplayId,
   resolveLedgerScopeForRun,
   resolveNextSessionState,
@@ -2717,8 +2716,7 @@ export function heartbeatService(
       const taskSessionDecodedParams = normalizeSessionParams(
         sessionCodec.deserialize(context.workspaceSelectionChanged ? null : taskSession?.sessionParamsJson ?? null),
       );
-      const explicitResumeSessionParams = normalizeResumeParamsForAdapter(
-        agent.adapterType,
+      const explicitResumeSessionParams = normalizeSessionParams(
         sessionCodec.deserialize(parseObject(context.resumeSessionParams)),
       );
       const explicitResumeSessionDisplayId = truncateDisplayId(

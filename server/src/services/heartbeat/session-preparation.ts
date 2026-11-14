@@ -7,8 +7,8 @@ import { aiConnectionSessionCompatibilityInputs, managedAiSessionIdentityCompati
 import { createNativeSessionHandoffLoader } from "../native-runtime/native-session-handoff.js";
 import { agentInstructionsService } from "../agent-instructions.js";
 import {
-  describeSessionResetReason, shouldResetTaskSessionForWake, isCanonicalSessionIdForAdapter,
-  normalizeResumeParamsForAdapter, normalizeSessionParams, requiresCanonicalSessionIds,
+  describeSessionResetReason, shouldResetTaskSessionForWake,
+  normalizeSessionParams,
   truncateDisplayId, type createHeartbeatRunState, type getAdapterSessionCodec,
 } from "./run-state.js";
 import {
@@ -210,14 +210,10 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
   }) : undefined;
   const previousSessionParams =
     explicitResumeSessionParams ??
-    (isCanonicalSessionIdForAdapter(
-      agent.adapterType,
-      explicitResumeSessionDisplayId,
-    )
+    (explicitResumeSessionDisplayId
       ? { sessionId: explicitResumeSessionDisplayId }
       : null) ??
-    normalizeResumeParamsForAdapter(
-      agent.adapterType,
+    normalizeSessionParams(
       stripOutpostSessionMetadataFromSessionParams(
         sessionCodec.deserialize(
           taskSessionForRun?.sessionParamsJson ?? null,
@@ -269,9 +265,7 @@ export async function resolveHeartbeatAdapterSession(input: HeartbeatAdapterSess
   const runtimeSessionFallback =
     taskKey || resetTaskSession
       ? null
-      : isCanonicalSessionIdForAdapter(agent.adapterType, runtime.sessionId)
-        ? runtime.sessionId
-        : null;
+      : runtime.sessionId;
   const runtimeSessionDisplayId = truncateDisplayId(
     explicitResumeSessionDisplayId ??
       taskSessionForRun?.sessionDisplayId ??
@@ -281,20 +275,7 @@ export async function resolveHeartbeatAdapterSession(input: HeartbeatAdapterSess
       readNonEmptyString(runtimeSessionParams?.sessionId) ??
       runtimeSessionFallback,
   );
-  let previousSessionDisplayId = requiresCanonicalSessionIds(
-    agent.adapterType,
-  )
-    ? truncateDisplayId(
-        readNonEmptyString(previousSessionParams?.sessionId) ??
-          (isCanonicalSessionIdForAdapter(
-            agent.adapterType,
-            runtimeSessionDisplayId,
-          )
-            ? runtimeSessionDisplayId
-            : null) ??
-          runtimeSessionFallback,
-      )
-    : runtimeSessionDisplayId;
+  let previousSessionDisplayId = runtimeSessionDisplayId;
   let runtimeSessionIdForAdapter =
     readNonEmptyString(runtimeSessionParams?.sessionId) ??
     runtimeSessionFallback;
