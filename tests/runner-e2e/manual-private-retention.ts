@@ -28,7 +28,6 @@ export const MANUAL_PRIVATE_EXECUTIONS = Object.freeze([
   "agent-chat.reopen-conversation",
   "agent-chat.track-delegated-work",
   "agents.agent-api-key",
-  "agents.ambiguous-cloud-code",
   "agents.change-manager",
   "agents.configure-required-agent",
   "agents.edit-instructions",
@@ -79,7 +78,6 @@ export const MANUAL_PRIVATE_EXECUTIONS = Object.freeze([
   "cli-operations.choose-cli-context",
   "cli-operations.create-from-cli",
   "cli-operations.export-document-cli",
-  "cli-operations.feedback-bundle",
   "cli-operations.inspect-run-cli",
   "cli-operations.owned-dev-instance",
   "spaces.agent-observability",
@@ -115,9 +113,7 @@ export const MANUAL_PRIVATE_EXECUTIONS = Object.freeze([
   "documents-artifacts.revise-delivery",
   "documents-artifacts.write-plan",
   "execution-environments.add-computer",
-  "execution-environments.assign-computer",
   "execution-environments.choose-capable-target",
-  "execution-environments.prepare-image",
   "execution-environments.test-computer",
   "gateways-profiles.connect-client",
   "gateways-profiles.create-gateway",
@@ -182,7 +178,6 @@ export const MANUAL_PRIVATE_EXECUTIONS = Object.freeze([
   "recovery.retry-exhausted",
   "recovery.source-action",
   "recovery.unknown-email-outcome",
-  "recovery.workspace-repair",
   "routines.create-daily-brief",
   "routines.manage-other-owner",
   "routines.pause-owned",
@@ -241,7 +236,6 @@ export const MANUAL_PRIVATE_EXECUTIONS = Object.freeze([
   "workspaces.prepare-repository",
   "workspaces.preview-service",
   "workspaces.private-repository-no-access",
-  "workspaces.recover-lost-sandbox",
 ].map(id => `chat-features.runner-opencode.local.${id}`));
 const sha = /^[0-9a-f]{40}$/;
 const execution = /^[A-Za-z0-9][A-Za-z0-9._-]{0,249}$/;

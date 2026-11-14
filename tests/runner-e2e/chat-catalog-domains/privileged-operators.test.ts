@@ -1,5 +1,4 @@
 import { expect, it } from "vitest";
-import type { FeedbackTraceBundle } from "../../../packages/shared/src/types/feedback.js";
 import { validInstalledReceipt } from "./privileged-installed.js";
 import { gradeInstalledUpdate } from "./privileged-update.js";
 import { gradeProvisionRuntime } from "./privileged-provision.js";
@@ -7,7 +6,6 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { boundedOwnedDevReason, gradeOwnedDev, outpostInstallations, sameInstallations, validOwnedDevResult } from "./privileged-owned-dev.js";
-import { gradeFeedbackBundle, interruptedBundleMatches, storedArchiveEntries, unescapeComposerMarkdown } from "./privileged-feedback.js";
 const base = { scenarioId: "owned", origin: "http://owned.invalid", spaceId: "space", leadId: "lead", state: {}, tasks: [], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical"], runs: [], reply: "" };
 it("requires explicit disposable published artifact and full dependency-tree pins", () => {
   const r = { schemaVersion: 1 as const, disposable: true as const, cli: "/owned/prefix/lib/node_modules/@outpost/cli/dist/index.js", cliSha256: "a".repeat(64), server: "/owned/server/dist/index.js", serverSha256: "b".repeat(64), installationTreeSha256: "c".repeat(64), serverPid: 123, version: "2026.1026.1", targetVersion: "2026.1026.2", targetIntegrity: "sha512-YWJjZA==" };
@@ -67,31 +65,4 @@ it("surfaces a bounded, redacted reason for an owned CLI child that exits", () =
   expect(reason).not.toContain(secret); expect(reason).not.toContain("\u001b"); expect(reason).not.toContain("noise 20");
   expect(reason.split("\n").length).toBeLessThanOrEqual(12);
   expect(boundedOwnedDevReason("x".repeat(5000), []).length).toBeLessThanOrEqual(1200);
-});
-it("binds retained interrupted work to actual original cancelled run, comment and events", () => {
-  const run = { id: "run", spaceId: "space", agentId: "morgan", status: "cancelled", eventCount: 1 };
-  const bundle: FeedbackTraceBundle = { traceId: "trace", exportId: null, issueIdentifier: "OWN-1", adapterType: "outpost_runner", captureStatus: "partial", notes: [], surface: null, rawAdapterTrace: null, normalizedAdapterTrace: null, privacy: null, integrity: {}, spaceId: "space", issueId: "task", envelope: { targetId: "comment" }, outpostRun: run, files: [{ path: "outpost/run.json", contentType: "application/json", encoding: "utf8", byteLength: 1, sha256: "x", source: "outpost_run", contents: JSON.stringify(run) }, { path: "outpost/run-events.json", contentType: "application/json", encoding: "utf8", byteLength: 1, sha256: "x", source: "outpost_run_events", contents: JSON.stringify([{ runId: "run", seq: 1 }]) }] };
-  const ids = { space: "space", issue: "task", run: "run", agent: "morgan", comment: "comment" };
-  expect(interruptedBundleMatches(bundle, ids)).toBe(true);
-  expect(interruptedBundleMatches({ ...bundle, outpostRun: { ...run, status: "failed" } }, ids)).toBe(false);
-  expect(interruptedBundleMatches(bundle, { ...ids, comment: "other" })).toBe(false);
-  expect(interruptedBundleMatches({ ...bundle, files: bundle.files.slice(0, 1) }, ids)).toBe(false);
-});
-it("requires actual private scoped bundle bytes and truthful local interruption report", () => {
-  const state = { agentReportStatus: 403, cliExecuted: true, workerWasReallyWaiting: true, cancelledBeforeCanonical: true, exportedInterruptionMatches: true, workerRunId: "run", originalTraceUnchanged: true, bundleWithinOwnedDirectory: true, exportSpaceMatches: true, exportIssueMatches: true, fullTraceBytesMatch: true, archiveBytesMatch: true, zipSha256: "a".repeat(64), zipBytes: 100, noPrivateCredentialBytes: true, remoteSharingUnchanged: true, bundlePublished: false, localOutputDirectory: "/owned/export", exportReport: { attributed: true, reply: "The local feedback and trace/events bundle is at /owned/export and retains the cancelled interrupted work." } };
-  const runs = [{ id: "run", status: "cancelled" }];
-  expect(gradeFeedbackBundle({ ...base, state, runs }).passed).toBe(true);
-  for (const delta of [{ agentReportStatus: 200 }, { archiveBytesMatch: false }, { remoteSharingUnchanged: false }, { noPrivateCredentialBytes: false }, { exportedInterruptionMatches: false }, { exportReport: { attributed: true, reply: "The bundle is in your downloads folder." } }, { exportReport: { attributed: false, reply: state.exportReport.reply } }]) expect(gradeFeedbackBundle({ ...base, state: { ...state, ...delta }, runs }).passed).toBe(false);
-  // A correct report that says what it did not do is not a publishing claim.
-  expect(gradeFeedbackBundle({ ...base, state: { ...state, exportReport: { attributed: true, reply: "Recorded the operator's bundle at /owned/export; it has not been published, uploaded or shared." } }, runs }).passed).toBe(true);
-});
-it("rejects arbitrary, truncated or path-escaping archive bytes", () => {
-  expect(() => storedArchiveEntries(Buffer.from("not zip"))).toThrow();
-  const header = Buffer.alloc(30); header.writeUInt32LE(0x04034b50); header.writeUInt16LE(5, 26); const bytes = Buffer.concat([header, Buffer.from("../xx"), Buffer.from([0x50, 0x4b, 0x01, 0x02])]);
-  expect(() => storedArchiveEntries(bytes)).toThrow();
-});
-it("matches a composer-escaped human receipt to the exact sent text", () => {
-  const sent = 'Facts:\n\n{"exportedContents":["scoped feedback vote","trace metadata"],"bytes":5}';
-  expect(unescapeComposerMarkdown('Facts:\n\n{"exportedContents":\\["scoped feedback vote","trace metadata"\\],"bytes":5}')).toBe(sent);
-  expect(unescapeComposerMarkdown('Facts:\n\n{"exportedContents":\\["other"\\],"bytes":5}')).not.toBe(sent);
 });

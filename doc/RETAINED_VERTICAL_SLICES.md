@@ -93,6 +93,9 @@ wiring, hosted full-stack qualification workflow, credential passthrough, and
 focused tests are removed. Generic local plugin support remains for retained
 extensions such as Campfire; historical environment schemas and managed-runtime
 internals remain until their dependencies are audited as a separate slice.
+The executable chat catalog also excludes Daytona target provisioning, image
+preparation, cloud assignment, destroyed-sandbox recovery, and remote workspace
+repair journeys. Their historical campaign results remain archival only.
 
 ### Status Cards
 
@@ -176,6 +179,13 @@ general-purpose plugin project generator or the `outpost plugin init` command.
 Generic plugin installation tests now create their minimal disposable package
 directly. Plugin lifecycle commands, local package installation, the plugin
 SDK, and Campfire remain supported.
+
+### Retired Feedback Export Journey
+
+The privileged feedback-bundle catalog journey targeted a removed CLI export
+command and trace types. Its scenario, implementation, focused assertions, and
+active catalog records are removed. Historical campaign results remain as
+archived measurement data rather than executable product coverage.
 
 ## Scope guard
 

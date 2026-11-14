@@ -82,7 +82,6 @@ const originalClockExecutionIds = new Set([
   "chat-features.runner-opencode.local.runs-adapters.reset-session",
   "chat-features.runner-opencode.local.tasks.website-without-project",
   "chat-features.runner-opencode.local.inbox-search.archive-partial-failure",
-  "chat-features.runner-opencode.local.cli-operations.feedback-bundle",
   "chat-features.runner-opencode.local.cli-operations.inspect-run-cli",
   "chat-features.runner-opencode.local.cli-operations.owned-dev-instance",
   "chat-features.runner-opencode.local.developer-labs.component-reference",

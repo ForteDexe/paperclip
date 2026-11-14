@@ -57,20 +57,6 @@ scenarios:
       state. One accepted retry rechecks execution gates and preserves earlier attempt evidence.
       The person is not asked to certify internal infrastructure facts, and failure remains
       visible if the new attempt cannot start.
-  - id: recovery.workspace-repair
-    capabilities:
-      - recovery/workspace
-      - workspaces/files-git
-    context: >-
-      Workspace export failed with newer destination edits present; the board owns
-      reconciliation.
-    query: >-
-      Recover the website files without losing my newer edits.
-    expected_outcome: >-
-      The supported repair path compares retained sources and current destination under the
-      authorized human decision where required. Newer files are preserved and uncertain sources
-      remain held until resolved. Chat distinguishes recovered files from still-lost work and
-      never asks the agent to attest a board-only reconciliation.
   - id: recovery.unknown-email-outcome
     capabilities:
       - recovery/unknown-outcome

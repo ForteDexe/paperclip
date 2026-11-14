@@ -43,30 +43,6 @@ it("resolves only the selected provider references and fingerprints names rather
   const identity = JSON.stringify(chatPrivateInputNameIdentity("selected", env));
   expect(identity).toContain("OUTPOST_CHAT_EVAL_NOTION_AUTH"); expect(identity).not.toContain("notion-private"); expect(identity).not.toContain("test-space");
 });
-it("stages only an exact declared runtime metadata contract and standard key without dummy provider refs", () => {
-  const root = fixture(), configFile = path.join(root, "runtime.json");
-  const scenarioId = "execution-environments.prepare-image"; const spec = runtimePrivateRequirements[scenarioId];
-  const descriptor = { scenarioId, externalInput: { provider: spec.provider, fields: spec.fields }, requiredCredentials: spec.credentials };
-  const runtimeExecution = { ...execution, task: { id: scenarioId } } as MatrixExecution;
-  const prerequisites = { imageDigest: "sha256:synthetic-image-pin", imageRef: "owned-image", region: "test-region", disposableNamespace: "owned-test-namespace", toolsManifest: "private-tools-reference", unrelated: "not-selected" };
-  writeFileSync(configFile, JSON.stringify({ schemaVersion: 1, providers: { daytona: { disposable: true, resourceIds: ["owned-test-namespace"], credentialEnv: [], prerequisites } } }), { mode: 0o600 });
-  const staged = stageChatPrivateInputs({ execution: runtimeExecution, descriptor, privateDir: root, secrets: [], env: { OUTPOST_CHAT_CATALOG_EXTERNAL_CONFIG: configFile, DAYTONA_API_KEY: "selected-daytona-key", ANTHROPIC_API_KEY: "unrelated-key" } });
-  const env = { [CHAT_PRIVATE_INPUTS_ENV]: staged.filename, OUTPOST_RUNNER_E2E_TEMP_ROOT: root };
-  const inputs = readChatPrivateInputs("selected", [], env);
-  expect(inputs.credentials.DAYTONA_API_KEY).toBe("selected-daytona-key"); expect(inputs.credentials.ANTHROPIC_API_KEY).toBeUndefined();
-  expect(JSON.stringify(inputs.configuration("external-provider"))).not.toContain("not-selected");
-  const publicIdentity = JSON.stringify(chatPrivateInputNameIdentity("selected", env));
-  expect(publicIdentity).toContain("imageDigest"); expect(publicIdentity).not.toContain("synthetic-image-pin"); expect(publicIdentity).not.toContain("selected-daytona-key");
-  expect(() => stageChatPrivateInputs({ execution, descriptor, privateDir: root, secrets: [], env: {} })).toThrow("another scenario");
-});
-it("rejects undeclared runtime scenarios and fields before resolving or writing private values", () => {
-  const root = fixture(); const spec = runtimePrivateRequirements["execution-environments.prepare-image"];
-  for (const descriptor of [
-    { scenarioId: "tasks.create-backlog", externalInput: { provider: spec.provider, fields: spec.fields }, requiredCredentials: spec.credentials },
-    { scenarioId: "execution-environments.prepare-image", externalInput: { provider: spec.provider, fields: [...spec.fields, "arbitraryCommand"] }, requiredCredentials: spec.credentials },
-    { scenarioId: "execution-environments.prepare-image", externalInput: { provider: spec.provider, fields: spec.fields }, requiredCredentials: [] },
-  ]) expect(() => stageChatPrivateInputs({ execution: { ...execution, task: { id: descriptor.scenarioId } } as MatrixExecution, descriptor, privateDir: root, secrets: [], env: {} })).toThrow("exact selected canonical case");
-});
 it("resolves only the finite SSH private key reference and refuses an alternate ambient name", () => {
   const root = fixture(), configFile = path.join(root, "ssh.json"); const scenarioId = "execution-environments.test-computer"; const spec = runtimePrivateRequirements[scenarioId];
   const descriptor = { scenarioId, externalInput: { provider: spec.provider, fields: spec.fields }, requiredCredentials: spec.credentials };

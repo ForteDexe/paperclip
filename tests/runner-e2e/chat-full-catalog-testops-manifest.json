@@ -6,7 +6,7 @@
   "model": "openrouter/deepseek/deepseek-v4.1-flash-1017",
   "source": {
     "descriptorPath": "tests/runner-e2e/chat-catalog-descriptors.json",
-    "descriptorSha256": "379c42a70c01c004ad668b3574ab1734f941aa02c085a947a9109d3a0c7f5775",
+    "descriptorSha256": "ddf40c07e92a073d0456003ec16d17d8b3b3ed9062fa7765115b2809011f3e85",
     "scenarioFiles": [
       {
         "path": "tests/runner-e2e/chat-scenarios/access.yaml",
@@ -148,8 +148,8 @@
     "timeoutPolicy": "expanded task turnTimeoutMs=0; descriptor turn limit retained as declaredTurnTimeoutMs; legacy tasks retain120000",
     "sourceCounts": {
       "areas": 34,
-      "scenarios": 235,
-      "descriptorRows": 233,
+      "scenarios": 229,
+      "descriptorRows": 227,
       "legacyRows": 2,
       "declaredGapRows": 5,
       "requiredCredentialRows": 18,
@@ -168,7 +168,7 @@
       "baseTargetSha": "3b66c3c144360ddf32714a0742fd774b8ceafb16",
       "previousTargetSha": "ab2019e976076ec0eb60b026844f3d9211cb0208",
       "definitionSourceSha": "de0941835cc8f0d01c982574ee258e110babdbeb",
-      "candidateDescriptorSha256": "a5c63f17b7dd3d8f7332af316dc440dd2834a1026b95716a6270bbbc370f9d3c",
+      "candidateDescriptorSha256": "60f248179c988ed892e747c7d6ad056e76c2bbba8dd1e2a2a58baf52a9a41739",
       "changedDefinitionFiles": [
         {
           "path": "tests/runner-e2e/chat-scenarios/spaces.yaml",
@@ -3036,68 +3036,6 @@
       "boundaryTarget": null
     },
     {
-      "key": "agents.ambiguous-cloud-code",
-      "scenario": "agents.ambiguous-cloud-code",
-      "canonicalScenario": "agents.ambiguous-cloud-code",
-      "name": "agents.ambiguous-cloud-code",
-      "title": "agents.ambiguous-cloud-code",
-      "area": "agents",
-      "executionId": "chat-features.runner-opencode.local.agents.ambiguous-cloud-code",
-      "fullName": "outpost.Product E2E.chat-features.agents.ambiguous-cloud-code",
-      "aliases": [],
-      "minimumRuns": 1,
-      "maximumRuns": 1,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 900000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [
-        "ANTHROPIC_API_KEY",
-        "DAYTONA_API_KEY"
-      ],
-      "externalInput": {
-        "provider": "daytona",
-        "fields": [
-          "imageDigest",
-          "imageRef",
-          "region",
-          "disposableNamespace",
-          "qualifiedHarness"
-        ]
-      },
-      "installedSource": null,
-      "originalQuery": "Create me an engineer configured for cloud code.",
-      "expectedOutcome": "The agent asks whether the person means Claude Code or an agent running on a cloud computer, using a short concrete choice. It retains the role request and waits for that consequential selection before committing a harness or execution target; it does not ask the person to supply internal adapter identifiers.",
-      "originalContext": "Both Claude Code and cloud execution are available, and no earlier conversation resolves which the person means.",
-      "capabilities": [
-        "agents/create",
-        "runs-adapters/availability"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.runtime.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/runtime-cloud-choice.ts",
-        "chat-catalog-domains/runtime-daytona-target.ts",
-        "chat-catalog-domains/runtime-private.ts",
-        "chat-catalog-domains/runtime-claude-private.ts",
-        "chat-catalog-domains/runtime-claude-private-worker.ts",
-        "chat-catalog-domains/runtime-support.ts",
-        "chat-catalog-domains/external-private-browser.ts",
-        "chat-catalog-domains/external-private-browser-worker.ts",
-        "live-fixtures.ts",
-        "../../packages/plugins/sandbox-providers/daytona/src/plugin.ts",
-        "chat-scenarios/agents.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
       "key": "agents.change-manager",
       "scenario": "agents.change-manager",
       "canonicalScenario": "agents.change-manager",
@@ -5673,54 +5611,6 @@
       "boundaryTarget": null
     },
     {
-      "key": "cli-operations.feedback-bundle",
-      "scenario": "cli-operations.feedback-bundle",
-      "canonicalScenario": "cli-operations.feedback-bundle",
-      "name": "cli-operations.feedback-bundle",
-      "title": "cli-operations.feedback-bundle",
-      "area": "cli-operations",
-      "executionId": "chat-features.runner-opencode.local.cli-operations.feedback-bundle",
-      "fullName": "outpost.Product E2E.chat-features.cli-operations.feedback-bundle",
-      "aliases": [],
-      "minimumRuns": 3,
-      "maximumRuns": 3,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 900000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Export the feedback and traces for this test so I can review them locally.",
-      "expectedOutcome": "The authorized operator export produces an inspectable local bundle with the requested report scope and retained failure evidence. The response identifies its location and contents without changing remote sharing or publishing private traces. Agent chat explains the required human identity instead of bypassing report authorization.",
-      "originalContext": "A human with space report access requests a local export into an owned directory; ordinary agent access is insufficient.",
-      "capabilities": [
-        "cli-operations/feedback-export",
-        "activity/agent-commentary"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.privileged.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/privileged-support.ts",
-        "chat-catalog-domains/privileged-feedback.ts",
-        "chat-scenarios/cli-operations.yaml",
-        "chat-catalog-domains/privileged-cli-support.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-catalog-domains/runtime-busy-worker.ts",
-        "../../cli/src/index.ts",
-        "../../cli/src/commands/client/feedback.ts",
-        "../../server/src/services/feedback.ts"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
       "key": "cli-operations.inspect-run-cli",
       "scenario": "cli-operations.inspect-run-cli",
       "canonicalScenario": "cli-operations.inspect-run-cli",
@@ -7605,69 +7495,6 @@
       "boundaryTarget": null
     },
     {
-      "key": "execution-environments.assign-computer",
-      "scenario": "execution-environments.assign-computer",
-      "canonicalScenario": "execution-environments.assign-computer",
-      "name": "execution-environments.assign-computer",
-      "title": "execution-environments.assign-computer",
-      "area": "execution-environments",
-      "executionId": "chat-features.runner-opencode.local.execution-environments.assign-computer",
-      "fullName": "outpost.Product E2E.chat-features.execution-environments.assign-computer",
-      "aliases": [],
-      "minimumRuns": 1,
-      "maximumRuns": 1,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 900000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [
-        "DAYTONA_API_KEY"
-      ],
-      "externalInput": {
-        "provider": "daytona",
-        "fields": [
-          "imageDigest",
-          "imageRef",
-          "region",
-          "disposableNamespace",
-          "qualifiedHarness"
-        ]
-      },
-      "installedSource": null,
-      "originalQuery": "Have Morgan use our cloud computer for future work.",
-      "expectedOutcome": "The permitted agent configuration binds Morgan to the intended qualified target and persists after reload. Chat explains that future admission uses the new target while an active run remains subject to lifecycle rules. Unsupported or protected changes receive their own required human step rather than a silent fallback.",
-      "originalContext": "Morgan and a qualified cloud computer belong to the same space; the CEO may save this configuration and no protected change remains.",
-      "capabilities": [
-        "execution-environments/assignment",
-        "agents/create"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.runtime.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/runtime-computers-cloud.ts",
-        "chat-catalog-domains/runtime-daytona-target.ts",
-        "chat-catalog-domains/runtime-private.ts",
-        "chat-catalog-domains/runtime-support.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-scenarios/execution-environments.yaml",
-        "../../server/src/routes/environments.ts",
-        "../../server/src/routes/agents.ts",
-        "../../server/src/services/environment-probe.ts",
-        "../../server/src/services/environment-custom-images.ts",
-        "../../ui/src/pages/SpaceEnvironments.tsx",
-        "chat-catalog-domains/external-secret-scan.ts",
-        "run-observations.ts"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
       "key": "execution-environments.choose-capable-target",
       "scenario": "execution-environments.choose-capable-target",
       "canonicalScenario": "execution-environments.choose-capable-target",
@@ -7708,72 +7535,6 @@
         "../../packages/shared/src/environment-support.ts",
         "../../server/src/routes/environments.ts",
         "../../ui/src/pages/SpaceEnvironments.tsx"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "execution-environments.prepare-image",
-      "scenario": "execution-environments.prepare-image",
-      "canonicalScenario": "execution-environments.prepare-image",
-      "name": "execution-environments.prepare-image",
-      "title": "execution-environments.prepare-image",
-      "area": "execution-environments",
-      "executionId": "chat-features.runner-opencode.local.execution-environments.prepare-image",
-      "fullName": "outpost.Product E2E.chat-features.execution-environments.prepare-image",
-      "aliases": [],
-      "minimumRuns": 2,
-      "maximumRuns": 2,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 1500000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [
-        "DAYTONA_API_KEY"
-      ],
-      "externalInput": {
-        "provider": "daytona",
-        "fields": [
-          "imageDigest",
-          "imageRef",
-          "region",
-          "disposableNamespace",
-          "toolsManifest"
-        ]
-      },
-      "installedSource": null,
-      "originalQuery": "Make a reusable cloud image with the tools our website agents need.",
-      "expectedOutcome": "The agent helps specify the tool requirements and points the authorized operator to the supported image preparation path. The resulting journey must inspect preparation status and a usable pinned image before claiming readiness. Ordinary chat cannot manufacture provider provisioning rights or treat an image name as a qualified runtime.",
-      "originalContext": "A sandbox provider supports custom images; preparing one requires operator administration.",
-      "capabilities": [
-        "execution-environments/images"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.runtime.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/runtime-computers-cloud.ts",
-        "chat-catalog-domains/runtime-daytona-target.ts",
-        "chat-catalog-domains/runtime-private.ts",
-        "chat-catalog-domains/runtime-support.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-scenarios/execution-environments.yaml",
-        "../../server/src/routes/environments.ts",
-        "../../server/src/routes/agents.ts",
-        "../../server/src/services/environment-probe.ts",
-        "../../server/src/services/environment-custom-images.ts",
-        "../../ui/src/pages/SpaceEnvironments.tsx",
-        "chat-catalog-domains/external-secret-scan.ts",
-        "run-observations.ts",
-        "chat-catalog-domains/runtime-computers-image-private.ts",
-        "chat-catalog-domains/runtime-computers-image-worker.ts",
-        "../../server/src/realtime/environment-custom-image-terminal-ws.ts",
-        "../../packages/shared/src/validators/environment-custom-images.ts"
       ],
       "screenshot": "final-state.png",
       "evidenceKind": "private-final-state-png",
@@ -10802,64 +10563,6 @@
       "boundaryTarget": null
     },
     {
-      "key": "recovery.workspace-repair",
-      "scenario": "recovery.workspace-repair",
-      "canonicalScenario": "recovery.workspace-repair",
-      "name": "recovery.workspace-repair",
-      "title": "recovery.workspace-repair",
-      "area": "recovery",
-      "executionId": "chat-features.runner-opencode.local.recovery.workspace-repair",
-      "fullName": "outpost.Product E2E.chat-features.recovery.workspace-repair",
-      "aliases": [],
-      "minimumRuns": 3,
-      "maximumRuns": 3,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 1500000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [
-        "DAYTONA_API_KEY"
-      ],
-      "externalInput": {
-        "provider": "daytona",
-        "fields": [
-          "imageDigest",
-          "imageRef",
-          "region",
-          "disposableNamespace",
-          "qualifiedHarness"
-        ]
-      },
-      "installedSource": null,
-      "originalQuery": "Recover the website files without losing my newer edits.",
-      "expectedOutcome": "The supported repair path compares retained sources and current destination under the authorized human decision where required. Newer files are preserved and uncertain sources remain held until resolved. Chat distinguishes recovered files from still-lost work and never asks the agent to attest a board-only reconciliation.",
-      "originalContext": "Workspace export failed with newer destination edits present; the board owns reconciliation.",
-      "capabilities": [
-        "recovery/workspace",
-        "workspaces/files-git"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.runtime.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/runtime-workspace-repair.ts",
-        "chat-catalog-domains/runtime-daytona-target.ts",
-        "chat-catalog-domains/runtime-support.ts",
-        "registered-artifact.ts",
-        "../../server/src/services/workspace-recovery.ts",
-        "../../server/src/services/native-runtime/native-workspace-sync.ts",
-        "../../ui/src/components/WorkspaceExportRecovery.tsx",
-        "chat-scenarios/recovery.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
       "key": "routines.create-daily-brief",
       "scenario": "routines.create-daily-brief",
       "canonicalScenario": "routines.create-daily-brief",
@@ -13568,67 +13271,6 @@
         "../../ui/src/features/connections/ConnectionIntentInteractionBody.tsx",
         "../../ui/src/features/connections/ConnectionSetupFlow.tsx",
         "../../server/src/routes/tool-access.ts"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "workspaces.recover-lost-sandbox",
-      "scenario": "workspaces.recover-lost-sandbox",
-      "canonicalScenario": "workspaces.recover-lost-sandbox",
-      "name": "workspaces.recover-lost-sandbox",
-      "title": "workspaces.recover-lost-sandbox",
-      "area": "workspaces",
-      "executionId": "chat-features.runner-opencode.local.workspaces.recover-lost-sandbox",
-      "fullName": "outpost.Product E2E.chat-features.workspaces.recover-lost-sandbox",
-      "aliases": [],
-      "minimumRuns": 4,
-      "maximumRuns": 4,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 1800000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [
-        "DAYTONA_API_KEY"
-      ],
-      "externalInput": {
-        "provider": "daytona",
-        "fields": [
-          "imageDigest",
-          "imageRef",
-          "region",
-          "disposableNamespace",
-          "qualifiedHarness"
-        ]
-      },
-      "installedSource": null,
-      "originalQuery": "Continue from whatever files survived that failed website run.",
-      "expectedOutcome": "The response directs the authorized human to Continue from saved sources with the available attachments and known losses. The harness reconstructs through normal fresh-session admission after the decision. The old failure remains visible, newer work is preserved and chat does not claim lost files were recovered without evidence.",
-      "originalContext": "A historical export failed and its exact sandbox was destroyed; surviving task attachments exist and only the board can choose reconstruction.",
-      "capabilities": [
-        "workspaces/closure",
-        "recovery/workspace"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.runtime.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/runtime-lost-sandbox.ts",
-        "chat-catalog-domains/runtime-workspace-repair.ts",
-        "chat-catalog-domains/runtime-daytona-target.ts",
-        "chat-catalog-domains/runtime-daytona-destroy.ts",
-        "chat-catalog-domains/runtime-daytona-destroy-worker.ts",
-        "remote-native-bootstrap.ts",
-        "registered-artifact.ts",
-        "../../server/src/services/native-runtime/native-workspace-reconstruction.ts",
-        "../../server/src/services/workspace-recovery.ts",
-        "../../ui/src/components/WorkspaceReconstructionRecovery.tsx",
-        "chat-scenarios/workspaces.yaml"
       ],
       "screenshot": "final-state.png",
       "evidenceKind": "private-final-state-png",

@@ -47,29 +47,3 @@ scenarios:
       authorized run. A failed login or missing runtime is reported as the concrete
       prerequisite. A successful local probe or reachable host alone is not represented as
       qualification of the remote execution environment.
-  - id: execution-environments.assign-computer
-    capabilities:
-      - execution-environments/assignment
-      - agents/create
-    context: >-
-      Morgan and a qualified cloud computer belong to the same space; the CEO may save this
-      configuration and no protected change remains.
-    query: >-
-      Have Morgan use our cloud computer for future work.
-    expected_outcome: >-
-      The permitted agent configuration binds Morgan to the intended qualified target and
-      persists after reload. Chat explains that future admission uses the new target while an
-      active run remains subject to lifecycle rules. Unsupported or protected changes receive
-      their own required human step rather than a silent fallback.
-  - id: execution-environments.prepare-image
-    capabilities:
-      - execution-environments/images
-    context: >-
-      A sandbox provider supports custom images; preparing one requires operator administration.
-    query: >-
-      Make a reusable cloud image with the tools our website agents need.
-    expected_outcome: >-
-      The agent helps specify the tool requirements and points the authorized operator to the
-      supported image preparation path. The resulting journey must inspect preparation status
-      and a usable pinned image before claiming readiness. Ordinary chat cannot manufacture
-      provider provisioning rights or treat an image name as a qualified runtime.

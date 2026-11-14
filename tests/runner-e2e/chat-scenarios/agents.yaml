@@ -61,20 +61,6 @@ scenarios:
       path. No agent or disguised delegated create is created. The response distinguishes a
       denied permission from a missing provider account and does not claim that the CEO title
       overrides access policy.
-  - id: agents.ambiguous-cloud-code
-    capabilities:
-      - agents/create
-      - runs-adapters/availability
-    context: >-
-      Both Claude Code and cloud execution are available, and no earlier conversation resolves
-      which the person means.
-    query: >-
-      Create me an engineer configured for cloud code.
-    expected_outcome: >-
-      The agent asks whether the person means Claude Code or an agent running on a cloud
-      computer, using a short concrete choice. It retains the role request and waits for that
-      consequential selection before committing a harness or execution target; it does not ask
-      the person to supply internal adapter identifiers.
   - id: agents.edit-instructions
     capabilities:
       - agents/instructions

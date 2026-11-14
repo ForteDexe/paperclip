@@ -17,8 +17,8 @@ test('the manifest joins every retained source YAML scenario without importing a
     assert.deepEqual(parsed.errors, []);
     return parsed.toJS().scenarios;
   });
-  assert.equal(scenarios.length, 235);
-  assert.equal(fullCatalogCases.length, 235);
+  assert.equal(scenarios.length, 229);
+  assert.equal(fullCatalogCases.length, 229);
   assert.deepEqual(fullCatalogCases.map(value => value.key).sort(), scenarios.map(value => value.id).sort());
   for (const scenario of scenarios) {
     const actual = row(scenario.id);
@@ -55,15 +55,15 @@ test('source bounds retain legacy and pilot runs, native zero turn policy and or
   }
   assert.equal(row('access.sign-in').maximumRuns, 0);
   assert.equal(row('assistant-connections.use-scoped-client').maximumRuns, 0);
-  assert.equal(fullCatalogCases.filter(value => value.turnTimeoutMs === 0).length, 233);
+  assert.equal(fullCatalogCases.filter(value => value.turnTimeoutMs === 0).length, 227);
 });
 
 test('definition gaps and private prerequisites remain explicit instead of inferred runnable passes', () => {
   assert.deepEqual(fullCatalogCases.filter(value => value.coverageGaps.length).map(value => value.key), [
     'activity.routine-audit', 'agents.restore-instructions', 'budgets-costs.subscription-fees',
   ]);
-  assert.equal(fullCatalogCases.filter(value => value.requiredCredentials.length).length, 18);
-  assert.equal(fullCatalogCases.filter(value => value.externalInput !== null).length, 37);
+  assert.equal(fullCatalogCases.filter(value => value.requiredCredentials.length).length, 13);
+  assert.equal(fullCatalogCases.filter(value => value.externalInput !== null).length, 32);
   assert.equal(row('skills.enable-for-agent').coverageGaps.length, 0);
 });
 
@@ -81,7 +81,7 @@ test('source identities and descriptor provenance are stable, deeply frozen and 
   assert.equal(catalogTargetSha, manifest.targetSha);
   assert.equal(catalogManifestSha256, createHash('sha256').update(bytes).digest('hex'));
   assert.equal(fullCatalogPlanName, 'Chat feature catalog — OpenCode 1017 (candidate)');
-  assert.equal(new Set(fullCatalogCases.map(value => value.fullName)).size, 235);
+  assert.equal(new Set(fullCatalogCases.map(value => value.fullName)).size, 229);
   assert.equal(manifest.source.scenarioFiles.length, 34);
   assert.equal(manifest.metadataSourceSha, 'de0941835cc8f0d01c982574ee258e110babdbeb');
   assert.throws(() => { fullCatalogCases[0].coverageGaps.push('changed'); }, TypeError);
@@ -110,8 +110,8 @@ test('repair source metadata binds the corrected candidate and explicit changed 
   const descriptorBytes = readFileSync(new URL(repair.candidateDescriptorSnapshot, import.meta.url));
   assert.equal(createHash('sha256').update(descriptorBytes).digest('hex'), repair.candidateDescriptorSha256);
   const declarations = JSON.parse(descriptorBytes);
-  assert.equal(declarations.length, 233);
-  assert.equal(new Set(declarations.map(value => value.scenarioId)).size, 233);
+  assert.equal(declarations.length, 227);
+  assert.equal(new Set(declarations.map(value => value.scenarioId)).size, 227);
   assert.deepEqual(repair.changedFields.map(value => [value.key, value.field]), [
   [
     "activity.work-timeline",

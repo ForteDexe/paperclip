@@ -419,44 +419,6 @@
     "exportName": "runtimeAgentKeyCases"
   },
   {
-    "requiredCredentials": [
-      "ANTHROPIC_API_KEY",
-      "DAYTONA_API_KEY"
-    ],
-    "externalInput": {
-      "provider": "daytona",
-      "fields": [
-        "imageDigest",
-        "imageRef",
-        "region",
-        "disposableNamespace",
-        "qualifiedHarness"
-      ]
-    },
-    "scenarioId": "agents.ambiguous-cloud-code",
-    "sourceFiles": [
-      "chat-catalog-domains/runtime-cloud-choice.ts",
-      "chat-catalog-domains/runtime-daytona-target.ts",
-      "chat-catalog-domains/runtime-private.ts",
-      "chat-catalog-domains/runtime-claude-private.ts",
-      "chat-catalog-domains/runtime-claude-private-worker.ts",
-      "chat-catalog-domains/runtime-support.ts",
-      "chat-catalog-domains/external-private-browser.ts",
-      "chat-catalog-domains/external-private-browser-worker.ts",
-      "live-fixtures.ts",
-      "../../packages/plugins/sandbox-providers/daytona/src/plugin.ts",
-      "chat-scenarios/agents.yaml"
-    ],
-    "oracleVersion": "outpost.chat-catalog.runtime.v2",
-    "coverageGaps": [],
-    "expectedRunCount": 1,
-    "turnTimeoutMs": 120000,
-    "attemptTimeoutMs": 900000,
-    "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/runtime-cloud-choice.js",
-    "exportName": "runtimeCloudChoiceCases"
-  },
-  {
     "scenarioId": "agents.change-manager",
     "sourceFiles": [
       "chat-catalog-domains/runtime-support.ts",
@@ -1891,36 +1853,6 @@
     "exportName": "privilegedDocumentCliCases"
   },
   {
-    "scenarioId": "cli-operations.feedback-bundle",
-    "sourceFiles": [
-      "chat-catalog-domains/privileged-support.ts",
-      "chat-catalog-domains/privileged-feedback.ts",
-      "chat-scenarios/cli-operations.yaml",
-      "chat-catalog-domains/privileged-cli-support.ts",
-      "chat-catalog-domains/identity-support.ts",
-      "chat-catalog-domains/runtime-busy-worker.ts",
-      "../../cli/src/index.ts",
-      "../../cli/src/commands/client/feedback.ts",
-      "../../server/src/services/feedback.ts"
-    ],
-    "oracleVersion": "outpost.chat-catalog.privileged.v1",
-    "coverageGaps": [],
-    "expectedRunCount": 3,
-    "expectedHumanMessageCount": 2,
-    "turnTimeoutMs": 120000,
-    "attemptTimeoutMs": 900000,
-    "authentication": "human-session",
-    "runPolicy": {
-      "kind": "terminal-counts",
-      "terminalStatusCounts": {
-        "succeeded": 2,
-        "cancelled": 1
-      }
-    },
-    "modulePath": "./chat-catalog-domains/privileged-feedback.js",
-    "exportName": "privilegedFeedbackCases"
-  },
-  {
     "scenarioId": "cli-operations.inspect-run-cli",
     "sourceFiles": [
       "chat-catalog-domains/privileged-support.ts",
@@ -2947,45 +2879,6 @@
     "exportName": "runtimeComputerSshCases"
   },
   {
-    "requiredCredentials": [
-      "DAYTONA_API_KEY"
-    ],
-    "externalInput": {
-      "provider": "daytona",
-      "fields": [
-        "imageDigest",
-        "imageRef",
-        "region",
-        "disposableNamespace",
-        "qualifiedHarness"
-      ]
-    },
-    "scenarioId": "execution-environments.assign-computer",
-    "sourceFiles": [
-      "chat-catalog-domains/runtime-computers-cloud.ts",
-      "chat-catalog-domains/runtime-daytona-target.ts",
-      "chat-catalog-domains/runtime-private.ts",
-      "chat-catalog-domains/runtime-support.ts",
-      "chat-catalog-domains/identity-support.ts",
-      "chat-scenarios/execution-environments.yaml",
-      "../../server/src/routes/environments.ts",
-      "../../server/src/routes/agents.ts",
-      "../../server/src/services/environment-probe.ts",
-      "../../server/src/services/environment-custom-images.ts",
-      "../../ui/src/pages/SpaceEnvironments.tsx",
-      "chat-catalog-domains/external-secret-scan.ts",
-      "run-observations.ts"
-    ],
-    "oracleVersion": "outpost.chat-catalog.runtime.v2",
-    "coverageGaps": [],
-    "expectedRunCount": 1,
-    "turnTimeoutMs": 120000,
-    "attemptTimeoutMs": 900000,
-    "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/runtime-computers-cloud.js",
-    "exportName": "runtimeComputerCloudCases"
-  },
-  {
     "scenarioId": "execution-environments.choose-capable-target",
     "sourceFiles": [
       "chat-catalog-domains/runtime-capability-choice.ts",
@@ -3005,50 +2898,6 @@
     "authentication": "human-session",
     "modulePath": "./chat-catalog-domains/runtime-computers-ssh.js",
     "exportName": "runtimeComputerSshCases"
-  },
-  {
-    "requiredCredentials": [
-      "DAYTONA_API_KEY"
-    ],
-    "externalInput": {
-      "provider": "daytona",
-      "fields": [
-        "imageDigest",
-        "imageRef",
-        "region",
-        "disposableNamespace",
-        "toolsManifest"
-      ]
-    },
-    "scenarioId": "execution-environments.prepare-image",
-    "sourceFiles": [
-      "chat-catalog-domains/runtime-computers-cloud.ts",
-      "chat-catalog-domains/runtime-daytona-target.ts",
-      "chat-catalog-domains/runtime-private.ts",
-      "chat-catalog-domains/runtime-support.ts",
-      "chat-catalog-domains/identity-support.ts",
-      "chat-scenarios/execution-environments.yaml",
-      "../../server/src/routes/environments.ts",
-      "../../server/src/routes/agents.ts",
-      "../../server/src/services/environment-probe.ts",
-      "../../server/src/services/environment-custom-images.ts",
-      "../../ui/src/pages/SpaceEnvironments.tsx",
-      "chat-catalog-domains/external-secret-scan.ts",
-      "run-observations.ts",
-      "chat-catalog-domains/runtime-computers-image-private.ts",
-      "chat-catalog-domains/runtime-computers-image-worker.ts",
-      "../../server/src/realtime/environment-custom-image-terminal-ws.ts",
-      "../../packages/shared/src/validators/environment-custom-images.ts"
-    ],
-    "oracleVersion": "outpost.chat-catalog.runtime.v2",
-    "coverageGaps": [],
-    "expectedRunCount": 2,
-    "expectedHumanMessageCount": 2,
-    "turnTimeoutMs": 120000,
-    "attemptTimeoutMs": 1500000,
-    "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/runtime-computers-cloud.js",
-    "exportName": "runtimeComputerCloudCases"
   },
   {
     "requiredCredentials": [],
@@ -4545,47 +4394,6 @@
     "exportName": "runtimeEmailRecoveryCases"
   },
   {
-    "requiredCredentials": [
-      "DAYTONA_API_KEY"
-    ],
-    "externalInput": {
-      "provider": "daytona",
-      "fields": [
-        "imageDigest",
-        "imageRef",
-        "region",
-        "disposableNamespace",
-        "qualifiedHarness"
-      ]
-    },
-    "scenarioId": "recovery.workspace-repair",
-    "sourceFiles": [
-      "chat-catalog-domains/runtime-workspace-repair.ts",
-      "chat-catalog-domains/runtime-daytona-target.ts",
-      "chat-catalog-domains/runtime-support.ts",
-      "registered-artifact.ts",
-      "../../server/src/services/workspace-recovery.ts",
-      "../../server/src/services/native-runtime/native-workspace-sync.ts",
-      "../../ui/src/components/WorkspaceExportRecovery.tsx",
-      "chat-scenarios/recovery.yaml"
-    ],
-    "oracleVersion": "outpost.chat-catalog.runtime.v2",
-    "coverageGaps": [],
-    "expectedRunCount": 3,
-    "expectedHumanMessageCount": 2,
-    "turnTimeoutMs": 120000,
-    "attemptTimeoutMs": 1500000,
-    "authentication": "human-session",
-    "setupPolicy": {
-      "readiness": "preserve-scenario",
-      "invariantCheckIds": [
-        "actual-board-owned-failed-export-newer-destination-held"
-      ]
-    },
-    "modulePath": "./chat-catalog-domains/runtime-workspace-repair.js",
-    "exportName": "runtimeWorkspaceRepairCases"
-  },
-  {
     "browserTimezone": "America/Chicago",
     "scenarioId": "routines.create-daily-brief",
     "sourceFiles": [
@@ -6035,56 +5843,5 @@
     ],
     "modulePath": "./chat-catalog-domains/runtime-workspace-repositories.js",
     "exportName": "runtimeWorkspaceRepositoryCases"
-  },
-  {
-    "requiredCredentials": [
-      "DAYTONA_API_KEY"
-    ],
-    "externalInput": {
-      "provider": "daytona",
-      "fields": [
-        "imageDigest",
-        "imageRef",
-        "region",
-        "disposableNamespace",
-        "qualifiedHarness"
-      ]
-    },
-    "scenarioId": "workspaces.recover-lost-sandbox",
-    "sourceFiles": [
-      "chat-catalog-domains/runtime-lost-sandbox.ts",
-      "chat-catalog-domains/runtime-workspace-repair.ts",
-      "chat-catalog-domains/runtime-daytona-target.ts",
-      "chat-catalog-domains/runtime-daytona-destroy.ts",
-      "chat-catalog-domains/runtime-daytona-destroy-worker.ts",
-      "remote-native-bootstrap.ts",
-      "registered-artifact.ts",
-      "../../server/src/services/native-runtime/native-workspace-reconstruction.ts",
-      "../../server/src/services/workspace-recovery.ts",
-      "../../ui/src/components/WorkspaceReconstructionRecovery.tsx",
-      "chat-scenarios/workspaces.yaml"
-    ],
-    "oracleVersion": "outpost.chat-catalog.runtime.v2",
-    "coverageGaps": [],
-    "expectedRunCount": 4,
-    "expectedHumanMessageCount": 2,
-    "turnTimeoutMs": 120000,
-    "attemptTimeoutMs": 1800000,
-    "authentication": "human-session",
-    "setupPolicy": {
-      "readiness": "preserve-scenario",
-      "invariantCheckIds": [
-        "real-failed-destroyed-sandbox-and-attributed-surviving-attachment"
-      ]
-    },
-    "runPolicy": {
-      "kind": "terminal-counts",
-      "terminalStatusCounts": {
-        "failed": 1,
-        "succeeded": 3
-      }
-    },
-    "modulePath": "./chat-catalog-domains/runtime-lost-sandbox.js",
-    "exportName": "runtimeLostSandboxCases"
   }
 ]

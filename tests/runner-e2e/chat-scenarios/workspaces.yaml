@@ -83,17 +83,3 @@ scenarios:
       and source references. Chat explains the supported reopen or retrieval path and verifies
       the actual state. Closure is not treated as deleting files, force-reconciling a branch or
       cancelling another task's workspace.
-  - id: workspaces.recover-lost-sandbox
-    capabilities:
-      - workspaces/closure
-      - recovery/workspace
-    context: >-
-      A historical export failed and its exact sandbox was destroyed; surviving task attachments
-      exist and only the board can choose reconstruction.
-    query: >-
-      Continue from whatever files survived that failed website run.
-    expected_outcome: >-
-      The response directs the authorized human to Continue from saved sources with the
-      available attachments and known losses. The harness reconstructs through normal
-      fresh-session admission after the decision. The old failure remains visible, newer work is
-      preserved and chat does not claim lost files were recovered without evidence.

@@ -55,7 +55,7 @@ function exhaustedActionLive(action: IssueRecoveryAction, run: NativeFaultRun) {
 }
 export function isExhaustedNativeRecovery(action: IssueRecoveryAction | undefined, run: NativeFaultRun, spaceId: string, issueId: string, agentId: string) {
   return !!action && exhaustedActionLive(action, run) && action.spaceId === spaceId && action.sourceIssueId === issueId && action.kind === "active_run_watchdog" && action.cause === "native_session_retry_exhausted"
-    && action.ownerType === "board" && action.ownerAgentId == null && action.returnOwnerAgentId === agentId && action.recoveryIssueId == null
+    && action.ownerType === "operator" && action.ownerAgentId == null && action.returnOwnerAgentId === agentId && action.recoveryIssueId == null
     && action.evidence.runId === run.id && action.evidence.coordinatorAttempt === 3 && action.evidence.recoveryDisposition === "native_session_retry_exhausted"
     && action.maxAttempts === 3 && action.wakePolicy == null && action.nextAction.trim().length > 0 && run.status === "failed" && run.nativePhase === "terminal_failure";
 }
@@ -102,7 +102,7 @@ export function gradeInfrastructureRecovery(value: unknown) {
     && (s.setupFaults as Array<{ runId: string; errorCode: string }>).every(row => row.runId === run.id && NATIVE_INFRASTRUCTURE_FAULT_CODES.includes(row.errorCode)),
   "The actual original native run exhausts three coordinator attempts with real process loss evidence; model failure, cancellation or a fabricated attempt counter cannot qualify.");
   c.add("retained-source-owner-cause-and-next-action", !!after && after.id === before.id && after.sourceIssueId === task.id && after.recoveryIssueId == null
-    && after.ownerType === "board" && after.cause === before.cause && after.nextAction === before.nextAction && after.evidence.runId === run.id
+    && after.ownerType === "operator" && after.cause === before.cause && after.nextAction === before.nextAction && after.evidence.runId === run.id
     && s.sourceRecoveryVisible === true && o.tasks.length === 1 && o.runs.length === 2
     && o.runs.find(row => row.id === run.id)?.status === "failed" && o.runs.filter(row => row.agentId === o.leadId).every(row => row.status === "succeeded"),
   "The original task retains its exact recovery action, responsible operator and failure; explanatory chat creates no duplicate repair chain or premature worker.");
@@ -127,7 +127,7 @@ function infrastructureCase(id: "recovery.explain-stall" | "recovery.source-acti
       const action = exhaustedSourceRecovery(recovery, current, run, ctx.input.fixtures.space.id, task.id, (state.worker as Entity).id);
       c.add("lead-ready", lead.lifecycleState === "ready" && ["active", "idle"].includes(lead.status ?? ""), "The actual controller remains independently admitted.");
       c.add("real-native-infrastructure-exhaustion", !!action && action.id === (state.recoveryBefore as IssueRecoveryAction).id, "The saved native run really exhausted its own three attempts.");
-      c.add("original-source-action-owner", action?.sourceIssueId === task.id && action.ownerType === "board" && action.recoveryIssueId == null, "The original task exposes the real operator-owned recovery without a separate repair task."); return c.result(); },
+      c.add("original-source-action-owner", action?.sourceIssueId === task.id && action.ownerType === "operator" && action.recoveryIssueId == null, "The original task exposes the real operator-owned recovery without a separate repair task."); return c.result(); },
     sourceFiles: ["chat-catalog-domains/runtime-infrastructure.ts", "chat-catalog-domains/api-read-receipts.ts", "chat-catalog-domains/runtime-native-fault.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "../../server/src/services/hot-restart.ts", "../../server/src/vendor/outpost-runner/index.ts", "chat-scenarios/recovery.yaml"],
     async act(ctx, state) {
       await pollUntil({ label: "Canonical source explanation while native infrastructure remains failed", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 150_000),
