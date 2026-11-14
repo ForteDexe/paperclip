@@ -134,6 +134,9 @@ focused script tests are removed. Their provider-specific onboarding prompt,
 CLI and OpenAPI surface, static configuration document, and focused route tests
 are also removed. Agent-invite acceptance no longer normalizes gateway URLs or
 credentials, generates OpenClaw device keys, stores Hermes secrets, or permits
-gateway-only replay of accepted invites. Remaining gateway branches in agent
-runtime services and shared compatibility contracts are tracked as subsequent
-dependency-guided removal work and are not considered retained.
+gateway-only replay of accepted invites. Agent creation and environment probes
+also no longer generate OpenClaw device credentials or special-case Hermes
+probe keys, and heartbeat metadata no longer assigns gateway-only timeout
+defaults. Remaining gateway branches in failure reporting, secret schemas,
+portability, UI registries, and shared compatibility contracts are tracked as
+subsequent dependency-guided removal work and are not considered retained.

@@ -39,10 +39,6 @@ function hasOwn(record: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(record, key);
 }
 
-function defaultTimeoutSecForAdapter(adapterType: string) {
-  return adapterType === "openclaw_gateway" ? 120 : 0;
-}
-
 export function normalizeMaxTurnStopReason(value: unknown): Extract<HeartbeatRunStopReason, "max_turns_exhausted"> | null {
   return value === "max_turns_exhausted" || value === "turn_limit_exhausted"
     ? "max_turns_exhausted"
@@ -68,9 +64,8 @@ export function resolveHeartbeatRunTimeoutPolicy(
   }
 
   const hasTimeoutSec = hasOwn(config, "timeoutSec");
-  const defaultTimeoutSec = defaultTimeoutSecForAdapter(adapterType);
-  const rawTimeoutSec = hasTimeoutSec ? readFiniteNumber(config.timeoutSec) : defaultTimeoutSec;
-  const timeoutSec = Math.max(0, Math.floor(rawTimeoutSec ?? defaultTimeoutSec));
+  const rawTimeoutSec = hasTimeoutSec ? readFiniteNumber(config.timeoutSec) : 0;
+  const timeoutSec = Math.max(0, Math.floor(rawTimeoutSec ?? 0));
 
   return {
     effectiveTimeoutSec: timeoutSec,

@@ -159,7 +159,7 @@ describe("heartbeat stop metadata", () => {
     const result = mergeHeartbeatRunStopMetadata(
       { summary: "done" },
       buildHeartbeatRunStopMetadata({
-        adapterType: "openclaw_gateway",
+        adapterType: "codex_local",
         adapterConfig: {},
         outcome: "succeeded",
       }),
@@ -168,8 +168,8 @@ describe("heartbeat stop metadata", () => {
     expect(result).toMatchObject({
       summary: "done",
       stopReason: "completed",
-      effectiveTimeoutSec: 120,
-      timeoutConfigured: true,
+      effectiveTimeoutSec: 0,
+      timeoutConfigured: false,
       timeoutSource: "default",
       timeoutFired: false,
     });

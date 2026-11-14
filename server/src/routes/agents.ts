@@ -61,7 +61,7 @@ import { executionProjectionForRun, executionProjectionsForRuns } from "../servi
 import { issueRunPresenceService } from "../services/issue-run-presence.js";
 import { selectDashboardRunIds } from "../services/dashboard-run-selection.js";
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
@@ -2180,22 +2180,6 @@ export function agentRoutes(
     );
   }
 
-  function generateEd25519PrivateKeyPem(): string {
-    const { privateKey } = generateKeyPairSync("ed25519");
-    return privateKey.export({ type: "pkcs8", format: "pem" }).toString();
-  }
-
-  function ensureGatewayDeviceKey(
-    adapterType: string | null | undefined,
-    adapterConfig: Record<string, unknown>,
-  ): Record<string, unknown> {
-    if (adapterType !== "openclaw_gateway") return adapterConfig;
-    const disableDeviceAuth = parseBooleanLike(adapterConfig.disableDeviceAuth) === true;
-    if (disableDeviceAuth) return adapterConfig;
-    if (asNonEmptyString(adapterConfig.devicePrivateKeyPem)) return adapterConfig;
-    return { ...adapterConfig, devicePrivateKeyPem: generateEd25519PrivateKeyPem() };
-  }
-
   function codexLocalAgentHome(spaceId: string, agentId: string): string {
     const instanceRoot = resolveOutpostInstanceRootForAdapter({
       homeDir: asNonEmptyString(process.env.OUTPOST_HOME) ?? undefined,
@@ -2331,9 +2315,9 @@ export function agentRoutes(
       if (!hasBypassFlag) {
         next.dangerouslyBypassApprovalsAndSandbox = DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
       }
-      return ensureGatewayDeviceKey(adapterType, next);
+      return next;
     }
-    return ensureGatewayDeviceKey(adapterType, next);
+    return next;
   }
 
   async function assertAdapterConfigConstraints(
@@ -2587,7 +2571,6 @@ export function agentRoutes(
 
   const LOCAL_ADAPTER_HOST_COMMAND_KEYS = [
     "command",
-    "hermesCommand",
     "args",
     "extraArgs",
     "cwd",
@@ -3442,11 +3425,6 @@ export function agentRoutes(
             ...effectiveAdapterConfig,
             env: { ...parseObject(effectiveAdapterConfig.env), ...req.body.testCredentials },
           };
-          // Hermes authenticates the gateway itself through a top-level field.
-          // Keep its draft key out of persistence normalization, like env keys.
-          if (type === "hermes_gateway" && req.body.testCredentials.API_SERVER_KEY) {
-            effectiveAdapterConfig.apiKey = req.body.testCredentials.API_SERVER_KEY;
-          }
         }
         const result = aiBinding ? await withManagedAiProbe(db, { spaceId, agentId: req.body.agentId ?? "", responsibleUserId: responsibleUserForAiRequest(req), adapterType: type, binding: aiBinding, config: effectiveAdapterConfig, allowUninstalledPersonal: !savedAgentId || testingSetup, allowUninstalledShared: (!savedAgentId || testingSetup) && await canInstallSharedAiConnectionForNewAgent(db, req, spaceId, aiBinding) }, async managed => {
           const managedAiCredentialHome = type === "outpost_runner" && (asRecord(managed.config)?.provider === "codex"
