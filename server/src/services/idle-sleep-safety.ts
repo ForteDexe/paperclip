@@ -166,7 +166,6 @@ const WORK_CHECKS = [
   // action and all execution/cleanup checks while the operator decides what to do.
   workCheck("issue_recovery_actions", `SELECT 1 FROM issue_recovery_actions a WHERE a.status NOT IN ('resolved', 'cancelled')
     AND (${passiveOperatorRecovery('a')}) IS NOT TRUE`),
-  workCheck("status_cards", `SELECT 1 FROM status_cards WHERE archived_at IS NULL`),
   workCheck("external_objects", `SELECT 1 FROM external_objects WHERE NOT is_terminal OR next_refresh_at IS NOT NULL`),
   // Login history keeps its provider reference after teardown. A terminal
   // label alone is insufficient: require a finished, unclaimed session and

@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyExternalConversationSettlement } from "./external-conversation-settlement-notifications.js";
@@ -52,7 +51,6 @@ export async function resumeExternalConversation(tx: Db, spaceId: string, issueI
   await notifyExternalConversationSettlement(tx, { spaceId, issueId });
   // Only the verified idle convention may leave In Review automatically.
   // A real decision or delivery problem keeps the existing review semantics.
-  await notifyStatusCardIssueChange(tx, spaceId);
   await tx.update(issues).set({ status: "todo", updatedAt: new Date() })
     .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId),
       sql`${externalConversationStateSql()} = 'waiting'`));

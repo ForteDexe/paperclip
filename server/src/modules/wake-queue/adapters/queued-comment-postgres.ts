@@ -1,7 +1,6 @@
 import { notifyStrandedAgentStatus } from "../../../services/live-run-recovery-notifications.js";
 import { assertAgentInteraction } from "../../../services/agent-interaction-policy.js";
 import { notifyExecutionRunWork } from "../../../services/execution-control-notifications.js";
-import { notifyStatusCardIssueChange } from "../../../services/status-card-notifications.js";
 import { notifyExternalAgentSettlement } from "../../external-agents/index.js";
 import { notifyNativeStatusReassessment } from "../../../services/native-status-reassessment-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "../../../services/unsafe-workspace-export-notifications.js";
@@ -70,7 +69,6 @@ function buildTransaction(tx: Db, spaceId: string, issueId: string, deps: Queued
       if (!existing) return false;
       await assertAgentInteraction(tx, { spaceId, actorAgentId: actor.actorType === "agent" ? actor.actorId : null,
         operation: "comment", issueId, texts: body === existing.body ? [] : [body], lock: true });
-      await notifyStatusCardIssueChange(tx, spaceId);
       const updated = await tx
         .update(issueComments)
         .set({ body, updatedAt })
@@ -81,7 +79,6 @@ function buildTransaction(tx: Db, spaceId: string, issueId: string, deps: Queued
     },
 
     async touchIssueUpdatedAt({ issueId, updatedAt }) {
-      await notifyStatusCardIssueChange(tx, spaceId);
       await tx.update(issues).set({ updatedAt }).where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)));
     },
 

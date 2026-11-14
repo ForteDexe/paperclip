@@ -10,7 +10,6 @@ import type { OwnerProof } from "../owner-proof.js";
 import { OWNER_GONE_ATTESTATION_KEY } from "../recovery/owner-gone-attestation.js";
 import { holdOwnsBlockedStatus } from "../recovery-hold-blocked-status.js";
 import { notifyRoutineExecutionStatus } from "../routine-execution-status-notifications.js";
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 import { completedWorkspaceRecoveryCondition } from "../workspace-recovery-receipt.js";
 import { NATIVE_SESSION_CLEANUP_QUARANTINED } from "./completed-turn-cleanup.js";
 
@@ -216,7 +215,6 @@ async function decideBlockedStatus(tx: Db, input: { spaceId: string; now: Date;
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, spaceId);
     await notifyRoutineExecutionStatus(tx, issue.id, spaceId);
   }
   const reconciliation: ExecutionReconciliation = { runId: run.id, providerStopped: true, actionOutcome: "completed",

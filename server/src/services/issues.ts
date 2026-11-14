@@ -8,7 +8,6 @@ import { finishedIdleWake } from "./idle-work-proof.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyIssueAttentionRetentionWork } from "./retention-work-notifications.js";
 import { notifyRoutineExecutionStatus } from "./routine-execution-status-notifications.js";
 import { notifyMergeConfirmationWork } from "./merged-pr-confirmation-notifications.js";
@@ -262,7 +261,6 @@ import {
   type IssueLivenessFinding,
 } from "./recovery/issue-graph-liveness.js";
 import { visibleIssueCondition } from "./issue-visibility.js";
-import { finalizeStatusCardsForStalledGeneration } from "./status-card-finalization.js";
 import { finalizeSummarySlotsForTerminalIssue } from "./summary-slot-finalization.js";
 import {
   logActivity,
@@ -7952,7 +7950,6 @@ export function issueService(db: Db) {
       }
 
       const now = new Date();
-      await notifyStatusCardIssueChange(tx, lockedIssue.spaceId);
       const adopted = await tx
         .update(issues)
         .set({
@@ -8013,7 +8010,6 @@ export function issueService(db: Db) {
       if (!actorRun || TERMINAL_HEARTBEAT_RUN_STATUSES.has(actorRun.status))
         return null;
 
-      await notifyStatusCardIssueChange(tx, actorRun.spaceId);
       const now = new Date();
       const adopted = await tx
         .update(issues)
@@ -10974,7 +10970,6 @@ export function issueService(db: Db) {
         await notifyDeferredExecutionEligibility(tx, { spaceId: values.spaceId });
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
         values.id ??= randomUUID();
-        await notifyStatusCardIssueChange(tx, spaceId);
         await notifyIssueAttentionRetentionWork(tx, { spaceId, issueId: values.id, parentId: values.parentId, originKind: values.originKind, originId: values.originId });
         if (values.originKind === "routine_execution") await notifyRoutineExecutionStatus(tx, values.id, spaceId);
         const [issue] = await tx.insert(issues).values(values).returning();
@@ -11275,7 +11270,6 @@ export function issueService(db: Db) {
           }
         }
 
-        await notifyStatusCardIssueChange(tx, spaceId);
         await insertRowsInChunks(tx, issues, issueRows);
         await insertRowsInChunks(tx, issueLabels, labelRows);
       });
@@ -11296,7 +11290,6 @@ export function issueService(db: Db) {
       await db.transaction(async (tx) => {
         for (const row of rows) await assertAgentInteraction(tx, { spaceId: row.spaceId, actorAgentId, actorSpaceId: actorSpaceId ?? undefined,
           operation: "mention", issueId: row.issueId, texts: [row.body], lock: true });
-        for (const spaceId of new Set(rows.map(row => row.spaceId))) await notifyStatusCardIssueChange(tx, spaceId);
         const commentRows = rows.map((row) => {
           const createdAt = row.createdAt ? new Date(row.createdAt) : null;
           return {
@@ -11993,7 +11986,6 @@ export function issueService(db: Db) {
                 (blockedByIssueIds !== undefined || issueData.unblockDescriptor !== undefined)))) {
           patch.statusVersion = sql`${issues.statusVersion} + 1` as unknown as number;
         }
-        await notifyStatusCardIssueChange(tx, receiptExisting.spaceId);
         if (patch.status !== undefined || patch.completedAt !== undefined || patch.cancelledAt !== undefined) {
           await notifyNativeHarnessBackupExpiration(tx, { spaceId: receiptExisting.spaceId, issueId: id });
         }
@@ -12249,7 +12241,6 @@ export function issueService(db: Db) {
             updated.status === "cancelled" ||
             updated.status === "blocked"
           ) {
-            await finalizeStatusCardsForStalledGeneration(tx, updated);
           }
         }
         if (nextLabelIds !== undefined) {
@@ -12444,7 +12435,6 @@ export function issueService(db: Db) {
         if (settings?.environmentId !== environmentId) continue;
 
         await db.transaction(async tx => {
-          await notifyStatusCardIssueChange(tx, spaceId);
           await tx
           .update(issues)
           .set({
@@ -12493,7 +12483,6 @@ export function issueService(db: Db) {
               ));
             for (const mention of mentionedObjects) await notifyExternalObjectRefresh(tx, owner.spaceId, mention.objectId!);
             await notifyApprovalWork(tx, owner.spaceId);
-            await notifyStatusCardIssueChange(tx, owner.spaceId);
           }
           await notifyDecisionTargetIssueRemoval(tx, id);
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
@@ -12635,7 +12624,6 @@ export function issueService(db: Db) {
           spaceId: issueSpace.spaceId, actorAgentId: agentId, operation: "assign",
           issueId: id, targetAgentId: agentId, lock: true,
         });
-        await notifyStatusCardIssueChange(tx, issueSpace.spaceId);
         await notifyIssueAttentionRetentionWork(tx, { spaceId: issueSpace.spaceId, issueId: id });
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
         await notifyRunDispatch(tx, { spaceId: issueSpace.spaceId });
@@ -12703,7 +12691,6 @@ export function issueService(db: Db) {
         checkoutRunId
       ) {
         const adopted = await db.transaction(async tx => {
-          await notifyStatusCardIssueChange(tx, issueSpace.spaceId);
           return tx
           .update(issues)
           .set({
@@ -12786,7 +12773,6 @@ export function issueService(db: Db) {
               and ${issues.spaceId} = ${issueSpace.spaceId} for update`);
             if (await nativeManualAdmissionHoldsExecution(tx as unknown as Db,
               { spaceId: issueSpace.spaceId, runId: staleExecutionRunId, issueId: id })) return null;
-            await notifyStatusCardIssueChange(tx, issueSpace.spaceId);
             await notifyIssueAttentionRetentionWork(tx, { spaceId: issueSpace.spaceId, issueId: id });
             await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
             await notifyRunDispatch(tx, { spaceId: issueSpace.spaceId });
@@ -13103,7 +13089,6 @@ export function issueService(db: Db) {
           patch.assigneeAgentId = null;
         }
 
-        await notifyStatusCardIssueChange(tx, existing.spaceId);
         await notifyIssueAttentionRetentionWork(tx, { spaceId: existing.spaceId, issueId: id });
         await notifyTerminalWorkspaceWork(tx, `issue:${id}`);
         if (existing.checkoutRunId || existing.executionRunId || options.clearAssignee) {
@@ -13168,7 +13153,6 @@ export function issueService(db: Db) {
     deleteLabel: async (id: string) => db.transaction(async tx => {
       const [label] = await tx.select({ spaceId: labels.spaceId }).from(labels).where(eq(labels.id, id));
       if (!label) return null;
-      await notifyStatusCardIssueChange(tx, label.spaceId);
       return tx.delete(labels).where(eq(labels.id, id)).returning().then(rows => rows[0] ?? null);
     }),
 
@@ -13315,7 +13299,6 @@ export function issueService(db: Db) {
         if (!source) return null;
         await assertAgentInteraction(tx as unknown as Db, { ...source, actorAgentId, operation: "comment", lock: true });
         await notifyExternalConversationSettlement(tx, source);
-        await notifyStatusCardIssueChange(tx, source.spaceId);
         const [comment] = await tx
           .delete(issueComments)
           .where(eq(issueComments.id, commentId))
@@ -13358,7 +13341,6 @@ export function issueService(db: Db) {
           ...source, actorAgentId: actor.actorType === "agent" ? actor.agentId : null, operation: "comment", lock: true,
         });
         await notifyExternalConversationSettlement(tx, source);
-        await notifyStatusCardIssueChange(tx, source.spaceId);
         await notifyChatInboundWakeNotices(tx, source);
         const now = new Date();
         const [comment] = await tx
@@ -13695,7 +13677,6 @@ export function issueService(db: Db) {
               currentUserRedactionOptions.enabled,
             );
           }
-          await notifyStatusCardIssueChange(dbOrTx, issue.spaceId);
           comment =
             shouldUpgradeExternalAuthorization ||
             shouldUpgradeAttachmentAuthorization

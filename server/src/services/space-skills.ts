@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { skillExecutionContent } from "./skill-execution-content.js";
 import { notifySkillVersionRetention } from "./skill-version-retention-notifications.js";
 import { managedSkillContent, type SkillContentPublication } from "./managed-skill-content.js";
@@ -6860,7 +6859,6 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
     for (const row of rows) {
       await db.transaction(async (tx) => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-        await notifyStatusCardIssueChange(tx, spaceId);
         await tx
           .update(issues)
           .set({ hiddenAt: now, updatedAt: now })

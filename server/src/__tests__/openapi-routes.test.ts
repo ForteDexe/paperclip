@@ -93,7 +93,6 @@ const apiPrefixes: Record<string, string> = {
   "sidebar-badges.ts": "/api",
   "sidebar-preferences.ts": "/api",
   "summary-slots.ts": "/api",
-  "status-cards.ts": "/api",
   "tool-access.ts": "/api",
   "voice-sessions.ts": "/api",
   "tool-gateway.ts": "/api",
@@ -669,24 +668,6 @@ describe("openapi routes", () => {
       expect(operation.description).toContain("controlled by the hosting operator");
       expect(operation.description).not.toContain("/instance/experimental");
     }
-  });
-
-  it("tells agents that archiving keeps a status card and where a person restores it", async () => {
-    const res = await request(createApp()).get("/api/openapi.json");
-    const patch = res.body.paths["/api/status-cards/{id}"].patch;
-    expect(patch.description).toContain("it is not deleted");
-    expect(patch.description).toContain("give them the returned href as a Markdown link");
-    expect(patch.description).toContain("Restoring (archived: false) starts a fresh full summary");
-  });
-
-  it("tells agents that creating or refreshing a status card only queues the summarizer, so they reply now with its link", async () => {
-    const res = await request(createApp()).get("/api/openapi.json");
-    const create = res.body.paths["/api/spaces/{spaceId}/status-cards"].post;
-    expect(create.description).toContain("The response is returned before any summary exists");
-    expect(create.description).toContain("reply now with the returned href as a Markdown link");
-    const refresh = res.body.paths["/api/status-cards/{id}/refresh"].post;
-    expect(refresh.description).toContain("Queues a refresh; it does not return a new summary");
-    expect(refresh.description).toContain("Do not sleep or poll for it: reply now that the refresh is queued, with the returned card.href");
   });
 
   it("documents exact failed-run selection and durable accepted retry responses", async () => {

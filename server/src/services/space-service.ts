@@ -2,7 +2,6 @@ import { notifyMuseContactVerification } from "../modules/external-agents/index.
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyGitHubSpaceChange } from "./github-connection-notifications.js";
 import { notifyChatInboundWakeNotices } from "./chat-inbound-wake-notice-notifications.js";
 import { notifySpaceRetentionWork } from "./retention-work-notifications.js";
@@ -367,7 +366,6 @@ export function spaceService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
           await notifyExternalObjectRefresh(tx, id);
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.routineSchedules);
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-          await notifyStatusCardIssueChange(tx, id);
           await notifySpaceRetentionWork(tx, id);
           await notifyChatInboundWakeNotices(tx, { spaceId: id });
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle, id);
@@ -528,7 +526,6 @@ export function spaceService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
           await notifyExternalObjectRefresh(tx, id);
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.routineSchedules);
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-          await notifyStatusCardIssueChange(tx, id);
           await notifySpaceRetentionWork(tx, id);
           await notifyChatInboundWakeNotices(tx, { spaceId: id });
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle, id);

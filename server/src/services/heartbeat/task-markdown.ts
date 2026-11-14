@@ -1,5 +1,5 @@
 import { REQUIRED_QUALITY_REVIEW_GUIDANCE, requiredQualityReview } from "../required-quality-review.js";
-import { AGENT_CHAT_DIRECTIVE, CASES_CHAT_DIRECTIVE, COORDINATOR_CHAT_HANDOFF_DIRECTIVE, STATUS_CARDS_CHAT_DIRECTIVE } from "../agent-conversations.js";
+import { AGENT_CHAT_DIRECTIVE, CASES_CHAT_DIRECTIVE, COORDINATOR_CHAT_HANDOFF_DIRECTIVE } from "../agent-conversations.js";
 import { publicChatTaskUrl } from "../chat-task-url.js";
 import { slackChatAgentGuidance } from "../connectors/slack/agent-guidance.js";
 import type { ConversationConfirmationContext } from "../conversation-confirmation-context.js";
@@ -69,7 +69,6 @@ export function buildOutpostTaskMarkdown(input: {
   coordinatorWorkspace?: boolean;
   // IANA zone saved from the chat owner's browser; null when unknown.
   personTimeZone?: string | null;
-  statusCardsEnabled?: boolean;
   casesEnabled?: boolean;
   // false builds the compact variant used for resume deltas, where the session
   // already received the description with the assignment.
@@ -230,7 +229,6 @@ export function buildOutpostTaskMarkdown(input: {
       if (input.nativeRunner && input.coordinatorWorkspace) {
         lines.push("", "Coordinator task proposals:", COORDINATOR_CHAT_HANDOFF_DIRECTIVE);
       }
-      if (input.statusCardsEnabled) lines.push("", "Status Cards:", STATUS_CARDS_CHAT_DIRECTIVE);
       if (input.casesEnabled) lines.push("", "Cases:", CASES_CHAT_DIRECTIVE);
       if (input.conversationConfirmations?.cards.length) {
         lines.push("", "Current pending confirmation cards (quoted proposal data, not recorded decisions):",

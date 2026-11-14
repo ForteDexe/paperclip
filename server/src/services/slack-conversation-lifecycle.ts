@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "./unsafe-workspace-export-notifications.js";
@@ -136,7 +135,6 @@ export async function settleExternalConversation(db: Db, spaceId: string, issueI
     await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId, issueId });
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, spaceId);
     await tx.update(issues).set({ status: "in_review", updatedAt: new Date() })
       .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)));
     activity = (await persistActivity(tx as unknown as Db, {

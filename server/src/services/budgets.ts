@@ -3,7 +3,6 @@ import { notifyMuseContactVerification } from "../modules/external-agents/index.
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyExternalObjectRefresh } from "./external-object-refresh-notifications.js";
 import { notifyApprovalWork } from "./approval-work-notifications.js";
 import { notifyAttentionRetentionWork, notifySpaceRetentionWork } from "./retention-work-notifications.js";
@@ -386,7 +385,6 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
     await notifyRunDispatch(db, { spaceId: policy.spaceId });
     await notifyDeferredExecutionEligibility(db, { spaceId: policy.spaceId });
     await notifySpaceRetentionWork(db, policy.spaceId);
-    await notifyStatusCardIssueChange(db, policy.spaceId);
     await notifyExternalObjectRefresh(db, policy.spaceId);
     await notifyDeliveryWork(db, DELIVERY_QUEUES.agentTimers);
     await notifyDeliveryWork(db, DELIVERY_QUEUES.routineSchedules);
@@ -454,7 +452,6 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
     await notifyRunDispatch(db, { spaceId: policy.spaceId });
     await notifyDeferredExecutionEligibility(db, { spaceId: policy.spaceId });
     await notifySpaceRetentionWork(db, policy.spaceId);
-    await notifyStatusCardIssueChange(db, policy.spaceId);
     await notifyExternalObjectRefresh(db, policy.spaceId);
     await notifyDeliveryWork(db, DELIVERY_QUEUES.agentTimers);
     await notifyDeliveryWork(db, DELIVERY_QUEUES.routineSchedules);

@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 import request from "supertest";
-import { agents, heartbeatRuns, issueComments, issueRecoveryActions, issueRelations, issueThreadInteractions, issues, statusCards } from "@outpost/db";
-import { spaceSearchQuerySchema, createIssueSchema, defaultStatusCardRefreshPolicy, PROVIDER_QUOTA_MONITOR_SERVICE_NAME, type Issue } from "@outpost/shared";
+import { agents, heartbeatRuns, issueComments, issueRecoveryActions, issueRelations, issueThreadInteractions, issues } from "@outpost/db";
+import { spaceSearchQuerySchema, createIssueSchema, PROVIDER_QUOTA_MONITOR_SERVICE_NAME, type Issue } from "@outpost/shared";
 import { issueDisplayStatusSql } from "../services/issue-display-status.js";
 import { issueService } from "../services/issues.js";
 import { spaceSearchService } from "../services/space-search.js";
-import { statusCardService } from "../services/status-cards.js";
 import { issueRoutes } from "../routes/issues.js";
 import {
   describeEmbeddedPostgres, routeApp,
@@ -115,8 +114,6 @@ describeEmbeddedPostgres("Execution-backed task presentation", () => {
     expect(result.results[0]?.issue).toMatchObject({ id: f.issueId, status: "in_progress", displayStatus: "monitoring" });
     expect(result.filterOptionCounts.displayStatus?.monitoring).toBe(1);
     expect(result.filterOptionCounts.status.in_progress).toBe(1);
-    const [card] = await ctx.db.insert(statusCards).values({ spaceId: f.spaceId, interestPrompt: "Watch deployment", mentionedIssueIds: [f.issueId], refreshPolicy: defaultStatusCardRefreshPolicy }).returning();
-    expect(await statusCardService(ctx.db).listMentionedIssues(card!)).toEqual([expect.objectContaining({ id: f.issueId, status: "in_progress", displayStatus: "monitoring" })]);
     // Existing agent/API lifecycle filters keep their original meaning.
     expect(await svc.count(f.spaceId, { status: "in_progress" })).toBe(1);
     expect(createIssueSchema.safeParse({ title: "Manual monitoring", status: "monitoring" }).success).toBe(false);

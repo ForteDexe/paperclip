@@ -1,6 +1,5 @@
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyApprovalWork } from "./approval-work-notifications.js";
 import { notifyDecisionTargetIssueRemoval } from "./decision-targets.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
@@ -2021,7 +2020,6 @@ export function routineService(
         if (createdIssue) {
           await notifyApprovalWork(txDb, createdIssue.spaceId);
           await notifyDecisionTargetIssueRemoval(txDb, createdIssue.id);
-          await notifyStatusCardIssueChange(txDb, createdIssue.spaceId);
           await txDb.delete(issues).where(eq(issues.id, createdIssue.id));
         }
         const failureReason = error instanceof Error ? error.message : String(error);

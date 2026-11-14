@@ -1,5 +1,4 @@
 import { mcpSpaceDeletion } from "./public-mcp/space-deletion.js";
-import { notifyStatusCardEvaluation } from "./status-card-notifications.js";
 import { notifyExternalObjectRefresh } from "./external-object-refresh-notifications.js";
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "./unsafe-workspace-export-notifications.js";
@@ -84,7 +83,6 @@ export async function deleteSpace(db: Db, id: string) {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.skillPackages);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.routineSchedules);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-          await notifyStatusCardEvaluation(tx, id);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.secretProposalExpiry, id);
         await notifyToolReviewChange(tx, id);
         // Finance can reference costs and both can reference runs. Incidents

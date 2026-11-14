@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 import { notifyAttentionRetentionWork } from "../retention-work-notifications.js";
 import { notifyRoutineExecutionStatus } from "../routine-execution-status-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
@@ -192,7 +191,6 @@ export async function reconstructNativeWorkspace(input: {
     }).where(eq(issueRecoveryActions.id, source.action.id));
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, input.spaceId);
     await notifyRoutineExecutionStatus(tx, input.issueId, input.spaceId);
     await tx.update(issues).set({ status: "todo", unblockDescriptor: null, blockedTransitionAt: null,
       blockedOwnerNotifiedAt: null, updatedAt: now }).where(eq(issues.id, issue.id));

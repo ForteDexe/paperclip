@@ -53,7 +53,6 @@
               "guides/operator/execution-workspaces-and-runtime-services",
               "guides/operator/delegation",
               "guides/operator/experimental-features",
-              "guides/operator/status-cards",
               "guides/operator/approvals",
               "guides/operator/costs-and-budgets",
               "guides/operator/activity-log",

@@ -2,7 +2,6 @@ import { prepareMcpClientMirrorPolicy } from "./public-mcp/client-mirror-mutatio
 import { notifyLiveRunRecovery, notifyLiveResourceRecovery } from "./live-run-recovery-notifications.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
-import { notifyStatusCardEvaluation } from "./status-card-notifications.js";
 import { notifySkillVersionRetentionReconstruction } from "./skill-version-retention-notifications.js";
 import { notifyNativeEnvironmentSettlement } from "./native-environment-settlement-notifications.js";
 import { notifyMuseContactVerification, notifyExternalAgentSettlement } from "../modules/external-agents/index.js";
@@ -278,7 +277,6 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
       enableBuiltInAgents: parsed.data.enableBuiltInAgents ?? false,
       enableBetaSkills: parsed.data.enableBetaSkills ?? false,
       enableSummaries: parsed.data.enableSummaries ?? false,
-      enableStatusCards: parsed.data.enableStatusCards ?? false,
       enableDecisions: parsed.data.enableDecisions ?? false,
       enableFastResponses: parsed.data.enableFastResponses ?? false,
       enableGoalsSidebarLink: parsed.data.enableGoalsSidebarLink ?? false,
@@ -336,7 +334,6 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
     enableBuiltInAgents: false,
     enableBetaSkills: false,
     enableSummaries: false,
-    enableStatusCards: false,
     enableDecisions: false,
     enableFastResponses: false,
     enableGoalsSidebarLink: false,
@@ -645,7 +642,6 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
         && toExperimentalView(nextExperimental).enableAgentChat;
       const now = new Date();
       const [updated] = await db.transaction(async tx => {
-        if (patch.enableStatusCards !== undefined) await notifyStatusCardEvaluation(tx);
         if (chatBecameEnabled) await notifyDeferredExecutionEligibility(tx);
         if(toExperimentalView(current.experimental).enablePublicMcp!==toExperimentalView(nextExperimental).enablePublicMcp)await prepareMcpClientMirrorPolicy(tx as unknown as Db,toExperimentalView(nextExperimental).enablePublicMcp);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpIngressHandoffs);

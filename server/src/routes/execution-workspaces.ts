@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "../services/status-card-notifications.js";
 import { removePluginWorkspace } from "../services/plugin-workspaces.js";
 import { canActorReadWorkspaceOperation } from "../services/heartbeat-run-privacy.js";
 import { canActorReadExecutionWorkspace, executionWorkspaceReadSqlCondition } from "../services/authorization.js";
@@ -1282,7 +1281,6 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
 
       if (existing.mode === "shared_workspace") {
         await db.transaction(async tx => {
-          await notifyStatusCardIssueChange(tx, existing.spaceId);
           await tx
           .update(issues)
           .set({

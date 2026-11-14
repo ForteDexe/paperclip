@@ -64,11 +64,6 @@ import {
   builtInAgentProvisionSchema,
   generateSummarySlotSchema,
   writeSummarySlotSchema,
-  createStatusCardSchema,
-  patchStatusCardSchema,
-  refreshStatusCardSchema,
-  writeStatusCardQuerySchema,
-  writeStatusCardSummarySchema,
   wakeAgentSchema,
   resetAgentSessionSchema,
   agentSkillSyncSchema,
@@ -3376,105 +3371,6 @@ registry.registerPath({
     409: r.conflict,
     422: r.unprocessable,
   },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/api/spaces/{spaceId}/status-cards",
-  tags: ["status-cards"],
-  summary: "List status cards",
-  request: { params: z.object({ spaceId: z.string() }) },
-  responses: {
-    200: r.ok(),
-    401: r.unauthorized,
-    403: r.forbidden,
-    404: r.notFound,
-  },
-});
-
-registry.registerPath({
-  method: "post",
-  path: "/api/spaces/{spaceId}/status-cards",
-  tags: ["status-cards"],
-  summary: "Create a status card",
-  description: "Creates a saved status card on the space's Status page: a live summary of the tasks the interestPrompt describes. "
-    + "agentId names the agent that writes its summary; without it the built-in Summarizer is used when configured. "
-    + "The response is returned before any summary exists: the card's summarizer compiles its query and writes the first summary in its own run. "
-    + "Do not wait or poll for it; reply now with the returned href as a Markdown link, which opens the card at /<prefix>/status/<cardId>.",
-  request: {
-    params: z.object({ spaceId: z.string() }),
-    body: jsonBody(createStatusCardSchema),
-  },
-  responses: {
-    201: r.ok(),
-    400: r.badRequest,
-    401: r.unauthorized,
-    403: r.forbidden,
-    404: r.notFound,
-  },
-});
-
-for (const route of [
-  ["get", "/api/status-cards/{id}", "Get a status card"],
-  ["delete", "/api/status-cards/{id}", "Delete a status card"],
-  ["post", "/api/status-cards/{id}/recompile", "Recompile a status card query"],
-  [
-    "get",
-    "/api/status-cards/{id}/dry-run",
-    "Execute stored status card queries without an LLM",
-  ],
-  ["get", "/api/status-cards/{id}/updates", "List status card updates"],
-  [
-    "get",
-    "/api/status-cards/{id}/summary-revisions",
-    "List status card summary revisions",
-  ],
-] as const) {
-  registerCurrentRoute({
-    method: route[0],
-    path: route[1],
-    tags: ["status-cards"],
-    summary: route[2],
-  });
-}
-
-registerCurrentRoute({
-  method: "patch",
-  path: "/api/status-cards/{id}",
-  tags: ["status-cards"],
-  summary: "Update, archive, or restore a status card",
-  description: "Archiving (archived: true) hides the card from the active list but keeps the card, its summary and its update history; it is not deleted. "
-    + "A person views and restores archived cards on the space's Status page (Show archived, then Restore); give them the returned href as a Markdown link. "
-    + "Restoring (archived: false) starts a fresh full summary for a card with a compiled query, so restored content is regenerated before it is current.",
-  body: patchStatusCardSchema,
-});
-
-registerCurrentRoute({
-  method: "post",
-  path: "/api/status-cards/{id}/refresh",
-  tags: ["status-cards"],
-  summary: "Refresh a status card",
-  description: "Queues a refresh; it does not return a new summary. The card's summarizer agent writes the update in its own generation run, after which the card's lastGeneratedAt and summary change. "
-    + "Do not sleep or poll for it: reply now that the refresh is queued, with the returned card.href as a Markdown link where the person sees the update. "
-    + "alreadyGenerating means an earlier refresh is still running. enqueued false without alreadyGenerating means this request started no run: "
-    + "if card.lastGeneratedAt is newer than before your request, a concurrent refresh already finished; otherwise the card's refresh policy deferred it, and card.state says why (such as paused_budget or paused_hours).",
-  body: refreshStatusCardSchema,
-});
-
-registerCurrentRoute({
-  method: "put",
-  path: "/api/status-cards/{id}/query",
-  tags: ["status-cards"],
-  summary: "Write a compiled status card query",
-  body: writeStatusCardQuerySchema,
-});
-
-registerCurrentRoute({
-  method: "put",
-  path: "/api/status-cards/{id}/summary",
-  tags: ["status-cards"],
-  summary: "Write a generated status card summary",
-  body: writeStatusCardSummarySchema,
 });
 
 registry.registerPath({
@@ -10926,11 +10822,6 @@ for (const route of [
     "delete",
     "/api/spaces/{spaceId}/skills/{skillId}/comments/{commentId}",
     "Delete a skill comment",
-  ],
-  [
-    "post",
-    "/api/spaces/{spaceId}/skills/{skillId}/reset",
-    "Reset a space skill",
   ],
 ] as const) {
   registerCurrentRoute({

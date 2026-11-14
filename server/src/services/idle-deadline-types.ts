@@ -29,12 +29,12 @@ export type IdleDeadlineOwnerReader = (
   now: number,
   checkBudget: () => void,
 ) => Promise<IdleDeadlineOwnerInspection>;
-export type IdleDeadlineOwners = Partial<Record<"statusCards" | "externalObjects" | "skills" | "retries" | "watchdogs" | "quota", IdleDeadlineOwnerReader>>;
+export type IdleDeadlineOwners = Partial<Record<"externalObjects" | "skills" | "retries" | "watchdogs" | "quota", IdleDeadlineOwnerReader>>;
 
 export type IdleIssueWait =
   | { kind: "scheduled_retry"; issueId: string; runId: string }
   | { kind: "current_review_retry"; issueId: string; runId: string; reviewerAgentId: string; stageId: string }
   | { kind: "provider_quota"; issueId: string; sourceRunId: string; targetAgentId: string; reviewer: boolean };
 export type IdleDeadlineCoverage =
-  | { kind: "status_cards" | "external_objects" | "skill_sources" | "watchdogs" }
+  | { kind: "external_objects" | "skill_sources" | "watchdogs" }
   | { kind: "scheduled_retries"; runIds: string[]; wakeIds: string[] };

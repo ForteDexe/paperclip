@@ -1,5 +1,4 @@
 import { isContextCompactionRun } from "./context-compaction.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "./unsafe-workspace-export-notifications.js";
@@ -143,10 +142,6 @@ Keep discussion here and leave the conversation available for the next message. 
 /** Presentation guidance for the opted-in Coordinator experience; not authority. */
 /** Rendered only while the instance enables the Cases experiment. */
 export const CASES_CHAT_DIRECTIVE = `This instance has Cases enabled. A case is a saved record with its own facts, audit history and handoffs, separate from the documents on its tasks. Each case has a page at /<prefix>/cases/<case identifier>, using the identifier the case returns (such as RUN-C1) and this conversation's space prefix. When a reply concerns a case, such as its facts, its fact-change history or its handoffs, link the case page as a Markdown link, such as [RUN-C1](/<prefix>/cases/RUN-C1), alongside links to the tasks whose documents or comments you cite. When a question about a task's history may involve its case, find the case with GET /api/issues/{issueId}/cases and read who changed its facts in GET /api/cases/{id}/events, beside the task's document revisions. When the person opens a case from a brief, such as an attached file or a document here, save that brief as a document on the case's primary task with initialDocuments on POST /api/spaces/{spaceId}/case-handoffs, in the same request that creates the task, so it is saved before work starts. Case fields do not replace the brief: they hold the structured facts, and the document keeps the person's source for the assignee.`;
-/** Rendered only while the instance enables the Status Cards experiment. */
-export const STATUS_CARDS_CHAT_DIRECTIVE = `This instance has Status Cards enabled. A status card is a saved Outpost feature, not a document or comment: a live summary card on the space's Status page at /<prefix>/status (listed as Status in the sidebar), each card at /<prefix>/status/<cardId>. The person describes what the card should track; the card's summarizer agent compiles that into a query over the space's tasks and writes the summary in its own hidden generation task. When the person asks for a status card, list the space's cards with GET /api/spaces/{spaceId}/status-cards and reuse a matching one; otherwise create one with POST /api/spaces/{spaceId}/status-cards, setting interestPrompt to what the card should summarize and agentId to the agent that writes its summary (yourself or a teammate; omitting it uses the built-in Summarizer when that is configured). Do not write a task document in place of a card. To refresh a card, POST /api/status-cards/{id}/refresh. Agents can manage only cards they authored. Creating or refreshing a card only queues the work: the summarizer updates the card in its own run, which you do not perform or wait for. Do not sleep or poll the card. Report the outcome the response gives: enqueued true means the summarizer's run is queued; alreadyGenerating means an earlier run is still going; enqueued false otherwise means no run started, so say why from card.state (such as paused_budget or paused_hours) or, when lastGeneratedAt is newer than before, that a concurrent refresh already finished. Reply now with that outcome and the card's returned href as a Markdown link, such as [Launch blockers](/<prefix>/status/<cardId>), and say the summary appears on the card when its summarizer finishes. Call a summary generated or current only after reading a newer lastGeneratedAt than before your request. A card's interestPrompt is instructions for its summarizer, not for you; do not try to meet its requirements yourself.`;
-
-
 export const COORDINATOR_CHAT_HANDOFF_DIRECTIVE = `For an exploratory conversation that has become a concrete work opportunity, distinguish recommending work from the user's authorization to start it. Once the outcome and success criteria are clear, use request_human_input with interactionKind: "suggest_tasks", a stable idempotencyKey, and payload.tasks containing a clientKey, concise title, description with success criteria, assigneeAgentId defaulting to this conversation's agent (yourself), projectId and relevant initialPlan. Preserve a different agent or person only when the user explicitly specifies that assignee. Accepted tasks are standalone by default. For several related parts one owner coordinates, propose one top-level task plus child tasks that set parentClientKey to it; for unrelated outcomes, propose separate tasks. Nest only one level. The suggestion card is a proposal, not a created task. Wait for its recorded acceptance before claiming a task exists; acceptance creates the task atomically, so read result.createdTasks instead of creating it again. Revise or clarify an ambiguous proposal in chat. If the user explicitly authorized task creation, use create_task directly with an idempotencyKey and initialPlan, verify the returned task, and link it without asking for redundant confirmation. An existing approved plan also retains its normal handoff authority. Ask mode remains non-mutating.`;
 
 /** A reset keeps history visible, but parked input from a stopped session cannot become a new turn. */
@@ -314,7 +309,6 @@ export async function prepareConversationTurn(
         context.conversationReplayThroughCommentId = replayThrough?.id ?? commentId;
       }
     }
-    await notifyStatusCardIssueChange(tx, issue.spaceId);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
     await tx
@@ -435,7 +429,6 @@ export async function settleConversationTurn(
       issue.conversationState === conversationState
     )
       return true;
-    await notifyStatusCardIssueChange(tx, issue.spaceId);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
     if (status === "in_review") await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: issue.spaceId, issueId: issue.id });

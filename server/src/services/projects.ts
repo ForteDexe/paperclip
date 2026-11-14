@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyChatInboundWakeNotices } from "./chat-inbound-wake-notice-notifications.js";
 import { withDefaultProjectStorage, type ProjectCreationEnvironment } from "./project-environments.js";
 import { listProjectWorkspaceProviders, resolveProjectWorkspaceProvider } from "./project-workspace-provider.js";
@@ -1036,7 +1035,6 @@ export function projectService(db: Db, options: { captureWorkspaceUpdates?: bool
 
       const row = await db.transaction(async (tx) => {
         if (updates.visibility !== undefined) {
-          await notifyStatusCardIssueChange(tx, existingProject.spaceId);
           await notifyChatInboundWakeNotices(tx, { spaceId: existingProject.spaceId });
           await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`issue-privacy-tree:${existingProject.spaceId}`}, 0))`);
         }
@@ -1114,7 +1112,6 @@ export function projectService(db: Db, options: { captureWorkspaceUpdates?: bool
       await tx.select({ id: projectWorkspaces.id }).from(projectWorkspaces).where(eq(projectWorkspaces.projectId, id)).for("update");
       await recordProjectLifecycleEvent(tx as unknown as Db, project.spaceId, id, "delete");
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.skillSourceSync);
-      await notifyStatusCardIssueChange(tx, project.spaceId);
       const [row] = await tx.delete(projects).where(eq(projects.id, id)).returning();
       if (!row) return null;
       const { legacyEnvironmentId: _legacyEnvironmentId, ...publicProject } = row;

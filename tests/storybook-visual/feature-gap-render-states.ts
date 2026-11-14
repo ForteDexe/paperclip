@@ -209,17 +209,6 @@ const states: Record<string, Record<string, State>> = {
     "load-failed": { text: "Skill not found." },
     "permission-denied": { text: "Skill not found." },
   },
-  "feature-status-card-states": {
-    loading: { text: "Loading cards…" },
-    empty: { text: "No status cards yet" },
-    "load-failed": { text: "Could not load status cards" },
-    "permission-denied": {
-      text: "You do not have permission to perform this action.",
-    },
-    "setting-up": { text: "Setting up your card…" },
-    "generation-failed": { text: "Last update failed" },
-    "stale-summary": { text: "3 changes since last update" },
-  },
   "feature-composer-draft-recovery": {
     restored: { text: "Review the release before publishing.", editable: true },
     empty: { editable: true, absent: "Review the release before publishing." },

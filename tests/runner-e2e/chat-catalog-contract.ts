@@ -106,7 +106,6 @@ const originalClockExecutionIds = new Set([
   "chat-features.runner-opencode.local.instance-operations.backup-and-restore",
   "chat-features.runner-opencode.local.instance-operations.restart-service",
   "chat-features.runner-opencode.local.routines.webhook-trigger",
-  "chat-features.runner-opencode.local.status-cards.explain-card",
   "chat-features.runner-opencode.local.secrets.configure-space-secret",
   "chat-features.runner-opencode.local.teams.configure-team",
   "chat-features.runner-opencode.local.steering.interrupt-with-direction",

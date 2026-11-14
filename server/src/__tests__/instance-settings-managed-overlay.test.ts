@@ -14,8 +14,8 @@ const MANAGED_RAW = JSON.stringify({
   mode: "cloud",
   catalogVersion: "2026.720.0",
   // enableApps is retained only for compatibility and must be ignored;
-  // enableStatusCards remains a live managed feature.
-  features: { enableApps: false, enableStatusCards: true },
+  // enableCases remains a live managed feature.
+  features: { enableApps: false, enableCases: true },
   plugins: { autoInstall: [] },
 });
 
@@ -73,11 +73,11 @@ describe("applyManagedExperimentalOverlay", () => {
 
     expect(experimental.enableApps).toBe(true);
     // managed overlay > schema default
-    expect(experimental.enableStatusCards).toBe(true);
+    expect(experimental.enableCases).toBe(true);
     // unmanaged keys keep their stored/default values
-    expect(experimental.enableCases).toBe(false);
+    expect(experimental.enableDecisions).toBe(false);
     expect(managedKeys).toEqual({
-      enableStatusCards: { managed: true, managedBy: "outpost-cloud" },
+      enableCases: { managed: true, managedBy: "outpost-cloud" },
     });
     // input is not mutated
     expect(stored.enableApps).toBe(true);
@@ -188,18 +188,18 @@ describe("instanceSettingsService managed overlay", () => {
     const runtimeEnv = {
       ...managedEnv(JSON.stringify({
         v: 1, mode: "cloud", catalogVersion: "test",
-        features: { enableStatusCards: true, enableChatConnectors: false, enableNativeRunner: true },
+        features: { enableCases: true, enableChatConnectors: false, enableNativeRunner: true },
         plugins: { autoInstall: [] },
       })),
       OUTPOST_PRIMARY_HOST: "team.staging.outpost.app",
     };
     const service = instanceSettingsService(db, { runtimeEnv });
     const managedKeys = {
-      enableStatusCards: { managed: true, managedBy: "outpost-cloud" },
+      enableCases: { managed: true, managedBy: "outpost-cloud" },
       enableNativeRunner: { managed: true, managedBy: "outpost-cloud" },
     };
     expect(await service.getExperimental()).toMatchObject({
-      enableStatusCards: true, enableChatConnectors: false, enableNativeRunner: true, managedKeys,
+      enableCases: true, enableChatConnectors: false, enableNativeRunner: true, managedKeys,
     });
     expect(persistedSets).toHaveLength(0);
 
@@ -207,14 +207,14 @@ describe("instanceSettingsService managed overlay", () => {
       const updated = await service.updateExperimental({ enableChatConnectors: enabled });
       Object.assign(row, persistedSets.at(-1));
       const expected = {
-        enableStatusCards: true, enableChatConnectors: enabled, enableNativeRunner: true, managedKeys,
+        enableCases: true, enableChatConnectors: enabled, enableNativeRunner: true, managedKeys,
       };
       expect(updated.experimental).toMatchObject(expected);
       const restored = instanceSettingsService(db, { runtimeEnv });
       expect(await restored.getExperimental()).toMatchObject(expected);
       expect((await restored.get()).experimental).toMatchObject(expected);
       expect(row.experimental).not.toHaveProperty("managedKeys");
-      expect(row.experimental).not.toHaveProperty("enableStatusCards");
+      expect(row.experimental).not.toHaveProperty("enableCases");
     }
     expect((await service.updateExperimental({ enableNativeRunner: true })).experimental.enableNativeRunner).toBe(true);
 
@@ -222,12 +222,12 @@ describe("instanceSettingsService managed overlay", () => {
       ...runtimeEnv,
       OUTPOST_MANAGED_CONFIG: JSON.stringify({
         v: 1, mode: "cloud", catalogVersion: "test",
-        features: { enableStatusCards: false, enableChatConnectors: true, enableNativeRunner: true },
+        features: { enableCases: false, enableChatConnectors: true, enableNativeRunner: true },
         plugins: { autoInstall: [] },
       }),
     } });
     expect(await changedDefaults.getExperimental()).toMatchObject({
-      enableStatusCards: false, enableChatConnectors: true, enableNativeRunner: true,
+      enableCases: false, enableChatConnectors: true, enableNativeRunner: true,
     });
 
     const production = instanceSettingsService(db, { runtimeEnv: { ...runtimeEnv, OUTPOST_PRIMARY_HOST: "team.outpost.app" } });
@@ -300,9 +300,9 @@ describe("instanceSettingsService managed overlay", () => {
 
     const experimental = await svc.getExperimental();
     expect(experimental.enableApps).toBe(true);
-    expect(experimental.enableStatusCards).toBe(true);
+    expect(experimental.enableCases).toBe(true);
     expect(experimental.managedKeys).toEqual({
-      enableStatusCards: { managed: true, managedBy: "outpost-cloud" },
+      enableCases: { managed: true, managedBy: "outpost-cloud" },
     });
   });
 
@@ -332,7 +332,7 @@ describe("instanceSettingsService managed overlay", () => {
     const { db, persistedSets } = stubDb(settingsRow({ enableApps: true }));
     const svc = instanceSettingsService(db, { runtimeEnv: managedEnv() });
 
-    const updated = await svc.updateExperimental({ enableCases: true });
+    const updated = await svc.updateExperimental({ enableDecisions: true });
 
     expect(persistedSets).toHaveLength(1);
     const persisted = persistedSets[0]!.experimental as Record<string, unknown>;
@@ -340,13 +340,13 @@ describe("instanceSettingsService managed overlay", () => {
     // managed document's historical value.
     expect(persisted.enableApps).toBe(true);
     // The overlay-added value is not written.
-    expect(persisted.enableStatusCards).toBe(false);
-    expect(persisted.enableCases).toBe(true);
+    expect(persisted.enableCases).toBe(false);
+    expect(persisted.enableDecisions).toBe(true);
     expect(persisted).not.toHaveProperty("managedKeys");
 
     // The response still reflects the overlay.
     expect(updated.experimental.enableApps).toBe(true);
-    expect(updated.experimental.enableStatusCards).toBe(true);
+    expect(updated.experimental.enableCases).toBe(true);
     expect(updated.experimental.managedKeys?.enableApps).toBeUndefined();
   });
 

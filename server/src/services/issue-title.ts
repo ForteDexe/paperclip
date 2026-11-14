@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { and, eq } from "drizzle-orm";
@@ -79,7 +78,6 @@ export async function setIssueTitle(
     || (issue.title === title && !issue.titleNeedsGeneration)) {
     return { result: await saveReceipt({ id: issue.id, title: issue.title, titleNeedsGeneration: issue.titleNeedsGeneration, changed: false }), publication: null };
   }
-  await notifyStatusCardIssueChange(tx, spaceId);
   await assertAgentInteraction(tx, { spaceId, actorAgentId: actor.actorType === "agent" ? actor.actorId : null,
     operation: "edit", issueId, texts: title === issue.title ? [] : [title], lock: true });
   await notifyAttentionRetentionWork(tx, { spaceId });

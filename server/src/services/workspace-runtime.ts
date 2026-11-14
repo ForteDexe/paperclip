@@ -1,5 +1,4 @@
 import { formatCommandForDisplay } from "./workspace-command-display.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { insertIssueComment } from "./issue-comment-writes.js";
 import { restoreGitWorkspaceContents } from "./git-workspace-contents.js";
 import { savedGitWorkspaceRestoration, ensureSavedGitCommit, GitCacheRestorationFailure } from "./git-workspace-restoration.js";
@@ -1708,7 +1707,6 @@ async function writeDirtyQuarantineAuditComments(input: {
     });
     sourceAuditCommentId = sourceComment?.id ?? null;
     await input.db.transaction(async tx => {
-      await notifyStatusCardIssueChange(tx, input.spaceId);
       await tx.update(issues).set({ updatedAt: now }).where(eq(issues.id, sourceIssueId));
     });
   }
@@ -1726,7 +1724,6 @@ async function writeDirtyQuarantineAuditComments(input: {
     });
     claimantAuditCommentId = claimantComment?.id ?? null;
     await input.db.transaction(async tx => {
-      await notifyStatusCardIssueChange(tx, input.spaceId);
       await tx.update(issues).set({ updatedAt: now }).where(eq(issues.id, claimantIssueId));
     });
   }

@@ -232,15 +232,6 @@ it("binds owner deadlines and revisions while retaining unregistered work checks
   } } }, fixtures())).toEqual({ blocked: true });
 });
 
-it("closed status coverage cannot replace unrelated execution or auth checks", () => {
-  const proof = { blocked: false, owners: { statusCards: {
-    snapshot: snapshot(), current: () => true, coverage: { kind: "status_cards" as const },
-  } } };
-  expect(deadlineOwnerWorkReplacement(proof, "status_cards")).toBeDefined();
-  for (const reason of ["heartbeat_runs", "agent_api_keys", "issues", "external_objects"])
-    expect(deadlineOwnerWorkReplacement(proof, reason)).toBeUndefined();
-});
-
 it("composes an optional normalized MCP owner snapshot without inspecting its protocol", () => {
   const mcp = snapshot({ ownerGeneration: "mcp-owner:1" }, [now + 350_000]);
   const proof = composeIdleDeadlineProof(hold, { ...options, mcp }, fixtures());

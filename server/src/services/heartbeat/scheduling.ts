@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 import { notifyIssueReviewState } from "../issue-review-state-notifications.js";
 import { insertIssueComment } from "../issue-comment-writes.js";
@@ -598,7 +597,6 @@ export function createHeartbeatScheduling(
     try {
       await db.transaction(async (tx) => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-        await notifyStatusCardIssueChange(tx, claimed.spaceId);
         const released = await tx.update(issues)
           .set({ monitorWakeRequestedAt: null, updatedAt: input.now })
           .where(issueMonitorClaimCondition(claimed)).returning({ id: issues.id });
@@ -632,7 +630,6 @@ export function createHeartbeatScheduling(
       // failed, and never clobber a monitor that was replaced in the meantime.
       await db.transaction(async tx => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-        await notifyStatusCardIssueChange(tx, claimed.spaceId);
         await tx.update(issues).set({ monitorWakeRequestedAt: null, updatedAt: input.now })
           .where(issueMonitorClaimCondition(claimed));
       });
@@ -832,7 +829,6 @@ export function createHeartbeatScheduling(
       }
 
       const consumed = await db.transaction(async tx => {
-        await notifyStatusCardIssueChange(tx, claimed.spaceId);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
         return tx.update(issues)
         .set({
@@ -983,7 +979,6 @@ export function createHeartbeatScheduling(
 
     const staleClaimThreshold = new Date(now.getTime() - 5 * 60 * 1000);
     const claimed = await db.transaction(async (tx) => {
-      await notifyStatusCardIssueChange(tx, issue.spaceId);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       const [updated] = await tx
         .update(issues)
@@ -1057,7 +1052,6 @@ export function createHeartbeatScheduling(
     for (const due of dueMonitors) {
       if (!canContinue()) break;
       const claimed = await db.transaction(async (tx) => {
-        await notifyStatusCardIssueChange(tx, due.spaceId);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
         const [updated] = await tx
           .update(issues)

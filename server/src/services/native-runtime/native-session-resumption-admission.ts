@@ -6,7 +6,6 @@ import { isAutomaticRecoverySuppressedByPauseHold } from "../recovery/pause-hold
 import { readRunCancellation } from "../run-cancellation.js";
 import { getNativeReviewAssignment } from "./native-review-participant.js";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 import { normalizeAgentNameKey } from "../agent-name-key.js";
 import { NATIVE_SESSION_RESUMPTION_ISSUE_STATUSES } from "./native-session-resumption-statuses.js";
 
@@ -17,7 +16,6 @@ export async function restoreNativeSessionExecution(db: Db, input: {
   now: Date;
 }) {
   const { issue, run, now } = input;
-  await notifyStatusCardIssueChange(db, run.spaceId);
   const restored = await db.update(issues).set({ executionRunId: run.id,
     executionAgentNameKey: normalizeAgentNameKey(input.agentName), executionLockedAt: now, updatedAt: now,
   }).where(and(eq(issues.id, issue.id), eq(issues.spaceId, run.spaceId),

@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyExternalConversationSettlement } from "./external-conversation-settlement-notifications.js";
@@ -62,7 +61,6 @@ export async function deleteAgentDependencies(tx: Db, spaceId: string, id: strin
   await issueThreadInteractionService(tx).cancelPendingForDeletedAddressee(spaceId, id);
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-  await notifyStatusCardIssueChange(tx, spaceId);
   await tx.update(agents).set({ leadAgentId: null }).where(eq(agents.leadAgentId, id));
   await tx
     .update(issues)

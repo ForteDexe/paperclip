@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { effectiveProjectWorkspacePolicy } from "./project-workspace-provider.js";
 import { readRemoteWorkspaceAuthority, readWorkspaceProviderBinding } from "@outpost/shared";
 import { cleanupRemoteWorkspaceAllocation, inspectRemoteWorkspacePersistence, type DestroyRemoteWorkspaceLease } from "./remote-workspace-lifecycle.js";
@@ -1524,7 +1523,6 @@ export async function releaseAncestorWorkspaceBinding(tx: DbTransaction, input: 
   if (holder) return false;
   if (await hasPendingTaskWorkspaceRecovery(tx, { spaceId: input.spaceId, issueId: input.issueId, excludeRunId: input.runId })) return false;
   const selection = task.workspaceSelection;
-  await notifyStatusCardIssueChange(tx, task.spaceId);
   await tx.update(issues).set({
     executionWorkspaceId: null,
     executionWorkspacePreference: null,
@@ -1717,7 +1715,6 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       await validateSelection(input, tx);
       const intent: TaskWorkspaceIntent = { version: 1, request: { key: input.requestKey, expectedBindingRevision: input.expectedBindingRevision }, selection: input.selection, source: input.source ?? "explicit" };
       const nextRevision = task.workspaceBindingRevision + 1;
-      await notifyStatusCardIssueChange(tx, task.spaceId);
       await tx.update(issues).set({ workspaceBindingRevision: nextRevision,
         workspacePendingSelection: { version: 1, requestKey: input.requestKey,
           expectedBindingRevision: nextRevision, intent }, updatedAt: new Date() }).where(eq(issues.id, task.id));
@@ -1761,7 +1758,6 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           }
         }
       }
-      await notifyStatusCardIssueChange(tx, task.spaceId);
       await tx.update(issues).set({ ...patch, assigneeAdapterOverrides, workspaceSelection: pending.intent, workspacePendingSelection: null,
         workspaceBindingRevision: task.workspaceBindingRevision + 1, updatedAt: new Date() }).where(eq(issues.id, task.id));
       return true;
@@ -1800,7 +1796,6 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       const pendingAfterFirstBinding = !task.executionWorkspaceId && pending?.expectedBindingRevision === task.workspaceBindingRevision
         ? { ...pending, expectedBindingRevision: nextRevision }
         : pending;
-      await notifyStatusCardIssueChange(tx, spaceId);
       const [bound] = await tx.update(issues).set({ ...patch, executionWorkspaceId: workspaceId,
         workspaceBindingRevision: nextRevision, workspacePendingSelection: pendingAfterFirstBinding, updatedAt: new Date() })
         .where(eq(issues.id, issueId)).returning();
@@ -2687,7 +2682,6 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       });
       if (cleanup.cleaned && workspace.mode === "shared_workspace") {
         await db.transaction(async tx => {
-          await notifyStatusCardIssueChange(tx, workspace.spaceId);
           await tx
           .update(issues)
           .set({ executionWorkspaceId: null, updatedAt: now() })

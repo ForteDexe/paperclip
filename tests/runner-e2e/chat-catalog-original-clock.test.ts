@@ -17,7 +17,7 @@ describe("selected native phases share the once-created original flow clock", ()
     vi.setSystemTime(850_000); expect(chatCatalogNativePhaseDeadline(ctx, Date.now() + 180_000)).toBe(870_000);
     expect(ctx.observationDeadlineAt).toBe(870_000);
   });
-  it.each(["instance-operations.backup-and-restore", "instance-operations.restart-service", "routines.webhook-trigger", "status-cards.explain-card", "secrets.configure-space-secret", "teams.configure-team", "steering.interrupt-with-direction", "spaces.fast-responses"])("future13 %s shares the setup-inclusive original clock", scenario => {
+  it.each(["instance-operations.backup-and-restore", "instance-operations.restart-service", "routines.webhook-trigger", "secrets.configure-space-secret", "teams.configure-team", "steering.interrupt-with-direction", "spaces.fast-responses"])("future13 %s shares the setup-inclusive original clock", scenario => {
     vi.useFakeTimers(); vi.setSystemTime(800_000); const ctx = context(scenario);
     expect(chatCatalogNativePhaseDeadline(ctx, Date.now() + 150_000)).toBe(870_000);
     expect(chatCatalogOriginalPhaseDeadline(ctx)).toBe(870_000);
@@ -32,7 +32,7 @@ describe("selected native phases share the once-created original flow clock", ()
     await vi.advanceTimersByTimeAsync(28_000); await pending; expect(completed).toBe(true);
     expect(ctx.observationDeadlineAt).toBe(originalDeadline);
   });
-  it.each(["onboarding.first-work", "routines.plugin-managed-routine", "status-cards.archive-card", "status-cards.other-authors-card", "spaces.prompt-injection-guard", "spaces.configure-decision-model"])("future13 %s does not receive new phase or UI behavior", scenario => {
+  it.each(["onboarding.first-work", "routines.plugin-managed-routine", "spaces.prompt-injection-guard", "spaces.configure-decision-model"])("future13 %s does not receive new phase or UI behavior", scenario => {
     vi.useFakeTimers(); vi.setSystemTime(800_000); const ctx = context(scenario, 1);
     expect(chatCatalogNativePhaseDeadline(ctx, 900_000)).toBe(900_000);
     expect(chatCatalogOriginalPhaseDeadline(ctx)).toBeUndefined();

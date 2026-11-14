@@ -101,7 +101,6 @@ export interface InstanceExperimentalSettings {
   enableBuiltInAgents: boolean;
   enableBetaSkills: boolean;
   enableSummaries: boolean;
-  enableStatusCards: boolean;
   enableDecisions: boolean;
   /** Show space connection settings and allow contextual fast-response acknowledgements. */
   enableFastResponses: boolean;

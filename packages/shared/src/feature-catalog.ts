@@ -250,14 +250,6 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
-  enableStatusCards: {
-    title: "Status Cards",
-    description:
-      "Enable the experimental shared status-card operator, update engine, and gated API.",
-    tier: "managed",
-    cloudDefault: false,
-    selfHostedDefault: false,
-  },
   enableExternalObjects: {
     title: "External Objects",
     description:

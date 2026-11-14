@@ -53,7 +53,6 @@ const removedProductLabels = [
   "OpenAI Dot",
   "Outpost Runner",
   "Simplified English Interactions",
-  "Status Cards",
   "Summaries",
   "Classic Task Interface",
   "Managed Environment Only",

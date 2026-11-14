@@ -481,22 +481,6 @@ describe("Sidebar", () => {
     });
   });
 
-  it("keeps the retired Status surface hidden", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableDecisions: true,
-      enableStatusCards: true,
-    });
-    const root = await renderSidebar();
-
-    const primaryNavLinks = [...container.querySelectorAll("nav > div:first-child a")];
-    const statusLink = primaryNavLinks.find((anchor) => anchor.getAttribute("href") === "/status");
-    expect(statusLink).toBeUndefined();
-
-    flushSync(() => {
-      root.unmount();
-    });
-  });
-
   it("groups and orders the streamlined Work and Org navigation", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableIsolatedWorkspaces: false,

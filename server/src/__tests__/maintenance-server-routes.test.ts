@@ -73,7 +73,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
     }
     const server = await startMaintenanceServer(databaseUrl, { clock: true });
     try {
-      if (state !== "empty") await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true, enableStatusCards: true });
+      if (state !== "empty") await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true });
       await settleClock(server); await server.freeze();
       const before = await server.snapshot(), queryCount = server.proxy.queries.length, frames = server.proxy.frames, transport = server.proxy.transport;
       expect(before.startup.phase).toBe("ready"); expect(before.idle.active).toBe(0);
@@ -371,7 +371,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
         startupQueries: baseline, startup: receipt(server.proxy.queries), frames: server.proxy.frames, network: after.network, measuredQueries: 0, outgoingHttpRequests: 0 }, null, 2));
 
       const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Configured idle maintenance fixture" });
-      await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true, enableStatusCards: true });
+      await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true });
       const history = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, { title: "Retained completed history", status: "done" });
       await server.advance(30_000);
       await server.settled();
@@ -615,63 +615,6 @@ describeDatabase("assembled maintenance server production wiring", () => {
         try { await fixture.$client.end(); } finally { await runtime?.stop(); }
       }
     });
-  }, 150_000);
-
-  maintenanceTest.concurrent("reacts to the first ordinary status-card source write and accepts authorized controlled summarizer output", async ({ databaseUrl, expect }) => {
-    const server = await startMaintenanceServer(databaseUrl, { clock: true, suppressed: true });
-    const fixture = createDb(databaseUrl, { maxConnections: 1 });
-    try {
-      await server.settled();
-      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Status-card ingress" });
-      const [agent] = await fixture.insert(agents).values({ spaceId: space.id, name: "Controlled summarizer",
-        status: "idle", adapterType: "process", adapterConfig: { command: "/usr/bin/false" } }).returning();
-      const userId = randomUUID();
-      await fixture.insert(authUsers).values({ id: userId, name: "Controlled writer owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await fixture.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-      const token = randomUUID();
-      await fixture.insert(agentApiKeys).values({ spaceId: space.id, agentId: agent!.id, name: "Controlled writer", responsibleUserId: userId,
-        keyHash: createHash("sha256").update(token).digest("hex") });
-      await server.api("PATCH", "/instance/settings/experimental", { enableStatusCards: true });
-      const card = await server.api<{ id: string; generatingIssueId: string }>("POST", `/spaces/${space.id}/status-cards`, {
-        interestPrompt: "Blocked tasks", agentId: agent!.id, refreshPolicy: { mode: "reactive", debounceSeconds: 60 },
-      });
-      async function writeback(generationIssueId: string, compile: boolean) {
-        const [run] = await fixture.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent!.id,
-          status: "running", responsibleUserId: userId, contextSnapshot: { issueId: generationIssueId } }).returning();
-        await fixture.$client`update issues set checkout_run_id=${run!.id} where id=${generationIssueId}`;
-        const headers = { authorization: `Bearer ${token}`, "x-outpost-run-id": run!.id };
-        if (compile) await server.api("PUT", `/status-cards/${card.id}/query`, { queries: [{ scope: "issues", status: ["blocked"] }],
-          title: "Blocked tasks", changeSummary: "Controlled compilation", generationIssueId }, headers);
-        await server.api("PUT", `/status-cards/${card.id}/summary`, { markdown: "Controlled current blockers",
-          changeSummary: "Controlled summary", generationIssueId }, headers);
-        await fixture.$client`update heartbeat_runs set status='succeeded', finished_at=now() where id=${run!.id}`;
-        await server.api("PATCH", `/issues/${generationIssueId}`, { status: "done" });
-      }
-      await writeback(card.generatingIssueId, true); await server.advance(30_000); await settleClock(server);
-      const [compiled] = await fixture.$client`select state, query_version, generating_issue_id from status_cards where id=${card.id}`;
-      expect(compiled).toMatchObject({ state: "active", query_version: 1, generating_issue_id: null });
-      const changed = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, {
-        title: "Ordinary new blocker", status: "blocked",
-      });
-      await server.advance(1_000); await settleClock(server);
-      const [pending] = await fixture.$client`select pending_change_count, next_eval_at is not null as scheduled from status_cards where id=${card.id}`;
-      expect(pending!.pending_change_count).toBeGreaterThan(0); expect(pending!.scheduled).toBe(true);
-      for (let step = 0; step < 3; step++) { await server.advance(30_000); await settleClock(server); }
-      const [generating] = await fixture.$client`select generating_issue_id from status_cards where id=${card.id}`;
-      expect(generating!.generating_issue_id).toBeTypeOf("string");
-      expect(generating!.generating_issue_id).not.toBe(card.generatingIssueId);
-      await writeback(generating!.generating_issue_id, false); await server.advance(30_000); await settleClock(server);
-      const [result] = await fixture.$client`select status, finished_at is not null as finished from status_card_updates
-        where card_id=${card.id} and generation_issue_id=${generating!.generating_issue_id}`;
-      expect(result).toMatchObject({ status: "ok", finished: true });
-      const [saved] = await fixture.$client`select pending_change_count, generating_issue_id, state from status_cards where id=${card.id}`;
-      expect(saved).toMatchObject({ pending_change_count: 0, generating_issue_id: null, state: "active" });
-      await writeFile(path.join(server.directory, "status-card-measurement.json"), JSON.stringify({
-        phase: "ordinary-reactive-card-source-and-authorized-writeback", spaceId: space.id, cardId: card.id, issueId: changed.id,
-        compiled, pending, generating, result, saved, frames: server.proxy.frames,
-        executionBoundary: "controlled summarizer execution rows/key only; real authenticated query/summary routes; production execution suppressed; no model provider",
-      }, null, 2));
-    } finally { await fixture.$client.end(); await server.stop(); }
   }, 150_000);
 
   maintenanceTest.concurrent("expires an ordinarily published backup after its ordinary task close without losing run history", async ({ databaseUrl, expect }) => {

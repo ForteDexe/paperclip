@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 import { notifyAttentionRetentionWork } from "../retention-work-notifications.js";
 import {
   agents,
@@ -242,7 +241,6 @@ export async function claimNativeReviewExecutionLock(db: Db, input: {
     if (!run || !["queued", "running"].includes(run.status) || !admitted || !expected
       || admitted.nativeReviewInteractionId !== expected.nativeReviewInteractionId
       || admitted.nativeReviewDecisionId !== expected.nativeReviewDecisionId) return false;
-    await notifyStatusCardIssueChange(tx, input.spaceId);
     await notifyAttentionRetentionWork(tx, { spaceId: input.spaceId });
     const claimed = await tx.update(issues).set({
       executionRunId: input.runId,

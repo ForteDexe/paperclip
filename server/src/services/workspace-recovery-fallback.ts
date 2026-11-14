@@ -20,7 +20,6 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notificatio
 import type { EnvironmentRuntimeService } from "./environment-runtime.js";
 import { resolveEnvironmentExecutionTarget } from "./environment-execution-target.js";
 import { notifyRoutineExecutionStatus } from "./routine-execution-status-notifications.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { hasRecoveredCleanupStopReceipt, hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
 import { abandonUnverifiedRemoteWorkspaceEpoch } from "./remote-workspace-epoch-abandonment.js";
 import { hasStopOnlyCleanup, prepareHistoricalSandboxStopVerification, prepareSandboxStopAndRetain, restoreSandboxStopAfterFailedRestart, settleStopOnlyCleanup } from "./sandbox-stop-and-retain.js";
@@ -372,7 +371,6 @@ export async function continueFromLastSavedWorkspace(input: Source & {
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, input.spaceId);
     await notifyRoutineExecutionStatus(tx, issue.id, input.spaceId);
     const publication = await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system",
       actorId: "workspace-recovery", action: "issue.workspace_recovery_continued_from_last_saved", entityType: "issue",
@@ -500,7 +498,6 @@ export async function settleSiblingRecoveredHold(db: Db, input: Source) {
         blockedOwnerNotifiedAt: null, updatedAt: now }).where(eq(issues.id, issue.id));
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-      await notifyStatusCardIssueChange(tx, input.spaceId);
       await notifyRoutineExecutionStatus(tx, issue.id, input.spaceId);
     }
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);

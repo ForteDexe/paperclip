@@ -91,3 +91,12 @@ wiring, hosted full-stack qualification workflow, credential passthrough, and
 focused tests are removed. Generic local plugin support remains for retained
 extensions such as Campfire; historical environment schemas and managed-runtime
 internals remain until their dependencies are audited as a separate slice.
+
+### Status Cards
+
+Status Cards were an experimental saved-summary surface outside Outpost's
+retained task, decision, artifact, case, and chat workflow. Their navigation,
+UI, shared contracts, API routes, scheduler and notification wiring, active
+database schema exports, agent prompt guidance, focused tests, and active
+documentation are removed. Historical database migrations remain so an older
+database can still be opened and migrated without rewriting migration history.

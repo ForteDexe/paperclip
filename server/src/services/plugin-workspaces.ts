@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { assertProjectStorageEnvironment, effectiveProjectWorkspacePolicy, requireWorkspaceProviderWorker, type WorkspaceWorkers } from "./project-workspace-provider.js";
 import { releaseProviderRecoveryTransfers, stageProviderFreshWorkspace } from "./provider-fresh-workspace.js";
 import { retireAbandonedPluginWorkspaceReservation } from "./plugin-workspace-reservations.js";
@@ -397,7 +396,6 @@ export async function preparePluginWorkspace(
           },
         })
         .returning();
-      await notifyStatusCardIssueChange(tx, task.spaceId);
       await tx
         .update(issues)
         .set({

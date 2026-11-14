@@ -74,25 +74,6 @@ describe("heartbeat task markdown rendering", () => {
     expect(buildOutpostTaskMarkdown({ issue, nativeRunner: false, coordinatorWorkspace: true }))
       .not.toContain("Coordinator task proposals:");
   });
-  it("tells a standing chat what a status card is, how to create and refresh one, and to reply now with its link, only while the experiment is enabled", () => {
-    const chat = { id: "chat", identifier: "RUN-1", title: "Chat", conversationAgentId: "lead" };
-    const enabled = buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true, statusCardsEnabled: true })!;
-    expect(enabled).toContain("Status Cards:");
-    expect(enabled).toContain("A status card is a saved Outpost feature, not a document or comment");
-    expect(enabled).toContain("POST /api/spaces/{spaceId}/status-cards");
-    expect(enabled).toContain("POST /api/status-cards/{id}/refresh");
-    expect(enabled).toContain("Do not sleep or poll the card. Report the outcome the response gives");
-    expect(enabled).toContain("enqueued false otherwise means no run started, so say why from card.state");
-    expect(enabled).toContain("[Launch blockers](/<prefix>/status/<cardId>)");
-    // The named pages are the operator's real routes.
-    const app = readFileSync(new URL("../../../../ui/src/App.tsx", import.meta.url), "utf8");
-    expect(enabled).toContain("Status page at /<prefix>/status (");
-    expect(app).toMatch(/path="status"\s+element=\{<StatusCardsExperimentalGate>/);
-    expect(app).toMatch(/path="status\/:cardId"\s+element=\{<StatusCardsExperimentalGate>/);
-    expect(buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true })).not.toContain("Status Cards:");
-    expect(buildOutpostTaskMarkdown({ issue: { ...chat, conversationAgentId: null }, nativeRunner: true, statusCardsEnabled: true }))
-      .not.toContain("Status Cards:");
-  });
   it("tells a standing chat to link a case's page by its identifier, only while the Cases experiment is enabled", () => {
     const chat = { id: "chat", identifier: "RUN-1", title: "Chat", conversationAgentId: "lead" };
     const enabled = buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true, casesEnabled: true })!;

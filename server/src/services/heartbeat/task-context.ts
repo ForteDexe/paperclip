@@ -37,7 +37,7 @@ export interface HeartbeatTaskContextInput {
   policy: {
     recovering?: boolean;
     trustPreset: Pick<TrustPresetResolution, "kind">;
-    experimentalInstanceSettings: { enableSimplifiedEnglishInteractions?: boolean; enableCases?: boolean; enableStatusCards?: boolean };
+    experimentalInstanceSettings: { enableSimplifiedEnglishInteractions?: boolean; enableCases?: boolean };
   };
   services: {
     issuesSvc: Pick<ReturnType<typeof issueService>, "getAncestors">;
@@ -255,7 +255,6 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   const taskMarkdownInput = {
     coordinatorWorkspace: Boolean(coordinatorWorkspace),
     personTimeZone,
-    statusCardsEnabled: experimentalInstanceSettings.enableStatusCards === true,
     casesEnabled: experimentalInstanceSettings.enableCases === true,
     conversationConfirmations: issueRef && isConversation(issueContext)
       ? await getConversationConfirmationContext({ db, spaceId: agent.spaceId, issueId: issueRef.id, agentId: agent.id })

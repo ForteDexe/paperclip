@@ -1,4 +1,3 @@
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { randomUUID } from "node:crypto";
@@ -242,7 +241,6 @@ export function documentService(db: Db) {
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
           return await db.transaction(async (tx) => {
-          await notifyStatusCardIssueChange(tx, issue.spaceId);
           const now = new Date();
           const existing = await tx
             .select({
@@ -611,7 +609,6 @@ export function documentService(db: Db) {
       }
       await db.transaction(async (tx) => {
         for (const spaceId of new Set(rows.map(row => row.spaceId))) {
-          await notifyStatusCardIssueChange(tx, spaceId);
           await notifyIssueRecovery(tx, { spaceId });
         }
         await insertRowsInChunks(tx, documents, documentRows);
@@ -689,7 +686,6 @@ export function documentService(db: Db) {
           })
           .returning();
 
-        await notifyStatusCardIssueChange(tx, existing.spaceId);
         await tx
           .update(documents)
           .set({
@@ -859,7 +855,6 @@ export function documentService(db: Db) {
 
         await notifyIssueRecovery(tx, { spaceId: existing.spaceId });
         await tx.delete(issueDocuments).where(eq(issueDocuments.documentId, existing.id));
-        await notifyStatusCardIssueChange(tx, existing.spaceId);
         await tx.delete(documents).where(eq(documents.id, existing.id));
 
         return {

@@ -1,5 +1,4 @@
 import { notifyMuseContactVerification } from "../modules/external-agents/index.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyNativeStatusReassessment } from "./native-status-reassessment-notifications.js";
@@ -753,7 +752,6 @@ export function accessService(db: Db) {
       await notifyDeferredExecutionEligibility(tx, { spaceId });
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-      await notifyStatusCardIssueChange(tx, spaceId);
       const resetInProgress = await tx
         .update(issues)
         .set({

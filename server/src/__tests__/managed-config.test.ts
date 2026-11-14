@@ -16,7 +16,7 @@ function validDoc(overrides: Record<string, unknown> = {}) {
     v: 1,
     mode: "cloud",
     catalogVersion: "2026.720.0",
-    features: { enableApps: false, enableStatusCards: true },
+    features: { enableApps: false, enableCases: true },
     plugins: { autoInstall: ["daytona", "kubernetes"] },
     ...overrides,
   });
@@ -108,7 +108,7 @@ describe("parseManagedConfigEnv", () => {
       v: 1,
       mode: "cloud",
       catalogVersion: "2026.720.0",
-      features: { enableApps: false, enableStatusCards: true },
+      features: { enableApps: false, enableCases: true },
       plugins: { autoInstall: ["daytona", "kubernetes"] },
       environments: [],
       pluginEnvironments: [],

@@ -8,7 +8,6 @@ import { GENERATE_IMAGE, GENERATE_IMAGE_DEFINITION, GENERATE_IMAGE_MODEL, genera
 import { aiConnectionService } from "../ai-connections.js";
 import { createCostEventInTransaction } from "../costs.js";
 import { withOperationAccountingTransaction } from "../accounting-transaction.js";
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 import { nativeRunKeyScope, nativeSkillTestToolAllowed, assertNativeSkillTestTool } from "./native-skill-test-scope.js";
 import { notifyAttentionRetentionWork } from "../retention-work-notifications.js";
 import { requiredQualityReviewSchema, type RequestCheckboxConfirmationOption } from "@outpost/shared";
@@ -2514,7 +2513,6 @@ export class OutpostRunnerToolAuthority {
       await notifyAttentionRetentionWork(tx, { spaceId: this.binding.spaceId });
       const patch = prepareIssueMonitorUpdate(target, input.monitor, actor);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-      await notifyStatusCardIssueChange(tx, this.binding.spaceId);
       const [updated] = await tx.update(issues).set({ ...patch, updatedAt: new Date() })
         .where(and(eq(issues.id, target.id), eq(issues.spaceId, this.binding.spaceId))).returning();
       if (!updated) throw notFound("Task not found");

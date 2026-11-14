@@ -5,7 +5,6 @@ import { persistActivity, publishActivity } from "../activity-log.js";
 import { releaseAncestorWorkspaceBinding } from "../execution-workspaces.js";
 import { issueService } from "../issues.js";
 import { REMOTE_WORKSPACE_WRITER_PENDING_MESSAGE } from "../remote-workspace-writer-hold.js";
-import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 
 export const LEGACY_WORKSPACE_REHOME_SCHEMA = "outpost.legacy-workspace-rehome.v1";
 export const LEGACY_WORKSPACE_REHOME_OUTCOME = "legacy_shared_workspace_rehomed";
@@ -180,7 +179,6 @@ async function rehomeOne(tx: Db, input: { actionId: string; spaceId: string; iss
   }).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, action.id)));
   await tx.update(issues).set({ status: "todo", unblockDescriptor: null, blockedTransitionAt: null,
     blockedOwnerNotifiedAt: null, updatedAt: now }).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, issue.id)));
-  await notifyStatusCardIssueChange(tx, input.spaceId);
   const activity = await persistActivity(tx, { spaceId: input.spaceId, actorType: "system", actorId: "legacy-workspace-rehome",
     action: "issue.legacy_workspace_rehomed", entityType: "issue", entityId: issue.id, runId: run.id,
     details: { recoveryActionId: action.id, previousExecutionWorkspaceId, status: "todo", note: LEGACY_WORKSPACE_REHOME_NOTE,

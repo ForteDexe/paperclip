@@ -200,7 +200,6 @@ and authority. Each YAML file can also reference capabilities from other areas.
 | [runs-adapters](runs-adapters.yaml) | [Feature](../../../maps/feature-map/runs-adapters.md) | [Access](../../../maps/agent-access-map/runs-adapters.md) |
 | [secrets](secrets.yaml) | [Feature](../../../maps/feature-map/secrets.md) | [Access](../../../maps/agent-access-map/secrets.md) |
 | [skills](skills.yaml) | [Feature](../../../maps/feature-map/skills.md) | [Access](../../../maps/agent-access-map/skills.md) |
-| [status-cards](status-cards.yaml) | [Feature](../../../maps/feature-map/status-cards.md) | [Access](../../../maps/agent-access-map/status-cards.md) |
 | [steering](steering.yaml) | [Feature](../../../maps/feature-map/steering.md) | [Access](../../../maps/agent-access-map/steering.md) |
 | [task-coordination](task-coordination.yaml) | [Feature](../../../maps/feature-map/task-coordination.md) | [Access](../../../maps/agent-access-map/task-coordination.md) |
 | [tasks](tasks.yaml) | [Feature](../../../maps/feature-map/tasks.md) | [Access](../../../maps/agent-access-map/tasks.md) |

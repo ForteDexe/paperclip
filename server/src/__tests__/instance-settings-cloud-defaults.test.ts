@@ -107,8 +107,8 @@ describe("stripCloudCatalogDefaultEchoes", () => {
 
   it("does not persist the self-hosted default on Cloud during an unrelated write", () => {
     const config = managedConfig();
-    const stored = persisted({}, { enableStatusCards: true }, config);
-    expect(stored.enableStatusCards).toBe(true);
+    const stored = persisted({}, { enableCases: true }, config);
+    expect(stored.enableCases).toBe(true);
     expect("enableNativeRunner" in stored).toBe(false);
     // The Cloud default still applies on the next read.
     expect(readBack(stored, config).enableNativeRunner).toBe(false);
@@ -116,7 +116,7 @@ describe("stripCloudCatalogDefaultEchoes", () => {
 
   it("treats a full-GET echo of the Cloud default as no choice", () => {
     const config = managedConfig();
-    const stored = persisted({}, { enableNativeRunner: false, enableStatusCards: true }, config);
+    const stored = persisted({}, { enableNativeRunner: false, enableCases: true }, config);
     expect("enableNativeRunner" in stored).toBe(false);
     expect(readBack(stored, config).enableNativeRunner).toBe(false);
   });
@@ -130,14 +130,14 @@ describe("stripCloudCatalogDefaultEchoes", () => {
 
   it("keeps a stored tenant value across unrelated writes", () => {
     const config = managedConfig();
-    const stored = persisted({ enableNativeRunner: true }, { enableStatusCards: true }, config);
+    const stored = persisted({ enableNativeRunner: true }, { enableCases: true }, config);
     expect(stored.enableNativeRunner).toBe(true);
     expect(readBack(stored, config).enableNativeRunner).toBe(true);
   });
 
   it("leaves the whole normalized object in place for self-hosted rows", () => {
-    const stored = persisted({}, { enableStatusCards: true }, null);
+    const stored = persisted({}, { enableCases: true }, null);
     expect(stored.enableNativeRunner).toBe(true);
-    expect(stored).toEqual(applyExperimentalSettingsPatch({}, { enableStatusCards: true }));
+    expect(stored).toEqual(applyExperimentalSettingsPatch({}, { enableCases: true }));
   });
 });

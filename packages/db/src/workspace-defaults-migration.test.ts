@@ -33,7 +33,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
       }
       await sql`INSERT INTO space_memberships (space_id, principal_type, principal_id) VALUES (${spaceId}, 'user', 'existing-member')`;
       await sql`INSERT INTO user_workspace_preferences (user_id, coordinator_workspace_enabled) VALUES ('saved-coordinator', true), ('saved-classic', false)`;
-      const settings = { enableStatusCards: true, ...(chat === null ? {} : { enableAgentChat: chat }) };
+      const settings = { enableCases: true, ...(chat === null ? {} : { enableAgentChat: chat }) };
       await sql`INSERT INTO instance_settings (singleton_key, experimental) VALUES ('default', ${sql.json(settings)}) ON CONFLICT (singleton_key) DO UPDATE SET experimental = EXCLUDED.experimental`;
       for (let replay = 0; replay < 2; replay++) {
         for (const statement of migration.split('--> statement-breakpoint')) {

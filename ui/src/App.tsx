@@ -168,9 +168,6 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       />
       <Route path="status" element={<Navigate to="/dashboard" replace />} />
       <Route path="status/:cardId" element={<Navigate to="/dashboard" replace />} />
-      {/* Back-compat: the operator lived at /status-cards before PAP-15223. */}
-      <Route path="status-cards" element={<Navigate to="/dashboard" replace />} />
-      <Route path="status-cards/:cardId" element={<Navigate to="/dashboard" replace />} />
       <Route path="routines/:routineId" element={<Navigate to="/dashboard" replace />} />
       <Route path="routines/:routineId/:section" element={<Navigate to="/dashboard" replace />} />
       <Route path="execution-workspaces/:workspaceId/*" element={<Navigate to="/dashboard" replace />} />
@@ -379,8 +376,6 @@ export function App() {
           <Route path="cases/:caseIdentifier" element={<UnprefixedOperatorRedirect />} />
           <Route path="status" element={<UnprefixedOperatorRedirect />} />
           <Route path="status/:cardId" element={<UnprefixedOperatorRedirect />} />
-          <Route path="status-cards" element={<UnprefixedOperatorRedirect />} />
-          <Route path="status-cards/:cardId" element={<UnprefixedOperatorRedirect />} />
           <Route path="artifacts" element={<UnprefixedOperatorRedirect />} />
           <Route path="audit" element={<UnprefixedOperatorRedirect />} />
           {streamlinedUiEnabled ? (

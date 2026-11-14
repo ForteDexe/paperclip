@@ -272,15 +272,6 @@ export const queryKeys = {
         "revisions",
       ] as const,
   },
-  statusCards: {
-    list: (spaceId: string, archived: boolean) =>
-      ["status-cards", spaceId, archived ? "archived" : "active"] as const,
-    detail: (id: string) => ["status-cards", "detail", id] as const,
-    updates: (id: string) => ["status-cards", "detail", id, "updates"] as const,
-    summaryRevisions: (id: string) =>
-      ["status-cards", "detail", id, "summary-revisions"] as const,
-    dryRun: (id: string) => ["status-cards", "detail", id, "dry-run"] as const,
-  },
   issues: {
     recoveryActions: (id: string, actionId: string | null, runId: string | null) =>
       ["issues", id, "recovery-actions", actionId, runId] as const,

@@ -43,7 +43,7 @@ describe("instance settings service", () => {
     const disabled = applyExperimentalSettingsPatch({}, { remoteWorkspaceStorageEnabled: false });
     expect(normalizeExperimentalSettings(JSON.parse(JSON.stringify(disabled))).remoteWorkspaceStorageEnabled).toBe(false);
     expect(normalizeExperimentalSettings({ remoteWorkspaceStorageEnabled: false, enableCases: "invalid" }).remoteWorkspaceStorageEnabled).toBe(false);
-    expect(applyExperimentalSettingsPatch(disabled, { enableStatusCards: true }).remoteWorkspaceStorageEnabled).toBe(false);
+    expect(applyExperimentalSettingsPatch(disabled, { enableCases: true }).remoteWorkspaceStorageEnabled).toBe(false);
     expect(applyExperimentalSettingsPatch(disabled, { remoteWorkspaceStorageEnabled: true }).remoteWorkspaceStorageEnabled).toBe(true);
   });
 
@@ -150,7 +150,6 @@ describe("instance settings service", () => {
       enableBuiltInAgents: true,
       enableBetaSkills: false,
       enableSummaries: false,
-      enableStatusCards: false,
       enableDecisions: false,
       enableFastResponses: false,
       enableGoalsSidebarLink: true,

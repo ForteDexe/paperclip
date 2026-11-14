@@ -1,6 +1,5 @@
 import { notifyStrandedAgentStatus } from "./live-run-recovery-notifications.js";
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyRoutineExecutionStatus } from "./routine-execution-status-notifications.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
@@ -1042,7 +1041,6 @@ export function issueTreeControlService(db: Db) {
           await notifyChatResponseAvailability(tx, { spaceId, issueId });
           if (status === "blocked" || status === "in_review") await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId, issueId });
         }
-        await notifyStatusCardIssueChange(tx, spaceId);
         const rows = await tx
           .update(issues)
           .set({

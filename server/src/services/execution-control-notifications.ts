@@ -2,7 +2,6 @@ import { notifyLiveRunRecovery, notifyLiveResourceRecovery } from "./live-run-re
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
-import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyRoutineExecutionStatus } from "./routine-execution-status-notifications.js";
 import type { Db } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork, type DeliveryQueue } from "./delivery-work-notifications.js";
@@ -13,7 +12,6 @@ export async function notifyExecutionRunWork(transaction: object, scope?: Execut
   if (scope) {
     await notifyAttentionRetentionWork(transaction, scope);
     await notifyRunDispatch(transaction, scope);
-    await notifyStatusCardIssueChange(transaction, scope.spaceId);
     await notifyDeferredExecutionEligibility(transaction, scope);
     await notifyLiveRunRecovery(transaction, scope);
     await notifyLiveResourceRecovery(transaction, scope);
@@ -35,7 +33,6 @@ export function writeExecutionControl<T>(
   return db.transaction(async transaction => {
     await notifyRunDispatch(transaction, scope);
     if (scope) {
-      await notifyStatusCardIssueChange(transaction, scope.spaceId);
       await notifyAttentionRetentionWork(transaction, scope);
       await notifyRoutineExecutionStatus(transaction, scope.issueId, scope.spaceId);
       await notifyDeferredExecutionEligibility(transaction, scope);

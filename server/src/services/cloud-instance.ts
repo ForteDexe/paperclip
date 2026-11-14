@@ -33,7 +33,6 @@ const CLOUD_STAGING_EXPERIMENTAL_KEYS: ReadonlySet<string> = new Set([
   "enableServerInfoDebugView",
   "enableSimplifiedEnglishInteractions",
   "enableSmokeLab",
-  "enableStatusCards",
   "enableStreamlinedUi",
   "enableSummaries",
   "enableWorktreeRunExecution",
