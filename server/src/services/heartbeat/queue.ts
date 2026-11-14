@@ -2521,7 +2521,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     };
     let caseReceipt: { id: string; requestedAt: Date } | undefined;
     if (caseRequest) {
-      if (opts.taskRetryRequestId || opts.durableChatRequest || opts.durableDotRequest || opts.durableMuseRequest || source !== "assignment" || reason !== "case_handoff")
+      if (opts.taskRetryRequestId || opts.durableChatRequest || source !== "assignment" || reason !== "case_handoff")
         throw conflict("Invalid case handoff wake authority");
       const [handoff] = await db.select().from(caseHandoffs).where(and(eq(caseHandoffs.id, caseRequest.handoffId),
         eq(caseHandoffs.spaceId, agent.spaceId), eq(caseHandoffs.issueId, caseRequest.issueId),
@@ -2553,29 +2553,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     if (durableRequest?.failedRunRetry) {
       opts = { ...opts, allowRunCoalescing: false };
     }
-    const dotRequest = opts.durableDotRequest;
-    const museRequest = opts.durableMuseRequest;
-    if (dotRequest && (durableRequest || museRequest || dotRequest.agentId !== agentId ||
-        dotRequest.spaceId !== agent.spaceId || dotRequest.issueId !== issueId ||
-        dotRequest.requestId !== payload?.dotRequestId || source !== "assignment" ||
-        opts.requestedByActorType !== "agent" || opts.requestedByActorId !== agentId ||
-        agent.adapterType !== "outpost_runner" || !["openai_dot", "grok_bot"].includes(String(parseObject(agent.adapterConfig).provider)) ||
-        opts.idempotencyKey !== dotRequest.idempotencyKey)) {
-      throw conflict("Dot work request does not match its admission authority.");
-    }
-    if (museRequest && (durableRequest || dotRequest || museRequest.agentId !== agentId ||
-        museRequest.spaceId !== agent.spaceId || museRequest.issueId !== issueId ||
-        museRequest.requestId !== payload?.museRequestId || source !== "assignment" ||
-        opts.requestedByActorType !== "agent" || opts.requestedByActorId !== agentId ||
-        agent.adapterType !== "outpost_runner" || parseObject(agent.adapterConfig).provider !== "muse" ||
-        parseObject(agent.adapterConfig).museBindingId !== museRequest.bindingId ||
-        !Number.isSafeInteger(museRequest.bindingGeneration) || museRequest.bindingGeneration < 1 ||
-        payload?.museBindingId !== museRequest.bindingId || payload?.museBindingGeneration !== museRequest.bindingGeneration ||
-        payload?.museRequestDigest !== museRequest.requestDigest || !/^sha256:[a-f0-9]{64}$/.test(museRequest.requestDigest) ||
-        opts.idempotencyKey !== museRequest.idempotencyKey)) {
-      throw conflict("Muse work request does not match its admission authority.");
-    }
-    const receiptRequest = durableRequest ?? dotRequest ?? museRequest ?? caseReceipt;
+    const receiptRequest = durableRequest ?? caseReceipt;
     const durableReceiptFields = receiptRequest
       ? { id: receiptRequest.id, requestedAt: receiptRequest.requestedAt }
       : {};
@@ -2591,21 +2569,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (receipt && caseRequest && (receipt.spaceId !== agent.spaceId || receipt.agentId !== agentId ||
           receipt.payload?.issueId !== caseRequest.issueId || receipt.idempotencyKey !== `case-handoff:${caseRequest.handoffId}`))
         throw conflict("Case handoff wake receipt identity changed");
-      if (receipt && dotRequest && (receipt.spaceId !== dotRequest.spaceId ||
-          receipt.agentId !== dotRequest.agentId || receipt.source !== "assignment" ||
-          receipt.requestedByActorType !== "agent" || receipt.requestedByActorId !== dotRequest.agentId ||
-          receipt.idempotencyKey !== dotRequest.idempotencyKey || receipt.payload?.issueId !== dotRequest.issueId ||
-          receipt.payload?.dotRequestId !== dotRequest.requestId)) {
-        throw conflict("requestId was reused for another task.");
-      }
-      if (receipt && museRequest && (receipt.spaceId !== museRequest.spaceId ||
-          receipt.agentId !== museRequest.agentId || receipt.source !== "assignment" ||
-          receipt.requestedByActorType !== "agent" || receipt.requestedByActorId !== museRequest.agentId ||
-          receipt.idempotencyKey !== museRequest.idempotencyKey || receipt.payload?.issueId !== museRequest.issueId ||
-          receipt.payload?.museRequestId !== museRequest.requestId || receipt.payload?.museBindingId !== museRequest.bindingId ||
-          receipt.payload?.museBindingGeneration !== museRequest.bindingGeneration || receipt.payload?.museRequestDigest !== museRequest.requestDigest)) {
-        throw conflict("Request ID reused with changed input.");
-      }
       if (receipt && durableRequest && receipt.status === "deferred_issue_execution" && !receipt.runId &&
           ((durableRequest.failedRunRetry && opts.taskRetryRequestId &&
             receipt.payload?.taskRetryRequestId === opts.taskRetryRequestId) ||

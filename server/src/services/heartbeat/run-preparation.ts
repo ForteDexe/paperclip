@@ -805,22 +805,6 @@ export interface WakeupOptions {
   /** Exact failed run selected by an authenticated operator Retry request. */
   failedRunId?: string | null;
   durableChatRequest?: DurableChatWakeupRequest;
-  /** Server-owned Dot admission receipt; never accepted from API payloads. */
-  durableDotRequest?: {
-    id: string;
-    spaceId: string;
-    agentId: string;
-    issueId: string;
-    requestId: string;
-    idempotencyKey: string;
-    requestedAt: Date;
-  };
-  /** Server-owned Muse admission receipt; never accepted from API payloads. */
-  durableMuseRequest?: NonNullable<WakeupOptions["durableDotRequest"]> & {
-    bindingId: string;
-    bindingGeneration: number;
-    requestDigest: string;
-  };
   source?: "timer" | "assignment" | "on_demand" | "automation";
   triggerDetail?: "manual" | "ping" | "callback" | "system";
   reason?: string | null;
