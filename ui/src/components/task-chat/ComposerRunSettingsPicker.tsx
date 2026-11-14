@@ -61,7 +61,6 @@ function harnessLabel(agent: Agent | undefined): string {
 
 function unavailableModelReason(agent: Agent | undefined): string {
   if (!agent) return "Choose an agent to select its model and effort.";
-  if (agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "muse") return "Muse chooses its model and effort. Outpost has no per-task override.";
   if (agent?.adapterType === "process") return "This agent runs a command. Its harness does not expose a model or effort setting.";
   if (agent?.adapterType === "http") return "This agent calls an HTTP endpoint. The destination service chooses its model.";
   return "This gateway chooses its model remotely; Outpost has no per-task model setting for it.";
@@ -109,10 +108,6 @@ export function ComposerRunSettingsPicker({
     ? "settings"
     : requestedView;
   const provider = composerCatalogProvider(agent);
-  const isMuseRunner = agent?.adapterType === "outpost_runner" && provider === "muse";
-  useEffect(() => {
-    if (isMuseRunner && settings !== null) onSettingsChange(null);
-  }, [isMuseRunner, settings, onSettingsChange]);
   const binding = aiRuntimeConnectionBindingSchema.safeParse(agent?.runtimeConfig?.aiConnection).data;
   const poolId = binding?.mode === "router" ? binding.connectionId : undefined;
   const nativeCatalog = nativeTaskModelCatalogOptions(agent);

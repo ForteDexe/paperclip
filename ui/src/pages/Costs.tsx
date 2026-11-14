@@ -187,7 +187,6 @@ export function Costs({
     queryFn: () => agentsApi.get(scopedAgentId!, selectedSpaceId!),
     enabled: Boolean(selectedSpaceId && scopedAgentId),
   });
-  const museUsageUnavailable = scopedAgent?.adapterType === "outpost_runner" && scopedAgent.adapterConfig.provider === "muse";
   const [mainTab, setMainTab] = useState<CostsMainTab>(initialTab);
   const [activeProvider, setActiveProvider] = useState("all");
   const [activeBiller, setActiveBiller] = useState("all");
@@ -608,11 +607,6 @@ export function Costs({
     <div className="space-y-6">
       {scopedAgentError && (
         <p role="alert" className="text-sm text-destructive">Could not load agent details. Totals below show recorded outpost costs.</p>
-      )}
-      {museUsageUnavailable && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {scopedAgent.name}'s Muse activity has no reported usage or cost. Totals below show recorded outpost charges only. Outpost cannot enforce a Muse spend ceiling.
-        </p>
       )}
       {showSummaryChrome ? (
         <div className="space-y-5">

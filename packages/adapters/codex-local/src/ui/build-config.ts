@@ -103,14 +103,6 @@ export function buildOutpostRunnerConfig(v: CreateConfigValues, context?: {
   const provider = isOutpostRunnerProvider(providerCandidate)
     ? providerCandidate
     : "codex";
-  if (provider === "muse") {
-    return { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: schemaValues.allowUnmeteredProvider === true,
-      ...(typeof schemaValues.museBindingId === "string" ? { museBindingId: schemaValues.museBindingId } : {}) };
-  }
-  if (provider === "openai_dot") {
-    return { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: schemaValues.allowUnmeteredProvider === true, dotWorkspaceAccess: schemaValues.dotWorkspaceAccess === true, dotAttachmentAccess: schemaValues.dotAttachmentAccess === true,
-      ...(typeof schemaValues.dotBindingId === "string" ? { dotBindingId: schemaValues.dotBindingId } : {}) };
-  }
   if (provider === "cursor_cloud") {
     const model = typeof config.model === "string" && config.model.trim()
       ? config.model.trim() : typeof schemaValues.model === "string" ? schemaValues.model.trim() : "";

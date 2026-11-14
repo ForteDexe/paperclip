@@ -20,8 +20,7 @@ const MODEL_ADAPTERS = new Set([
 ]);
 
 export function supportsComposerModel(agent: Agent | undefined): boolean {
-  return Boolean(agent && MODEL_ADAPTERS.has(agent.adapterType)
-    && !(agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "muse"));
+  return Boolean(agent && MODEL_ADAPTERS.has(agent.adapterType));
 }
 
 /** Resolve visible defaults; host environment and a local CLI's own config are unknown. */
