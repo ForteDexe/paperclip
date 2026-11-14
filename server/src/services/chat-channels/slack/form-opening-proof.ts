@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, sql } from "drizzle-orm";
-import { chatActions, type Db } from "@paperclipai/db";
+import { chatActions, type Db } from "@outpost/db";
 import type { StoredSecretVersionMaterial } from "../../../secrets/types.js";
 import { createLocalEncryptedCipher } from "../../../secrets/local-encrypted-provider.js";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "../../delivery-work-notifications.js";

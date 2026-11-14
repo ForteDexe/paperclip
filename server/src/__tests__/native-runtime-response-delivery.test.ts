@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { agents, companies, companyMemberships, instanceUserRoles, issues, heartbeatRuns, heartbeatRunEvents,
-  nativeRunFinalizations, createDb } from "@paperclipai/db";
+  nativeRunFinalizations, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { deploymentNotifications } from "../services/deployment-notifications.js";
@@ -58,7 +58,7 @@ async function pending(): Promise<PendingNativeRuntimeRequest> {
   const request = { companyId, runId, requestId: randomUUID(), requestKind: "command_approval" as const,
     turnId: "turn-fixture", resolverPolicy: "instance_admin" as const };
   await a.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: ++seq, eventType: "runtime_request.created",
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", eventType: "runtime_request.created", sourceKind: "runner", runId,
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", eventType: "runtime_request.created", sourceKind: "runner", runId,
       payload: { request: { ...request, status: "pending" } } } } });
   return request;
 }
@@ -98,7 +98,7 @@ it("does not dispatch an answer after its request has become terminal", async ()
   setNativeExecutionActive(runId, false);
   const request = await pending(); await enqueue(request);
   await a.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: ++seq, eventType: "runtime_request.resolved",
-    payload: { prpEvent: { payload: { requestId: request.requestId } } } });
+    payload: { orpEvent: { payload: { requestId: request.requestId } } } });
   setNativeExecutionActive(runId, true);
   await expect.poll(() => state(request.requestId)).toBe("obsolete");
   expect(provider.accepted).not.toHaveBeenCalled();

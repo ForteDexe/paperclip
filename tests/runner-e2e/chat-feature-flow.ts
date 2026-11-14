@@ -80,7 +80,7 @@ export async function runChatFeatureFlow(context: {
   async function saveEvidence() {
     await input.evidence("chat-feature.json", { schema: CHAT_FEATURE_GRADER, scenarioId: scenario!.id,
       capabilities: scenario!.capabilities, observation, grade: gradeChatFeature(observation),
-      setupObservations, setupProbeReceipts: await readChatReadinessReceipts(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT ?? "", f.company.id),
+      setupObservations, setupProbeReceipts: await readChatReadinessReceipts(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "", f.company.id),
       setupUsageCoverage: "Production agent hello probes are outside heartbeat usage; their detailed tokens and cost are unavailable." });
   }
   try {

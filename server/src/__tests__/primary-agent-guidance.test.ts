@@ -1,8 +1,8 @@
 import { expect, it, vi } from "vitest";
 import { searchRunnerApi } from "../services/native-runtime/runner-api-catalog.js";
 import { executeRunnerApi } from "../services/native-runtime/runner-api-client.js";
-import { startOpenCodeMcpBridge } from "../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.js";
-import { searchApiAction } from "../../../packages/paperclip-runner/src/protocol-actions/search-api.js";
+import { startOpenCodeMcpBridge } from "../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.js";
+import { searchApiAction } from "../../../packages/outpost-runner/src/protocol-actions/search-api.js";
 
 it("delivers default-agent profile guidance through actual API discovery and bounded OpenCode MCP output", async () => {
   const descriptor = searchApiAction.live.descriptor;
@@ -45,7 +45,7 @@ it("keeps the compatibility route board-only when called with an agent identity"
   const result = await executeRunnerApi({ operationId: "PUT /api/companies/{companyId}/primary-agent/me",
     body: { primaryAgentId: "00000000-0000-4000-8000-000000000113" } },
   { companyId, runId, issueId: "00000000-0000-4000-8000-000000000114", workMode: "standard" },
-  { apiUrl: "https://paperclip.test", token: "synthetic-agent-only", fetch: request,
+  { apiUrl: "https://outpost.test", token: "synthetic-agent-only", fetch: request,
     readFile: async () => { throw new Error("No file read required"); },
     saveResponse: async () => { throw new Error("No capture required"); } });
   expect(result).toMatchObject({ ok: false, status: 403, data: { error: "Board access required" } });

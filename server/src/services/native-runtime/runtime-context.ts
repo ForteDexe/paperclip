@@ -12,24 +12,24 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, desc, eq } from "drizzle-orm";
-import { agentInstructionRevisions, agents, companySkillVersions, heartbeatRuns, type Db } from "@paperclipai/db";
-import type { PaperclipSkillEntry } from "@paperclipai/adapter-utils/server-utils";
-import { isToolConnectionAttentionHealth } from "@paperclipai/shared";
+import { agentInstructionRevisions, agents, companySkillVersions, heartbeatRuns, type Db } from "@outpost/db";
+import type { PaperclipSkillEntry } from "@outpost/adapter-utils/server-utils";
+import { isToolConnectionAttentionHealth } from "@outpost/shared";
 import {
-  PAPERCLIP_OPERATIONAL_SKILL_KEY,
+  OUTPOST_OPERATIONAL_SKILL_KEY,
   resolveNativeOutpostDesiredSkillNames,
   resolvePaperclipDesiredSkillNames,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import {
   NATIVE_RUNTIME_ASSET_SCHEMA,
-  PAPERCLIP_EXECUTION_PROMPT,
-  PAPERCLIP_EXECUTION_PROMPT_REVISION,
+  OUTPOST_EXECUTION_PROMPT,
+  OUTPOST_EXECUTION_PROMPT_REVISION,
   canonicalNativeRuntimeContextDigest,
   nativeRuntimePromptDigest,
   parseNativeRuntimeContext,
   type NativeRuntimeAssetReference,
   type NativeRuntimeContextSnapshot,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 import { agentInstructionsService, agentInstructionsBundleMode } from "../agent-instructions.js";
 import { agentInstructionRevisionService } from "../agent-instruction-revisions.js";
@@ -102,7 +102,7 @@ export async function materializeAsset(files: AssetFile[]): Promise<NativeRuntim
     const totalBytes = manifestFiles.reduce((sum, file) => sum + file.size, 0);
     if (!manifestFiles.length || manifestFiles.length > MAX_ASSET_FILES || totalBytes > MAX_ASSET_BYTES) throw new Error("runtime context bundle is empty or exceeds its bound");
     const assetDigest = sha256(JSON.stringify(manifestFiles));
-    const manifestText = `${JSON.stringify({ schema: "paperclip.runtime-asset-manifest.v1", digest: assetDigest, fileCount: manifestFiles.length, totalBytes, files: manifestFiles })}\n`;
+    const manifestText = `${JSON.stringify({ schema: "outpost.runtime-asset-manifest.v1", digest: assetDigest, fileCount: manifestFiles.length, totalBytes, files: manifestFiles })}\n`;
     const manifestDigest = sha256(manifestText);
     return { sorted, manifestFiles, totalBytes, assetDigest, manifestText, manifestDigest };
   });
@@ -369,11 +369,11 @@ export async function buildNativeRuntimeContext(input: { db: Db; agent: RuntimeA
   const emptyMcpDigest = sha256("preconfigured");
   const [instructions, skills, mcp] = await Promise.all([
     measureRunPhase("runtime_context.instructions", () => materializeInstructionBundle(input.db, input.agent, input.instructionWorkingCopy?.kind === "agent_files")),
-    measureRunPhase("runtime_context.skills", () => preconfigured ? [] : materializeSelectedSkills(input.runtimeConfig, input.runtimeSkillEntries, input.agent.adapterType === "paperclip_runner")),
+    measureRunPhase("runtime_context.skills", () => preconfigured ? [] : materializeSelectedSkills(input.runtimeConfig, input.runtimeSkillEntries, input.agent.adapterType === "outpost_runner")),
     measureRunPhase("runtime_context.mcp", () => preconfigured ? { assignmentSetId: `sha256:${emptyMcpDigest}`, digest: emptyMcpDigest, bindingId: null } : resolveNativeRuntimeMcpSnapshot({ db: input.db, agent: input.agent, runId: input.runId })),
   ]);
   const snapshot = {
-    prompt: { revision: PAPERCLIP_EXECUTION_PROMPT_REVISION, text: PAPERCLIP_EXECUTION_PROMPT, digest: nativeRuntimePromptDigest() },
+    prompt: { revision: OUTPOST_EXECUTION_PROMPT_REVISION, text: OUTPOST_EXECUTION_PROMPT, digest: nativeRuntimePromptDigest() },
     instructions: { ...instructions, ...(input.instructionWorkingCopy ? { workingCopy: input.instructionWorkingCopy } : {}) },
     skills,
     mcp,

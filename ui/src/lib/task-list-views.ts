@@ -1,4 +1,4 @@
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 
 export const taskListViews = [
   { value: "inbox", label: "Mine" },

@@ -23,7 +23,7 @@ Plan: [`2026-11-07-durable-ownership-and-reconciliation.md`](2026-11-07-durable-
 ## Method
 
 - **Source of truth:** the run log only. The data is the `run.performance.span`, `run.startup.reuse` and `native.recovery.transition` rows in `heartbeat_run_events`, read through `GET /api/heartbeat-runs/:id/events`. Nothing was read from Telemetry (AGENTS.md §5.7).
-- **Driver:** [`tests/restart-chaos/ttft-baseline.ts`](../../tests/restart-chaos/ttft-baseline.ts) starts one isolated control plane with the chaos supervisor: a temporary `PAPERCLIP_HOME`, an embedded Postgres owned by the wrapper, and the debug native runner. It seeds the Chaos Lab and then, per adapter:
+- **Driver:** [`tests/restart-chaos/ttft-baseline.ts`](../../tests/restart-chaos/ttft-baseline.ts) starts one isolated control plane with the chaos supervisor: a temporary `OUTPOST_HOME`, an embedded Postgres owned by the wrapper, and the debug native runner. It seeds the Chaos Lab and then, per adapter:
   - **cold:** a new task (a fresh provider session);
   - **warm:** a follow-up comment on the same finished task (the provider session is reused);
   - **restart:** a task inside a `python3 -c "import time; time.sleep(75)"` shell call when the control plane is killed with `K1` (SIGKILL) or stopped with `K2` (SIGTERM). The fault fires only while each tracked run has that call open, and every run is rechecked just before the fault. A tool that exposes its command (codex, claude) must show `time.sleep(75)`. OpenCode's `bash` tool exposes no command text, so for opencode any open shell call counts, and the sample is logged as `baseline_restart_command_unverified`.
@@ -98,7 +98,7 @@ The column spans are `heartbeat.queue`, `task.prepare`, `runner.session.startup`
 | `native.coordinator.claim` | 78 | 0.01 s | 0.10 s | claude, codex, opencode |
 | `environment.workspace.realize` | 78 | 0.01 s | 0.07 s | claude, codex, opencode |
 | `skills.prepare` | 78 | 0.00 s | 0.01 s | claude, codex, opencode |
-| `runner.prp.route.register` | 78 | 0.00 s | 0.00 s | claude, codex, opencode |
+| `runner.orp.route.register` | 78 | 0.00 s | 0.00 s | claude, codex, opencode |
 
 ### Found by code reading (from the inventory)
 

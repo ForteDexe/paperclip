@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { contextCompactionService } from "../context-compaction.js";
 import { claimNativeSessionResumptions } from "../native-runtime/native-finalization-reconciler.js";
-import type { Db } from "@paperclipai/db";
-import { authUsers, agents, agentWakeupRequests, budgetIncidents, budgetPolicies, caseHandoffs, cases, chatCompletionDeliveries, companies, companyMemberships, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, heartbeatRuns, issueComments, issueThreadInteractions, issues, nativeRunFinalizations } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { authUsers, agents, agentWakeupRequests, budgetIncidents, budgetPolicies, caseHandoffs, cases, chatCompletionDeliveries, companies, companyMemberships, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, heartbeatRuns, issueComments, issueThreadInteractions, issues, nativeRunFinalizations } from "@outpost/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -102,14 +102,14 @@ describe("heartbeat queue module boundary", () => {
   it("uses the same policy limits for dispatch and execution", () => {
     const database = guardedDatabase();
     const queue = createHeartbeatQueue(database.db, callbacks(database.db));
-    const agent = { adapterType: "paperclip_runner", adapterConfig: { provider: "openai_dot" }, runtimeConfig: { heartbeat: { maxConcurrentRuns: 20, maxDailyRuns: 3.8 } } } as unknown as typeof agents.$inferSelect;
+    const agent = { adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot" }, runtimeConfig: { heartbeat: { maxConcurrentRuns: 20, maxDailyRuns: 3.8 } } } as unknown as typeof agents.$inferSelect;
     expect(queue.parseHeartbeatPolicy(agent)).toMatchObject({ maxConcurrentRuns: 1, maxDailyRuns: 3 });
     expect(queue.parseHeartbeatPolicy({ ...agent, adapterConfig: { provider: "codex" } })).toMatchObject({ maxConcurrentRuns: 20, maxDailyRuns: 3 });
     expect(database.access).not.toHaveBeenCalled();
   });
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_QUEUE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_QUEUE_TEST_DATABASE_URL");
 const support = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 if (!support.supported) console.warn(`Skipping queue module database tests: ${support.reason}`);
 describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
@@ -132,7 +132,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   ])("rejects direct taskless timer wakes for $provider before a run or request can be persisted", async adapterConfig => {
     const [company] = await db.insert(companies).values({ name: "Timer scope", issuePrefix: "TS" }).returning();
     const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Ready for a task", status: "idle",
-      adapterType: "paperclip_runner", adapterConfig, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 60 } } }).returning();
+      adapterType: "outpost_runner", adapterConfig, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 60 } } }).returning();
     const deps = callbacks(db);
     deps.getAgent.mockResolvedValue(agent);
     const queue = createHeartbeatQueue(db, deps);
@@ -148,7 +148,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   it.each(["ordinary recovery", "mismatched compaction"] as const)(
     "does not admit %s after the conversation settles between precheck and admission", async cause => {
     const [user] = await db.insert(authUsers).values({
-      id: "queue-conversation-race-user", name: "Conversation owner", email: "queue-race@paperclip.test",
+      id: "queue-conversation-race-user", name: "Conversation owner", email: "queue-race@outpost.test",
       createdAt: new Date(), updatedAt: new Date(),
     }).onConflictDoUpdate({ target: authUsers.id, set: { name: "Conversation owner" } }).returning();
     const [company] = await db.insert(companies).values({ name: "Conversation race", issuePrefix: "CR" }).returning();
@@ -215,7 +215,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   async function waitingConversationFixture() {
     const [user] = await db.insert(authUsers).values({ id: "queue-conversation-owner", name: "Owner",
-      email: "queue-owner@paperclip.test", createdAt: new Date(), updatedAt: new Date() })
+      email: "queue-owner@outpost.test", createdAt: new Date(), updatedAt: new Date() })
       .onConflictDoUpdate({ target: authUsers.id, set: { name: "Owner" } }).returning();
     const [company] = await db.insert(companies).values({ name: "Waiting conversation", issuePrefix: "WC" }).returning();
     const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Chat agent", status: "idle", adapterType: "process" }).returning();
@@ -233,7 +233,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   async function waitingCompactionFixture() {
     const f = await waitingConversationFixture();
-    const [agent] = await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex" } })
+    const [agent] = await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } })
       .where(eq(agents.id, f.agent.id)).returning();
     if (!agent) throw new Error("Missing compaction agent");
     f.deps.getAgent.mockResolvedValue(agent);
@@ -568,9 +568,9 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     expect((await db.select().from(issues).where(eq(issues.id, f.issue.id)))[0].executionRunId).toBe(f.source.id);
   });
 
-  it.each((["process", "paperclip_runner"] as const).flatMap(adapterType => (["coalesced", "claimed-primary", "legacy-envelope", "delete-old", "delete-new", "stopped", "running", "system-primary", "foreign-primary", "same-named-agent", "mixed-author"] as const).map(scenario => ({ adapterType, scenario }))))("protects a queued comment batch across $adapterType/$scenario", async ({ adapterType, scenario }) => {
+  it.each((["process", "outpost_runner"] as const).flatMap(adapterType => (["coalesced", "claimed-primary", "legacy-envelope", "delete-old", "delete-new", "stopped", "running", "system-primary", "foreign-primary", "same-named-agent", "mixed-author"] as const).map(scenario => ({ adapterType, scenario }))))("protects a queued comment batch across $adapterType/$scenario", async ({ adapterType, scenario }) => {
     const f = await fixture("queued");
-    let admissionAgent: typeof agents.$inferSelect = { ...f.agent, adapterType, adapterConfig: adapterType === "paperclip_runner" ? { provider: "codex" } : {} };
+    let admissionAgent: typeof agents.$inferSelect = { ...f.agent, adapterType, adapterConfig: adapterType === "outpost_runner" ? { provider: "codex" } : {} };
     await db.update(agents).set({ adapterType, adapterConfig: admissionAgent.adapterConfig }).where(eq(agents.id, f.agent.id));
     if (scenario === "same-named-agent") [admissionAgent] = await db.insert(agents).values({ companyId: f.company.id,
       name: f.agent.name.toUpperCase(), role: "engineer", status: "idle", adapterType, adapterConfig: admissionAgent.adapterConfig,
@@ -1001,7 +1001,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     const { run, agent, issue, wake } = await fixture("queued");
     await db.update(heartbeatRuns).set({ responsibleUserId: "queue-test-user" }).where(eq(heartbeatRuns.id, run.id));
     const deps = { ...callbacks(db), canStartNewExternalBotWork: vi.fn(async () => false) };
-    deps.getAgent.mockResolvedValue({ ...agent, adapterType: "paperclip_runner", adapterConfig: { provider: "grok_bot" } });
+    deps.getAgent.mockResolvedValue({ ...agent, adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot" } });
     const queue = createHeartbeatQueue(db, deps);
     for (let attempt = 0; attempt < 3; attempt++) {
       if (path === "direct") expect(await queue.claimQueuedRun({ ...run, responsibleUserId: "queue-test-user" })).toBeNull();

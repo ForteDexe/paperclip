@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { issueContextUsage } from "../services/issue-context-usage.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
@@ -15,8 +15,8 @@ suite("issue context usage", () => {
   }, 60_000);
   afterAll(async () => { await temporaryDb?.cleanup(); });
 
-  function prp(runId: string, sessionId: string, eventType: string, payload: Record<string, unknown>) {
-    return { prpEvent: { schema: "paperclip.prp.event.v1", runId, normalizedSessionId: sessionId, eventType, payload } };
+  function orp(runId: string, sessionId: string, eventType: string, payload: Record<string, unknown>) {
+    return { orpEvent: { schema: "outpost.orp.event.v1", runId, normalizedSessionId: sessionId, eventType, payload } };
   }
 
   it("returns the latest reported context window and counts the session's compactions", async () => {
@@ -40,18 +40,18 @@ suite("issue context usage", () => {
     });
     const base = { companyId, agentId, stream: "system" as const, level: "info" as const };
     await db.insert(heartbeatRunEvents).values([
-      { ...base, runId, seq: 1, eventType: "item.completed", payload: prp(runId, "session-a", "item.completed", usage(229_500)),
+      { ...base, runId, seq: 1, eventType: "item.completed", payload: orp(runId, "session-a", "item.completed", usage(229_500)),
         createdAt: new Date("2026-11-05T10:00:00Z") },
-      { ...base, runId, seq: 2, eventType: "context.compacted", payload: prp(runId, "session-a", "context.compacted", {
-        schema: "paperclip.context.compacted.v1", compactionId: "c-1" }), createdAt: new Date("2026-11-05T10:00:01Z") },
+      { ...base, runId, seq: 2, eventType: "context.compacted", payload: orp(runId, "session-a", "context.compacted", {
+        schema: "outpost.context.compacted.v1", compactionId: "c-1" }), createdAt: new Date("2026-11-05T10:00:01Z") },
       // The same compaction reported twice (item completion and thread/compacted) counts once.
-      { ...base, runId, seq: 5, eventType: "context.compacted", payload: prp(runId, "session-a", "context.compacted", {
-        schema: "paperclip.context.compacted.v1", compactionId: "c-1" }), createdAt: new Date("2026-11-05T10:00:01Z") },
-      { ...base, runId, seq: 3, eventType: "item.completed", payload: prp(runId, "session-a", "item.completed", usage(38_200)),
+      { ...base, runId, seq: 5, eventType: "context.compacted", payload: orp(runId, "session-a", "context.compacted", {
+        schema: "outpost.context.compacted.v1", compactionId: "c-1" }), createdAt: new Date("2026-11-05T10:00:01Z") },
+      { ...base, runId, seq: 3, eventType: "item.completed", payload: orp(runId, "session-a", "item.completed", usage(38_200)),
         createdAt: new Date("2026-11-05T10:00:02Z") },
-      { ...base, runId, seq: 4, eventType: "item.completed", payload: prp(runId, "session-a", "item.completed", { kind: "usage", usage: { total: {} } }),
+      { ...base, runId, seq: 4, eventType: "item.completed", payload: orp(runId, "session-a", "item.completed", { kind: "usage", usage: { total: {} } }),
         createdAt: new Date("2026-11-05T10:00:03Z") },
-      { ...base, runId: otherRunId, seq: 1, eventType: "item.completed", payload: prp(otherRunId, "session-b", "item.completed", usage(5)),
+      { ...base, runId: otherRunId, seq: 1, eventType: "item.completed", payload: orp(otherRunId, "session-b", "item.completed", usage(5)),
         createdAt: new Date("2026-11-05T10:00:04Z") },
     ]);
 
@@ -77,11 +77,11 @@ suite("issue context usage", () => {
     await db.insert(heartbeatRuns).values({ id: freshRunId, companyId, agentId, scopeKind: "issue", issueId, status: "running",
       createdAt: new Date("2026-11-05T11:00:00Z") });
     await db.insert(heartbeatRunEvents).values({ ...base, runId: freshRunId, seq: 1, eventType: "item.completed",
-      payload: prp(freshRunId, "session-c", "item.completed", { kind: "usage", usage: { total: {} } }),
+      payload: orp(freshRunId, "session-c", "item.completed", { kind: "usage", usage: { total: {} } }),
       createdAt: new Date("2026-11-05T11:00:01Z") });
     expect(await issueContextUsage(db, companyId, issue)).toBeNull();
     await db.insert(heartbeatRunEvents).values({ ...base, runId: freshRunId, seq: 2, eventType: "item.completed",
-      payload: prp(freshRunId, "session-c", "item.completed", usage(12_000)), createdAt: new Date("2026-11-05T11:00:02Z") });
+      payload: orp(freshRunId, "session-c", "item.completed", usage(12_000)), createdAt: new Date("2026-11-05T11:00:02Z") });
     expect(await issueContextUsage(db, companyId, issue)).toMatchObject({ sessionId: "session-c", usedTokens: 12_000, compactions: 0 });
 
     // A session reused across more runs than the lookup window still counts
@@ -91,10 +91,10 @@ suite("issue context usage", () => {
       const id = randomUUID();
       await db.insert(heartbeatRuns).values({ id, companyId, agentId, scopeKind: "issue", issueId, status: "succeeded", createdAt: new Date(at) });
       await db.insert(heartbeatRunEvents).values({ ...base, runId: id, seq: 1, eventType: "item.completed",
-        payload: prp(id, "session-c", "item.completed", usage(13_000 + index)), createdAt: new Date(at) });
+        payload: orp(id, "session-c", "item.completed", usage(13_000 + index)), createdAt: new Date(at) });
     }
     await db.insert(heartbeatRunEvents).values({ ...base, runId: freshRunId, seq: 3, eventType: "context.compacted",
-      payload: prp(freshRunId, "session-c", "context.compacted", { schema: "paperclip.context.compacted.v1", compactionId: "c-2" }),
+      payload: orp(freshRunId, "session-c", "context.compacted", { schema: "outpost.context.compacted.v1", compactionId: "c-2" }),
       createdAt: new Date("2026-11-05T11:00:03Z") });
     expect(await issueContextUsage(db, companyId, issue)).toMatchObject({ sessionId: "session-c", usedTokens: 13_002, compactions: 1 });
   });

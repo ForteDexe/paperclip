@@ -3,18 +3,18 @@ import { randomUUID } from "node:crypto";
 import { resolve, join } from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { eq, sql } from "drizzle-orm";
-import { environmentLeases, environments, heartbeatRuns, nativeRunFinalizations, issueRecoveryActions, issues, completionContracts, nativeRunResults, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { environmentLeases, environments, heartbeatRuns, nativeRunFinalizations, issueRecoveryActions, issues, completionContracts, nativeRunResults, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { beforeAll, expect, it, vi } from "vitest";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { DurablePrpControlPlane, createNativeSessionBackend, createRunnerdCodexTransport, defaultCapabilityRunnerdBinary, canonicalNativeRuntimeContextDigest } from "../../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane, createNativeSessionBackend, createRunnerdCodexTransport, defaultCapabilityRunnerdBinary, canonicalNativeRuntimeContextDigest } from "../../vendor/outpost-runner/index.js";
 import { buildNativeExecutionInput } from "./native-execution-input.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { reconcileNativeFinalizations, claimNativeSessionResumptions } from "./native-finalization-reconciler.js";
 import { prepareNativeWorkspaceSync } from "./native-workspace-sync.js";
 import { workspaceOperationService } from "../workspace-operations.js";
-import type { EnvironmentLease } from "@paperclipai/shared";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
+import type { EnvironmentLease } from "@outpost/shared";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { materializeAsset } from "./runtime-context.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { executePaperclipNativeSession } from "./native-session-executor.js";
@@ -53,7 +53,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
       taskPrompt: "Continue the admitted work once.", provider: "codex",
       workspace: { id: fixture.runId, cwd: sandbox, repoUrl: null, repoRef: null, branchName: null },
       normalizedSessionId: fixture.native.normalizedSessionId, runtimeContext,
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue, { revision: contract.revision }) },
     });
     await fixture.db.update(heartbeatRuns).set({ runnerProfileJson: {
@@ -126,14 +126,14 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
       expect(run).toMatchObject({ status: "running", nativeSessionId: fixture.native.normalizedSessionId });
       const [action] = await fixture.db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, fixture.issueId));
       expect(action).toMatchObject({ ownerType: "agent", ownerAgentId: agentId });
-      if (process.env.PAPERCLIP_TEST_DRAIN_CONTINUATION === "1") {
+      if (process.env.OUTPOST_TEST_DRAIN_CONTINUATION === "1") {
         const claim = claims[0];
         const root = join(runtimeRoot, `continued-${fixture.runId}`);
         const home = join(root, "codex-home");
         await mkdir(home, { recursive: true });
         const report = join(root, "result.json");
         const calls = join(root, "calls.log");
-        await writeFile(report, JSON.stringify({ schema: "paperclip.run_result.v1", reportedWorkDisposition: "done",
+        await writeFile(report, JSON.stringify({ schema: "outpost.run_result.v1", reportedWorkDisposition: "done",
           summary: "Admitted work completed after controller restart.", completionClaim: {
             contractRevision: execution.completionContract.contract.revision, objectiveSatisfied: true,
             criteria: execution.completionContract.contract.criteria.map(criterion => ({ criterionId: criterion.id,
@@ -184,7 +184,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
       taskPrompt: "Prepare a fresh execution.", provider: "codex",
       workspace: { id: fixture.runId, cwd: runtimeRoot, repoUrl: null, repoRef: null, branchName: null },
       normalizedSessionId: fixture.native.normalizedSessionId, runtimeContext: nativeRuntimeContextFixture(),
-      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
         contract: { revision: "1", objective: "Prepare once", criteria: [{ id: "objective", requirement: "Retain ownership" }] } },
     });
     // Stop at the provider boundary after checking ownership; no harness is launched.
@@ -264,7 +264,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
       controllerGeneration: 1, leaseOwner: "previous-owner", leaseExpiresAt: new Date(Date.now() + 60_000) })
       .where(eq(nativeRunFinalizations.runId, fixture.runId));
     const authority = new DurablePrpControlPlane({ stateDirectory: resolve(root, "control-plane"),
-      identity: transportOptions(fixture, root).prpIdentity,
+      identity: transportOptions(fixture, root).orpIdentity,
       expectedRunnerVersion: "lease-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
     await registerNativeRunnerCheckpoint({ db: fixture.db, binding, bootId: successor.bootId, authority });
     await authority.stop();

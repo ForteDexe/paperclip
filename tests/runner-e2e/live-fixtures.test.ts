@@ -55,9 +55,9 @@ describe("live runner fixtures", () => {
     const root = await realpath(await mkdtemp(path.join(tmpdir(), "case-fixture-limits-")));
     const home = path.join(root, "paperclip-home");
     await mkdir(home);
-    vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root);
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "runner-e2e-case-fixture-test");
+    vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "runner-e2e-case-fixture-test");
     const execution = runnerMatrix.find(row => row.id === `case-handoffs.runner-codex-subscription.local.${taskId}`)!;
     const companyId = "11111111-2222-4333-8444-555555555555";
     let companyBody: any;
@@ -181,8 +181,6 @@ describe("live runner fixtures", () => {
   });
 
   it.each([
-    ["runner-codex", "hiring-templates", "hire-coder-template-reuse"],
-    ["runner-acpx-claude", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-codex", "everyday-workflows", "hire-reuse"],
     ["runner-acpx-claude", "everyday-workflows", "hire-reuse"],
     ["runner-opencode", "everyday-workflows", "hire-reuse"],
@@ -266,7 +264,7 @@ describe("live runner fixtures", () => {
           );
           return {
             id: "plugin-daytona",
-            pluginKey: "paperclip.daytona-sandbox-provider",
+            pluginKey: "outpost.daytona-sandbox-provider",
             status: "ready",
           };
         }
@@ -324,7 +322,7 @@ describe("live runner fixtures", () => {
     const original = runnerMatrix.find(row => row.id === "core-compatibility.runner-codex.daytona.message-marker")!;
     const execution = { ...original, profile: { ...original.profile, buildAgent(input: Parameters<typeof original.profile.buildAgent>[0]) {
       const payload = original.profile.buildAgent(input);
-      return { ...payload, adapterType: mode === "auto" ? "codex_local" : "paperclip_runner",
+      return { ...payload, adapterType: mode === "auto" ? "codex_local" : "outpost_runner",
         runner: mode === "auto" ? "auto" : "paperclip" };
     } } };
     const calls: string[] = [];
@@ -344,7 +342,7 @@ describe("live runner fixtures", () => {
         }
         if (path.endsWith("/agents")) {
           expect(calls).toContain("POST /api/environments/environment/probe?companyId=company");
-          expect(data.adapterType).toBe(mode === "auto" ? "codex_local" : "paperclip_runner");
+          expect(data.adapterType).toBe(mode === "auto" ? "codex_local" : "outpost_runner");
           expect(data.runner).toBe(mode === "auto" ? "auto" : "paperclip");
           if (mode === "auto") expect(calls).toContain("GET /api/adapters?companyId=company&environmentId=environment");
           return { id: "agent", companyId: "company", ...data };
@@ -414,7 +412,7 @@ describe("live runner fixtures", () => {
         if (path === "/api/plugins/install") {
           return {
             id: "plugin-daytona",
-            pluginKey: "paperclip.daytona-sandbox-provider",
+            pluginKey: "outpost.daytona-sandbox-provider",
             status: "ready",
           };
         }
@@ -518,7 +516,7 @@ describe("managed setup runtime cost coverage", () => {
 describe("Daytona fixture readiness after candidate startup", () => {
   const companyId = "11111111-2222-4333-8444-555555555555";
   const pluginId = "22222222-2222-4333-8444-555555555555";
-  const pluginKey = "paperclip.daytona-sandbox-provider";
+  const pluginKey = "outpost.daytona-sandbox-provider";
   const waitReady = () => (fixtureReadiness as unknown as {
     waitForFixtureDaytonaProvider: (api: Pick<RunnerApi, "get">, input: { companyId: string; deadlineAt: number }) => Promise<void>;
   }).waitForFixtureDaytonaProvider;

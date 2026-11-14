@@ -74,7 +74,7 @@ BEGIN
   ) refs WHERE reference IS NOT NULL;
   FOR candidate IN SELECT a.id FROM agents a WHERE a.company_id = company
     AND a.status NOT IN ('pending_approval', 'terminated') AND (
-      (a.adapter_type <> 'paperclip_runner' AND keys && ARRAY[
+      (a.adapter_type <> 'outpost_runner' AND keys && ARRAY[
         'paperclipai/paperclip/outpost-task',
         'paperclipai/paperclip/outpost-decision',
         'paperclipai/paperclip/outpost-artifact',

@@ -11,7 +11,7 @@ export const repository = "paperclipai/paperclip";
 export const repositoryId = 1170821064;
 const api = `/repos/${repository}`;
 
-export const runnerPackageRoot = "packages/paperclip-runner";
+export const runnerPackageRoot = "packages/outpost-runner";
 export const e2eManifest = "scripts/e2e-shard-durations.json";
 export const runnerManifest = `${runnerPackageRoot}/scripts/vitest-lane-durations.json`;
 
@@ -41,11 +41,11 @@ export function e2eShardJob(name) {
   return match ? { index: Number(match[1]), count: Number(match[2]) } : null;
 }
 
-// Before #19646: "ci / Verify Paperclip Runner (vitest package)", one lane.
-// Since #19646: "ci / Verify Paperclip Runner (vitest package (K/N))".
+// Before #19646: "ci / Verify Outpost Runner (vitest package)", one lane.
+// Since #19646: "ci / Verify Outpost Runner (vitest package (K/N))".
 export function runnerPackageJob(name) {
-  if (name === "ci / Verify Paperclip Runner (vitest package)") return { index: 1, count: 1 };
-  const match = /^ci \/ Verify Paperclip Runner \((?:vitest )?package \((\d+)\/(\d+)\)\)$/.exec(name);
+  if (name === "ci / Verify Outpost Runner (vitest package)") return { index: 1, count: 1 };
+  const match = /^ci \/ Verify Outpost Runner \((?:vitest )?package \((\d+)\/(\d+)\)\)$/.exec(name);
   return match ? { index: Number(match[1]), count: Number(match[2]) } : null;
 }
 

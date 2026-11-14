@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { rehydrateRunnerdItemNotification } from "../../packages/paperclip-runner/src/live/runnerd-codex-transport.js";
+import { rehydrateRunnerdItemNotification } from "../../packages/outpost-runner/src/live/runnerd-codex-transport.js";
 import { gradeNativeCompletion as gradeLegacyNativeCompletion, gradeNativeCompletionFinalAnswer as gradeNativeCompletion, type NativeCompletionObservation } from "./native-completion-scoring.js";
 type Row = Record<string, unknown>;
 function sample(blocked = true, compatibility = false): NativeCompletionObservation {
@@ -8,14 +8,14 @@ function sample(blocked = true, compatibility = false): NativeCompletionObservat
   const result = { reportedWorkDisposition: blocked ? "blocked" : "done", ...(blocked ? { blocker: { owner: { name: "Release Owner" }, unblockAction: "Grant deployment access", scope: "task_wide" } } : {}) };
   const event = (seq: number, eventType: string, payload: Row, sourceKind = "runner"): Row => ({ seq, eventType, protocolSchemaVersion: 1,
     sourceEventId: `event${seq}`, sourceInstanceId: sourceKind, sourceSeq: seq,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "run", eventType,
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, runId: "run", eventType,
       sourceKind, sourceEventId: `event${seq}`, sourceInstanceId: sourceKind, sourceSeq: seq, payload } } });
   const tool = blocked ? "paperclip_block" : "paperclip_finish";
   return { caseId: blocked ? "native-blocked-report" : "assigned-skill-explicit-invocation", companyId: "company", agentId: "agent", marker: "BLOCKED_probe",
     issue: { id: "issue", companyId: "company", assigneeAgentId: "agent", status: result.reportedWorkDisposition },
     runs: [{ id: "run", nativeIssueId: "issue", companyId: "company", agentId: "agent", status: "succeeded", runtimeMode: "native", resultJson: { nativeResult: result } }],
     comments: [{ createdByRunId: "run", authorAgentId: "agent", body }],
-    documentLinkContext: { appOrigin: "https://paperclip.example", issuePrefix: "RUN", issueIdentifier: "RUN-1",
+    documentLinkContext: { appOrigin: "https://outpost.example", issuePrefix: "RUN", issueIdentifier: "RUN-1",
       documents: blocked ? [] : [{ key: "output", latestRevisionId: "revision", latestRevisionNumber: 1 }] },
     initial: { issueIds: [], agentIds: ["agent"] }, state: { issueIds: ["issue"], agentIds: ["agent"], documentCount: blocked ? 0 : 1, interactionCount: 0 }, workspaceChanged: false,
     events: [compatibility ? event(1, "item.started", { kind: "tool_call", item: { type: "tool_call", id: "tool", name: tool } }) : event(1, "tool.execution.started", { name: tool, executionId: "tool" }), event(2, "run.result.proposed", result),
@@ -24,14 +24,14 @@ function sample(blocked = true, compatibility = false): NativeCompletionObservat
       event(5, "run.result.accepted", { result }, "control_plane"), event(6, "run.terminal", { runTerminalState: "succeeded", turnTerminalState: "completed" }, "control_plane")],
   };
 }
-function payload(input: NativeCompletionObservation, index: number): Row { return ((input.events[index]!.payload as Row).prpEvent as Row).payload as Row; }
+function payload(input: NativeCompletionObservation, index: number): Row { return ((input.events[index]!.payload as Row).orpEvent as Row).payload as Row; }
 describe("native completion independent oracle", () => {
   it("keeps legacy completion verdicts separate from final-answer diagnostics", () => {
     const value = sample(false);
     const text = "Saved the requested document.";
     (payload(value, 3).item as Row).text = text; value.comments[0]!.body = text;
-    expect(gradeLegacyNativeCompletion(value)).toMatchObject({ schema: "paperclip.native-completion-observation.v2", passed: true });
-    expect(gradeNativeCompletion(value)).toMatchObject({ schema: "paperclip.native-completion-observation.v3", passed: false });
+    expect(gradeLegacyNativeCompletion(value)).toMatchObject({ schema: "outpost.native-completion-observation.v2", passed: true });
+    expect(gradeNativeCompletion(value)).toMatchObject({ schema: "outpost.native-completion-observation.v3", passed: false });
     expect(gradeLegacyNativeCompletion(value).checks.some(check => check.id === "saved-document-final-link")).toBe(false);
   });
 
@@ -79,7 +79,7 @@ describe("native completion independent oracle", () => {
     value.events = [events[0]!, events[1]!, events[2]!, events[4]!, events[3]!, events[5]!].map((event, index) => ({ ...event, seq: index + 1 }));
     expect(gradeNativeCompletion(value).passed).toBe(true);
   });
-  it("accepts complete public streams containing non-PRP lifecycle rows", () => {
+  it("accepts complete public streams containing non-ORP lifecycle rows", () => {
     const value = sample();
     value.events = [{ seq: 1, eventType: "lifecycle" }, ...value.events.map(event => ({ ...event, seq: Number(event.seq) + 1 }))];
     expect(gradeNativeCompletion(value).passed).toBe(true);
@@ -111,10 +111,10 @@ describe("native completion independent oracle", () => {
     if (name === "pre-tool-final") (payload(value, 2).name = "other");
     if (name === "post-admission-call") value.events[3]!.eventType = "tool.execution.started";
     if (name === "missing-acceptance") value.events[4]!.eventType = "other";
-    if (name === "runner-acceptance") ((value.events[4]!.payload as Row).prpEvent as Row).sourceKind = "runner";
+    if (name === "runner-acceptance") ((value.events[4]!.payload as Row).orpEvent as Row).sourceKind = "runner";
     if (name === "failed-terminal") payload(value, 5).runTerminalState = "failed";
     if (name === "event-gap") value.events[1]!.seq = 20;
-    if (name === "binding-mismatch") ((value.events[1]!.payload as Row).prpEvent as Row).runId = "other";
+    if (name === "binding-mismatch") ((value.events[1]!.payload as Row).orpEvent as Row).runId = "other";
     if (name === "extra-task") value.state.issueIds.push("extra");
     if (name === "extra-agent") value.state.agentIds.push("extra");
     if (name === "extra-document") value.state.documentCount = 1;
@@ -135,14 +135,14 @@ describe("native completion independent oracle", () => {
   it.each(["missing-action-envelope", "wrong-action-source", "missing-source-identity", "extra-wrong-source-result"])("rejects %s", name => {
     const value = sample();
     if (name === "missing-action-envelope") value.events[0]!.payload = {};
-    if (name === "wrong-action-source") ((value.events[0]!.payload as Row).prpEvent as Row).sourceKind = "control_plane";
+    if (name === "wrong-action-source") ((value.events[0]!.payload as Row).orpEvent as Row).sourceKind = "control_plane";
     if (name === "missing-source-identity") {
       delete value.events[0]!.sourceEventId;
-      delete ((value.events[0]!.payload as Row).prpEvent as Row).sourceEventId;
+      delete ((value.events[0]!.payload as Row).orpEvent as Row).sourceEventId;
     }
     if (name === "extra-wrong-source-result") {
       const extra = structuredClone(value.events[4]!);
-      ((extra.payload as Row).prpEvent as Row).sourceKind = "runner";
+      ((extra.payload as Row).orpEvent as Row).sourceKind = "runner";
       value.events = [...value.events, { ...extra, seq: 7 }];
     }
     expect(gradeNativeCompletion(value).passed).toBe(false);

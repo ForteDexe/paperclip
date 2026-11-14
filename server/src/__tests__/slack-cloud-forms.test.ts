@@ -117,7 +117,7 @@ function submissionRequest(endpointId = "endpoint") {
     view: { id: "VTEST", hash: "useful-hash", external_id: f.operation.externalId, app_id: "ATEST", callback_id: "opaque-submit", state: { values: { secret: "private-answer-for-terminal-cipher-proof" } } } };
   const raw = new URLSearchParams({ payload: JSON.stringify(payload) }).toString(), timestamp = "4070908800";
   const signature = `v0=${createHmac("sha256", f.current.signingSecret).update(`v0:${timestamp}:`).update(raw).digest("hex")}`;
-  const request = new Request("https://paperclip.invalid/slack", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded",
+  const request = new Request("https://outpost.invalid/slack", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded",
     "x-slack-request-timestamp": timestamp, "x-slack-signature": signature }, body: raw });
   return { f, request, raw, endpointId };
 }
@@ -141,12 +141,12 @@ describe("Slack form submission leaf evidence, without SDK/domain authorization 
     expect(slackFormSubmissionEvidence()).toBeUndefined();
   });
   it("bounded capture cannot run the callback after excessive input", async () => {
-    const request = new Request("https://paperclip.invalid/slack", { method: "POST", body: "x".repeat(1048577) }), work = vi.fn(async () => {});
+    const request = new Request("https://outpost.invalid/slack", { method: "POST", body: "x".repeat(1048577) }), work = vi.fn(async () => {});
     await expect(withSlackFormSubmissionEvidence(request, "endpoint", true, work)).rejects.toMatchObject({ code: "form_submission_too_large" });
     expect(work).not.toHaveBeenCalled(); expect(slackFormSubmissionEvidence()).toBeUndefined();
   });
   it("existing local cipher protects original evidence and refuses wrong key or foreign custody", async () => {
-    const f = submissionRequest(); vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "ab".repeat(32));
+    const f = submissionRequest(); vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "ab".repeat(32));
     const cipher = createLocalEncryptedCipher("read");
     await withSlackFormSubmissionEvidence(f.request, "endpoint", true, async () => {
       const original = slackFormSubmissionEvidence()!;
@@ -157,7 +157,7 @@ describe("Slack form submission leaf evidence, without SDK/domain authorization 
       expect(JSON.stringify(intent)).not.toContain(original.rawBody);
       expect(openSlackFormSubmissionIntent(intent, cipher).rawBody).toBe(original.rawBody);
       expect(() => openSlackFormSubmissionIntent({ ...intent, binding: { ...intent.binding, companyId: "foreign" } }, cipher)).toThrow("form_submission_cipher_binding_changed");
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "cd".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "cd".repeat(32));
       const wrong = createLocalEncryptedCipher("read");
       expect(() => openSlackFormSubmissionIntent(intent, wrong)).toThrow("form_submission_cipher_unavailable");
     });
@@ -225,7 +225,7 @@ describe("Slack form two phase terminal acceptance, provider boundaries only", (
 });
 
 it("submitted proof accepts only the encrypted same submission and is idempotent without another encryption", () => {
-  const f = submissionRequest(); vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "ab".repeat(32));
+  const f = submissionRequest(); vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "ab".repeat(32));
   const cipher = createLocalEncryptedCipher("read"), encrypt = vi.spyOn(cipher, "encrypt"), base = closedProofFixture();
   const original = { endpointId: "endpoint", acceptedAt: f.f.operation.acceptedAt, rawBody: Buffer.from(f.raw).toString("base64"),
     timestamp: f.request.headers.get("x-slack-request-timestamp")!, signature: f.request.headers.get("x-slack-signature")! };

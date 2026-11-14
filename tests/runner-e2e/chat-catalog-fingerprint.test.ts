@@ -61,7 +61,7 @@ it("refuses formerly inactive launch targets and source drift falls back conserv
   expect(assertChatCatalogFingerprintLane(lane, {}, [])).toMatchObject({ installedLane: false });
   for (const changed of [{ ...lane, environment: "daytona" }, { ...lane, flow: "github_review_journey" }])
     expect(() => assertChatCatalogFingerprintLane(changed, {}, [])).toThrow();
-  expect(() => assertChatCatalogFingerprintLane(lane, { PAPERCLIP_RUNNER_E2E_INSTALLED_CLI: "/candidate" }, [])).toThrow();
+  expect(() => assertChatCatalogFingerprintLane(lane, { OUTPOST_RUNNER_E2E_INSTALLED_CLI: "/candidate" }, [])).toThrow();
   expect(() => assertChatCatalogFingerprintLane(lane, {}, ["--target-config"])).toThrow();
   const f = fixture(); f.write("selected.ts", "export const load=(name:string)=>import(name);");
   const before = fingerprintChatDependencyClosure({ root: f.root, entries: ["selected.ts"], selected: lane,
@@ -97,7 +97,7 @@ it("replays the retained public name-only identity after raw selected inputs hav
   const execution = { executionId: "offline-selected", suiteId: "chat-features", flow: "agent_chat", environment: "local" };
   const names = { credentialNames: ["OPENAI_API_KEY"], referenceNames: [], externalRequirements: [] };
   const before = chatCatalogCaseFingerprint(descriptor, execution, names).digest;
-  vi.stubEnv("PAPERCLIP_CHAT_PRIVATE_INPUTS", "/removed/owned-secret-file.json");
+  vi.stubEnv("OUTPOST_CHAT_PRIVATE_INPUTS", "/removed/owned-secret-file.json");
   expect(chatCatalogCaseFingerprint(descriptor, execution, names).digest).toBe(before);
   expect(() => chatCatalogCaseFingerprint(descriptor, execution)).toThrow();
 });
@@ -125,13 +125,13 @@ it("keeps the reviewed adapter in the normalized execution an installed OpenCode
   const execution = runnerMatrix.find(row => row.id === "chat-features.runner-opencode.local.instance-operations.update-instance");
   expect(execution).toBeDefined();
   const normalized = normalizedChatCatalogExecution(execution!);
-  expect(normalized.profile.adapterType).toBe("paperclip_runner");
+  expect(normalized.profile.adapterType).toBe("outpost_runner");
   expect(assertChatCatalogFingerprintLane({ ...normalized, scenarioId: "instance-operations.update-instance", installedSource: "published-global-npm" }, {}, []).installedLane).toBe(true);
 });
 it("admits installed OpenCode only for its exact reviewed model, case and source-local lane", () => {
   const lane = { suiteId: "chat-features", flow: "agent_chat", environment: "local", scenarioId: "instance-operations.update-instance", installedSource: "published-global-npm",
-    profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "paperclip_runner", credential: "OPENROUTER_API_KEY" } };
+    profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "outpost_runner", credential: "OPENROUTER_API_KEY" } };
   expect(assertChatCatalogFingerprintLane(lane, {}, []).installedLane).toBe(true);
   expect(() => assertChatCatalogFingerprintLane({ ...lane, profile: { ...lane.profile, provider: "codex" } }, {}, [])).toThrow();
-  expect(() => assertChatCatalogFingerprintLane({ ...lane, scenarioId: "tasks.create-backlog" }, { PAPERCLIP_RUNNER_E2E_INSTALLED_CLI: "/candidate" }, [])).toThrow();
+  expect(() => assertChatCatalogFingerprintLane({ ...lane, scenarioId: "tasks.create-backlog" }, { OUTPOST_RUNNER_E2E_INSTALLED_CLI: "/candidate" }, [])).toThrow();
 });

@@ -67,12 +67,12 @@ export interface ObjectStore {
 export function objectStoreServerEnvironment(store: Pick<ObjectStore, "bucket" | "region" | "accessKeyId" | "secretAccessKey">,
   endpoint: string, prefix: string): Record<string, string> {
   return {
-    PAPERCLIP_STORAGE_PROVIDER: "s3",
-    PAPERCLIP_STORAGE_S3_BUCKET: store.bucket,
-    PAPERCLIP_STORAGE_S3_REGION: store.region,
-    PAPERCLIP_STORAGE_S3_ENDPOINT: endpoint,
-    PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE: "true",
-    PAPERCLIP_STORAGE_S3_PREFIX: prefix,
+    OUTPOST_STORAGE_PROVIDER: "s3",
+    OUTPOST_STORAGE_S3_BUCKET: store.bucket,
+    OUTPOST_STORAGE_S3_REGION: store.region,
+    OUTPOST_STORAGE_S3_ENDPOINT: endpoint,
+    OUTPOST_STORAGE_S3_FORCE_PATH_STYLE: "true",
+    OUTPOST_STORAGE_S3_PREFIX: prefix,
     AWS_ACCESS_KEY_ID: store.accessKeyId,
     AWS_SECRET_ACCESS_KEY: store.secretAccessKey,
     AWS_SESSION_TOKEN: "",

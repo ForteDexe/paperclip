@@ -10,7 +10,7 @@ describe("Copilot initial context permission fixture", () => {
     expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ operationId: "get_task_context", runId: run });
     for (const provider of ["cursor", "pi", "claude", "codex", "unknown"]) {
       const bad = structuredClone(rows);
-      bad.find((row: any) => row.eventType === "runtime_request.created").payload.prpEvent.payload.request.origin.provider = provider;
+      bad.find((row: any) => row.eventType === "runtime_request.created").payload.orpEvent.payload.request.origin.provider = provider;
       expect(() => pendingCopilotContextPermission(bad, company, run)).toThrow();
     }
   });
@@ -22,7 +22,7 @@ describe("Copilot initial context permission fixture", () => {
     expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ operationId: "search_api", runId: run });
     for (const scope of ["get task context create_task", "get task context call_api", "get task context; paperclip_finish"]) {
       const bad = structuredClone(rows);
-      bad.find((row: any) => row.eventType === "tool.execution.started").payload.prpEvent.payload.progress = `paperclip-search_api (pending): ${scope}`;
+      bad.find((row: any) => row.eventType === "tool.execution.started").payload.orpEvent.payload.progress = `paperclip-search_api (pending): ${scope}`;
       expect(() => pendingCopilotContextPermission(bad, company, run)).toThrow();
     }
   });
@@ -33,12 +33,12 @@ describe("Copilot initial context permission fixture", () => {
     expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ runId: run, requestId: expect.any(String), toolCallId: expect.any(String) });
     for (const kind of ["mutation", "other-prompt", "not-read-only", "foreign-company", "foreign-source", "foreign-bridge", "missing-decline", "duplicate", "unknown-target"]) {
       const bad = structuredClone(rows);
-      const payload = (r: any) => r.payload.prpEvent.payload;
+      const payload = (r: any) => r.payload.orpEvent.payload;
       if (kind === "mutation") payload(bad[2]).operation = "edit";
       if (kind === "other-prompt") payload(bad[0]).request.prompt = "report_progress";
       if (kind === "not-read-only") payload(bad[2]).readOnly = false;
       if (kind === "foreign-company") bad[2].companyId = "foreign";
-      if (kind === "foreign-source") bad[2].payload.prpEvent.sourceInstanceId = "foreign";
+      if (kind === "foreign-source") bad[2].payload.orpEvent.sourceInstanceId = "foreign";
       if (kind === "foreign-bridge") payload(bad[0]).request.origin.adapter = "untrusted";
       if (kind === "missing-decline") payload(bad[0]).request.choices = [{ key: "accept" }];
       if (kind === "duplicate") bad.push(structuredClone(bad[0]));
@@ -57,7 +57,7 @@ describe("Copilot initial context permission fixture", () => {
     foreign[0].companyId = "foreign";
     expect(() => pendingCopilotContextPermission(foreign, company, run)).toThrow("foreign durable evidence");
     const mutation = structuredClone(rows).filter((_: unknown, index: number) => index !== 1);
-    mutation.find((row: any) => row.eventType === "tool.execution.started").payload.prpEvent.payload.readOnly = false;
+    mutation.find((row: any) => row.eventType === "tool.execution.started").payload.orpEvent.payload.readOnly = false;
     expect(() => pendingCopilotContextPermission(mutation, company, run)).toThrow("cannot approve this card");
     expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ operationId: "get_task_context" });
   });
@@ -71,7 +71,7 @@ describe("Copilot initial context permission fixture", () => {
     const company = rows[0].companyId, run = rows[0].runId;
     expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ operationId: "search_api", runId: run });
     for (const kind of ["other-query", "mutation", "not-read-only", "foreign-source", "unknown-target", "duplicate-permission"]) {
-      const bad = structuredClone(rows), p = (r: any) => r.payload.prpEvent.payload;
+      const bad = structuredClone(rows), p = (r: any) => r.payload.orpEvent.payload;
       if (kind === "other-query") p(bad[2]).progress = "paperclip-search_api (pending): create_task";
       if (kind === "mutation") p(bad[2]).operation = "edit";
       if (kind === "not-read-only") p(bad[2]).readOnly = false;

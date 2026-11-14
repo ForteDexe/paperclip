@@ -9,8 +9,8 @@ import {
   heartbeatRuns,
   issueDocuments,
   issues,
-} from "@paperclipai/db";
-import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
+} from "@outpost/db";
+import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

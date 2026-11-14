@@ -59,7 +59,7 @@ describe("time fault options", () => {
 describe("process freezing", () => {
   const table = parseProcessTable([
     "  100     1 node server-entry.ts",
-    "  200   100 paperclip-runnerd --serve",
+    "  200   100 outpost-runnerd --serve",
     "  300   200 codex app-server",
     "  400   100 /opt/pg/bin/postgres -D data",
     "  500   400 postgres: checkpointer",

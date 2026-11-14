@@ -2,9 +2,9 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { instanceSettings, type Db } from "@paperclipai/db";
-import { paperclipConfigSchema } from "@paperclipai/shared";
-import { resolvePaperclipConfigPathForInstance } from "@paperclipai/shared/home-paths";
+import { instanceSettings, type Db } from "@outpost/db";
+import { paperclipConfigSchema } from "@outpost/shared";
+import { resolvePaperclipConfigPathForInstance } from "@outpost/shared/home-paths";
 import { validateManagedCloudStoragePrerequisites } from "../managed-cloud-prerequisites.js";
 import { loadStorageConfig } from "../storage/config.js";
 import { isCloudManagedInstance, type CloudInstanceEnv } from "./cloud-instance.js";
@@ -57,9 +57,9 @@ export function cloudRuntimeConfigService(db: CloudRuntimeConfigDb) {
 }
 
 export function legacyCloudRuntimeConfigPath(env: CloudInstanceEnv = process.env): string {
-  return env.PAPERCLIP_CONFIG
-    ? path.resolve(env.PAPERCLIP_CONFIG)
-    : resolvePaperclipConfigPathForInstance({ homeDir: env.PAPERCLIP_HOME, instanceId: env.PAPERCLIP_INSTANCE_ID });
+  return env.OUTPOST_CONFIG
+    ? path.resolve(env.OUTPOST_CONFIG)
+    : resolvePaperclipConfigPathForInstance({ homeDir: env.OUTPOST_HOME, instanceId: env.OUTPOST_INSTANCE_ID });
 }
 
 export async function readLegacyCloudRuntimeConfig(env: CloudInstanceEnv = process.env): Promise<CloudRuntimeConfig | null> {

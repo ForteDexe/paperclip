@@ -43,7 +43,7 @@ import {
   acknowledgedNativeApiStopExecutionHasStopped,
   acknowledgedNativeStopExecutionHasStopped,
 } from "../acknowledged-native-stop.js";
-import { completeTerminatedRemoteNativeSessionCleanup } from "../../vendor/paperclip-runner/index.js";
+import { completeTerminatedRemoteNativeSessionCleanup } from "../../vendor/outpost-runner/index.js";
 import {
   hasRemoteTerminationReceipt,
   remoteExecutionHasStopped,
@@ -94,10 +94,10 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   type EnvironmentLeaseStatus,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   agentWakeupRequests,
   browserUseRuns,
@@ -110,7 +110,7 @@ import {
   issueRecoveryActions,
   issues,
   nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   conflict,
   HttpError,
@@ -139,7 +139,7 @@ import {
 import { terminateLocalService } from "../local-service-supervisor.js";
 import { deriveCommentId } from "../../modules/run-dispatch/index.js";
 import { WakeQueueApplicationError } from "../../modules/wake-queue/index.js";
-import { isUuidLike } from "@paperclipai/shared";
+import { isUuidLike } from "@outpost/shared";
 import {
   type ProviderResourceDisposition,
 } from "../environment-runtime.js";
@@ -324,7 +324,7 @@ function runCancellationFenceSql(input: {
     'beforeNativeSelection', ${heartbeatRuns.runtimeMode} = 'legacy'
       and ${heartbeatRuns.runtimeModeResolvedAt} is null
       and ${heartbeatRuns.executionStage} = 'preparing'
-      and coalesce(${heartbeatRuns.runnerProfileJson}->'adapterDispatch'->>'adapterType' = 'paperclip_runner', false)
+      and coalesce(${heartbeatRuns.runnerProfileJson}->'adapterDispatch'->>'adapterType' = 'outpost_runner', false)
   )`;
   let startupFence = input.preserveCancellation
     ? sql`coalesce(${heartbeatRuns.resultJson}->'startupCancellation', ${startupCancellation})`
@@ -744,7 +744,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
     if (!actorId) return;
     const agent = await getAgent(wake.agentId);
-    if (!agent || agent.companyId !== companyId || (agent.adapterType === "paperclip_runner" && !interrupted && !response?.source.requiresFreshSession)) return;
+    if (!agent || agent.companyId !== companyId || (agent.adapterType === "outpost_runner" && !interrupted && !response?.source.requiresFreshSession)) return;
     const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
       eq(heartbeatRuns.companyId, companyId),
       eq(heartbeatRuns.agentId, wake.agentId),
@@ -1181,7 +1181,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
   function hasRecordedStopAcknowledgement(run: typeof heartbeatRuns.$inferSelect) {
     if (parseObject(run.resultJson?.executionCancellation).state === "acknowledged") return true;
     const intent = parseObject(run.resultJson?.nativeCancellation);
-    return intent.schema === "paperclip.native-cancellation.v1" && intent.runId === run.id
+    return intent.schema === "outpost.native-cancellation.v1" && intent.runId === run.id
       && intent.companyId === run.companyId && intent.issueId === run.nativeIssueId
       && intent.scope === "run" && intent.reasonCode === "cancellation_run_only"
       && intent.dispatchState === "acknowledged" && intent.dispatched === true
@@ -1286,7 +1286,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           // Promotion must remain fenced after this transaction releases the
           // run lock, before the ordinary Stop path performs its settlement.
           startupCancellation: { requestedAt, beforeNativeSelection: currentRun.runtimeMode === "legacy" && !currentRun.runtimeModeResolvedAt
-            && currentRun.executionStage === "preparing" && parseObject(currentRun.runnerProfileJson?.adapterDispatch).adapterType === "paperclip_runner" },
+            && currentRun.executionStage === "preparing" && parseObject(currentRun.runnerProfileJson?.adapterDispatch).adapterType === "outpost_runner" },
         } : {};
         await notifyScheduledRetryCancellation(tx, { companyId: run!.companyId, runId });
         const [fenced] = await tx.update(heartbeatRuns).set({

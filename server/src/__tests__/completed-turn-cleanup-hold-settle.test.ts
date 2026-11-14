@@ -16,7 +16,7 @@ import {
   issues,
   nativeRunFinalizations,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentControllerBootId, currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { getExecutionBlocker } from "../services/execution-blocker.js";
@@ -61,7 +61,7 @@ suite("completed-turn cleanup holds on the shared ownership path", () => {
     await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "CTC",
       requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: responsibleUserId });
     await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
-      adapterType: "paperclip_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+      adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
   }, 30_000);
 
   afterEach(async () => {
@@ -127,16 +127,16 @@ suite("completed-turn cleanup holds on the shared ownership path", () => {
       cause: "native_continuation_requires_reconciliation", fingerprint: `native-workspace:${runId}`, attemptCount: 1,
       nextAction: "The original sandbox is retained for workspace repair.", resolvedAt: finishedAt,
       evidence: { runId, automaticRecovery: noReplay,
-        systemRecovery: { schema: "paperclip.system-recovery.v1", policyVersion: 1, phase: "reconcile_effects", state: "complete",
+        systemRecovery: { schema: "outpost.system-recovery.v1", policyVersion: 1, phase: "reconcile_effects", state: "complete",
           sourceRunId: runId, attempts: 1, retriesUsed: 0, revision: 4, failure: null, intentId: null, deadlineAt: null,
           nextAttemptAt: null, firstFailureAt: null, freshAttemptRunId: null, providerCooldownAt: null,
           attemptId: randomUUID(), generationId: randomUUID(), preservationOperationIds },
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId, stage: "saving_receipts", status: "recovered",
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId, stage: "saving_receipts", status: "recovered",
           attempt: 1, retryable: true, requestIds: [], attemptLimit: 6 },
         originalFailureCode: "native_session_cleanup_quarantined", continuationDelivery: "invalidated",
         workspaceRestoreFailure: "restore_failed",
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] },
-        historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId, leaseIds: [leaseId] },
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] },
+        historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId, leaseIds: [leaseId] },
         previousWorkspaceRecovery: null } }).returning();
     await db.update(workspaceOperations).set({ metadata: { recoveryActionId: filesHold!.id } })
       .where(eq(workspaceOperations.id, saved!.id));

@@ -28,15 +28,15 @@ import type { buildExecutionContinuation } from "../execution-continuation.js";
 import type { agentInstructionWorkingCopyService } from "../agent-instruction-working-copies.js";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentHarnessType, CHAT_PROVIDERS } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { agentHarnessType, CHAT_PROVIDERS } from "@outpost/shared";
 import {
   type agents,
   completionContracts,
   heartbeatRunEvents,
   heartbeatRuns,
   nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getStartupTracer } from "../../instrumentation.js";
 import { documentService } from "../documents.js";
 import { managedAgentProfileService } from "../managed-agent-profiles.js";
@@ -72,7 +72,7 @@ import {
   describeRunnerdNativeSessionBackend,
   parseNativeExecutionInput,
   type NativeExecutionInput,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import { PROVIDER_TRACE_MAX_BYTES } from "../provider-trace-store.js";
 import type { AdapterRuntimeEvent } from "../../adapters/index.js";
 import { parseObject } from "../../adapters/utils.js";
@@ -84,7 +84,7 @@ import { CHAT_CONTROL_RECOVERY_ADMISSION_KEY } from "../chat-control-recovery-st
 import { NATIVE_PREPARATION_FENCING_VERSION } from "../native-runtime/native-active-runs.js";
 import type { issueService } from "../issues.js";
 import { buildPlanReviewContext } from "../plan-review-context.js";
-import { normalizePaperclipWakePayload, selectPaperclipTaskMarkdown } from "@paperclipai/adapter-utils/server-utils";
+import { normalizePaperclipWakePayload, selectPaperclipTaskMarkdown } from "@outpost/adapter-utils/server-utils";
 import type { ProviderResourceDisposition } from "../environment-runtime.js";
 import { stageNativeRuntimeSkillAssets, bindStagedNativeRuntimeSkillAssets } from "../native-runtime/runtime-skill-preservation.js";
 
@@ -222,7 +222,7 @@ export function resolveNativeSandboxLifecycle(input: {
   } | null;
 }): NativeSandboxLifecycle | null {
   if (
-    input.adapterType !== "paperclip_runner" ||
+    input.adapterType !== "outpost_runner" ||
     input.target?.kind !== "remote" ||
     input.target.transport !== "sandbox"
   )
@@ -329,7 +329,7 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
     if (!issueRef) {
       throw new Error("native_runtime_ineligible: issue is required");
     }
-    if (run.runtimeMode !== "native" && agent.adapterType === "paperclip_runner"
+    if (run.runtimeMode !== "native" && agent.adapterType === "outpost_runner"
       && executionTarget?.kind !== "remote"
       && nativeRuntimeResolution.profile.backend !== "cursor_cloud_api"
       && nativeRuntimeResolution.profile.backend !== "claude_managed_agents_api"
@@ -778,12 +778,12 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
         backend: nativeRuntimeResolution.profile.backend,
         adapterConfig: nativeProviderConfig, managedProfile, agentCoreProfile, dotBinding, museBinding,
       });
-      const codexCliVersion = agent.adapterType === "paperclip_runner" && requestedNativeProvider.provider === "codex"
+      const codexCliVersion = agent.adapterType === "outpost_runner" && requestedNativeProvider.provider === "codex"
         ? await measureRunPhase("runtime_selection.codex_cli_version", () => readRemoteCodexModelCliVersion({
             model: requestedNativeProvider.model,
             target: executionTarget,
-            remoteCodexPath: runtimeEnv.PAPERCLIP_RUNNER_REMOTE_CODEX_PATH,
-            remoteCodexNpmSpec: runtimeEnv.PAPERCLIP_RUNNER_REMOTE_CODEX_NPM_SPEC,
+            remoteCodexPath: runtimeEnv.OUTPOST_RUNNER_REMOTE_CODEX_PATH,
+            remoteCodexNpmSpec: runtimeEnv.OUTPOST_RUNNER_REMOTE_CODEX_NPM_SPEC,
           })) : null;
       const nativeProvider = codexCliVersion
         ? resolvePaperclipRunnerNativeProviderInput({
@@ -851,7 +851,7 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
               conversationMode: context.conversationMode === true,
               agentId: agent.id,
               workspace: {
-                // Projectless paperclip_runner tasks still have a resolved local cwd. Bind that
+                // Projectless outpost_runner tasks still have a resolved local cwd. Bind that
                 // transient workspace to the run id so the native input remains durable and replayable
                 // without fabricating a project-scoped execution_workspaces row.
                 id: nativeExecutionWorkspaceId,
@@ -931,18 +931,18 @@ export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSele
         sandboxResource: nativeSandboxLifecycle.sandboxResource,
       });
       const selectedLifecycleSpan = getStartupTracer(
-        "paperclip.environment-lifecycle",
+        "outpost.environment-lifecycle",
       ).startSpan("sandbox.lifecycle.selected", {
         attributes: {
-          "paperclip.native.span.provider": nativeExecution.provider.kind,
-          "paperclip.native.span.harness":
+          "outpost.native.span.provider": nativeExecution.provider.kind,
+          "outpost.native.span.harness":
             nativeExecution.session.driverKind,
-          "paperclip.native.span.lifecycle_mode":
+          "outpost.native.span.lifecycle_mode":
             nativeExecution.session.lifecyclePolicy.mode,
-          "paperclip.native.span.sandbox_resource":
+          "outpost.native.span.sandbox_resource":
             nativeSandboxLifecycle.sandboxResource,
-          "paperclip.native.span.outcome": "selected",
-          "paperclip.native.span.bytes_transferred": 0,
+          "outpost.native.span.outcome": "selected",
+          "outpost.native.span.bytes_transferred": 0,
         },
       });
       selectedLifecycleSpan.end();

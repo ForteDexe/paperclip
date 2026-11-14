@@ -39,7 +39,7 @@ export async function prepareOwnedDockerDatabase(root: string, configFile: strin
   async function verify(running?: boolean) {
     const rootEntry = await lstat(root), directory = path.dirname(filename), dirEntry = await lstat(directory);
     if (await realpath(root) !== root || !rootEntry.isDirectory() || rootEntry.uid !== process.getuid?.() || rootEntry.mode & 0o077
-      || !path.basename(root).startsWith("paperclip-runner-e2e-") || !configFile.startsWith(root + path.sep)
+      || !path.basename(root).startsWith("outpost-runner-e2e-") || !configFile.startsWith(root + path.sep)
       || await realpath(directory) !== directory || !dirEntry.isDirectory() || dirEntry.uid !== process.getuid?.() || dirEntry.mode & 0o077)
       throw new Error("Owned Docker attempt root changed");
     await privateFile(filename, 0o600); await privateFile(configFile);

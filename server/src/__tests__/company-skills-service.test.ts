@@ -15,8 +15,8 @@ import {
   folders,
   projects,
   projectWorkspaces,
-} from "@paperclipai/db";
-import { parseFrontmatterMarkdown } from "@paperclipai/shared";
+} from "@outpost/db";
+import { parseFrontmatterMarkdown } from "@outpost/shared";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import {
   getEmbeddedPostgresTestSupport,
@@ -53,18 +53,18 @@ describeEmbeddedPostgres("companySkillService.list", () => {
     return skillDir;
   }
 
-  const previousPackageStorage = process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED;
+  const previousPackageStorage = process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED;
   beforeAll(async () => {
-    process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED = "true";
+    process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = "true";
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-company-skills-service-");
-    oldPaperclipHome = process.env.PAPERCLIP_HOME;
-    oldPaperclipInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+    oldPaperclipHome = process.env.OUTPOST_HOME;
+    oldPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
     paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-company-skills-home-"));
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = "default";
     db = createDb(tempDb.connectionString);
     svc = companySkillService(db);
-  }, process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL ? 90_000 : 20_000);
+  }, process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL ? 90_000 : 20_000);
 
   afterEach(async () => {
     for (const skill of await db.select().from(companySkills)) {
@@ -82,12 +82,12 @@ describeEmbeddedPostgres("companySkillService.list", () => {
   });
 
   afterAll(async () => {
-    if (previousPackageStorage === undefined) delete process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED;
-    else process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED = previousPackageStorage;
-    if (oldPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = oldPaperclipHome;
-    if (oldPaperclipInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-    else process.env.PAPERCLIP_INSTANCE_ID = oldPaperclipInstanceId;
+    if (previousPackageStorage === undefined) delete process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED;
+    else process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = previousPackageStorage;
+    if (oldPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = oldPaperclipHome;
+    if (oldPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+    else process.env.OUTPOST_INSTANCE_ID = oldPaperclipInstanceId;
     if (paperclipHome) {
       await fs.rm(paperclipHome, { recursive: true, force: true });
     }
@@ -658,10 +658,10 @@ describeEmbeddedPostgres("companySkillService.list", () => {
     expect(listed.find(item => item.id === first.id)?.attachedAgentCount).toBe(2);
     expect(listed.find(item => item.id === second.id)?.attachedAgentCount).toBe(1);
     expect(listed.find(item => item.id === ambiguous.id)?.attachedAgentCount).toBe(0);
-    const agentReads = events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1" && event.table === "agents");
+    const agentReads = events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1" && event.table === "agents");
     expect(agentReads).toHaveLength(1);
     expect(Number(agentReads[0]?.responseValueBytes)).toBeLessThan(2_000);
-    expect(events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1" && event.table === "cost_events")).toHaveLength(0);
+    expect(events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1" && event.table === "cost_events")).toHaveLength(0);
     await db.update(agents).set({ adapterConfig: { paperclipSkillSync: { desiredSkills: [second.key] } } }).where(eq(agents.id, readerId));
     const refreshed = await svc.list(companyId, { q: "First" });
     expect(refreshed.find(item => item.id === first.id)?.attachedAgentCount).toBe(1);
@@ -685,7 +685,7 @@ describeEmbeddedPostgres("companySkillService.list", () => {
     let after: Awaited<ReturnType<typeof svc.list>>;
     try { after = await svc.list(companyId); } finally { capture.flush(); }
     expect(after).toEqual(before);
-    const reads = events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1" && event.table === "company_skills");
+    const reads = events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1" && event.table === "company_skills");
     expect(reads.reduce((sum, event) => sum + Number(event.responseValueBytes), 0)).toBeLessThan(950_000);
     const stored = await svc.getById(companyId, inserted[0]!.id);
     expect(stored?.markdown).toBe(savedMarkdown);
@@ -754,7 +754,7 @@ describeEmbeddedPostgres("companySkillService.list", () => {
     installDatabaseResponseCapture(db, { companySkillVersions }, capture);
     try { expect(await companySkillService(db).list(companyId)).toEqual(expected); }
     finally { capture.flush(); }
-    const reads = events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1"
+    const reads = events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1"
       && event.table === "company_skill_versions" && event.operation === "select");
     expect(reads.reduce((sum, event) => sum + Number(event.calls), 0)).toBeGreaterThan(0);
     expect(reads.reduce((sum, event) => sum + Number(event.responseValueBytes), 0)).toBeLessThan(4096);
@@ -775,7 +775,7 @@ describeEmbeddedPostgres("companySkillService.list", () => {
     installDatabaseResponseCapture(db, { companySkillVersions }, capture);
     try { expect(await companySkillService(db, { actor }).list(companyId)).toEqual([]); }
     finally { capture.flush(); }
-    expect(events.find(event => event.event === "paperclip.test_db_response_capture.summary.v1")?.completedQueries).toBe(0);
+    expect(events.find(event => event.event === "outpost.test_db_response_capture.summary.v1")?.completedQueries).toBe(0);
   });
 
   it("restores a deleted release after warm validation", async () => {

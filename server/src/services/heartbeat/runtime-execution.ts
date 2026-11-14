@@ -19,7 +19,7 @@ import { drainRunPreparationPhases, measureRunPhase } from "../execution-prepara
 import { parseNativeSessionGoalControl } from "./scheduling.js";
 import { isHeartbeatRunTerminalStatus } from "./run-lifecycle.js";
 import {
-  PAPERCLIP_WAKE_PAYLOAD_KEY,
+  OUTPOST_WAKE_PAYLOAD_KEY,
   configuredPaperclipApiBaseUrl,
   buildPaperclipRuntimeMcpServers,
   createAdapterRuntimeToolAccess,
@@ -35,8 +35,8 @@ import {
   attachPaperclipSessionMetadataToSessionParams,
 } from "./workspaces.js";
 import { recordLegacyWorkspaceRestoreFailure } from "../legacy-execution-recovery.js";
-import { configuredEnvironmentProjection } from "../../vendor/paperclip-runner/index.js";
-import { buildAgentIdentityEnv } from "@paperclipai/adapter-utils/server-utils";
+import { configuredEnvironmentProjection } from "../../vendor/outpost-runner/index.js";
+import { buildAgentIdentityEnv } from "@outpost/adapter-utils/server-utils";
 import { externalObjectService } from "../external-objects.js";
 import { isAgentDirectoryCopy } from "../agent-directory-working-copies.js";
 import { restoreNativeWorkspaceBestEffort } from "../native-runtime/native-workspace-best-effort.js";
@@ -47,15 +47,15 @@ import {
   type NativeWorkspaceFinalizationOwnership,
 } from "../native-runtime/native-workspace-finalization-ownership.js";
 import { createRunUsageRecorder, readAcceptedRunUsageCheckpoint } from "../usage-receipts.js";
-import { applyWorkspaceRestoreFailure } from "@paperclipai/adapter-utils/workspace-restore-result";
-import { hasWorkspaceRestoreFailure } from "@paperclipai/shared";
+import { applyWorkspaceRestoreFailure } from "@outpost/adapter-utils/workspace-restore-result";
+import { hasWorkspaceRestoreFailure } from "@outpost/shared";
 import { isConversation } from "../agent-conversations.js";
-import { withAdapterExecutionPhase } from "@paperclipai/adapter-utils/execution-phase";
+import { withAdapterExecutionPhase } from "@outpost/adapter-utils/execution-phase";
 import { remoteExecutionHasStopped } from "../remote-execution-termination.js";
 import { registerAdapterExecutionControl } from "../adapter-execution-control.js";
-import { resolveManagedOpenAiBilling } from "@paperclipai/adapter-utils";
+import { resolveManagedOpenAiBilling } from "@outpost/adapter-utils";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { heartbeatRuns, nativeRunFinalizations, workspaceOperations } from "@paperclipai/db";
+import { heartbeatRuns, nativeRunFinalizations, workspaceOperations } from "@outpost/db";
 import { conflict } from "../../errors.js";
 import { getStartupTraceContext } from "../../instrumentation.js";
 import { logger } from "../../middleware/logger.js";
@@ -89,7 +89,7 @@ import {
   isRunnerGoalActionCompleted,
   settleLiveRunnerGoalBeforeInterrupt,
 } from "../runner-goals.js";
-import type { Db, agents, executionWorkspaces } from "@paperclipai/db";
+import type { Db, agents, executionWorkspaces } from "@outpost/db";
 import type { AdapterExecutionContext, ServerAdapterModule } from "../../adapters/index.js";
 import type { HeartbeatRuntimeSelectionInput, HeartbeatRuntimeSelectionResult } from "./runtime-selection.js";
 import type { createHeartbeatRunState } from "./run-state.js";
@@ -104,7 +104,7 @@ import type { environmentRunOrchestrator } from "../environment-run-orchestrator
 import type { instanceSettingsService } from "../instance-settings.js";
 import type { EffectiveRunSessionConfigMetadata } from "./workspaces.js";
 import type { ProviderResourceDisposition } from "../environment-runtime.js";
-import type { NativeExecutionInput, NativeSessionBackend } from "../../vendor/paperclip-runner/index.js";
+import type { NativeExecutionInput, NativeSessionBackend } from "../../vendor/outpost-runner/index.js";
 import type { PluginWorkerManager } from "../plugin-worker-manager.js";
 import type { RealizedExecutionWorkspace } from "../workspace-runtime.js";
 import type { reserveWarmNativeInstructionDirectory } from "../native-runtime/index.js";
@@ -291,7 +291,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         runId: run.id,
         adapterType: agent.adapterType,
       },
-      "local agent jwt secret missing or invalid; running without injected PAPERCLIP_API_KEY",
+      "local agent jwt secret missing or invalid; running without injected OUTPOST_API_KEY",
     );
   }
   let adapterFinalizeOutcome: "succeeded" | "failed" | null = null;
@@ -518,7 +518,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
   };
 
   const producerOwnsUsage = usesNativeUsageDelivery({
-    runnerd: nativeRuntimeResolution.kind === "native" && agent.adapterType === "paperclip_runner",
+    runnerd: nativeRuntimeResolution.kind === "native" && agent.adapterType === "outpost_runner",
     remote: executionTarget?.kind === "remote", provider: nativeExecution?.provider,
   });
   const usageRecorder = producerOwnsUsage ? undefined : await measureRunPhase("execution.usage_startup", () =>
@@ -646,7 +646,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
                 stopCleanup
                   ? options.nativeSessionBackendFactory?.(nativeExecution, { recoveryPurpose: "stop_cleanup" })
                   : options.nativeSessionBackendFactory?.(nativeExecution),
-              useRunnerd: agent.adapterType === "paperclip_runner",
+              useRunnerd: agent.adapterType === "outpost_runner",
               adapterType: agent.adapterType,
               sessionGoalControl,
               sessionCompaction: readContextCompactionRequest(context),
@@ -708,16 +708,16 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
                 ...(input.instructions.instructionCopy && isAgentDirectoryCopy(input.instructions.instructionCopy) ? { AGENT_HOME: input.instructions.instructionCopy.executionRoot } : {}),
                 ...(nativeMcpServer
                   ? {
-                      PAPERCLIP_NATIVE_MCP_NAME: nativeMcpServer.name,
-                      PAPERCLIP_NATIVE_MCP_URL: nativeMcpServer.url,
-                      PAPERCLIP_NATIVE_MCP_TOKEN: nativeMcpServer.token,
+                      OUTPOST_NATIVE_MCP_NAME: nativeMcpServer.name,
+                      OUTPOST_NATIVE_MCP_URL: nativeMcpServer.url,
+                      OUTPOST_NATIVE_MCP_TOKEN: nativeMcpServer.token,
                     }
                   : {}),
                 ...(providerTraceCapture
                   ? {
-                      PAPERCLIP_PROVIDER_TRACE_PATH:
+                      OUTPOST_PROVIDER_TRACE_PATH:
                         providerTraceCapture.path,
-                      PAPERCLIP_PROVIDER_TRACE_MAX_BYTES: String(
+                      OUTPOST_PROVIDER_TRACE_MAX_BYTES: String(
                         PROVIDER_TRACE_MAX_BYTES,
                       ),
                     }
@@ -729,21 +729,21 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
                 nativeRuntimeResolution,
               ),
               runnerPublicUrl:
-                runtimeEnv.PAPERCLIP_RUNNER_PUBLIC_URL?.trim() || null,
+                runtimeEnv.OUTPOST_RUNNER_PUBLIC_URL?.trim() || null,
               runnerCaBundlePath:
-                runtimeEnv.PAPERCLIP_RUNNER_CA_BUNDLE_PATH?.trim() ||
+                runtimeEnv.OUTPOST_RUNNER_CA_BUNDLE_PATH?.trim() ||
                 null,
               runnerRemoteBinaryPath:
-                runtimeEnv.PAPERCLIP_RUNNER_REMOTE_BINARY_PATH?.trim() ||
+                runtimeEnv.OUTPOST_RUNNER_REMOTE_BINARY_PATH?.trim() ||
                 null,
               runnerRemoteCodexPath:
-                runtimeEnv.PAPERCLIP_RUNNER_REMOTE_CODEX_PATH?.trim() ||
+                runtimeEnv.OUTPOST_RUNNER_REMOTE_CODEX_PATH?.trim() ||
                 null,
               runnerRemoteCodexNpmSpec:
-                runtimeEnv.PAPERCLIP_RUNNER_REMOTE_CODEX_NPM_SPEC?.trim() ||
+                runtimeEnv.OUTPOST_RUNNER_REMOTE_CODEX_NPM_SPEC?.trim() ||
                 null,
               runnerRemoteProviderPackPath:
-                runtimeEnv.PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH?.trim() ||
+                runtimeEnv.OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH?.trim() ||
                 null,
               stopTaskForReassignment: async (target) => {
                 await settleLiveRunnerGoalBeforeInterrupt(db, target);
@@ -800,8 +800,8 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         ...context,
         ...(legacyQuestionResponse
           ? {
-              [PAPERCLIP_WAKE_PAYLOAD_KEY]: {
-                ...parseObject(context[PAPERCLIP_WAKE_PAYLOAD_KEY]),
+              [OUTPOST_WAKE_PAYLOAD_KEY]: {
+                ...parseObject(context[OUTPOST_WAKE_PAYLOAD_KEY]),
                 questionResponse: legacyQuestionResponse,
               },
             }
@@ -1165,7 +1165,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     if (nativeResumeScheduled) {
       input.effects.onNativeSessionResumeScheduled();
       const failedAttachment = describeFailedAttachment(adapterErr instanceof Error ? adapterErr.message : null);
-      if (failedAttachment) await Promise.resolve(onLog("stderr", `[paperclip] ${failedAttachment}\n`)).catch(() => undefined);
+      if (failedAttachment) await Promise.resolve(onLog("stderr", `[outpost] ${failedAttachment}\n`)).catch(() => undefined);
       throw new NativeSessionResumeScheduledError(adapterErr);
     }
     // Adapter (or its restore finally) threw — or the finalize record
@@ -1263,7 +1263,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       if (settleAcceptedResult && acceptedResult) {
         // Finalize exactly as a returned result would, then let the ordinary
         // completion path settle the run, session, accounting and agent.
-        await onLog("stderr", "[paperclip] runner settlement was incomplete after the result was accepted; finalizing the accepted result\n")
+        await onLog("stderr", "[outpost] runner settlement was incomplete after the result was accepted; finalizing the accepted result\n")
           .catch(() => undefined);
         try {
           await measureRunPhase("execution.native_finalize", () => finalizeNativeRun({

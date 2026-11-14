@@ -32,7 +32,7 @@ export function gradeInterruption(value: unknown) {
   const c = checks(), o = runtimeObservation(value);
   c.add("actual-fresh-direction-native-interruption-evidence", !!o, "A genuine native active owner, saved accepted plan direction, supported human Interrupt and one eligible successor are required."); if (!o) return c.result();
   const s = o.state, before = s.directionQueue as IssueQueuedCommentQueue, original = s.oldRunAfter as HeartbeatRun, next = s.successor as HeartbeatRun;
-  c.add("genuine-saved-fresh-direction-before-interruption", before?.issueId === (s.task as Entity).id && before.targetRunId === s.workerRunId && before.protocol === "paperclip_runner_v1"
+  c.add("genuine-saved-fresh-direction-before-interruption", before?.issueId === (s.task as Entity).id && before.targetRunId === s.workerRunId && before.protocol === "outpost_runner_v1"
     && before.entries.length === 1 && before.entries[0]?.source?.kind === "interaction" && before.entries[0].source.requiresFreshSession === true
     && before.entries[0].source.interactionId === (s.approvedDirection as Entity).id && s.planApprovedByHuman === true && s.interruptControlEnabled === true,
   "An actual human accepted the exact saved simpler plan; its typed fresh-session response is waiting behind the original native owner, making the production Interrupt control legitimately available.");
@@ -73,7 +73,7 @@ export const runtimeInterruptionCases = [runtimeDefinition("steering.interrupt-w
   await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
   return { ...state, marker, plan, planBody: body, approvedDirection: approved, directionQueue: queue, planApprovedByHuman: approved.status === "accepted" && approved.resolvedByUserId === session.user.id && !approved.resolvedByAgentId, interruptControlEnabled: true };
 }, gradeInterruption, {
-  oracleVersion: "paperclip.chat-catalog.runtime.interrupt-with-direction.v6", authentication: "human-session", expectedRunCount: 3, attemptTimeoutMs: 900_000,
+  oracleVersion: "outpost.chat-catalog.runtime.interrupt-with-direction.v6", authentication: "human-session", expectedRunCount: 3, attemptTimeoutMs: 900_000,
   setupPolicy: runtimeQueueCases[0]!.setupPolicy, verifySetup: runtimeQueueCases[0]!.verifySetup,
   runPolicy: { kind: "terminal-counts", terminalStatusCounts: { cancelled: 1, succeeded: 2 } },
   sourceFiles: ["chat-catalog-domains/runtime-interruption.ts", "chat-catalog-domains/runtime-rendered-artifact.ts", "chat-catalog-domains/runtime-queue.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "registered-artifact.ts", "chat-scenarios/steering.yaml"],

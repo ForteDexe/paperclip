@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, agentWakeupRequests, agents, companies, createDb, heartbeatRuns, issueThreadInteractions, issues } from "@paperclipai/db";
-import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@paperclipai/shared";
+import { activityLog, agentWakeupRequests, agents, companies, createDb, heartbeatRuns, issueThreadInteractions, issues } from "@outpost/db";
+import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@outpost/shared";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { issueThreadInteractionService } from "../issue-thread-interactions.js";
 import { documentService } from "../documents.js";
 import { buildNativeExecutionInput } from "./native-execution-input.js";
 import { materializeNativeInteractionResponses } from "./native-interaction-bridge.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 
 describe("native accepted confirmation replay", () => {
@@ -28,7 +28,7 @@ describe("native accepted confirmation replay", () => {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const sourceRunId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Confirmation replay", issuePrefix: `R${companyId.slice(0, 6).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Operator", adapterType: "paperclip_runner", status: "active" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Operator", adapterType: "outpost_runner", status: "active" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Create the approved artifact", status: "in_progress",
       workMode: "standard", originKind: ONBOARDING_FIRST_TASK_ORIGIN_KIND, assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId, runtimeMode: "native", nativeIssueId: issueId,
@@ -65,7 +65,7 @@ describe("native accepted confirmation replay", () => {
       taskPrompt: "Continue the accepted work.", provider: "codex", normalizedSessionId: randomUUID(), resumedSession: true,
       workspace: { id: randomUUID(), cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       interactionResponses: responses, runtimeContext: nativeRuntimeContextFixture(),
-      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
         contract: { revision: "1", objective: "Deliver the requested artifact", criteria: [{ id: "artifact", requirement: "Publish the requested artifact." }] } } });
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, runId));
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
@@ -93,7 +93,7 @@ describe("native accepted confirmation replay", () => {
     await expect(f.authority.recover(call)).resolves.toEqual({ result });
     await expect(f.authority.execute({ tool: "report_progress", callId: randomUUID(), arguments: {
       idempotencyKey: f.input.idempotencyKey, body: "A different operation cannot reuse this receipt key.",
-    } })).rejects.toThrow("paperclip_runner_tool_idempotency_conflict");
+    } })).rejects.toThrow("outpost_runner_tool_idempotency_conflict");
     const child = await f.authority.execute({ tool: "create_task", callId: randomUUID(), arguments: {
       idempotencyKey: "approved-child", title: "Create the approved artifact", description: "Create the requested file and task document.",
     } });
@@ -153,7 +153,7 @@ describe("native accepted confirmation replay", () => {
 
   it("keeps a different creating agent from replaying another agent's acceptance", async () => {
     const f = await fixture(), otherAgentId = randomUUID();
-    await db.insert(agents).values({ id: otherAgentId, companyId: f.companyId, name: "Other operator", adapterType: "paperclip_runner", status: "active" });
+    await db.insert(agents).values({ id: otherAgentId, companyId: f.companyId, name: "Other operator", adapterType: "outpost_runner", status: "active" });
     const execution = structuredClone(f.execution); execution.binding.agentId = otherAgentId;
     await db.update(heartbeatRuns).set({ agentId: otherAgentId, runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, f.runId));
     await db.update(issues).set({ assigneeAgentId: otherAgentId }).where(eq(issues.id, f.issueId));

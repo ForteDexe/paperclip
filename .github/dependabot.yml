@@ -88,7 +88,7 @@ updates:
         update-types:
           - "version-update:semver-major"
 
-  # No entry for packages/paperclip-runner/scripts/pi-distribution or
+  # No entry for packages/outpost-runner/scripts/pi-distribution or
   # kimi-distribution. Every direct dependency there is a pinned provider
   # release, and the pins feed each provider's ACPX commandDigest. The Runner
   # checks compare the Pi lockfile with PI_DISTRIBUTION_PINS, and the Kimi build

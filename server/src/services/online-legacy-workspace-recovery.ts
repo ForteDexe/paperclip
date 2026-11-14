@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { environmentLeases, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, type Db } from "@paperclipai/db";
-import { remoteWorkspaceAuthoritySchema, remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { environmentLeases, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
+import { remoteWorkspaceAuthoritySchema, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { adapterExecutionControls } from "./adapter-execution-control.js";
 import { inspectFinalizedWorkspaceRecoveryHold, type FinalizedWorkspaceRecoveryHold } from "./finalized-workspace-recovery-migration.js";
 import { isLegacyWorkspaceTaskRelated, readLegacyWorkspaceRecoveryAllocations, type LegacyWorkspaceRecoverySource } from "./legacy-workspace-recovery-migration.js";
@@ -16,7 +16,7 @@ import { matchPreparedRemoteWorkspaceSource } from "./remote-workspace-lifecycle
 type ReadDb = Pick<Db, "select">;
 type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "id" | "companyId" | "sourceIssueId">;
 type Recovery = typeof issueRecoveryActions.$inferSelect;
-export const ONLINE_LEGACY_WORKSPACE_PRESERVATION = "paperclip.online-legacy-workspace-preservation.v1";
+export const ONLINE_LEGACY_WORKSPACE_PRESERVATION = "outpost.online-legacy-workspace-preservation.v1";
 
 function canonical(value: unknown): string {
   if (value instanceof Date) return JSON.stringify(value.toISOString());
@@ -100,7 +100,7 @@ export async function lockOnlineLegacyWorkspaceRecoverySources(lock: Db, input: 
   for (const hold of input.holds ?? []) {
     if (!/^[a-f0-9]{64}$/.test(hold.fingerprint)) return false;
     if (hold.remoteHold) {
-      if (hold.remoteHold.schema !== "paperclip.remote-workspace-preservation.v1"
+      if (hold.remoteHold.schema !== "outpost.remote-workspace-preservation.v1"
         || !/^[a-f0-9-]{36}$/.test(hold.remoteHold.runId) || !/^[a-f0-9-]{36}$/.test(hold.remoteHold.workspaceId)
         || hold.finalizedHold || hold.preparedSource) return false;
       runIds.add(hold.remoteHold.runId);
@@ -122,7 +122,7 @@ export async function lockOnlineLegacyWorkspaceRecoverySources(lock: Db, input: 
 export type OnlineLegacyWorkspaceRecoveryHold = {
   fingerprint: string; finalizedHold: FinalizedWorkspaceRecoveryHold | null;
   preparedSource?: LegacyWorkspaceRecoverySource;
-  remoteHold?: { schema: "paperclip.remote-workspace-preservation.v1"; runId: string; workspaceId: string };
+  remoteHold?: { schema: "outpost.remote-workspace-preservation.v1"; runId: string; workspaceId: string };
 };
 
 async function inspectRemoteRecoveryHold(db: ReadDb, input: { workspace: Workspace; recovery: Recovery }): Promise<OnlineLegacyWorkspaceRecoveryHold | null> {
@@ -177,7 +177,7 @@ async function inspectRemoteRecoveryHold(db: ReadDb, input: { workspace: Workspa
     return { fingerprint: fingerprint({ workspace: { id: workspace.id, companyId: workspace.companyId,
       sourceIssueId: workspace.sourceIssueId }, recovery, run, owner, task, result,
       reference: source.remoteReference, remoteWorkspace: source.remoteWorkspace, allocation: source.lease, baseline }), finalizedHold: null,
-    remoteHold: { schema: "paperclip.remote-workspace-preservation.v1", runId: run.id, workspaceId: parsed.data.workspaceId } };
+    remoteHold: { schema: "outpost.remote-workspace-preservation.v1", runId: run.id, workspaceId: parsed.data.workspaceId } };
   } catch (error) {
     if (error instanceof SystemRecoveryFailure || error instanceof WorkspaceSourceInspectionLimit) return null;
     throw error;
@@ -191,7 +191,7 @@ async function coveredHistoricalSource(db: ReadDb, workspace: Workspace, recover
   const historical = raw as Record<string, unknown>, ids = historical.leaseIds;
   const covered = new Map([...(source.reference ? [source.reference] : []), ...(source.recoveryAllocations ?? [])]
     .map(binding => [binding.leaseId, binding]));
-  if (historical.schema !== "paperclip.historical-workspace-source.v1" || historical.runId !== source.runId
+  if (historical.schema !== "outpost.historical-workspace-source.v1" || historical.runId !== source.runId
     || Object.keys(historical).some(key => !["schema", "runId", "leaseIds"].includes(key))
     || !Array.isArray(ids) || !ids.length || ids.length > covered.size || new Set(ids).size !== ids.length
     || ids.some(id => typeof id !== "string" || !covered.has(id))) return false;

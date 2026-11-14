@@ -193,7 +193,7 @@ tool permissions.
 ### Daytona sandbox verification (September 24, 2026)
 
 Browser-created **MEM-6** runs the same three connected providers through a
-native `paperclip_runner` Codex agent in a real Daytona Linux x86_64 sandbox.
+native `outpost_runner` Codex agent in a real Daytona Linux x86_64 sandbox.
 The acceptance task uses only synthetic data and managed tools: a Mem0 copper
 lantern fact, a dedicated Cognee dataset, and Supermemory searches inside and
 outside the existing read-only consent. This first run predates Zep and Honcho
@@ -205,17 +205,17 @@ The immutable sandbox image is
 The remote runner binary was extracted from that image (SHA-256
 `5067194e4a4eff0946e312b162e78a46184dae49c29f5699be81fec6cfd0b9d7`).
 The first attempt failed before provider startup because a macOS host needs
-`PAPERCLIP_RUNNER_REMOTE_BINARY_PATH` pointing to a Linux binary. After configuring
-it, PRP authenticated through Daytona provider ingress and the agent executed in
+`OUTPOST_RUNNER_REMOTE_BINARY_PATH` pointing to a Linux binary. After configuring
+it, ORP authenticated through Daytona provider ingress and the agent executed in
 `/home/daytona/paperclip-workspace` as the `daytona` user.
 
 That retry did **not** pass connector acceptance: its assigned MCP URL pointed to
 the local host's loopback address, which means the sandbox itself when used
 remotely. No memory provider calls ran. Catalog readiness from
 `connections_search` does not prove remote gateway connectivity. Native assigned
-MCP traffic uses a direct HTTP connection, separate from the PRP control channel;
+MCP traffic uses a direct HTTP connection, separate from the ORP control channel;
 the remote Codex path now relays assigned tools through the existing authenticated
-PRP dynamic-tool channel. The control plane retains the short-lived gateway token
+ORP dynamic-tool channel. The control plane retains the short-lived gateway token
 and invokes the same gateway service for discovery and each call. Provider
 credentials, policies, approval checks, and audit records stay server-owned.
 Every call also verifies the native run still owns its task; planning/ask modes
@@ -236,7 +236,7 @@ Task-scoped gateway audit records independently confirm six calls:
 - Cognee `remember` accepted the dedicated
   `paperclip_memory_daytona_e2e_20260924` dataset, and `recall` returned the fact
   on the first attempt. Its stdio provider process remains on the control plane;
-  the Daytona agent calls it through PRP.
+  the Daytona agent calls it through ORP.
 - Supermemory `search_memory` succeeded within the existing consented tag with
   zero results. Exactly one unconsented search returned the expected 403 scope
   restriction and was audited as `call_failed` / `tool_error`.
@@ -331,7 +331,7 @@ Document `C5HY2CWANHZZa3TckJUDYN` reached Done. Managed `get_document` returned
 its exact content; `search_memory` returned both this fact and the earlier
 local fact at 93% relevance to their respective queries. The task audit records
 10 successful calls, including the write, document reads, and semantic searches.
-No provider credentials entered the sandbox. The native PRP relay handled all
+No provider credentials entered the sandbox. The native ORP relay handled all
 calls without a public tunnel. The local agent configuration was restored, and
 sandbox `6a9723dd-972e-4933-b227-6b8e7e2133ae` was deleted and verified absent.
 

@@ -49,8 +49,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import type { RoutineListItem, RoutineVariable } from "@paperclipai/shared";
-import type { FolderListItem } from "@paperclipai/shared";
+import type { RoutineListItem, RoutineVariable } from "@outpost/shared";
+import type { FolderListItem } from "@outpost/shared";
 import {
   AllUnfiledBanner,
   BulkBar,

@@ -14,10 +14,10 @@ const names = new Set(["stage", "toolCallId", "status", "operation", "commandSha
 export function readCursorToolEvidence(rows: readonly unknown[], runId: string): CursorToolNotice[] {
   const result: CursorToolNotice[] = [];
   for (const value of rows) {
-    const row = rec(value), event = rec(rec(row.payload).prpEvent), p = rec(event.payload);
+    const row = rec(value), event = rec(rec(row.payload).orpEvent), p = rec(event.payload);
     if (p.category !== "cursor_tool_evidence_v1") continue;
     const origin = rec(p.provenance);
-    if (row.eventType !== "provider.notice.recorded" || row.runId !== runId || row.protocolSchemaVersion !== 1 || event.schemaVersion !== 1 || p.schema !== "paperclip.provider.notice.v1" || p.scope !== "turn" || event.schema !== "paperclip.prp.event.v1" || event.sourceKind !== "runner" || event.eventType !== row.eventType || event.runId !== runId || !id(origin.sessionId) || !id(origin.turnId) || origin.turnId !== event.turnId || !Array.isArray(p.details) || p.details.length > 12 || !Number.isSafeInteger(row.seq) || row.seq < 0 || !Number.isFinite(Date.parse(event.emittedAt))) throw new Error("Invalid Cursor evidence binding");
+    if (row.eventType !== "provider.notice.recorded" || row.runId !== runId || row.protocolSchemaVersion !== 1 || event.schemaVersion !== 1 || p.schema !== "outpost.provider.notice.v1" || p.scope !== "turn" || event.schema !== "outpost.orp.event.v1" || event.sourceKind !== "runner" || event.eventType !== row.eventType || event.runId !== runId || !id(origin.sessionId) || !id(origin.turnId) || origin.turnId !== event.turnId || !Array.isArray(p.details) || p.details.length > 12 || !Number.isSafeInteger(row.seq) || row.seq < 0 || !Number.isFinite(Date.parse(event.emittedAt))) throw new Error("Invalid Cursor evidence binding");
     const fields: Record<string, string> = {};
     for (const value of p.details) {
       const d = rec(value);
@@ -82,14 +82,14 @@ export function hasCursorDeniedTurnTerminal(input: {
   if (!id(input.runId) || !id(input.turnId) || !id(input.requestId) || run.id !== input.runId || run.nativeIssueId !== issue.id
     || run.status !== "failed" || run.runtimeMode !== "native" || issue.status !== (declined ? "blocked" : "in_progress")
     || (!missingResult && !declined)) return false;
-  const terminals = input.events.map(rec).map(row => ({ row, event: rec(rec(row.payload).prpEvent) }))
+  const terminals = input.events.map(rec).map(row => ({ row, event: rec(rec(row.payload).orpEvent) }))
     .filter(({ event }) => ["turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"].includes(event.eventType));
   const delivered = readCursorToolEvidence(input.events, input.runId).filter(notice => notice.stage === "permission_delivered"
     && notice.turnId === input.turnId && notice.requestId === input.requestId && notice.outcome === "reject_once");
   if (terminals.length !== 1 || delivered.length !== 1) return false;
   const { row, event } = terminals[0]!;
   return row.runId === input.runId && row.eventType === event.eventType && event.runId === input.runId && event.turnId === input.turnId
-    && event.eventType === "turn.completed" && event.schema === "paperclip.prp.event.v1" && event.schemaVersion === 1
+    && event.eventType === "turn.completed" && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1
     && row.protocolSchemaVersion === 1 && event.sourceKind === "runner" && rec(event.payload).status === "completed"
     && rec(event.payload).error === null && Number.isSafeInteger(row.seq) && row.seq > delivered[0]!.seq
     && Number.isFinite(Date.parse(event.emittedAt));
@@ -97,11 +97,11 @@ export function hasCursorDeniedTurnTerminal(input: {
 
 export function hasCursorCancellation(input: { run: unknown; issue: unknown; events: readonly unknown[]; runId: string; turnId: string; requestedAt: number }): boolean {
   const run = rec(input.run), cancellation = rec(rec(run.resultJson).nativeCancellation);
-  const terminals = input.events.map(rec).map(row => ({ row, event: rec(rec(row.payload).prpEvent) })).filter(({ event }) => ["turn.cancelled", "turn.interrupted"].includes(event.eventType));
+  const terminals = input.events.map(rec).map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).filter(({ event }) => ["turn.cancelled", "turn.interrupted"].includes(event.eventType));
   return run.id === input.runId && run.status === "cancelled" && rec(input.issue).status === "in_progress"
     && cancellation.dispatchState === "acknowledged" && cancellation.dispatched === true && cancellation.scope === "run"
     && terminals.length === 1 && terminals.every(({ row, event }) => row.runId === input.runId && event.runId === input.runId && event.turnId === input.turnId
-      && event.schema === "paperclip.prp.event.v1" && event.schemaVersion === 1 && row.protocolSchemaVersion === 1 && event.sourceKind === "runner"
+      && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1 && row.protocolSchemaVersion === 1 && event.sourceKind === "runner"
       && Number.isFinite(input.requestedAt) && Date.parse(event.emittedAt) >= input.requestedAt);
 }
 

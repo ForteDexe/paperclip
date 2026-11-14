@@ -5,7 +5,7 @@ import {
   summarizeHeartbeatRunContextSnapshot,
   summarizeHeartbeatRunListResultJson,
 } from "../services/heartbeat.js";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
 
 describe("buildPaperclipTaskMarkdown", () => {
   it("treats retained questions as conversation data in fresh and resumed task prompts", () => {
@@ -259,8 +259,8 @@ describe("buildPaperclipTaskMarkdown", () => {
     expect(markdown).toContain(
       '"contentPath":"/api/attachments/attachment-text/content"',
     );
-    expect(markdown).toContain("PAPERCLIP_API_URL");
-    expect(markdown).toContain("PAPERCLIP_API_KEY");
+    expect(markdown).toContain("OUTPOST_API_URL");
+    expect(markdown).toContain("OUTPOST_API_KEY");
     expect(markdown).toContain("never invoke `npx`");
     expect(markdown).toContain(
       "Do not infer file contents from filenames or metadata",
@@ -315,9 +315,9 @@ describe("buildPaperclipTaskMarkdown", () => {
       expect(markdown).toContain("honor their action policies");
       if (nativeRunner) {
         expect(markdown).toContain('interactionKind: "questions"');
-        expect(markdown).not.toContain("POST /api/issues/$PAPERCLIP_TASK_ID/interactions");
+        expect(markdown).not.toContain("POST /api/issues/$OUTPOST_TASK_ID/interactions");
       } else {
-        expect(markdown).toContain("POST /api/issues/$PAPERCLIP_TASK_ID/interactions");
+        expect(markdown).toContain("POST /api/issues/$OUTPOST_TASK_ID/interactions");
         expect(markdown).toContain('resolverPolicy: "human_only"');
         expect(markdown).toContain("PATCH this task to in_review");
       }
@@ -424,7 +424,7 @@ describe("buildPaperclipTaskMarkdown", () => {
       expect(markdown).toContain("do not suppress transport-managed progress");
       expect(markdown).toContain('"id":"native-attachment"');
       expect(markdown).not.toContain("paperclip-upload-artifact.sh");
-      expect(markdown).not.toContain("PAPERCLIP_API_KEY");
+      expect(markdown).not.toContain("OUTPOST_API_KEY");
       expect(markdown).not.toContain("/api/attachments/");
     },
   );

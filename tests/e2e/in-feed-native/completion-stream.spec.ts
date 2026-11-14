@@ -61,14 +61,14 @@ test('a completion tool does not cut off a delayed final answer', async ({ page 
     await page.goto(base + prefix + '/dashboard');
     await page.goto(base + prefix + '/company/settings/instance/experimental');
     if (!(await api('/instance/settings/experimental')).enableNativeRunner) {
-      await page.getByRole('switch', { name: 'Toggle Paperclip Runner experimental setting' }).click();
+      await page.getByRole('switch', { name: 'Toggle Outpost Runner experimental setting' }).click();
     }
     await expect.poll(async () => (await api('/instance/settings/experimental')).enableNativeRunner).toBe(true);
     await page.goto(base + prefix + `/agents/${agent.id}/configuration`);
     await page.getByRole('button', { name: 'Codex', exact: true }).click();
-    await page.getByRole('button', { name: /Paperclip Runner/ }).click();
+    await page.getByRole('button', { name: /Outpost Runner/ }).click();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-    await expect.poll(async () => (await api(`/agents/${agent.id}`)).adapterType).toBe('paperclip_runner');
+    await expect.poll(async () => (await api(`/agents/${agent.id}`)).adapterType).toBe('outpost_runner');
     await page.getByRole('link', { name: 'Tasks', exact: true }).click();
     await page.getByRole('button', { name: 'New Task', exact: true }).last().click();
     await page.getByPlaceholder('Task title').fill('Summarize the launch decisions and include the source link');

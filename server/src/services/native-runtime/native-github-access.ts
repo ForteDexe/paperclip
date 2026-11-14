@@ -7,8 +7,8 @@ import {
   githubOperationLauncherDirectory,
   prepareGitHubOperationLaunchers,
   startAdapterExecutionTargetPaperclipBridge,
-} from "@paperclipai/adapter-utils/execution-target";
-import { githubBrokerEnvironment } from "@paperclipai/adapter-utils/github-launcher";
+} from "@outpost/adapter-utils/execution-target";
+import { githubBrokerEnvironment } from "@outpost/adapter-utils/github-launcher";
 
 type Binding = { companyId: string; agentId: string; issueId: string; runId: string };
 type LauncherInput = Parameters<typeof prepareGitHubOperationLaunchers>[0];
@@ -87,7 +87,7 @@ export async function createNativeGitHubAccess(input: {
       cleanupGitHubOperationLaunchers(location),
     ]);
     if (results.some(result => result.status === "rejected")) {
-      await input.onLog?.("stderr", "[paperclip] GitHub session cleanup incomplete.\n").catch(() => undefined);
+      await input.onLog?.("stderr", "[outpost] GitHub session cleanup incomplete.\n").catch(() => undefined);
     }
   })();
   try {
@@ -119,17 +119,17 @@ export async function createNativeGitHubAccess(input: {
       // the supervisor retries transport setup on the next run.
       ready = false;
       await new Promise<void>(resolve => server.close(() => resolve()));
-      await input.onLog?.("stderr", "[paperclip] GitHub runtime transport unavailable; continuing without managed GitHub access.\n").catch(() => undefined);
+      await input.onLog?.("stderr", "[outpost] GitHub runtime transport unavailable; continuing without managed GitHub access.\n").catch(() => undefined);
     }
     const env = await prepareGitHubOperationLaunchers({
       ...location, cwd: input.cwd,
       env: {
         ...githubBrokerEnvironment({ PATH: input.env.PATH }, {
-          url: ready ? bridge?.env.PAPERCLIP_API_URL ?? url : "",
-          token: ready ? bridge?.env.PAPERCLIP_API_KEY ?? token : "",
+          url: ready ? bridge?.env.OUTPOST_API_URL ?? url : "",
+          token: ready ? bridge?.env.OUTPOST_API_KEY ?? token : "",
         }),
         // Never retain an old run's bridge authentication override.
-        PAPERCLIP_GITHUB_BRIDGE_TOKEN: ready ? bridge?.env.PAPERCLIP_API_KEY ?? token : "",
+        OUTPOST_GITHUB_BRIDGE_TOKEN: ready ? bridge?.env.OUTPOST_API_KEY ?? token : "",
       },
     });
     return {

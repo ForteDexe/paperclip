@@ -106,25 +106,25 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
   requireProof(stream.events.every(e => completionEventTypes.has(e.eventType)), "additional_native_work");
   const items = stream.events.filter(e => e.eventType.startsWith("item."));
   for (const event of items) {
-    const prp = event.payload?.prpEvent;
-    requireProof(prp?.schema === "paperclip.prp.event.v1" && prp.runId === run.id
-      && prp.eventType === event.eventType && completionItemKinds.has(prp.payload?.kind), "additional_native_work");
-    if (prp.payload.kind !== "dynamicToolCall" && prp.payload.item != null) {
-      requireProof(prp.payload.item.type === prp.payload.kind, "additional_native_work");
+    const orp = event.payload?.orpEvent;
+    requireProof(orp?.schema === "outpost.orp.event.v1" && orp.runId === run.id
+      && orp.eventType === event.eventType && completionItemKinds.has(orp.payload?.kind), "additional_native_work");
+    if (orp.payload.kind !== "dynamicToolCall" && orp.payload.item != null) {
+      requireProof(orp.payload.item.type === orp.payload.kind, "additional_native_work");
     }
   }
   requireProof(stream.events.some(e => e.eventType === "run.result.accepted"
-    && e.payload?.prpEvent?.schema === "paperclip.prp.event.v1" && e.payload.prpEvent.runId === run.id
-    && e.payload.prpEvent.eventType === e.eventType), "accepted_result_missing");
+    && e.payload?.orpEvent?.schema === "outpost.orp.event.v1" && e.payload.orpEvent.runId === run.id
+    && e.payload.orpEvent.eventType === e.eventType), "accepted_result_missing");
   requireProof(Array.isArray(stream.workspaceOperations) && stream.workspaceOperations.every(o => o.phase === "workspace_finalize"
     && o.heartbeatRunId === run.id && o.companyId === companyId && o.status === "succeeded" && !o.command), "additional_workspace_work");
   const allowedTools = new Set(["get_task", "list_task_documents", "get_task_document", "paperclip_finish"]);
   const tools = stream.events.filter(e => e.eventType.startsWith("tool.execution."));
   const starts = new Map<string, string>(), finishes = new Map<string, string>();
   for (const event of tools) {
-    const prp = event.payload?.prpEvent, tool = prp?.payload;
-    requireProof(prp?.schema === "paperclip.prp.event.v1" && prp.runId === run.id && prp.eventType === event.eventType
-      && tool?.schema === "paperclip.tool.execution.v1" && allowedTools.has(tool.name)
+    const orp = event.payload?.orpEvent, tool = orp?.payload;
+    requireProof(orp?.schema === "outpost.orp.event.v1" && orp.runId === run.id && orp.eventType === event.eventType
+      && tool?.schema === "outpost.tool.execution.v1" && allowedTools.has(tool.name)
       && typeof tool.executionId === "string" && tool.executionId.length > 0, "additional_tool_work");
     const started = event.eventType === "tool.execution.started";
     requireProof(started || event.eventType === "tool.execution.completed", "tool_outcome");
@@ -137,7 +137,7 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
   requireProof(starts.size === finishes.size && [...starts].every(([id, name]) => finishes.get(id) === name)
     && [...finishes.values()].filter(name => name === "paperclip_finish").length === 1, "tool_completion");
   for (const event of items) {
-    const payload = event.payload.prpEvent.payload;
+    const payload = event.payload.orpEvent.payload;
     if (payload.kind !== "dynamicToolCall") continue;
     const item = payload.item;
     requireProof(item && (event.eventType === "item.started" && item.type === "tool_use"

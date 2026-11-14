@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Issue, PaperclipPluginManifestV1 } from "@paperclipai/shared";
-import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
+import type { Issue, PaperclipPluginManifestV1 } from "@outpost/shared";
+import { createTestHarness } from "@outpost/plugin-sdk/testing";
 
 function seededIssue(input: Partial<Issue> & Pick<Issue, "id" | "companyId" | "title">): Issue {
   const now = new Date();
@@ -44,7 +44,7 @@ function seededIssue(input: Partial<Issue> & Pick<Issue, "id" | "companyId" | "t
 describe("plugin SDK test harness", () => {
   it("rejects project snapshot requests that the host would deny", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-project-snapshots",
+      id: "outpost.test-project-snapshots",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Project Snapshots",
@@ -65,7 +65,7 @@ describe("plugin SDK test harness", () => {
 
   it("returns scoped execution workspace metadata with the read capability", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-execution-workspace-metadata",
+      id: "outpost.test-execution-workspace-metadata",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Execution Workspace Metadata",
@@ -103,7 +103,7 @@ describe("plugin SDK test harness", () => {
 
   it("requires execution.workspaces.read before returning workspace metadata", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-missing-execution-workspace-read",
+      id: "outpost.test-missing-execution-workspace-read",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Missing Workspace Read Capability",
@@ -122,7 +122,7 @@ describe("plugin SDK test harness", () => {
 
   it("requires skills.managed capability before resetting a missing declaration", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-missing-managed-skill-capability",
+      id: "outpost.test-missing-managed-skill-capability",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Missing Managed Skill Capability",
@@ -145,7 +145,7 @@ describe("plugin SDK test harness", () => {
 
   it("requires access and authorization capabilities for permission SDK calls", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-missing-access-authz-capability",
+      id: "outpost.test-missing-access-authz-capability",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Missing Access Capability",
@@ -170,7 +170,7 @@ describe("plugin SDK test harness", () => {
 
   it("returns tombstone-safe deleted comments from the in-memory issue helper", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-comment-redaction",
+      id: "outpost.test-comment-redaction",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Comment Redaction",
@@ -223,7 +223,7 @@ describe("plugin SDK test harness", () => {
 
   it("rejects a human-attributed comment when the actorUserId is not an active member", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-human-attributed-comment-unverified",
+      id: "outpost.test-human-attributed-comment-unverified",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Human-Attributed Comment (unverified)",
@@ -268,7 +268,7 @@ describe("plugin SDK test harness", () => {
     // own test suite cannot pass an attribution production rejects. A viewer is
     // an active member but read-only in the web app.
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-human-attributed-comment-viewer",
+      id: "outpost.test-human-attributed-comment-viewer",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Human-Attributed Comment (viewer)",
@@ -307,7 +307,7 @@ describe("plugin SDK test harness", () => {
 
   it("attributes a comment to an active human member for a verified actorUserId", async () => {
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.test-human-attributed-comment-verified",
+      id: "outpost.test-human-attributed-comment-verified",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Human-Attributed Comment (verified)",

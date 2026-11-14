@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import { adapterExecutionControls } from "./adapter-execution-control.js";
 import { persistActivity, publishActivity } from "./activity-log.js";
@@ -122,7 +122,7 @@ export async function rearmExhaustedStopProof(db: Db, input: WorkspaceRecoverySo
     await tx.update(issueRecoveryActions).set({ ownerType: "system", ownerAgentId: null, ownerUserId: null,
       nextAction: STOP_PROOF_REARM_MESSAGE, updatedAt: at,
       evidence: { ...action.evidence, systemRecovery: next, [STOP_PROOF_RECOVERY_KEY]: stopProofRecovery,
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: run.id, status: "queued", stage: "verifying_stop",
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: run.id, status: "queued", stage: "verifying_stop",
           attempt: 0, attemptLimit: 6, retryable: true, message: STOP_PROOF_REARM_MESSAGE,
           requestIds: Array.isArray(prior?.requestIds) ? prior.requestIds : [] } },
     }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));

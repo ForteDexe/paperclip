@@ -7,7 +7,7 @@ import express from "express";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
 import {
   costEvents,
   agents,
@@ -31,7 +31,7 @@ import {
   issueThreadInteractions,
   workspaceOperations,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -49,7 +49,7 @@ import { instanceSettingsService } from "../services/instance-settings.js";
 import { withNativeWorkspaceFinalizationOwnership } from "../services/native-runtime/native-workspace-finalization-ownership.js";
 import { noticeMetadataReferencesRecoveryAction } from "../services/recovery/successful-run-handoff.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_RECOVERY_ACTION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_RECOVERY_ACTION_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -2447,7 +2447,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
 
   const protectedRecoveryEvidence = [
     { key: "workspaceRestoreFailure", value: "restore_failed" },
-    { key: "workspaceRestoreRecovery", value: { schema: "paperclip.workspace-restore-recovery.v1" } },
+    { key: "workspaceRestoreRecovery", value: { schema: "outpost.workspace-restore-recovery.v1" } },
     { key: "systemRecovery", value: { state: "pending" } },
   ] as const;
 
@@ -2517,7 +2517,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       evidence: {
         ...action.evidence,
         workspaceRestoreFailure: "restore_failed",
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [] },
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [] },
       },
     }).where(eq(issueRecoveryActions.id, action.id)).returning();
     await db.transaction(async (tx) => {

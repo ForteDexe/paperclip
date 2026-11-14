@@ -53,8 +53,8 @@ The final independent-resource control retains parallel progress when task, endp
 ## Reproduction and failure accounting
 
 ```sh
-pnpm exec vitest run --project @paperclipai/server server/src/__tests__/scoped-deadline-work.test.ts
-pnpm exec vitest run --project @paperclipai/server server/src/__tests__/chat-channels.integration.test.ts -t 'shared-endpoint accepted-response|different endpoints for one principal|endpoint scheduling hint|contended accepted response'
+pnpm exec vitest run --project @outpost/server server/src/__tests__/scoped-deadline-work.test.ts
+pnpm exec vitest run --project @outpost/server server/src/__tests__/chat-channels.integration.test.ts -t 'shared-endpoint accepted-response|different endpoints for one principal|endpoint scheduling hint|contended accepted response'
 ```
 
 The committed helper materializes the pinned baseline with `git show`; it does not ship a clone of old production code. Run it with Node 24.22.2 and pnpm 9.15.4 from a clean, isolated checkout of this PR:
@@ -63,7 +63,7 @@ The committed helper materializes the pinned baseline with `git show`; it does n
 git worktree add --detach /tmp/presentation-repro HEAD
 cd /tmp/presentation-repro
 pnpm install --frozen-lockfile
-pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
+pnpm --filter @outpost/plugin-sdk ensure-build-deps
 node server/scripts/benchmark-response-presentation.mjs /tmp/presentation-results
 ```
 

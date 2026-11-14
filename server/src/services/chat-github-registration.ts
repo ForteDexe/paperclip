@@ -8,8 +8,8 @@ import {
   companies,
   companyMemberships,
   type Db,
-} from "@paperclipai/db";
-import type { GitHubAppRegistrationInput } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { GitHubAppRegistrationInput } from "@outpost/shared";
 import { badRequest, conflict, forbidden, notFound } from "../errors.js";
 import { githubBotRequest } from "./chat-github-client.js";
 import { logActivity } from "./activity-log.js";

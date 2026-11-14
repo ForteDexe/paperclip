@@ -40,7 +40,7 @@ existing preparation and verification lifecycle.
 For **Cursor Cloud**, choose its card in Cloud when native Runner is enabled and
 the qualified controller is available. Its held setup draft uses the API
 controller without a Computer, before model or credential selection. Local
-operators can choose **Paperclip Runner** in Advanced. Bind a Cursor Cloud
+operators can choose **Outpost Runner** in Advanced. Bind a Cursor Cloud
 API key, enter the exact model and select a repository/ref or a named Cursor
 cloud environment. Cursor hosts the agent's environment; this native setup has
 no Paperclip Computer selection. Save, reopen, and run Test. Test checks the
@@ -206,7 +206,7 @@ Use the [portability recipe](./companies.md) for package preparation and boundar
 
 For Claude Code on qualified macOS or GNU/Linux x64/ARM64, submit without a
 runner override and inspect
-saved configuration: `paperclip_runner`, `provider: acpx`, `acpxAgent: claude`,
+saved configuration: `outpost_runner`, `provider: acpx`, `acpxAgent: claude`,
 and ordinary model `claude-opus-5-5`. Keep explicit model/account choices and saved runners on edits.
 Verify useful output and a follow-up after a controller restart; setup success
 alone does not establish session continuity. Unsupported architectures/libc and unknown environment qualification retain
@@ -327,7 +327,7 @@ Sources: [Managed-agent CLI](../../cli/src/commands/managed-agent.ts), [profile 
 
 Choose **Invite an external agent → Grok Bot**, identify the Bot by its desktop name, connect its remote MCP plugin, configure a webhook-only routine, and verify delivery plus authenticated reply. Save & exit resumes the same agent. Keep pairing codes in browser authorization and routine credentials in Paperclip’s fields. A working Bot web URL is not required.
 
-Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Paperclip Runner and Grok Bot experimental settings. Cloud uses its normal managed Runner environment. Provider usage is unknown. Routine uncertainty blocks new assignments until explicit inspection and recovery; stopping work revokes Paperclip authority without confirming remote termination.
+Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Outpost Runner and Grok Bot experimental settings. Cloud uses its normal managed Runner environment. Provider usage is unknown. Routine uncertainty blocks new assignments until explicit inspection and recovery; stopping work revokes Paperclip authority without confirming remote termination.
 
 Evidence: source implementation and focused protocol tests; real provider assigned/proactive workflows and deployed managed acceptance remain release gates.
 ### Documentation scope: Agents, organization, and runtime setup

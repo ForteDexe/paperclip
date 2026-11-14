@@ -13,8 +13,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // Mock the adapter-utils server-utils module that execute.ts imports from.
 // We intercept runChildProcess so we can inspect its opts without spawning
 // a real child process.
-vi.mock("@paperclipai/adapter-utils/server-utils", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@paperclipai/adapter-utils/server-utils")>();
+vi.mock("@outpost/adapter-utils/server-utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@outpost/adapter-utils/server-utils")>();
   return {
     ...actual,
     runChildProcess: vi.fn(async () => ({
@@ -39,7 +39,7 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 import { execute } from "./execute.js";
-import * as serverUtils from "@paperclipai/adapter-utils/server-utils";
+import * as serverUtils from "@outpost/adapter-utils/server-utils";
 
 function makeCtx(overrides: Record<string, unknown> = {}) {
   const onSpawn = vi.fn(async () => undefined);
@@ -105,11 +105,11 @@ describe("hermes-local adapter onSpawn forwarding", () => {
   });
 
   it("keeps wake data in the prompt and drops configured JSON env copies", async () => {
-    const { ctx } = makeCtx({ env: { PAPERCLIP_WAKE_PAYLOAD_JSON: "stale configured wake" } });
+    const { ctx } = makeCtx({ env: { OUTPOST_WAKE_PAYLOAD_JSON: "stale configured wake" } });
     const wake = { reason: "issue_assigned", issue: { id: "issue-1", description: "Current task brief" } };
     await execute({ ...ctx, context: { ...ctx.context, paperclipWake: wake } } as any);
     const call = vi.mocked(serverUtils.runChildProcess).mock.calls.at(-1)!;
-    expect(call[3].env).not.toHaveProperty("PAPERCLIP_WAKE_PAYLOAD_JSON");
+    expect(call[3].env).not.toHaveProperty("OUTPOST_WAKE_PAYLOAD_JSON");
     expect(call[2]).toContainEqual(expect.stringContaining("Current task brief"));
   });
 
@@ -208,9 +208,9 @@ describe("hermes-local adapter onSpawn forwarding", () => {
     expect(result.errorMessage).toBeUndefined();
   });
 
-  it("does not inherit PAPERCLIP_API_KEY without a harness token", async () => {
-    const previousApiKey = process.env.PAPERCLIP_API_KEY;
-    process.env.PAPERCLIP_API_KEY = "parent-process-key";
+  it("does not inherit OUTPOST_API_KEY without a harness token", async () => {
+    const previousApiKey = process.env.OUTPOST_API_KEY;
+    process.env.OUTPOST_API_KEY = "parent-process-key";
 
     try {
       const { ctx } = makeCtx();
@@ -219,10 +219,10 @@ describe("hermes-local adapter onSpawn forwarding", () => {
       const mocked = vi.mocked(serverUtils.runChildProcess);
       const lastCall = mocked.mock.calls[mocked.mock.calls.length - 1];
       const opts = lastCall[3] as { env: Record<string, string> };
-      expect(opts.env.PAPERCLIP_API_KEY).toBeUndefined();
+      expect(opts.env.OUTPOST_API_KEY).toBeUndefined();
     } finally {
-      if (previousApiKey === undefined) delete process.env.PAPERCLIP_API_KEY;
-      else process.env.PAPERCLIP_API_KEY = previousApiKey;
+      if (previousApiKey === undefined) delete process.env.OUTPOST_API_KEY;
+      else process.env.OUTPOST_API_KEY = previousApiKey;
     }
   });
 });

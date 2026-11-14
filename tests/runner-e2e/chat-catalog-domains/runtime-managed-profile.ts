@@ -32,7 +32,7 @@ export const runtimeManagedProfileCases = [runtimeDefinition("agents.managed-pro
   if (profilesBefore.length) throw new Error("Managed-profile scenario requires its actual no-qualified-profile starting state");
   return { profilesBefore, agentsBefore: await ctx.input.api.get<RuntimeAgent[]>(`${root}/agents`) };
 }, gradeManagedProfile, {
-  oracleVersion: "paperclip.chat-catalog.runtime.managed-profile.v5",
+  oracleVersion: "outpost.chat-catalog.runtime.managed-profile.v5",
   sourceFiles: ["chat-catalog-domains/runtime-managed-profile.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/agents.yaml"],
   async act(ctx, state) {
     await waitForReply(ctx); const endpoint = `/api/companies/${ctx.input.fixtures.company.id}/managed-agent-profiles`;

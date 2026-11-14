@@ -1,6 +1,6 @@
 # Disposable named-provider fixture references
 
-The coordinator may supply `PAPERCLIP_CHAT_CATALOG_EXTERNAL_CONFIG` as the absolute
+The coordinator may supply `OUTPOST_CHAT_CATALOG_EXTERNAL_CONFIG` as the absolute
 path to an untracked JSON file with mode `0600`. Do not put credentials in the
 file. Only explicit disposable resource identifiers, nonsecret choices and names
 of credential environment variables belong there. The file schema is:
@@ -12,15 +12,15 @@ of credential environment variables belong there. The file schema is:
     "notion": {
       "disposable": true,
       "resourceIds": ["authorized-disposable-workspace-id", "synthetic-launch-update-page-id", "synthetic-background-page-id"],
-      "credentialEnv": ["PAPERCLIP_CHAT_EVAL_NOTION_API", "PAPERCLIP_CHAT_EVAL_NOTION_MCP"],
+      "credentialEnv": ["OUTPOST_CHAT_EVAL_NOTION_API", "OUTPOST_CHAT_EVAL_NOTION_MCP"],
       "prerequisites": {
         "workspaceId": "authorized-disposable-workspace-id",
         "recentPageId": "synthetic-launch-update-page-id",
         "olderPageId": "synthetic-background-page-id",
         "mcpUrl": "https://mcp.notion.com/mcp",
         "apiVersion": "2022-06-28",
-        "apiTokenEnv": "PAPERCLIP_CHAT_EVAL_NOTION_API",
-        "mcpTokenEnv": "PAPERCLIP_CHAT_EVAL_NOTION_MCP",
+        "apiTokenEnv": "OUTPOST_CHAT_EVAL_NOTION_API",
+        "mcpTokenEnv": "OUTPOST_CHAT_EVAL_NOTION_MCP",
         "recentMarker": "Launch moves to November 8",
         "olderMarker": "Launch originally targeted October 1",
         "recentFactJson": "{\"subjectAliases\":[\"launch\",\"release\"],\"valueAliases\":[\"November 8\",\"Nov 8\",\"8 November\"]}",
@@ -48,7 +48,7 @@ controlled recipient corresponding to the catalog's synthetic address (or an
 explicitly audited query identity binding), plus two inbound messages for reply
 coverage. A vault needs a supported disposable provider and reference. Credential
 values stay in coordinator child environment variables named
-`PAPERCLIP_CHAT_EVAL_*`; session references identify a private session file rather
+`OUTPOST_CHAT_EVAL_*`; session references identify a private session file rather
 than embedding session bytes.
 
 Missing input throws a setup blocker before chat or provider writes. Sanitized

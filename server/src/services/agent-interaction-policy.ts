@@ -1,5 +1,5 @@
-import { agents, issues, type Db } from "@paperclipai/db";
-import { extractAgentMentionIds, isUuidLike, type AgentInteractionPermissionKey } from "@paperclipai/shared";
+import { agents, issues, type Db } from "@outpost/db";
+import { extractAgentMentionIds, isUuidLike, type AgentInteractionPermissionKey } from "@outpost/shared";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { forbidden, notFound } from "../errors.js";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";

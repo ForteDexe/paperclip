@@ -117,7 +117,6 @@ associate(["everyday-workflows", "native-connection-guidance", "grok-qualificati
   "stop-redirect": ["steering/stop-and-pause"],
   "create-skill-studio": ["skills/authoring"],
 });
-associate(["hiring-templates"], { "hire-coder-template-reuse": ["agents/hire", "task-coordination/delegation"] });
 associate(["kimi-qualification"], {
   "file-edit-validate": ["documents-artifacts/work-products"],
   "native-write-permission-stop": ["steering/stop-and-pause", "questions-and-approvals/tool-review"],

@@ -60,7 +60,7 @@ function feedbackKind(name: unknown): FeedbackInvocation["kind"] | undefined {
 export function observeFeedbackInvocations(runId: string, events: readonly Row[]): FeedbackInvocation[] {
   const calls = new Map<string, FeedbackInvocation>();
   for (const event of events) {
-    const envelope = row(row(event.payload).prpEvent);
+    const envelope = row(row(event.payload).orpEvent);
     if (envelope.runId !== runId || envelope.sourceKind !== "runner" || envelope.eventType !== event.eventType) continue;
     const payload = row(envelope.payload), item = row(payload.item);
     const execution = typeof event.eventType === "string" && event.eventType.startsWith("tool.execution.");
@@ -83,7 +83,7 @@ function onlyControlPlaneEvents(runId: string, events: readonly Row[]): boolean 
   return events.every(event => event.stream === "system"
     && (event.runId === undefined || event.runId === runId)
     && ["lifecycle", "phase"].includes(String(event.eventType))
-    && row(event.payload).prpEvent === undefined
+    && row(event.payload).orpEvent === undefined
     && [event.sourceInstanceId, event.sourceEventId, event.sourceSeq, event.protocolSchemaVersion]
       .every(value => value === undefined || value === null));
 }

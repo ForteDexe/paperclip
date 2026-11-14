@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 import { createDb, authUsers, instanceUserRoles, issueComments, issues, issueThreadInteractions, issueQuestionResponseDeliveries, chatVoiceInboundCalls, chatVoiceReports, chatVoiceSessions, chatVoiceReplies, chatVoiceToolCalls, chatActions, chatDeliveries, chatPublications, heartbeatRuns, agentWakeupRequests } from "../../packages/db/src/index.js";
-const home = process.env.PAPERCLIP_HOME!;
+const home = process.env.OUTPOST_HOME!;
 const port = Number(process.env.SPEKO_NATIVE_PORT ?? 3449);
 const origin = `http://127.0.0.1:${port}`;
 const callbackOrigin = process.env.SPEKO_NATIVE_CALLBACK_ORIGIN!;
@@ -17,7 +17,7 @@ const authenticated = process.env.SPEKO_NATIVE_AUTH === "1";
 const deploymentMode = authenticated ? "authenticated" : "local_trusted";
 // Match index.ts's local-trusted bootstrap: agent JWTs retain this real
 // responsible user and the memberships created by the normal company route.
-if (!authenticated) await db.insert(authUsers).values({ id: "local-board", name: "Board", email: "local@paperclip.local", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
+if (!authenticated) await db.insert(authUsers).values({ id: "local-board", name: "Board", email: "local@outpost.local", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
 if (!authenticated) await db.insert(instanceUserRoles).values({ userId: "local-board", role: "instance_admin" }).onConflictDoNothing();
 const { registerServerAdapter, waitForExternalAdapters } = await import("../../server/src/adapters/registry.js");
 await waitForExternalAdapters();

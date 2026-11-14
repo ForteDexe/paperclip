@@ -13,7 +13,7 @@ import type {
   ToolProfileStatus,
   ToolProfileWithDetails,
   ToolRiskLevel,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { agentsApi } from "@/api/agents";
 import { routinesApi } from "@/api/routines";
 import {

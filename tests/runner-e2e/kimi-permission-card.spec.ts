@@ -3,7 +3,7 @@ import { kimiPendingWritePermissionCard } from "./kimi-permission-card.js";
 import type { KimiLifecyclePending } from "./kimi-lifecycle-evidence.js";
 
 const pending: KimiLifecyclePending = {
-  schema: "paperclip.e2e.kimi-native-write-pending.v1",
+  schema: "outpost.e2e.kimi-native-write-pending.v1",
   scope: { companyId: "synthetic-company", issueId: "synthetic-issue", runId: "synthetic-run", target: "denied/expected.txt" },
   requestId: "native-write-request", toolCallId: "0:native-write", executionId: "0:native-write", itemId: "native-item", turnId: "native-turn",
   normalizedSessionId: "native-session", sourceInstanceId: "native-runner", requestSourceSeq: 9, startedSourceSeq: 7,

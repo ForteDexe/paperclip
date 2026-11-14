@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
-import { heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { executionStartedEventPredicate } from "./pre-dispatch-execution-evidence.js";
 
 type Run = typeof heartbeatRuns.$inferSelect;
@@ -41,7 +41,7 @@ export function legacyShutdownBeforeDispatchCondition() {
     sql`${heartbeatRuns.resultJson}->'workspaceRestoreRecovery' is null`,
     sql`not (coalesce(${heartbeatRuns.runnerProfileJson}, '{}'::jsonb) ?| array[
       'nativeExecutionInput', 'nativeWorkspaceSync', 'remoteWorkspace', 'nativeWorkspaceFinalizationOwner', 'sessionCheckpoint'])`,
-    sql`coalesce(${heartbeatRuns.runnerProfileJson}#>>'{adapterDispatch,adapterType}', '') <> 'paperclip_runner'`,
+    sql`coalesce(${heartbeatRuns.runnerProfileJson}#>>'{adapterDispatch,adapterType}', '') <> 'outpost_runner'`,
     sql`not exists (select 1 from ${nativeRunFinalizations}
       where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id})`,
     sql`not exists (select 1 from ${heartbeatRunEvents}

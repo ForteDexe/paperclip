@@ -5,7 +5,7 @@ const scenario = { id: "projects.archive-project", query: "Archive Launch." } as
 const attempt = { executionId: "chat-features.runner.local.projects.archive-project", sourceRevision: "source", definitionDigest: "definition", graderDigest: "grader" } as CampaignAttempt;
 function fixture() {
   const values: Record<string, unknown> = {
-    "result.json": { schema: "paperclip.runner-e2e.result/v2", executionId: attempt.executionId, source: { sha: "source" }, matcherResults: [{ matcher: { path: "chat.independent-state" }, passed: true }] },
+    "result.json": { schema: "outpost.runner-e2e.result/v2", executionId: attempt.executionId, source: { sha: "source" }, matcherResults: [{ matcher: { path: "chat.independent-state" }, passed: true }] },
     "chat-catalog-definition.json": { scenarioId: scenario.id, definitionDigest: "definition", graderDigest: "grader", journeyKind: "agent-chat" },
     "chat-catalog-query-binding.json": { scenarioId: scenario.id, originalQuery: scenario.query, renderedQuery: scenario.query, bindings: [] },
     "chat-catalog-setup-boundary.json": { humanCommentIds: ["setup-human"], runIds: ["setup-run"] },

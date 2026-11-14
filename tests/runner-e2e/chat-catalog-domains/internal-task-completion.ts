@@ -97,7 +97,7 @@ function completionGate(): ChatCatalogCase {
     await ctx.input.evidence("chat-catalog-prior-morgan-delivery-review.json", { task: saved.task, runIds: saved.runs.map(row => row.id), attachments: saved.attachments });
     return { project: p, task: saved.task, worker, reviewerId: reviewer.id };
   }, gradeCompletionGate);
-  return { ...base, oracleVersion: "paperclip.chat-catalog.completion-with-gate.v2", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 660_000,
+  return { ...base, oracleVersion: "outpost.chat-catalog.completion-with-gate.v2", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 660_000,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-task-completion.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/api-read-receipts.ts"],
     async observe(ctx, state): Promise<CompletionObservation> {
       const o = await observeInternal(ctx, state); const id = entity(state, "task").id;

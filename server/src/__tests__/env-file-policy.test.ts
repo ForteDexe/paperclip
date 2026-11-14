@@ -5,7 +5,7 @@ describe("working-directory environment loading", () => {
   it("loads a distinct working-directory .env by default", () => {
     expect(shouldLoadWorkingDirectoryEnv({
       cwdEnvExists: true,
-      isPaperclipEnvFile: false,
+      isOutpostEnvFile: false,
       env: {},
     })).toBe(true);
   });
@@ -13,15 +13,15 @@ describe("working-directory environment loading", () => {
   it("does not load the working-directory .env when explicitly disabled", () => {
     expect(shouldLoadWorkingDirectoryEnv({
       cwdEnvExists: true,
-      isPaperclipEnvFile: false,
-      env: { PAPERCLIP_DISABLE_CWD_ENV_FILE: "true" },
+      isOutpostEnvFile: false,
+      env: { OUTPOST_DISABLE_CWD_ENV_FILE: "true" },
     })).toBe(false);
   });
 
   it("does not load the same file twice", () => {
     expect(shouldLoadWorkingDirectoryEnv({
       cwdEnvExists: true,
-      isPaperclipEnvFile: true,
+      isOutpostEnvFile: true,
       env: {},
     })).toBe(false);
   });

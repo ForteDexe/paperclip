@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { activityLog, agents, agentWakeupRequests, companies, createDb, issues } from "@paperclipai/db";
-import type { LiveEvent } from "@paperclipai/shared";
+import { activityLog, agents, agentWakeupRequests, companies, createDb, issues } from "@outpost/db";
+import type { LiveEvent } from "@outpost/shared";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";

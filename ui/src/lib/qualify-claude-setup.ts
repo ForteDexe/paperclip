@@ -1,4 +1,4 @@
-import type { AgentRunner, AgentRunnerChoice, Environment, EnvironmentProbeResult } from "@paperclipai/shared";
+import type { AgentRunner, AgentRunnerChoice, Environment, EnvironmentProbeResult } from "@outpost/shared";
 import type { AdapterInfo } from "../api/adapters";
 
 export function needsClaudeSetupQualification(input: {
@@ -45,7 +45,7 @@ export async function qualifyRunnerEnvironment(input: {
   let adapters = await input.readAdapters();
   if (!input.isCurrent()) return undefined;
   const selected = validate(adapters);
-  const native = adapters.find(adapter => adapter.type === "paperclip_runner");
+  const native = adapters.find(adapter => adapter.type === "outpost_runner");
   if (selected.runner === "paperclip" || selected.harness.disabled || selected.harness.overriddenBuiltin
     || !native || native.disabled || native.overriddenBuiltin) return { runner: selected.runner, adapters };
   const probe = await input.probeEnvironment();

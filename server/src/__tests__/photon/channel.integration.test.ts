@@ -56,7 +56,7 @@ import {
   issueAttachments,
   assets,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../helpers/embedded-postgres.js";
 import {
   chatChannelService,
@@ -92,17 +92,17 @@ describe("iMessage Photon channel control plane", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
   let secrets: string;
-  const oldKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
+  const oldKey = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
   const services: ChatChannelService[] = [];
   const coordinators: ReturnType<typeof createDeliveryWorkCoordinator>[] = [];
   const companyIds: string[] = [];
   beforeAll(async () => {
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_PHOTON_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_PHOTON_TEST_DATABASE_URL");
     if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-photon-");
     if (external) await applyPendingMigrations(external);
     db = createDb(external ?? database!.connectionString);
     secrets = await mkdtemp(path.join(tmpdir(), "photon-secrets-"));
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = path.join(
+    process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = path.join(
       secrets,
       "master.key",
     );
@@ -122,8 +122,8 @@ describe("iMessage Photon channel control plane", () => {
     await database?.cleanup();
     if (secrets) await rm(secrets, { recursive: true, force: true });
     if (oldKey === undefined)
-      delete process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-    else process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = oldKey;
+      delete process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
+    else process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = oldKey;
   });
   async function setup(shared = false) {
     const companyId = randomUUID(),
@@ -142,7 +142,7 @@ describe("iMessage Photon channel control plane", () => {
       name: "Photon Agent",
       role: "engineer",
       status: "idle",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: {},
       runtimeConfig: {},
       permissions: {},
@@ -263,7 +263,7 @@ describe("iMessage Photon channel control plane", () => {
     const makeService = () => {
       const service = chatChannelService(db, {
         runtime,
-        publicBaseUrl: "https://paperclip.example",
+        publicBaseUrl: "https://outpost.example",
         heartbeat: { wakeup },
         storage,
         scheduleDeferredWork: () => {},

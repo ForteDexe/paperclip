@@ -22,9 +22,9 @@ import {
   toolConnections,
   toolApplications,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type { heartbeatService } from "./heartbeat.js";
-import type { RequestConfirmationResult } from "@paperclipai/shared";
+import type { RequestConfirmationResult } from "@outpost/shared";
 import { githubAccessDeniedInstructions, projectGitHubActionResult } from "./tool-access/github-access-errors.js";
 import { toolSourceTemplateKeySql } from "./tool-access/source-template-key.js";
 

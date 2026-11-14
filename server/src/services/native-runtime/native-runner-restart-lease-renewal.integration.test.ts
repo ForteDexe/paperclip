@@ -1,6 +1,6 @@
 import { startNativeSessionExecutionLeaseRenewal, type NativeExecutionLeaseRenewal } from "./native-execution-lease.js";
 import { eq } from "drizzle-orm";
-import { createDb, closeLivenessDb, livenessDb, nativeRunFinalizations } from "@paperclipai/db";
+import { createDb, closeLivenessDb, livenessDb, nativeRunFinalizations } from "@outpost/db";
 import { beforeAll, expect, it, vi } from "vitest";
 import { nativeRestartFixture, describeEmbeddedPostgres } from "../../__tests__/helpers/native-restart.js";
 

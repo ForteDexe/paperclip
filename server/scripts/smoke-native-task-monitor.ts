@@ -12,16 +12,16 @@ import { and, eq } from "drizzle-orm";
 
 if (!process.argv.includes("--run")) throw new Error("Pass --run to authorize the live two-turn Codex smoke.");
 const root = await mkdtemp(join(tmpdir(), "paperclip-live-task-monitor-"));
-process.env.PAPERCLIP_HOME = join(root, "paperclip");
-process.env.PAPERCLIP_INSTANCE_ID = "monitor-smoke";
-process.env.PAPERCLIP_TELEMETRY_ENABLED = "false";
-const { createDb, companies, agents, authUsers, companyMemberships, issues, heartbeatRuns, agentWakeupRequests, nativeRunResults, statusDecisions } = await import("@paperclipai/db");
+process.env.OUTPOST_HOME = join(root, "paperclip");
+process.env.OUTPOST_INSTANCE_ID = "monitor-smoke";
+process.env.OUTPOST_TELEMETRY_ENABLED = "false";
+const { createDb, companies, agents, authUsers, companyMemberships, issues, heartbeatRuns, agentWakeupRequests, nativeRunResults, statusDecisions } = await import("@outpost/db");
 const { startEmbeddedPostgresTestDatabase } = await import("../src/__tests__/helpers/embedded-postgres.js");
 const { createAgentLifecycle, startAgentLifecycle } = await import("../src/services/agent-lifecycle.js");
 const { createLifecycleDriver } = await import("../src/services/agent-lifecycle-driver.js");
 const { createPluginWorkerManager } = await import("../src/services/plugin-worker-manager.js");
 const { heartbeatService } = await import("../src/services/heartbeat.js");
-const { setupRunnerPrpWebSocketServer, runnerPrpWebSocketInternals } = await import("../src/realtime/runner-prp-ws.js");
+const { setupRunnerPrpWebSocketServer, runnerPrpWebSocketInternals } = await import("../src/realtime/runner-orp-ws.js");
 const { closeIdleWarmNativeSessionsForRestart } = await import("../src/services/native-runtime/native-session-executor.js");
 const temporary = await startEmbeddedPostgresTestDatabase("live-task-monitor-");
 const db = createDb(temporary.connectionString);
@@ -29,8 +29,8 @@ const server = createServer();
 await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
 const address = server.address();
 if (!address || typeof address === "string") throw new Error("TCP listener missing");
-process.env.PAPERCLIP_API_URL = `http://127.0.0.1:${address.port}`;
-setupRunnerPrpWebSocketServer(server, { apiUrl: process.env.PAPERCLIP_API_URL });
+process.env.OUTPOST_API_URL = `http://127.0.0.1:${address.port}`;
+setupRunnerPrpWebSocketServer(server, { apiUrl: process.env.OUTPOST_API_URL });
 const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
 const heartbeat = heartbeatService(db);
 const lifecycle = startAgentLifecycle(db, createLifecycleDriver(db, createPluginWorkerManager()), () => true);
@@ -42,7 +42,7 @@ try {
   await db.insert(companies).values({ id: companyId, name: "Isolated monitor smoke", issuePrefix: "MON", defaultResponsibleUserId: "monitor-smoke", requireBoardApprovalForNewAgents: false });
   await db.insert(authUsers).values({ id: "monitor-smoke", name: "Monitor smoke", email: "monitor-smoke@example.test", createdAt: new Date(), updatedAt: new Date() });
   await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "monitor-smoke", status: "active", membershipRole: "owner" });
-  await createAgentLifecycle(db).requestHire(companyId, { id: agentId, name: "Monitor verifier", status: "active", adapterType: "paperclip_runner",
+  await createAgentLifecycle(db).requestHire(companyId, { id: agentId, name: "Monitor verifier", status: "active", adapterType: "outpost_runner",
     adapterConfig: { provider: "codex", cwd, lifecycleMode: "warm", idleTimeoutMs: 300_000, timeoutSeconds: 180 },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
   const setupDeadline = Date.now() + 3 * 60_000;

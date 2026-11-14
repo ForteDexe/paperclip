@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import type { Readable } from "node:stream";
 import { and, eq } from "drizzle-orm";
-import { executionWorkspaceSnapshots, type Db } from "@paperclipai/db";
+import { executionWorkspaceSnapshots, type Db } from "@outpost/db";
 import type { StorageService } from "../storage/types.js";
 import { getStorageService } from "../storage/index.js";
 import { getWorkspaceSnapshot, openWorkspaceSnapshotRanges } from "./remote-workspace-snapshot-storage.js";
 
 const ARCHIVE_MAGIC = Buffer.from("PCWS1\n");
-const ARCHIVE_SCHEMA = "paperclip.remote-workspace-archive.v1";
+const ARCHIVE_SCHEMA = "outpost.remote-workspace-archive.v1";
 const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
 const MAX_INDEX_ENTRIES = 500_000;
 const INDEX_ENTRY_BYTES = 256;

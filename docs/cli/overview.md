@@ -53,8 +53,8 @@ npx paperclipai context use default
 To avoid storing secrets in context, use an env var:
 
 ```sh
-npx paperclipai context set --api-key-env-var-name PAPERCLIP_API_KEY
-export PAPERCLIP_API_KEY=...
+npx paperclipai context set --api-key-env-var-name OUTPOST_API_KEY
+export OUTPOST_API_KEY=...
 ```
 
 Secret operations are available under `paperclipai secrets`:

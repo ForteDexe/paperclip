@@ -27,8 +27,8 @@ export function secretShapeObservations(text: string) {
 const SENSITIVE_JSON_KEY =
   /^(?:api[-_]?key|access[-_]?token|refresh[-_]?token|auth(?:orization)?|bearer|client[-_]?secret|cookie|password|secret|token)$/i;
 
-const SAFE_SECRET_SOURCES = new Set<string>([...CREDENTIAL_NAMES, "PAPERCLIP_AGENT_JWT_SECRET",
-  "PAPERCLIP_DECISION_SIGNING_SECRET", "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET"]);
+const SAFE_SECRET_SOURCES = new Set<string>([...CREDENTIAL_NAMES, "OUTPOST_AGENT_JWT_SECRET",
+  "OUTPOST_DECISION_SIGNING_SECRET", "OUTPOST_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET"]);
 // Credential dictionaries can have account identities as keys. Only known
 // schema fields, never arbitrary JSON keys, may become diagnostic labels.
 const SAFE_SECRET_FIELDS = new Set(["tokens", "account_id", "access_token", "refresh_token", "id_token", "token",
@@ -112,10 +112,10 @@ export function isEphemeralCodexRuntimeAuthFile(
     /^instances\/[^/]+\/companies\/[^/]+\/agents\/[^/]+\/codex-home\/auth\.json$/.test(
       relative,
     ) ||
-    /^instances\/[^/]+\/runtime\/paperclip-runner\/durable-sessions\/[^/]+\/codex-home\/auth\.json$/.test(
+    /^instances\/[^/]+\/runtime\/outpost-runner\/durable-sessions\/[^/]+\/codex-home\/auth\.json$/.test(
       relative,
     ) ||
-    /^instances\/[^/]+\/runtime\/paperclip-runner\/acpx\/acpx\/[^/]+\/codex-home\/auth\.json$/.test(
+    /^instances\/[^/]+\/runtime\/outpost-runner\/acpx\/acpx\/[^/]+\/codex-home\/auth\.json$/.test(
       relative,
     )
   );
@@ -249,7 +249,7 @@ export function secretScanFailureEvidence(input: {
   finding?: SecretLeakMatch & { file: string; stateArea: string };
   originalResult: { status: string; failureClass?: string; error?: string };
 }, secrets: readonly string[]) {
-  return sanitizeJson({ schema: "paperclip.e2e.persisted-state-scan.v1", ...input }, secrets);
+  return sanitizeJson({ schema: "outpost.e2e.persisted-state-scan.v1", ...input }, secrets);
 }
 
 export function assertSecretFree(

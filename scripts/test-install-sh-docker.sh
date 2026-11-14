@@ -34,7 +34,7 @@ run_with_node() {
   docker run --rm \
     -v "$REPO_ROOT/scripts:/paperclip-scripts:ro" \
     -v "$RESULTS_DIR:/results" \
-    -e "PAPERCLIP_INSTALL_TEST_LOG=/results/$name.args" \
+    -e "OUTPOST_INSTALL_TEST_LOG=/results/$name.args" \
     -e PATH="/paperclip-scripts/install-sh-fixtures:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     node:24-bookworm-slim \
     "$@"
@@ -82,7 +82,7 @@ docker run --rm \
   -e HOME=/results/hostile-home \
   -e NPM_CONFIG_REGISTRY=http://attacker-registry.invalid \
   -e npm_config_registry=http://attacker-registry.invalid \
-  -e PAPERCLIP_INSTALL_TEST_LOG=/results/hostile.args \
+  -e OUTPOST_INSTALL_TEST_LOG=/results/hostile.args \
   -e PATH="/paperclip-scripts/install-sh-fixtures:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
   node:24-bookworm-slim \
   bash /paperclip-scripts/install.sh --no-prompt --no-onboard
@@ -121,7 +121,7 @@ if docker run --rm \
   echo "Expected piped install without Node.js to fail before privileged bootstrap" >&2
   exit 1
 fi
-assert_line "$RESULTS_DIR/piped-no-node.out" "[paperclip] error: Node.js bootstrap is disabled for piped installs; download install.sh, review it, and run 'bash install.sh --no-prompt'"
+assert_line "$RESULTS_DIR/piped-no-node.out" "[outpost] error: Node.js bootstrap is disabled for piped installs; download install.sh, review it, and run 'bash install.sh --no-prompt'"
 
 echo "==> dry run"
 run_with_node dry-run bash /paperclip-scripts/install.sh --no-prompt --dry-run --no-onboard
@@ -134,11 +134,11 @@ echo "==> environment twins"
 docker run --rm \
   -v "$REPO_ROOT/scripts:/paperclip-scripts:ro" \
   -v "$RESULTS_DIR:/results" \
-  -e PAPERCLIP_INSTALL_TEST_LOG=/results/env.args \
-  -e PAPERCLIP_INSTALL_VERSION=2026.722.0 \
-  -e PAPERCLIP_INSTALL_INSTALL_SERVICE=1 \
-  -e PAPERCLIP_INSTALL_NO_ONBOARD=1 \
-  -e PAPERCLIP_INSTALL_NO_PROMPT=1 \
+  -e OUTPOST_INSTALL_TEST_LOG=/results/env.args \
+  -e OUTPOST_INSTALL_VERSION=2026.722.0 \
+  -e OUTPOST_INSTALL_INSTALL_SERVICE=1 \
+  -e OUTPOST_INSTALL_NO_ONBOARD=1 \
+  -e OUTPOST_INSTALL_NO_PROMPT=1 \
   -e PATH="/paperclip-scripts/install-sh-fixtures:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
   node:24-bookworm-slim \
   bash /paperclip-scripts/install.sh
@@ -153,7 +153,7 @@ echo "==> no Node, apt bootstrap"
 docker run --rm \
   -v "$REPO_ROOT/scripts:/paperclip-scripts:ro" \
   -v "$RESULTS_DIR:/results" \
-  -e PAPERCLIP_INSTALL_TEST_LOG=/results/no-node.args \
+  -e OUTPOST_INSTALL_TEST_LOG=/results/no-node.args \
   -e PATH="/paperclip-scripts/install-sh-fixtures:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
   ubuntu:24.04 \
   bash -c 'apt-get update >/dev/null && apt-get install -y ca-certificates curl >/dev/null && bash /paperclip-scripts/install.sh --no-prompt --no-onboard'

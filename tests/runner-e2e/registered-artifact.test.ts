@@ -102,7 +102,7 @@ it.each(["duplicate", "corrupt", "revoked"])("strict checkpoint polling retains 
 
 it("uses the actual human-session authenticated transport for metadata and exact attachment bytes", async () => {
   const { product, attachment } = fixture(), bytes = Buffer.from("verified\n");
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "31991");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "31991");
   const raw = vi.fn(() => { throw new Error("Raw request loses human session"); });
   const fetcher = vi.fn(async (url: URL | string, options: RequestInit) => {
     expect(options.headers).toMatchObject({ Cookie: "synthetic-owner-session", Origin: "http://127.0.0.1:31991" });

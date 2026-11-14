@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@paperclipai/db";
-import type { NativeExecutionInputV1 } from "@paperclipai/paperclip-runner";
+import { agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
 const provider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../vendor/paperclip-runner/index.js")>()),
+vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../vendor/outpost-runner/index.js")>()),
   executeNativeSession: provider.execute,
 }));
 
@@ -28,20 +28,20 @@ describe("native session.open the provider rejected before any provider work", (
     temporary = await startEmbeddedPostgresTestDatabase("native-startup-rejected-");
     db = createDb(temporary.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Startup rejected", issuePrefix: "NSR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codex agent", status: "active", adapterType: "paperclip_runner",
+    await db.insert(agents).values({ id: agentId, companyId, name: "Codex agent", status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-test" } });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "member" });
   });
   afterAll(async () => { await temporary?.cleanup(); });
 
   const rejection = (providerFailure: Record<string, unknown>) => {
-    const commandResult = { commandId: "command_prp_00000002", commandType: "session.open", controllerSeq: 2,
+    const commandResult = { commandId: "command_orp_00000002", commandType: "session.open", controllerSeq: 2,
       result: { code: "command_execution_failed", message: String(providerFailure.message), providerFailure }, status: "failed" };
     const reported = { ...commandResult, result: { code: "command_execution_failed", message: "Provider request failed" } };
-    return Object.defineProperty(new Error(`PRP command session.open failed: ${JSON.stringify(reported)}`),
+    return Object.defineProperty(new Error(`ORP command session.open failed: ${JSON.stringify(reported)}`),
       "runnerCommandResult", { value: commandResult, enumerable: false });
   };
-  const startupFailure = (fields: Record<string, unknown> = {}) => ({ schema: "paperclip.provider-failure.v1", provider: "openai",
+  const startupFailure = (fields: Record<string, unknown> = {}) => ({ schema: "outpost.provider-failure.v1", provider: "openai",
     phase: "startup", category: "unknown", retryability: "unknown",
     message: "error creating thread: failed to load AGENTS.md instructions for environment `local`: fs sandbox helper failed with status exit status: 1: bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted",
     ...fields });
@@ -61,13 +61,13 @@ describe("native session.open the provider rejected before any provider work", (
     await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt,
       ...(options.recoveryHistory ? { recoveryHistory: options.recoveryHistory } : {}) });
     const execution: NativeExecutionInputV1 = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "gpt-test" },
       task: { identifier: issueId, title: issue.title, description: null, prompt: "Plan the change.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: native.normalizedSessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue, { revision: contract.revision }) },
       interactionResponses: [], credentialBindings: [],
     };

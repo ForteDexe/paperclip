@@ -12,12 +12,12 @@ import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, asc, desc, eq, gt, inArray, lte, or, isNull, sql, type SQL } from "drizzle-orm";
-import { agents, heartbeatRuns, agentInstructionWorkingCopies as copies, databaseWorkScopeKey, type Db } from "@paperclipai/db";
+import { agents, heartbeatRuns, agentInstructionWorkingCopies as copies, databaseWorkScopeKey, type Db } from "@outpost/db";
 import {
   prepareAdapterExecutionTargetRuntime,
   runAdapterExecutionTargetShellCommand,
   type AdapterExecutionTarget,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@outpost/adapter-utils/execution-target";
 import { conflict, notFound } from "../errors.js";
 import { agentInstructionsService, agentInstructionsBundleMode } from "./agent-instructions.js";
 import { agentInstructionRevisionService } from "./agent-instruction-revisions.js";
@@ -383,9 +383,9 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
   function collectionPredicate() {
     return and(sql`NOT (coalesce(${copies.receipt}, '{}'::jsonb) ? 'retainedByRunId') AND (
       (${copies.attempts} < 3 AND (${copies.state} IN ('prepared', 'pending_collection', 'unchanged_turn', 'warm_saved')
-        OR (${copies.state} = 'preparing' AND ${copies.receipt}->>'schema' = 'paperclip.agent-files.v1')))
+        OR (${copies.state} = 'preparing' AND ${copies.receipt}->>'schema' = 'outpost.agent-files.v1')))
       OR (${copies.state} = 'unavailable' AND ${copies.processStoppedAt} IS NULL
-        AND ${copies.location} LIKE 'remote:%' AND ${copies.receipt}->>'schema' = 'paperclip.agent-files.v1'))`,
+        AND ${copies.location} LIKE 'remote:%' AND ${copies.receipt}->>'schema' = 'outpost.agent-files.v1'))`,
       inArray(heartbeatRuns.status, ["succeeded", "failed", "cancelled", "timed_out", "interrupted"]));
   }
   async function collectRecovered(row: Copy, runtimeMode: string | null) {
@@ -495,7 +495,7 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
   function directoryCleanupPredicate() {
     return sql`${copies.state} IN ('saved', 'unchanged', 'resolved', 'unavailable')
       AND ${copies.processStoppedAt} IS NOT NULL
-      AND ${copies.receipt}->>'schema' = 'paperclip.agent-files.v1'
+      AND ${copies.receipt}->>'schema' = 'outpost.agent-files.v1'
       AND coalesce(${copies.receipt}->>'retainedByRunId', '') = ''
       AND ((${copies.receipt}->>'cleanupPending' = 'false' AND ${copies.nextAttemptAt} IS NOT NULL)
         OR (${copies.receipt}->>'cleanupPending' IS DISTINCT FROM 'false'

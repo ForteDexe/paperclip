@@ -1,4 +1,4 @@
-import { STORAGE_PROVIDERS, type PaperclipConfig, type StorageProvider } from "@paperclipai/shared";
+import { STORAGE_PROVIDERS, type PaperclipConfig, type StorageProvider } from "@outpost/shared";
 import { readConfigFile } from "../config-file.js";
 import { resolveDefaultStorageDir, resolveHomeAwarePath } from "../home-paths.js";
 
@@ -17,7 +17,7 @@ export function loadStorageConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): StorageConfig {
   const storage = fileConfig?.storage;
-  const selected = env.PAPERCLIP_STORAGE_PROVIDER;
+  const selected = env.OUTPOST_STORAGE_PROVIDER;
   const provider =
     selected && STORAGE_PROVIDERS.includes(selected as StorageProvider)
       ? (selected as StorageProvider)
@@ -25,15 +25,15 @@ export function loadStorageConfig(
   return {
     storageProvider: provider ?? storage?.provider ?? "local_disk",
     storageLocalDiskBaseDir: resolveHomeAwarePath(
-      env.PAPERCLIP_STORAGE_LOCAL_DIR ?? storage?.localDisk?.baseDir ?? resolveDefaultStorageDir(),
+      env.OUTPOST_STORAGE_LOCAL_DIR ?? storage?.localDisk?.baseDir ?? resolveDefaultStorageDir(),
     ),
-    storageS3Bucket: env.PAPERCLIP_STORAGE_S3_BUCKET ?? storage?.s3?.bucket ?? "paperclip",
-    storageS3Region: env.PAPERCLIP_STORAGE_S3_REGION ?? storage?.s3?.region ?? "us-east-1",
-    storageS3Endpoint: env.PAPERCLIP_STORAGE_S3_ENDPOINT ?? storage?.s3?.endpoint ?? undefined,
-    storageS3Prefix: env.PAPERCLIP_STORAGE_S3_PREFIX ?? storage?.s3?.prefix ?? "",
+    storageS3Bucket: env.OUTPOST_STORAGE_S3_BUCKET ?? storage?.s3?.bucket ?? "paperclip",
+    storageS3Region: env.OUTPOST_STORAGE_S3_REGION ?? storage?.s3?.region ?? "us-east-1",
+    storageS3Endpoint: env.OUTPOST_STORAGE_S3_ENDPOINT ?? storage?.s3?.endpoint ?? undefined,
+    storageS3Prefix: env.OUTPOST_STORAGE_S3_PREFIX ?? storage?.s3?.prefix ?? "",
     storageS3ForcePathStyle:
-      env.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE !== undefined
-        ? env.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE === "true"
+      env.OUTPOST_STORAGE_S3_FORCE_PATH_STYLE !== undefined
+        ? env.OUTPOST_STORAGE_S3_FORCE_PATH_STYLE === "true"
         : (storage?.s3?.forcePathStyle ?? false),
   };
 }

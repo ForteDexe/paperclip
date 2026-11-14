@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import { heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRuns } from "@outpost/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 const MAX_CANDIDATES_PER_POOL = 1_000;

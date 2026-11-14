@@ -1,4 +1,4 @@
-import type { AttentionFeed, AttentionFeedQuery, AttentionSummary, AttentionTaskIndex, DecisionHistoryPage, DecisionHistoryQuery } from "@paperclipai/shared";
+import type { AttentionFeed, AttentionFeedQuery, AttentionSummary, AttentionTaskIndex, DecisionHistoryPage, DecisionHistoryQuery } from "@outpost/shared";
 import { api } from "./client";
 
 export const attentionApi = {

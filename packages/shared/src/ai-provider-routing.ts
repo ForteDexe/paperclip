@@ -80,7 +80,7 @@ export function aiRoutingHarness(
   provider?: unknown,
   acpxAgent?: unknown,
 ): string {
-  if (adapter !== "paperclip_runner") return adapter;
+  if (adapter !== "outpost_runner") return adapter;
   if (provider === "acpx" && acpxAgent === "copilot") return "copilot_runtime";
   if (provider === "acpx" && acpxAgent === "antigravity") return "antigravity_runtime";
   const runner =

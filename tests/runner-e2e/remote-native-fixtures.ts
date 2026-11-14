@@ -4,13 +4,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { watch, lstatSync, readFileSync } from "node:fs";
 import { posix } from "node:path";
 
-import { PI_DISTRIBUTION_CLOSURE_SHA256 } from "../../packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.js";
+import { PI_DISTRIBUTION_CLOSURE_SHA256 } from "../../packages/outpost-runner/src/drivers/acpx/pi-closure-pins.js";
 const PI_FAULT_SOURCE = readFileSync(new URL("./pi-provider-fault.py", import.meta.url), "utf8");
 const KIMI_FAULT_SOURCE = readFileSync(new URL("./kimi-provider-fault.py", import.meta.url), "utf8");
 const KIMI_FAULT_DIAGNOSTIC_SOURCE = readFileSync(new URL("./kimi-provider-fault-diagnostic.py", import.meta.url), "utf8");
 
 export const REMOTE_FIXTURE_DAYTONA_SDK_VERSION = "0.203.0";
-const NODE = "/opt/paperclip-runner/provider-pack/node_modules/node/bin/node";
+const NODE = "/opt/outpost-runner/provider-pack/node_modules/node/bin/node";
 const MAX_OUTPUT = 256 * 1024;
 const TEARDOWN_RESERVE_MS = 15_000;
 const LEASE_READMISSION_BUDGET_MS = 10_000;
@@ -25,7 +25,7 @@ const CLOSE_GRACE_MS = 10_000;
 // sessions, homes and injected context beneath this exact path. Qualification
 // covers user workspace files, not these controller/provider runtime internals.
 // The sentinel and all other .paperclip-runtime entries remain in scope.
-const RUNTIME_RELATIVE = ".paperclip-runtime/paperclip-runner";
+const RUNTIME_RELATIVE = ".paperclip-runtime/outpost-runner";
 const digest = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const fail = (condition: unknown, code: string): void => { if (!condition) throw new Error(`remote_native_fixture:${code}`); };
@@ -88,7 +88,7 @@ export interface RemoteNativeSnapshot {
     kind: "user_workspace";
     excludedRuntime: { relativePath: string; absolutePath: string; dev: string; ino: string; runnerExecutableSha256: string };
     observedPrpEnvironmentLeaseId: string;
-    prpEnvironmentLeaseIdVerified: false;
+    orpEnvironmentLeaseIdVerified: false;
   };
   setup: { path: string; sha256: string | null; published: boolean };
   attached: { connections: number; failure: string | null; commandExit: { code: number; observedAtMs: number; observedMonotonicNs: string } | null; markerWrittenAtMs: number | null; markerWrittenMonotonicNs: string | null; clientExitedAtMs: number | null; clientExitedMonotonicNs: string | null } | null;
@@ -142,7 +142,7 @@ export function remoteProcEntryDisappeared(error: unknown, confirmPresence: () =
   }
 }
 export function isRemoteRunRoot(argv: string[], runId: string, process: RemoteProcessIdentity & { group: number }): boolean {
-  if (!/^[a-zA-Z0-9_-]{1,128}$/u.test(runId) || process.group !== process.pid || !argv[0]?.endsWith("/paperclip-runnerd")) return false;
+  if (!/^[a-zA-Z0-9_-]{1,128}$/u.test(runId) || process.group !== process.pid || !argv[0]?.endsWith("/outpost-runnerd")) return false;
   return [["--run-id", runId], ["--lifecycle-mode", "per_turn"]].every(([flag, value]) => {
     const at = argv.indexOf(flag!); return at > 0 && argv.lastIndexOf(flag!) === at && argv[at + 1] === value;
   });
@@ -195,7 +195,7 @@ function table(){const ids=fs.readdirSync('/proc').filter(x=>/^\d+$/.test(x)&&Nu
 function sample(){
  const all=table();const candidates=[];
  for(const p of all){if(p.state==='Z')continue;let argv;try{argv=fs.readFileSync('/proc/'+p.pid+'/cmdline').toString().split('\0').filter(Boolean)}catch(e){if(vanished(e,()=>fs.lstatSync('/proc/'+p.pid)))continue;throw e}
-  if(runRoot(argv,config.binding.runId,p)){const at=argv.indexOf('--environment-lease-id'),stateAt=argv.indexOf('--state-dir');if(at<1||argv.lastIndexOf('--environment-lease-id')!==at||!/^[-a-zA-Z0-9._:]{1,256}$/.test(argv[at+1]??''))throw Error('process_prp_identity_shape');if(argv[0]!==path.join(runtimeRoot,'bin','paperclip-runnerd')||stateAt<1||argv.lastIndexOf('--state-dir')!==stateAt||!argv[stateAt+1]?.startsWith(runtimeRoot+'/sessions/')||!/^([a-f0-9]{64})\/runner$/.test(argv[stateAt+1].slice((runtimeRoot+'/sessions/').length)))throw Error('process_runtime_binding');if(observedPrpEnvironmentLeaseId!==null&&observedPrpEnvironmentLeaseId!==argv[at+1])throw Error('process_prp_identity_changed');observedPrpEnvironmentLeaseId=argv[at+1];candidates.push(p);}}
+  if(runRoot(argv,config.binding.runId,p)){const at=argv.indexOf('--environment-lease-id'),stateAt=argv.indexOf('--state-dir');if(at<1||argv.lastIndexOf('--environment-lease-id')!==at||!/^[-a-zA-Z0-9._:]{1,256}$/.test(argv[at+1]??''))throw Error('process_orp_identity_shape');if(argv[0]!==path.join(runtimeRoot,'bin','outpost-runnerd')||stateAt<1||argv.lastIndexOf('--state-dir')!==stateAt||!argv[stateAt+1]?.startsWith(runtimeRoot+'/sessions/')||!/^([a-f0-9]{64})\/runner$/.test(argv[stateAt+1].slice((runtimeRoot+'/sessions/').length)))throw Error('process_runtime_binding');if(observedPrpEnvironmentLeaseId!==null&&observedPrpEnvironmentLeaseId!==argv[at+1])throw Error('process_orp_identity_changed');observedPrpEnvironmentLeaseId=argv[at+1];candidates.push(p);}}
  if(candidates.length>1)incomplete('multiple_run_roots');
  if(!root&&candidates.length===1){if(hash(fs.readFileSync('/proc/'+candidates[0].pid+'/exe'))!==config.runnerdSha256)throw Error('runner_binary_identity');root=candidates[0];journal.set(root.pid,root);observedRootCount++;}
  if(root&&candidates.some(p=>p.pid!==root.pid||p.startTicks!==root.startTicks))incomplete('run_root_changed');
@@ -211,7 +211,7 @@ function guard(){const rs=fs.lstatSync(runtimeRoot,{bigint:true});if(!rs.isDirec
 function readSafe(p){const fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{const before=fs.fstatSync(fd,{bigint:true});if(!before.isFile()||before.size>65536n)throw Error('file_bound_or_type');const bytes=fs.readFileSync(fd),after=fs.fstatSync(fd,{bigint:true}),named=fs.lstatSync(p,{bigint:true});if(before.dev!==named.dev||before.ino!==named.ino||named.isSymbolicLink()||before.size!==after.size||before.mtimeNs!==after.mtimeNs||BigInt(bytes.length)!==before.size)throw Error('file_changed');return bytes}finally{fs.closeSync(fd)}}
 function file(p){try{const s=fs.lstatSync(p);if(s.isSymbolicLink()||!s.isFile()||s.size>65536)throw Error('file_bound_or_type');return {absent:false,sha256:hash(readSafe(p))}}catch(e){if(e.code==='ENOENT')return {absent:true,sha256:null};throw e}}
 function workspace(){const result={};let count=0,bytes=0;function visit(dir,prefix){for(const name of fs.readdirSync(dir).sort()){if(++count>512)throw Error('workspace_entry_bound');const full=path.join(dir,name),rel=prefix+name,s=fs.lstatSync(full);if(rel===config.runtimeRelative)continue;if(rel===config.actionFile){if(!publishedHash||file(full).sha256!==publishedHash)throw Error('setup_file_changed');continue;}if(s.isSymbolicLink())throw Error('workspace_symlink');if(s.isDirectory()){result[rel]='directory';visit(full,rel+'/')}else if(s.isFile()){bytes+=s.size;if(s.size>65536||bytes>4194304)throw Error('workspace_byte_bound');result[rel]=hash(readSafe(full))}else throw Error('workspace_special_file')}}visit(config.binding.remoteCwd,'');return result}
-function snapshot(){guard();verifyWorkspaceWatchRoots();const processes=sample(),out={},reasons=new Set(incompleteReasons);let watchComplete=complete,total=0;for(const [name,t] of targets){const status=t.watch.snapshot();out[name]={...file(t.path),...status};watchComplete&&=status.complete;if(!status.complete)reasons.add('target_watch_incomplete');total+=status.mutationCount}return {binding:config.binding,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString(),complete:complete&&watchComplete,failureCodes:[...failureCodes],incompleteReasons:[...reasons].sort(),workspace:workspace(),targets:out,watcher:{complete:watchComplete,targetMutationCount:total,workspaceMutationCount},processes,scope:{kind:'user_workspace',excludedRuntime:{relativePath:config.runtimeRelative,absolutePath:runtimeRoot,dev:String(runtimeStat.dev),ino:String(runtimeStat.ino),runnerExecutableSha256:config.runnerdSha256},observedPrpEnvironmentLeaseId,prpEnvironmentLeaseIdVerified:false},setup:{path:config.actionFile,sha256:publishedHash,published:publishedHash!==null},attached}}
+function snapshot(){guard();verifyWorkspaceWatchRoots();const processes=sample(),out={},reasons=new Set(incompleteReasons);let watchComplete=complete,total=0;for(const [name,t] of targets){const status=t.watch.snapshot();out[name]={...file(t.path),...status};watchComplete&&=status.complete;if(!status.complete)reasons.add('target_watch_incomplete');total+=status.mutationCount}return {binding:config.binding,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString(),complete:complete&&watchComplete,failureCodes:[...failureCodes],incompleteReasons:[...reasons].sort(),workspace:workspace(),targets:out,watcher:{complete:watchComplete,targetMutationCount:total,workspaceMutationCount},processes,scope:{kind:'user_workspace',excludedRuntime:{relativePath:config.runtimeRelative,absolutePath:runtimeRoot,dev:String(runtimeStat.dev),ino:String(runtimeStat.ino),runnerExecutableSha256:config.runnerdSha256},observedPrpEnvironmentLeaseId,orpEnvironmentLeaseIdVerified:false},setup:{path:config.actionFile,sha256:publishedHash,published:publishedHash!==null},attached}}
 for(const name of config.targets){const p=path.join(config.binding.remoteCwd,name);if(fs.realpathSync(path.dirname(p))!==path.dirname(p))throw Error('target_parent_symlink');targets.set(name,{path:p,watch:watchTarget(path.dirname(p),path.basename(p),{watch:fs.watch,lstatSync:fs.lstatSync})})}
 if(config.crossRoot){const p=path.join(config.root,'cross-root-target');fs.writeFileSync(p,config.crossRoot.initialText,{flag:'wx',mode:0o600});targets.set('@cross-root',{path:p,watch:watchTarget(config.root,'cross-root-target',{watch:fs.watch,lstatSync:fs.lstatSync})})}
 let workspaceMutationCount=0;const directoryWatches=[];
@@ -225,7 +225,7 @@ const workspaceWatch={close(){for(const item of directoryWatches)item.handle.clo
 function verifyWorkspaceWatchRoots(){for(const item of directoryWatches){const after=fs.lstatSync(item.directory,{bigint:true});if(after.dev!==item.before.dev||after.ino!==item.before.ino||!after.isDirectory()||after.isSymbolicLink())throw Error('workspace_watch_root_replaced')}}
 function publicSnapshot(){const result=snapshot();if(result.attached)result.attached={connections:attached.connections,failure:attached.failure,commandExit:attached.commandExit,markerWrittenAtMs:attached.markerWrittenAtMs,markerWrittenMonotonicNs:attached.markerWrittenMonotonicNs,clientExitedAtMs:attached.clientExitedAtMs,clientExitedMonotonicNs:attached.clientExitedMonotonicNs};return result}
 function seal(){if(sealed)return;sealed=true;workspaceWatch.close();for(const t of targets.values())t.watch.close();clearInterval(observer);finalReceipt=publicSnapshot();finalReceipt.files={};for(const [name,t] of targets){if(!file(t.path).absent)finalReceipt.files[name]=readSafe(t.path).toString('base64');}if(Buffer.byteLength(JSON.stringify(finalReceipt))>250000){finalReceipt.complete=false;finalReceipt.incompleteReasons.push('receipt_byte_bound');finalReceipt.files={};}if(child&&child.exitCode===null&&child.signalCode===null){finalReceipt.complete=false;finalReceipt.incompleteReasons.push('attached_process_live')};for(const socket of waiters)socket.end(JSON.stringify({ok:true,result:finalReceipt})+'\n');waiters.clear();setTimeout(()=>shutdown(null),250);}
-function sampleFailure(e){incomplete('process_sample_failed');if(e?.code)incomplete('process_read_io');else if(['invalid_proc_identity','invalid_proc_fields'].includes(e?.message))incomplete('process_stat_shape');else if(['process_prp_identity_shape','process_runtime_binding','process_prp_identity_changed','runner_binary_identity'].includes(e?.message))incomplete('process_runtime_binding')}
+function sampleFailure(e){incomplete('process_sample_failed');if(e?.code)incomplete('process_read_io');else if(['invalid_proc_identity','invalid_proc_fields'].includes(e?.message))incomplete('process_stat_shape');else if(['process_orp_identity_shape','process_runtime_binding','process_orp_identity_changed','runner_binary_identity'].includes(e?.message))incomplete('process_runtime_binding')}
 const observer=setInterval(()=>{try{const p=sample();if(p.captured&&p.live.length===0&&!retiring){retiring=true;setTimeout(()=>{let end;try{end=sample()}catch(e){sampleFailure(e);return}if(end.live.length!==0){retiring=false;return}try{seal()}catch{incomplete('process_terminal_seal_failed')}},100)}}catch(e){sampleFailure(e)}},25);
 const server=net.createServer(socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));socket.on('error',()=>{});let buffer='';socket.on('data',data=>{buffer+=data;if(Buffer.byteLength(buffer)>8192){socket.destroy();incomplete('control_request_bound');return}if(!buffer.includes('\n'))return;socket.removeAllListeners('data');let faultDiagnostic=null;try{const r=JSON.parse(buffer);if(r.op==='kimi-provider-death')faultDiagnostic={stage:'observer_admission',code:'observer_authority',signalDispatched:false};if(r.nonce!==config.nonce)throw Error('control_identity');guard();let result;
  if(r.op==='snapshot')result=finalReceipt??publicSnapshot();
@@ -250,7 +250,7 @@ const server=net.createServer(socket=>{sockets.add(socket);socket.on('close',()=
    faultDiagnostic={stage:'worker_response',code:'invalid_response',signalDispatched:null};let worker;try{worker=JSON.parse(childResult.stdout)}catch{faultDiagnostic={stage:'worker_response',code:'invalid_response',signalDispatched:null};throw Error('kimi_provider_identity_or_signal_failed')}
    const observed=readKimiFaultDiagnostic({stage:worker?.stage,code:worker?.failingGuard??'worker_failure',signalDispatched:worker?.signalDispatched});
    if(!worker||typeof worker!=='object'||Array.isArray(worker)||Object.keys(worker).sort().join()!=='errno,externalModelCalls,failingGuard,qualification,receipt,schema,signalAttempted,signalDispatched,stage,status'
-    ||worker.schema!=='paperclip.kimi11.remote-fault-diagnostic.v1'||worker.qualification!==false||!['PASS','FAIL'].includes(worker.status)||!observed||worker.externalModelCalls!==0
+    ||worker.schema!=='outpost.kimi11.remote-fault-diagnostic.v1'||worker.qualification!==false||!['PASS','FAIL'].includes(worker.status)||!observed||worker.externalModelCalls!==0
     ||(worker.errno!==null&&(!Number.isInteger(worker.errno)||worker.errno<1||worker.errno>4095))||(worker.failingGuard!==null&&!KIMI_WORKER_GUARDS.includes(worker.failingGuard))
     ||typeof worker.signalAttempted!=='boolean'||worker.signalAttempted!==(observed.signalDispatched!==false)||childResult.error||childResult.signal||childResult.status!==(worker.status==='PASS'?0:1)
     ||(worker.status==='PASS'&&(worker.stage!=='complete'||worker.failingGuard!==null||worker.errno!==null))||(worker.status==='FAIL'&&(worker.stage==='complete'||worker.receipt!==null))
@@ -275,7 +275,7 @@ const server=net.createServer(socket=>{sockets.add(socket);socket.on('close',()=
   const current=identity(selected.pid),currentRoot=identity(root.pid),command=deathCommand(selected.pid);
   if(current.bootId!==selected.bootId||current.startTicks!==selected.startTicks||currentRoot.startTicks!==root.startTicks||JSON.stringify(command)!==JSON.stringify(argv.get(selected.pid))||fs.realpathSync('/proc/'+selected.pid+'/exe')!==command[0])throw Error('death_identity');
   providerDeathDispatched=true;const dispatchedMonotonicNs=process.hrtime.bigint().toString();process.kill(selected.pid,'SIGKILL');
-  result={schema:'paperclip.e2e.copilot-owned-provider-death.v1',root,child:current,signal:'SIGKILL',commandSha256:hash(JSON.stringify(command)),dispatchedMonotonicNs};
+  result={schema:'outpost.e2e.copilot-owned-provider-death.v1',root,child:current,signal:'SIGKILL',commandSha256:hash(JSON.stringify(command)),dispatchedMonotonicNs};
  }
  else if(r.op==='inject-loss'){const p=sample();if(sealed||!complete||!publishedHash||!root||!p.live.includes(root.pid))throw Error('loss_owner_missing');const original=journal.get(root.pid);if(!original||original.startTicks!==root.startTicks||original.bootId!==root.bootId)throw Error('loss_owner_changed');
   const program="import os,signal,sys\npid=int(sys.argv[1]);fd=os.pidfd_open(pid)\ntry:\n s=open('/proc/'+str(pid)+'/stat').read();ticks=s[s.rfind(') ')+2:].split()[19];boot=open('/proc/sys/kernel/random/boot_id').read().strip()\n if ticks!=sys.argv[2] or boot!=sys.argv[3]:raise RuntimeError('identity changed')\n signal.pidfd_send_signal(fd,signal.SIGKILL)\nfinally:os.close(fd)";
@@ -301,7 +301,7 @@ const parseStat=PARSE_STAT,runRoot=RUN_ROOT;
 const codes=RPC_CODES;let failed=false;const phase=RPC_PHASES.includes(r.op)?r.op:'install';
 function failure(code){if(failed)return;failed=true;process.exitCode=2;process.stdout.write(JSON.stringify({ok:false,diagnostic:{phase,code:codes.includes(code)?code:'remote_unknown'}})+'\n')}
 function admitted(c){const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.companyId!==c.binding.companyId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd')}
-function runtime(c){const root=c.binding.remoteCwd+'/'+c.runtimeRelative,boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();let s;try{s=fs.lstatSync(root,{bigint:true})}catch(e){if(e.code==='ENOENT')return {ready:false};throw e}if(!s.isDirectory()||s.isSymbolicLink()||fs.realpathSync(root)!==root)throw Error('runtime_root_identity');const matches=[];const entries=fs.readdirSync('/proc');if(entries.length>8192)throw Error('proc_bound');for(const name of entries){if(!/^\d+$/.test(name)||Number(name)<2)continue;try{const p=parseStat(Number(name),fs.readFileSync('/proc/'+name+'/stat','utf8'),boot),argv=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\0').filter(Boolean);if(runRoot(argv,c.binding.runId,p)){if(argv[0]!==root+'/bin/paperclip-runnerd'||hash(fs.readFileSync('/proc/'+name+'/exe'))!==c.runnerdSha256)throw Error('runtime_binary_identity');if(p.state!=='Z')matches.push({pid:p.pid,ppid:p.ppid,startTicks:p.startTicks,bootId:p.bootId})}}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e}}if(matches.length>1)throw Error('ambiguous_run_root');return matches.length===1?{ready:true,binding:c.binding,root:matches[0],runtime:{dev:String(s.dev),ino:String(s.ino),runnerExecutableSha256:c.runnerdSha256}}:{ready:false}}
+function runtime(c){const root=c.binding.remoteCwd+'/'+c.runtimeRelative,boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();let s;try{s=fs.lstatSync(root,{bigint:true})}catch(e){if(e.code==='ENOENT')return {ready:false};throw e}if(!s.isDirectory()||s.isSymbolicLink()||fs.realpathSync(root)!==root)throw Error('runtime_root_identity');const matches=[];const entries=fs.readdirSync('/proc');if(entries.length>8192)throw Error('proc_bound');for(const name of entries){if(!/^\d+$/.test(name)||Number(name)<2)continue;try{const p=parseStat(Number(name),fs.readFileSync('/proc/'+name+'/stat','utf8'),boot),argv=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\0').filter(Boolean);if(runRoot(argv,c.binding.runId,p)){if(argv[0]!==root+'/bin/outpost-runnerd'||hash(fs.readFileSync('/proc/'+name+'/exe'))!==c.runnerdSha256)throw Error('runtime_binary_identity');if(p.state!=='Z')matches.push({pid:p.pid,ppid:p.ppid,startTicks:p.startTicks,bootId:p.bootId})}}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e}}if(matches.length>1)throw Error('ambiguous_run_root');return matches.length===1?{ready:true,binding:c.binding,root:matches[0],runtime:{dev:String(s.dev),ino:String(s.ino),runnerExecutableSha256:c.runnerdSha256}}:{ready:false}}
 (async()=>{let controlRequest=r;if(hash(fs.readFileSync(process.execPath))!==r.nodeSha256)throw Error('node_identity');if(r.op==='runtime-ready'||r.op==='install'){const c=r.config;admitted(c);const current=runtime(c);if(r.op==='runtime-ready'){process.stdout.write(JSON.stringify({ok:true,result:current})+'\n');return}if(!current.ready)throw Error('runtime_not_ready');if(JSON.stringify(current)!==JSON.stringify(r.expectedRuntime))throw Error('runtime_identity_changed');fs.mkdirSync(c.root,{mode:0o700});fs.writeFileSync(c.root+'/observer.cjs',r.source,{flag:'wx',mode:0o400});c.observerTtlMs=Math.max(1,c.observerTtlMs-(Date.now()-startedAt));const child=cp.spawn(process.execPath,[c.root+'/observer.cjs',Buffer.from(JSON.stringify(c)).toString('base64')],{detached:true,stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});child.unref();r.root=c.root;controlRequest={op:'snapshot',nonce:c.nonce};}
 for(let i=0;!fs.existsSync(r.root+'/control.sock')&&i<200;i++)await new Promise(resolve=>setTimeout(resolve,10));const socket=net.connect(r.root+'/control.sock');let output='';socket.setTimeout(Math.max(1,r.timeoutMs-(Date.now()-startedAt)));socket.on('timeout',()=>{socket.destroy();failure('socket_timeout')});socket.on('error',()=>{failure('socket_error')});socket.on('connect',()=>socket.write(JSON.stringify(controlRequest)+'\n'));socket.on('data',b=>{output+=b;if(Buffer.byteLength(output)>262144){socket.destroy();failure('output_bound')}});socket.on('end',()=>{if(!process.exitCode)process.stdout.write(output)});
 })().catch(e=>{failure(typeof e?.message==='string'?e.message:'remote_unknown')});`;
@@ -311,14 +311,14 @@ function rpcSource() {
 }
 
 export interface PiProviderDeathReceipt {
-  schema: "paperclip.e2e.pi-provider-death.v1"; binding: RemoteNativeBinding; runtimeEnvironmentLeaseId: string;
+  schema: "outpost.e2e.pi-provider-death.v1"; binding: RemoteNativeBinding; runtimeEnvironmentLeaseId: string;
   target: RemoteProcessIdentity; ancestry: RemoteProcessIdentity[]; nodeSha256: string; entrypointSha256: string; closureSha256: string;
   entrypointAttribution: "pinned_wrapper_parent"; originalChildArgvAvailable: false; observedChildTitle: "pi";
   signalled: true; signal: "SIGKILL"; targetKind: "pi_native_child"; workerSignalled: false;
 }
 export function validatePiProviderDeathReceipt(value: unknown, binding: RemoteNativeBinding, root: RemoteProcessIdentity, lease: string): PiProviderDeathReceipt {
   const r = record(value), target = record(r.target), ancestry = Array.isArray(r.ancestry) ? r.ancestry.map(record) : [];
-  fail(r.schema === "paperclip.e2e.pi-provider-death.v1" && JSON.stringify(r.binding) === JSON.stringify(binding)
+  fail(r.schema === "outpost.e2e.pi-provider-death.v1" && JSON.stringify(r.binding) === JSON.stringify(binding)
     && r.entrypointAttribution === "pinned_wrapper_parent" && r.originalChildArgvAvailable === false && r.observedChildTitle === "pi"
     && r.runtimeEnvironmentLeaseId === lease && r.signalled === true && r.signal === "SIGKILL" && r.targetKind === "pi_native_child" && r.workerSignalled === false
     && sha(r.nodeSha256) && sha(r.entrypointSha256) && r.closureSha256 === PI_DISTRIBUTION_CLOSURE_SHA256["linux-x64"], "pi_fault_receipt");
@@ -397,7 +397,7 @@ function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: strin
   fail(scope.kind === "user_workspace" && excluded.relativePath === RUNTIME_RELATIVE && excluded.absolutePath === `${binding.remoteCwd}/${RUNTIME_RELATIVE}`
     && /^\d+$/u.test(String(excluded.dev)) && /^\d+$/u.test(String(excluded.ino)) && excluded.runnerExecutableSha256 === runnerdSha256
     && typeof scope.observedPrpEnvironmentLeaseId === "string" && /^[-a-zA-Z0-9._:]{1,256}$/u.test(scope.observedPrpEnvironmentLeaseId)
-    && scope.prpEnvironmentLeaseIdVerified === false, "evidence_scope");
+    && scope.orpEnvironmentLeaseIdVerified === false, "evidence_scope");
   fail(setup.path === actionFile && typeof setup.published === "boolean" && (setup.published ? sha(setup.sha256) : setup.sha256 === null), "setup_shape");
   if (row.attached !== null) {
     const a = record(row.attached), exit = record(a.commandExit);
@@ -414,7 +414,7 @@ function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: strin
  * No effect-producing task is published until baseline proves watcher + PID
  * admission. The exact controller runtime subtree is excluded only after its
  * directory inode/realpath, pinned executable and run/state-dir binding agree.
- * The PRP environment ID can be a durable workspace identity, not the sandbox
+ * The ORP environment ID can be a durable workspace identity, not the sandbox
  * database lease ID; it is retained as observed, explicitly unverified metadata.
  * Same-UID observer opacity is not an OS adversarial sandbox. */
 export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOptions): Promise<RemoteNativeFixture> {
@@ -617,7 +617,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
     async killOwnedCopilot() {
       fail(!closed && published && !finished, "death_boundary");
       const result = record(await rpc({ op: "provider-death" }));
-      fail(result.schema === "paperclip.e2e.copilot-owned-provider-death.v1" && result.signal === "SIGKILL" && /^sha256:[a-f0-9]{64}$/u.test(String(result.commandSha256)) && /^\d+$/u.test(String(result.dispatchedMonotonicNs)), "death_ack");
+      fail(result.schema === "outpost.e2e.copilot-owned-provider-death.v1" && result.signal === "SIGKILL" && /^sha256:[a-f0-9]{64}$/u.test(String(result.commandSha256)) && /^\d+$/u.test(String(result.dispatchedMonotonicNs)), "death_ack");
       return result;
     },
     async setupAttachedCommand(input) {

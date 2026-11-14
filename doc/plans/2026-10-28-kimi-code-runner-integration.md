@@ -59,7 +59,7 @@ and their history retain their current execution path.
 ## Architecture and ownership
 
 Provider translation and native patch remain Kimi-owned. Shared Runner supervision,
-PRP transport, durable decisions, authorization, and task finalization retain
+ORP transport, durable decisions, authorization, and task finalization retain
 their existing contracts. Distribution is a pinned installed closure with no
 fallback to ambient Kimi. Runtime admission remains pending until required live
 qualification passes. Provider registration does not migrate legacy agents.
@@ -96,7 +96,7 @@ or live cases. Candidate13 and the original failure remain unchanged.
 Pending14 has two accepted local cases: Stop/new and message-marker. Both retain
 their original grade, scoped native14 audit and full physical host closure. The
 next local Plan-revise-accept attempt failed before its revised model turn at
-PRP `run.attach`: `ACPX durable launch profile digest does not match runner startup`.
+ORP `run.attach`: `ACPX durable launch profile digest does not match runner startup`.
 The sequence stopped. Seven other local cases and all ten pending14 Daytona task
 cases remain unstarted. The original failed Plan and earlier zero-capture diagnostic
 stay unchanged; the diagnostic has no acceptance credit.
@@ -356,7 +356,7 @@ promotion remains held until twenty distinct cases and physical resource and key
 closure are verified.
 Afterward build the normal four-platform daemon and eighteen-package distribution,
 verify ordinary installed local setup, and deploy the exact qualified revision
-only to `kimi.test.paperclip.app` for normal configuration, assigned-skill, CSV
+only to `kimi.test.outpost.app` for normal configuration, assigned-skill, CSV
 download and persistence checks. Those installation and hosted journeys remain
 required. Production, fleet defaults, stable publication and GitHub merge remain
 outside this handoff.
@@ -494,7 +494,7 @@ pass independent audit before the remaining nine remote and ten local cells.
 After all twenty cells pass, promote ordinary admission in a separate reviewable
 qualification PR, build the normal four-platform daemon/public-package set, and
 verify the installed local UI. Then deploy the exact qualified revision only to
-the user-approved isolated `kimi.test.paperclip.app` test workspace and drive the
+the user-approved isolated `kimi.test.outpost.app` test workspace and drive the
 ordinary hosted configuration, assigned-skill, artifact and persistence journey.
 Production, fleet defaults, stable publication and GitHub merge remain outside
 this handoff.
@@ -710,7 +710,7 @@ build failures are retained; the rejected IAM expansion
 was never applied and no operator/provider token was sent to CodeBuild.
 
 The user additionally requested hosted verification and confirmed an isolated
-workspace at `https://kimi.test.paperclip.app`. It was created through the normal
+workspace at `https://kimi.test.outpost.app`. It was created through the normal
 Cloud UI under the existing authorized owner; the shared QA identity lease was
 left untouched. It is active and empty on verified Core
 `f8484a9f8d1f68e9534fee4f29e00e716dc680f4`, distribution `cloud-40777791731-1`,
@@ -942,7 +942,7 @@ the operation without retaining SDK text. Canonical focused verification passed
 223 tests with one existing Linux-only skip on Mac, plus the full fixture
 TypeScript check. Native runtime bytes and model/callback limits were unchanged.
 Profile 17 public-package installation and the actual hosted walkthrough on
-`kimi.test.paperclip.app` remain separate delivery gates; this section does not
+`kimi.test.outpost.app` remain separate delivery gates; this section does not
 claim either has passed.
 
 The cleanup fixture now uses one absolute Kimi deadline at the original test

@@ -3,7 +3,7 @@ const tls = require('node:tls');
 const http = require('node:http');
 const dns = require('node:dns');
 const fs = require('node:fs');
-const key = Symbol.for('paperclip.slack.peer.control.transport');
+const key = Symbol.for('outpost.slack.peer.control.transport');
 if (process[key]) throw new Error('Duplicate passive peer observer');
 let connects = 0, tlsCalls = 0, httpCalls = 0, dnsCalls = 0;
 const sockets = new Set();

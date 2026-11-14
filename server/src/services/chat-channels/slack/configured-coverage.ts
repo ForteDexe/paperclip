@@ -1,6 +1,6 @@
 import type { VerifiedIdleCapabilities } from "../../idle-incoming-wake-capability.js";
 import { createHash } from "node:crypto";
-import type { ChatAdapterCapabilities } from "@paperclipai/shared";
+import type { ChatAdapterCapabilities } from "@outpost/shared";
 import { parseSlackFormBinding, sameSlackFormBinding, type SlackFormBinding } from "./cloud-forms.js";
 export const SLACK_INGRESS_LANES = ["actions", "commands", "events", "forms", "modal_close", "modal_submit", "options"] as const;
 export type SlackIngressLane = typeof SLACK_INGRESS_LANES[number];

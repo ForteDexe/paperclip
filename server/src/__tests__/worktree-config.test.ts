@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { paperclipConfigSchema } from "@paperclipai/shared";
+import { paperclipConfigSchema } from "@outpost/shared";
 import {
   applyRuntimePortSelectionToConfig,
   maybePersistWorktreeRuntimePorts,
@@ -13,17 +13,17 @@ import {
 const ORIGINAL_ENV = { ...process.env };
 const ORIGINAL_CWD = process.cwd();
 
-// The ambient shell can carry real PAPERCLIP_* settings (agent shells export
-// PAPERCLIP_CONFIG pointing at the live default instance). Repair helpers
+// The ambient shell can carry real OUTPOST_* settings (agent shells export
+// OUTPOST_CONFIG pointing at the live default instance). Repair helpers
 // resolve paths from these, so a test that forgets to override one would
 // otherwise rewrite the machine's real config/env files.
 beforeEach(() => {
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("PAPERCLIP_")) {
+    if (key.startsWith("OUTPOST_")) {
       delete process.env[key];
     }
   }
-  process.env.PAPERCLIP_INSTANCE_ID = "default";
+  process.env.OUTPOST_INSTANCE_ID = "default";
 });
 
 afterEach(() => {
@@ -130,24 +130,24 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
-        "PAPERCLIP_IN_WORKTREE=true",
-        "PAPERCLIP_WORKTREE_NAME=PAP-884-ai-commits-component",
-        "PAPERCLIP_AGENT_JWT_SECRET=shared-secret",
+        "# Outpost environment variables",
+        "OUTPOST_IN_WORKTREE=true",
+        "OUTPOST_WORKTREE_NAME=PAP-884-ai-commits-component",
+        "OUTPOST_AGENT_JWT_SECRET=shared-secret",
         "",
       ].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-884-ai-commits-component";
-    process.env.PAPERCLIP_WORKTREES_DIR = isolatedHome;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-884-ai-commits-component";
+    process.env.OUTPOST_WORKTREES_DIR = isolatedHome;
     delete process.env.PORT;
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_CONFIG;
-    delete process.env.PAPERCLIP_CONTEXT;
+    delete process.env.OUTPOST_HOME;
+    delete process.env.OUTPOST_INSTANCE_ID;
+    delete process.env.OUTPOST_CONFIG;
+    delete process.env.OUTPOST_CONTEXT;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
 
@@ -166,18 +166,18 @@ describe("worktree config repair", () => {
     expect(repairedConfig.logging.logDir).toBe(path.join(instanceRoot, "logs"));
     expect(repairedConfig.storage.localDisk.baseDir).toBe(path.join(instanceRoot, "data", "storage"));
     expect(repairedConfig.secrets.localEncrypted.keyFilePath).toBe(path.join(instanceRoot, "secrets", "master.key"));
-    expect(repairedEnv).toContain(`PAPERCLIP_HOME=${JSON.stringify(isolatedHome)}`);
-    expect(repairedEnv).toContain('PAPERCLIP_INSTANCE_ID="pap-884-ai-commits-component"');
-    expect(repairedEnv).toContain(`PAPERCLIP_CONFIG=${JSON.stringify(await fs.realpath(configPath))}`);
-    expect(repairedEnv).toContain(`PAPERCLIP_CONTEXT=${JSON.stringify(path.join(isolatedHome, "context.json"))}`);
-    expect(repairedEnv).toContain('PAPERCLIP_DB_BACKUP_ENABLED="false"');
-    expect(repairedEnv).toContain("PAPERCLIP_AGENT_JWT_SECRET=shared-secret");
-    expect(repairedEnv).toContain("PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=");
-    expect(process.env.PAPERCLIP_HOME).toBe(isolatedHome);
+    expect(repairedEnv).toContain(`OUTPOST_HOME=${JSON.stringify(isolatedHome)}`);
+    expect(repairedEnv).toContain('OUTPOST_INSTANCE_ID="pap-884-ai-commits-component"');
+    expect(repairedEnv).toContain(`OUTPOST_CONFIG=${JSON.stringify(await fs.realpath(configPath))}`);
+    expect(repairedEnv).toContain(`OUTPOST_CONTEXT=${JSON.stringify(path.join(isolatedHome, "context.json"))}`);
+    expect(repairedEnv).toContain('OUTPOST_DB_BACKUP_ENABLED="false"');
+    expect(repairedEnv).toContain("OUTPOST_AGENT_JWT_SECRET=shared-secret");
+    expect(repairedEnv).toContain("OUTPOST_TOOL_ACTION_SIGNING_SECRET=");
+    expect(process.env.OUTPOST_HOME).toBe(isolatedHome);
     expect(process.env.PORT).toBe("3101");
-    expect(process.env.PAPERCLIP_INSTANCE_ID).toBe("pap-884-ai-commits-component");
-    expect(process.env.PAPERCLIP_DB_BACKUP_ENABLED).toBe("false");
-    expect(process.env.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET).toHaveLength(64);
+    expect(process.env.OUTPOST_INSTANCE_ID).toBe("pap-884-ai-commits-component");
+    expect(process.env.OUTPOST_DB_BACKUP_ENABLED).toBe("false");
+    expect(process.env.OUTPOST_TOOL_ACTION_SIGNING_SECRET).toHaveLength(64);
   });
 
   it("disables backups in an otherwise isolated existing worktree config", async () => {
@@ -196,14 +196,14 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
+        "# Outpost environment variables",
         "# Keep this operator note during repair",
-        `PAPERCLIP_HOME=${JSON.stringify(isolatedHome)}`,
-        'PAPERCLIP_INSTANCE_ID="disable-worktree-backups"',
-        `PAPERCLIP_CONFIG=${JSON.stringify(configPath)}`,
-        'PAPERCLIP_DB_BACKUP_ENABLED="true" # managed worktree policy',
-        'PAPERCLIP_IN_WORKTREE="true"',
-        'PAPERCLIP_WORKTREE_NAME="disable-worktree-backups"',
+        `OUTPOST_HOME=${JSON.stringify(isolatedHome)}`,
+        'OUTPOST_INSTANCE_ID="disable-worktree-backups"',
+        `OUTPOST_CONFIG=${JSON.stringify(configPath)}`,
+        'OUTPOST_DB_BACKUP_ENABLED="true" # managed worktree policy',
+        'OUTPOST_IN_WORKTREE="true"',
+        'OUTPOST_WORKTREE_NAME="disable-worktree-backups"',
         "# Keep this trailing note too",
         "",
       ].join("\n"),
@@ -211,12 +211,12 @@ describe("worktree config repair", () => {
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_HOME = isolatedHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "disable-worktree-backups";
-    process.env.PAPERCLIP_CONFIG = configPath;
-    process.env.PAPERCLIP_DB_BACKUP_ENABLED = "true";
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "disable-worktree-backups";
+    process.env.OUTPOST_HOME = isolatedHome;
+    process.env.OUTPOST_INSTANCE_ID = "disable-worktree-backups";
+    process.env.OUTPOST_CONFIG = configPath;
+    process.env.OUTPOST_DB_BACKUP_ENABLED = "true";
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "disable-worktree-backups";
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
     const repairedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -225,11 +225,11 @@ describe("worktree config repair", () => {
     expect(result).toEqual({ repairedConfig: true, repairedEnv: true });
     expect(repairedConfig.database.backup.enabled).toBe(false);
     expect(repairedEnv).toContain(
-      'PAPERCLIP_DB_BACKUP_ENABLED="false" # managed worktree policy',
+      'OUTPOST_DB_BACKUP_ENABLED="false" # managed worktree policy',
     );
     expect(repairedEnv).toContain("# Keep this operator note during repair");
     expect(repairedEnv).toContain("# Keep this trailing note too");
-    expect(process.env.PAPERCLIP_DB_BACKUP_ENABLED).toBe("false");
+    expect(process.env.OUTPOST_DB_BACKUP_ENABLED).toBe("false");
   });
 
   it("preserves an externally supplied PORT while repairing worktree config", async () => {
@@ -246,23 +246,23 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
-        "PAPERCLIP_IN_WORKTREE=true",
-        "PAPERCLIP_WORKTREE_NAME=PAP-10341-runtime-managed-port",
+        "# Outpost environment variables",
+        "OUTPOST_IN_WORKTREE=true",
+        "OUTPOST_WORKTREE_NAME=PAP-10341-runtime-managed-port",
         "",
       ].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-10341-runtime-managed-port";
-    process.env.PAPERCLIP_WORKTREES_DIR = isolatedHome;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-10341-runtime-managed-port";
+    process.env.OUTPOST_WORKTREES_DIR = isolatedHome;
     process.env.PORT = "32987";
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_CONFIG;
-    delete process.env.PAPERCLIP_CONTEXT;
+    delete process.env.OUTPOST_HOME;
+    delete process.env.OUTPOST_INSTANCE_ID;
+    delete process.env.OUTPOST_CONFIG;
+    delete process.env.OUTPOST_CONTEXT;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
     const repairedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -270,7 +270,7 @@ describe("worktree config repair", () => {
     expect(result.repairedConfig).toBe(true);
     expect(repairedConfig.server.port).toBe(3101);
     expect(process.env.PORT).toBe("32987");
-    expect(process.env.PAPERCLIP_HOME).toBe(isolatedHome);
+    expect(process.env.OUTPOST_HOME).toBe(isolatedHome);
   });
 
   it("never rewrites a main-instance env when ambient worktree flags leak into the process", async () => {
@@ -284,30 +284,30 @@ describe("worktree config repair", () => {
     const originalConfig = JSON.stringify(buildLegacyConfig(instanceRoot), null, 2) + "\n";
     await fs.writeFile(configPath, originalConfig, "utf8");
     const cleanEnv = [
-      "# Paperclip environment variables",
+      "# Outpost environment variables",
       "# Generated by `paperclip onboard`",
-      `PAPERCLIP_HOME=${JSON.stringify(homeDir)}`,
-      'PAPERCLIP_INSTANCE_ID="default"',
-      `PAPERCLIP_CONFIG=${JSON.stringify(configPath)}`,
+      `OUTPOST_HOME=${JSON.stringify(homeDir)}`,
+      'OUTPOST_INSTANCE_ID="default"',
+      `OUTPOST_CONFIG=${JSON.stringify(configPath)}`,
       "",
     ].join("\n");
     await fs.writeFile(envPath, cleanEnv, "utf8");
 
     process.chdir(tempRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-884-ai-commits-component";
-    process.env.PAPERCLIP_HOME = homeDir;
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_CONFIG = configPath;
-    delete process.env.PAPERCLIP_CONTEXT;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-884-ai-commits-component";
+    process.env.OUTPOST_HOME = homeDir;
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_CONFIG = configPath;
+    delete process.env.OUTPOST_CONTEXT;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
 
     expect(result).toEqual({ repairedConfig: false, repairedEnv: false });
     expect(await fs.readFile(envPath, "utf8")).toBe(cleanEnv);
     expect(await fs.readFile(configPath, "utf8")).toBe(originalConfig);
-    expect(process.env.PAPERCLIP_HOME).toBe(homeDir);
-    expect(process.env.PAPERCLIP_INSTANCE_ID).toBe("default");
+    expect(process.env.OUTPOST_HOME).toBe(homeDir);
+    expect(process.env.OUTPOST_INSTANCE_ID).toBe("default");
   });
 
   it("does not persist runtime ports into a main-instance config when ambient worktree flags leak in", async () => {
@@ -320,11 +320,11 @@ describe("worktree config repair", () => {
     await fs.writeFile(configPath, JSON.stringify(buildLegacyConfig(instanceRoot), null, 2) + "\n", "utf8");
 
     process.chdir(tempRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-884-ai-commits-component";
-    process.env.PAPERCLIP_HOME = homeDir;
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_CONFIG = configPath;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-884-ai-commits-component";
+    process.env.OUTPOST_HOME = homeDir;
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_CONFIG = configPath;
     delete process.env.PORT;
     delete process.env.DATABASE_URL;
 
@@ -347,19 +347,19 @@ describe("worktree config repair", () => {
       JSON.stringify(buildLegacyConfig(path.join(tempRoot, "shared")), null, 2) + "\n";
     await fs.writeFile(configPath, originalConfig, "utf8");
     const nonWorktreeEnv = [
-      "# Paperclip environment variables",
-      `PAPERCLIP_CONFIG=${JSON.stringify(configPath)}`,
+      "# Outpost environment variables",
+      `OUTPOST_CONFIG=${JSON.stringify(configPath)}`,
       "",
     ].join("\n");
     await fs.writeFile(envPath, nonWorktreeEnv, "utf8");
 
     process.chdir(repoRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-884-ai-commits-component";
-    process.env.PAPERCLIP_WORKTREES_DIR = path.join(tempRoot, ".paperclip-worktrees");
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_CONFIG;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-884-ai-commits-component";
+    process.env.OUTPOST_WORKTREES_DIR = path.join(tempRoot, ".paperclip-worktrees");
+    delete process.env.OUTPOST_HOME;
+    delete process.env.OUTPOST_INSTANCE_ID;
+    delete process.env.OUTPOST_CONFIG;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
 
@@ -384,9 +384,9 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
-        "PAPERCLIP_IN_WORKTREE=true",
-        "PAPERCLIP_WORKTREE_NAME=PAP-880-thumbs-capture-for-evals-feature",
+        "# Outpost environment variables",
+        "OUTPOST_IN_WORKTREE=true",
+        "OUTPOST_WORKTREE_NAME=PAP-880-thumbs-capture-for-evals-feature",
         "",
       ].join("\n"),
       "utf8",
@@ -413,13 +413,13 @@ describe("worktree config repair", () => {
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-880-thumbs-capture-for-evals-feature";
-    process.env.PAPERCLIP_WORKTREES_DIR = isolatedHome;
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_CONFIG;
-    delete process.env.PAPERCLIP_CONTEXT;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-880-thumbs-capture-for-evals-feature";
+    process.env.OUTPOST_WORKTREES_DIR = isolatedHome;
+    delete process.env.OUTPOST_HOME;
+    delete process.env.OUTPOST_INSTANCE_ID;
+    delete process.env.OUTPOST_CONFIG;
+    delete process.env.OUTPOST_CONTEXT;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
     const repairedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -463,12 +463,12 @@ describe("worktree config repair", () => {
       await fs.writeFile(
         path.join(paperclipDir, ".env"),
         [
-          "# Paperclip environment variables",
-          "PAPERCLIP_IN_WORKTREE=true",
-          `PAPERCLIP_WORKTREE_NAME=${name}`,
-          `PAPERCLIP_HOME=${JSON.stringify(isolatedHome)}`,
-          `PAPERCLIP_INSTANCE_ID=${name.toLowerCase()}`,
-          `PAPERCLIP_CONFIG=${JSON.stringify(path.join(paperclipDir, "config.json"))}`,
+          "# Outpost environment variables",
+          "OUTPOST_IN_WORKTREE=true",
+          `OUTPOST_WORKTREE_NAME=${name}`,
+          `OUTPOST_HOME=${JSON.stringify(isolatedHome)}`,
+          `OUTPOST_INSTANCE_ID=${name.toLowerCase()}`,
+          `OUTPOST_CONFIG=${JSON.stringify(path.join(paperclipDir, "config.json"))}`,
           "",
         ].join("\n"),
         "utf8",
@@ -477,12 +477,12 @@ describe("worktree config repair", () => {
 
     const activateWorktree = (worktreeRoot: string, name: string) => {
       process.chdir(worktreeRoot);
-      process.env.PAPERCLIP_IN_WORKTREE = "true";
-      process.env.PAPERCLIP_WORKTREE_NAME = name;
-      process.env.PAPERCLIP_WORKTREES_DIR = isolatedHome;
-      process.env.PAPERCLIP_HOME = isolatedHome;
-      process.env.PAPERCLIP_INSTANCE_ID = name.toLowerCase();
-      process.env.PAPERCLIP_CONFIG = path.join(worktreeRoot, ".paperclip", "config.json");
+      process.env.OUTPOST_IN_WORKTREE = "true";
+      process.env.OUTPOST_WORKTREE_NAME = name;
+      process.env.OUTPOST_WORKTREES_DIR = isolatedHome;
+      process.env.OUTPOST_HOME = isolatedHome;
+      process.env.OUTPOST_INSTANCE_ID = name.toLowerCase();
+      process.env.OUTPOST_CONFIG = path.join(worktreeRoot, ".paperclip", "config.json");
       delete process.env.PORT;
       delete process.env.DATABASE_URL;
     };
@@ -539,25 +539,25 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
-        "PAPERCLIP_HOME=/old/home/.paperclip-worktrees",
-        "PAPERCLIP_INSTANCE_ID=pap-9940-what-can-we-learn",
-        "PAPERCLIP_CONFIG=/old/home/paperclip/.paperclip/worktrees/PAP-9940-what-can-we-learn/.paperclip/config.json",
-        "PAPERCLIP_CONTEXT=/old/home/.paperclip-worktrees/context.json",
-        "PAPERCLIP_IN_WORKTREE=true",
-        "PAPERCLIP_WORKTREE_NAME=PAP-9940-what-can-we-learn",
+        "# Outpost environment variables",
+        "OUTPOST_HOME=/old/home/.paperclip-worktrees",
+        "OUTPOST_INSTANCE_ID=pap-9940-what-can-we-learn",
+        "OUTPOST_CONFIG=/old/home/paperclip/.paperclip/worktrees/PAP-9940-what-can-we-learn/.paperclip/config.json",
+        "OUTPOST_CONTEXT=/old/home/.paperclip-worktrees/context.json",
+        "OUTPOST_IN_WORKTREE=true",
+        "OUTPOST_WORKTREE_NAME=PAP-9940-what-can-we-learn",
         "",
       ].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_CONFIG = configPath;
-    process.env.PAPERCLIP_WORKTREES_DIR = isolatedHome;
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_CONTEXT;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_CONFIG = configPath;
+    process.env.OUTPOST_WORKTREES_DIR = isolatedHome;
+    delete process.env.OUTPOST_HOME;
+    delete process.env.OUTPOST_INSTANCE_ID;
+    delete process.env.OUTPOST_CONTEXT;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
     const repairedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -570,8 +570,8 @@ describe("worktree config repair", () => {
     });
     expect(repairedConfig.database.embeddedPostgresDataDir).toBe(path.join(instanceRoot, "db"));
     expect(repairedConfig.secrets.localEncrypted.keyFilePath).toBe(path.join(instanceRoot, "secrets", "master.key"));
-    expect(repairedEnv).toContain(`PAPERCLIP_HOME=${JSON.stringify(isolatedHome)}`);
-    expect(repairedEnv).toContain(`PAPERCLIP_CONFIG=${JSON.stringify(configPath)}`);
+    expect(repairedEnv).toContain(`OUTPOST_HOME=${JSON.stringify(isolatedHome)}`);
+    expect(repairedEnv).toContain(`OUTPOST_CONFIG=${JSON.stringify(configPath)}`);
     expect(repairedEnv).not.toContain("/old/home");
   });
 
@@ -643,24 +643,24 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
-        `PAPERCLIP_HOME=${JSON.stringify(isolatedHome)}`,
-        `PAPERCLIP_INSTANCE_ID=${JSON.stringify(instanceId)}`,
-        `PAPERCLIP_CONFIG=${JSON.stringify(configPath)}`,
-        `PAPERCLIP_CONTEXT=${JSON.stringify(path.join(isolatedHome, "context.json"))}`,
-        'PAPERCLIP_IN_WORKTREE="true"',
-        'PAPERCLIP_WORKTREE_NAME="PAP-989-multi-user-implementation-using-plan-from-pap-958"',
+        "# Outpost environment variables",
+        `OUTPOST_HOME=${JSON.stringify(isolatedHome)}`,
+        `OUTPOST_INSTANCE_ID=${JSON.stringify(instanceId)}`,
+        `OUTPOST_CONFIG=${JSON.stringify(configPath)}`,
+        `OUTPOST_CONTEXT=${JSON.stringify(path.join(isolatedHome, "context.json"))}`,
+        'OUTPOST_IN_WORKTREE="true"',
+        'OUTPOST_WORKTREE_NAME="PAP-989-multi-user-implementation-using-plan-from-pap-958"',
         "",
       ].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-989-multi-user-implementation-using-plan-from-pap-958";
-    process.env.PAPERCLIP_HOME = transientHome;
-    process.env.PAPERCLIP_INSTANCE_ID = instanceId;
-    process.env.PAPERCLIP_CONFIG = configPath;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-989-multi-user-implementation-using-plan-from-pap-958";
+    process.env.OUTPOST_HOME = transientHome;
+    process.env.OUTPOST_INSTANCE_ID = instanceId;
+    process.env.OUTPOST_CONFIG = configPath;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
     const repairedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -677,10 +677,10 @@ describe("worktree config repair", () => {
     expect(repairedConfig.secrets.localEncrypted.keyFilePath).toBe(
       path.join(stableInstanceRoot, "secrets", "master.key"),
     );
-    expect(repairedEnv).toContain(`PAPERCLIP_HOME=${JSON.stringify(isolatedHome)}`);
-    expect(repairedEnv).toContain('PAPERCLIP_DB_BACKUP_ENABLED="false"');
-    expect(repairedEnv).not.toContain(`PAPERCLIP_HOME=${JSON.stringify(transientHome)}`);
-    expect(process.env.PAPERCLIP_HOME).toBe(isolatedHome);
+    expect(repairedEnv).toContain(`OUTPOST_HOME=${JSON.stringify(isolatedHome)}`);
+    expect(repairedEnv).toContain('OUTPOST_DB_BACKUP_ENABLED="false"');
+    expect(repairedEnv).not.toContain(`OUTPOST_HOME=${JSON.stringify(transientHome)}`);
+    expect(process.env.OUTPOST_HOME).toBe(isolatedHome);
   });
 
   it("rebalances duplicate ports for already isolated worktree configs", async () => {
@@ -721,9 +721,9 @@ describe("worktree config repair", () => {
     await fs.writeFile(
       envPath,
       [
-        "# Paperclip environment variables",
-        "PAPERCLIP_IN_WORKTREE=true",
-        "PAPERCLIP_WORKTREE_NAME=PAP-884-ai-commits-component",
+        "# Outpost environment variables",
+        "OUTPOST_IN_WORKTREE=true",
+        "OUTPOST_WORKTREE_NAME=PAP-884-ai-commits-component",
         "",
       ].join("\n"),
       "utf8",
@@ -750,13 +750,13 @@ describe("worktree config repair", () => {
     );
 
     process.chdir(currentWorktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-884-ai-commits-component";
-    process.env.PAPERCLIP_WORKTREES_DIR = isolatedHome;
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_CONFIG;
-    delete process.env.PAPERCLIP_CONTEXT;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-884-ai-commits-component";
+    process.env.OUTPOST_WORKTREES_DIR = isolatedHome;
+    delete process.env.OUTPOST_HOME;
+    delete process.env.OUTPOST_INSTANCE_ID;
+    delete process.env.OUTPOST_CONFIG;
+    delete process.env.OUTPOST_CONTEXT;
 
     const result = maybeRepairLegacyWorktreeConfigAndEnvFiles();
     const repairedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -798,16 +798,16 @@ describe("worktree config repair", () => {
 
     await fs.writeFile(
       path.join(paperclipDir, ".env"),
-      ["# Paperclip environment variables", "PAPERCLIP_IN_WORKTREE=true", ""].join("\n"),
+      ["# Outpost environment variables", "OUTPOST_IN_WORKTREE=true", ""].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-878-create-a-mine-tab-in-inbox";
-    process.env.PAPERCLIP_HOME = isolatedHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "pap-878-create-a-mine-tab-in-inbox";
-    process.env.PAPERCLIP_CONFIG = configPath;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-878-create-a-mine-tab-in-inbox";
+    process.env.OUTPOST_HOME = isolatedHome;
+    process.env.OUTPOST_INSTANCE_ID = "pap-878-create-a-mine-tab-in-inbox";
+    process.env.OUTPOST_CONFIG = configPath;
     delete process.env.PORT;
     delete process.env.DATABASE_URL;
 
@@ -832,7 +832,7 @@ describe("worktree config repair", () => {
     const instanceRoot = path.join(isolatedHome, "instances", "pap-125-public-base-url");
 
     await fs.mkdir(paperclipDir, { recursive: true });
-    const config = buildLegacyConfig(instanceRoot, "https://paperclip.example");
+    const config = buildLegacyConfig(instanceRoot, "https://outpost.example");
     await fs.writeFile(
       configPath,
       JSON.stringify(
@@ -855,16 +855,16 @@ describe("worktree config repair", () => {
 
     await fs.writeFile(
       path.join(paperclipDir, ".env"),
-      ["# Paperclip environment variables", "PAPERCLIP_IN_WORKTREE=true", ""].join("\n"),
+      ["# Outpost environment variables", "OUTPOST_IN_WORKTREE=true", ""].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "PAP-125-public-base-url";
-    process.env.PAPERCLIP_HOME = isolatedHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "pap-125-public-base-url";
-    process.env.PAPERCLIP_CONFIG = configPath;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "PAP-125-public-base-url";
+    process.env.OUTPOST_HOME = isolatedHome;
+    process.env.OUTPOST_INSTANCE_ID = "pap-125-public-base-url";
+    process.env.OUTPOST_CONFIG = configPath;
     delete process.env.PORT;
     delete process.env.DATABASE_URL;
 
@@ -877,7 +877,7 @@ describe("worktree config repair", () => {
 
     expect(writtenConfig.server.port).toBe(3103);
     expect(writtenConfig.database.embeddedPostgresPort).toBe(54335);
-    expect(writtenConfig.auth.publicBaseUrl).toBe("https://paperclip.example");
+    expect(writtenConfig.auth.publicBaseUrl).toBe("https://outpost.example");
   });
 
   it("preserves top-level and nested config extensions while persisting runtime ports", async () => {
@@ -915,16 +915,16 @@ describe("worktree config repair", () => {
     await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     await fs.writeFile(
       path.join(paperclipDir, ".env"),
-      ["# Paperclip environment variables", "PAPERCLIP_IN_WORKTREE=true", ""].join("\n"),
+      ["# Outpost environment variables", "OUTPOST_IN_WORKTREE=true", ""].join("\n"),
       "utf8",
     );
 
     process.chdir(worktreeRoot);
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_WORKTREE_NAME = "config-extensions";
-    process.env.PAPERCLIP_HOME = isolatedHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "config-extensions";
-    process.env.PAPERCLIP_CONFIG = configPath;
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_WORKTREE_NAME = "config-extensions";
+    process.env.OUTPOST_HOME = isolatedHome;
+    process.env.OUTPOST_INSTANCE_ID = "config-extensions";
+    process.env.OUTPOST_CONFIG = configPath;
     delete process.env.PORT;
     delete process.env.DATABASE_URL;
 
@@ -976,7 +976,7 @@ describe("worktree config repair", () => {
 
   it("does not rewrite the in-memory config when auth URL has no explicit port", () => {
     const { config, changed } = applyRuntimePortSelectionToConfig(
-      paperclipConfigSchema.parse(buildLegacyConfig("/tmp/shared", "https://paperclip.example")),
+      paperclipConfigSchema.parse(buildLegacyConfig("/tmp/shared", "https://outpost.example")),
       {
         serverPort: 3104,
         databasePort: 54340,
@@ -988,6 +988,6 @@ describe("worktree config repair", () => {
     expect(changed).toBe(true);
     expect(config.server.port).toBe(3100);
     expect(config.database.embeddedPostgresPort).toBe(54340);
-    expect(config.auth.publicBaseUrl).toBe("https://paperclip.example");
+    expect(config.auth.publicBaseUrl).toBe("https://outpost.example");
   });
 });

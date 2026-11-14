@@ -3,7 +3,7 @@ import { decodeRunEventPayload, encodeRunEventPayload } from "./run-event-payloa
 
 describe("run-event JSONB payload codec", () => {
   it("leaves ordinary payloads and literal escape sequences unchanged", () => {
-    const payload = { prpEvent: { payload: { output: "virtual:\\u0000file.js", emoji: "🧪" } } };
+    const payload = { orpEvent: { payload: { output: "virtual:\\u0000file.js", emoji: "🧪" } } };
     const encoded = encodeRunEventPayload(payload);
     expect(encoded).toBe(JSON.stringify(payload));
     expect(decodeRunEventPayload(encoded)).toEqual(payload);
@@ -12,7 +12,7 @@ describe("run-event JSONB payload codec", () => {
 
   it("round-trips NULs in nested strings, arrays and keys without leaking its sidecar", () => {
     const payload = {
-      prpEvent: {
+      orpEvent: {
         sourceKind: "runner",
         payload: { output: "../\u0000virtual:/file.js", items: [null, true, 1, "\u0000"] },
       },
@@ -21,8 +21,8 @@ describe("run-event JSONB payload codec", () => {
     };
     const encoded = encodeRunEventPayload(payload);
     const stored = JSON.parse(encoded);
-    expect(stored.prpEvent.sourceKind).toBe("runner");
-    expect(stored.prpEvent.payload.output).toBe("../\\u0000virtual:/file.js");
+    expect(stored.orpEvent.sourceKind).toBe("runner");
+    expect(stored.orpEvent.payload.output).toBe("../\\u0000virtual:/file.js");
     // No actual NUL survives anywhere in the object sent to PostgreSQL.
     function assertNoNul(value: unknown): void {
       if (typeof value === "string") expect(value).not.toContain("\u0000");

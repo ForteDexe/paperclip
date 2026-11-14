@@ -6,7 +6,7 @@
  *
  * Seam, no product change:
  * 1. The harness builds a stand-in of the runner package under
- *    `<repo>/node_modules/.restart-chaos-<wave>/paperclip-runner`: symlinks to
+ *    `<repo>/node_modules/.restart-chaos-<wave>/outpost-runner`: symlinks to
  *    the real package, except `dist/cli/acpx-runtime-sidecar.cjs`, which is a
  *    generated stand-in sidecar. It sits under the workspace `node_modules` so
  *    that the provider package root product code derives from it is the same
@@ -76,14 +76,14 @@ async function mirror(source: string, target: string, replace: Record<string, st
  */
 export async function installAcpxSidecarSeam(input: { repositoryRoot: string; waveId: string; controlPath: string; logPath: string;
   stateDirectory: string }): Promise<AcpxSidecarSeam> {
-  const realRunner = await realpath(path.join(input.repositoryRoot, "packages", "paperclip-runner"));
+  const realRunner = await realpath(path.join(input.repositoryRoot, "packages", "outpost-runner"));
   const realSidecar = path.join(realRunner, "dist", "cli", "acpx-runtime-sidecar.cjs");
   for (const required of [realSidecar]) {
     if (!existsSync(required)) throw new Error(`ACPX provider faults need the built runner (${path.relative(input.repositoryRoot, required)} is missing); run node scripts/agent-preflight.mjs`);
   }
   if (!/^[A-Za-z0-9._-]+$/.test(input.waveId)) throw new Error(`Unexpected wave id ${input.waveId}`);
   const container = path.join(await realpath(path.join(input.repositoryRoot, "node_modules")), `.restart-chaos-${input.waveId}`);
-  const standInRoot = path.join(container, "paperclip-runner");
+  const standInRoot = path.join(container, "outpost-runner");
   await rm(container, { recursive: true, force: true });
   // package.json and node_modules resolve to the real package; dist/cli, dist/live and src/live are
   // real directories so the stand-in sidecar can replace one file and the hook can load one module

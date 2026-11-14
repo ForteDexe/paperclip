@@ -10,7 +10,7 @@ export type CampaignOutcome = "passed" | "failed" | "blocked";
 export type CampaignProductLane = "source-build" | "published-global-npm" | "empty-installed-boundary";
 export interface CampaignPublishedIdentity {
   version: string; treeSha256: string;
-  artifacts: Array<{ package: "paperclipai" | "@paperclipai/server"; version: string; integrity: string; entrySha256: string }>;
+  artifacts: Array<{ package: "paperclipai" | "@outpost/server"; version: string; integrity: string; entrySha256: string }>;
 }
 export type CampaignProductIdentity =
   | { kind: "unknown"; reason: string }
@@ -31,7 +31,7 @@ export function scenarioProductPolicy(id: string, baselineRevision: string) {
 function publishedIdentityValid(value: CampaignPublishedIdentity) {
   return !!value && /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/.test(value.version) && identityHash(value.treeSha256)
     && Array.isArray(value.artifacts) && value.artifacts.length === 2
-    && ["paperclipai", "@paperclipai/server"].every(name => value.artifacts.filter(a => a && a.package === name).length === 1)
+    && ["paperclipai", "@outpost/server"].every(name => value.artifacts.filter(a => a && a.package === name).length === 1)
     && value.artifacts.every(a => a.version === value.version && /^sha512-[A-Za-z0-9+/]+=*$/.test(a.integrity) && identityHash(a.entrySha256));
 }
 function samePublishedIdentity(a: CampaignPublishedIdentity, b: CampaignPublishedIdentity) {

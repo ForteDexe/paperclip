@@ -184,11 +184,11 @@ describe("ACPX stand-in sidecar", () => {
 describe("ACPX sidecar hook", () => {
   it("loads only the sidecar-path module from the stand-in package; its imports stay real", async () => {
     const root = await temporary("chaos-acpx-hook-");
-    const runner = path.join(root, "packages", "paperclip-runner");
+    const runner = path.join(root, "packages", "outpost-runner");
     await mkdir(path.join(runner, "dist", "live"), { recursive: true });
     await mkdir(path.join(runner, "dist", "cli"), { recursive: true });
     await mkdir(path.join(root, "node_modules"));
-    await writeFile(path.join(runner, "package.json"), JSON.stringify({ name: "@paperclipai/paperclip-runner", type: "module" }));
+    await writeFile(path.join(runner, "package.json"), JSON.stringify({ name: "@outpost/outpost-runner", type: "module" }));
     await writeFile(path.join(runner, "dist", "live", "helper.js"), "export const helperUrl = import.meta.url;\n");
     await writeFile(path.join(runner, "dist", "live", "runnerd-codex-transport.js"), [
       `import { helperUrl } from "./helper.js";`,
@@ -198,9 +198,9 @@ describe("ACPX sidecar hook", () => {
     await writeFile(path.join(runner, "dist", "cli", "acpx-runtime-sidecar.cjs"), "// real\n");
     await writeFile(path.join(runner, "dist", "cli", "codex.js"), "// real\n");
     const seam = await installAcpxSidecarSeam({ repositoryRoot: root, waveId: "w-test-s1", controlPath: "/c", logPath: "/l", stateDirectory: "/s" });
-    expect(seam.standInRoot).toBe(path.join(await import("node:fs/promises").then(fs => fs.realpath(root)), "node_modules", ".restart-chaos-w-test-s1", "paperclip-runner"));
+    expect(seam.standInRoot).toBe(path.join(await import("node:fs/promises").then(fs => fs.realpath(root)), "node_modules", ".restart-chaos-w-test-s1", "outpost-runner"));
     expect(await readlink(path.join(seam.standInRoot, "package.json"))).toBe(path.join(seam.realSidecar, "../../..", "package.json"));
-    expect(await readlink(path.join(seam.standInRoot, "dist", "cli", "codex.js"))).toContain(path.join("packages", "paperclip-runner", "dist", "cli", "codex.js"));
+    expect(await readlink(path.join(seam.standInRoot, "dist", "cli", "codex.js"))).toContain(path.join("packages", "outpost-runner", "dist", "cli", "codex.js"));
     const realTransport = path.join(seam.serverEnvironment.RESTART_CHAOS_ACPX_RUNNER_REAL!, "dist", "live", "runnerd-codex-transport.js");
     const script = `const m = await import(${JSON.stringify(pathToFileURL(realTransport).href)}); console.log(JSON.stringify({ sidecar: m.sidecar, helperUrl: m.helperUrl, nodeOptions: process.env.NODE_OPTIONS ?? null }));`;
     const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], { encoding: "utf8",

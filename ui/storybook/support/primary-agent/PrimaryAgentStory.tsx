@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Decorator } from "@storybook/react-vite";
-import type { Agent, Issue, ResourceMemberships } from "@paperclipai/shared";
+import type { Agent, Issue, ResourceMemberships } from "@outpost/shared";
 import { Layout } from "@/components/Layout";
 import { Layout as ClassicLayout } from "@/components/Layout.production";
 import { SidebarAgents } from "@/components/SidebarAgents";
@@ -169,7 +169,7 @@ function Sandbox({ options, children }: { options: PrimaryScenario; children: Re
   const { selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { pushToast, dismissToast } = useToastActions();
   useLayoutEffect(() => {
-    const storageKeys = [`paperclip:issue-draft:${storybookAuthSession.user!.id}`, "paperclip:recent-assignees", `paperclip:recent-assignees:${companyId}`, `paperclip.recentAgentChats:${companyId}:user-board`, ...state.agents.map(a => `paperclip.recentAgentChatIssue:${companyId}:user-board:${a.id}`)];
+    const storageKeys = [`paperclip:issue-draft:${storybookAuthSession.user!.id}`, "paperclip:recent-assignees", `paperclip:recent-assignees:${companyId}`, `outpost.recentAgentChats:${companyId}:user-board`, ...state.agents.map(a => `outpost.recentAgentChatIssue:${companyId}:user-board:${a.id}`)];
     const previous = storageKeys.map(key => [key, localStorage.getItem(key)] as const);
     storageKeys.forEach(key => localStorage.removeItem(key));
     const changed = () => {

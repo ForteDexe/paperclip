@@ -46,7 +46,7 @@ const meta = {
         "codex_local",
         "opencode_local",
         "pi_local",
-        "paperclip_runner",
+        "outpost_runner",
       ],
     },
     testOutcome: { control: "select", options: ["pass", "fail"] },
@@ -81,8 +81,8 @@ export const PiRuntime: Story = {
   args: { initialTab: "runtime", adapterType: "pi_local" },
 };
 export const RunnerRuntime: Story = {
-  name: "Codex · Existing Paperclip Runner",
-  args: { initialTab: "runtime", adapterType: "paperclip_runner" },
+  name: "Codex · Existing Outpost Runner",
+  args: { initialTab: "runtime", adapterType: "outpost_runner" },
 };
 export const CodexLegacyLight: Story = { ...CodexRuntime, globals: { theme: "light" } };
 export const CodexNativeLight: Story = { ...RunnerRuntime, globals: { theme: "light" } };

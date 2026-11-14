@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.sdk-canary-build-pins/v1",
+  "schema": "outpost.sdk-canary-build-pins/v1",
   "authenticatedMetadataSha256": "56e130cadb510a7bbbfc9aea2386a655d83ad7a13e84a326e1019ad856f2068c",
   "frozenInputManifestSha256": "88980780c834e4bcc186eac46eb5cde8a63b77d36242f56192dffe0885d547aa",
   "copiedInputManifestSha256": "19a20f8e78cd0d07fcb56390b5ac2cb8945e73b8659f4a98beeca83f6976373b",

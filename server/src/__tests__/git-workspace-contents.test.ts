@@ -47,7 +47,7 @@ describe("Git workspace settings preservation", () => {
   }
 
   beforeEach(async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-contents-")));
     cwd = await repository(path.join(root, "work"));
     identity = { companyId: randomUUID(), workspaceId: randomUUID() };

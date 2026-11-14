@@ -1,6 +1,6 @@
 import { receiveSlackCloudCallback } from "./cloud-callback.js";
-import type { Db } from "@paperclipai/db";
-import { chatEndpoints, toolConnections } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { chatEndpoints, toolConnections } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import type { chatCredentialMutationLease } from "../../chat-credential-mutation-lease.js";
 import type { createChatCredentials } from "../credentials.js";

@@ -16,17 +16,17 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatActions,
   chatEndpoints,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatEndpointSetupState,
   ToolCredentialSecretRef,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   telegramStopSubscriptionPlan,

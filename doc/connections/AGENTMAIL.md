@@ -229,7 +229,7 @@ operations and inherits the agent run ID:
 
 ```sh
 paperclipai email inboxes
-paperclipai email thread "$PAPERCLIP_TASK_ID"
+paperclipai email thread "$OUTPOST_TASK_ID"
 paperclipai email send --file email-request.json
 paperclipai email reply --file email-reply.json
 paperclipai email delivery '<publication-uuid>'

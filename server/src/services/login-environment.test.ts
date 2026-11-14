@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environmentLeases, environments, type Db } from "@paperclipai/db";
+import { agents, companies, createDb, environmentLeases, environments, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { assertLoginEnvironmentTarget, resolveLoginEnvironmentTarget } from "./login-environment.js";
-const fixtures = vi.hoisted(() => ({ environment: { id: "environment", driver: "plugin" }, instanceDefault: "environment", companies: ["company"], agent: { id: "agent", companyId: "company", adapterType: "paperclip_runner", lifecycleState: "verifying", defaultEnvironmentId: "environment" } as Record<string, unknown> | undefined }));
+const fixtures = vi.hoisted(() => ({ environment: { id: "environment", driver: "plugin" }, instanceDefault: "environment", companies: ["company"], agent: { id: "agent", companyId: "company", adapterType: "outpost_runner", lifecycleState: "verifying", defaultEnvironmentId: "environment" } as Record<string, unknown> | undefined }));
 vi.mock("./environments.js", () => ({ environmentService: () => ({ getById: async () => fixtures.environment, listBoundCompanyIds: async () => fixtures.companies }) }));
 vi.mock("./instance-settings.js", () => ({ instanceSettingsService: () => ({ get: async () => ({ defaultEnvironmentId: fixtures.instanceDefault }) }) }));
 vi.mock("./environment-selection.js", () => ({ assertEnvironmentSelectionForCompany: vi.fn(async () => {}) }));
 const db = { select: () => ({ from: () => ({ where: () => ({ limit: async () => fixtures.agent ? [fixtures.agent] : [] }) }) }) } as unknown as Db;
-beforeEach(() => { fixtures.instanceDefault = "environment"; fixtures.environment = { id: "environment", driver: "plugin" }; fixtures.companies = ["company"]; fixtures.agent = { id: "agent", companyId: "company", adapterType: "paperclip_runner", lifecycleState: "verifying", defaultEnvironmentId: "environment" }; });
+beforeEach(() => { fixtures.instanceDefault = "environment"; fixtures.environment = { id: "environment", driver: "plugin" }; fixtures.companies = ["company"]; fixtures.agent = { id: "agent", companyId: "company", adapterType: "outpost_runner", lifecycleState: "verifying", defaultEnvironmentId: "environment" }; });
 describe("login environment transport target", () => {
   it("permits a verifying saved agent on its own computer", async () => { await expect(assertLoginEnvironmentTarget(db, { companyId: "company", environmentId: "environment", agentId: "agent" })).resolves.toEqual(fixtures.environment); });
   it("rejects a provider without an existing-computer credential path", async () => { await expect(assertLoginEnvironmentTarget(db, { companyId: "company", environmentId: "environment", agentId: "agent", adapterType: "grok_local" })).rejects.toMatchObject({ status: 400 }); });
@@ -46,7 +46,7 @@ const postgres = await getEmbeddedPostgresTestSupport();
       { id: environmentId, name: "Computers", driver: "plugin" },
       { id: otherEnvironmentId, name: "Other computers", driver: "plugin" },
     ]);
-    const agent = { companyId, name: "Computer", adapterType: "paperclip_runner", defaultEnvironmentId: environmentId } as const;
+    const agent = { companyId, name: "Computer", adapterType: "outpost_runner", defaultEnvironmentId: environmentId } as const;
     await db.insert(agents).values([
       { ...agent, id: readyId, defaultEnvironmentId: null, lifecycleState: "ready" },
       { ...agent, id: verifyingId, lifecycleState: "verifying", status: "paused" },

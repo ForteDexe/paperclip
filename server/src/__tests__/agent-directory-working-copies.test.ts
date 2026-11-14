@@ -7,8 +7,8 @@ import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database
 import fs from "node:fs/promises";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import * as executionTargetTools from "@paperclipai/adapter-utils/execution-target";
-import * as ssh from "@paperclipai/adapter-utils/ssh";
+import * as executionTargetTools from "@outpost/adapter-utils/execution-target";
+import * as ssh from "@outpost/adapter-utils/ssh";
 const execFile = promisify(execFileCallback);
 import os from "node:os";
 import path from "node:path";
@@ -16,7 +16,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { agentFileStore, fileHash, inspectAgentFile, inspectAgentDirectory, snapshotAgentFiles, MAX_AGENT_FILE_BYTES, MAX_AGENT_DIRECTORY_BYTES, MAX_AGENT_DIRECTORY_ENTRIES } from "../services/agent-file-store.js";
-import { agents, companies, issues, authUsers, companyMemberships, principalPermissionGrants, heartbeatRuns, environmentLeases, environments, agentInstructionWorkingCopies, agentInstructionRevisions, agentInstructionHeads, createDb, fileStorageDb } from "@paperclipai/db";
+import { agents, companies, issues, authUsers, companyMemberships, principalPermissionGrants, heartbeatRuns, environmentLeases, environments, agentInstructionWorkingCopies, agentInstructionRevisions, agentInstructionHeads, createDb, fileStorageDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 import { agentInstructionWorkingCopyService, instructionWorkingCopyGuidance } from "../services/agent-instruction-working-copies.js";
@@ -26,18 +26,18 @@ import type { EnvironmentRuntimeService } from "../services/environment-runtime.
 import { remoteTerminationReceipt } from "../services/remote-execution-termination.js";
 import { createReusableLeaseHandoff } from "../services/environment-lease-handoff.js";
 import { AgentDirectoryReuseInvalidatedError, agentDirectoryWorkingCopyService } from "../services/agent-directory-working-copies.js";
-import { withDirectoryMergeLock } from "@paperclipai/adapter-utils/workspace-restore-merge";
-import { heartbeatRunEvents } from "@paperclipai/db";
+import { withDirectoryMergeLock } from "@outpost/adapter-utils/workspace-restore-merge";
+import { heartbeatRunEvents } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_AGENT_DIRECTORY_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_AGENT_DIRECTORY_TEST_DATABASE_URL");
 
 describe("persistent agent directories", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let copies: ReturnType<typeof agentInstructionWorkingCopyService>;
   let revisions: ReturnType<typeof agentInstructionRevisionService>;
-  const previousHome = process.env.PAPERCLIP_HOME;
+  const previousHome = process.env.OUTPOST_HOME;
   let home: string;
   let companyId: string, agentId: string, userId: string, root: string;
   const entryFile = "policy/INSTRUCTIONS.txt";
@@ -51,14 +51,14 @@ describe("persistent agent directories", () => {
   }
   beforeAll(async () => {
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "instruction-working-copies-")));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     if (!external) database = await startEmbeddedPostgresTestDatabase("instruction-copies-db-");
     db = createDb(external ?? database.connectionString);
     copies = agentInstructionWorkingCopyService(db);
     revisions = agentInstructionRevisionService(db);
   }, 90_000);
   afterAll(async () => {
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
     await db?.$client.end({ timeout: 1 });
     await database?.cleanup();
     if (home) {
@@ -88,7 +88,7 @@ describe("persistent agent directories", () => {
   describe("post-save directory cleanup worker", () => {
     afterEach(async () => {
       vi.useRealTimers(); vi.restoreAllMocks();
-      await db.update(agentInstructionWorkingCopies).set({ receipt: { schema: "paperclip.agent-files.v1", cleanupPending: false } })
+      await db.update(agentInstructionWorkingCopies).set({ receipt: { schema: "outpost.agent-files.v1", cleanupPending: false } })
         .where(eq(agentInstructionWorkingCopies.companyId, companyId));
     });
     const clock = () => vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
@@ -127,7 +127,7 @@ describe("persistent agent directories", () => {
     it("retires a stale retry on an already cleaned receipt after restart without filesystem work", async () => {
       const copy = await run();
       await db.update(agentInstructionWorkingCopies).set({ state: "unavailable", processStoppedAt: new Date(),
-        nextAttemptAt: new Date(), receipt: { schema: "paperclip.agent-files.v1", cleanupPending: false } })
+        nextAttemptAt: new Date(), receipt: { schema: "outpost.agent-files.v1", cleanupPending: false } })
         .where(eq(agentInstructionWorkingCopies.runId, copy.runId));
       clock(); const worker = coordinator(), removes = vi.spyOn(fs, "rm");
       try {
@@ -147,7 +147,7 @@ describe("persistent agent directories", () => {
     it("honors a cleanup obligation published before stale-deadline settlement", async () => {
       const copy = await run(), dueAt = new Date(Date.now() + 30_000);
       await db.update(agentInstructionWorkingCopies).set({ state: "unavailable", processStoppedAt: new Date(),
-        nextAttemptAt: dueAt, receipt: { schema: "paperclip.agent-files.v1", cleanupPending: false } })
+        nextAttemptAt: dueAt, receipt: { schema: "outpost.agent-files.v1", cleanupPending: false } })
         .where(eq(agentInstructionWorkingCopies.runId, copy.runId));
       const transact = db.transaction.bind(db);
       const race = vi.spyOn(db, "transaction").mockImplementationOnce(async (callback, config) => {
@@ -357,7 +357,7 @@ describe("persistent agent directories", () => {
     });
     it("reactivates from the real worktree setting without polling disabled policy", async () => {
       const copy = await run(); await stopped(copy);
-      const runtimeEnv = { PAPERCLIP_IN_WORKTREE: "true", PAPERCLIP_INSTANCE_ID: "sleep41-directory-activation" };
+      const runtimeEnv = { OUTPOST_IN_WORKTREE: "true", OUTPOST_INSTANCE_ID: "sleep41-directory-activation" };
       const settings = instanceSettingsService(db, { runtimeEnv });
       await settings.updateExperimental({ enableWorktreeRunExecution: false });
       const service = heartbeatService(db, { runtimeEnv });
@@ -931,7 +931,7 @@ describe("persistent agent directories", () => {
     copy.mockRestore();
     const active = await run();
     for (const row of [interrupted, active]) {
-      await db.update(agentInstructionWorkingCopies).set({ state: "preparing", baseHash: "preparing", receipt: { schema: "paperclip.agent-files.v1" } }).where(eq(agentInstructionWorkingCopies.runId, row.runId));
+      await db.update(agentInstructionWorkingCopies).set({ state: "preparing", baseHash: "preparing", receipt: { schema: "outpost.agent-files.v1" } }).where(eq(agentInstructionWorkingCopies.runId, row.runId));
     }
     await db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, interrupted.runId));
     copies = agentInstructionWorkingCopyService(db);
@@ -966,9 +966,9 @@ describe("persistent agent directories", () => {
       assetDirs: {}, additionalSourceDirs: {}, additionalSourceFailures: [], workspaceSyncSnapshot: null,
       restoreWorkspace: async () => { await fs.cp(path.join(remoteFiles, "files"), options.workspaceLocalDir, { recursive: true }); },
     }));
-    const ephemeralBefore = process.env.PAPERCLIP_EPHEMERAL_SERVER;
-    process.env.PAPERCLIP_EPHEMERAL_SERVER = "true";
-    if (scenario === "new-home") process.env.PAPERCLIP_HOME = replacementHome;
+    const ephemeralBefore = process.env.OUTPOST_EPHEMERAL_SERVER;
+    process.env.OUTPOST_EPHEMERAL_SERVER = "true";
+    if (scenario === "new-home") process.env.OUTPOST_HOME = replacementHome;
     const remote = { kind: "remote" as const, transport: "sandbox" as const, environmentId,
       leaseId: scenario === "foreign-lease" ? randomUUID() : leaseId, remoteCwd, runner: { execute: vi.fn() } };
     try {
@@ -1015,9 +1015,9 @@ describe("persistent agent directories", () => {
       await copies.prepare({ ...target(), runId: copy.runId, cwd: remoteCwd, target: remote, warm: true });
       expect(transport).toHaveBeenCalledTimes(2);
     } finally {
-      process.env.PAPERCLIP_HOME = home;
-      if (ephemeralBefore === undefined) delete process.env.PAPERCLIP_EPHEMERAL_SERVER;
-      else process.env.PAPERCLIP_EPHEMERAL_SERVER = ephemeralBefore;
+      process.env.OUTPOST_HOME = home;
+      if (ephemeralBefore === undefined) delete process.env.OUTPOST_EPHEMERAL_SERVER;
+      else process.env.OUTPOST_EPHEMERAL_SERVER = ephemeralBefore;
       transport.mockRestore();
     }
   });
@@ -1046,7 +1046,7 @@ describe("persistent agent directories", () => {
     expect(execute).toHaveBeenCalledTimes(2);
     expect(execute).toHaveBeenLastCalledWith(expect.objectContaining({ lease: expect.objectContaining({ id: leaseId, providerLeaseId: "original-sandbox" }),
       command: "rm", args: ["-rf", "--", executionRoot,
-        path.posix.join(remoteCwd, ".paperclip-runtime", "paperclip-runner", "agent-file-transfers", agentId, copy.runId)], bypassSession: true }));
+        path.posix.join(remoteCwd, ".paperclip-runtime", "outpost-runner", "agent-file-transfers", agentId, copy.runId)], bypassSession: true }));
     await copies.recoverCaptured();
     expect(execute).toHaveBeenCalledTimes(2);
     await copies.release(companyId, copy.runId);
@@ -1315,14 +1315,14 @@ describe("persistent agent directories", () => {
     const remoteCwd = path.join(home, "remote-task");
     await fs.mkdir(remoteCwd, { recursive: true });
     await execFile("git", ["init", remoteCwd]);
-    const runner: import("@paperclipai/adapter-utils/command-managed-runtime").CommandManagedRuntimeRunner = {
+    const runner: import("@outpost/adapter-utils/command-managed-runtime").CommandManagedRuntimeRunner = {
       execute: async input => {
         const startedAt = new Date().toISOString();
         const env = { ...process.env, ...input.env };
         const args = [...(input.args ?? [])];
         if (input.stdin != null && (args[0] === "-c" || args[0] === "-lc")) {
-          env.PAPERCLIP_TEST_STDIN = input.stdin;
-          args[1] = `printf '%s' "$PAPERCLIP_TEST_STDIN" | (${args[1]})`;
+          env.OUTPOST_TEST_STDIN = input.stdin;
+          args[1] = `printf '%s' "$OUTPOST_TEST_STDIN" | (${args[1]})`;
         }
         try {
           const result = await execFile(input.command, args, { cwd: input.cwd, env, timeout: input.timeoutMs, maxBuffer: 32 * 1024 * 1024 });
@@ -1346,7 +1346,7 @@ describe("persistent agent directories", () => {
     await fs.mkdir(path.join(root, "build"));
     await fs.writeFile(path.join(root, "build", "personal.txt"), "cache-like names are still agent files");
     const first = await prepare();
-    const firstScratch = path.join(remoteCwd, ".paperclip-runtime", "paperclip-runner", "agent-file-transfers", agentId, first.runId);
+    const firstScratch = path.join(remoteCwd, ".paperclip-runtime", "outpost-runner", "agent-file-transfers", agentId, first.runId);
     expect(await fs.readdir(firstScratch)).toEqual([]);
     await expect(fs.stat(path.join(first.executionRoot, ".paperclip-runtime"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await fs.readFile(path.join(first.executionRoot, "build", "personal.txt"), "utf8")).toBe("cache-like names are still agent files");
@@ -1375,14 +1375,14 @@ describe("persistent agent directories", () => {
   it("checkpoints and reuses the remote directory through the real transport without copying unchanged bytes", async () => {
     const remoteCwd = path.join(home, "warm-remote-task");
     await fs.mkdir(remoteCwd, { recursive: true });
-    const runner: import("@paperclipai/adapter-utils/command-managed-runtime").CommandManagedRuntimeRunner = {
+    const runner: import("@outpost/adapter-utils/command-managed-runtime").CommandManagedRuntimeRunner = {
       execute: async input => {
         const startedAt = new Date().toISOString();
         const env = { ...process.env, ...input.env };
         const args = [...(input.args ?? [])];
         if (input.stdin != null && (args[0] === "-c" || args[0] === "-lc")) {
-          env.PAPERCLIP_TEST_STDIN = input.stdin;
-          args[1] = `printf '%s' "$PAPERCLIP_TEST_STDIN" | (${args[1]})`;
+          env.OUTPOST_TEST_STDIN = input.stdin;
+          args[1] = `printf '%s' "$OUTPOST_TEST_STDIN" | (${args[1]})`;
         }
         try {
           const result = await execFile(input.command, args, { cwd: input.cwd, env, timeout: input.timeoutMs, maxBuffer: 32 * 1024 * 1024 });
@@ -1460,7 +1460,7 @@ describe("persistent agent directories", () => {
     copies = agentInstructionWorkingCopyService(db);
     await copies.recoverCaptured();
     const row = await copies.get(companyId, copy.runId);
-    expect(row?.receipt?.schema).toBe("paperclip.agent-files.v1");
+    expect(row?.receipt?.schema).toBe("outpost.agent-files.v1");
     expect(row?.receipt?.baseline).toBeUndefined();
     expect(await fs.readFile(path.join(root, "note.txt"), "utf8")).toBe("one write");
   });

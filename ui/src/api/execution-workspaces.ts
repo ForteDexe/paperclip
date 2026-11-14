@@ -7,8 +7,8 @@ import type {
   WorkspaceLoginHandoffTicketResponse,
   WorkspaceOperation,
   WorkspaceRuntimeControlTarget,
-} from "@paperclipai/shared";
-import { EXECUTION_WORKSPACE_SUMMARY_IDS_MAX } from "@paperclipai/shared";
+} from "@outpost/shared";
+import { EXECUTION_WORKSPACE_SUMMARY_IDS_MAX } from "@outpost/shared";
 import { api } from "./client";
 import { sanitizeWorkspaceRuntimeControlTarget } from "./workspace-runtime-control";
 

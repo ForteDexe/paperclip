@@ -1,7 +1,7 @@
 import { currentPluginInteractionOrigin } from "../plugin-interaction-context.js";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
-import { agents, toolApplications, toolCatalogEntries, toolConnections, toolPolicies, toolProfiles } from "@paperclipai/db";
-import type { CreateToolProfileEntryForProfile } from "@paperclipai/shared";
+import { agents, toolApplications, toolCatalogEntries, toolConnections, toolPolicies, toolProfiles } from "@outpost/db";
+import type { CreateToolProfileEntryForProfile } from "@outpost/shared";
 import type { ToolAccessMutationDb } from "./types.js";
 export async function lockManagedAppPolicies(client: ToolAccessMutationDb, companyId: string, connectionId: string) {
   await client.select({ id: toolPolicies.id }).from(toolPolicies).where(and(

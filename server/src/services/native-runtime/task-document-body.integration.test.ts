@@ -5,15 +5,15 @@ import { createLocalAgentJwt } from "../../agent-auth-jwt.js";
 import { documentService } from "../documents.js";
 
 let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
-const previousSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+const previousSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
 beforeAll(async () => {
-  process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+  process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
   server = await startRunnerApiTestServer();
 }, 60_000);
 afterAll(async () => {
   await server?.close();
-  if (previousSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-  else process.env.PAPERCLIP_AGENT_JWT_SECRET = previousSecret;
+  if (previousSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+  else process.env.OUTPOST_AGENT_JWT_SECRET = previousSecret;
 });
 
 const bodies = [
@@ -28,7 +28,7 @@ it.each(["write_document", "write_task_document", "rest"] as const)(
     const fixture = await server.fixture({ disableWakeOnDemand: true });
     const issueId = surface === "write_task_document" ? fixture.blockerId : fixture.issueId;
     const service = documentService(server.db);
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId);
+    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId);
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
     for (const [index, body] of bodies.entries()) {
       const key = `exact-body-${index}`;
@@ -67,7 +67,7 @@ it("retains required body validation for write_document", async () => {
   for (const body of [undefined, null, 42, "", " \n\t"]) {
     await expect(fixture.authority.execute({ tool: "write_document", callId: randomUUID(), arguments: {
       key: "invalid-body", title: "Invalid body", body, baseRevisionId: null, idempotencyKey: randomUUID(),
-    } })).rejects.toThrow("paperclip_runner_tool_input_invalid");
+    } })).rejects.toThrow("outpost_runner_tool_input_invalid");
   }
   expect(await documentService(server.db).getIssueDocumentByKey(fixture.issueId, "invalid-body")).toBeNull();
 });

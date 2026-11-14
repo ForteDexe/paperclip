@@ -12,10 +12,10 @@ const env = {
   GITHUB_REPOSITORY: 'paperclipai/paperclip', GITHUB_REF: 'refs/heads/master', GITHUB_EVENT_NAME: 'workflow_dispatch',
   GITHUB_WORKFLOW_REF: 'paperclipai/paperclip/.github/workflows/runner-full-stack-e2e.yml@refs/heads/master',
   GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: workflowSha, SOURCE_SHA: targetSha,
-  ALLURE_ENDPOINT: 'https://paperclip.testops.cloud', ALLURE_PROJECT_ID: '1',
+  ALLURE_ENDPOINT: 'https://outpost.testops.cloud', ALLURE_PROJECT_ID: '1',
 };
 const selected = productRegressionCases.find(row => row.id === 66);
-const selection = cases => ({ schema: 'paperclip.product-regression-testops-selection/v1', runId: '123', attempt: '1',
+const selection = cases => ({ schema: 'outpost.product-regression-testops-selection/v1', runId: '123', attempt: '1',
   workflowSha, targetSha, jobRunId: '456', launchId: 789, cases });
 const result = (overrides = {}) => ({
   executionId: selected.executionId, suiteId: selected.suite, caseId: selected.name,
@@ -24,7 +24,7 @@ const result = (overrides = {}) => ({
   matcherResults: [{ matcher: { kind: 'json_path', path: 'observed.outputVerified', expected: true }, passed: true }],
   ...overrides,
 });
-const campaign = (results = [result()]) => ({ schema: 'paperclip.runner-e2e.campaign/v2', campaignId: 'gha-123-1',
+const campaign = (results = [result()]) => ({ schema: 'outpost.runner-e2e.campaign/v2', campaignId: 'gha-123-1',
   source: { sha: targetSha }, expected: [selected.executionId], results });
 const allPlan = { version: '1.0', tests: productRegressionCases.map(row => ({ id: String(row.id), selector: row.fullName })) };
 

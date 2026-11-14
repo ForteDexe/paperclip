@@ -9,7 +9,7 @@ import {
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -59,11 +59,11 @@ describeEmbeddedPostgres("agent service clearError", () => {
     await db.insert(agentTaskSessions).values({ companyId, agentId, adapterType, taskKey: "issue:test", sessionDisplayId: "old-session", lastRunId: runId });
     await db.insert(agentRuntimeState).values({ companyId, agentId, adapterType, sessionId: "old-session", stateJson: { old: true }, lastRunId: runId });
     const profile = adapterType === "claude_local" ? { provider: "acpx", acpxAgent: "claude" } : { provider: "codex" };
-    const updated = await agentService(db).update(agentId, { adapterType: "paperclip_runner", adapterConfig: { ...config, ...profile } });
+    const updated = await agentService(db).update(agentId, { adapterType: "outpost_runner", adapterConfig: { ...config, ...profile } });
     expect(updated).toMatchObject({ id: agentId, companyId, name: "Migration QA", role: "engineer", adapterConfig: config });
     expect(await db.select().from(agentTaskSessions).where(eq(agentTaskSessions.agentId, agentId))).toEqual([]);
     const [runtime] = await db.select().from(agentRuntimeState).where(eq(agentRuntimeState.agentId, agentId));
-    expect(runtime).toMatchObject({ adapterType: "paperclip_runner", sessionId: null, stateJson: {}, lastRunId: runId });
+    expect(runtime).toMatchObject({ adapterType: "outpost_runner", sessionId: null, stateJson: {}, lastRunId: runId });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     expect(run).toMatchObject({ status: "succeeded", resultJson: { summary: "history stays" } });
   });

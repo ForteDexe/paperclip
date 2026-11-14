@@ -91,7 +91,7 @@ const median = (values: number[]) => {
 };
 
 test("records cold time to Mine rows", async ({ browser, request, baseURL }, testInfo) => {
-  const runs = Number(process.env.PAPERCLIP_COLLECTION_PERF_TIMING_RUNS ?? 5);
+  const runs = Number(process.env.OUTPOST_COLLECTION_PERF_TIMING_RUNS ?? 5);
   expect(Number.isInteger(runs) && runs >= 5, "Record at least five samples").toBe(true);
   test.setTimeout(60_000 + runs * 60_000);
   const settingsUrl = "/api/instance/settings/experimental";

@@ -108,7 +108,7 @@ function record(value: unknown): Record<string, unknown> {
 
 export function reasoningProjectionFailures(events: readonly ObservableRunEvent[]): string[] {
   const misclassified = events.filter((event) => {
-    const envelope = record(record(event.payload).prpEvent);
+    const envelope = record(record(event.payload).orpEvent);
     const payload = record(envelope.payload);
     return envelope.eventType === "item.delta" &&
       payload.kind === "agentMessage" &&
@@ -222,7 +222,7 @@ export function isControlPlaneGovernedResponseWait(
     (event) => event.eventType === "run.result.accepted",
   );
   if (accepted.length !== 1) return false;
-  const envelope = record(accepted[0]?.payload?.prpEvent);
+  const envelope = record(accepted[0]?.payload?.orpEvent);
   const result = record(record(envelope.payload).result);
   const continuation = record(result.continuation);
   const idempotencyKey = continuation.idempotencyKey;
@@ -248,10 +248,10 @@ export function isControlPlaneGovernedResponseWait(
       );
     });
   return (
-    envelope.schema === "paperclip.prp.event.v1" &&
+    envelope.schema === "outpost.orp.event.v1" &&
     envelope.eventType === "run.result.accepted" &&
     envelope.sourceKind === "control_plane" &&
-    result.schema === "paperclip.run_result.v1" &&
+    result.schema === "outpost.run_result.v1" &&
     result.reportedWorkDisposition === "yielded" &&
     continuation.kind === "response_wake" &&
     hasEvidence &&

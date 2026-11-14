@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { verifyWorkspaceWorkerStopReceipt, requestWorkspaceWorkerStopProof, currentWorkspaceWorker, isRetainedWorkspaceWorkerStopProof } from "./native-workspace-platform-proof.js";
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-const env = { PAPERCLIP_CLOUD_STACK_ID: "stack", PAPERCLIP_CLOUD_API_ORIGIN: "https://cloud.example", PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "fixture-token", PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "test", alg: "EdDSA", use: "sig" }] }) };
+const env = { OUTPOST_CLOUD_STACK_ID: "stack", OUTPOST_CLOUD_API_ORIGIN: "https://cloud.example", OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fixture-token", OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "test", alg: "EdDSA", use: "sig" }] }) };
 const worker = { provider: "railway" as const, projectId: "project", environmentId: "environment", serviceId: "service", deploymentId: "old-deployment" };
 const binding = { runId: "run", ownerToken: "owner", worker };
 const now = new Date("2099-01-01T00:00:00Z");
@@ -43,10 +43,10 @@ describe("workspace platform stop proof", () => {
   it("does not schedule platform verification without a supported authenticated endpoint", async () => {
     for (const unavailable of [
       {},
-      { ...env, PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "" },
-      { ...env, PAPERCLIP_CLOUD_API_ORIGIN: "http://cloud.example" },
-      { ...env, PAPERCLIP_CLOUD_API_ORIGIN: "https://user:password@cloud.example" },
-      { ...env, PAPERCLIP_CLOUD_API_ORIGIN: "not a URL" },
+      { ...env, OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "" },
+      { ...env, OUTPOST_CLOUD_API_ORIGIN: "http://cloud.example" },
+      { ...env, OUTPOST_CLOUD_API_ORIGIN: "https://user:password@cloud.example" },
+      { ...env, OUTPOST_CLOUD_API_ORIGIN: "not a URL" },
     ]) {
       const fetchImpl = vi.fn();
       expect(await requestWorkspaceWorkerStopProof(binding, { env: unavailable, now, fetchImpl }))

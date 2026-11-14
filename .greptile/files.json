@@ -34,8 +34,8 @@
         "server/src/**",
         "packages/adapter-utils/src/**",
         "packages/adapters/*/src/**",
-        "packages/paperclip-runner/src/**",
-        "packages/paperclip-runner/runner/**"
+        "packages/outpost-runner/src/**",
+        "packages/outpost-runner/runner/**"
       ]
     },
     {
@@ -75,24 +75,24 @@
         "packages/adapter-utils/src/**",
         "packages/adapters/*/src/**",
         "packages/plugins/*/src/**",
-        "packages/paperclip-runner/src/**",
-        "packages/paperclip-runner/runner/**"
+        "packages/outpost-runner/src/**",
+        "packages/outpost-runner/runner/**"
       ]
     },
     {
       "path": "rules/acpx-profile-identity.mdc",
       "description": "ACPX provider identity model: provider digests attest upstream releases, the pack contract digest covers Runner source and the shared ACPX layer, and profile versions change only for deliberate resets.",
       "scope": [
-        "packages/paperclip-runner/acpx-profiles.json",
-        "packages/paperclip-runner/cursor-contract.json",
-        "packages/paperclip-runner/cursor-distributions.json",
-        "packages/paperclip-runner/antigravity-distributions.json",
-        "packages/paperclip-runner/scripts/acpx-release-attestations.mjs",
-        "packages/paperclip-runner/scripts/generate-acpx-profiles.mjs",
-        "packages/paperclip-runner/scripts/contracts/**",
-        "packages/paperclip-runner/src/drivers/acpx/**",
-        "packages/paperclip-runner/src/providers/**",
-        "packages/paperclip-runner/protocol/**"
+        "packages/outpost-runner/acpx-profiles.json",
+        "packages/outpost-runner/cursor-contract.json",
+        "packages/outpost-runner/cursor-distributions.json",
+        "packages/outpost-runner/antigravity-distributions.json",
+        "packages/outpost-runner/scripts/acpx-release-attestations.mjs",
+        "packages/outpost-runner/scripts/generate-acpx-profiles.mjs",
+        "packages/outpost-runner/scripts/contracts/**",
+        "packages/outpost-runner/src/drivers/acpx/**",
+        "packages/outpost-runner/src/providers/**",
+        "packages/outpost-runner/protocol/**"
       ]
     },
     {
@@ -113,7 +113,7 @@
         "server/src/services/heartbeat/run-state.ts",
         "server/src/services/runner-revision-mismatch.ts",
         "server/src/services/sandbox-provider-runtime.ts",
-        "packages/paperclip-runner/**",
+        "packages/outpost-runner/**",
         "packages/adapter-utils/src/acpx-engine/**",
         "docker/daytona-runner/**",
         "packages/db/src/schema/native_*.ts",

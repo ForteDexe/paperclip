@@ -1,13 +1,13 @@
 import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { hasRemoteRecoveryAttachment, removeRemoteRecoveryAttachment } from "./remote-workspace-transport.js";
 import { removeTaskDirectoryTree } from "./isolated-task-directory-snapshot.js";
 import { LEGACY_WORKSPACE_RECOVERY_MIGRATION } from "./legacy-workspace-recovery-migration.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, workspaceOperations, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, workspaceOperations, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { readSnapshot, verifiedWorkspaceSnapshotReceipt } from "./workspace-recovery-snapshot.js";
 import { recoveryRunAncestry } from "./recovery-run-ancestry.js";
 import { immutableRemoteWorkspaceRecoveryAttachment } from "./workspace-recovery-receipt.js";
@@ -92,7 +92,7 @@ export async function attachPreservedRemoteWorkspaceSnapshots(input: {
       skipUnverifiedRecoverySource(input, source.id, "receipt_snapshot_missing");
       continue;
     }
-    const provenance = JSON.stringify({ schema: "paperclip.remote-workspace-recovery-attachment.v1",
+    const provenance = JSON.stringify({ schema: "outpost.remote-workspace-recovery-attachment.v1",
       operationId, sourceRunId: source.id, workspaceId: remote.workspaceId,
       snapshotId: remote.snapshotId, sha256: saved.sha256 });
     const parent = path.join(await realpath(input.cwd), ".paperclip-recovered");
@@ -191,7 +191,7 @@ async function retainedRecoveryAttachmentProvenance(input: {
       leaseId: saved.leaseId, sha256: saved.archive.sha256 }) : null;
   } else if (operation?.phase === "workspace_recovery") {
     const proof = await immutableRemoteWorkspaceRecoveryAttachment(input.db, source);
-    provenance = proof?.operationId === operation.id ? JSON.stringify({ schema: "paperclip.remote-workspace-recovery-attachment.v1",
+    provenance = proof?.operationId === operation.id ? JSON.stringify({ schema: "outpost.remote-workspace-recovery-attachment.v1",
       operationId: proof.operationId, sourceRunId: source.id, workspaceId: proof.workspaceId,
       snapshotId: proof.snapshotId, sha256: proof.sha256 }) : null;
   }

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { gradeManagedProfile, runtimeManagedProfileCases } from "./runtime-managed-profile.js";
 function valid() {
-  const agent = { id: "ceo", companyId: "company", adapterType: "paperclip_runner", adapterConfig: { provider: "codex" } };
+  const agent = { id: "ceo", companyId: "company", adapterType: "outpost_runner", adapterConfig: { provider: "codex" } };
   return { scenarioId: "agents.managed-profile", companyId: "company", leadId: "ceo", agents: [agent], tasks: [], activity: [], links: [], humanQueries: [],
     reply: "Only a board user can do this: run `paperclipai managed-agent setup --profile-key <key> --display-name <name> --api-key-secret-id <id> --acknowledge-retention`.",
     runs: [{ id: "guidance", status: "succeeded" }], state: { profilesBefore: [], profilesAfter: [] as unknown[], agentsBefore: [structuredClone(agent)],
@@ -27,4 +27,4 @@ it("rejects an ordinary agent being allowed to read or provision", () => {
 it("rejects substituting another runtime configuration", () => { const o = valid(); o.agents[0]!.adapterConfig.provider = "acpx"; expect(gradeManagedProfile(o).passed).toBe(false); });
 it("rejects a fabricated supported management path", () => { const o = valid(); o.state.operatorContractAvailable = false; expect(gradeManagedProfile(o).passed).toBe(false); });
 it("rejects claiming required qualification without an actual validation guard", () => { const o = valid(); o.state.qualificationProbeStatus = 201; expect(gradeManagedProfile(o).passed).toBe(false); });
-it("versions the regraded oracle", () => expect(runtimeManagedProfileCases[0]!.oracleVersion).toBe("paperclip.chat-catalog.runtime.managed-profile.v5"));
+it("versions the regraded oracle", () => expect(runtimeManagedProfileCases[0]!.oracleVersion).toBe("outpost.chat-catalog.runtime.managed-profile.v5"));

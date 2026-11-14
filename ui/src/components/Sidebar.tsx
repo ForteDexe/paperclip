@@ -11,7 +11,6 @@ import {
   FolderOpen,
   Package,
   Settings,
-  MessagesSquare,
   MessageCircle,
   Users,
 } from "lucide-react";
@@ -104,10 +103,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
   });
   const attentionCount = attentionBadgeCount(attentionFeed);
   const showCases = experimentalSettings?.enableCases === true;
-  // Conference Room Chat flag (PAP-136/PAP-137): the Conference Room nav item
-  // is a new surface, hidden entirely while the flag is off (same no-flash
-  // pattern as showWorkspacesLink above).
-  const conferenceRoomChatEnabled = experimentalSettings?.enableConferenceRoomChat === true;
 
   const pluginContext = {
     companyId: selectedCompanyId,
@@ -184,9 +179,6 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               badge={attentionCount}
               badgeLabel="decisions"
             />
-          ) : null}
-          {conferenceRoomChatEnabled ? (
-            <SidebarNavItem to="/board-chat" label="Conference Room" icon={MessagesSquare} />
           ) : null}
         </div>
 

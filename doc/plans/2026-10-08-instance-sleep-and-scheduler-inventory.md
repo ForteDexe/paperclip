@@ -768,7 +768,7 @@ Longer polling intervals alone do not complete an item.
   [index.ts](../../server/src/index.ts).
 
 - [ ] **NET-07 — Active execution transports and lease renewals.** Inventory
-  runner/PRP connections, HTTP/2 bridge pings, native/legacy controller leases,
+  runner/ORP connections, HTTP/2 bridge pings, native/legacy controller leases,
   terminal SSH keepalives, browser viewport ownership, and per-operation claims.
   Retain their required cadence during work. **Complete when:** active operations
   hold the instance awake and unused transports retire; no arbitrary heartbeat

@@ -4,7 +4,7 @@
  * `managed-environments-plugin-entries.test.ts` for plugin entries).
  */
 import { vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { MANAGED_CONFIG_ENV_KEY, parseManagedConfigEnv } from "./managed-config.js";
 import type { ApplyManagedEnvironmentsOptions } from "./managed-environments.js";
 

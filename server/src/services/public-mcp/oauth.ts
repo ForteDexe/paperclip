@@ -12,8 +12,8 @@ import { z } from "zod";
 import type { Request } from "express";
 import {
   type Db, activityLog, agents, authUsers, companies, companyLogos, dotAgentBindings, museAgentBindings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens, mcpOauthDeviceRequests, mcpOauthMetadataAdmissions,
-} from "@paperclipai/db";
-import { DOT_RUNNER_MCP_PATH, DOT_RUNNER_MCP_SCOPES, PUBLIC_MCP_PATH, PUBLIC_MCP_SCOPES, MUSE_RESOURCE_PATH, MUSE_OAUTH_PATH, MUSE_OAUTH_SCOPES, type McpConnectionRequest, type McpDotPairingPreview } from "@paperclipai/shared";
+} from "@outpost/db";
+import { DOT_RUNNER_MCP_PATH, DOT_RUNNER_MCP_SCOPES, PUBLIC_MCP_PATH, PUBLIC_MCP_SCOPES, MUSE_RESOURCE_PATH, MUSE_OAUTH_PATH, MUSE_OAUTH_SCOPES, type McpConnectionRequest, type McpDotPairingPreview } from "@outpost/shared";
 import { HttpError } from "../../errors.js";
 import { withExternalAdmissionGuard } from "../../modules/external-agents/index.js";
 import { assertMuseCurrentAuthority, revokeMuseOAuthGrant } from "../muse-identity.js";
@@ -37,7 +37,7 @@ export class PublicMcpDisabledError extends McpOAuthError {
 const invalidGrant = () => new McpOAuthError("invalid_grant", "Authorization is expired, revoked, or invalid.");
 
 export function publicMcpConfig(env: NodeJS.ProcessEnv = process.env, authPublicBaseUrl?: string) {
-  const origin = env.PAPERCLIP_PUBLIC_URL ?? authPublicBaseUrl;
+  const origin = env.OUTPOST_PUBLIC_URL ?? authPublicBaseUrl;
   if (!origin) return null;
   const normalizeOrigin = (value: string, setting: string) => {
     const url = new URL(value);
@@ -48,11 +48,11 @@ export function publicMcpConfig(env: NodeJS.ProcessEnv = process.env, authPublic
     }
     return url.origin;
   };
-  const publicOrigin = normalizeOrigin(origin, "PAPERCLIP_PUBLIC_URL");
+  const publicOrigin = normalizeOrigin(origin, "OUTPOST_PUBLIC_URL");
   // Optional browser ingress for the same instance. Protocol issuer, resource,
   // token exchange and callback delivery remain on the public MCP origin.
-  const authorizationOrigin = env.PAPERCLIP_MCP_AUTHORIZATION_ORIGIN
-    ? normalizeOrigin(env.PAPERCLIP_MCP_AUTHORIZATION_ORIGIN, "PAPERCLIP_MCP_AUTHORIZATION_ORIGIN") : undefined;
+  const authorizationOrigin = env.OUTPOST_MCP_AUTHORIZATION_ORIGIN
+    ? normalizeOrigin(env.OUTPOST_MCP_AUTHORIZATION_ORIGIN, "OUTPOST_MCP_AUTHORIZATION_ORIGIN") : undefined;
   return { origin: publicOrigin, resource: publicOrigin + PUBLIC_MCP_PATH, ...(authorizationOrigin ? { authorizationOrigin } : {}) };
 }
 export type PublicMcpConfig = NonNullable<ReturnType<typeof publicMcpConfig>>;
@@ -323,7 +323,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     if (!binding || !await externalBotEnabled(queryDb, binding.providerKind) || binding.status !== "pairing" || binding.grantId || !binding.pairingExpiresAt || binding.pairingExpiresAt <= new Date()) throw invalidGrant();
     if (request.requestedCompanyId && request.requestedCompanyId !== binding.companyId) throw invalidGrant();
     const [agent] = await queryDb.select().from(agents).where(and(eq(agents.id, binding.agentId), eq(agents.companyId, binding.companyId))).for("update");
-    if (!agent || agent.adapterType !== "paperclip_runner" || agent.adapterConfig.provider !== binding.providerKind || !canConfigureAgentConnection(agent)) throw invalidGrant();
+    if (!agent || agent.adapterType !== "outpost_runner" || agent.adapterConfig.provider !== binding.providerKind || !canConfigureAgentConnection(agent)) throw invalidGrant();
     if (binding.providerKind === "grok_bot") await authorizeExternalBotOperator(queryDb, binding.companyId, binding.operatorId);
     return { request, binding, agent };
   }

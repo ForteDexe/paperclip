@@ -66,7 +66,7 @@ connector, read [Identity vs. connections](./README.md#identity-vs-connections)
 for background. The boundary is mandatory: sign-in authenticates a person;
 a resource connection authorizes external work; Login with Paperclip issues
 first-party identity tokens to registered clients. Sign-in tokens are never
-reused as resource tokens, and `id.paperclip.ing` never stores resource tokens
+reused as resource tokens, and `id.outpost.ing` never stores resource tokens
 or hosts a connections hub. Keep company-scoped connection credentials and
 agent access under the instance's connection governance.
 
@@ -88,7 +88,7 @@ For OpenRouter, use the shared policy in
 `packages/shared/src/openrouter-attribution.ts`:
 
 ```http
-HTTP-Referer: https://paperclip.ing
+HTTP-Referer: https://outpost.ing
 X-OpenRouter-Title: Paperclip
 X-Title: Paperclip
 X-OpenRouter-Categories: cloud-agent,programming-app
@@ -258,7 +258,7 @@ question contracts in `packages/shared/src/types/issue.ts` and
 
 | Request family | Required coverage |
 | --- | --- |
-| `ask_user_questions` and runtime/composer input questions | Free text, single-select, multi-select, multiple questions, custom answers, and editable starting text. Include legacy payloads and canonical `paperclip.question_set.v1` forms. |
+| `ask_user_questions` and runtime/composer input questions | Free text, single-select, multi-select, multiple questions, custom answers, and editable starting text. Include legacy payloads and canonical `outpost.question_set.v1` forms. |
 | `request_confirmation` | The decision, supporting context, and accept/reject outcome. |
 | `request_checkbox_confirmation` | The options, selection constraints, and exact submitted selection. |
 | `request_item_verdicts` | Each item, its evidence/context, and individual decisions. |
@@ -1149,7 +1149,7 @@ The default ingestion corpus is the Vercel research checkout at
 when necessary:
 
 ```sh
-PAPERCLIP_CONTENT_TEMPLATES=/absolute/path/to/templates \
+OUTPOST_CONTENT_TEMPLATES=/absolute/path/to/templates \
   pnpm connections:ingest-app-definitions
 ```
 
@@ -1396,9 +1396,9 @@ without a test-name filter before handoff.
 Targeted type checks:
 
 ```sh
-pnpm --filter @paperclipai/shared typecheck
-pnpm --filter @paperclipai/server typecheck
-pnpm --filter @paperclipai/ui typecheck
+pnpm --filter @outpost/shared typecheck
+pnpm --filter @outpost/server typecheck
+pnpm --filter @outpost/ui typecheck
 ```
 
 If UI code changed, also run:
@@ -1443,7 +1443,7 @@ provider registration. Loopback HTTP is acceptable only when provider and
 Paperclip redirect policies permit it. Browser-started setup on an authenticated
 private instance automatically uses the same-origin HTTPS address that served
 the setup page, including a Tailscale Serve address; the request must pass the
-hostname and board-mutation guards. An explicit `PAPERCLIP_PUBLIC_URL` remains
+hostname and board-mutation guards. An explicit `OUTPOST_PUBLIC_URL` remains
 available for non-browser starts and unusual proxy topologies. Internal service
 hostnames are not valid browser callback origins.
 
@@ -1686,7 +1686,7 @@ Suggested PR verification block:
 | Direct source link shows generic connection chooser | UI route state | `AppsConnect`, `ConnectionSetupFlow`, source slug lookup, availability. |
 | Finish setup opens Edit config and cannot continue | Draft identity/resume | `resumeConnectionId`, stored `sourceTemplateKey`, `connectionMethodKey`, exact draft status. |
 | OAuth never redirects | Method capability/client resolution | ownership modes, metadata discovery, callback origin, manual-client requirement. |
-| Provider rejects redirect URI | Deployment/provider rule | actual browser origin, `PAPERCLIP_PUBLIC_URL`, `redirectConstraints`, provider app registration. |
+| Provider rejects redirect URI | Deployment/provider rule | actual browser origin, `OUTPOST_PUBLIC_URL`, `redirectConstraints`, provider app registration. |
 | OAuth succeeds then connection needs reconnect | Grant/secret sync or refresh | organization versus user grant, token refs, default grant sync, expiry/refresh lease, `invalid_grant`. |
 | Tools list but calls return 401 | Token audience/scope/placement | RFC 8707 resource, `scopesHint`, header prefix/name, provider endpoint path. |
 | Health works but Test call fails | Gateway projection/policy | selected grant, managed headers/arguments, effective profile/policy, catalog entry risk/status. |
@@ -2112,7 +2112,7 @@ registers a client on the fly and stores it on the connection:
   re-registering orphans prior grants on providers that bind grants to the
   client.
 - Env-registered clients always win: when
-  `PAPERCLIP_TOOL_OAUTH_<PROVIDER>_CLIENT_ID/_SECRET` are configured, the
+  `OUTPOST_TOOL_OAUTH_<PROVIDER>_CLIENT_ID/_SECRET` are configured, the
   broker uses them (`customer` ownership) and skips registration. List both
   `customer` and `dcr` in the method's `ownershipModes` when the vendor
   supports both.
@@ -2120,7 +2120,7 @@ registers a client on the fly and stores it on the connection:
 DCR is **one of four** registration tiers, and `ownershipModes` gates only the *curated* path. The broker resolves a
 client in this order: a deployment-preconfigured client, then a Client ID
 Metadata Document when the authorization server advertises one (requires a public
-HTTPS `PAPERCLIP_PUBLIC_URL`), then DCR, then client credentials the operator
+HTTPS `OUTPOST_PUBLIC_URL`), then DCR, then client credentials the operator
 preregistered and pasted in. A URL-only connection with no `AppDefinition` may
 use the CIMD and DCR tiers too, but only after validated protected-resource and
 authorization-server discovery produced a metadata document. Registered client
@@ -2140,8 +2140,8 @@ or hold their credentials.
 Each instance registers its own public client with the vendor and uses its own
 `/api/tools/oauth/callback` redirect. **Cloud-hosted and self-hosted instances
 use the SAME path** — the only per-instance difference is the hostname inside
-the redirect URI. `id.paperclip.ing` authenticates operators only and never
-holds resource tokens; `connect.paperclip.ing` is a fallback only for
+the redirect URI. `id.outpost.ing` authenticates operators only and never
+holds resource tokens; `connect.outpost.ing` is a fallback only for
 providers that genuinely require a pre-registered public redirect, which a DCR
 provider by definition does not.
 
@@ -2454,7 +2454,7 @@ a new implementation.
   precedence and be used verbatim (see "MCP-Direct Connections" above).
 - Ownership modes: `dcr` (default, zero setup) and `customer`
   (env-registered classic integration via
-  `PAPERCLIP_TOOL_OAUTH_NOTION_CLIENT_ID/_SECRET`, which always wins when set).
+  `OUTPOST_TOOL_OAUTH_NOTION_CLIENT_ID/_SECRET`, which always wins when set).
 - Token behavior: access tokens last ~8 h (`expires_in` authoritative).
   Refresh tokens **rotate on every refresh** — the old token is invalidated
   (at most 2 valid per grant) and replaying a stale one can revoke the whole
@@ -2472,7 +2472,7 @@ a new implementation.
 ### Connection Flow (mandatory)
 
 The UI examples use `ACME` as a sample company prefix. Replace it and any
-`paperclip.example.com` origin with your own company prefix and instance origin.
+`outpost.example.com` origin with your own company prefix and instance origin.
 These are example addresses, not a shared test deployment.
 
 Paperclip ID / Paperclip Connect involvement: **none — DCR is instance-local**.
@@ -2569,8 +2569,8 @@ plain-HTTP non-loopback origins.
   first connect. No Notion integration, no client credentials, no callback
   registration, no Paperclip ID or Paperclip Connect involvement.
 - Optional escape hatch: to use a pre-registered classic Notion integration
-  instead, set `PAPERCLIP_TOOL_OAUTH_NOTION_CLIENT_ID` and
-  `PAPERCLIP_TOOL_OAUTH_NOTION_CLIENT_SECRET`; the env client always takes
+  instead, set `OUTPOST_TOOL_OAUTH_NOTION_CLIENT_ID` and
+  `OUTPOST_TOOL_OAUTH_NOTION_CLIENT_SECRET`; the env client always takes
   precedence (`customer` ownership).
 - Instance prerequisites: the instance base URL must be HTTPS on any host or
   loopback HTTP (Notion's redirect-URI rule). A plain-HTTP non-loopback origin
@@ -2699,7 +2699,7 @@ the TLS guidance error above — the operator never reaches Notion.
 Collect end-to-end evidence using the production validation matrix above:
 
 - Zero-setup OAuth connect succeeds on
-  `https://paperclip.example.com/ACME/apps/connect?source=notion`
+  `https://outpost.example.com/ACME/apps/connect?source=notion`
   with no pre-provisioned OAuth env vars (proves DCR).
 - Catalog discovery lists the expected `notion-*` tools and applies the
   connection's declared changed-tool behavior.

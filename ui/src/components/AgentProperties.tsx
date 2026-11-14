@@ -1,7 +1,7 @@
 import { AgentIdentity } from "@/components/AgentIdentity";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@/lib/router";
-import type { Agent, AgentRuntimeState } from "@paperclipai/shared";
+import type { Agent, AgentRuntimeState } from "@outpost/shared";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
 import { agentDisplayAdapterType, getAdapterLabel } from "../adapters/adapter-display-registry";

@@ -1,6 +1,6 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { recognizeLinkPreview } from "@paperclipai/shared";
+import { recognizeLinkPreview } from "@outpost/shared";
 import { createGitHubLinkPreviewProvider, resolveLinkPreviewGitHubCredential } from "../services/github-link-preview.js";
 import { resolveGitHubApiCredential, resolveManagedGitHubCredential } from "../services/git-credentials.js";
 

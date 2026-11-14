@@ -9,7 +9,7 @@ vi.mock("@/hooks/useCoordinatorWorkspaceEnabled", () => ({
   useCoordinatorWorkspaceEnabled: () => ({ enabled: false, loaded: true }),
 }));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { IssueDocument } from "@paperclipai/shared";
+import type { IssueDocument } from "@outpost/shared";
 import type {
   IssueThreadInteraction,
   RequestConfirmationInteraction,
@@ -925,7 +925,7 @@ describe("TaskChatInteractionCard", () => {
         },
       ],
       questionSet: {
-        schema: "paperclip.question_set.v1",
+        schema: "outpost.question_set.v1",
         title: "Configure deployment",
         description: "The provider disconnected while waiting for this answer.",
         submitLabel: "Continue",
@@ -991,7 +991,7 @@ describe("TaskChatInteractionCard", () => {
       options: [{ id: "preset", label: "Preset" }, { id: "other", label: "Custom answer", freeText: true }],
     }];
     interaction.payload.questionSet = mode === "legacy_custom" ? undefined : {
-      schema: "paperclip.question_set.v1",
+      schema: "outpost.question_set.v1",
       questions: [mode === "canonical_text"
         ? { id: "draft", prompt: "Edit", required: true, answerMode: "text", initialText: "Provider draft" }
         : { id: "draft", prompt: "Edit", required: true, answerMode: "single_select", options: [{ id: "preset", label: "Preset" }], customAnswer: { enabled: true, label: "Custom answer" } }],

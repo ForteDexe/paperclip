@@ -1,7 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { linkPreviewRoutes } from "../routes/link-previews.js";
 import { HttpError } from "../errors.js";
 

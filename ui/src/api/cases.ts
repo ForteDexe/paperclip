@@ -1,4 +1,4 @@
-import type { CaseHandoff, DocumentRevision, HandoffCaseInput, HandoffCaseResult, IssueBlockerAttention, IssueDocument, IssueLabel } from "@paperclipai/shared";
+import type { CaseHandoff, DocumentRevision, HandoffCaseInput, HandoffCaseResult, IssueBlockerAttention, IssueDocument, IssueLabel } from "@outpost/shared";
 import { api } from "./client";
 
 // -----------------------------------------------------------------------------

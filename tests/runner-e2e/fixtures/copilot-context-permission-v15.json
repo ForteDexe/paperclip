@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.e2e.copilot-context-permission-fixture.v1",
+  "schema": "outpost.e2e.copilot-context-permission-fixture.v1",
   "provenance": {
     "source": "b41e8e2b6aa97a734ddfc363cd2466831a5b9895",
     "attempt": "local-2026-10-03T21-21-10-776Z",
@@ -19,10 +19,10 @@
       "color": null,
       "message": null,
       "payload": {
-        "prpEvent": {
+        "orpEvent": {
           "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
           "itemId": "item-34412568-43a8-47ed-8c91-91a2974562d2",
-          "schema": "paperclip.prp.event.v1",
+          "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_e3bf9964656b47bdb71b6cf1ba78912d",
           "payload": {
             "request": {
@@ -35,7 +35,7 @@
                 "provider": "acpx"
               },
               "prompt": "get_task_context",
-              "schema": "paperclip.runtime_request.v2",
+              "schema": "outpost.runtime_request.v2",
               "status": "pending",
               "turnId": "turn_lab_e3bf9964656b47bdb71b6cf1ba78912d",
               "choices": [
@@ -119,14 +119,14 @@
       "color": null,
       "message": null,
       "payload": {
-        "prpEvent": {
+        "orpEvent": {
           "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
           "itemId": "item-34412568-43a8-47ed-8c91-91a2974562d2",
-          "schema": "paperclip.prp.event.v1",
+          "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_e3bf9964656b47bdb71b6cf1ba78912d",
           "payload": {
             "scope": "turn",
-            "schema": "paperclip.provider.notice.v1",
+            "schema": "outpost.provider.notice.v1",
             "details": [
               {
                 "name": "stage",
@@ -188,15 +188,15 @@
       "color": null,
       "message": null,
       "payload": {
-        "prpEvent": {
+        "orpEvent": {
           "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
           "itemId": "item-34412568-43a8-47ed-8c91-91a2974562d2",
-          "schema": "paperclip.prp.event.v1",
+          "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_e3bf9964656b47bdb71b6cf1ba78912d",
           "payload": {
             "name": "paperclip-get_task_context",
             "output": "null",
-            "schema": "paperclip.tool.execution.v1",
+            "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
@@ -242,14 +242,14 @@
       "color": null,
       "message": null,
       "payload": {
-        "prpEvent": {
+        "orpEvent": {
           "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
           "itemId": "item-34412568-43a8-47ed-8c91-91a2974562d2",
-          "schema": "paperclip.prp.event.v1",
+          "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_e3bf9964656b47bdb71b6cf1ba78912d",
           "payload": {
             "scope": "turn",
-            "schema": "paperclip.provider.notice.v1",
+            "schema": "outpost.provider.notice.v1",
             "details": [
               {
                 "name": "stage",

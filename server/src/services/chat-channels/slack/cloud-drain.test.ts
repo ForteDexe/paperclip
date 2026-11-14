@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { registerSlackCloudEnrollmentOwner } from "./cloud-enrollment.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { afterEach, expect, it, vi } from "vitest";
 import { githubConnectionEventService } from "../../github-connection-events.js";
 import type { PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
@@ -9,7 +9,7 @@ import { SlackCloudReceiptError, type SlackCloudEvent } from "./cloud-event.js";
 
 afterEach(() => vi.unstubAllEnvs());
 function fixture(handler: (event: SlackCloudEvent) => Promise<void>, pendingEnrollment = false) {
-  vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_BASE_URL", "");
+  vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", "");
   let reads = 0;
   const db = { select: () => {
     const rows = [[], [], [{ companyId: "company" }], [{ id: "endpoint", setup: { slackCloudIntent: { nextAttemptAt: "2000-01-01T00:00:00Z" } } }]][reads++ % (pendingEnrollment ? 4 : 3)]!;
@@ -50,11 +50,11 @@ it.each(["retry", "attention", "invalid"] as const)("actual owner distinguishes 
 
 it.each(["chat_endpoint_credentials_busy", "temporary enrollment owner failure"])("drains and ACKs before retaining %s on a bounded existing-worker retry", async message => {
   const handler = vi.fn(async () => {}), f = fixture(handler, true);
-  vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_BASE_URL", "https://cloud.example.test");
-  vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID", "instance");
-  vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT", "test");
-  vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY", generateKeyPairSync("ed25519").privateKey.export({ format: "jwk" }).d!);
-  vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY", generateKeyPairSync("x25519").privateKey.export({ format: "jwk" }).d!);
+  vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", "https://cloud.example.test");
+  vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID", "instance");
+  vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT", "test");
+  vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY", generateKeyPairSync("ed25519").privateKey.export({ format: "jwk" }).d!);
+  vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY", generateKeyPairSync("x25519").privateKey.export({ format: "jwk" }).d!);
   const owner = vi.fn(async () => {
     expect(handler).toHaveBeenCalled();
     expect(f.connector.acknowledgeEvents).toHaveBeenCalled();

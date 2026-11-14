@@ -71,14 +71,14 @@ jobs:
         id: runner_rust_workspace
         run: |
           set -euo pipefail
-          pinned="$HOME/paperclip-runner-rust"
+          pinned="$HOME/outpost-runner-rust"
           # A symlink here is removed as a link, never followed into the checkout.
           rm -rf "$pinned"
-          ln -s "$GITHUB_WORKSPACE/packages/paperclip-runner/runner" "$pinned"
+          ln -s "$GITHUB_WORKSPACE/packages/outpost-runner/runner" "$pinned"
           echo "path=$pinned" >> "$GITHUB_OUTPUT"
 
       - name: Select the pinned Runner Rust toolchain
-        working-directory: packages/paperclip-runner
+        working-directory: packages/outpost-runner
         run: |
           set -euo pipefail
           rustup show
@@ -92,7 +92,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: ${{ steps.runner_rust_workspace.outputs.path }} -> target
-          shared-key: release-typecheck-v2-${{ hashFiles('packages/paperclip-runner/runner/Cargo.toml', '.cargo/config', '.cargo/config.toml', 'packages/.cargo/config', 'packages/.cargo/config.toml', 'packages/paperclip-runner/.cargo/config', 'packages/paperclip-runner/.cargo/config.toml', 'packages/paperclip-runner/runner/.cargo/config', 'packages/paperclip-runner/runner/.cargo/config.toml') }}
+          shared-key: release-typecheck-v2-${{ hashFiles('packages/outpost-runner/runner/Cargo.toml', '.cargo/config', '.cargo/config.toml', 'packages/.cargo/config', 'packages/.cargo/config.toml', 'packages/outpost-runner/.cargo/config', 'packages/outpost-runner/.cargo/config.toml', 'packages/outpost-runner/runner/.cargo/config', 'packages/outpost-runner/runner/.cargo/config.toml') }}
           # Rebuild workspace code and rerun every check. Cache only compiled
           # dependencies; never restore installed executables from cargo/bin.
           cache-workspace-crates: false
@@ -310,9 +310,9 @@ jobs:
       - name: Run deterministic Runner workflow scorer tests
         run: pnpm test:runner-workflow-evals
 
-  verify_paperclip_runner:
+  verify_outpost_runner:
     if: ${{ !inputs.runner_binaries_only }}
-    name: Verify Paperclip Runner (${{ matrix.lane }})
+    name: Verify Outpost Runner (${{ matrix.lane }})
     runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
@@ -360,14 +360,14 @@ jobs:
         id: runner_rust_workspace
         run: |
           set -euo pipefail
-          pinned="$HOME/paperclip-runner-rust"
+          pinned="$HOME/outpost-runner-rust"
           # A symlink here is removed as a link, never followed into the checkout.
           rm -rf "$pinned"
-          ln -s "$GITHUB_WORKSPACE/packages/paperclip-runner/runner" "$pinned"
+          ln -s "$GITHUB_WORKSPACE/packages/outpost-runner/runner" "$pinned"
           echo "path=$pinned" >> "$GITHUB_OUTPUT"
 
       - name: Select the pinned Runner Rust toolchain
-        working-directory: packages/paperclip-runner
+        working-directory: packages/outpost-runner
         run: |
           set -euo pipefail
           rustup show
@@ -398,7 +398,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: ${{ steps.runner_rust_workspace.outputs.path }} -> target
-          shared-key: release-runner-v2-${{ hashFiles('packages/paperclip-runner/runner/Cargo.toml', '.cargo/config', '.cargo/config.toml', 'packages/.cargo/config', 'packages/.cargo/config.toml', 'packages/paperclip-runner/.cargo/config', 'packages/paperclip-runner/.cargo/config.toml', 'packages/paperclip-runner/runner/.cargo/config', 'packages/paperclip-runner/runner/.cargo/config.toml') }}
+          shared-key: release-runner-v2-${{ hashFiles('packages/outpost-runner/runner/Cargo.toml', '.cargo/config', '.cargo/config.toml', 'packages/.cargo/config', 'packages/.cargo/config.toml', 'packages/outpost-runner/.cargo/config', 'packages/outpost-runner/.cargo/config.toml', 'packages/outpost-runner/runner/.cargo/config', 'packages/outpost-runner/runner/.cargo/config.toml') }}
           # Rebuild workspace code and rerun every check. Cache only compiled
           # dependencies; never restore installed executables from cargo/bin.
           cache-workspace-crates: false
@@ -413,24 +413,24 @@ jobs:
       - name: Build native server test binaries
         if: ${{ matrix.lane == 'server-integration' }}
         timeout-minutes: 10
-        working-directory: packages/paperclip-runner
+        working-directory: packages/outpost-runner
         run: |
           set -euo pipefail
           pnpm build:rust
-          cargo build --release --manifest-path runner/Cargo.toml --locked -p paperclip-runner-core --bin paperclip-runnerd --bin fake-codex-app-server
+          cargo build --release --manifest-path runner/Cargo.toml --locked -p outpost-runner-core --bin outpost-runnerd --bin fake-codex-app-server
 
       - name: Run native server integration suites
         if: ${{ matrix.lane == 'server-integration' }}
         run: pnpm test:run:general -- --group general-server-native-runner
 
-      - name: Verify Paperclip Runner
+      - name: Verify Outpost Runner
         if: ${{ matrix.lane != 'server-integration' }}
         env:
           RUNNER_CHECKS: ${{ matrix.checks }}
         run: |
           set -euo pipefail
           for check in $RUNNER_CHECKS; do
-            pnpm --filter @paperclipai/paperclip-runner "$check"
+            pnpm --filter @outpost/outpost-runner "$check"
           done
 
       - name: Compute the Runner debug crate cache key
@@ -449,14 +449,14 @@ jobs:
 
       - name: Clean debug test variants before publishing workspace binaries
         if: ${{ matrix.lane == 'rust' && github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == github.sha && steps.runner_debug_crate.outputs.cache-hit != 'true' }}
-        working-directory: packages/paperclip-runner
-        run: cargo clean --profile dev --manifest-path runner/Cargo.toml -p paperclip-runner-core -p paperclip-process-table
+        working-directory: packages/outpost-runner
+        run: cargo clean --profile dev --manifest-path runner/Cargo.toml -p outpost-runner-core -p paperclip-process-table
 
       - name: Warm debug dependencies for the shared Runner cache
         # Protocol tests need debug binaries. Populate their dependencies in
         # the sole cache writer, so a cold save also serves the protocol lane.
         if: ${{ matrix.lane == 'rust' && github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == github.sha }}
-        run: pnpm --filter @paperclipai/paperclip-runner build:rust
+        run: pnpm --filter @outpost/outpost-runner build:rust
 
       - name: Save the Runner debug crate
         if: ${{ matrix.lane == 'rust' && github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == github.sha && steps.runner_debug_crate.outputs.cache-hit != 'true' }}
@@ -466,7 +466,7 @@ jobs:
           key: ${{ steps.runner_debug_crate_key.outputs.key }}
 
       # The dependency cache above deliberately leaves the Runner's own crate
-      # out, so every pull request build compiled paperclip-runner-core in
+      # out, so every pull request build compiled outpost-runner-core in
       # release mode (28-49s) although most pushes leave its inputs alone.
       # This master push saves that crate's release artifacts for the readers
       # in pr-trusted.yml ("Restore the Runner release crate") under a key
@@ -491,23 +491,23 @@ jobs:
         with:
           lookup-only: true
           path: |
-            packages/paperclip-runner/runner/target/release/.fingerprint/paperclip-runner-core-*
-            packages/paperclip-runner/runner/target/release/deps/libpaperclip_runner_core-*
-            packages/paperclip-runner/runner/target/release/deps/paperclip_runner_core-*.d
-            packages/paperclip-runner/runner/target/release/deps/paperclip_runnerd-*
-            packages/paperclip-runner/runner/target/release/paperclip-runnerd
-            packages/paperclip-runner/runner/target/release/paperclip-runnerd.d
-            packages/paperclip-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/paperclip-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/paperclip-runner/runner/target/release/deps/paperclip_process_table-*.d
-          key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/paperclip-runner/rust-toolchain.toml', 'packages/paperclip-runner/acpx-profiles.json', 'packages/paperclip-runner/antigravity-distributions.json', 'packages/paperclip-runner/runner/Cargo.toml', 'packages/paperclip-runner/runner/Cargo.lock', 'packages/paperclip-runner/runner/crates/**', 'packages/paperclip-runner/protocol/**', 'packages/paperclip-runner/test-fixtures/**', 'packages/paperclip-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-runner-core-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_runner_core-*
+            packages/outpost-runner/runner/target/release/deps/outpost_runner_core-*.d
+            packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
+            packages/outpost-runner/runner/target/release/outpost-runnerd
+            packages/outpost-runner/runner/target/release/outpost-runnerd.d
+            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
+            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
+            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+          key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
       - name: Build the Runner release crate for its cache
         if: ${{ matrix.lane == 'rust' && github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == github.sha && steps.runner_release_crate.outputs.cache-hit != 'true' }}
-        working-directory: packages/paperclip-runner
+        working-directory: packages/outpost-runner
         run: |
           set -euo pipefail
-          cargo clean --release --manifest-path runner/Cargo.toml -p paperclip-runner-core
+          cargo clean --release --manifest-path runner/Cargo.toml -p outpost-runner-core
           pnpm build:binary
 
       - name: Save the Runner release crate
@@ -515,16 +515,16 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            packages/paperclip-runner/runner/target/release/.fingerprint/paperclip-runner-core-*
-            packages/paperclip-runner/runner/target/release/deps/libpaperclip_runner_core-*
-            packages/paperclip-runner/runner/target/release/deps/paperclip_runner_core-*.d
-            packages/paperclip-runner/runner/target/release/deps/paperclip_runnerd-*
-            packages/paperclip-runner/runner/target/release/paperclip-runnerd
-            packages/paperclip-runner/runner/target/release/paperclip-runnerd.d
-            packages/paperclip-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/paperclip-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/paperclip-runner/runner/target/release/deps/paperclip_process_table-*.d
-          key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/paperclip-runner/rust-toolchain.toml', 'packages/paperclip-runner/acpx-profiles.json', 'packages/paperclip-runner/antigravity-distributions.json', 'packages/paperclip-runner/runner/Cargo.toml', 'packages/paperclip-runner/runner/Cargo.lock', 'packages/paperclip-runner/runner/crates/**', 'packages/paperclip-runner/protocol/**', 'packages/paperclip-runner/test-fixtures/**', 'packages/paperclip-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-runner-core-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_runner_core-*
+            packages/outpost-runner/runner/target/release/deps/outpost_runner_core-*.d
+            packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
+            packages/outpost-runner/runner/target/release/outpost-runnerd
+            packages/outpost-runner/runner/target/release/outpost-runnerd.d
+            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
+            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
+            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+          key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
   build:
     if: ${{ !inputs.runner_binaries_only }}
@@ -597,15 +597,15 @@ jobs:
             assert.ok(entries[0].startsWith('100644 blob ') && entries[0].endsWith('\t' + file), 'Target contract must be a regular source file');
             return execFileSync('git', ['show', source + ':' + file], { encoding: 'utf8', maxBuffer: 64 * 1024 });
           };
-          const data = readBlob('packages/paperclip-runner/release-runner-targets.json');
+          const data = readBlob('packages/outpost-runner/release-runner-targets.json');
           let declared;
           if (data !== undefined) {
             const contract = JSON.parse(data);
-            assert.ok(contract && contract.schema === 'paperclip.runner.release-targets.v1'
+            assert.ok(contract && contract.schema === 'outpost.runner.release-targets.v1'
               && Object.keys(contract).sort().join() === 'schema,targets', 'Unknown exact-source daemon platform contract');
             declared = contract.targets;
           } else {
-            const legacy = readBlob('packages/paperclip-runner/scripts/stage-release-runner-binaries.mjs');
+            const legacy = readBlob('packages/outpost-runner/scripts/stage-release-runner-binaries.mjs');
             const declarations = [...(legacy ?? '').matchAll(/^[ \t]*export const RELEASE_RUNNER_TARGETS = (?:Object\.freeze\()?(\[[^\r\n]*\])\)?;[ \t]*$/gm)];
             assert.equal(declarations.length, 1, 'Unknown exact-source daemon platform contract');
             declared = JSON.parse(declarations[0][1]);
@@ -657,21 +657,21 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]] || exit 1
           [[ "$(node -p 'process.platform + "-" + process.arch')" == "$TARGET" ]] || exit 1
           echo "artifact_prefix=runner-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-          if node --input-type=module -e 'const m = await import("./packages/paperclip-runner/scripts/stage-release-runner-binaries.mjs"); process.exit(m.RELEASE_PROVIDER_PACK_TARGETS ? 0 : 1)'; then
+          if node --input-type=module -e 'const m = await import("./packages/outpost-runner/scripts/stage-release-runner-binaries.mjs"); process.exit(m.RELEASE_PROVIDER_PACK_TARGETS ? 0 : 1)'; then
             echo "provider_pack_artifact_prefix=runner-provider-packs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
           fi
       - name: Pin native Cargo workspace and toolchain
         id: native_rust_workspace
-        working-directory: packages/paperclip-runner
+        working-directory: packages/outpost-runner
         run: |
           set -euo pipefail
-          pinned="$HOME/paperclip-runner-rust"
+          pinned="$HOME/outpost-runner-rust"
           if [[ -e "$pinned" && ! -L "$pinned" ]]; then
             echo '::error::Native Cargo cache path must not replace a real directory'
             exit 1
           fi
           rm -f "$pinned"
-          ln -s "$GITHUB_WORKSPACE/packages/paperclip-runner/runner" "$pinned"
+          ln -s "$GITHUB_WORKSPACE/packages/outpost-runner/runner" "$pinned"
           echo "path=$pinned" >> "$GITHUB_OUTPUT"
           rustup show
           toolchain="$(rustup show active-toolchain | awk '{print $1}')"
@@ -686,7 +686,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           workspaces: ${{ steps.native_rust_workspace.outputs.path }} -> target
-          shared-key: release-native-v2-${{ hashFiles('packages/paperclip-runner/runner/Cargo.toml', '.cargo/config', '.cargo/config.toml', 'packages/.cargo/config', 'packages/.cargo/config.toml', 'packages/paperclip-runner/.cargo/config', 'packages/paperclip-runner/.cargo/config.toml', 'packages/paperclip-runner/runner/.cargo/config', 'packages/paperclip-runner/runner/.cargo/config.toml') }}-${{ matrix.host }}-${{ matrix.target }}-${{ hashFiles('packages/paperclip-runner/protocol/**', 'packages/paperclip-runner/src/**', 'packages/paperclip-runner/*.json') }}
+          shared-key: release-native-v2-${{ hashFiles('packages/outpost-runner/runner/Cargo.toml', '.cargo/config', '.cargo/config.toml', 'packages/.cargo/config', 'packages/.cargo/config.toml', 'packages/outpost-runner/.cargo/config', 'packages/outpost-runner/.cargo/config.toml', 'packages/outpost-runner/runner/.cargo/config', 'packages/outpost-runner/runner/.cargo/config.toml') }}-${{ matrix.host }}-${{ matrix.target }}-${{ hashFiles('packages/outpost-runner/protocol/**', 'packages/outpost-runner/src/**', 'packages/outpost-runner/*.json') }}
           cache-workspace-crates: false
           cache-bin: false
           cache-on-failure: false
@@ -705,8 +705,8 @@ jobs:
           let failure;
           try {
             for (const [name, args, cwd] of [
-              ['typescript', ['--filter', '@paperclipai/paperclip-runner', 'build:typescript'], root],
-              ['native', ['build:binary'], join(root, 'packages/paperclip-runner')],
+              ['typescript', ['--filter', '@outpost/outpost-runner', 'build:typescript'], root],
+              ['native', ['build:binary'], join(root, 'packages/outpost-runner')],
             ]) {
               builds.push(startPrefetch({ name, cmd: 'pnpm', args, cwd, env: process.env, logPath: join(logs, name + '.log') }));
             }
@@ -730,8 +730,8 @@ jobs:
           SOURCE_SHA: ${{ inputs.ref }}
           TARGET: ${{ matrix.target }}
         run: |
-          node packages/paperclip-runner/scripts/stage-release-runner-binaries.mjs record "$SOURCE_SHA" "$TARGET" \
-            packages/paperclip-runner/dist/bin/paperclip-runnerd "$RUNNER_TEMP/runner-release/$TARGET"
+          node packages/outpost-runner/scripts/stage-release-runner-binaries.mjs record "$SOURCE_SHA" "$TARGET" \
+            packages/outpost-runner/dist/bin/outpost-runnerd "$RUNNER_TEMP/runner-release/$TARGET"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ steps.identity.outputs.artifact_prefix }}-${{ matrix.target }}
@@ -748,10 +748,10 @@ jobs:
         run: |
           set -euo pipefail
           pack="$RUNNER_TEMP/provider-pack"
-          PAPERCLIP_RUNNER_SOURCE_REVISION="$SOURCE_SHA" node packages/paperclip-runner/scripts/build-provider-pack.mjs "$pack"
+          OUTPOST_RUNNER_SOURCE_REVISION="$SOURCE_SHA" node packages/outpost-runner/scripts/build-provider-pack.mjs "$pack"
           node --input-type=module - "$pack/provider-pack.json" <<'NODE'
           import { readFileSync } from 'node:fs';
-          import { verifyReleaseProviderPack } from './packages/paperclip-runner/scripts/release-provider-pack.mjs';
+          import { verifyReleaseProviderPack } from './packages/outpost-runner/scripts/release-provider-pack.mjs';
           verifyReleaseProviderPack(JSON.parse(readFileSync(process.argv[2], 'utf8')), process.env.SOURCE_SHA, process.env.TARGET);
           NODE
           mkdir -p "$RUNNER_TEMP/release-provider-packs/$TARGET"

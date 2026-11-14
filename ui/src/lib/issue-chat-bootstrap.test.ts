@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient } from "@tanstack/react-query";
-import type { Issue, IssueRecentComments } from "@paperclipai/shared";
+import type { Issue, IssueRecentComments } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EARLY_CHAT_BOOTSTRAP_GLOBAL } from "./issue-detail-preload-events";
 import {

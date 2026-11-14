@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { finishPrivateWebhook } from "./chat-catalog-domains/integrator-webhook-private.js";
 const routineId = "11111111-1111-4111-8111-111111111111", triggerId = "22222222-2222-4222-8222-222222222222", invocationId = "33333333-3333-4333-8333-333333333333", issueId = "44444444-4444-4444-8444-444444444444";
 test("isolated webhook child keeps synthetic cookie and one-time key out of actual Test reporters", async () => {
-  const input = JSON.parse(await readFile(process.env.PAPERCLIP_OFFLINE_API_CANARY_INPUT!, "utf8")) as { cookie: string; credential: string };
+  const input = JSON.parse(await readFile(process.env.OUTPOST_OFFLINE_API_CANARY_INPUT!, "utf8")) as { cookie: string; credential: string };
   let invoked = false, finished = false;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, "http://127.0.0.1");

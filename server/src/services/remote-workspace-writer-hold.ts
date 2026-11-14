@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import type { RemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { environmentLeases, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import type { RemoteWorkspaceAuthority } from "@outpost/shared";
 import { hasRecoveredCleanupStopReceipt, hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
 import { canonicalExecutionUuid } from "./execution-identity.js";
 import { REMOTE_WORKSPACE_PREPARATION_TIMEOUT_CODE } from "./remote-workspace-transport.js";
@@ -92,7 +92,7 @@ export async function readRemoteWorkspaceWriterHold(tx: Db, input: {
       .from(issueRecoveryActions).where(and(
         eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.sourceIssueId, writerIssue.id),
         sql`${issueRecoveryActions.evidence}->>'runId' = ${authority.writerRunId}`,
-        sql`${issueRecoveryActions.evidence}->'workspaceRestoreRecovery'->>'schema' = 'paperclip.workspace-restore-recovery.v1'`,
+        sql`${issueRecoveryActions.evidence}->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'`,
         sql`coalesce(${issueRecoveryActions.evidence}#>>'{systemRecovery,state}', 'scheduled') in ('scheduled', 'running', 'awaiting_evidence')`,
         sql`${issueRecoveryActions.evidence}#>>'{workspaceRecovery,status}' is distinct from 'recovered'`));
     const saving = save?.progressedAt ? new Date(save.progressedAt) : null;

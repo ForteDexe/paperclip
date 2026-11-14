@@ -5,8 +5,8 @@ import type {
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestContext,
   AdapterEnvironmentTestResult,
-} from "@paperclipai/adapter-utils";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+} from "@outpost/adapter-utils";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import {
   asBoolean,
   asNumber,
@@ -14,7 +14,7 @@ import {
   asStringArray,
   parseObject,
   ensurePathInEnv,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import {
   ensureAdapterExecutionTargetCommandResolvable,
   maybeRunSandboxInstallCommand,
@@ -25,7 +25,7 @@ import {
   resolveAdapterExecutionTargetCwd,
   prepareAdapterExecutionTargetRuntime,
   overrideAdapterExecutionTargetRemoteCwd,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@outpost/adapter-utils/execution-target";
 import { discoverOpenCodeModels, ensureOpenCodeModelConfiguredAndAvailable, requireOpenCodeModelId } from "./models.js";
 import { openCodeErrorStatusCodes, parseOpenCodeJsonl } from "./parse.js";
 import { SANDBOX_INSTALL_COMMAND } from "../index.js";
@@ -150,7 +150,7 @@ export async function testEnvironment(
     let runtimeCwd = cwd;
     // Native workspaces are assigned at execution time. A configuration probe
     // without an explicit workspace must not run in the server's checkout.
-    if (!targetIsRemote && ctx.adapterType === "paperclip_runner" && !asString(config.cwd, "").trim()) {
+    if (!targetIsRemote && ctx.adapterType === "outpost_runner" && !asString(config.cwd, "").trim()) {
       nativeProbeWorkspaceLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-native-probe-"));
       runtimeCwd = nativeProbeWorkspaceLocalDir;
     }
@@ -158,7 +158,7 @@ export async function testEnvironment(
     // directory. The probe must too: OpenCode keeps one SQLite database per
     // data directory, and concurrent processes sharing the host user's
     // database fail with "database is locked".
-    if (!targetIsRemote && ctx.adapterType === "paperclip_runner") {
+    if (!targetIsRemote && ctx.adapterType === "outpost_runner") {
       nativeProbeHomeLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-native-probe-home-"));
       Object.assign(preparedRuntimeConfig.env, {
         HOME: nativeProbeHomeLocalDir,
@@ -256,7 +256,7 @@ export async function testEnvironment(
     // The native runner already selects a concrete model. Its real hello probe
     // verifies model access and credentials; a full catalog scan adds another
     // cold CLI launch (and discovery retries) without verifying that request.
-    const nativeModelProbe = ctx.adapterType === "paperclip_runner" && Boolean(configuredModel);
+    const nativeModelProbe = ctx.adapterType === "outpost_runner" && Boolean(configuredModel);
 
     // Model discovery and validation use local child processes against
     // OpenCode's `models` subcommand and JSON config; these are not yet

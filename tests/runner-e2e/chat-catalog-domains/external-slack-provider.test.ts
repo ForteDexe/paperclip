@@ -16,10 +16,10 @@ function binding() {
     disposable: true as const,
     resourceIds: ["TWORKSPACE", "CCHANNEL", "USENDER", "UBOT", "AAPP"],
     credentialEnv: [
-      "PAPERCLIP_CHAT_EVAL_SLACK_BOT",
-      "PAPERCLIP_CHAT_EVAL_SLACK_SENDER",
-      "PAPERCLIP_CHAT_EVAL_SLACK_SIGNING",
-      "PAPERCLIP_CHAT_EVAL_SLACK_CONFIG",
+      "OUTPOST_CHAT_EVAL_SLACK_BOT",
+      "OUTPOST_CHAT_EVAL_SLACK_SENDER",
+      "OUTPOST_CHAT_EVAL_SLACK_SIGNING",
+      "OUTPOST_CHAT_EVAL_SLACK_CONFIG",
     ],
     prerequisites: {
       workspaceId: "TWORKSPACE",
@@ -29,10 +29,10 @@ function binding() {
       appId: "AAPP",
       registeredWebhookOrigin: "https://isolated.example.test",
       webhookRelayPort: "3399",
-      botTokenEnv: "PAPERCLIP_CHAT_EVAL_SLACK_BOT",
-      senderTokenEnv: "PAPERCLIP_CHAT_EVAL_SLACK_SENDER",
-      signingSecretEnv: "PAPERCLIP_CHAT_EVAL_SLACK_SIGNING",
-      configurationTokenEnv: "PAPERCLIP_CHAT_EVAL_SLACK_CONFIG",
+      botTokenEnv: "OUTPOST_CHAT_EVAL_SLACK_BOT",
+      senderTokenEnv: "OUTPOST_CHAT_EVAL_SLACK_SENDER",
+      signingSecretEnv: "OUTPOST_CHAT_EVAL_SLACK_SIGNING",
+      configurationTokenEnv: "OUTPOST_CHAT_EVAL_SLACK_CONFIG",
     },
   };
 }

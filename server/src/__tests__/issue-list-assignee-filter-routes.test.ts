@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, companyMemberships, createDb, heartbeatRuns, issues, principalPermissionGrants } from "@paperclipai/db";
+import { activityLog, agents, companies, companyMemberships, createDb, heartbeatRuns, issues, principalPermissionGrants } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -113,7 +113,7 @@ describeEmbeddedPostgres("issue list routes assigneeAgentId filter", () => {
   });
 
   it("keeps index and row batches scoped to readable tasks and validates their bounds", async () => {
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     try {
       const companyId = randomUUID(), foreignCompanyId = randomUUID();
       const parentId = randomUUID(), childId = randomUUID(), privateId = randomUUID(), foreignId = randomUUID();

@@ -9,9 +9,9 @@ const { WebSocketServer } = createRequire(new URL("../../../server/package.json"
 import { privateImagePreparation } from "./runtime-computers-image-private.js";
 import { privateSshComputer } from "./runtime-computers-private.js";
 for (const branch of ["success", "private-child-failure", "parent-failure"] as const) test(`standalone SSH UI privacy ${branch}`, async () => {
-  test.skip(!process.env.PAPERCLIP_COMPUTER_CANARY_PRIVATE_FILE, "Explicit synthetic-only browser privacy calibration");
+  test.skip(!process.env.OUTPOST_COMPUTER_CANARY_PRIVATE_FILE, "Explicit synthetic-only browser privacy calibration");
   const key = `synthetic-ssh-${randomUUID()}`, cookie = `synthetic-cookie-${randomUUID()}`, companyId = randomUUID(), environmentId = randomUUID();
-  await appendFile(process.env.PAPERCLIP_COMPUTER_CANARY_PRIVATE_FILE!, `${key}\n${cookie}\n`, { mode: 0o600 });
+  await appendFile(process.env.OUTPOST_COMPUTER_CANARY_PRIVATE_FILE!, `${key}\n${cookie}\n`, { mode: 0o600 });
   let saved: Record<string, unknown> = {}, keyObserved = false, cookieObserved = false;
   const server = createServer(async (req, res) => {
     cookieObserved ||= req.headers.cookie === `canary=${cookie}`;
@@ -32,9 +32,9 @@ for (const branch of ["success", "private-child-failure", "parent-failure"] as c
 });
 
 for (const branch of ["success", "private-terminal-failure", "parent-failure"] as const) test(`standalone image terminal privacy ${branch}`, async () => {
-  test.skip(!process.env.PAPERCLIP_COMPUTER_CANARY_PRIVATE_FILE, "Explicit synthetic-only terminal privacy calibration");
+  test.skip(!process.env.OUTPOST_COMPUTER_CANARY_PRIVATE_FILE, "Explicit synthetic-only terminal privacy calibration");
   const token = `synthetic-terminal-${randomUUID()}`, cookie = `synthetic-cookie-${randomUUID()}`, companyId = randomUUID(), environmentId = randomUUID(), sessionId = randomUUID(), templateId = randomUUID();
-  await appendFile(process.env.PAPERCLIP_COMPUTER_CANARY_PRIVATE_FILE!, `${token}\n${cookie}\n`, { mode: 0o600 });
+  await appendFile(process.env.OUTPOST_COMPUTER_CANARY_PRIVATE_FILE!, `${token}\n${cookie}\n`, { mode: 0o600 });
   let authenticated = false, commandObserved = false, promoted = false, cancelled = false;
   const session = () => ({ id: sessionId, environmentId, startedByUserId: "synthetic-human", startedByAgentId: null, status: promoted ? "promoted" : "waiting_for_user", promotedTemplateId: promoted ? templateId : null });
   const server = createServer(async (req, res) => {
@@ -61,17 +61,17 @@ for (const branch of ["success", "private-terminal-failure", "parent-failure"] a
 });
 
 for (const foreign of [false, true]) test(`saved Morgan runtime binding ${foreign ? "foreign denied" : "exact Codex target"}`, async () => {
-  test.skip(!process.env.PAPERCLIP_COMPUTER_CANARY_PRIVATE_FILE, "Explicit synthetic-only saved runtime calibration");
+  test.skip(!process.env.OUTPOST_COMPUTER_CANARY_PRIVATE_FILE, "Explicit synthetic-only saved runtime calibration");
   const companyId = randomUUID(), environmentId = randomUUID(), agentId = randomUUID(), key = `synthetic-ssh-${randomUUID()}`, cookie = `synthetic-cookie-${randomUUID()}`;
-  await appendFile(process.env.PAPERCLIP_COMPUTER_CANARY_PRIVATE_FILE!, `${key}\n${cookie}\n`, { mode: 0o600 });
+  await appendFile(process.env.OUTPOST_COMPUTER_CANARY_PRIVATE_FILE!, `${key}\n${cookie}\n`, { mode: 0o600 });
   let actualCodexSavedConfig = false;
   const config = { host: "synthetic.invalid", port: 22, username: "synthetic", remoteWorkspacePath: "/owned/synthetic", knownHosts: "synthetic-public-key", strictHostKeyChecking: true };
   const server = createServer(async (req, res) => {
     res.setHeader("content-type", "application/json");
     const env = { id: environmentId, name: "Development server", driver: "ssh", status: "active", config };
-    if (req.method === "GET") { res.end(JSON.stringify(req.url?.includes(`/agents/${agentId}`) ? { id: agentId, companyId: foreign ? randomUUID() : companyId, adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "synthetic-saved-model" }, runtimeConfig: { aiConnection: { provider: "openai", mode: "responsible_user" } } } : req.url?.endsWith("/environments") ? [env] : env)); return; }
+    if (req.method === "GET") { res.end(JSON.stringify(req.url?.includes(`/agents/${agentId}`) ? { id: agentId, companyId: foreign ? randomUUID() : companyId, adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "synthetic-saved-model" }, runtimeConfig: { aiConnection: { provider: "openai", mode: "responsible_user" } } } : req.url?.endsWith("/environments") ? [env] : env)); return; }
     let raw = ""; for await (const c of req) raw += c; const body = JSON.parse(raw);
-    if (req.url?.includes("test-environment")) { actualCodexSavedConfig = req.url.includes("/adapters/paperclip_runner/") && body.agentId === agentId && body.environmentId === environmentId && body.adapterConfig.provider === "codex" && body.adapterConfig.model === "synthetic-saved-model" && body.aiConnection.mode === "responsible_user" && body.runner === undefined; res.end(JSON.stringify({ status: "pass", checks: [{ code: "synthetic_saved_runtime" }] })); }
+    if (req.url?.includes("test-environment")) { actualCodexSavedConfig = req.url.includes("/adapters/outpost_runner/") && body.agentId === agentId && body.environmentId === environmentId && body.adapterConfig.provider === "codex" && body.adapterConfig.model === "synthetic-saved-model" && body.aiConnection.mode === "responsible_user" && body.runner === undefined; res.end(JSON.stringify({ status: "pass", checks: [{ code: "synthetic_saved_runtime" }] })); }
     else res.end(JSON.stringify({ ok: true, driver: "ssh", summary: "synthetic transport", details: {} }));
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); const addr = server.address(); if (!addr || typeof addr === "string") throw new Error("Synthetic runtime unavailable");

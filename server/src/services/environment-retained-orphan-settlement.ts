@@ -1,5 +1,5 @@
 import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRuns, issueRecoveryActions, type Db } from "@paperclipai/db";
+import { environmentLeases, heartbeatRuns, issueRecoveryActions, type Db } from "@outpost/db";
 import { writeEnvironmentCleanup } from "./environment-cleanup-notifications.js";
 import { nativeWorkspaceExportPendingForLease } from "./native-runtime/native-workspace-finalization-state.js";
 import type { OwnerProof } from "./owner-proof.js";
@@ -125,7 +125,7 @@ function alwaysHeldSql() {
     or exists (select 1 from heartbeat_runs run where run.id = ${environmentLeases.heartbeatRunId}
       and run.runtime_mode = 'native'
       and run.runner_profile_json#>>'{nativeWorkspaceSync,schema}' in
-        ('paperclip.native-workspace-sync/v1', 'paperclip.native-workspace-sync/v2', 'paperclip.native-workspace-sync/v3')
+        ('outpost.native-workspace-sync/v1', 'outpost.native-workspace-sync/v2', 'outpost.native-workspace-sync/v3')
       and run.runner_profile_json#>>'{nativeWorkspaceSync,state}' = 'prepared'
       and coalesce(run.runner_profile_json#>>'{nativeWorkspaceSync,descriptorSha256}' ~ '^[0-9a-f]{64}$', false)
       and coalesce(run.runner_profile_json#>>'{nativeWorkspaceSync,baselineSha256}' ~ '^[0-9a-f]{64}$', false)

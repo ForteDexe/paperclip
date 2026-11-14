@@ -5,12 +5,12 @@ creates 220 unassigned backlog tasks and 110 board approvals. It does not invoke
 a model. The origin must be a loopback address.
 
 ```sh
-pnpm --filter @paperclipai/ui build
-PAPERCLIP_COLLECTION_PERF_BASE_URL=http://127.0.0.1:3219 \
+pnpm --filter @outpost/ui build
+OUTPOST_COLLECTION_PERF_BASE_URL=http://127.0.0.1:3219 \
   pnpm exec playwright test --config tests/perf/collections/playwright.config.ts
 ```
 
-Start the isolated instance with `PAPERCLIP_UI_DEV_MIDDLEWARE=false` to serve the
+Start the isolated instance with `OUTPOST_UI_DEV_MIDDLEWARE=false` to serve the
 production build. The instance and its database must be disposable. These tests
 retain and reuse their fixture in `test-results/collections/fixture.json`; they
 only replace it when the previous company's API returns 404. Other errors fail.
@@ -46,8 +46,8 @@ execution-workspace list. Its fixture (`workspace-fixture.ts`) adds a company
 with 6,000 execution workspaces, 4,000 of them created for finished tasks, and
 12 Mine tasks that each run in their own isolated workspace. The API cannot
 create execution workspaces, so this fixture writes those rows to the instance
-database. Set `PAPERCLIP_CONFIG` to the disposable instance's `config.json`
-(embedded PostgreSQL), or `PAPERCLIP_COLLECTION_PERF_DATABASE_URL` to its
+database. Set `OUTPOST_CONFIG` to the disposable instance's `config.json`
+(embedded PostgreSQL), or `OUTPOST_COLLECTION_PERF_DATABASE_URL` to its
 loopback database. The fixture is retained in
 `test-results/collections/workspace-fixture.json` with the same 404 rule as the
 main fixture. The spec routes isolated workspaces on for its own pages. It
@@ -57,7 +57,7 @@ neither the Workspace column nor workspace grouping is active, and that the
 Workspace column still shows each row's workspace name. Its timing case turns on
 the real isolated-workspaces setting, restores it, and records cold time from
 navigation start to the first Mine row (two frames after mount) over
-`PAPERCLIP_COLLECTION_PERF_TIMING_RUNS` runs (default and minimum 5). It records
+`OUTPOST_COLLECTION_PERF_TIMING_RUNS` runs (default and minimum 5). It records
 a native scenario without request interception and a separate diagnostic scenario that delays
 workspace reads by 3 seconds. The timings are attached evidence, not budgets.
 
@@ -78,7 +78,7 @@ count. The timings are attached evidence, not budgets.
 Run these focused browser checks before the full collection suite:
 
 ```sh
-PAPERCLIP_COLLECTION_PERF_BASE_URL=http://127.0.0.1:<candidate-ui-port> \
+OUTPOST_COLLECTION_PERF_BASE_URL=http://127.0.0.1:<candidate-ui-port> \
   pnpm exec playwright test --config tests/perf/collections/playwright.config.ts \
   parent-context.spec.ts startup-regressions.spec.ts
 ```
@@ -124,7 +124,7 @@ the document for each initial sample. This retains HTTP cache while clearing app
 query state. `INBOX_HTTP_CACHE=cold` uses fresh browser contexts;
 `INBOX_HTTP_CACHE=both` records these scenarios separately. Warm Recent-to-Mine
 navigation and task-to-Mine Back retain query state. Use `INBOX_HEADFUL=1` and
-`PAPERCLIP_PLAYWRIGHT_CHANNEL=chrome` when installed Chrome is the intended browser.
+`OUTPOST_PLAYWRIGHT_CHANNEL=chrome` when installed Chrome is the intended browser.
 
 Initial readiness requires visible Mine rows plus two animation frames. The
 report retains every sample and failure, exact row membership/order, row geometry,

@@ -271,15 +271,15 @@ describe("external domain independent oracles", () => {
 });
 describe("private disposable provider prerequisite contract", () => {
   it("owning runtime callbacks read only selected private references and never ambient env", () => {
-    const binding = { disposable: true as const, resourceIds: ["workspace"], credentialEnv: ["PAPERCLIP_CHAT_EVAL_NOTION_AUTH"], prerequisites: { workspaceId: "workspace", recentPageId: "recent", olderPageId: "old", mcpUrl: "https://fixture.invalid", apiVersion: "2026-03-11", apiTokenEnv: "PAPERCLIP_CHAT_EVAL_NOTION_AUTH", mcpTokenEnv: "PAPERCLIP_CHAT_EVAL_NOTION_AUTH", recentMarker: "Recent", olderMarker: "Older", recentFactJson: "{}", olderFactJson: "{}" } };
+    const binding = { disposable: true as const, resourceIds: ["workspace"], credentialEnv: ["OUTPOST_CHAT_EVAL_NOTION_AUTH"], prerequisites: { workspaceId: "workspace", recentPageId: "recent", olderPageId: "old", mcpUrl: "https://fixture.invalid", apiVersion: "2026-03-11", apiTokenEnv: "OUTPOST_CHAT_EVAL_NOTION_AUTH", mcpTokenEnv: "OUTPOST_CHAT_EVAL_NOTION_AUTH", recentMarker: "Recent", olderMarker: "Older", recentFactJson: "{}", olderFactJson: "{}" } };
     const redactions: string[] = [];
     const ctx = { scenario: { id: "connection-setup.notion-agent-unassigned" }, input: { privateSecrets: redactions, privateInputs: {
-      configuration: () => ({ schemaVersion: 1, providers: { notion: binding } }), read: (name: string) => name === "PAPERCLIP_CHAT_EVAL_NOTION_AUTH" ? "private-fixture-token" : undefined,
+      configuration: () => ({ schemaVersion: 1, providers: { notion: binding } }), read: (name: string) => name === "OUTPOST_CHAT_EVAL_NOTION_AUTH" ? "private-fixture-token" : undefined,
     } } } as unknown as import("../chat-catalog-contract.js").ChatCatalogContext;
     expect(selectedExternalBinding(ctx)).toEqual(binding);
-    expect(selectedExternalCredential(ctx, binding, "PAPERCLIP_CHAT_EVAL_NOTION_AUTH")).toBe("private-fixture-token");
+    expect(selectedExternalCredential(ctx, binding, "OUTPOST_CHAT_EVAL_NOTION_AUTH")).toBe("private-fixture-token");
     expect(redactions).toContain("private-fixture-token");
-    expect(() => selectedExternalCredential(ctx, binding, "PAPERCLIP_CHAT_EVAL_OTHER_AUTH")).toThrow(/not declared/);
+    expect(() => selectedExternalCredential(ctx, binding, "OUTPOST_CHAT_EVAL_OTHER_AUTH")).toThrow(/not declared/);
     expect(() => selectedExternalBinding({ ...ctx, input: { ...ctx.input, privateInputs: undefined } })).toThrow(/private inputs/);
   });
   it("enumerates named-provider journeys, four repository journeys and the selected email-recovery prerequisite", () => {
@@ -295,19 +295,19 @@ describe("private disposable provider prerequisite contract", () => {
   it("local fixtures need no unrelated provider account", () => { for (const definition of definitions.filter(row => !row.externalInput)) expect(externalPrerequisiteReceipt(definition.scenarioId, undefined, {}).configured).toBe(true); });
   it("named Notion fixtures require official transport and every resource in the disposable allowlist", () => {
     const workspaceId = "11111111-1111-4111-8111-111111111111", recentPageId = "22222222-2222-4222-8222-222222222222", olderPageId = "33333333-3333-4333-8333-333333333333";
-    const binding = { disposable: true as const, resourceIds: [workspaceId, recentPageId, olderPageId], credentialEnv: ["PAPERCLIP_CHAT_EVAL_NOTION_API", "PAPERCLIP_CHAT_EVAL_NOTION_MCP"], prerequisites: { workspaceId, recentPageId, olderPageId, mcpUrl: "https://mcp.notion.com/mcp", apiVersion: "2026-03-11", apiTokenEnv: "PAPERCLIP_CHAT_EVAL_NOTION_API", mcpTokenEnv: "PAPERCLIP_CHAT_EVAL_NOTION_MCP", recentMarker: "Recent synthetic fact", olderMarker: "Background fact", recentFactJson: JSON.stringify({subjectAliases:["launch"],valueAliases:["November 8"]}), olderFactJson: JSON.stringify({subjectAliases:["launch"],valueAliases:["October 1"]}) } };
+    const binding = { disposable: true as const, resourceIds: [workspaceId, recentPageId, olderPageId], credentialEnv: ["OUTPOST_CHAT_EVAL_NOTION_API", "OUTPOST_CHAT_EVAL_NOTION_MCP"], prerequisites: { workspaceId, recentPageId, olderPageId, mcpUrl: "https://mcp.notion.com/mcp", apiVersion: "2026-03-11", apiTokenEnv: "OUTPOST_CHAT_EVAL_NOTION_API", mcpTokenEnv: "OUTPOST_CHAT_EVAL_NOTION_MCP", recentMarker: "Recent synthetic fact", olderMarker: "Background fact", recentFactJson: JSON.stringify({subjectAliases:["launch"],valueAliases:["November 8"]}), olderFactJson: JSON.stringify({subjectAliases:["launch"],valueAliases:["October 1"]}) } };
     expect(() => assertNotionFixture(binding)).not.toThrow();
     expect(() => assertNotionFixture({ ...binding, resourceIds: [workspaceId] })).toThrow(/allowlisted/);
     expect(() => assertNotionFixture({ ...binding, prerequisites: { ...binding.prerequisites, mcpUrl: "https://synthetic.invalid/mcp" } })).toThrow(/actual official Notion/);
     expect(externalPrerequisiteReceipt("connection-setup.notion-connected", undefined, {}).missing).toContain("apiTokenEnv");
   });
   it("requires explicitly disposable allowlisted resources and namespaced env references", () => {
-    const config = { schemaVersion: 1, providers: { notion: { disposable: true, resourceIds: ["workspace"], credentialEnv: ["PAPERCLIP_CHAT_EVAL_NOTION_AUTH"],
-      prerequisites: { workspaceId: "workspace", recentPageId: "recent", olderPageId: "old", mcpUrl: "https://fixture.invalid", apiVersion: "2026-03-11", apiTokenEnv: "PAPERCLIP_CHAT_EVAL_NOTION_AUTH", mcpTokenEnv: "PAPERCLIP_CHAT_EVAL_NOTION_AUTH", recentMarker: "Recent", olderMarker: "Older", recentFactJson: "{}", olderFactJson: "{}" } } } };
+    const config = { schemaVersion: 1, providers: { notion: { disposable: true, resourceIds: ["workspace"], credentialEnv: ["OUTPOST_CHAT_EVAL_NOTION_AUTH"],
+      prerequisites: { workspaceId: "workspace", recentPageId: "recent", olderPageId: "old", mcpUrl: "https://fixture.invalid", apiVersion: "2026-03-11", apiTokenEnv: "OUTPOST_CHAT_EVAL_NOTION_AUTH", mcpTokenEnv: "OUTPOST_CHAT_EVAL_NOTION_AUTH", recentMarker: "Recent", olderMarker: "Older", recentFactJson: "{}", olderFactJson: "{}" } } } };
     const parsed = validateExternalConfig(config);
-    const env = { PAPERCLIP_CHAT_EVAL_NOTION_AUTH: "secret-value-not-for-receipts" };
+    const env = { OUTPOST_CHAT_EVAL_NOTION_AUTH: "secret-value-not-for-receipts" };
     expect(externalPrerequisiteReceipt("connection-setup.notion-connected", parsed, env)).toEqual({ scenarioId: "connection-setup.notion-connected", provider: "notion", configured: true, missing: [] });
-    expect(JSON.stringify(externalPrerequisiteReceipt("connection-setup.notion-connected", parsed, env))).not.toContain(env.PAPERCLIP_CHAT_EVAL_NOTION_AUTH);
+    expect(JSON.stringify(externalPrerequisiteReceipt("connection-setup.notion-connected", parsed, env))).not.toContain(env.OUTPOST_CHAT_EVAL_NOTION_AUTH);
     expect(externalPrerequisiteReceipt("connection-setup.notion-connected", parsed, {}).configured).toBe(false);
     expect(() => validateExternalConfig({ ...config, providers: { notion: { ...config.providers.notion, disposable: false } } })).toThrow(/contents withheld/);
     expect(() => validateExternalConfig({ ...config, providers: { notion: { ...config.providers.notion, credentialEnv: ["ordinary-personal-token"] } } })).toThrow(/contents withheld/);

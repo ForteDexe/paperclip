@@ -46,7 +46,7 @@ import {
   revokeExpiredLegacyControllerWithState,
 } from "../legacy-controller-lease.js";
 import { remoteTerminationReceipt } from "../remote-execution-termination.js";
-import { readEnvironmentStopFailure, type PluginEnvironmentStopFailure } from "@paperclipai/plugin-sdk";
+import { readEnvironmentStopFailure, type PluginEnvironmentStopFailure } from "@outpost/plugin-sdk";
 import { runUsedConversationAdapter } from "../conversation-continuation.js";
 import { legacyExecutionNeedsReconciliationWithEvidence, terminalizeLegacyExecution } from "../legacy-execution-recovery.js";
 import { reconcileRetainedWorkspaces } from "../workspace-recovery.js";
@@ -68,7 +68,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   environmentLeases,
@@ -76,7 +76,7 @@ import {
   heartbeatRuns,
   issues,
   nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { logger } from "../../middleware/logger.js";
 import {
   claimNativeRestartRecoveries,
@@ -594,7 +594,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
     const nativeRunIds = activeRuns
       .filter(
         ({ run, adapterType }) =>
-          adapterType === "paperclip_runner" &&
+          adapterType === "outpost_runner" &&
           isNativeSessionId(run.nativeSessionId),
       )
       .map(({ run }) => run.id);
@@ -778,7 +778,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         continue;
       }
 
-      if (run.runtimeMode === "native" && adapterType === "paperclip_runner") {
+      if (run.runtimeMode === "native" && adapterType === "outpost_runner") {
         classify(candidate, "skipped", "native_restart_recovery_owned", patch);
         continue;
       }
@@ -1184,7 +1184,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       if (isNativeRunnerOwnershipHeld(run)) return;
       if (
         run.runtimeMode === "native" &&
-        agent.adapterType === "paperclip_runner"
+        agent.adapterType === "outpost_runner"
       ) {
         const [owner] = await db.select({ bootId: nativeRunFinalizations.controllerBootId })
           .from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
@@ -2244,7 +2244,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         : await dispatchNativeSessionResumptions({
             db,
             runnerInstanceId:
-              runtimeEnv.PAPERCLIP_INSTANCE_ID?.trim() || "paperclip-heartbeat",
+              runtimeEnv.OUTPOST_INSTANCE_ID?.trim() || "paperclip-heartbeat",
             now,
             runIds: [...claimableNativeRunIds],
             deferIneligible: !scope.runId,

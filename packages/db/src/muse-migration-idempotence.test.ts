@@ -66,7 +66,7 @@ async function removeMuseSchemaAndReceipts(sql: ReturnType<typeof postgres>) {
 }
 async function seedRows(sql: ReturnType<typeof postgres>, complete: boolean) {
   const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Migration replay', 'RPL') RETURNING id`;
-  const [agent] = await sql`INSERT INTO agents (company_id, name, adapter_type) VALUES (${company.id}, 'Retained agent', 'paperclip_runner') RETURNING id`;
+  const [agent] = await sql`INSERT INTO agents (company_id, name, adapter_type) VALUES (${company.id}, 'Retained agent', 'outpost_runner') RETURNING id`;
   const [task] = await sql`INSERT INTO issues (company_id, title, assignee_agent_id) VALUES (${company.id}, 'Retained task', ${agent.id}) RETURNING id`;
   const [run] = await sql`INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, trigger_detail, status)
     VALUES (${company.id}, ${agent.id}, 'assignment', 'system', 'failed') RETURNING id`;

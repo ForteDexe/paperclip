@@ -6,7 +6,7 @@ Paperclip coordinates tasks through the managed Runner. Grok usage and spending
 are not reported.
 
 On Cloud, open **Settings → Experimental** and enable **Assistant connections
-(MCP)**, **Paperclip Runner**, and **Grok Bot**. These features are opt-in.
+(MCP)**, **Outpost Runner**, and **Grok Bot**. These features are opt-in.
 
 Use **Agents → New agent → Invite external agent → Grok Bot** to set up the Bot.
 The first-company dashboard model wizard does not offer external agents. Name the agent

@@ -42,7 +42,7 @@ function completedCalls(events: readonly TransferEvent[]) {
   const results = new Map<string, Record<string, unknown>>();
   const completed = new Map<string, string>();
   for (const event of events) {
-    const payload = record(record(record(event.payload).prpEvent).payload);
+    const payload = record(record(record(event.payload).orpEvent).payload);
     const item = record(payload.item);
     if (event.eventType === "item.started" && item.type === "tool_use" &&
         ["call_api", "download_artifact"].includes(String(item.name)) && typeof item.id === "string") {

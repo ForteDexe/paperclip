@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults, issueThreadInteractions, chatTaskHandoffs, chatCompletionDeliveries, agentWakeupRequests, statusDecisions, type Db, approvals, issueApprovals } from "@paperclipai/db";
+import { agents, authUsers, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults, issueThreadInteractions, chatTaskHandoffs, chatCompletionDeliveries, agentWakeupRequests, statusDecisions, type Db, approvals, issueApprovals } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { NativeRunCoordinatorStore } from "./native-run-coordinator-store.js";
@@ -24,7 +24,7 @@ vi.mock("../run-log-store.js", async (importOriginal) => {
   } };
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_AGENT_CHAT_RESPONSE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_AGENT_CHAT_RESPONSE_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
@@ -43,13 +43,13 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     await db.insert(authUsers).values({ id: userId, name: "Conversation owner", email: `${userId}@example.test`,
       createdAt: new Date("2020-01-01T00:00:00Z"), updatedAt: new Date("2020-01-01T00:00:00Z") });
     await db.insert(companies).values({ id: companyId, name: "Reply recovery fixture", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Conversation agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Conversation agent", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Conversation reply", status: "in_progress", assigneeAgentId: agentId,
       ...(conversation ? { conversationAgentId: agentId, conversationUserId: userId, conversationState: "active", conversationSessionGeneration: 0 } : {}) });
     await db.insert(issueComments).values({ id: wakeId, companyId, issueId, authorUserId: userId, body: "Hire one teammate and tell me when ready.",
       createdAt: new Date("2020-01-01T00:00:00Z") });
     const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "test", objective: "Answer the user", criteria: [] },
       canonicalSha256: "fixture-conversation-contract", createdByActorType: "system", createdByActorId: "test" }).returning();
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
@@ -62,24 +62,24 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
       runnerSourceInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       completionContractRevision: "test", completionContractCriterionIds: [] });
     const reply = options.reply ?? "The teammate is hired and ready for your next instruction.";
-    const prpEvent = { runId, normalizedSessionId: sessionId, turnId: "hire-turn", sourceEventId: "fixture-final-answer",
+    const orpEvent = { runId, normalizedSessionId: sessionId, turnId: "hire-turn", sourceEventId: "fixture-final-answer",
       payload: { kind: "agentMessage", channel: "final", providerPhase: "final", text: reply } };
-    if (options.channel) prpEvent.payload.channel = options.channel;
-    await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 170, eventType: "item.completed", payload: { prpEvent } });
+    if (options.channel) orpEvent.payload.channel = options.channel;
+    await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 170, eventType: "item.completed", payload: { orpEvent } });
     const disposition = options.disposition ?? "done";
     await options.beforeFinalize?.({ companyId, issueId, runId, agentId });
-    await port.completeRun({ result: { schema: "paperclip.run_result.v1", reportedWorkDisposition: disposition,
+    await port.completeRun({ result: { schema: "outpost.run_result.v1", reportedWorkDisposition: disposition,
       summary: "A completed hire, with its final message preserved separately.",
       ...(disposition === "yielded" ? { continuation: { kind: "response_wake" as const, summary: "Wait for the next human message", idempotencyKey: "conversation-next-message" } } : {}),
       completionClaim: { contractRevision: "test",
         objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [],
       attentionRequests: disposition === "needs_review" ? [{ kind: "review", ownerClass: "human", summary: "Review the completed work." }] : [], artifacts: [] },
-      terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: disposition }, turnId: "hire-turn" });
+      terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: disposition }, turnId: "hire-turn" });
     await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: false });
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)))[0].phase).toBe("committed");
     if (options.succeed !== false) await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date("2020-01-01T00:02:00Z") }).where(eq(heartbeatRuns.id, runId));
     const input = { companyId, issueId, runId };
-    return { ...input, input, agentId, userId, wakeId, prpEvent, reply };
+    return { ...input, input, agentId, userId, wakeId, orpEvent, reply };
   }
   it("settles the exact claimed wake when recovery projects a committed native run", async () => {
     // The provider and result are already committed. Recovery owns terminal
@@ -210,7 +210,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
       }
       if (fault === "foreign-agent") {
         const otherAgent = randomUUID();
-        await db.insert(agents).values({ id: otherAgent, companyId: f.companyId, name: "Other agent", adapterType: "paperclip_runner" });
+        await db.insert(agents).values({ id: otherAgent, companyId: f.companyId, name: "Other agent", adapterType: "outpost_runner" });
         await db.update(heartbeatRuns).set({ agentId: otherAgent }).where(eq(heartbeatRuns.id, f.runId));
       }
       await outbox.service.deliver(outbox.deliveryId);
@@ -448,7 +448,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(started);
     try {
       const f = await fixture(), outbox = await completion(f), reassignedAgent = randomUUID();
-      await db.insert(agents).values({ id: reassignedAgent, companyId: f.companyId, name: "New task owner", adapterType: "paperclip_runner" });
+      await db.insert(agents).values({ id: reassignedAgent, companyId: f.companyId, name: "New task owner", adapterType: "outpost_runner" });
       await db.update(nativeRunResults).set({ canonicalSha256: "invalid-digest" }).where(eq(nativeRunResults.runId, f.runId));
       await db.update(nativeRunFinalizations).set({ nextAttemptAt: new Date(started + 120_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
       const updated = await issueService(db).update(outbox.taskId, { assigneeAgentId: reassignedAgent });
@@ -672,13 +672,13 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
       }
       if (fault === "waiting") await db.update(issues).set({ executionRunId: null, status: "in_review", conversationState: "waiting" }).where(eq(issues.id, f.issueId));
       if (["turn", "event-run", "session", "channel", "kind"].includes(fault)) {
-        const event = structuredClone(f.prpEvent);
+        const event = structuredClone(f.orpEvent);
         if (fault === "turn") event.turnId = "foreign-turn";
         if (fault === "event-run") event.runId = randomUUID();
         if (fault === "session") event.normalizedSessionId = randomUUID();
         if (fault === "channel") event.payload.channel = "analysis";
         if (fault === "kind") event.payload.kind = "reasoning";
-        await db.update(heartbeatRunEvents).set({ payload: { prpEvent: event } }).where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.seq, 170)));
+        await db.update(heartbeatRunEvents).set({ payload: { orpEvent: event } }).where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.seq, 170)));
       }
       if (fault === "digest") await db.update(nativeRunResults).set({ canonicalSha256: "invalid-digest" }).where(eq(nativeRunResults.runId, f.runId));
       if (fault === "partial") await db.update(nativeRunFinalizations).set({ phase: "copying_back" }).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -725,7 +725,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     "keeps deferred review response recovery closed for %s", async fault => {
       const f = await fixture(false, { disposition: "needs_review" });
       if (fault === "missing-final") await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId));
-      if (fault === "wrong-turn") await db.update(heartbeatRunEvents).set({ payload: { prpEvent: { ...f.prpEvent, turnId: "another-turn" } } })
+      if (fault === "wrong-turn") await db.update(heartbeatRunEvents).set({ payload: { orpEvent: { ...f.orpEvent, turnId: "another-turn" } } })
         .where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.seq, 170)));
       if (fault === "digest") await db.update(nativeRunResults).set({ canonicalSha256: "invalid-digest" }).where(eq(nativeRunResults.runId, f.runId));
       if (fault === "skip-comment") await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, skipIssueComment: true } }).where(eq(heartbeatRuns.id, f.runId));

@@ -15,7 +15,7 @@ vi.mock("@/api/adapters", () => ({
       { type: "codex_local", loaded: true },
       { type: "claude_local", loaded: true },
       { type: "opencode_local", loaded: true },
-      { type: "paperclip_runner", loaded: true },
+      { type: "outpost_runner", loaded: true },
     ],
   },
 }));
@@ -84,6 +84,6 @@ it("offers only the supported local Codex and Claude agents", async () => {
   expect(document.querySelector('input[value="codex_local"]')).toBeTruthy();
   expect(document.querySelector('input[value="claude_local"]')).toBeTruthy();
   expect(document.querySelector('input[value="opencode_local"]')).toBeNull();
-  expect(document.querySelector('input[value="paperclip_runner"]')).toBeNull();
+  expect(document.querySelector('input[value="outpost_runner"]')).toBeNull();
   expect(document.body.textContent).not.toContain("Invite an external agent");
 });

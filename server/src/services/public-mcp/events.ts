@@ -2,9 +2,9 @@ import {cloudEventAuthoritySchema,cloudEventValidationOrigin,currentTenantEventO
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, count, inArray, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { companies, activityLog, issueComments, heartbeatRuns, dotMailboxItems, dotAgentBindings, dotRunnerAssignments, mcpEventAdmissions as admissions, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@paperclipai/db";
+import { companies, activityLog, issueComments, heartbeatRuns, dotMailboxItems, dotAgentBindings, dotRunnerAssignments, mcpEventAdmissions as admissions, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@outpost/db";
 import { dotRunnerBroker } from "../dot-runner-broker.js";
-import { ISSUE_STATUSES } from "@paperclipai/shared";
+import { ISSUE_STATUSES } from "@outpost/shared";
 import { createLocalEncryptedCipher, localEncryptedProvider } from "../../secrets/local-encrypted-provider.js";
 import { logActivity } from "../activity-log.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
@@ -14,7 +14,7 @@ import { type ApiDispatch } from "./capabilities.js";
 import { PublicMcpDisabledError, type McpPrincipal, type PublicMcpOAuth } from "./oauth.js";
 import { boundedJson, callbackUrl, eventFetch, McpEventError, postEvent, signingKey, verifyCallback, type EventFetch } from "./event-webhooks.js";
 
-const names = ["paperclip.task.status_changed", "paperclip.task.comment_created", "paperclip.task.document_updated", "paperclip.dot.work_available", "paperclip.dot.mailbox_updated"] as const;
+const names = ["outpost.task.status_changed", "outpost.task.comment_created", "outpost.task.document_updated", "outpost.dot.work_available", "outpost.dot.mailbox_updated"] as const;
 const filters = z.object({ companyId: z.uuid(), taskId: z.uuid(), statuses: z.array(z.enum(ISSUE_STATUSES)).min(1).max(ISSUE_STATUSES.length).optional() }).strict();
 const resourceFilters = z.object({ companyId: z.uuid(), taskId: z.uuid().optional(), bindingId: z.uuid().optional(), statuses: z.array(z.enum(ISSUE_STATUSES)).min(1).max(ISSUE_STATUSES.length).optional() }).strict().refine(v => !!v.taskId !== !!v.bindingId);
 const common = { name: z.enum(names), arguments: resourceFilters, delivery: z.object({ mode: z.literal("webhook"), url: z.string().max(2048), secret: z.string().max(100).optional() }).strict(), _meta: z.record(z.string(), z.unknown()).optional() };
@@ -64,7 +64,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   const now = options.now ?? Date.now;
   // Dedicated tenant Dot grants are authenticated locally, including background
   // deliveries. They never use the personal connection's Cloud broker proof.
-  const cloudOrigin = options.enableDotRunner ? undefined : options.cloudOrigin ?? process.env.PAPERCLIP_CLOUD_API_ORIGIN;
+  const cloudOrigin = options.enableDotRunner ? undefined : options.cloudOrigin ?? process.env.OUTPOST_CLOUD_API_ORIGIN;
   if (cloudOrigin && (new URL(cloudOrigin).protocol !== "https:" || new URL(cloudOrigin).origin !== cloudOrigin)) throw new Error("MCP Events requires a fixed HTTPS Cloud origin.");
   const encrypt = async (value: Destination) => (await localEncryptedProvider.createSecret({ value: JSON.stringify(value) })).material;
   const decrypt = async (s: Subscription): Promise<Destination> => JSON.parse(await localEncryptedProvider.resolveVersion({ material: s.deliveryMaterial, externalRef: null, providerVersionRef: null }));

@@ -10,7 +10,7 @@ type Row = Record<string, any>;
 const hash = (row: unknown) => `sha256:${createHash("sha256").update(canonicalJson(row)).digest("hex")}`;
 const requireProof = (ok: unknown) => { if (!ok) throw new Error("Pi bootstrap: exact published read approval is unproven"); };
 export interface PiBootstrapApproval {
-  schema: "paperclip.e2e.pi-bootstrap-read-approval.v1";
+  schema: "outpost.e2e.pi-bootstrap-read-approval.v1";
   companyId: string; issueId: string; runId: string; actionFile: string; publishedSha256: string;
   requestId: string; toolCallId: string; turnId: string; normalizedSessionId: string; sourceInstanceId: string;
   createdRowSha256: string; resolvedRowSha256: string; completedRowSha256: string;
@@ -21,7 +21,7 @@ function readLifecycle(events: readonly unknown[], input: Pick<PiBootstrapApprov
   requireProof(events.length > 0 && events.length <= 20_000 && /^\.paperclip-eval-action-[a-f0-9]{36}\.txt$/u.test(input.actionFile));
   const seqs = new Set<number>(), sourceIds = new Set<string>(), lastSource = new Map<string, number>();
   for (const row of events as readonly Row[]) {
-    const e = row.payload?.prpEvent; if (e === undefined) continue;
+    const e = row.payload?.orpEvent; if (e === undefined) continue;
     requireProof(e && isValidNativePrpEnvelope(e, row.protocolSchemaVersion) && row.companyId === input.companyId
       && row.runId === input.runId && e.runId === input.runId && e.eventType === row.eventType
       && ["runner", "control_plane"].includes(e.sourceKind) && typeof e.sourceInstanceId === "string" && e.sourceInstanceId.length > 0
@@ -38,17 +38,17 @@ function readLifecycle(events: readonly unknown[], input: Pick<PiBootstrapApprov
     && typeof card.event.normalizedSessionId === "string" && card.event.normalizedSessionId.length > 0
     && card.request.choices.filter((choice: Row) => choice.key === "accept").length === 1);
   const executionId = bootstrapReadExecutionId(card.request.details.toolCallId);
-  const rows = (events as readonly Row[]).filter(row => row.payload?.prpEvent?.payload?.executionId === executionId);
+  const rows = (events as readonly Row[]).filter(row => row.payload?.orpEvent?.payload?.executionId === executionId);
   requireProof(rows.length > 0 && rows.length <= 2048);
   let known = false, lastSeq = 0;
   for (const row of rows) {
-    const event = row.payload.prpEvent, p = event.payload;
+    const event = row.payload.orpEvent, p = event.payload;
     requireProof(isValidNativePrpEnvelope(event, row.protocolSchemaVersion) && row.companyId === input.companyId && row.runId === input.runId && event.runId === input.runId
-      && row.protocolSchemaVersion === 1 && event.schema === "paperclip.prp.event.v1" && event.schemaVersion === 1
+      && row.protocolSchemaVersion === 1 && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1
       && event.sourceKind === "runner" && event.turnId === card.event.turnId && event.normalizedSessionId === card.event.normalizedSessionId
       && event.sourceInstanceId === card.event.sourceInstanceId && event.eventType === row.eventType
       && Number.isSafeInteger(row.seq) && row.seq > lastSeq
-      && p.schema === "paperclip.tool.execution.v1" && p.transport === "builtin" && p.name === "read" && p.operation === "read"
+      && p.schema === "outpost.tool.execution.v1" && p.transport === "builtin" && p.name === "read" && p.operation === "read"
       && ["tool.execution.started", "tool.execution.progressed", "tool.execution.completed"].includes(row.eventType)
       && (p.target === input.actionFile || (!known && p.target === null && row.eventType !== "tool.execution.completed")));
     known ||= p.target === input.actionFile; lastSeq = row.seq;
@@ -57,8 +57,8 @@ function readLifecycle(events: readonly unknown[], input: Pick<PiBootstrapApprov
     && rows.filter(row => row.eventType === "tool.execution.started").length === 1
     && rows.filter(row => row.eventType === "tool.execution.completed").length <= 1
     && rows.every((row, index) => row.eventType === "tool.execution.completed"
-      ? index === rows.length - 1 && row.payload.prpEvent.payload.status === "completed"
-      : row.payload.prpEvent.payload.status === "running"));
+      ? index === rows.length - 1 && row.payload.orpEvent.payload.status === "completed"
+      : row.payload.orpEvent.payload.status === "running"));
   return { card, rows, executionId };
 }
 
@@ -66,16 +66,16 @@ function readLifecycle(events: readonly unknown[], input: Pick<PiBootstrapApprov
  * lifecycle rows and every tested write/permission remain in the oracle. */
 export function withoutApprovedPiBootstrapRequests(events: readonly unknown[], proof?: PiBootstrapApproval): unknown[] {
   if (!proof) return [...events];
-  requireProof(proof.schema === "paperclip.e2e.pi-bootstrap-read-approval.v1" && /^sha256:[a-f0-9]{64}$/u.test(proof.publishedSha256));
+  requireProof(proof.schema === "outpost.e2e.pi-bootstrap-read-approval.v1" && /^sha256:[a-f0-9]{64}$/u.test(proof.publishedSha256));
   const { card, rows } = readLifecycle(events, proof);
   requireProof(card.request.details.toolCallId === proof.toolCallId && card.event.turnId === proof.turnId
     && card.event.normalizedSessionId === proof.normalizedSessionId && card.event.sourceInstanceId === proof.sourceInstanceId
     && hash(card.row) === proof.createdRowSha256);
   const closures = (events as readonly Row[]).filter(row => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(row.eventType)
-    && row.payload?.prpEvent?.payload?.requestId === proof.requestId);
-  requireProof(closures.length === 1); const closed = closures[0]!, e = closed.payload.prpEvent;
+    && row.payload?.orpEvent?.payload?.requestId === proof.requestId);
+  requireProof(closures.length === 1); const closed = closures[0]!, e = closed.payload.orpEvent;
   requireProof(isValidNativePrpEnvelope(e, closed.protocolSchemaVersion) && closed.companyId === proof.companyId && closed.runId === proof.runId && closed.protocolSchemaVersion === 1
-    && e.schema === "paperclip.prp.event.v1" && e.schemaVersion === 1 && e.sourceKind === "runner" && e.runId === proof.runId
+    && e.schema === "outpost.orp.event.v1" && e.schemaVersion === 1 && e.sourceKind === "runner" && e.runId === proof.runId
     && e.eventType === "runtime_request.resolved" && closed.eventType === e.eventType && e.sourceInstanceId === proof.sourceInstanceId
     && e.turnId === proof.turnId && e.normalizedSessionId === proof.normalizedSessionId && e.payload.turnId === proof.turnId
     && e.payload.action === "accept" && closed.seq > card.row.seq && hash(closed) === proof.resolvedRowSha256);
@@ -103,10 +103,10 @@ export async function approvePiBootstrapRead(input: {
     && pending.issue.id === input.issueId && pending.issue.companyId === input.companyId);
   const requests = piPermissionRequests(pending.events, input.runId); requireProof(requests.length === 1);
   const card = requests[0]!, executionId = bootstrapReadExecutionId(card.request.details.toolCallId);
-  const native = (pending.events as readonly Row[]).filter(row => row.payload?.prpEvent?.payload?.executionId === executionId);
+  const native = (pending.events as readonly Row[]).filter(row => row.payload?.orpEvent?.payload?.executionId === executionId);
   // A read permitted without delegation can already have led to the tested
   // write. There is no setup permission to remove in that existing path.
-  if (native.some(row => row.payload.prpEvent.payload.operation === "edit")) return undefined;
+  if (native.some(row => row.payload.orpEvent.payload.operation === "edit")) return undefined;
   const checked = readLifecycle(pending.events, { companyId: input.companyId, runId: input.runId, actionFile, requestId: card.request.requestId });
   requireProof(!checked.rows.some(row => row.eventType === "tool.execution.completed"));
   const snapshot = await input.fixture.snapshot("bootstrap-read-published");
@@ -118,14 +118,14 @@ export async function approvePiBootstrapRead(input: {
   const finished = await pollUntil({ label: "Pi exact bootstrap read completion", deadlineAt: input.deadlineAt, intervalMs: 100, load: input.load,
     reject: state => ["failed", "timed_out", "cancelled", "succeeded"].includes(state.run.status) ? "Pi bootstrap run settled" : undefined,
     accept: state => (state.events as readonly Row[]).some(row => row.eventType === "tool.execution.completed"
-      && row.payload?.prpEvent?.payload?.executionId === executionId) });
-  const closure = (finished.events as readonly Row[]).find(row => row.eventType === "runtime_request.resolved" && row.payload?.prpEvent?.payload?.requestId === card.request.requestId);
-  const completed = (finished.events as readonly Row[]).find(row => row.eventType === "tool.execution.completed" && row.payload?.prpEvent?.payload?.executionId === executionId);
+      && row.payload?.orpEvent?.payload?.executionId === executionId) });
+  const closure = (finished.events as readonly Row[]).find(row => row.eventType === "runtime_request.resolved" && row.payload?.orpEvent?.payload?.requestId === card.request.requestId);
+  const completed = (finished.events as readonly Row[]).find(row => row.eventType === "tool.execution.completed" && row.payload?.orpEvent?.payload?.executionId === executionId);
   requireProof(closure && completed);
   const after = await input.fixture.snapshot("bootstrap-read-completed");
   requireProof(after.complete && after.setup.path === actionFile && after.setup.published && after.setup.sha256 === snapshot.setup.sha256);
   await input.evidence("pi-bootstrap-read-completed.json", { binding: input.fixture.binding, snapshot: after });
-  const proof: PiBootstrapApproval = { schema: "paperclip.e2e.pi-bootstrap-read-approval.v1", companyId: input.companyId, issueId: input.issueId, runId: input.runId,
+  const proof: PiBootstrapApproval = { schema: "outpost.e2e.pi-bootstrap-read-approval.v1", companyId: input.companyId, issueId: input.issueId, runId: input.runId,
     actionFile, publishedSha256: snapshot.setup.sha256!, requestId: card.request.requestId, toolCallId: card.request.details.toolCallId,
     turnId: card.event.turnId, normalizedSessionId: card.event.normalizedSessionId, sourceInstanceId: card.event.sourceInstanceId,
     createdRowSha256: hash(card.row), resolvedRowSha256: hash(closure), completedRowSha256: hash(completed) };

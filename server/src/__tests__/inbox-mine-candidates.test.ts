@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import {
   activityLog, agents, companies, heartbeatRuns, issueComments, issueInboxArchives, issueReadStates, issues, issueThreadInteractions,
-} from "@paperclipai/db";
-import { INBOX_MINE_ISSUE_STATUS_FILTER } from "@paperclipai/shared";
+} from "@outpost/db";
+import { INBOX_MINE_ISSUE_STATUS_FILTER } from "@outpost/shared";
 import { expect, it } from "vitest";
 import { issueReadSqlCondition } from "../services/authorization.js";
 import { issueService, type IssueFilters } from "../services/issues.js";

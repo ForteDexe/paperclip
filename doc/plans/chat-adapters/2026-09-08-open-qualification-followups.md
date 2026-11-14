@@ -1193,7 +1193,7 @@ behavior; retain that risk. An isolated release binary is built, but composed
 qualification is still running. No live cutover yet.
 
 Landing runs independently: base PR #13092 has 45 files. Exact-current-head
-reviews/checks are not yet complete. Upstream PRP-v2 composition exposed real
+reviews/checks are not yet complete. Upstream ORP-v2 composition exposed real
 warm-authentication and state-retention issues; James is fixing them. The
 second PR will reuse #13038. Neither may merge based on historical scores.
 Root committed the bounded Telegram test corrections as `5232fb22b`; focused
@@ -1378,7 +1378,7 @@ All local runtime material is under ignored
 - `pre-server-78-backup-0909.log`: private backup/schema metadata.
 - `server-78-state-0909.log`: scoped health/current-receipt verification.
 - `qualified-runnerd-2400740c`: preserved old qualified runner backup.
-- `home/instances/chat-adapters-live/runtime/paperclip-runner/durable-sessions`:
+- `home/instances/chat-adapters-live/runtime/outpost-runner/durable-sessions`:
   live native roots; do not manipulate historical evidence.
 
 **Build caution:** server `pnpm typecheck` invokes a full runner build and
@@ -1876,7 +1876,7 @@ has been sent during this code-only audit.
 
 Maya E2E `31f56712-3944-423e-b7c7-404bb8fbb993`, company
 `7ffa9799-0b1b-4a26-9b44-8e897f832f89`, uses native
-`paperclip_runner` / `codex_app_server` / `gpt-5.6-luna`. Terra was not
+`outpost_runner` / `codex_app_server` / `gpt-5.6-luna`. Terra was not
 substituted. Effective reasoning effort is not yet proved; the old configured
 low field is outside the native v4 contract. Do not claim it is running low effort.
 

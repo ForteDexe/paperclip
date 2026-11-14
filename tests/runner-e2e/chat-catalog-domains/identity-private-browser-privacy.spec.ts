@@ -6,9 +6,9 @@ import { privateIdentityBrowser } from "./identity-private-browser.js";
 // Offline opt-in calibration only: actual human-session recording policy,
 // actual failed fill in standalone child, no product/provider/auth server.
 test("private identity failed input is absent from human-session reports", async () => {
-  test.skip(!process.env.PAPERCLIP_IDENTITY_CANARY_PRIVATE_FILE, "Explicit offline privacy calibration only");
+  test.skip(!process.env.OUTPOST_IDENTITY_CANARY_PRIVATE_FILE, "Explicit offline privacy calibration only");
   const credential = `identity-private-${randomUUID()}`;
-  await appendFile(process.env.PAPERCLIP_IDENTITY_CANARY_PRIVATE_FILE!, credential + "\n", { mode: 0o600 });
+  await appendFile(process.env.OUTPOST_IDENTITY_CANARY_PRIVATE_FILE!, credential + "\n", { mode: 0o600 });
   const receipt = await privateIdentityBrowser({ kind: "canary-failure", origin: "http://127.0.0.1:1", startPath: "/", cookies: [], credential });
   expect(receipt.failedApiCallObserved).toBe(true);
   // A deliberate parent failure makes JUnit/blob/HTML/error-context observable.
@@ -17,9 +17,9 @@ test("private identity failed input is absent from human-session reports", async
 });
 
 for (const failure of [false, true]) test(`private session file transfer ${failure ? "controlled failure" : "success"} retains no cookie`, async ({ browser }) => {
-  test.skip(!process.env.PAPERCLIP_IDENTITY_CANARY_PRIVATE_FILE, "Explicit offline privacy calibration only");
+  test.skip(!process.env.OUTPOST_IDENTITY_CANARY_PRIVATE_FILE, "Explicit offline privacy calibration only");
   const credential = `identity-cookie-${randomUUID()}`;
-  await appendFile(process.env.PAPERCLIP_IDENTITY_CANARY_PRIVATE_FILE!, credential + "\n", { mode: 0o600 });
+  await appendFile(process.env.OUTPOST_IDENTITY_CANARY_PRIVATE_FILE!, credential + "\n", { mode: 0o600 });
   const context = await browser.newContext();
   try {
     await installIdentitySession(context, "http://127.0.0.1:1", `identity.synthetic=${credential}`);

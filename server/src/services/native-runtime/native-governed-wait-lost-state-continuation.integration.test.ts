@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, expect, it, vi } from "vitest";
-import { completionContracts, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, toolInvocations } from "@paperclipai/db";
+import { completionContracts, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, toolInvocations } from "@outpost/db";
 import { describeEmbeddedPostgres, nativeRestartFixture } from "../../__tests__/helpers/native-restart.js";
-import { DurablePrpControlPlane, parseNativeExecutionInput, type NativeSessionBackend, type PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane, parseNativeExecutionInput, type NativeSessionBackend, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { createNativeControllerRecovery } from "./native-controller-recovery.js";
 import { nativeRunnerCheckpointWriter } from "./native-runner-checkpoint.js";
 import { executePaperclipNativeSession, nativeControllerMigrationDescriptor } from "./native-session-executor.js";
@@ -15,7 +15,7 @@ import { nativeToolContractFingerprintForTarget, rebindNativeSessionCheckpoint }
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 
-vi.mock("./paperclip-runner-tool-authority.js", () => ({ PaperclipRunnerToolAuthority: class {
+vi.mock("./outpost-runner-tool-authority.js", () => ({ PaperclipRunnerToolAuthority: class {
   readonly binding = {};
   async definitions() { return []; }
   close() {}
@@ -34,15 +34,15 @@ describeEmbeddedPostgres("governed-wait follow-up whose saved provider state is 
   afterEach(async () => { vi.unstubAllEnvs(); for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true }); });
 
   async function followUpRun() {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "61".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
     const f = await environment.seedRun(randomUUID());
     const { companyId, agentId, runtimeRoot } = environment.current;
     const home = await mkdtemp(join(tmpdir(), "native-governed-lost-state-")); homes.push(home);
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     const [sourceRun] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const [contract] = await f.db.select().from(completionContracts).where(eq(completionContracts.id, sourceRun!.completionContractId!));
     const execution = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v5", executionMode: "default", planningContext: null,
+      schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null,
       provider: { kind: "codex", model: null, approvalPolicy: "never" },
       binding: { companyId, agentId, issueId: f.issueId, runId: f.runId, executionWorkspaceId: randomUUID() },
       task: { identifier: "GWL-1", title: "Approved work", description: null, prompt: "Continue after the approval.", workMode: "standard" },
@@ -51,7 +51,7 @@ describeEmbeddedPostgres("governed-wait follow-up whose saved provider state is 
       completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: contract!.schemaVersion, contract: contract!.contractJson },
       runtimeContext: nativeRuntimeContextFixture(), credentialBindings: [], interactionResponses: [],
     });
-    const yielded = { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded", summary: "Waiting for approval",
+    const yielded = { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "Waiting for approval",
       completionClaim: { contractRevision: "1", objectiveSatisfied: false, criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] },
       evidence: [], verification: [], attentionRequests: [], artifacts: [],
       continuation: { kind: "response_wake", summary: "Continue after the answer", idempotencyKey: "fixture-approval" } };
@@ -94,7 +94,7 @@ describeEmbeddedPostgres("governed-wait follow-up whose saved provider state is 
     await f.db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
 
     const recover = vi.fn(async () => ({ recovered: false as const, failureClass: "provider_state_incompatible" as const, resumeStateUnavailable: true as const,
-      reason: "Error: NativeRunnerResumeStateUnavailableError: PRP provider resume state is unavailable" }));
+      reason: "Error: NativeRunnerResumeStateUnavailableError: ORP provider resume state is unavailable" }));
     const replacementObserved = new Error("fixture fresh provider session opened");
     const fresh = vi.fn(async () => { throw replacementObserved; });
     const backend: NativeSessionBackend = {

@@ -8,7 +8,7 @@ import type {
   SecretProvider,
   SecretStatus,
   UserSecretDefinition,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { api } from "./client";
 
 /** One compatibility row: a legacy user-secret definition and its value. */

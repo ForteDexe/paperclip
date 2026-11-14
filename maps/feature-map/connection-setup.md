@@ -121,7 +121,7 @@ Availability is catalog metadata evaluated by shared connector checks. Notebook
 publication and file uploads stay in the Notebook service.
 
 Paperclip Notebook uses the existing personal-account MCP OAuth setup at
-`https://notebook.paperclip.app/mcp`. Sign in through Cloud, assign agents, and
+`https://notebook.outpost.app/mcp`. Sign in through Cloud, assign agents, and
 verify tool discovery. The connection keeps its default catalog name.
 Reconnect must preserve agent assignments and Allowed / Ask first / Off choices.
 Removal disables local use and clears saved credentials. Remote authorization

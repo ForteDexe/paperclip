@@ -7,8 +7,8 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { activityLog, agents, companies, createDb, heartbeatRuns, executionWorkspaceSnapshots, executionWorkspaces, issues, projects, projectWorkspaces, workspaceOperations } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { activityLog, agents, companies, createDb, heartbeatRuns, executionWorkspaceSnapshots, executionWorkspaces, issues, projects, projectWorkspaces, workspaceOperations } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 import { createStorageService } from "../storage/service.js";
@@ -31,7 +31,7 @@ const git = async (cwd: string, ...args: string[]) => (await execute("git", ["-C
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>, db: ReturnType<typeof createDb>, root: string, storage: StorageService;
 beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("original-bare-source-"); db = createDb(database.connectionString); }, 90_000);
 beforeEach(async () => { root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "original-bare-source-")));
-  vi.stubEnv("PAPERCLIP_HOME", root); vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default"); vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "61".repeat(32));
+  vi.stubEnv("OUTPOST_HOME", root); vi.stubEnv("OUTPOST_INSTANCE_ID", "default"); vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
   storage = createStorageService(createLocalDiskStorageProvider(path.join(root, "objects"))); });
 afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await db.delete(activityLog); await db.delete(workspaceOperations);
   await db.delete(executionWorkspaceSnapshots); await db.delete(heartbeatRuns); await db.delete(issues); await db.delete(agents); await db.delete(executionWorkspaces); await db.delete(projectWorkspaces);
@@ -67,9 +67,9 @@ async function fixture(options: { legacy?: boolean; verifiedCleanup?: boolean } 
     mode: "isolated_workspace", strategyType: "git_worktree", providerType: "git_worktree", name: "Closed checkout", status: "archived", closedAt: new Date(),
     cwd, providerRef: cwd, branchName, repoUrl, baseRef: "main", metadata: options.legacy
       ? { createdByRuntime: true, gitBranchOwnershipVersion: 1, baseRefSha: commit, lifecycleGeneration: 1,
-        isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId, issueId, repoUrl } }
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } }
       : mergeExecutionWorkspaceMetadataForPersistence({ existingMetadata: { lifecycleGeneration: 1,
-        isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId, issueId, repoUrl } },
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } },
         source: "heartbeat", createdByRuntime: true, strategyType: "git_worktree", configSnapshot: null, shouldReuseExisting: false,
         baseRef: "main", baseRefSha: commit }) }).returning();
   const cleaned = await cleanupExecutionWorkspaceArtifacts({ workspace: workspace!, projectWorkspace: { cwd: base, cleanupCommand: null }, runCleanupCommands: false,
@@ -127,7 +127,7 @@ it.each(["wrong-full-tip", "malformed-base-snapshot", "wrong-project-source", "m
   if (kind === "unsafe-config") await git(f.original, "config", "uploadpack.packObjectsHook", "exit 97");
   if (kind === "outside-instance") { const original = path.join(root, "outside.git"); await fs.rename(f.original, original); const repoUrl = pathToFileURL(original).href;
     await db.update(projectWorkspaces).set({ repoUrl }).where(eq(projectWorkspaces.id, f.projectWorkspaceId));
-    await db.update(executionWorkspaces).set({ repoUrl, metadata: { ...f.workspace.metadata, isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId: f.companyId, issueId: f.issueId, repoUrl } } }).where(eq(executionWorkspaces.id, f.workspaceId)); }
+    await db.update(executionWorkspaces).set({ repoUrl, metadata: { ...f.workspace.metadata, isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId: f.companyId, issueId: f.issueId, repoUrl } } }).where(eq(executionWorkspaces.id, f.workspaceId)); }
   const primary = managedSourcePaths(f.workspace)[0]!;
   if (kind === "present-primary") { await fs.mkdir(path.join(primary, ".git"), { recursive: true }); await fs.writeFile(path.join(primary, "keep.txt"), "unknown primary files"); }
   if (kind === "unknown-primary") { const stat = fs.lstat.bind(fs); vi.spyOn(fs, "lstat").mockImplementation(async (...args) => { if (String(args[0]) === primary) throw Object.assign(new Error("not readable"), { code: "EACCES" }); return stat(...args); }); }

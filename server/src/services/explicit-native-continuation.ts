@@ -18,7 +18,7 @@ import { canContinueCancelledRun, userStopBoundaryAt } from "./run-cancellation.
 import { readQueuedInteractionResponse } from "./queued-interaction-response.js";
 import { isCancelledNativeStartup, isFailedNativePreparation, isFailedNativePreparationRetryAncestor } from "./cancelled-native-startup.js";
 import { hasNativeLocalProcessStop, hasHistoricalSuspendedNativeSession, nativeGatedRunNeverLaunched, nativeRunNeverLaunched, recordedLocalExecutionStopped, recordUnidentifiedLocalRunnerStop } from "./native-local-process-stop.js";
-import { completeTerminatedLocalNativeSessionCleanup, completeTerminatedRemoteNativeSessionCleanup, nativeSessionCleanupBlock } from "../vendor/paperclip-runner/index.js";
+import { completeTerminatedLocalNativeSessionCleanup, completeTerminatedRemoteNativeSessionCleanup, nativeSessionCleanupBlock } from "../vendor/outpost-runner/index.js";
 import { hasRecoveredCleanupStopReceipt, hasRemoteTerminationReceipt, remoteLeaseCleanupScope } from "./remote-execution-termination.js";
 import { z } from "zod";
 import { and, desc, eq, gt, inArray, isNull, ne, not, or, sql } from "drizzle-orm";
@@ -26,7 +26,7 @@ import {
   agents, agentWakeupRequests, approvals, issueApprovals, issueThreadInteractions,
   environmentLeases, heartbeatRuns, issueComments, issueRecoveryActions,
   issues, nativeRunFinalizations, nativeRunResults, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { executionBlockerPredicate, getExecutionBlocker, hasPendingRunCleanup, nativeExecutionRecoveryActionPredicate, restoreHoldReleasedForCurrentOwnerPredicate } from "./execution-blocker.js";
 import { buildExecutionContinuation } from "./execution-continuation.js";
 import { adapterExecutionControls } from "./adapter-execution-control.js";
@@ -227,8 +227,8 @@ export async function admitExplicitNativeContinuation(input: {
   ));
   if (!retry && !taskRetry && !response && !comment?.body.trim()) return null;
   const [agent] = await db.select().from(agents).where(and(eq(agents.companyId, companyId), eq(agents.id, agentId)));
-  if (!agent || (!isConversationAdapter(agent.adapterType) && agent.adapterType !== "paperclip_runner")) return null;
-  const agentIsNative = agent.adapterType === "paperclip_runner";
+  if (!agent || (!isConversationAdapter(agent.adapterType) && agent.adapterType !== "outpost_runner")) return null;
+  const agentIsNative = agent.adapterType === "outpost_runner";
   const interruptIntent = interruptQueue?.payload?.queuedCommentInterrupt as Record<string, unknown> | undefined;
   const interruptRequestedAt = typeof interruptIntent?.requestedAt === "string" ? new Date(interruptIntent.requestedAt) : null;
   const nativeQueuedSend = queuedInterrupt && agentIsNative;
@@ -377,7 +377,7 @@ export async function admitExplicitNativeContinuation(input: {
     const legacyUserTurn = failedPreparation || run.runtimeMode === "legacy" &&
       action.cause === "legacy_execution_requires_reconciliation" &&
       (isConversationAdapter(agent.adapterType) ||
-        (agent.adapterType === "paperclip_runner" && (freshIntent || await hasVerifiedWorkspaceRepair(db, run))));
+        (agent.adapterType === "outpost_runner" && (freshIntent || await hasVerifiedWorkspaceRepair(db, run))));
     // Saved input is a request for a new turn, never permission to undo an
     // operator Stop or redeliver a message already consumed by this run.
     if (queuedRequest && !queuedInterrupt && (run.contextSnapshot?.wakeCommentId === commentId ||
@@ -388,12 +388,12 @@ export async function admitExplicitNativeContinuation(input: {
       // a conversation. Those adapters retain their reconciliation contract.
       if (historicalAdapter && !isConversationAdapter(historicalAdapter)) {
         if (!(taskRetry && run.id !== taskRetry.sourceRunId && freshIntent && agentIsNative &&
-              historicalAdapter === "paperclip_runner" && run.status === "failed") ||
+              historicalAdapter === "outpost_runner" && run.status === "failed") ||
             run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > new Date() ||
             await hasPendingRunCleanup(db, companyId, run.id) ||
             !await isFailedNativePreparationRetryAncestor(db, run, coordinator)) return null;
       }
-      if (!historicalAdapter && agent.adapterType === "paperclip_runner") return null;
+      if (!historicalAdapter && agent.adapterType === "outpost_runner") return null;
     }
     const interruptedByThisClick = queuedInterrupt &&
       interruptIntent?.targetRunId === run.id && run.resultJson?.operatorInterrupted === true &&
@@ -566,7 +566,7 @@ export async function admitExplicitNativeContinuation(input: {
       const ownStop = stopped || retainedCleanup === "pending" ? null : await provenStoppedOwnNativeSession(db, run);
       if (ownStop && run.runnerInstanceId) {
         const runnerInstanceId = run.runnerInstanceId;
-        stopped = { evidence: { schema: "paperclip.stopped_own_native_session.v1", runId: run.id,
+        stopped = { evidence: { schema: "outpost.stopped_own_native_session.v1", runId: run.id,
           runnerInstanceId, ...ownStop },
           retire: () => { try { return completeTerminatedLocalNativeSessionCleanup({ companyId, runId: run.id, runnerInstanceId }); }
             catch { return false; } } };
@@ -578,7 +578,7 @@ export async function admitExplicitNativeContinuation(input: {
       if (!stopped && retainedCleanup === "operator_required" && await nativeGatedRunNeverLaunched(db, run)
           // A preview stays read-only; the committing call retires the gate.
           && await retireStoppedSessionCleanupGates(db, { companyId, issueId, preview: input.dryRun === true })) {
-        stopped = { evidence: { schema: "paperclip.unlaunched_gated_source.v1", runId: run.id },
+        stopped = { evidence: { schema: "outpost.unlaunched_gated_source.v1", runId: run.id },
           retire: () => nativeSessionCleanupBlock({ companyId, issueId }) !== "operator_required" };
       }
       if (!stopped) return retry

@@ -10,7 +10,7 @@ import type { ConnectionGrant, ToolConnection, ToolConnectionInstall } from "../
 import type { ConnectionIntentInteraction } from "../../../packages/shared/src/types/issue.js";
 import { selectedExternalBinding, selectedExternalCredential } from "./external-fixtures.js";
 import { digest } from "./runtime-workspace-repositories-support.js";
-export const humanAuthReference = "PAPERCLIP_CHAT_EVAL_GITHUB_HUMAN_AUTH";
+export const humanAuthReference = "OUTPOST_CHAT_EVAL_GITHUB_HUMAN_AUTH";
 export interface HumanGitHubAuth { clientId: string; clientSecret: string; appSlug: string; installationId: string; storageState: { cookies: Cookie[]; origins: Array<{ origin: string; localStorage: Array<{ name: string; value: string }> }> } }
 export interface GitHubAppQualification { id: number; slug: string; client_id: string; name: string; permissions: Record<string, string>; html_url: string }
 export function parseHumanGitHubAuth(value: string): HumanGitHubAuth {
@@ -58,9 +58,9 @@ export async function completeHumanGitHubGrant(ctx: ChatCatalogContext, input: O
   ctx.input.privateSecrets.push(auth.clientSecret, ...auth.storageState.cookies.map(cookie => cookie.value), ...auth.storageState.origins.flatMap(origin => origin.localStorage.map(row => row.value)), ...cookies.map(cookie => cookie.value));
   const directory = await mkdtemp(path.join(tmpdir(), "paperclip-repository-human-"));
   try {
-    const request = path.join(directory, "request.json"), channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL;
+    const request = path.join(directory, "request.json"), channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
     await writeFile(request, JSON.stringify({ ...input, origin: ctx.input.api.baseURL, auth, cookies, deadlineAt: Date.now() + 420000,
-      executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()), channel }), { mode: 0o600 });
+      executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()), channel }), { mode: 0o600 });
     let output: string;
     try { output = (await promisify(execFile)(process.execPath, ["--import", fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url)), fileURLToPath(new URL("./runtime-workspace-repositories-auth-worker.ts", import.meta.url)), request],
       { timeout: 425000, maxBuffer: 32768, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test", DO_NOT_TRACK: "1", HOME: directory, TMPDIR: directory } })).stdout; }

@@ -24,7 +24,7 @@ export interface RemoteArtifactProvenance {
 }
 export interface RemoteArtifactDocument { path: string; bytes: string; sha256: string }
 export interface ValidatedRemoteCell {
-  schema: "paperclip.chat-remote-cell-import/v1";
+  schema: "outpost.chat-remote-cell-import/v1";
   intentCampaignId: string; importKey: string; measurementKey: string; artifactSha256: string;
   scenarioId: string; ordinal: 1 | 2; sourceRevision: string;
   resultPath: string; resultSha256: string; hostSha256: string; definitionSha256: string;
@@ -55,7 +55,7 @@ export function validateRemoteCell(input: {
   requireProof(selected.length === 1, "execution not uniquely selected");
   const selection = selected[0]!;
   requireProof([1, 2].includes(selection.remoteOrdinal) && result.attempt === 1, "automatic retry or invalid remote ordinal");
-  requireProof(result.schema === "paperclip.runner-e2e.result/v2" && ["passed", "failed"].includes(result.status), "missing terminal cell result");
+  requireProof(result.schema === "outpost.runner-e2e.result/v2" && ["passed", "failed"].includes(result.status), "missing terminal cell result");
   requireProof(result.profileId === CHAT_OPENCODE_PROFILE && result.provider === "opencode" && result.model === CHAT_OPENCODE_MODEL && result.environmentId === "local", "provider/model/profile mismatch");
   requireProof(result.source?.sha === intent.sourceRevision && result.source.workflowRunUrl === `https://github.com/paperclipai/paperclip/actions/runs/${p.runId}`, "result source/run mismatch");
   requireProof(!!result.accountingIdentity?.campaignId && /^[a-f0-9]{32}$/.test(result.accountingIdentity?.attemptId ?? ""), "missing actual framework accounting identity");
@@ -64,7 +64,7 @@ export function validateRemoteCell(input: {
   const allowedHost = normalFleet ? host.hostPolicy === intent.hostPolicy && ["spot", "on-demand"].includes(host.lifecycle)
     && host.spotVerified === (host.lifecycle === "spot") : host.lifecycle === "spot" && host.spotVerified === true;
   requireProof(intent.hostPolicy === undefined || normalFleet, "unknown host policy");
-  requireProof(host.schema === "paperclip.chat-remote-host/v1" && host.status === "qualified-host-only" && host.scope === "before-evaluation" && host.evaluationAdmitted === false
+  requireProof(host.schema === "outpost.chat-remote-host/v1" && host.status === "qualified-host-only" && host.scope === "before-evaluation" && host.evaluationAdmitted === false
     && allowedHost && host.architecture === "x86_64" && host.region === "us-east-1", "host not qualified for explicit intent policy");
   requireProof(host.workflowRef === "paperclipai/paperclip/.github/workflows/runner-full-stack-e2e.yml@refs/heads/master"
     && host.workflowRunId === p.runId && host.workflowAttempt === p.runAttempt && host.sourceRevision === intent.sourceRevision
@@ -83,7 +83,7 @@ export function validateRemoteCell(input: {
   }
   requireProof(definition.scenarioId === selection.scenarioId && hex(definition.definitionDigest) && hex(definition.graderDigest)
     && definition.suiteDefinitionHash === result.suiteDefinitionHash && hex(result.suiteDefinitionHash), "definition/result mismatch");
-  return { schema: "paperclip.chat-remote-cell-import/v1", intentCampaignId: intent.campaignId, importKey: `${p.runId}/${p.runAttempt}/${result.executionId}`,
+  return { schema: "outpost.chat-remote-cell-import/v1", intentCampaignId: intent.campaignId, importKey: `${p.runId}/${p.runAttempt}/${result.executionId}`,
     measurementKey: `${result.accountingIdentity!.campaignId}/${result.accountingIdentity!.attemptId}/${result.executionId}`,
     artifactSha256: p.archiveSha256, scenarioId: selection.scenarioId, ordinal: selection.remoteOrdinal, sourceRevision: intent.sourceRevision,
     resultPath: input.result.path, resultSha256: input.result.sha256, hostSha256: input.host.sha256, definitionSha256: input.definition.sha256,
@@ -103,14 +103,14 @@ export function validateRemoteHostRefusal(input: {
     && host.workflowRef === "paperclipai/paperclip/.github/workflows/runner-full-stack-e2e.yml@refs/heads/master", "qualification source/run mismatch");
   const knownRefusal = host.lifecycle === "on-demand" && host.reason === "on-demand-or-unknown-host-refused-before-evaluation"
     || host.lifecycle === "spot" && host.reason === "owned-linux-amd64-postgres-image-unqualified";
-  requireProof(host.schema === "paperclip.chat-remote-host/v1" && host.status === "blocked" && host.scope === "before-evaluation"
+  requireProof(host.schema === "outpost.chat-remote-host/v1" && host.status === "blocked" && host.scope === "before-evaluation"
     && host.evaluationAdmitted === false && host.automaticRetries === 0 && knownRefusal && !host.postgres && !host.dockerEngineSha256
     && host.region === "us-east-1" && host.architecture === "x86_64" && /^i-[a-f0-9]{8,17}$/.test(host.instanceId)
     && /^ami-[a-f0-9]{8,17}$/.test(host.imageId), "not a proven pre-evaluation host refusal");
   requireProof(Array.isArray(host.executionIds) && host.executionIds.length === intent.selected.length
     && new Set(host.executionIds).size === host.executionIds.length
     && intent.selected.every(row => host.executionIds.includes(row.executionId)), "qualification selection mismatch");
-  return { schema: "paperclip.chat-remote-operation/v1", campaignId: intent.campaignId, runId: p.runId,
+  return { schema: "outpost.chat-remote-operation/v1", campaignId: intent.campaignId, runId: p.runId,
     sourceRevision: intent.sourceRevision, artifactId: p.artifactId, artifactSha256: p.archiveSha256,
     hostReceiptPath: input.host.path, hostReceiptSha256: input.host.sha256,
     outcome: "infrastructure-blocked-before-evaluation", reason: host.reason,

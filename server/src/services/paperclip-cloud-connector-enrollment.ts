@@ -74,10 +74,10 @@ export function paperclipCloudConnectorEnrollmentStatus(
   env: NodeJS.ProcessEnv = process.env,
 ): PaperclipCloudConnectorEnrollmentStatus {
   const identity = loadPaperclipCloudConnectorIdentity();
-  const managedInstanceId = env.PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID?.trim();
-  const managedSignPrivateKey = env.PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY?.trim();
-  const managedSealPrivateKey = env.PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY?.trim();
-  const managedEnvironment = env.PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT?.trim();
+  const managedInstanceId = env.OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID?.trim();
+  const managedSignPrivateKey = env.OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY?.trim();
+  const managedSealPrivateKey = env.OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY?.trim();
+  const managedEnvironment = env.OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT?.trim();
   const hasManagedIdentityOverride = hasManagedConnectorIdentityOverride(env);
   if (hasManagedIdentityOverride) {
     const { brokerBaseUrl, environment } = connectorTarget(env);
@@ -193,7 +193,7 @@ async function startPaperclipCloudConnectorEnrollmentUnlocked(input: {
       origin,
       returnUri,
       returnState,
-      label: input.label?.trim() || process.env.PAPERCLIP_INSTANCE_ID?.trim() || "Self-hosted Outpost",
+      label: input.label?.trim() || process.env.OUTPOST_INSTANCE_ID?.trim() || "Self-hosted Outpost",
       signPublicKey: identity.signPublicKey,
       sealPublicKey: identity.sealPublicKey,
     }),
@@ -343,21 +343,21 @@ function parseIdentity(value: unknown): PaperclipCloudConnectorIdentity {
 function connectorEnvironment(
   env: NodeJS.ProcessEnv,
   fallback?: LocalConnectorEnvironment,
-  brokerBaseUrl = "https://my.paperclip.app",
+  brokerBaseUrl = "https://my.outpost.app",
 ): LocalConnectorEnvironment {
   const host = new URL(brokerBaseUrl).hostname.toLowerCase();
-  const inferred = host === "my.paperclip.app"
+  const inferred = host === "my.outpost.app"
     ? "production"
-    : host === "my-staging.paperclip.app"
+    : host === "my-staging.outpost.app"
       ? "staging"
-      : host === "test.paperclip.app"
+      : host === "test.outpost.app"
         ? "test"
         : "development";
-  const value = env.PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT?.trim() || fallback || inferred;
+  const value = env.OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT?.trim() || fallback || inferred;
   if (!isEnvironment(value)) throw new Error("Outpost Cloud connector environment is invalid");
-  if ((host === "my.paperclip.app" && value !== "production")
-    || (host === "test.paperclip.app" && value !== "test")
-    || (host === "my-staging.paperclip.app" && value !== "staging")) {
+  if ((host === "my.outpost.app" && value !== "production")
+    || (host === "test.outpost.app" && value !== "test")
+    || (host === "my-staging.outpost.app" && value !== "staging")) {
     throw new Error("Outpost Cloud connector broker and environment do not match");
   }
   return value;
@@ -367,9 +367,9 @@ function connectorTarget(
   env: NodeJS.ProcessEnv,
   identity?: PaperclipCloudConnectorIdentity | null,
 ): Pick<PaperclipCloudConnectorIdentity, "brokerBaseUrl" | "environment"> {
-  const brokerOverride = env.PAPERCLIP_CLOUD_CONNECTOR_BASE_URL?.trim() || undefined;
+  const brokerOverride = env.OUTPOST_CLOUD_CONNECTOR_BASE_URL?.trim() || undefined;
   const brokerBaseUrl = normalizeBrokerOrigin(
-    brokerOverride ?? identity?.brokerBaseUrl ?? "https://my.paperclip.app",
+    brokerOverride ?? identity?.brokerBaseUrl ?? "https://my.outpost.app",
   );
   return {
     brokerBaseUrl,
@@ -386,9 +386,9 @@ function identityMatchesTarget(
 
 function hasManagedConnectorIdentityOverride(env: NodeJS.ProcessEnv): boolean {
   return [
-    env.PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID,
-    env.PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY,
-    env.PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY,
+    env.OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID,
+    env.OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY,
+    env.OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY,
   ].some((value) => Boolean(value?.trim()));
 }
 

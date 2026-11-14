@@ -67,7 +67,7 @@ describe("migrated historical website artifact calibration", () => {
     o.links = ["https://foreign.test" + copy.contentPath]; expect(await readReturnedWebsiteFiles(ctx as never, o as never)).toEqual([]);
     o.links = [copy.contentPath]; read.mockRejectedValue(new Error("403")); await expect(readReturnedWebsiteFiles(ctx as never, o as never)).rejects.toThrow("403");
   });
-  it("builds real inline migration files with SHA-bound bytes and comment linkage", () => { const bundle = buildHistoricalWebsiteImport("2026-10-21T12:00:00.000Z", "ORCHID"); const yaml = parse(bundle.files[".paperclip.yaml"] as string); expect(yaml.schemaVersion).toBe(7); for (const row of bundle.receipts) { expect(bundle.files[`blobs/${row.sha256}`]).toMatchObject({ encoding: "base64" }); expect(yaml.tasks[row.slug].attachments[0]).toMatchObject({ sha256: row.sha256, commentIndex: 0 }); } expect(yaml.tasks["final-website"].completedAt).toBe("2026-10-21T12:00:00.000Z"); });
+  it("builds real inline migration files with SHA-bound bytes and comment linkage", () => { const bundle = buildHistoricalWebsiteImport("2026-10-21T12:00:00.000Z", "ORCHID"); const yaml = parse(bundle.files[".outpost.yaml"] as string); expect(yaml.schemaVersion).toBe(7); for (const row of bundle.receipts) { expect(bundle.files[`blobs/${row.sha256}`]).toMatchObject({ encoding: "base64" }); expect(yaml.tasks[row.slug].attachments[0]).toMatchObject({ sha256: row.sha256, commentIndex: 0 }); } expect(yaml.tasks["final-website"].completedAt).toBe("2026-10-21T12:00:00.000Z"); });
   it("passes the actual production portability parser with all original dates/comments/attachments and no database access", async () => {
     const bundle = buildHistoricalWebsiteImport("2026-10-21T12:00:00.000Z", "ORCHID");
     const noDatabase = new Proxy({}, { get(_target, key) { throw new Error(`Offline preview must not access database property ${String(key)}`); } }) as Parameters<typeof companyPortabilityService>[0];
@@ -75,7 +75,7 @@ describe("migrated historical website artifact calibration", () => {
     const request = { source: { type: "inline" as const, files: bundle.files }, include: { company: false, agents: false, projects: false, issues: true, skills: false }, target: { mode: "new_company" as const }, collisionStrategy: "rename" as const };
     const preview = await service.previewImport(request);
     expect(historicalWebsitePreviewMatches(preview, bundle)).toBe(true);
-    const jsonRoot = { ...request, source: { ...request.source, files: { ...bundle.files, ".paperclip.yaml": JSON.stringify(parse(bundle.files[".paperclip.yaml"] as string)) } } };
+    const jsonRoot = { ...request, source: { ...request.source, files: { ...bundle.files, ".outpost.yaml": JSON.stringify(parse(bundle.files[".outpost.yaml"] as string)) } } };
     const lost = await service.previewImport(jsonRoot);
     expect(lost.manifest.issues).toHaveLength(4);
     expect(lost.manifest.issues.every(row => row.attachments?.length === 0 && row.completedAt == null)).toBe(true);

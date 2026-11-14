@@ -5,7 +5,7 @@ import {
   paperclipConfigSchema,
   type PaperclipConfig,
   type DeploymentMode,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { ZodError } from "zod";
 import { resolvePaperclipConfigPath } from "./paths.js";
 import { isCloudManagedInstance } from "./services/cloud-instance.js";
@@ -73,7 +73,7 @@ export function readConfigFile(options?: { includeProvenance: true }): Paperclip
 
 /** Resolve the same deployment mode without loading config.ts's dotenv/startup side effects. */
 export function resolveDeploymentMode(fileConfig = readConfigFile()): DeploymentMode {
-  const fromEnv = process.env.PAPERCLIP_DEPLOYMENT_MODE;
+  const fromEnv = process.env.OUTPOST_DEPLOYMENT_MODE;
   return fromEnv && DEPLOYMENT_MODES.includes(fromEnv as DeploymentMode)
     ? fromEnv as DeploymentMode
     : fileConfig?.server.deploymentMode ?? "local_trusted";

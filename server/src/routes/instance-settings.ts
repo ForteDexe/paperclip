@@ -2,13 +2,13 @@ import type { IdleDeadlineOwners } from "../services/idle-deadline-types.js";
 import { verifiedCloudControlClaims, verifiedIdleCapabilities } from "../middleware/cloud-control.js";
 import { trackIdleWork } from "../services/task-admission.js";
 import { Router, type Request, type RequestHandler } from "express";
-import { companies, type Db } from "@paperclipai/db";
+import { companies, type Db } from "@outpost/db";
 import {
   patchInstanceSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
   patchInstanceGeneralSettingsSchema,
   startTaskDrainRequestSchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { conflict, forbidden } from "../errors.js";
 import { assertAgentsReadyForEnvironmentChange } from "../services/plugin-environment-driver.js";
 import {

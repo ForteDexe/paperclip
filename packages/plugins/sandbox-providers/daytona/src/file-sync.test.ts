@@ -19,7 +19,7 @@ vi.mock("@daytonaio/sdk", () => ({
 
 import { performSyncIn, performSyncOut } from "./file-sync.js";
 import { __setDaytonaPluginContextForTest } from "./plugin.js";
-import type { PluginContext, PluginSyncOperation } from "@paperclipai/plugin-sdk";
+import type { PluginContext, PluginSyncOperation } from "@outpost/plugin-sdk";
 
 // One recorded in-sandbox command, so a test can assert the exact cleanup command.
 interface RecordedCommand {
@@ -239,7 +239,7 @@ function createRecordingSandbox(input: {
       executeCommand: async (command: string) => {
         input.commands.push({ command });
         if (command.includes("mkdir -p")) {
-          return { exitCode: 0, result: input.probeReportsZstd ? "PAPERCLIP_ZSTD_AVAILABLE\n" : "" };
+          return { exitCode: 0, result: input.probeReportsZstd ? "OUTPOST_ZSTD_AVAILABLE\n" : "" };
         }
         return { exitCode: 0, result: "" };
       },
@@ -278,7 +278,7 @@ function createRealExecSandbox(input?: {
           commands.push({ command });
           const result = spawnSync("/bin/sh", ["-c", command], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env: input?.commandEnv });
           const output = (result.stdout ?? "") + (result.stderr ?? "");
-          return { exitCode: result.status ?? 1, result: input?.hideZstd ? output.replace("PAPERCLIP_ZSTD_AVAILABLE\n", "") : output };
+          return { exitCode: result.status ?? 1, result: input?.hideZstd ? output.replace("OUTPOST_ZSTD_AVAILABLE\n", "") : output };
         },
       },
       fs: {
@@ -776,18 +776,18 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         (key) => key.includes(".transfer.compression.") || key.includes(".transfer.decompress."),
       );
       expect(new Set(compressionKeys)).toEqual(new Set([
-        "paperclip.sandbox.startup.transfer.compression.codec",
-        "paperclip.sandbox.startup.transfer.compression.wall_ms",
-        "paperclip.sandbox.startup.transfer.compression.bytes_in",
-        "paperclip.sandbox.startup.transfer.compression.bytes_out",
-        "paperclip.sandbox.startup.transfer.decompress.wall_ms",
+        "outpost.sandbox.startup.transfer.compression.codec",
+        "outpost.sandbox.startup.transfer.compression.wall_ms",
+        "outpost.sandbox.startup.transfer.compression.bytes_in",
+        "outpost.sandbox.startup.transfer.compression.bytes_out",
+        "outpost.sandbox.startup.transfer.decompress.wall_ms",
       ]));
-      expect(allAttrs["paperclip.sandbox.startup.transfer.compression.codec"]).toBe("zstd");
+      expect(allAttrs["outpost.sandbox.startup.transfer.compression.codec"]).toBe("zstd");
       for (const key of [
-        "paperclip.sandbox.startup.transfer.compression.wall_ms",
-        "paperclip.sandbox.startup.transfer.compression.bytes_in",
-        "paperclip.sandbox.startup.transfer.compression.bytes_out",
-        "paperclip.sandbox.startup.transfer.decompress.wall_ms",
+        "outpost.sandbox.startup.transfer.compression.wall_ms",
+        "outpost.sandbox.startup.transfer.compression.bytes_in",
+        "outpost.sandbox.startup.transfer.compression.bytes_out",
+        "outpost.sandbox.startup.transfer.decompress.wall_ms",
       ]) {
         expect(Number.isFinite(allAttrs[key] as number)).toBe(true);
       }
@@ -985,7 +985,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         process: {
           executeCommand: async (command: string) => {
             commands.push({ command });
-            return { exitCode: 0, result: command.includes("mkdir -p") ? "PAPERCLIP_ZSTD_AVAILABLE\n" : "" };
+            return { exitCode: 0, result: command.includes("mkdir -p") ? "OUTPOST_ZSTD_AVAILABLE\n" : "" };
           },
         },
         fs: {
@@ -1022,7 +1022,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         process: {
           executeCommand: async (command: string) => ({
             exitCode: 0,
-            result: command.includes("mkdir -p") ? "PAPERCLIP_ZSTD_AVAILABLE\n" : "",
+            result: command.includes("mkdir -p") ? "OUTPOST_ZSTD_AVAILABLE\n" : "",
           }),
         },
         fs: {
@@ -1063,7 +1063,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         process: {
           executeCommand: async (command: string, _cwd?: string, _env?: unknown, timeoutSeconds?: number) => {
             seenTimeouts.push(timeoutSeconds);
-            return { exitCode: 0, result: command.includes("mkdir -p") ? "PAPERCLIP_ZSTD_AVAILABLE\n" : "" };
+            return { exitCode: 0, result: command.includes("mkdir -p") ? "OUTPOST_ZSTD_AVAILABLE\n" : "" };
           },
         },
         fs: {
@@ -1243,8 +1243,8 @@ describe("daytona file-sync inbound gzip transport fallback (sandbox without zst
           operations: [{ operationId: "op-1", files: [{ sourcePath, targetPath: "/workspace/target.bin", kind: "file" }] }] });
         return uploadedDestinations;
       };
-      expect((await destinationsFor("PAPERCLIP_ZSTD_AVAILABLE\nPAPERCLIP_GZIP_AVAILABLE\n"))[0]).toMatch(/\.zst$/);
-      expect((await destinationsFor("PAPERCLIP_GZIP_AVAILABLE\n"))[0]).toMatch(/\.gz$/);
+      expect((await destinationsFor("OUTPOST_ZSTD_AVAILABLE\nOUTPOST_GZIP_AVAILABLE\n"))[0]).toMatch(/\.zst$/);
+      expect((await destinationsFor("OUTPOST_GZIP_AVAILABLE\n"))[0]).toMatch(/\.gz$/);
       expect((await destinationsFor(""))[0]).not.toMatch(/\.(gz|zst)$/);
     } finally {
       await fs.rm(root, { recursive: true, force: true });

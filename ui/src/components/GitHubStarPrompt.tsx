@@ -13,8 +13,8 @@ import { MODAL_SELECTOR, useModalOpen, useOnboardingInProgress } from "./Announc
 import { PaperclipMark } from "./PaperclipLockup";
 
 export const STAR_PROMPT_COMPLETED_TASKS = 5;
-export const STAR_PROMPT_SEEN_KEY = "paperclip.github-star-prompt.seen";
-export const PAPERCLIP_GITHUB_URL = "https://github.com/paperclipai/paperclip";
+export const STAR_PROMPT_SEEN_KEY = "outpost.github-star-prompt.seen";
+export const OUTPOST_GITHUB_URL = "https://github.com/paperclipai/paperclip";
 export const TASK_ATTENTION_SELECTOR = '[data-testid="task-execution-retry"], [role="status"][aria-label="Task status"]';
 const TASK_LIST_VIEWS = new Set(["all", "active", "backlog", "done", "recent"]);
 
@@ -98,7 +98,7 @@ export function GitHubStarPrompt() {
         </DialogHeader>
         <div className="flex flex-col gap-2">
           <Button asChild className="w-full">
-            <a href={PAPERCLIP_GITHUB_URL} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
+            <a href={OUTPOST_GITHUB_URL} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
               <Star className="size-4 fill-current" aria-hidden />
               Star on GitHub
             </a>

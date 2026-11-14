@@ -7,9 +7,9 @@ const record = (value: unknown): Row => value !== null && typeof value === "obje
 export interface PiDeniedPermission { runId: string; turnId: string; requestId: string; toolCallId: string; target: string }
 export function piPermissionRequests(rows: readonly unknown[], runId: string): Array<{ row: Row; event: Row; request: Row }> {
   return rows.map(record).flatMap(row => {
-    const event = record(record(row.payload).prpEvent), request = record(record(event.payload).request), origin = record(request.origin);
+    const event = record(record(row.payload).orpEvent), request = record(record(event.payload).request), origin = record(request.origin);
     if (row.eventType !== "runtime_request.created" || event.eventType !== row.eventType || row.runId !== runId || event.runId !== runId
-      || row.protocolSchemaVersion !== 1 || event.schemaVersion !== 1 || event.schema !== "paperclip.prp.event.v1" || event.sourceKind !== "runner"
+      || row.protocolSchemaVersion !== 1 || event.schemaVersion !== 1 || event.schema !== "outpost.orp.event.v1" || event.sourceKind !== "runner"
       || (!Number.isSafeInteger(row.seq) || row.seq < 1) || typeof event.turnId !== "string" || !event.turnId || request.turnId !== event.turnId
       || request.type !== "permission" || request.status !== "pending" || !hasAcpxNativeOrigin(origin, "pi", "session/request_permission")
       || typeof request.requestId !== "string" || !request.requestId || typeof request.details?.toolCallId !== "string" || !request.details.toolCallId
@@ -22,15 +22,15 @@ export function hasDeliveredPiDenial(rows: readonly unknown[], expected: PiDenie
   if (requests.length !== 1) return false;
   const created = requests[0]!;
   if (created.event.turnId !== expected.turnId || created.request.details.toolCallId !== expected.toolCallId) return false;
-  const events = rows.map(record).map(row => ({ row, event: record(record(row.payload).prpEvent) }))
+  const events = rows.map(record).map(row => ({ row, event: record(record(row.payload).orpEvent) }))
     .filter(({ row, event }) => row.runId === expected.runId && event.runId === expected.runId && event.turnId === expected.turnId
       && row.eventType === event.eventType && row.protocolSchemaVersion === 1 && event.schemaVersion === 1
-      && event.schema === "paperclip.prp.event.v1" && event.sourceKind === "runner" && Number.isSafeInteger(row.seq) && row.seq >= 1);
+      && event.schema === "outpost.orp.event.v1" && event.sourceKind === "runner" && Number.isSafeInteger(row.seq) && row.seq >= 1);
   const resolutions = events.filter(({ event }) => ["runtime_request.resolved", "runtime_request.expired", "runtime_request.cancelled"].includes(event.eventType) && event.payload?.requestId === expected.requestId);
   if (resolutions.length !== 1 || resolutions[0]!.event.eventType !== "runtime_request.resolved" || resolutions[0]!.event.payload.action !== "decline"
     || resolutions[0]!.event.payload.turnId !== expected.turnId || resolutions[0]!.row.seq <= created.row.seq) return false;
   const completed = events.filter(({ event }) => event.eventType === "tool.execution.completed" && event.payload?.transport === "builtin" && event.payload?.operation === "edit");
-  return completed.length === 1 && completed.every(({ row, event }) => row.seq > created.row.seq && event.payload.schema === "paperclip.tool.execution.v1"
+  return completed.length === 1 && completed.every(({ row, event }) => row.seq > created.row.seq && event.payload.schema === "outpost.tool.execution.v1"
     && event.payload.executionId === expected.toolCallId && event.payload.name === "write" && event.payload.status === "failed"
     && event.payload.target === expected.target && typeof event.payload.output === "string" && event.payload.output.includes("Pi operation was denied or cancelled"));
 }

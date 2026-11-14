@@ -87,7 +87,7 @@ oversized-result rejection before posting a result to the gateway.
 credential ownership, personal declarations, reads and writes through a running
 agent's gateway session, classification, refresh, reconnect, action policy,
 cross-company denial, and revocation of a retained session. The ordinary suite
-uses provider fixtures. `PAPERCLIP_ONEPASSWORD_LIVE=1` plus an environment-supplied
+uses provider fixtures. `OUTPOST_ONEPASSWORD_LIVE=1` plus an environment-supplied
 `OP_SERVICE_ACCOUNT_TOKEN` enables the account-bound variant, which creates and
 deletes only synthetic test items. Never put a token in a command argument.
 

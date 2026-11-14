@@ -16,7 +16,7 @@ function credentialReference(agent: RuntimeAgent) {
 export function openRouterCatalogScope(companyId: string, leadId: string, worker: RuntimeAgent, lead: RuntimeAgent): OpenRouterCatalogScope | undefined {
   const a = credentialReference(worker), b = credentialReference(lead), environmentId = worker.defaultEnvironmentId;
   if (worker.companyId !== companyId || lead.companyId !== companyId || lead.id !== leadId || worker.id === leadId
-    || worker.adapterType !== "paperclip_runner" || lead.adapterType !== "paperclip_runner" || worker.adapterConfig?.provider !== "opencode" || lead.adapterConfig?.provider !== "opencode"
+    || worker.adapterType !== "outpost_runner" || lead.adapterType !== "outpost_runner" || worker.adapterConfig?.provider !== "opencode" || lead.adapterConfig?.provider !== "opencode"
     || !environmentId || environmentId !== lead.defaultEnvironmentId || typeof worker.adapterConfig.model !== "string" || !worker.adapterConfig.model.startsWith("openrouter/")
     || worker.adapterConfig.model !== lead.adapterConfig.model || !a || !b || JSON.stringify(a) !== JSON.stringify(b)) return;
   return { companyId, leadId, workerId: worker.id, environmentId, currentModel: worker.adapterConfig.model,

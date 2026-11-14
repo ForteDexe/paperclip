@@ -1,6 +1,6 @@
 import { asc, and, eq, notExists } from "drizzle-orm";
-import { projects, projectWorkspaces, type Db } from "@paperclipai/db";
-import type { TaskWorkspaceIntent } from "@paperclipai/shared";
+import { projects, projectWorkspaces, type Db } from "@outpost/db";
+import type { TaskWorkspaceIntent } from "@outpost/shared";
 import { HttpError } from "../../errors.js";
 import { sourcelessProjectWorkspacePolicy } from "../project-workspace-provider.js";
 import { ProjectAccessDeniedError } from "../project-access-denial.js";

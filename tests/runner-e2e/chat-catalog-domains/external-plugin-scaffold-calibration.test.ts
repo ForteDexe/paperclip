@@ -9,7 +9,7 @@ import { expect, it } from "vitest";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import { createPreviewFixture } from "./external-plugin-fixture.js";
 
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_PLUGIN_SCAFFOLD_CALIBRATION !== "1")("qualifies the actual source CLI scaffold with explicit owned SDK custody and no build or pack", async () => {
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_PLUGIN_SCAFFOLD_CALIBRATION !== "1")("qualifies the actual source CLI scaffold with explicit owned SDK custody and no build or pack", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "plugin-cli-offline-control-"));
   const previousPath = process.env.PATH;
   let fixture: Awaited<ReturnType<typeof createPreviewFixture>> | undefined;
@@ -24,7 +24,7 @@ it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_PLUGIN_SCAFFOLD_CALIBRATION !== "1")("
     const original = { failed: false, missingCheckoutDependency: false };
     try {
       await promisify(execFile)(process.execPath, [cli, "plugin", "init", "@paperclip-eval/default-sdk-control", "--output", root], {
-        cwd: root, timeout: 30_000, maxBuffer: 256_000, env: { HOME: root, PATH: bin, NODE_ENV: "test", DO_NOT_TRACK: "1", PAPERCLIP_TELEMETRY_DISABLED: "1" },
+        cwd: root, timeout: 30_000, maxBuffer: 256_000, env: { HOME: root, PATH: bin, NODE_ENV: "test", DO_NOT_TRACK: "1", OUTPOST_TELEMETRY_DISABLED: "1" },
       });
     } catch (error) {
       original.failed = true;

@@ -1079,9 +1079,9 @@ GET /api/companies/{companyId}/approvals?status=pending
 ### Approval follow-up (requesting agent)
 
 When board resolves your approval, you may be woken with:
-- `PAPERCLIP_APPROVAL_ID`
-- `PAPERCLIP_APPROVAL_STATUS`
-- `PAPERCLIP_LINKED_ISSUE_IDS`
+- `OUTPOST_APPROVAL_ID`
+- `OUTPOST_APPROVAL_STATUS`
+- `OUTPOST_LINKED_ISSUE_IDS`
 
 Use:
 

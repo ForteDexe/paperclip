@@ -262,11 +262,11 @@ export function rankPreTurnSteps(runs: readonly BaselineRun[]): StepRank[] {
     .sort((a, b) => (b.p95 ?? 0) - (a.p95 ?? 0) || (b.p50 ?? 0) - (a.p50 ?? 0));
 }
 
-/** The tool payload of a run-log `tool.execution.*` row (PRP envelope or bare). */
+/** The tool payload of a run-log `tool.execution.*` row (ORP envelope or bare). */
 function toolPayload(event: BaselineEvent): Record<string, unknown> {
   const outer = event.payload ?? {};
-  const prp = outer.prpEvent as Record<string, unknown> | undefined;
-  return ((prp?.payload ?? outer) as Record<string, unknown>) ?? {};
+  const orp = outer.orpEvent as Record<string, unknown> | undefined;
+  return ((orp?.payload ?? outer) as Record<string, unknown>) ?? {};
 }
 
 const SHELL_TOOL = /\b(bash|sh|zsh|shell|terminal|python3?)\b/i;

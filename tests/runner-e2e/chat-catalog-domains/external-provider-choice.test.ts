@@ -100,7 +100,7 @@ describe("current Notion catalog setup choices", () => {
     expect(
       truthfulNotionChoices(
         "Sign in to Notion. Vercel Connect needs workload OIDC configured first.",
-        "Vercel Connect needs workload OIDC or PAPERCLIP_VERCEL_CONNECT_ACCESS_TOKEN.",
+        "Vercel Connect needs workload OIDC or OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN.",
       ),
     ).toBe(true);
     // The question asks only for the easiest way; naming the unavailable method is not required.
@@ -164,7 +164,7 @@ describe("actual source attribution and supported choice lanes", () => {
       companyId: "company",
       agentId: "ceo",
       payload: {
-        prpEvent: {
+        orpEvent: {
           runId: "run",
           payload: {
             item: {
@@ -190,7 +190,7 @@ describe("actual source attribution and supported choice lanes", () => {
     ])
       expect(publicChoiceMessages([{ ...e, ...delta }], target)).toEqual([]);
     const hidden = structuredClone(e);
-    hidden.payload.prpEvent.payload.item.phase = "analysis";
+    hidden.payload.orpEvent.payload.item.phase = "analysis";
     expect(publicChoiceMessages([hidden], target)).toEqual([]);
   });
   it("binds the inline request to the actual person, task, native run and Notion service", () => {

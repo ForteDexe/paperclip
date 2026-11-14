@@ -15,10 +15,10 @@ import {
 import { createS3StorageProvider } from "../src/storage/s3-provider.js";
 import { createObjectRunLogStore } from "../src/services/object-run-log-store.js";
 
-const endpoint = process.env.PAPERCLIP_LOG_TEST_S3_ENDPOINT;
+const endpoint = process.env.OUTPOST_LOG_TEST_S3_ENDPOINT;
 if (!endpoint || !["127.0.0.1", "localhost"].includes(new URL(endpoint).hostname)) {
   throw new Error(
-    "Qualification requires PAPERCLIP_LOG_TEST_S3_ENDPOINT on a disposable loopback backend",
+    "Qualification requires OUTPOST_LOG_TEST_S3_ENDPOINT on a disposable loopback backend",
   );
 }
 const childMode = process.argv[2] === "--child-writer";

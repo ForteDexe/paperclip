@@ -1,6 +1,6 @@
 import { and, eq, notInArray } from "drizzle-orm";
-import { agents, builtInManagedResources, userCompanyPreferences, type Db } from "@paperclipai/db";
-import type { ProjectEnvironmentOptions } from "@paperclipai/shared";
+import { agents, builtInManagedResources, userCompanyPreferences, type Db } from "@outpost/db";
+import type { ProjectEnvironmentOptions } from "@outpost/shared";
 import { conflict } from "../errors.js";
 import { environmentService } from "./environments.js";
 import { instanceSettingsService } from "./instance-settings.js";

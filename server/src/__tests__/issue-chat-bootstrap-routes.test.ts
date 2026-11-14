@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vite
 import { eq } from "drizzle-orm";
 import {
   activityLog, agents, assets, heartbeatRuns, issueAttachments, issueComments, issues, issueThreadInteractions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { issueRoutes } from "../routes/issues.js";
 import { activityRoutes } from "../routes/activity.js";
 import { agentRoutes } from "../routes/agents.js";
@@ -14,11 +14,11 @@ import { describeEmbeddedPostgres, seedCompanyWithBoardAccess, useEmbeddedPostgr
 
 describeEmbeddedPostgres("task chat bootstrap", () => {
   const ctx = useEmbeddedPostgres("paperclip-issue-chat-bootstrap-");
-  const oldPrivacy = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-  beforeAll(() => { process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce"; });
+  const oldPrivacy = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+  beforeAll(() => { process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce"; });
   afterAll(() => {
-    if (oldPrivacy === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = oldPrivacy;
+    if (oldPrivacy === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    else process.env.OUTPOST_ISSUE_PRIVACY_MODE = oldPrivacy;
   });
   // Run decorations (output silence) are relative to now; hold the clock so the
   // single endpoints and the bootstrap see the same instant.

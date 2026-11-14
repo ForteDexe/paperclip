@@ -10,9 +10,9 @@ import type {
   IssueLabel,
   Project,
   WorkspaceRuntimeService,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Issue, IssueDocument } from "@paperclipai/shared";
+import type { Issue, IssueDocument } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getLastProjectId } from "../lib/recent-projects";
 import { IssueProperties } from "./IssueProperties";
@@ -710,7 +710,7 @@ describe("IssueProperties", () => {
         resolveRuntimeState({
           stateJson: {
             providerRateLimits: {
-              schema: "paperclip.provider.rate_limits.v1",
+              schema: "outpost.provider.rate_limits.v1",
               provider: "openai",
               observedAt: new Date().toISOString(),
               windows: [{
@@ -2417,7 +2417,7 @@ describe("IssueProperties", () => {
   ] as const)("discovers $name overrides with the assignee connection and environment", async ({ acpxAgent, provider, method, model, label }) => {
     const binding = { provider, method, mode: "shared", connectionId: "11111111-1111-4111-8111-111111111111", grantId: "33333333-3333-4333-8333-333333333333" };
     mockAgentsApi.list.mockResolvedValue([{ id: "agent-1", name: acpxAgent, role: "engineer", status: "active",
-      adapterType: "paperclip_runner", defaultEnvironmentId: "daytona-1",
+      adapterType: "outpost_runner", defaultEnvironmentId: "daytona-1",
       adapterConfig: { provider: "acpx", acpxAgent, model },
       runtimeConfig: { aiConnection: binding } }]);
     mockAgentsApi.adapterModels.mockResolvedValue([{ id: model, label }]);
@@ -2431,7 +2431,7 @@ describe("IssueProperties", () => {
     const modelTrigger = findRowTrigger(container, "Model");
     expect(modelTrigger).toBeDefined();
     await act(async () => modelTrigger!.click());
-    await waitForAssertion(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("company-1", "paperclip_runner", {
+    await waitForAssertion(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("company-1", "outpost_runner", {
       environmentId: "daytona-1", provider: "acpx", acpxAgent, agentId: "agent-1", aiConnection: binding,
     }));
     await act(async () => { await queryClient.invalidateQueries({ type: "active" }, { cancelRefetch: false }); });

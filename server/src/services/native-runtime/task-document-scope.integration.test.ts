@@ -1,24 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import { issues } from "@paperclipai/db";
+import { issues } from "@outpost/db";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { documentService } from "../documents.js";
 
 type Call = { tool: string; callId: string; arguments: unknown };
 type StartBridge = (options: { tools: Array<Record<string, unknown>>; handler: (call: Call) => Promise<unknown> }) => Promise<{ url: string; secret: string; close(): Promise<void> }>;
-const { startRunnerToolBridge } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/runner-tool-bridge.ts", import.meta.url).href) as { startRunnerToolBridge: StartBridge };
-const { startOpenCodeMcpBridge } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.ts", import.meta.url).href) as { startOpenCodeMcpBridge: StartBridge };
+const { startRunnerToolBridge } = await import(new URL("../../../../packages/outpost-runner/src/drivers/runner-tool-bridge.ts", import.meta.url).href) as { startRunnerToolBridge: StartBridge };
+const { startOpenCodeMcpBridge } = await import(new URL("../../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.ts", import.meta.url).href) as { startOpenCodeMcpBridge: StartBridge };
 
 let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
-const previousSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+const previousSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
 beforeAll(async () => {
-  process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+  process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
   server = await startRunnerApiTestServer();
 }, 60_000);
 afterAll(async () => {
   await server?.close();
-  if (previousSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-  else process.env.PAPERCLIP_AGENT_JWT_SECRET = previousSecret;
+  if (previousSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+  else process.env.OUTPOST_AGENT_JWT_SECRET = previousSecret;
 });
 
 it.each([startRunnerToolBridge, startOpenCodeMcpBridge])("recovers task scope through MCP, HTTP routes, and saved documents (%#)", async start => {

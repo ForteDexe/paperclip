@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { IssueQueuedCommentQueue } from "@paperclipai/shared";
+import type { IssueQueuedCommentQueue } from "@outpost/shared";
 import { expect, userEvent, within, waitFor } from "storybook/test";
 import { TaskChatQueuedMessages } from "@/components/task-chat/TaskChatQueuedMessages";
 const initialQueue: IssueQueuedCommentQueue = {
@@ -9,7 +9,7 @@ const initialQueue: IssueQueuedCommentQueue = {
   state: "deferred",
   targetRunId: "run-gap",
   revision: "rev-1",
-  protocol: "paperclip_runner_v1",
+  protocol: "outpost_runner_v1",
   steeringDisposition: "available",
   entries: [
     {

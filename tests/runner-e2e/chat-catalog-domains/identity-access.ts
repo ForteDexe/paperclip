@@ -75,7 +75,7 @@ identityDefinition("access.other-company", async ctx => {
   authentication: "human-session",
   queryBindings: [{ catalogToken: "BIRCH-42", stateKey: "foreignTask", resourceKind: "issue", valueField: "identifier" }],
   sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-access.ts", "chat-rendered-links.ts", "chat-scenarios/access.yaml"],
-  oracleVersion: "paperclip.chat-catalog.identity.other-company.v2",
+  oracleVersion: "outpost.chat-catalog.identity.other-company.v2",
   async observe(ctx, state) {
     state.foreignAfter = await ctx.input.api.get(`/api/issues/${entity(state, "foreignTask").id}`);
     const company = await ctx.input.api.get<{ issuePrefix: string }>(`/api/companies/${entity(state, "otherCompany").id}`);
@@ -118,7 +118,7 @@ identityDefinition("access.private-resource", async ctx => {
     agentSearchHidden: search.status === 200 && Array.isArray(search.data) && !search.data.some(row => (row as Entity).id === privateTask.id || JSON.stringify(row).includes(privateMarker)) };
 }, gradePrivateResource, {
   authentication: "human-session",
-  oracleVersion: "paperclip.chat-catalog.identity.private-resource.v2",
+  oracleVersion: "outpost.chat-catalog.identity.private-resource.v2",
   async observe(ctx, state) { state.privateAfter = await ctx.input.api.get(`/api/issues/${entity(state, "privateTask").id}`); return observeIdentity(ctx, state); },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url();

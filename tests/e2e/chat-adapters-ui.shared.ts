@@ -287,7 +287,7 @@ export function endpointFixture(provider: ProviderCase, seed: Seed) {
       slackAccount: undefined as Record<string, unknown> | undefined,
       slackAvatar: undefined as Record<string, unknown> | undefined,
       github: undefined as Record<string, unknown> | undefined,
-      slackOAuthCallbackUri: "https://paperclip.example.test/api/chat-slack/oauth/callback",
+      slackOAuthCallbackUri: "https://outpost.example.test/api/chat-slack/oauth/callback",
       step: "provider_setup",
       authorizationUrl:
         provider.provider === "telegram"
@@ -300,8 +300,8 @@ export function endpointFixture(provider: ProviderCase, seed: Seed) {
                 ? "https://discord.com/developers/applications"
                 : "https://api.slack.com/apps",
       providerUrl: provider.externalUrl,
-      webhookUrl: `https://paperclip.example.test/api/chat-webhooks/public-${provider.provider}/${provider.provider}`,
-      messagingEndpoint: `https://paperclip.example.test/api/chat-webhooks/public-${provider.provider}/microsoft-teams`,
+      webhookUrl: `https://outpost.example.test/api/chat-webhooks/public-${provider.provider}/${provider.provider}`,
+      messagingEndpoint: `https://outpost.example.test/api/chat-webhooks/public-${provider.provider}/microsoft-teams`,
       command: provider.provider === "slack" ? "/maya-public" : undefined,
       testStartedAt: null as string | null,
       webhookVerifiedAt: null as string | null,
@@ -721,7 +721,7 @@ export async function installChatControlPlaneMock(
       return;
     }
     if (pathname === `/api/chat-endpoints/${endpoint.id}/principals/principal-slack-self/link-intent` && method === "POST") {
-      await fulfill(route, { confirmationUrl: `https://paperclip.example.test/${seed.prefix}/chat-identity/confirm?token=e2e-self` });
+      await fulfill(route, { confirmationUrl: `https://outpost.example.test/${seed.prefix}/chat-identity/confirm?token=e2e-self` });
       return;
     }
     if (pathname === "/api/chat-identity-links/confirm" && method === "POST") {
@@ -810,7 +810,7 @@ export async function installChatControlPlaneMock(
     ) {
       state.linkIntentPrincipalId = `principal-${provider.provider}`;
       await fulfill(route, {
-        confirmationUrl: `https://paperclip.example.test/${seed.prefix}/chat-identity/confirm?token=e2e-redacted`,
+        confirmationUrl: `https://outpost.example.test/${seed.prefix}/chat-identity/confirm?token=e2e-redacted`,
       });
       return;
     }
@@ -1011,7 +1011,7 @@ export async function fillProviderSetup(page: Page, provider: ProviderCase) {
     ) as { webApplicationInfo?: { id?: string; resource?: string } };
     expect(manifest.webApplicationInfo).toEqual({
       id: clientId,
-      resource: "https://paperclip.ing",
+      resource: "https://outpost.ing",
     });
     await expect(
       page.getByRole("button", { name: "Copy manifest settings" }),
@@ -1054,7 +1054,7 @@ export function expectedSlackManifest(webhookUrl: string) {
 }
 
 export async function expectMinimumProviderSetup(page: Page, provider: ProviderCase) {
-  const webhookUrl = `https://paperclip.example.test/api/chat-webhooks/public-${provider.provider}/${provider.provider}`;
+  const webhookUrl = `https://outpost.example.test/api/chat-webhooks/public-${provider.provider}/${provider.provider}`;
   if (provider.provider === "slack") {
     const steps = page.getByRole("navigation", { name: "Connection setup progress" });
     await steps.getByRole("button", { name: /Choose agent/ }).click();
@@ -1095,7 +1095,7 @@ export async function expectMinimumProviderSetup(page: Page, provider: ProviderC
 
   if (provider.provider === "microsoft-teams") {
     const messagingEndpoint =
-      "https://paperclip.example.test/api/chat-webhooks/public-microsoft-teams/microsoft-teams";
+      "https://outpost.example.test/api/chat-webhooks/public-microsoft-teams/microsoft-teams";
     await expect(
       page.getByText(messagingEndpoint, { exact: true }),
     ).toBeVisible();
@@ -1145,7 +1145,7 @@ export async function expectMinimumProviderSetup(page: Page, provider: ProviderC
       ],
       webApplicationInfo: {
         id: "<application-client-id>",
-        resource: "https://paperclip.ing",
+        resource: "https://outpost.ing",
       },
     });
     expect(manifest).not.toContain("api://paperclip-chat/");

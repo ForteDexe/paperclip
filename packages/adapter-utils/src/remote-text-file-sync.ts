@@ -119,7 +119,7 @@ export async function syncRemoteTextFiles(input: RemoteTextFileBatchInput, execu
   const shell = preferredShellForSandbox(input.shellCommand);
   const programs = input.files.map(program);
   const script = ["set -eu", ...programs.map((file, index) => {
-    const delimiter = `PAPERCLIP_TEXT_${index}_${randomUUID().replaceAll("-", "")}`;
+    const delimiter = `OUTPOST_TEXT_${index}_${randomUUID().replaceAll("-", "")}`;
     return `${shellQuote(shell)} -c ${shellQuote(file.script)} <<'${delimiter}'\n${file.base64Body}\n${delimiter}`;
   }), ...(input.ensureDirectories?.length ? [`mkdir -p -- ${input.ensureDirectories.map(shellQuote).join(" ")}`] : [])].join("\n") + "\n";
   if (Buffer.byteLength(script, "utf8") > 1024 * 1024) throw new Error("Remote text sync batch exceeds 1 MiB");

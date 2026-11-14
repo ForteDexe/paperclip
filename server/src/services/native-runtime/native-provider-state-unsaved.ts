@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { heartbeatRuns, nativeHarnessBackups, nativeRunFinalizations, nativeRunResults, type Db } from "@paperclipai/db";
+import { heartbeatRuns, nativeHarnessBackups, nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
 import { NATIVE_PROVIDER_STATE_INCOMPATIBLE, NATIVE_PROVIDER_STATE_UNSAVED_KEY } from "./native-session-resume.js";
 
 const REASON = "harness_backup_not_saved";

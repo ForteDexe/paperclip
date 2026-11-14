@@ -412,7 +412,7 @@ The stored absolute path allowed B to read A's directory on the same host.
 Overall result: **failed**, with agent-file durable authority a demonstrated
 prerequisite. No browser, live agent, managed-cloud auth or packaged build proof.
 
-Private evidence: `/private/var/folders/74/zhncxl_j05xb5_r6_vfbk73h0000gn/T/paperclip-runner-e2e-4Q7BmG/rolling-deployment-evidence.json`.
+Private evidence: `/private/var/folders/74/zhncxl_j05xb5_r6_vfbk73h0000gn/T/outpost-runner-e2e-4Q7BmG/rolling-deployment-evidence.json`.
 Setup failures are retained: host embedded Postgres could not initialize;
 the first full-server boot lacked the fresh SDK build. Isolated Docker Postgres
 and a built SDK resolved those setup failures. No product assertions were reached
@@ -429,18 +429,18 @@ these containers and credential files when local qualification no longer needs t
 The agent-file service owns a current Postgres manifest and immutable S3 objects.
 Managed roots are disposable projections; existing authorization, hash conflicts,
 runtime directory merges and activity logging keep their owners. A durable head
-remains authoritative if `PAPERCLIP_DURABLE_AGENT_FILES` is subsequently disabled.
+remains authoritative if `OUTPOST_DURABLE_AGENT_FILES` is subsequently disabled.
 Legacy local data must be adopted on its owning server before filesystem removal.
 Separate bounded file-transfer connections protect ordinary HTTP and controller
 renewals during S3 stalls. No idle polling or listeners were added.
 
 Source-mode evidence (base `34f8d25089` plus uncommitted changes):
 
-- `paperclip-runner-e2e-A05NfC`: 76 reads/16 acknowledged writes, deletion of A's
+- `outpost-runner-e2e-A05NfC`: 76 reads/16 acknowledged writes, deletion of A's
   full home, saved agent file recovered by B; all checks passed.
-- `paperclip-runner-e2e-NcNG3F`: bidirectional A/B edits and stale-write 409 also
+- `outpost-runner-e2e-NcNG3F`: bidirectional A/B edits and stale-write 409 also
   passed. No browser or active-agent claim.
-- `paperclip-runner-e2e-zQMAji`: both transfer connections deliberately held;
+- `outpost-runner-e2e-zQMAji`: both transfer connections deliberately held;
   unrelated task read completed in 20ms. A failed-write read unexpectedly returned
   200, so this expanded run failed and is retained for diagnosis. Fresh C did
   recover the primary saved file after deleting both previous homes.
@@ -455,16 +455,16 @@ The failed first write exposed rollback followed by re-import of dirty local
 bytes. A private pre-mutation import receipt fixes that retry; committed heads
 remain solely in Postgres. The harness also now explicitly seeds process-agent
 instructions through the canonical API (agent creation ignores that field).
-The corrected run `paperclip-runner-e2e-Xdn96H` passed all eight checks.
+The corrected run `outpost-runner-e2e-Xdn96H` passed all eight checks.
 
-Latest source-mode receipt `paperclip-runner-e2e-eGJIqp` passed all nine checks:
+Latest source-mode receipt `outpost-runner-e2e-eGJIqp` passed all nine checks:
 114 reads, 23 acknowledged writes, 2,508ms handoff, 31ms unrelated task read while
 both storage connections were held. An admitted file save finished after SIGTERM;
 C restored both saved files after A and B homes were removed. Cleanup confirmed.
 The receipt records the source patch and lockfile digests. No browser, managed
 auth, distinct packaged releases or live-agent qualification is claimed.
 
-An earlier passing drain receipt `paperclip-runner-e2e-iW2OCt` took 32 seconds:
+An earlier passing drain receipt `outpost-runner-e2e-iW2OCt` took 32 seconds:
 Node's listener-close callback also waited for upgraded sockets. HTTP drain now
 uses the existing request/promise tracker, while browser and agent sockets retain
 their own shutdown owners. Readiness becomes unavailable immediately on SIGTERM.
@@ -485,7 +485,7 @@ pass; no partial page is an instance-wide eligibility report.
 
 ### Browser and overlap commands, 2026-11-01
 
-Receipt `paperclip-runner-e2e-oYdmER` passed all ten checks using independent
+Receipt `outpost-runner-e2e-oYdmER` passed all ten checks using independent
 compiled server/UI directories and workspace dependencies: 91 reads, 19 writes,
 2,870ms handoff, 1,013ms browser reconnect and 23ms task read during the S3 outage.
 The original tab opened Audit after A's entire home/build was deleted, loading
@@ -528,7 +528,7 @@ review/merge, ten staging deploys and production forward/rollback. Draft PRs are
 Cloud CI passed; Core CI and review corrections are underway. No merge or deployment yet. The same owned worktrees and acceptance remain.
 
 Migration must preserve the original `decision-signing.key` as the stable
-`PAPERCLIP_DECISION_SIGNING_SECRET` before removing the volume. Ephemeral startup
+`OUTPOST_DECISION_SIGNING_SECRET` before removing the volume. Ephemeral startup
 now refuses a missing/short value. Fresh Cloud provisioning must supply a stable
 key too; the storage master key alone does not preserve decision signatures.
 
@@ -571,7 +571,7 @@ The actual supervisor passed two replacements with no model calls, 436 ordinary
 reads and 45 saved/read-back comments, zero request failures, old homes removed,
 and owned database/bucket/process cleanup confirmed. B readiness was 18,694 ms;
 C readiness was 109,182 ms. Receipt (private local):
-`/private/var/folders/74/zhncxl_j05xb5_r6_vfbk73h0000gn/T/paperclip-runner-e2e-meJSIF/replacement-evidence.json`.
+`/private/var/folders/74/zhncxl_j05xb5_r6_vfbk73h0000gn/T/outpost-runner-e2e-meJSIF/replacement-evidence.json`.
 It is source/compiled-with-workspace-dependencies, not a released container.
 The prior attempt `srF1rz` timed out on C and remains failed; its first replacement
 had 107 reads and 11 saves without failures. The initial `Ro7sxQ` setup failed
@@ -612,7 +612,7 @@ all CI passed and a 5/5 review. The opt-in remains disabled on hosted stacks.
 Qualification PR #18526 remains open; Cloud #1096 remains open. No hosted
 mutation or paid model test has occurred yet.
 
-Fresh browser receipt `paperclip-runner-e2e-tg3nel` passed all 11 checks:
+Fresh browser receipt `outpost-runner-e2e-tg3nel` passed all 11 checks:
 246 reads, 50 acknowledged/read-back saves, zero failures, 1,058ms browser
 reconnect and zero page errors. Both old homes were deleted; C restored saved
 files with legacy adoption disabled. Unready B left A serving. The admitted

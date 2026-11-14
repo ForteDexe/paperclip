@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, sandboxCreationOperations } from "@paperclipai/db";
+import { companies, createDb, sandboxCreationOperations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentControllerProcessStamp, currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { nextEnvironmentCleanupAt } from "../services/environment-cleanup-state.js";

@@ -1,4 +1,4 @@
-import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, subscribeDatabaseWork } from "@paperclipai/db";
+import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, subscribeDatabaseWork } from "@outpost/db";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -21,7 +21,7 @@ import {
   issues,
   projectWorkspaces,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -450,10 +450,10 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("resolves the managed base checkout for a git_worktree row when the project workspace cwd is null", async () => {
-    const previousHome = process.env.PAPERCLIP_HOME;
+    const previousHome = process.env.OUTPOST_HOME;
     const tempHome = await mkdtemp(join(tmpdir(), "paperclip-reopen-home-"));
     tempDirs.push(tempHome);
-    process.env.PAPERCLIP_HOME = tempHome;
+    process.env.OUTPOST_HOME = tempHome;
     try {
       const { companyId, projectId, projectWorkspaceId } = await seedManagedCheckoutProject();
       const repoUrl = "https://example.test/acme/widget.git";
@@ -495,8 +495,8 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
       const worktreeStat = await stat(deletedWorktree).catch(() => null);
       expect(worktreeStat?.isDirectory()).toBe(true);
     } finally {
-      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-      else process.env.PAPERCLIP_HOME = previousHome;
+      if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousHome;
     }
   });
 
@@ -523,11 +523,11 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   it.each([false, true, "revoked_during_provision"] as const)("reopens a current task using a private historical local source while preserving provisioning failure=%s", async scenario => {
     const provisionFails = scenario === true;
     const revokeDuringProvision = scenario === "revoked_during_provision";
-    const previousHome = process.env.PAPERCLIP_HOME;
-    const previousPrivacy = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
+    const previousHome = process.env.OUTPOST_HOME;
+    const previousPrivacy = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
     const home = await makeExistingDir();
-    process.env.PAPERCLIP_HOME = home;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    process.env.OUTPOST_HOME = home;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
       const { companyId, projectId, projectWorkspaceId } = await seedManagedCheckoutProject();
       const readerId = randomUUID();
@@ -577,8 +577,8 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
       await rm(source, { recursive: true, force: true });
       expect(await readFile(join(target, "private.txt"), "utf8")).toBe("PRIVATE_REOPEN_BYTES");
     } finally {
-      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
-      if (previousPrivacy === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE; else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousPrivacy;
+      if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
+      if (previousPrivacy === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE; else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousPrivacy;
     }
   }, 30_000);
 

@@ -1,6 +1,6 @@
 # Personal Muse receiver
 
-This experimental integration connects the existing personal Meta Muse to a named Paperclip Runner agent. It is separate from Muse Code. The provider is disabled by default; implementation and synthetic tests do not qualify the personal service. See the [architecture and release gates](plans/2026-10-10-muse-runner-architecture.md).
+This experimental integration connects the existing personal Meta Muse to a named Outpost Runner agent. It is separate from Muse Code. The provider is disabled by default; implementation and synthetic tests do not qualify the personal service. See the [architecture and release gates](plans/2026-10-10-muse-runner-architecture.md).
 
 ## Current compatibility and release gates
 

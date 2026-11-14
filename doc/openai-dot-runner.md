@@ -1,6 +1,6 @@
-# OpenAI Dot with Paperclip Runner
+# OpenAI Dot with Outpost Runner
 
-OpenAI Dot is an experimental provider of `paperclip_runner`. A dedicated
+OpenAI Dot is an experimental provider of `outpost_runner`. A dedicated
 agent OAuth connection and MCP Events wake an existing Dot. The Rust Runner
 owns the assignment lifecycle and durable tool receipts. Dot uses Paperclip's
 existing agent permissions and task tools, including document writes and
@@ -13,16 +13,16 @@ Runner setting in addition to Dot and Assistant connections (MCP).
 
 ## Enable and pair
 
-1. Configure `PAPERCLIP_PUBLIC_URL` to the instance's stable HTTPS origin and
+1. Configure `OUTPOST_PUBLIC_URL` to the instance's stable HTTPS origin and
    enable **Assistant connections (MCP)** and **OpenAI Dot**
    in **Instance settings → Experimental**. The instance must use authenticated
    sign-in. These settings are saved and take effect without a restart; the old
-   `PAPERCLIP_ENABLE_OPENAI_DOT` environment flag no longer enables the provider.
+   `OUTPOST_ENABLE_OPENAI_DOT` environment flag no longer enables the provider.
 2. In **Add agent**, choose the standalone **OpenAI Dot** option.
    Acknowledge that its provider billing is external and unmetered, then save it.
    Approve the agent if company policy requires it. Dot uses the shared Runner
    internally; its own experimental toggle does not require enabling the general
-   **Paperclip Runner** option and does not enable other Runner providers.
+   **Outpost Runner** option and does not enable other Runner providers.
 3. In the agent configuration, choose **Pair Dot**, then **Set up with Dot**.
    The shared setup-prompt component copies the MCP URL, one-use pairing code,
    expiry, and event instructions. Paste the prompt into your Dot so it can add
@@ -36,7 +36,7 @@ Runner setting in addition to Dot and Assistant connections (MCP).
 4. The OAuth code approval pairs Dot atomically. Attach the connected plugin
    to the Dot conversation if ChatGPT has not exposed its action tools. Dot calls
    `paperclip_dot_inbox` to verify access, then subscribes to
-   `paperclip.dot.mailbox_updated` with the setup company and inbox binding IDs.
+   `outpost.dot.mailbox_updated` with the setup company and inbox binding IDs.
    Its callback must pass the signed webhook verification. The prompt stays
    only in page memory and disappears when its code expires; if you leave the
    page or the code expires, revoke the pending connection and pair again.
@@ -99,10 +99,10 @@ The browser authorization page must also be reachable from Dot’s computer.
 Discovery and browser reachability are separate checks: a temporary tunnel may
 work for ChatGPT’s MCP service while Dot’s browser blocks its hostname. If the
 same instance already has another trusted public HTTPS browser ingress, set
-`PAPERCLIP_MCP_AUTHORIZATION_ORIGIN` to that origin and allow its hostname in the
+`OUTPOST_MCP_AUTHORIZATION_ORIGIN` to that origin and allow its hostname in the
 instance configuration. The advertised authorization endpoint, consent pages,
 and device verification pages use that origin. The MCP resource, issuer, token
-endpoint and PKCE validation remain on `PAPERCLIP_PUBLIC_URL`. Consent mutations
+endpoint and PKCE validation remain on `OUTPOST_PUBLIC_URL`. Consent mutations
 accept only these explicitly configured origins; this does not allow arbitrary
 return destinations or expose another instance.
 
@@ -276,7 +276,7 @@ Local verification on 2026-10-03:
 | --- | --- |
 | `pnpm -r typecheck`, `pnpm build`, UI token gates | Passed |
 | Rust workspace library tests | 312 passed |
-| PRP schema tests and CI shard selection tests | 13 and 24 passed |
+| ORP schema tests and CI shard selection tests | 13 and 24 passed |
 | Control-plane and Dot driver regression tests | 97 passed, including late callback retirement |
 | Real Rust / PostgreSQL Dot integration | 2 passed |
 | Agent configuration route tests | 36 passed, including unpaired create and conversion |
@@ -295,7 +295,7 @@ the released browser/device consent and assistant invitations (#14846 and
 #14933). Initial integration verification passed full workspace typecheck and
 build, token gates, 125 gateway/consent/admission tests, five Dot integration
 tests, 20 consent/Connections UI tests, 318 Rust library tests, 123 Runner/Dot
-recovery tests and 13 PRP schema tests.
+recovery tests and 13 ORP schema tests.
 
 The local root `pnpm test:run` was stopped after 2 hours 47 minutes when review
 fixes made it stale; it did not complete and is not a passing result. Fresh
@@ -441,7 +441,7 @@ The first managed version does not expose Paperclip workspace tools, even when t
 
 The Cloud front door must forward the dedicated `/mcp/runner` protocol endpoints, OAuth discovery/authorization/token routes, and `/dot-connect/:requestId` pairing page without requiring a browser stack session. The page uses `/api/dot-mcp/requests/:requestId` for read and one-use pairing preview/approval. These aliases reject personal assistant request IDs. Regular `/mcp-connect` consent and assistant connection management retain normal sign-in. Deploy the corresponding Cloud ingress change with the tenant app; upgrading only the UI is insufficient.
 
-Remote startup checks `externalProviderCapabilities` for `openai_dot_mcp`, verifies the artifact digest, and uses the existing authenticated Runner transport. Before dispatch, it also requires the sandbox process marker and Linux boot/start fingerprint; a connected transport alone is insufficient. A pre-Dot artifact is rejected before dispatch. Linux controllers use their packaged Linux artifact; a development controller on another platform must set `PAPERCLIP_RUNNER_REMOTE_BINARY_PATH` to a current binary built for the sandbox platform.
+Remote startup checks `externalProviderCapabilities` for `openai_dot_mcp`, verifies the artifact digest, and uses the existing authenticated Runner transport. Before dispatch, it also requires the sandbox process marker and Linux boot/start fingerprint; a connected transport alone is insufficient. A pre-Dot artifact is rejected before dispatch. Linux controllers use their packaged Linux artifact; a development controller on another platform must set `OUTPOST_RUNNER_REMOTE_BINARY_PATH` to a current binary built for the sandbox platform.
 
 Recovery reads the checkpoint from the owning execution target and validates run/session/turn authority before retaining a controller copy. Missing state after dispatch fails closed for reconciliation. It never creates a replacement OpenAI Dot thread. See [the cloud Runner plan](plans/2026-10-08-cloud-dot-runner-and-external-invitations.md).
 
@@ -453,7 +453,7 @@ A normal task comment for an accepted Dot assignment is recorded once in its dur
 
 `server/src/__tests__/dot-runner.test.ts` includes an opt-in private Daytona test using the actual Rust Runner and authenticated preview ingress. It covers signed readiness, no workspace catalog, assigned app tools, task-document writes, duplicate receipts, normal completion, and sandbox deletion. The ordinary suite also covers OAuth revocation, membership loss, budget and ownership fences, admission, and local Rust recovery.
 
-To run the live test, install/build the bundled Daytona plugin dependencies, supply `DAYTONA_API_KEY`, set `PAPERCLIP_DOT_DAYTONA_LIVE=1`, and set `PAPERCLIP_DOT_DAYTONA_IMAGE` to an immutable image digest. Optionally set `PAPERCLIP_DOT_DAYTONA_RUNNER_BINARY` to a current Linux Runner artifact and `PAPERCLIP_DOT_DAYTONA_EVIDENCE` to a local evidence output path. Then run:
+To run the live test, install/build the bundled Daytona plugin dependencies, supply `DAYTONA_API_KEY`, set `OUTPOST_DOT_DAYTONA_LIVE=1`, and set `OUTPOST_DOT_DAYTONA_IMAGE` to an immutable image digest. Optionally set `OUTPOST_DOT_DAYTONA_RUNNER_BINARY` to a current Linux Runner artifact and `OUTPOST_DOT_DAYTONA_EVIDENCE` to a local evidence output path. Then run:
 
 ```sh
 pnpm exec vitest run server/src/__tests__/dot-runner.test.ts -t 'private Daytona Rust'

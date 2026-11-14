@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import type { HeartbeatRun } from "@paperclipai/shared";
+import type { HeartbeatRun } from "@outpost/shared";
 import { afterEach, expect, it, vi } from "vitest";
 import { RunsTab } from "./AgentDetail";
 import { RunsTab as ProductionRunsTab } from "./AgentDetail.production";
@@ -81,7 +81,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
     }
     if (state.pending || state.uncertain) {
       const pending = { ...run, execution: { ...run.execution, canStop: false }, resultJson: { nativeCancellation: {
-        schema: "paperclip.native-cancellation.v1", runId: state.wrongIntent === "run" ? "another-run" : run.id, companyId: run.companyId, issueId: run.issueId,
+        schema: "outpost.native-cancellation.v1", runId: state.wrongIntent === "run" ? "another-run" : run.id, companyId: run.companyId, issueId: run.issueId,
         intentId: `native-cancellation:${state.wrongIntent === "request" ? "another-request" : body.cancellationRequestId}`, scope: "run", dispatchState: "pending", dispatched: false, intentAuditId: "recorded-intent",
       } } };
       get.mockResolvedValue(pending);
@@ -101,7 +101,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
   const element = document.createElement("div"); document.body.append(element);
   let root = createRoot(element);
   const render = () => root.render(<QueryClientProvider client={client}><MemoryRouter><PanelProvider><ToastProvider>
-    <Tab runs={[]} companyId="company-1" agentId="agent-1" agentRouteId="agent-1" selectedRunId={run.id} adapterType="paperclip_runner" adapterConfig={{}} />
+    <Tab runs={[]} companyId="company-1" agentId="agent-1" agentRouteId="agent-1" selectedRunId={run.id} adapterType="outpost_runner" adapterConfig={{}} />
   </ToastProvider></PanelProvider></MemoryRouter></QueryClientProvider>);
   try {
     await act(async () => render());

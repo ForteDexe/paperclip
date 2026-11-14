@@ -1,4 +1,4 @@
-import type { TaskInterruptionPresentation } from "@paperclipai/shared";
+import type { TaskInterruptionPresentation } from "@outpost/shared";
 import { redactSensitiveText } from "../redaction.js";
 
 /**

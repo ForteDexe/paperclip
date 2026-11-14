@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildGrokAccessPrompt, buildGrokRoutinePrompt } from "./grok-bot-setup-prompt";
 describe("Grok Bot onboarding instructions", () => {
   it("keeps pairing and routine credentials out of chat instructions", () => {
-    const access = buildGrokAccessPrompt("https://paperclip.example/mcp/runner", "Night Shift");
+    const access = buildGrokAccessPrompt("https://outpost.example/mcp/runner", "Night Shift");
     expect(access).toContain("paperclip_grok_inbox");
     expect(access).toContain("enter the one-use pairing code there");
     expect(access).not.toContain("paperclip_dot_");

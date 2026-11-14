@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, it } from "vitest";
 import { createRunnerdCodexTransport, createRunnerProviderLaunch, defaultCapabilityRunnerdBinary,
-  runnerLaunchRequirementsDigest, readRunnerdArtifactBinding, type RunnerProcessLaunchSpec, type RunnerProviderLaunchRequirements } from "@paperclipai/paperclip-runner";
+  runnerLaunchRequirementsDigest, readRunnerdArtifactBinding, type RunnerProcessLaunchSpec, type RunnerProviderLaunchRequirements } from "@outpost/outpost-runner";
 import { createPluginRunnerTaskOwner } from "./plugin-runner-task.js";
 
-const fakeCodex = resolve(import.meta.dirname, "../../../../packages/paperclip-runner/runner/target/debug/fake-codex-app-server");
+const fakeCodex = resolve(import.meta.dirname, "../../../../packages/outpost-runner/runner/target/debug/fake-codex-app-server");
 
 it.skipIf(!existsSync(defaultCapabilityRunnerdBinary()) || !existsSync(fakeCodex))(
   "keeps the current plugin owner through a real ordinary warm attachment", async () => {
@@ -42,11 +42,11 @@ it.skipIf(!existsSync(defaultCapabilityRunnerdBinary()) || !existsSync(fakeCodex
       authorityRunId: source.runId, accountIdentity: "synthetic-account", warmTaskVersion: 1 as const, pollMs: 5 };
     const owner = createPluginRunnerTaskOwner(input);
     const launcher = owner.driver.runnerProcessLauncher!;
-    const cores = new Set<import("@paperclipai/paperclip-runner").DurablePrpControlPlane>();
+    const cores = new Set<import("@outpost/outpost-runner").DurablePrpControlPlane>();
     const bundle = createRunnerdCodexTransport({ ...owner.driver,
       get authorityRunId() { return owner.driver.authorityRunId; },
       runnerProcessLauncher: next => { spec = next; return launcher(next); },
-      stateDirectory: root, runnerBinary: defaultCapabilityRunnerdBinary(), runnerArtifact: readRunnerdArtifactBinding(defaultCapabilityRunnerdBinary()), prpIdentity: source,
+      stateDirectory: root, runnerBinary: defaultCapabilityRunnerdBinary(), runnerArtifact: readRunnerdArtifactBinding(defaultCapabilityRunnerdBinary()), orpIdentity: source,
       codexCommand: fakeCodex, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 },
       // This fixture isolates ordinary owner rotation from hosted ingress timing.
       controlPlaneRegistration: async core => {

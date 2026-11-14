@@ -150,7 +150,7 @@ const context = privilegedDefinition("cli-operations.choose-cli-context", "privi
 });
 context.sourceFiles = [...context.sourceFiles, "chat-catalog-domains/privileged-cli-support.ts", "../../cli/src/index.ts",
   "../../cli/src/commands/client/context.ts", "../../cli/src/commands/client/company.ts", "../../cli/src/commands/client/auth.ts", "../../cli/src/client/context.ts"];
-context.oracleVersion = "paperclip.chat-catalog.cli-context.v4";
-create.oracleVersion = "paperclip.chat-catalog.cli-create.v2";
+context.oracleVersion = "outpost.chat-catalog.cli-context.v4";
+create.oracleVersion = "outpost.chat-catalog.cli-create.v2";
 context.cleanup = cleanupOwnedCli;
 export const privilegedCliCases: ChatCatalogCase[] = [create, context];

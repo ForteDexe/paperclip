@@ -46,7 +46,7 @@ export const assistantConsentExternalCases = [definition("assistant-connections.
     return { viewerId: viewer.id, chatCallerId: caller.user.id, phaseBoundary: "operator-chat-to-viewer-browser-consent", taskId: task.id, taskBefore: task, marker, forbiddenTitle: `Forbidden viewer task ${ctx.input.nonce}` };
   } catch (error) { people.delete(ctx); await viewer.dispose(); throw error; }
 }, gradeViewerConsent, {
-  oracleVersion: "paperclip.chat-catalog.external.v2", authentication: "human-session",
+  oracleVersion: "outpost.chat-catalog.external.v2", authentication: "human-session",
   sourceFiles: ["chat-catalog-domains/external-assistant-consent.ts", "chat-catalog-domains/external-assistant-connections.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-support.ts", "public-mcp-client.ts", "chat-scenarios/assistant-connections.yaml"],
   async act(ctx, state) {
     await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); const viewer = people.get(ctx); if (!viewer || !ctx.input.privateSecrets) throw new Error("Viewer consent fixture missing");

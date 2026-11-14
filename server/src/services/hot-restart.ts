@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { readLinuxProcessStartedAt, type LinuxProcessStartOptions } from "../vendor/paperclip-runner/index.js";
+import { readLinuxProcessStartedAt, type LinuxProcessStartOptions } from "../vendor/outpost-runner/index.js";
 import {
   resolvePaperclipHomeDir,
   resolvePaperclipInstanceId,
@@ -529,7 +529,7 @@ export async function writeHotRestartIntent(input: {
   };
   const instancePath = resolveHotRestartIntentPath(input.homeDir);
   const legacyPath = resolveLegacyHotRestartIntentPath(input.homeDir);
-  // The legacy location is shared by every instance under PAPERCLIP_HOME.
+  // The legacy location is shared by every instance under OUTPOST_HOME.
   // Claim it without replacement so concurrent staged restarts fail closed
   // instead of making the first old server consume another instance's PID.
   await withHotRestartPathLock(legacyPath, () => claimLegacyHotRestartIntent(legacyPath, intent));

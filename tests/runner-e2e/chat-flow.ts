@@ -1,9 +1,6 @@
 import { prepareChatCatalogRespondent } from "./chat-catalog-respondent.js";
 import type { ChatPrivateInputs } from "./chat-private-inputs.js";
 import type { ChatCatalogFinalRunVerifier } from "./chat-catalog-run-policy.js";
-import { runHiringTemplateFlow } from "./hiring-template-flow.js";
-import { gradeHiringTemplateTurns } from "./hiring-template-turn-accounting.js";
-import type { HiringTemplateEvidence } from "./hiring-template-scoring.js";
 import { runAmbiguousConfirmationReply, runUnansweredQuestionReturn } from "./confirmation-replies.js";
 import { expect, type Page } from "@playwright/test";
 import { pollUntil, type RunnerApi } from "./api.js";
@@ -35,19 +32,11 @@ export function retryChatCompletionObservation(error: unknown) {
 export function assertChatFlowRunCount(input: {
   suiteId: string; task: Parameters<typeof matchesRunCount>[0] & { id?: string }; runs: ChatRun[];
   profileId?: string; environmentId?: string; completionEvidence?: ChatCompletionEvidence;
-  hiringEvidence?: HiringTemplateEvidence; hiringApiState?: unknown;
 }) {
   const completion = needsChatCompletionProof(input.suiteId, input.task.id, input.profileId, input.environmentId)
     ? verifyChatCompletion(input.runs, input.completionEvidence) : undefined;
   expect(matchesRunCount(input.task, completion?.totalProviderRuns ?? input.runs.length),
     completion ? "Declared total provider-run bounds with one proved completion turn" : "Declared total provider-run bounds").toBe(true);
-  if (input.suiteId !== "hiring-templates") return;
-  const accounting = gradeHiringTemplateTurns({
-    evidence: input.hiringEvidence ? { ...input.hiringEvidence, runs: input.runs } : undefined,
-    apiState: input.hiringApiState,
-  });
-  expect(accounting.passed, `Hiring lifecycle: ${accounting.predicates.filter(p => !p.passed).map(p => p.id).join(", ")}`).toBe(true);
-  return accounting;
 }
 
 // Public API observations only: this driver never fabricates provider results or writes DB state.
@@ -110,7 +99,7 @@ export function assertChatBacklogCreation(input: {
   const created = input.activity.filter(row => row.action === "issue.created");
   expect(created).toHaveLength(1);
   // Correcting todo after creation still permits an unauthorized start race.
-  expect(created[0]!.details).toMatchObject({ status: "backlog", source: "paperclip_runner_protocol" });
+  expect(created[0]!.details).toMatchObject({ status: "backlog", source: "outpost_runner_protocol" });
 }
 
 /** Clarification may request information imperatively rather than end in a question mark. */
@@ -264,7 +253,7 @@ export function chatQuestionPresentation(
 ): PaperclipQuestionSetPayload {
   if (payload.questionSet) return payload.questionSet;
   return {
-    schema: "paperclip.question_set.v1",
+    schema: "outpost.question_set.v1",
     ...(payload.submitLabel ? { submitLabel: payload.submitLabel } : {}),
     questions: payload.questions.map((question) => {
       const freeText = question.options.find((option) => option.freeText);
@@ -384,7 +373,7 @@ export function assertChatReassignment(input: {
   expect(successor).toHaveLength(1);
   expect(successor[0]).toMatchObject({ agentId: input.teammateId, status: "succeeded", runtimeMode: "native" });
   expect(input.runs.filter(run => run.contextSnapshot?.issueId === input.queuedId)).toHaveLength(0);
-  expect(input.audit.filter(row => row.action === "issue.reassigned" && row.details?.source === "paperclip_runner_protocol")).toHaveLength(1);
+  expect(input.audit.filter(row => row.action === "issue.reassigned" && row.details?.source === "outpost_runner_protocol")).toHaveLength(1);
   expect(input.outputBody).toContain(input.marker);
 }
 
@@ -565,8 +554,6 @@ export async function runChatFlow(input: ChatFlowInput) {
     await idle(count);
   };
   const noTasks = async () => expect(await tasks()).toHaveLength(0);
-  let hiringEvidence: HiringTemplateEvidence | undefined;
-  let refreshHiringEvidence: (() => Promise<HiringTemplateEvidence>) | undefined;
   try {
     if (caseId === "enable-disable-resume") await enableChatThroughSettings(input);
     else await api.patch("/api/instance/settings/experimental", {
@@ -596,10 +583,6 @@ export async function runChatFlow(input: ChatFlowInput) {
     } else if (caseId.startsWith("handoff-completion-")) {
       await runChatCompletionUpdate({ input, marker, allRuns, issue: () => issue!,
         refreshIssue: async () => { issue = await api.get<ChatIssue>(chatPath); if (issue) input.observe(issue, await allRuns()); } });
-    } else if (execution.suite.id === "hiring-templates") {
-      const hiring = await runHiringTemplateFlow({ input, issue: () => issue!, turn, tasks, allRuns });
-      hiringEvidence = hiring.evidence;
-      refreshHiringEvidence = hiring.refresh;
     } else if (execution.suite.id === "agent-chat-qualification") {
       const context = { input, marker, issue: () => issue!, idle, allRuns, comments, expectedStops,
         refreshIssue: async () => { issue = await api.get<ChatIssue>(chatPath); input.observe(issue, await allRuns()); } };
@@ -1166,11 +1149,6 @@ export async function runChatFlow(input: ChatFlowInput) {
     }
     if (catalogDescriptor) runs = await allRuns();
     else await idle(minimumRunCount(execution.task), completionAccounting);
-    if (execution.suite.id === "hiring-templates") {
-      // Refresh the whole consistent evidence generation for the final guard.
-      hiringEvidence = await refreshHiringEvidence!();
-      runs = hiringEvidence.runs;
-    }
     const finalAdmission = admissionAccounting ? await finalAdmissionEvidence() : undefined;
     const finalComments = finalAdmission?.comments;
     const admissionRunEvidence = finalAdmission?.runEvidence;
@@ -1179,10 +1157,7 @@ export async function runChatFlow(input: ChatFlowInput) {
       companyId: f.company.id, agentId: f.agent.id, stoppedRunId: stoppedForSessionReset, recoverySources: admissionWaitSources });
     assertChatFlowRunCount({ suiteId: execution.suite.id, task: execution.task,
       profileId: execution.profile.id, environmentId: execution.environment.id, completionEvidence,
-      // Hiring must account for every actual company run, including unexpected resets.
-      runs: execution.suite.id === "hiring-templates" || completionAccounting ? runs : providerRuns(),
-      hiringEvidence, hiringApiState: execution.suite.id === "hiring-templates"
-        ? hiringEvidence!.turnApiState : undefined,
+      runs: completionAccounting ? runs : providerRuns(),
     });
     if (completionAccounting) await input.evidence("chat-completion-proof.json", verifyChatCompletion(runs, completionEvidence));
     if (catalogDescriptor?.runPolicy) {

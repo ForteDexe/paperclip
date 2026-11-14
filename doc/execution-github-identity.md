@@ -79,7 +79,7 @@ to receive the repaired launch environment; reconnecting the GitHub account
 does not repair a process that already started without the transport.
 
 Without a managed identity, local commits default to
-`Paperclip <noreply@paperclip.ing>`. The launcher writes this token-free default
+`Paperclip <noreply@outpost.ing>`. The launcher writes this token-free default
 to a private per-operation global Git configuration file, removed on exit.
 Repository identity and `git -c user.name=... -c user.email=...` override it.
 The launcher leaves author/committer environment variables unset instead of
@@ -129,7 +129,7 @@ while preserving the settled conversation.
 Runner network access is independent of GitHub credentials. The controller
 enables networking for standard-trust execution. Low-trust runs and runners
 without a controller network decision retain a restricted default. An operator
-can set `PAPERCLIP_RUNNER_NETWORK_ACCESS=disabled` to restrict normal execution;
+can set `OUTPOST_RUNNER_NETWORK_ACCESS=disabled` to restrict normal execution;
 user environment bindings cannot override that decision. Outer execution-
 environment network restrictions still apply. The controller projects the assigned worktree's Git metadata paths so
 Git can operate without exposing unrelated workspace or provider state. The

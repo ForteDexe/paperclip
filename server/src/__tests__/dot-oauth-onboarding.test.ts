@@ -4,14 +4,14 @@ import express from "express";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, companies, companyMemberships, agents, dotAgentBindings, dotMailboxItems, mcpEventSubscriptions, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens } from "@paperclipai/db";
+import { createDb, authUsers, companies, companyMemberships, agents, dotAgentBindings, dotMailboxItems, mcpEventSubscriptions, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret, DEVICE_GRANT } from "../services/public-mcp/oauth.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { dotRunnerBroker } from "../services/dot-runner-broker.js";
 import { publicMcpManagementRoutes, publicMcpIngressRoutes } from "../routes/public-mcp.js";
 
-const config = { origin: "https://paperclip.example", resource: "https://paperclip.example/mcp/runner" };
+const config = { origin: "https://outpost.example", resource: "https://outpost.example/mcp/runner" };
 const callback = "https://chatgpt.com/connector_platform_oauth_redirect";
 describe("Dot onboarding with an operator-issued pairing capability", () => {
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -27,7 +27,7 @@ describe("Dot onboarding with an operator-issued pairing capability", () => {
     await db.insert(authUsers).values({ id: userId, name: "Operator", email: userId + "@example.test", createdAt: new Date(), updatedAt: new Date() });
     const [company] = await db.insert(companies).values({ name: "Dot onboarding", issuePrefix: "DO" + randomBytes(3).toString("hex") }).returning();
     await db.insert(companyMemberships).values({ companyId: company!.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
-    const [agent] = await db.insert(agents).values({ companyId: company!.id, name: "Dot", adapterType: "paperclip_runner", adapterConfig: { provider: "openai_dot" }, lifecycleState, status: lifecycleState === "ready" ? "active" : "paused" }).returning();
+    const [agent] = await db.insert(agents).values({ companyId: company!.id, name: "Dot", adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot" }, lifecycleState, status: lifecycleState === "ready" ? "active" : "paused" }).returning();
     const oauth = createPublicMcpOAuth(db, { ...config, ...(authorizationOrigin ? { authorizationOrigin } : {}) });
     const client = await oauth.register({ client_name: "Dot", redirect_uris: [callback], grant_types: ["authorization_code", "refresh_token", DEVICE_GRANT] }, randomUUID());
     const verifier = randomBytes(32).toString("base64url");
@@ -70,7 +70,7 @@ describe("Dot onboarding with an operator-issued pairing capability", () => {
     const principal = await f.oauth.authenticate(tokens.access_token);
     const broker = dotRunnerBroker(db);
     await db.insert(mcpEventSubscriptions).values({ id: randomUUID(), companyId: f.company.id,
-      grantId: principal.grant.id, name: "paperclip.dot.mailbox_updated", bindingId: f.pairing.bindingId,
+      grantId: principal.grant.id, name: "outpost.dot.mailbox_updated", bindingId: f.pairing.bindingId,
       arguments: {}, deliveryMaterial: {}, verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) });
     await db.insert(dotMailboxItems).values({ companyId: f.company.id, bindingId: f.pairing.bindingId,
       bindingGeneration: 1, kind: "assignment", sourceEventId: randomUUID(), references: { task: "hidden" } });
@@ -171,10 +171,10 @@ describe("Dot onboarding with an operator-issued pairing capability", () => {
     expect(device.verification_uri).toBe(browserOrigin + "/mcp-device");
   });
   it("validates a separately configured browser origin", () => {
-    expect(publicMcpConfig({ PAPERCLIP_PUBLIC_URL: config.origin, PAPERCLIP_MCP_AUTHORIZATION_ORIGIN: "https://browser.example:10000" }))
+    expect(publicMcpConfig({ OUTPOST_PUBLIC_URL: config.origin, OUTPOST_MCP_AUTHORIZATION_ORIGIN: "https://browser.example:10000" }))
       .toMatchObject({ origin: config.origin, resource: config.origin + "/mcp/paperclip", authorizationOrigin: "https://browser.example:10000" });
     for (const invalid of ["http://browser.example", "https://secret@browser.example", "https://browser.example/path", "https://browser.example?next=evil", "https://browser.example#fragment"])
-      expect(() => publicMcpConfig({ PAPERCLIP_PUBLIC_URL: config.origin, PAPERCLIP_MCP_AUTHORIZATION_ORIGIN: invalid })).toThrow();
+      expect(() => publicMcpConfig({ OUTPOST_PUBLIC_URL: config.origin, OUTPOST_MCP_AUTHORIZATION_ORIGIN: invalid })).toThrow();
   });
   it.each(["mcp", "dot-mcp"])("connects via %s without a board session, binds the exact agent, and consumes the capability once", async prefix => {
     const f = await fixture();

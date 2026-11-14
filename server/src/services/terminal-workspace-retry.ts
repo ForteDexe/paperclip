@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { executionWorkspaces, type Db } from "@paperclipai/db";
+import { executionWorkspaces, type Db } from "@outpost/db";
 import { HttpError } from "../errors.js";
 import { findWorkspaceProviderFailure } from "./workspace-provider-failure.js";
 import { TERMINAL_WORKSPACE_RETRY_MS } from "./terminal-workspace-work.js";

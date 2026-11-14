@@ -1,13 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { toolApplications, toolConnections, connectionGrants, type Db } from '@paperclipai/db';
+import { toolApplications, toolConnections, connectionGrants, type Db } from '@outpost/db';
 import { writeConnectionCredential } from '../../../services/connection-credentials.js';
 import { secretService } from '../../../services/secrets.js';
 import { createOAuthCredentialStore } from '../../../services/tool-access/oauth/credential-store.js';
 import { createOAuthRefreshLeases } from '../../../services/tool-access/oauth/refresh-leases.js';
 import { createOAuthGrantRefresh } from '../../../services/tool-access/oauth/grant-refresh.js';
 import { createGitHubGrantContinuity } from '../../../services/tool-access/github-grant-continuity.js';
-import { createPaperclipCloudConnector, paperclipCloudConnectorConfigFromEnv } from '../../../services/paperclip-cloud-connector.js';
+import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv } from '../../../services/paperclip-cloud-connector.js';
 
 /** Bootstrap the named OAuth consent boundary, then use real vault, binding and continuity owners. */
 export async function prepareGitHubConfiguration(db: Db, companyId: string) {
@@ -31,7 +31,7 @@ export async function settleGitHubConfiguration(db: Db, input: { connectionId: s
   const getConnection = async () => (await db.select().from(toolConnections).where(eq(toolConnections.id, input.connectionId)))[0];
   const connection = await getConnection();
   const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, input.grantId));
-  const config = paperclipCloudConnectorConfigFromEnv();
+  const config = outpostCloudConnectorConfigFromEnv();
   if (!config) throw new Error('Owned qualification connector is not configured');
   const connector = createPaperclipCloudConnector({ config });
   const credentials = createOAuthCredentialStore(db, secretService(db));

@@ -1,5 +1,5 @@
 import { resolveExternalTestDatabaseUrl } from './helpers/external-test-database.js';
-import { applyPendingMigrations } from '@paperclipai/db';
+import { applyPendingMigrations } from '@outpost/db';
 import { reserveInitialSkillWork } from '../services/skill-source-import-budget.js';
 import { admitDeferredSkillImports, lockSkillImportQueue, MAX_COMPANY_PENDING_SKILL_IMPORTS, MAX_PROJECT_PENDING_SKILL_IMPORTS, SKILL_IMPORT_CAPACITY_WAIT } from '../services/skill-source-import-queue.js';
 import { randomUUID } from 'node:crypto';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import { activityLog, agents, authUsers, companies, companyMemberships, companySkillSources, companySkillImportBudgets, companySkills, companySkillVersions, createDb, projects,
-  projectWorkspaces, projectSkillSources, projectAccessMembers } from '@paperclipai/db';
+  projectWorkspaces, projectSkillSources, projectAccessMembers } from '@outpost/db';
 import { startEmbeddedPostgresTestDatabase, getEmbeddedPostgresTestSupport } from './helpers/embedded-postgres.js';
 import { githubFixture } from './helpers/github-skills.js';
 import { enqueueProjectSkillSource, detachProjectSkillSource, projectSkillSetupIdentity } from '../services/project-skill-source-bindings.js';
@@ -22,13 +22,13 @@ import { skillAccessService, withSkillActor } from '../services/skill-access.js'
 import type { AuthorizationActor } from '../services/authorization.js';
 import { forbidden, unprocessable } from '../errors.js';
 
-const externalUrl = resolveExternalTestDatabaseUrl('PAPERCLIP_PROJECT_SKILLS_TEST_DATABASE_URL');
+const externalUrl = resolveExternalTestDatabaseUrl('OUTPOST_PROJECT_SKILLS_TEST_DATABASE_URL');
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)('automatic project skill sources', () => {
   let testDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let home: string;
-  const oldHome = process.env.PAPERCLIP_HOME;
+  const oldHome = process.env.OUTPOST_HOME;
   const companyId = randomUUID();
   const md = (name: string) => `---\nname: ${name}\ndescription: Test workflow\n---\nFollow the workflow.\n`;
   let files: Record<string, string> = {};
@@ -45,7 +45,7 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     else testDb = await startEmbeddedPostgresTestDatabase('paperclip-project-skills-');
     db = createDb(externalUrl ?? testDb.connectionString, { maxConnections: 4 });
     home = await fs.mkdtemp(path.join(os.tmpdir(), 'paperclip-project-skills-home-'));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     await db.insert(companies).values({ id: companyId, name: 'Project skills', issuePrefix: 'PSK' });
   }, 30000);
   it('rechecks the locked source ref when branch repair races with project attachment', async () => {
@@ -97,7 +97,7 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     } finally { provider.mockRestore(); }
   });
   afterAll(async () => {
-    if (oldHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = oldHome;
+    if (oldHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = oldHome;
     await db?.$client.end({ timeout: 1 });
     await testDb?.cleanup();
     if (home) await fs.rm(home, { recursive: true, force: true });

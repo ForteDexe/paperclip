@@ -9,8 +9,8 @@ import {
   issueThreadInteractions,
   issues,
   type Db,
-} from "@paperclipai/db";
-import type { ExecutionContinuationEnvelope } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { ExecutionContinuationEnvelope } from "@outpost/shared";
 import { sanitizeQuarantinedCommentForHigherTrust } from "./source-trust.js";
 import { hasConversationContinuationPolicy } from "./conversation-continuation.js";
 import { queuedCommentIdsFromWakePayload } from "./issue-queued-comment-queue.js";

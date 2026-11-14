@@ -1,5 +1,5 @@
 import { asc, desc, sql } from "drizzle-orm";
-import { executionWorkspaces, type Db } from "@paperclipai/db";
+import { executionWorkspaces, type Db } from "@outpost/db";
 import type { StorageService } from "../storage/types.js";
 import { offlineWorkspaceMigrationBlockers } from "./remote-workspace-migration-tree.js";
 import { migrateRemoteWorkspace } from "./remote-workspace-migration.js";

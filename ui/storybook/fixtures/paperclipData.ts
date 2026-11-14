@@ -20,7 +20,7 @@ import type {
   SecretProviderDescriptor,
   SidebarBadges,
   WorkspaceRuntimeService,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type { RunForIssue } from "@/api/activity";
 import type { LiveRunForIssue } from "@/api/heartbeats";
 
@@ -116,7 +116,7 @@ export const storybookAuthSession: AuthSession = {
   user: {
     id: "user-board",
     name: "Riley Board",
-    email: "riley@paperclip.local",
+    email: "riley@outpost.local",
     image: null,
   },
   sentryDsn: null,
@@ -397,7 +397,7 @@ const storybookWorkspaceRuntime = {
       id: "typecheck-ui",
       name: "UI typecheck",
       kind: "job",
-      command: "pnpm --filter @paperclipai/ui typecheck",
+      command: "pnpm --filter @outpost/ui typecheck",
       cwd: ".",
     },
   ],

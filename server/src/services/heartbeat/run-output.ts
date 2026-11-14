@@ -1,7 +1,7 @@
 import { notifyActiveRunSilence } from "../live-run-recovery-notifications.js";
 import { retryThroughStorageOutage, storageOutageWaitFor } from "../../storage/storage-unavailable.js";
 import { eq } from "drizzle-orm";
-import { heartbeatRuns, type Db } from "@paperclipai/db";
+import { heartbeatRuns, type Db } from "@outpost/db";
 import type { AdapterInvocationMeta, AdapterRuntimeEvent } from "../../adapters/index.js";
 import { redactCurrentUserText, type CurrentUserRedactionOptions } from "../../log-redaction.js";
 import type { createAgentIdentityRedactor } from "../agent-identity-redaction.js";
@@ -182,8 +182,8 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
       const chunkSeq = outputSeq;
       let committed: Promise<number> = Promise.resolve(0);
       if (handle) {
-        let nativeLooking = chunk.includes('"paperclip.prp.event"');
-        try { nativeLooking ||= JSON.parse(chunk)?.type === "paperclip.prp.event"; } catch { /* Diagnostics need not be JSON. */ }
+        let nativeLooking = chunk.includes('"outpost.orp.event"');
+        try { nativeLooking ||= JSON.parse(chunk)?.type === "outpost.orp.event"; } catch { /* Diagnostics need not be JSON. */ }
         const event = {
           stream,
           chunk: sanitizedChunk,

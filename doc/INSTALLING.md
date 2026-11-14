@@ -10,8 +10,8 @@ rollback, git-ref installs, and a stable entrypoint for the background service.
 On macOS, Linux, or WSL2:
 
 ```sh
-curl -fsSLO https://paperclip.ing/install.sh
-curl -fsSLO https://paperclip.ing/install.sh.sha256
+curl -fsSLO https://outpost.ing/install.sh
+curl -fsSLO https://outpost.ing/install.sh.sha256
 if command -v sha256sum >/dev/null 2>&1; then
   sha256sum -c install.sh.sha256
 else
@@ -30,7 +30,7 @@ The bootstrap script:
 The script prints and confirms any command that requires elevated privileges.
 Third-party Node.js bootstrap scripts are pinned and SHA-256 verified before
 execution; the installer stops if a published script changes unexpectedly.
-The `paperclip.ing` checksum detects transfer or publishing mistakes, but it is
+The `outpost.ing` checksum detects transfer or publishing mistakes, but it is
 served from the same origin as the script and is not an independent
 authenticity proof. For an independently hosted source, download a release-tag
 or commit-pinned copy from GitHub, review it, and run that local file.
@@ -41,7 +41,7 @@ installed; if Node.js bootstrap is required, download the script first so the
 privileged commands are inspectable before execution:
 
 ```sh
-curl -fsSL https://paperclip.ing/install.sh | bash -s -- --no-prompt --no-onboard
+curl -fsSL https://outpost.ing/install.sh | bash -s -- --no-prompt --no-onboard
 paperclipai onboard --yes
 ```
 
@@ -55,16 +55,16 @@ curl -fsSL "$raw_base/master/scripts/install.sh" | bash
 
 For audits or incident response, pin the raw URL to a release tag or commit SHA
 instead of `master` and download it first. That immutable GitHub URL provides a
-separate delivery path from `paperclip.ing`; do not treat a checksum served by
+separate delivery path from `outpost.ing`; do not treat a checksum served by
 the same origin as the artifact as an independent trust anchor.
 
-Each installer flag also has a `PAPERCLIP_INSTALL_*` environment-variable
+Each installer flag also has a `OUTPOST_INSTALL_*` environment-variable
 equivalent. This helps where passing arguments through a pipe is awkward.
 
 Codex ACP workspace sessions enable networking so agents can report task outcomes.
 To disable it explicitly, set `extraArgs` to
 `["-c", "sandbox_workspace_write.network_access=false"]`, or set
-`env.PAPERCLIP_CODEX_ACP_NETWORK_ACCESS="false"`. Execution-target network denial
+`env.OUTPOST_CODEX_ACP_NETWORK_ACCESS="false"`. Execution-target network denial
 also remains enforced. Read-only ACP mode remains read-only.
 
 ## Node runtime used by background services
@@ -261,7 +261,7 @@ paperclipai onboard
 Source checkout for development:
 
 ```sh
-git clone https://github.com/paperclipai/paperclip.git
+git clone https://github.com/paperclipai/outpost.git
 cd paperclip
 pnpm install
 pnpm dev

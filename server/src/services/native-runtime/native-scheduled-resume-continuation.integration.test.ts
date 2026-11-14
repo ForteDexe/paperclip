@@ -4,13 +4,13 @@ import { once } from "node:events";
 import { hostname } from "node:os";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations } from "@paperclipai/db";
-import type { NativeExecutionInputV1 } from "@paperclipai/paperclip-runner";
+import { agents, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
 const provider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../vendor/paperclip-runner/index.js")>()),
+vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../vendor/outpost-runner/index.js")>()),
   executeNativeSession: provider.execute,
 }));
 
@@ -32,7 +32,7 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
     db = createDb(temporary.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Scheduled resume", issuePrefix: "NSR" });
     await db.insert(agents).values({ id: agentId, companyId, name: "Native agent", status: "active",
-      adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "test-model" } });
+      adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "test-model" } });
   });
   afterAll(async () => { await temporary?.cleanup(); });
 
@@ -52,14 +52,14 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
     const native = await prepareNativeHeartbeatRun({ db, run: run!, issue: issue!, environmentLeaseId: randomUUID() });
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     const execution: NativeExecutionInputV1 = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: issueId, title: issue!.title, description: null, prompt: "Continue the work.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: native.normalizedSessionId, driverKind: "codex_app_server", protocolVersion: 1,
         lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-      completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue!, { revision: contract!.revision }) },
       interactionResponses: [], credentialBindings: [],
     };

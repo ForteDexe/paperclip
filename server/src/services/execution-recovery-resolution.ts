@@ -5,7 +5,7 @@ import { notifyUnsafeWorkspaceExportRecovery } from "./unsafe-workspace-export-n
 import { notifyChatResponseAvailability } from "./chat-response-availability.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyExecutionRunWork } from "./execution-control-notifications.js";
-import { hasWorkspaceRestoreFailure } from "@paperclipai/shared";
+import { hasWorkspaceRestoreFailure } from "@outpost/shared";
 import { randomUUID } from "node:crypto";
 import { canonicalExecutionUuid } from "./execution-identity.js";
 import { conversationRecoveryActionPredicate, getConversationOwnershipBlocker } from "./conversation-continuation.js";
@@ -23,13 +23,13 @@ import {
   issues,
   nativeRunFinalizations,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { conflict } from "../errors.js";
 import { buildExecutionContinuation } from "./execution-continuation.js";
 import {
   EXECUTION_RECONCILIATION_CAUSES,
   type ExecutionReconciliation,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { parseIssueExecutionState } from "./issue-execution-policy.js";
 import { isSupersededConversationRun } from "./agent-conversations.js";
 import { hasRequiredWorkspaceRecovery } from "./workspace-restore-recovery-state.js";
@@ -310,7 +310,7 @@ export async function markExecutionReconciliation(
         eq(agentWakeupRequests.companyId, action.companyId), isNull(agentWakeupRequests.runId),
         inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
         sql`${agentWakeupRequests.payload}->>'issueId' = ${action.sourceIssueId}`,
-        sql`${agentWakeupRequests.payload}->'taskRetry'->>'schema' = 'paperclip.task-retry.v1'`,
+        sql`${agentWakeupRequests.payload}->'taskRetry'->>'schema' = 'outpost.task-retry.v1'`,
         sql`${agentWakeupRequests.payload}->'taskRetry'->>'sourceRunId' = ${decision.runId}`,
       ));
       return;
@@ -467,7 +467,7 @@ function supersedingNativeWorkspaceHold(db: Db, input: {
     eq(supersedingWorkspaceHold.cause, "native_continuation_requires_reconciliation"),
     sql`${supersedingWorkspaceHold.evidence}->>'runId' = ${input.runId}::text`,
     sql`${supersedingWorkspaceHold.evidence}->'automaticRecovery'->>'replay' = 'blocked'`,
-    sql`${supersedingWorkspaceHold.evidence}->'workspaceRestoreRecovery'->>'schema' = 'paperclip.workspace-restore-recovery.v1'`,
+    sql`${supersedingWorkspaceHold.evidence}->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'`,
   ));
 }
 

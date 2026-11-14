@@ -10,17 +10,17 @@ import { pipeline } from "node:stream/promises";
 import { pipeline as streamPipeline, Readable, Transform } from "node:stream";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq } from "drizzle-orm";
-import { executionWorkspaceSnapshots, type Db } from "@paperclipai/db";
+import { executionWorkspaceSnapshots, type Db } from "@outpost/db";
 import { localEncryptedProvider } from "../secrets/local-encrypted-provider.js";
 import type { StoredSecretVersionMaterial } from "../secrets/types.js";
 import type { StorageService } from "../storage/types.js";
 import { abortSnapshotAttemptUploads, notifyRemoteWorkspaceSnapshots, snapshotAttemptKeys, REMOTE_WORKSPACE_SNAPSHOT_GRACE_MS } from "./remote-workspace-snapshot-retention.js";
 import { WORKSPACE_ARCHIVE_IO_BUFFER_BYTES } from "./remote-workspace-archive-io.js";
 
-const SCHEMA = "paperclip.workspace-snapshot.v1";
-const KEY_SCHEMA = "paperclip.workspace-snapshot-key.v1";
+const SCHEMA = "outpost.workspace-snapshot.v1";
+const KEY_SCHEMA = "outpost.workspace-snapshot-key.v1";
 const MAGIC = Buffer.from("PCWSE1\n");
-const FORMAT = "paperclip.remote-workspace-archive.v1";
+const FORMAT = "outpost.remote-workspace-archive.v1";
 const DOWNLOAD_IDLE_TIMEOUT_MS = 5 * 60_000;
 type SnapshotRow = typeof executionWorkspaceSnapshots.$inferSelect;
 export interface WorkspaceSnapshotRef {

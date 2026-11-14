@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, controllerInstances, createDb, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations } from "@paperclipai/db";
+import { agents, companies, controllerInstances, createDb, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import {
   controllerInstanceLeaseEnabled, proveControllerInstance, registerControllerInstanceDb, registerControllerInstanceLeaseWork,
@@ -193,7 +193,7 @@ suite("controller instance lease: a replaced container's records are provable", 
       const invocation = randomUUID();
       const owner = { bootId: currentControllerBootId(), pid: process.pid, hostHash: currentProcessSpaceHash(), processStartedAt: null };
       await db.insert(workspaceOperations).values({ companyId, phase: "remote_workspace_snapshot", status: "running",
-        metadata: { boundary: "final", epoch: 1, saveWork: { schema: "paperclip.remote-workspace-save-work.v1", activeIds: [invocation],
+        metadata: { boundary: "final", epoch: 1, saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds: [invocation],
           unknown: false, quiescedAt: null, owners: { [invocation]: owner } } } });
       beginIdleTrackedWork()();
       await db.update(controllerInstances).set({ leaseExpiresAt: sql`now()` });
@@ -444,7 +444,7 @@ suite("controller instance lease: a replaced container's records are provable", 
     await startHere();
     await stopControllerInstanceLease(db);
     expect(await proveControllerInstance(db, currentControllerBootId(), null)).toBe("stopped");
-    vi.stubEnv("PAPERCLIP_CONTROLLER_INSTANCE_LEASE", "off");
+    vi.stubEnv("OUTPOST_CONTROLLER_INSTANCE_LEASE", "off");
     expect(controllerInstanceLeaseEnabled()).toBe(false);
     vi.unstubAllEnvs();
     for (const [key, value] of [["RAILWAY_PROJECT_ID", "p"], ["RAILWAY_ENVIRONMENT_ID", "e"], ["RAILWAY_SERVICE_ID", "s"], ["RAILWAY_DEPLOYMENT_ID", "d"]]) {
@@ -455,7 +455,7 @@ suite("controller instance lease: a replaced container's records are provable", 
     vi.stubEnv("RAILWAY_VOLUME_ID", "v");
     vi.stubEnv("RAILWAY_VOLUME_MOUNT_PATH", "/data");
     expect(controllerInstanceLeaseEnabled()).toBe(true);
-    vi.stubEnv("PAPERCLIP_CONTROLLER_INSTANCE_LEASE", "on");
+    vi.stubEnv("OUTPOST_CONTROLLER_INSTANCE_LEASE", "on");
     expect(controllerInstanceLeaseEnabled()).toBe(true);
     vi.unstubAllEnvs();
   });

@@ -42,14 +42,14 @@ import {
   documentRevisions,
   issues,
   nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "../../__tests__/helpers/embedded-postgres.js";
 import { invalidateNativeReplacementDiscovery, reconcileSafeNativeReplacements } from "./native-safe-replacement.js";
 import { reconcileAbandonedExecutionControl } from "../execution-control-reconciliation.js";
-const externalDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const externalDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = externalDatabaseUrl
   ? { supported: true }
   : await getEmbeddedPostgresTestSupport();
@@ -93,7 +93,7 @@ const support = externalDatabaseUrl
         companyId,
         name: "Executor",
         role: "engineer",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
       });
       await db.insert(issues).values({
         id: issueId,
@@ -1030,7 +1030,7 @@ const support = externalDatabaseUrl
       },
     );
     it.each([false, true])(
-      "does not replay a provider-native command with unknown effects (PRP envelope: %s)",
+      "does not replay a provider-native command with unknown effects (ORP envelope: %s)",
       async (wrapped) => {
         const source = await seed();
         await db.insert(heartbeatRunEvents).values({
@@ -1042,7 +1042,7 @@ const support = externalDatabaseUrl
           stream: "system",
           payload: wrapped
             ? {
-                prpEvent: {
+                orpEvent: {
                   payload: {
                     transport: "process",
                     executionId: "shell-write-1",

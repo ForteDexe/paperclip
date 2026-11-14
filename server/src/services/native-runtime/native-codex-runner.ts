@@ -6,10 +6,10 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, eq } from "drizzle-orm";
 
-import type { AdapterExecutionResult } from "@paperclipai/adapter-utils";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
-import type { Db } from "@paperclipai/db";
-import { agentSessionGoalActions, agentTaskSessions } from "@paperclipai/db";
+import type { AdapterExecutionResult } from "@outpost/adapter-utils";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
+import type { Db } from "@outpost/db";
+import { agentSessionGoalActions, agentTaskSessions } from "@outpost/db";
 
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 import { failRunnerGoalAction } from "../runner-goals.js";
@@ -21,12 +21,12 @@ import {
   defaultCapabilityRunnerdBinaryAsync,
   runnerBinaryTarget,
   type PaperclipSemanticToolDefinition,
-} from "../../vendor/paperclip-runner/index.js";
-import { runnerPrpCoordinator } from "./runner-prp-coordinator.js";
+} from "../../vendor/outpost-runner/index.js";
+import { runnerPrpCoordinator } from "./runner-orp-coordinator.js";
 import { binaryTargetFromHeader, cachedFileSha256 } from "./off-loop-file-work.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
-const RUNNER_VERSION = "paperclip-runner-v1";
+const RUNNER_VERSION = "outpost-runner-v1";
 
 interface NativeGoalControl {
   sessionId: string;
@@ -173,18 +173,18 @@ export function buildNativeRunnerPreparePayload(
 }
 
 function executableName(): string {
-  return process.platform === "win32" ? "paperclip-runnerd.exe" : "paperclip-runnerd";
+  return process.platform === "win32" ? "outpost-runnerd.exe" : "outpost-runnerd";
 }
 
 function controllerPaperclipRunnerBinaryConfiguration(): string | undefined {
-  return process.env.PAPERCLIP_RUNNER_BINARY;
+  return process.env.OUTPOST_RUNNER_BINARY;
 }
 
 export function assertPaperclipRunnerBinaryConfiguration(
   configuredPath = controllerPaperclipRunnerBinaryConfiguration(),
 ): void {
   if (configuredPath && !isAbsolute(configuredPath)) {
-    throw new Error("PAPERCLIP_RUNNER_BINARY must be an absolute path");
+    throw new Error("OUTPOST_RUNNER_BINARY must be an absolute path");
   }
 }
 
@@ -206,7 +206,7 @@ export function resolvePaperclipRunnerBinary(
     defaultCapabilityRunnerdBinary(),
     resolve(
       moduleDirectory,
-      "../../../../packages/paperclip-runner/runner/target/release",
+      "../../../../packages/outpost-runner/runner/target/release",
       executableName(),
     ),
   ].filter((candidate): candidate is string => Boolean(candidate));
@@ -219,7 +219,7 @@ export function resolvePaperclipRunnerBinary(
     }
   }
   throw new Error(
-    "paperclip_runner_binary_missing: build @paperclipai/paperclip-runner or set PAPERCLIP_RUNNER_BINARY",
+    "outpost_runner_binary_missing: build @outpost/outpost-runner or set OUTPOST_RUNNER_BINARY",
   );
 }
 
@@ -242,7 +242,7 @@ export async function resolvePaperclipRunnerBinaryAsync(
     await defaultCapabilityRunnerdBinaryAsync(),
     resolve(
       moduleDirectory,
-      "../../../../packages/paperclip-runner/runner/target/release",
+      "../../../../packages/outpost-runner/runner/target/release",
       executableName(),
     ),
   ].filter((candidate): candidate is string => Boolean(candidate));
@@ -255,7 +255,7 @@ export async function resolvePaperclipRunnerBinaryAsync(
     }
   }
   throw new Error(
-    "paperclip_runner_binary_missing: build @paperclipai/paperclip-runner or set PAPERCLIP_RUNNER_BINARY",
+    "outpost_runner_binary_missing: build @outpost/outpost-runner or set OUTPOST_RUNNER_BINARY",
   );
 }
 
@@ -273,9 +273,9 @@ export async function resolveRemotePaperclipRunnerBinary(input: {
     throw new Error("runner_remote_artifact_platform_mismatch: could not identify a supported remote OS and architecture; check the selected execution environment and retry");
   }
   const configured = input.configuredPath?.trim();
-  if (configured && !isAbsolute(configured)) throw new Error("PAPERCLIP_RUNNER_REMOTE_BINARY_PATH must be an absolute path");
+  if (configured && !isAbsolute(configured)) throw new Error("OUTPOST_RUNNER_REMOTE_BINARY_PATH must be an absolute path");
   const controllerOverride = platform === process.platform && architecture === process.arch
-    ? process.env.PAPERCLIP_RUNNER_BINARY : undefined;
+    ? process.env.OUTPOST_RUNNER_BINARY : undefined;
   const binary = configured || (controllerOverride
     ? await resolvePaperclipRunnerBinaryAsync(controllerOverride)
     : await defaultCapabilityRunnerdBinaryAsync(platform, architecture));
@@ -283,9 +283,9 @@ export async function resolveRemotePaperclipRunnerBinary(input: {
   // event loop on every remote run.
   let target: string | null;
   try { target = await binaryTargetFromHeader(binary, runnerBinaryTarget); }
-  catch (cause) { throw new Error(`runner_remote_artifact_unavailable: install the Outpost release containing the ${platform}-${architecture} daemon or configure PAPERCLIP_RUNNER_REMOTE_BINARY_PATH`, { cause }); }
+  catch (cause) { throw new Error(`runner_remote_artifact_unavailable: install the Outpost release containing the ${platform}-${architecture} daemon or configure OUTPOST_RUNNER_REMOTE_BINARY_PATH`, { cause }); }
   if (target !== `${platform}-${architecture}`) {
-    throw new Error(`runner_remote_artifact_platform_mismatch: the selected daemon does not match ${platform}-${architecture}; install the matching Outpost release or configure PAPERCLIP_RUNNER_REMOTE_BINARY_PATH`);
+    throw new Error(`runner_remote_artifact_platform_mismatch: the selected daemon does not match ${platform}-${architecture}; install the matching Outpost release or configure OUTPOST_RUNNER_REMOTE_BINARY_PATH`);
   }
   return binary;
 }
@@ -425,7 +425,7 @@ export async function executeNativeCodexRunner(input: {
   const runnerDigest = await cachedFileSha256(binary);
   const runtimeRoot = input.runtimeRoot
     ? resolve(input.runtimeRoot)
-    : resolve(resolvePaperclipInstanceRoot(), "runtime", "paperclip-runner");
+    : resolve(resolvePaperclipInstanceRoot(), "runtime", "outpost-runner");
   const runnerStateDirectory = resolve(runtimeRoot, "runner", input.runId);
   const goalControl = await readNativeGoalControl({
     db: input.db,
@@ -506,7 +506,7 @@ export async function executeNativeCodexRunner(input: {
     env: {
       ...process.env,
       ...input.environment,
-      PAPERCLIP_RUNNER_BOOTSTRAP_TICKET: prepared.bootstrapTicket,
+      OUTPOST_RUNNER_BOOTSTRAP_TICKET: prepared.bootstrapTicket,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -519,7 +519,7 @@ export async function executeNativeCodexRunner(input: {
   });
 
   try {
-    if (!child.pid) throw new Error("paperclip_runner_process_not_started");
+    if (!child.pid) throw new Error("outpost_runner_process_not_started");
     await input.onSpawn({
       pid: child.pid,
       processGroupId: process.platform === "win32" ? null : child.pid,
@@ -553,7 +553,7 @@ export async function executeNativeCodexRunner(input: {
         if (recovered) return recovered;
         if (recovered === null && goalControl && !shouldWaitForGoalCompletion) return null;
         throw new Error(
-          `paperclip_runner_process_exited: code=${code ?? "null"} signal=${signal ?? "null"}`,
+          `outpost_runner_process_exited: code=${code ?? "null"} signal=${signal ?? "null"}`,
         );
       }),
     ]);
@@ -577,7 +577,7 @@ export async function executeNativeCodexRunner(input: {
       signal: null,
       timedOut: false,
       ...(succeeded ? {} : {
-        errorCode: "paperclip_runner_provider_failed",
+        errorCode: "outpost_runner_provider_failed",
         errorMessage: completed?.result.summary,
       }),
       provider: "codex",
@@ -614,7 +614,7 @@ export async function executeNativeCodexRunner(input: {
           companyId: input.companyId,
           issueId: input.issueId,
           agentId: input.agentId,
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
         },
         goalControl.requestId,
         error instanceof Error ? error.message : "native_goal_control_failed",

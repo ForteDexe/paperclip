@@ -222,13 +222,13 @@ export async function runCopilotProtectionFlow(input: {
       },
     });
     if (deny) {
-      await wait("exact native write permission", s => s.notices.some(n => n.stage === "permission_requested" && n.operation === "edit" && n.target === target && n.declineOffered && s.runEvents.some(r => r.eventType === "runtime_request.created" && r.payload?.prpEvent?.payload?.request?.requestId === n.requestId)));
+      await wait("exact native write permission", s => s.notices.some(n => n.stage === "permission_requested" && n.operation === "edit" && n.target === target && n.declineOffered && s.runEvents.some(r => r.eventType === "runtime_request.created" && r.payload?.orpEvent?.payload?.request?.requestId === n.requestId)));
       const request = notices.find(n => n.stage === "permission_requested" && n.operation === "edit" && n.target === target)!;
       deniedRequest = request;
-      const pending = runEvents.filter(r => r.eventType === "runtime_request.created" && r.payload?.prpEvent?.payload?.request?.requestId === request.requestId).map(r => r.payload.prpEvent.payload.request);
+      const pending = runEvents.filter(r => r.eventType === "runtime_request.created" && r.payload?.orpEvent?.payload?.request?.requestId === request.requestId).map(r => r.payload.orpEvent.payload.request);
       check("one-bound-permission", pending.length === 1 && pending[0].requestKind === "permission_approval" && pending[0].origin?.method === "session/request_permission", "The notice maps to the exact durable native permission card");
-      const retired = new Set(runEvents.filter(r => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(r.eventType)).map(r => r.payload?.prpEvent?.payload?.requestId));
-      const activeRequests = runEvents.filter(r => r.eventType === "runtime_request.created" && r.payload?.prpEvent?.payload?.request && !retired.has(r.payload.prpEvent.payload.request.requestId));
+      const retired = new Set(runEvents.filter(r => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(r.eventType)).map(r => r.payload?.orpEvent?.payload?.requestId));
+      const activeRequests = runEvents.filter(r => r.eventType === "runtime_request.created" && r.payload?.orpEvent?.payload?.request && !retired.has(r.payload.orpEvent.payload.request.requestId));
       check("only-one-pending-native-request", activeRequests.length === 1, "Only the exact denied edit is awaiting a decision");
       await sample("pending"); await page.reload();
       const card = copilotPendingPermissionCard(page, target);
@@ -299,7 +299,7 @@ export async function runCopilotProtectionFlow(input: {
       check("no-extra-native-operation", onlyCopilotAttachedOperations(copilotActionNotices(notices, call!, remoteFixture ? { actionFile: remoteFixture.actionFile, events: runEvents } : undefined, runEvents), call!, semantic), "Only attested context/setup reads, the exact attached command/result, and one authoritatively correlated accepted finish are allowed");
       const started = notices.find(n => n.toolCallId === call!.toolCallId && n.shellState === "started");
       const result = notices.find(n => n.commandToolCallId === call!.toolCallId && n.shellState === "completed");
-      const terminal = runEvents.find(r => r.eventType === "turn.completed" && r.payload?.prpEvent?.turnId === call!.turnId)?.payload.prpEvent;
+      const terminal = runEvents.find(r => r.eventType === "turn.completed" && r.payload?.orpEvent?.turnId === call!.turnId)?.payload.orpEvent;
       if (remote) await sealRemote();
       const remoteAttached = remote ? assertCopilotRemoteAttached(sealed!, baseline!, terminal ? Date.parse(terminal.emittedAt) : NaN) : undefined;
       const external = remoteAttached ? { ...remoteAttached, childGone: true, clientGone: true,

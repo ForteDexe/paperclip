@@ -2,10 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants, existsSync, lstatSync, mkdirSync, openSync, closeSync, fstatSync, fsyncSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { heartbeatRuns, type Db } from "@paperclipai/db";
+import { heartbeatRuns, type Db } from "@outpost/db";
 import { loadConfig } from "../../config.js";
 import { parseObject } from "../../adapters/utils.js";
-import { archiveCursorCloudSessionCheckpoint, CURSOR_CLOUD_DEFAULT_TIMEOUT_MS, type NativeExecutionInput, type PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+import { archiveCursorCloudSessionCheckpoint, CURSOR_CLOUD_DEFAULT_TIMEOUT_MS, type NativeExecutionInput, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { createRemoteMcpRelayToken, registerRemoteMcpRelay, remoteMcpRelayUrl } from "./remote-mcp-relay.js";
 
 /** Normalize Cursor's terminal evidence before shared Stop authority consumes it. */
@@ -107,8 +107,8 @@ export function prepareCursorCloudRuntime(input: {
   };
   const unregister = () => { release?.(); release = undefined; };
   return { register, unregister, archiveCheckpoint, environment: { ...input.environment,
-    PAPERCLIP_CURSOR_CLOUD_ARTIFACT_ROOT: artifactRoot, PAPERCLIP_CURSOR_CLOUD_CONFIG_PATH: configPath, PAPERCLIP_CURSOR_CLOUD_RELAY_SOCKET_PATH: socketPath,
-    PAPERCLIP_CURSOR_CLOUD_RELAY_TOKEN: capability.token, PAPERCLIP_CURSOR_CLOUD_RELAY_URL: url,
-    PAPERCLIP_CURSOR_CLOUD_RELAY_EXPIRES_AT: String(capability.expiresAt),
+    OUTPOST_CURSOR_CLOUD_ARTIFACT_ROOT: artifactRoot, OUTPOST_CURSOR_CLOUD_CONFIG_PATH: configPath, OUTPOST_CURSOR_CLOUD_RELAY_SOCKET_PATH: socketPath,
+    OUTPOST_CURSOR_CLOUD_RELAY_TOKEN: capability.token, OUTPOST_CURSOR_CLOUD_RELAY_URL: url,
+    OUTPOST_CURSOR_CLOUD_RELAY_EXPIRES_AT: String(capability.expiresAt),
   } };
 }

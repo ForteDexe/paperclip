@@ -2,7 +2,7 @@ import {
   authSessionSchema,
   type BoardBootstrapSession,
   readBoardBootstrap,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { redactUrlSecrets } from "@/lib/redact-url-secrets";
 import { tenantSessionRecovery } from "@/lib/tenant-session-recovery";
 import { apiFetch } from "./client";

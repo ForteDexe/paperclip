@@ -2,13 +2,13 @@ import { expect, it } from "vitest";
 import { hasDeliveredPiDenial, piPermissionRequests } from "./pi-native-evidence.js";
 const identity = { runId: "run", turnId: "turn", requestId: "permission", toolCallId: "pi-tool-1", target: "pi-human-denied.txt" };
 function evidence(adapter = "acpx-runtime") {
-  const wrap = (eventType: string, seq: number, payload: unknown) => ({ runId: "run", protocolSchemaVersion: 1, eventType, seq, payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType, payload,
+  const wrap = (eventType: string, seq: number, payload: unknown) => ({ runId: "run", protocolSchemaVersion: 1, eventType, seq, payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType, payload,
   } } });
   return [wrap("runtime_request.created", 1, { request: { requestId: "permission", turnId: "turn", type: "permission", status: "pending", details: { toolCallId: "pi-tool-1" },
     origin: { adapter, provider: "pi", method: "session/request_permission" }, choices: [{ key: "decline" }] } }),
   wrap("runtime_request.resolved", 2, { requestId: "permission", turnId: "turn", action: "decline" }),
-  wrap("tool.execution.completed", 3, { schema: "paperclip.tool.execution.v1", executionId: "pi-tool-1", transport: "builtin", operation: "edit", name: "write", status: "failed", target: identity.target, output: "Pi operation was denied or cancelled" })];
+  wrap("tool.execution.completed", 3, { schema: "outpost.tool.execution.v1", executionId: "pi-tool-1", transport: "builtin", operation: "edit", name: "write", status: "failed", target: identity.target, output: "Pi operation was denied or cancelled" })];
 }
 it("requires the actual correlated durable browser denial and native tool failure", () => {
   expect(piPermissionRequests(evidence(), "run")).toHaveLength(1);
@@ -18,16 +18,16 @@ it("requires the actual correlated durable browser denial and native tool failur
 it("rejects foreign identities, approvals, expiration, write success and policy-only failure", () => {
   for (const key of ["runId", "turnId", "requestId", "toolCallId", "target"]) expect(hasDeliveredPiDenial(evidence(), { ...identity, [key]: "other" })).toBe(false);
   for (const [index, patch] of [[1, { action: "accept" }], [2, { status: "completed" }], [2, { output: "outside its assigned workspace" }], [2, { executionId: "other" }], [2, { target: "other.txt" }]] as const) {
-    const rows = evidence(); Object.assign(rows[index]!.payload.prpEvent.payload as object, patch); expect(hasDeliveredPiDenial(rows, identity)).toBe(false);
+    const rows = evidence(); Object.assign(rows[index]!.payload.orpEvent.payload as object, patch); expect(hasDeliveredPiDenial(rows, identity)).toBe(false);
   }
   for (const eventType of ["runtime_request.expired", "runtime_request.cancelled"]) {
-    const rows = evidence(); rows[1]!.eventType = eventType; rows[1]!.payload.prpEvent.eventType = eventType;
+    const rows = evidence(); rows[1]!.eventType = eventType; rows[1]!.payload.orpEvent.eventType = eventType;
     expect(hasDeliveredPiDenial(rows, identity)).toBe(false);
   }
-  const malformed = evidence(); (malformed[0]!.payload.prpEvent.payload as any).request.choices = [null, {}];
+  const malformed = evidence(); (malformed[0]!.payload.orpEvent.payload as any).request.choices = [null, {}];
   expect(piPermissionRequests(malformed, "run")).toEqual([]);
   const stale = evidence(); stale[1]!.seq = 0; expect(hasDeliveredPiDenial(stale, identity)).toBe(false);
-  const wrong = evidence(); wrong[2]!.payload.prpEvent.sourceKind = "agent"; expect(hasDeliveredPiDenial(wrong, identity)).toBe(false);
+  const wrong = evidence(); wrong[2]!.payload.orpEvent.sourceKind = "agent"; expect(hasDeliveredPiDenial(wrong, identity)).toBe(false);
 });
 it("does not misorder native notifications that arrive before the public delivery receipt is persisted", () => {
   const rows = evidence(); rows[1]!.seq = 3; rows[2]!.seq = 2;
@@ -57,7 +57,7 @@ it.each(["acpx-runtime", "acpx-runtime-sidecar"])("requires exact Pi permission 
   expect(hasDeliveredPiDenial(evidence(adapter), identity)).toBe(true);
   for (const patch of [{ adapter: "unknown" }, { adapter: "acpx-runtime-sidecar-unknown" }, { adapter: "semantic" }, { provider: "cursor" }, { method: "request_human_input" }]) {
     const rows = evidence(adapter);
-    Object.assign((rows[0]!.payload.prpEvent.payload as any).request.origin, patch);
+    Object.assign((rows[0]!.payload.orpEvent.payload as any).request.origin, patch);
     expect(piPermissionRequests(rows, "run")).toHaveLength(0);
     expect(hasDeliveredPiDenial(rows, identity)).toBe(false);
   }

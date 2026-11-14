@@ -9,7 +9,7 @@ import { checks, hasLink, type Entity } from "./internal-support.js";
 import { busyRuntimeWorker, releaseRuntimeWorker } from "./runtime-busy-worker.js";
 import { faultOwnedNativeProcess, NATIVE_INFRASTRUCTURE_FAULT_CODES, type NativeFaultRun } from "./runtime-native-fault.js";
 import { runtimeDefinition, runtimeObservation, observeRuntime, type RuntimeAgent, type RuntimeObservation } from "./runtime-support.js";
-export const INFRASTRUCTURE_RECOVERY_ORACLE = "paperclip.chat-catalog.runtime.infrastructure-recovery.v5";
+export const INFRASTRUCTURE_RECOVERY_ORACLE = "outpost.chat-catalog.runtime.infrastructure-recovery.v5";
 const objectRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 /**
  * The chat run read the source task's saved recovery record through a product
@@ -27,7 +27,7 @@ export function readSourceRecoveryRecord(events: readonly Record<string, unknown
     { operationId: "GET /api/heartbeat-runs/{runId}", pathParams: recordParams("runId", failedRunId) },
   ])) return true;
   return !!taskId && !!failedRunId && events.some(row => {
-    const envelope = objectRecord(objectRecord(row.payload).prpEvent), payload = objectRecord(envelope.payload);
+    const envelope = objectRecord(objectRecord(row.payload).orpEvent), payload = objectRecord(envelope.payload);
     const output = typeof payload.output === "string" ? payload.output : "";
     return row.eventType === "tool.execution.completed" && envelope.sourceKind === "runner" && payload.status === "completed"
       && (/apiOperationId\\*"\s*:\s*\\*"GET \/api\/issues\/\{id\}\/(?:recovery-actions|runs)(?![\w/{])/.test(output) && output.includes(taskId)
@@ -128,7 +128,7 @@ function infrastructureCase(id: "recovery.explain-stall" | "recovery.source-acti
       c.add("lead-ready", lead.lifecycleState === "ready" && ["active", "idle"].includes(lead.status ?? ""), "The actual controller remains independently admitted.");
       c.add("real-native-infrastructure-exhaustion", !!action && action.id === (state.recoveryBefore as IssueRecoveryAction).id, "The saved native run really exhausted its own three attempts.");
       c.add("original-source-action-owner", action?.sourceIssueId === task.id && action.ownerType === "board" && action.recoveryIssueId == null, "The original task exposes the real operator-owned recovery without a separate repair task."); return c.result(); },
-    sourceFiles: ["chat-catalog-domains/runtime-infrastructure.ts", "chat-catalog-domains/api-read-receipts.ts", "chat-catalog-domains/runtime-native-fault.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "../../server/src/services/hot-restart.ts", "../../server/src/vendor/paperclip-runner/index.ts", "chat-scenarios/recovery.yaml"],
+    sourceFiles: ["chat-catalog-domains/runtime-infrastructure.ts", "chat-catalog-domains/api-read-receipts.ts", "chat-catalog-domains/runtime-native-fault.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "../../server/src/services/hot-restart.ts", "../../server/src/vendor/outpost-runner/index.ts", "chat-scenarios/recovery.yaml"],
     async act(ctx, state) {
       await pollUntil({ label: "Canonical source explanation while native infrastructure remains failed", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 150_000),
         load: async () => { await ctx.refreshIssue(); return { source: ctx.issue(), runs: await ctx.allRuns() }; },

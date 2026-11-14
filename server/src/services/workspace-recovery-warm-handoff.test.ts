@@ -18,8 +18,8 @@ import express from "express";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, executionWorkspaces } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import { agents, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, executionWorkspaces } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { nativeWorkspaceFinalizationLockKey } from "./native-runtime/native-workspace-finalization-ownership.js";
 import { recoverRetainedWorkspace, requestWorkspaceRecovery, reconcileRetainedWorkspaces, retainedWorkspaceCandidates } from "./workspace-recovery.js";
@@ -49,8 +49,8 @@ describe("automatic retained workspace recovery", () => {
     let isolatedDb: typeof db | undefined;
     let isolatedRoot: string | undefined;
     beforeAll(async () => {
-      original = { db, root, connectionString, home: process.env.PAPERCLIP_HOME };
-      const external = resolveExternalTestDatabaseUrl("PAPERCLIP_WORKSPACE_RECOVERY_HANDOFF_TEST_DATABASE_URL");
+      original = { db, root, connectionString, home: process.env.OUTPOST_HOME };
+      const external = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_RECOVERY_HANDOFF_TEST_DATABASE_URL");
       if (external) {
         await applyPendingMigrations(external);
         isolated = { connectionString: external, cleanup: async () => {} };
@@ -59,14 +59,14 @@ describe("automatic retained workspace recovery", () => {
       if (external) await isolatedDb.execute(sql`TRUNCATE TABLE companies CASCADE`);
       isolatedRoot = await mkdtemp(path.join(os.tmpdir(), "workspace-warm-handoff-files-"));
       replaceFixtureState({ db: isolatedDb, root: isolatedRoot, connectionString: isolated.connectionString });
-      process.env.PAPERCLIP_HOME = path.join(root, "home");
+      process.env.OUTPOST_HOME = path.join(root, "home");
     }, 30_000);
     afterAll(async () => {
       await isolatedDb?.$client.end(); await isolated?.cleanup();
       if (isolatedRoot) await rm(isolatedRoot, { recursive: true, force: true });
       if (original) {
         replaceFixtureState({ db: original.db, root: original.root, connectionString: original.connectionString });
-        if (original.home === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = original.home;
+        if (original.home === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = original.home;
       }
     });
   it.each([{ hops: 1, snapshot: false }, { hops: 2, snapshot: false }, { hops: 2, snapshot: true }])(
@@ -158,7 +158,7 @@ describe("automatic retained workspace recovery", () => {
     const f = await warmHandoffSource(1);
     const [held] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.lease.id));
     expect(held).toMatchObject({ leasePolicy: "retain_on_failure", status: "released" });
-    expect(held.metadata?.workspaceRestoreRecovery).toMatchObject({ schema: "paperclip.workspace-restore-recovery.v1", runId: f.runId });
+    expect(held.metadata?.workspaceRestoreRecovery).toMatchObject({ schema: "outpost.workspace-restore-recovery.v1", runId: f.runId });
     if (marker !== "current") {
       const { originalLeasePolicy: _original, ...legacyMarker } = held.metadata!.workspaceRestoreRecovery as Record<string, unknown>;
       await db.update(environmentLeases).set({ metadata: { ...held.metadata, workspaceRestoreRecovery: legacyMarker,
@@ -241,7 +241,7 @@ describe("automatic retained workspace recovery", () => {
         await db.update(environmentLeases).set({ issueId: other.id }).where(eq(environmentLeases.id, previous.id));
       }
       if (fault === "agent") {
-        const [other] = await db.insert(agents).values({ companyId: f.companyId, name: "Other agent", adapterType: "paperclip_runner" }).returning();
+        const [other] = await db.insert(agents).values({ companyId: f.companyId, name: "Other agent", adapterType: "outpost_runner" }).returning();
         await db.update(heartbeatRuns).set({ agentId: other.id }).where(eq(heartbeatRuns.id, f.priorRunId));
       }
       if (fault === "unfinalized") {
@@ -269,7 +269,7 @@ describe("automatic retained workspace recovery", () => {
   it("keeps server handoff receipts across metadata updates and same-run reacquisition", async () => {
     const f = await warmHandoffSource(1, async lease => {
       const proof = lease.metadata!.reusableLeasePredecessor;
-      expect(proof).toMatchObject({ schema: "paperclip.reusable-lease-handoff.v1", successorLeaseId: lease.id });
+      expect(proof).toMatchObject({ schema: "outpost.reusable-lease-handoff.v1", successorLeaseId: lease.id });
       const forged = { schema: "forged-provider-metadata" };
       const updated = await environmentService(db).updateLeaseMetadata(lease.id, { ...lease.metadata,
         reusableLeasePredecessor: forged, reusableLeaseSuccessor: forged, marker: "updated" });
@@ -290,7 +290,7 @@ describe("automatic retained workspace recovery", () => {
 
   it("does not manufacture handoff authority from injected fresh or orphan lease metadata", async () => {
     const f = await warmHandoffSource(), source = await run(f.runId);
-    const forged = { schema: "paperclip.reusable-lease-handoff.v1", successorLeaseId: f.lease.id };
+    const forged = { schema: "outpost.reusable-lease-handoff.v1", successorLeaseId: f.lease.id };
     const values = { companyId: f.companyId, environmentId: f.lease.environmentId!, issueId: f.issueId,
       heartbeatRunId: source.id, provider: "daytona", providerLeaseId: randomUUID(),
       metadata: { agentId: source.agentId, reusableLeasePredecessor: forged, reusableLeaseSuccessor: forged } };

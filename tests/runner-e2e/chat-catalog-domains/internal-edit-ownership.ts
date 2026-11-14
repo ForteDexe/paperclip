@@ -22,7 +22,7 @@ export function expectedEditReassignmentCancellation(value: unknown): { runId: s
     && (run.contextSnapshot?.issueId === held.id || run.contextSnapshot?.taskId === held.id));
   if (!source || !cancelled || held.assigneeAgentId !== riley.id || held.executionRunId !== prior.id) return;
   const result = record(cancelled.resultJson); const stop = record(result.nativeCancellation); const stoppedAt = Date.parse(String(stop.acknowledgedAt ?? ""));
-  if (result.reassignmentStopConfirmed !== true || stop.schema !== "paperclip.native-cancellation.v1" || stop.dispatchState !== "acknowledged"
+  if (result.reassignmentStopConfirmed !== true || stop.schema !== "outpost.native-cancellation.v1" || stop.dispatchState !== "acknowledged"
     || stop.runId !== cancelled.id || stop.issueId !== held.id || stop.companyId !== o.companyId || !Number.isFinite(requestAt) || !Number.isFinite(stoppedAt) || stoppedAt < requestAt) return;
   const mutation = o.activity.find(row => row.entityId === held.id && row.agentId === o.leadId && (row as Entity & { runId?: string }).runId === source.id
     && row.companyId === o.companyId && row.actorType === "agent" && row.actorId === o.leadId
@@ -40,8 +40,8 @@ export function expectedEditReassignmentCancellation(value: unknown): { runId: s
 export function assignmentDenials(events: unknown[], runId: string, taskId: string, assigneeId: string) {
   const calls = new Set<string>(); const denied: NonNullable<EditOwnership["assignmentDenials"]> = [];
   for (const raw of events) {
-    const outer = record(raw); const e = record(record(outer.payload).prpEvent);
-    if (outer.runId !== runId || e.runId !== runId || e.sourceEventId !== outer.sourceEventId || e.schema !== "paperclip.prp.event.v1") continue;
+    const outer = record(raw); const e = record(record(outer.payload).orpEvent);
+    if (outer.runId !== runId || e.runId !== runId || e.sourceEventId !== outer.sourceEventId || e.schema !== "outpost.orp.event.v1") continue;
     const p = record(e.payload); const item = record(p.item); if (p.kind !== "dynamicToolCall" || item.id !== e.itemId || typeof item.id !== "string") continue;
     const input = record(item.input);
     if (e.eventType === "item.started" && item.type === "tool_use" && item.name === "reassign_task" && input.taskId === taskId && input.assigneeActorId === assigneeId) calls.add(item.id);

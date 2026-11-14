@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { projectService } from "./projects.js";
 
 export type SpaceWorkingDirectory = { root: string; key: string; name: string };

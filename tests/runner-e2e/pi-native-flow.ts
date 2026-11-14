@@ -243,7 +243,7 @@ export async function runPiNativeFlow(input: {
       check("human-target-pending-absent", remote ? (await currentRemote!.snapshot("permission-pending")).targets[target]?.absent === true : await absent(path), "Pending native write has no file effect");
       await page.reload();
       const before = await events(identity.runId);
-      check("human-permission-reconnect", piPermissionRequests(before, identity.runId).some(value => value.request.requestId === identity.requestId) && !before.some(row => row.payload?.prpEvent?.payload?.requestId === identity.requestId && ["runtime_request.resolved", "runtime_request.expired", "runtime_request.cancelled"].includes(row.eventType)), "Reload retained the exact unanswered native permission");
+      check("human-permission-reconnect", piPermissionRequests(before, identity.runId).some(value => value.request.requestId === identity.requestId) && !before.some(row => row.payload?.orpEvent?.payload?.requestId === identity.requestId && ["runtime_request.resolved", "runtime_request.expired", "runtime_request.cancelled"].includes(row.eventType)), "Reload retained the exact unanswered native permission");
       const declineLabel = native.request.choices.find((choice: Row) => choice.key === "decline").label;
       // Resolved setup-read receipts remain visible but have no decision
       // buttons. Require one actionable card and verify its exact POST below.

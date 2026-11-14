@@ -1,19 +1,19 @@
 import { SPEKO_SKILL } from "./voice/speko-skill.js";
 import { spekoAssignedResources } from "./voice/speko-agent-tools.js";
-import { SLACK_TOOLS } from "@paperclipai/shared";
+import { SLACK_TOOLS } from "@outpost/shared";
 import { slackAssignedResource, executeGovernedSlackTool } from "./connectors/slack.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import type { Db } from "@paperclipai/db";
-import type { AgentSkillSnapshot } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import type { AgentSkillSnapshot } from "@outpost/shared";
 import {
   resolvePaperclipSkillsDir,
   readPaperclipSkillSyncPreference,
   writePaperclipSkillSyncPreference,
   type PaperclipSkillEntry,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import { forbidden } from "../errors.js";
 import { emailChannelService } from "./email-channels.js";
 import {
@@ -247,14 +247,14 @@ export async function prepareConnectorSkillDelivery(
   adapterType: string,
 ) {
   const scopedFiles =
-    adapterType === "paperclip_runner" ||
+    adapterType === "outpost_runner" ||
     (config.engine === "cli" &&
       ["codex_local", "claude_local", "kimi_local"].includes(adapterType));
   if (scopedFiles) {
     // Runner models with semantic tools cannot necessarily read staged skill
     // files. Supply Slack and Speko contracts and verified source IDs in their input;
     // keep the staged bundle for CLI-capable engines and compatibility hashing.
-    const promptSkills = adapterType === "paperclip_runner"
+    const promptSkills = adapterType === "outpost_runner"
       ? config.paperclipRuntimeSkills.filter(entry => ["paperclipai/paperclip/slack", "paperclipai/paperclip/speko"].includes(entry.key))
       : [];
     const instructions = (await Promise.all(promptSkills.map(entry =>

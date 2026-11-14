@@ -1,9 +1,9 @@
 import { assertProviderApiPlacementPolicy, managedCursorApiDefaultEnabled, resolveProviderApiPlacement } from "./native-runtime/provider-api-placement.js";
-import type { Db } from "@paperclipai/db";
-import { agentHarnessType, paperclipRunnerProfileForHarness, isEnvironmentDriverSupportedForAdapter, paperclipRunnerSupportsPlatform, type AgentRunnerChoice, type AgentRunnerAvailability } from "@paperclipai/shared";
-import { normalizeLegacyRunnerProvider, PAPERCLIP_RUNNER_DEFAULT_MODELS } from "@paperclipai/adapter-utils";
-import { resolveClaudeModel } from "@paperclipai/adapter-claude-local";
-import { DEFAULT_GROK_LOCAL_MODEL } from "@paperclipai/adapter-grok-local";
+import type { Db } from "@outpost/db";
+import { agentHarnessType, paperclipRunnerProfileForHarness, isEnvironmentDriverSupportedForAdapter, paperclipRunnerSupportsPlatform, type AgentRunnerChoice, type AgentRunnerAvailability } from "@outpost/shared";
+import { normalizeLegacyRunnerProvider, OUTPOST_RUNNER_DEFAULT_MODELS } from "@outpost/adapter-utils";
+import { resolveClaudeModel } from "@outpost/adapter-claude-local";
+import { DEFAULT_GROK_LOCAL_MODEL } from "@outpost/adapter-grok-local";
 import { findActiveServerAdapter, hasActiveAdapterOverride, waitForExternalAdapters } from "../adapters/registry.js";
 import { getDisabledAdapterTypes } from "./adapter-plugin-store.js";
 import { adapterSettingsService, effectiveDisabledAdapterTypes } from "./adapter-settings.js";
@@ -11,10 +11,10 @@ import { listServerAdapters } from "../adapters/registry.js";
 import { isCloudManagedInstance } from "./cloud-instance.js";
 import { claudeRunnerUnsupportedSettings, PaperclipRunnerProviderProfileError, resolvePaperclipRunnerNativeProviderInput } from "./native-runtime/provider-profile.js";
 import { forbidden, unprocessable } from "../errors.js";
-import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
+import { runSshCommand } from "@outpost/adapter-utils/ssh";
 import { parseEnvironmentDriverConfig, resolveEnvironmentDriverConfigForRuntime, resolveSandboxProviderSecretRefPaths } from "./environment-config.js";
 import { localAgentRunnerTarget } from "../lib/agent-runner-platform.js";
-import { normalizeClaudeRunnerOptions, type AgentConfigurationWarning } from "@paperclipai/shared";
+import { normalizeClaudeRunnerOptions, type AgentConfigurationWarning } from "@outpost/shared";
 import { usesManagedCloudSandboxImage } from "./sandbox-snapshot-qualification.js";
 import { environmentCustomImageTemplateMatchesBaseConfig } from "./environment-custom-image-runtime.js";
 import type { ExecutionPolicy } from "./execution-allowlist.js";
@@ -22,7 +22,7 @@ import { pluginEnvironmentRunnerTaskDriver } from "./plugin-runner-ai-connection
 
 export type RunnerTarget = {
   driver: string; platform?: string; architecture?: string; libc?: "glibc" | "musl" | "unknown"; glibcVersion?: string;
-  /** A plugin environment whose driver declares Runner task execution. It runs agents only through Paperclip Runner. */
+  /** A plugin environment whose driver declares Runner task execution. It runs agents only through Outpost Runner. */
   runnerTasks?: boolean;
   managedCloudImage?: boolean;
   warmTaskVersion?: 1;
@@ -48,10 +48,10 @@ function localDisabledTypes(): string[] {
 function runnerAdaptersAvailable(harness: string, driver: string, disabledTypes: string[]): boolean {
   const disabled = new Set(disabledTypes);
   return !!paperclipRunnerProfileForHarness(harness)
-    && !disabled.has(harness) && !disabled.has("paperclip_runner")
-    && !!findActiveServerAdapter(harness) && !!findActiveServerAdapter("paperclip_runner")
-    && !hasActiveAdapterOverride(harness) && !hasActiveAdapterOverride("paperclip_runner")
-    && isEnvironmentDriverSupportedForAdapter("paperclip_runner", driver);
+    && !disabled.has(harness) && !disabled.has("outpost_runner")
+    && !!findActiveServerAdapter(harness) && !!findActiveServerAdapter("outpost_runner")
+    && !hasActiveAdapterOverride(harness) && !hasActiveAdapterOverride("outpost_runner")
+    && isEnvironmentDriverSupportedForAdapter("outpost_runner", driver);
 }
 
 export function agentRunnerAvailability(harness: string, target: RunnerTarget = localAgentRunnerTarget(), disabledTypes: string[] = localDisabledTypes()): AgentRunnerAvailability {
@@ -179,7 +179,7 @@ function resolveClaudeRunnerConfig(config: Record<string, unknown>): Record<stri
 
 export function resolveNewAgentRunner(input: AgentRunnerSelection): { adapterType: string; adapterConfig: Record<string, unknown> } {
   const result = resolveAgentRunner(input);
-  if (result.adapterType === "paperclip_runner" && agentHarnessType(result.adapterType, result.adapterConfig) === "claude_local") {
+  if (result.adapterType === "outpost_runner" && agentHarnessType(result.adapterType, result.adapterConfig) === "claude_local") {
     const normalized = normalizeClaudeRunnerOptions(input.adapterConfig ?? {});
     result.adapterConfig = normalizeClaudeRunnerOptions(result.adapterConfig).config;
     input.onConfigurationWarnings?.(normalized.warnings);
@@ -192,7 +192,7 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
   let config = { ...input.adapterConfig };
   const disabledTypes = input.disabledTypes ?? localDisabledTypes();
   const harness = agentHarnessType(adapterType, config);
-  const native = adapterType === "paperclip_runner";
+  const native = adapterType === "outpost_runner";
   if (paperclipRunnerProfileForHarness(adapterType) && disabledTypes.includes(adapterType)) throw unprocessable(`${adapterType === "grok_local" ? "Grok Build" : adapterType === "pi_local" ? "Pi" : adapterType === "opencode_local" ? "OpenCode" : adapterType === "claude_local" ? "Claude" : "Codex"} is disabled on this instance. Enable its adapter or choose another harness.`, { code: "agent_runner_unavailable" });
   if (native && (input.runner === undefined || input.runner === "paperclip" || (harness !== "codex_local" && input.runner !== "legacy"))) return { adapterType, adapterConfig: normalizeLegacyRunnerProvider(config) };
   const availability = agentRunnerAvailability(harness, input.target, disabledTypes);
@@ -277,13 +277,13 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
       delete config[legacy];
     }
     config = { ...config, provider: "cursor_cloud", lifecycleMode: "per_turn" };
-    if (input.setupOnly && !config.model) return { adapterType: "paperclip_runner", adapterConfig: config };
+    if (input.setupOnly && !config.model) return { adapterType: "outpost_runner", adapterConfig: config };
     try { resolvePaperclipRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: config }); }
     catch (error) {
       if (error instanceof PaperclipRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
       throw error;
     }
-    return { adapterType: "paperclip_runner", adapterConfig: config };
+    return { adapterType: "outpost_runner", adapterConfig: config };
   }
   if (harness === "grok_local") {
     config = resolveGrokRunnerConfig(config);
@@ -292,28 +292,28 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
       if (error instanceof PaperclipRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
       throw error;
     }
-    return { adapterType: "paperclip_runner", adapterConfig: config };
+    return { adapterType: "outpost_runner", adapterConfig: config };
   }
   if (harness === "pi_local") {
     config = resolvePiRunnerConfig(config);
-    if (input.setupOnly && !config.model) return { adapterType: "paperclip_runner", adapterConfig: config };
+    if (input.setupOnly && !config.model) return { adapterType: "outpost_runner", adapterConfig: config };
     if (typeof config.model !== "string" || !/^[^/\s]+\/\S+$/.test(config.model)) throw unprocessable("Pi requires an explicit provider/model. Select a model before testing or hiring.", { code: "agent_runner_config_incompatible", fields: ["model"] });
     try { resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config }); }
     catch (error) {
       if (error instanceof PaperclipRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
       throw error;
     }
-    return { adapterType: "paperclip_runner", adapterConfig: config };
+    return { adapterType: "outpost_runner", adapterConfig: config };
   }
   if (harness === "opencode_local") {
     config = resolveOpenCodeRunnerConfig(config);
-    if (input.setupOnly && !config.model) return { adapterType: "paperclip_runner", adapterConfig: config };
+    if (input.setupOnly && !config.model) return { adapterType: "outpost_runner", adapterConfig: config };
     try { resolvePaperclipRunnerNativeProviderInput({ backend: "opencode_server", adapterConfig: config }); }
     catch (error) {
       if (error instanceof PaperclipRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
       throw error;
     }
-    return { adapterType: "paperclip_runner", adapterConfig: config };
+    return { adapterType: "outpost_runner", adapterConfig: config };
   }
   if (harness === "claude_local") {
     config = resolveClaudeRunnerConfig(config);
@@ -322,7 +322,7 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
       if (error instanceof PaperclipRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
       throw error;
     }
-    return { adapterType: "paperclip_runner", adapterConfig: config };
+    return { adapterType: "outpost_runner", adapterConfig: config };
   }
   const aliasSources = new Map<string, string>();
   for (const [canonical, alias] of [
@@ -358,24 +358,24 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
   if (unsupported.length) incompatible(unsupported.map(field => aliasSources.get(field) ?? field));
   const env = config.env && typeof config.env === "object" && !Array.isArray(config.env)
     ? config.env as Record<string, unknown> : {};
-  const network = env.PAPERCLIP_CODEX_ACP_NETWORK_ACCESS;
+  const network = env.OUTPOST_CODEX_ACP_NETWORK_ACCESS;
   const binding = network && typeof network === "object" && !Array.isArray(network)
     ? network as Record<string, unknown> : null;
   if (config.engine !== "cli" && (network === "false"
     || (binding?.type === "plain" && binding.value === "false")
     || binding?.type === "secret_ref" || binding?.type === "user_secret_ref")) {
-    incompatible(["env.PAPERCLIP_CODEX_ACP_NETWORK_ACCESS"]);
+    incompatible(["env.OUTPOST_CODEX_ACP_NETWORK_ACCESS"]);
   }
   const effort = config.modelReasoningEffort ?? config.reasoningEffort ?? config.effort;
   for (const key of ["engine", "command", "extraArgs", "args", "agentCommand", "mode", "nonInteractivePermissions", "stateDir", "warmHandleIdleMs", "dangerouslyBypassApprovalsAndSandbox", "dangerouslyBypassSandbox", "fastMode", "reasoningEffort", "effort"]) delete config[key];
   if (config.model !== undefined && typeof config.model !== "string") incompatible(["model"]);
-  config = { ...config, provider: "codex", model: typeof config.model === "string" && config.model.trim() ? config.model.trim() : PAPERCLIP_RUNNER_DEFAULT_MODELS.codex, codexPermissionMode: config.codexPermissionMode ?? "never", ...(config.lifecycleMode === undefined ? {} : { lifecycleMode: config.lifecycleMode }), ...(effort === undefined ? {} : { modelReasoningEffort: effort }) };
+  config = { ...config, provider: "codex", model: typeof config.model === "string" && config.model.trim() ? config.model.trim() : OUTPOST_RUNNER_DEFAULT_MODELS.codex, codexPermissionMode: config.codexPermissionMode ?? "never", ...(config.lifecycleMode === undefined ? {} : { lifecycleMode: config.lifecycleMode }), ...(effort === undefined ? {} : { modelReasoningEffort: effort }) };
   try { resolvePaperclipRunnerNativeProviderInput({ backend: "codex_app_server", adapterConfig: config }); }
   catch (error) {
     if (error instanceof PaperclipRunnerProviderProfileError) throw unprocessable(error.message, { code: error.code });
     throw error;
   }
-  return { adapterType: "paperclip_runner", adapterConfig: config };
+  return { adapterType: "outpost_runner", adapterConfig: config };
 }
 
 export async function resolveNewAgentRunnerForCompany(db: Db, companyId: string, input: AgentRunnerSelection & { defaultEnvironmentId?: string | null }) {
@@ -383,7 +383,7 @@ export async function resolveNewAgentRunnerForCompany(db: Db, companyId: string,
   input = { ...input, disabledTypes };
   const cursor = agentHarnessType(input.adapterType ?? "process", input.adapterConfig) === "cursor_cloud";
   const nativeCursor = cursor && input.runner !== "legacy"
-    && (input.adapterType === "paperclip_runner" || input.runner === "paperclip");
+    && (input.adapterType === "outpost_runner" || input.runner === "paperclip");
   const cursorSetupDefault = cursor && input.setupOnly === true
     && (input.runner === undefined || input.runner === "auto");
   if (nativeCursor || cursorSetupDefault) {
@@ -393,7 +393,7 @@ export async function resolveNewAgentRunnerForCompany(db: Db, companyId: string,
     // legacy agents still require an explicit conversion decision.
     const useSetupDefault = cursorSetupDefault && managedCursorApiDefaultEnabled(settings.experimental);
     if (nativeCursor || useSetupDefault) {
-      if (disabledTypes.includes("cursor_cloud") || disabledTypes.includes("paperclip_runner")) {
+      if (disabledTypes.includes("cursor_cloud") || disabledTypes.includes("outpost_runner")) {
         throw unprocessable("Cursor Cloud is disabled on this instance. Enable its adapter or choose another harness.", { code: "agent_runner_unavailable" });
       }
       assertProviderApiPlacementPolicy(settings.general ?? {});
@@ -407,7 +407,7 @@ export async function resolveNewAgentRunnerForCompany(db: Db, companyId: string,
     }
   }
   if (!paperclipRunnerProfileForHarness(agentHarnessType(input.adapterType ?? "process", input.adapterConfig))
-    || input.runner === "legacy" || (input.adapterType === "paperclip_runner" && (input.runner === undefined || input.runner === "paperclip"))) return resolveNewAgentRunner(input);
+    || input.runner === "legacy" || (input.adapterType === "outpost_runner" && (input.runner === undefined || input.runner === "paperclip"))) return resolveNewAgentRunner(input);
   const target = await resolveAgentRunnerTargetForCompany(db, companyId, input.defaultEnvironmentId, input.disabledTypes);
   return resolveNewAgentRunner({ ...input, target });
 }

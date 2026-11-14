@@ -1,5 +1,5 @@
 import { and, eq, or } from "drizzle-orm";
-import { environmentLeases, heartbeatRuns, type Db } from "@paperclipai/db";
+import { environmentLeases, heartbeatRuns, type Db } from "@outpost/db";
 import { hasRemoteTerminationReceipt, remoteExecutionHasStopped } from "./remote-execution-termination.js";
 
 /** A saved provider task can resume only within the same authorized agent workspace. */
@@ -14,7 +14,7 @@ export async function resolvePluginTaskResume(db: Db, input: {
     .where(and(eq(environmentLeases.companyId, input.companyId),
       or(eq(environmentLeases.id, input.leaseId), eq(heartbeatRuns.id, input.priorIdentity.runId))));
   const next = rows.find(row => row.lease.id === input.leaseId);
-  // A retained PRP lease is logical; later provider tasks have different physical lease IDs.
+  // A retained ORP lease is logical; later provider tasks have different physical lease IDs.
   const candidates = rows.filter(row => {
     const identity = row.lease.metadata?.runnerTaskIdentity as Record<string, unknown> | undefined;
     const consumer = row.lease.metadata?.runnerTaskSourceConsumer as { leaseId?: unknown; runId?: unknown; resumeFrom?: unknown } | null | undefined;

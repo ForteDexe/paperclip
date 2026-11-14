@@ -28,7 +28,7 @@
         "sourceRunId": "run",
         "continuationPolicy": "none",
         "resolverPolicy": "human_only",
-        "idempotencyKey": "paperclip-runner-question:run:request",
+        "idempotencyKey": "outpost-runner-question:run:request",
         "payload": {
           "version": 1,
           "title": "Pi native restart",
@@ -53,7 +53,7 @@
             }
           ],
           "questionSet": {
-            "schema": "paperclip.question_set.v1",
+            "schema": "outpost.question_set.v1",
             "title": "Pi native restart",
             "submitLabel": "Submit answers",
             "questions": [
@@ -82,8 +82,8 @@
       "protocolSchemaVersion": 1,
       "eventType": "turn.submitted",
       "payload": {
-        "prpEvent": {
-          "schema": "paperclip.prp.event.v1",
+        "orpEvent": {
+          "schema": "outpost.orp.event.v1",
           "schemaVersion": 1,
           "sourceKind": "runner",
           "eventType": "turn.submitted",
@@ -105,8 +105,8 @@
       "protocolSchemaVersion": 1,
       "eventType": "turn.started",
       "payload": {
-        "prpEvent": {
-          "schema": "paperclip.prp.event.v1",
+        "orpEvent": {
+          "schema": "outpost.orp.event.v1",
           "schemaVersion": 1,
           "sourceKind": "runner",
           "eventType": "turn.started",
@@ -129,8 +129,8 @@
       "protocolSchemaVersion": 1,
       "eventType": "runtime_request.created",
       "payload": {
-        "prpEvent": {
-          "schema": "paperclip.prp.event.v1",
+        "orpEvent": {
+          "schema": "outpost.orp.event.v1",
           "schemaVersion": 1,
           "sourceKind": "runner",
           "eventType": "runtime_request.created",
@@ -146,7 +146,7 @@
               "type": "input",
               "input": {
                 "title": "Pi native restart",
-                "schema": "paperclip.question_set.v1",
+                "schema": "outpost.question_set.v1",
                 "questions": [
                   {
                     "id": "answer",
@@ -168,7 +168,7 @@
                 "provider": "pi"
               },
               "prompt": "Pi native restart",
-              "schema": "paperclip.runtime_request.v2",
+              "schema": "outpost.runtime_request.v2",
               "status": "pending",
               "turnId": "turn",
               "requestId": "request",

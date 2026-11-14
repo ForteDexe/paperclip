@@ -1,4 +1,4 @@
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import {
   getInboxWorkItemKey,
   type InboxGroupedSection,

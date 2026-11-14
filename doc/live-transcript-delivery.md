@@ -1,7 +1,7 @@
 # Interested transcript delivery
 
 The company WebSocket is a presentation channel. Its subscriptions cannot change
-runner execution, PRP acknowledgements, recovery checkpoints, accounting, or
+runner execution, ORP acknowledgements, recovery checkpoints, accounting, or
 canonical run logs. Authorization and redaction still run at delivery, including
 after access is revoked. A subscription is never an authorization grant. Full event
 rows and log chunks require the current `company_scope:read` permission used by
@@ -74,7 +74,7 @@ This settles excluded activity without recurring reads or downloading the full
 event stream. A later notification cannot be covered by an older in-flight scan;
 its catch-up must still recover any intervening conversation rows.
 
-Native publication signals carry a committed sequence without a PRP body. They
+Native publication signals carry a committed sequence without a ORP body. They
 trigger a canonical read through that sequence, including consecutive signals,
 and never enter the transcript merge. A delayed signal cannot replace complete
 text. Signals that arrive during an older read remain pending until history
@@ -162,7 +162,7 @@ is revoked.
 
 `server/src/realtime/live-event-delivery.cost.test.ts` compares identical output
 with zero interests, one viewer, three browser connections, and simulated socket
-congestion. Set `PAPERCLIP_LIVE_DELIVERY_COST_REPORT` to retain its JSON report.
+congestion. Set `OUTPOST_LIVE_DELIVERY_COST_REPORT` to retain its JSON report.
 This measures the in-process presentation boundary, not production network or
 database cost. CPU, heap deltas, and latency are diagnostic measurements, not
 performance assertions. Current acceptance evidence lives in

@@ -1,4 +1,4 @@
-# `@paperclipai/plugin-exe-dev`
+# `@outpost/plugin-exe-dev`
 
 Published exe.dev sandbox provider plugin for Outpost.
 
@@ -9,7 +9,7 @@ This package lives in the Outpost monorepo, but it is intentionally excluded fro
 From an Outpost instance, install:
 
 ```text
-@paperclipai/plugin-exe-dev
+@outpost/plugin-exe-dev
 ```
 
 ## Configuration
@@ -50,7 +50,7 @@ pnpm test
 pnpm typecheck
 ```
 
-These commands assume the repo root has already been installed once so the local `@paperclipai/plugin-sdk` workspace package is available to the compiler during development.
+These commands assume the repo root has already been installed once so the local `@outpost/plugin-sdk` workspace package is available to the compiler during development.
 
 ## Package layout
 

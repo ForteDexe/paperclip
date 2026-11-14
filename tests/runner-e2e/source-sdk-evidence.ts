@@ -24,7 +24,7 @@ export const retainedSourceSdkPath = (file: string) => {
 };
 const retainedPath = retainedSourceSdkPath;
 interface RetainedBuild {
-  schema: "paperclip.source-plugin-sdk/v1" | "paperclip.source-plugin-sdk/v2"; sourceRootSha256?: string; scanAudit?: Awaited<ReturnType<ReturnType<typeof createSdkArtifactScanner>["audit"]>>; executionId: string; sourceRevision: string; retainedAt: string;
+  schema: "outpost.source-plugin-sdk/v1" | "outpost.source-plugin-sdk/v2"; sourceRootSha256?: string; scanAudit?: Awaited<ReturnType<ReturnType<typeof createSdkArtifactScanner>["audit"]>>; executionId: string; sourceRevision: string; retainedAt: string;
   buildHelperSha256: string; lockSha256: string; files: Array<BuiltFile & { retainedPath: string; retainedSha256: string }>;
   certifiedTargets: Array<{ directory: string; sources: string; outputs: string }>;
 }
@@ -33,7 +33,7 @@ function checkSecret(bytes: Buffer, secrets: readonly string[]) {
   if (findSecretLeak(bytes.toString("utf8"), secrets)) throw new Error("Source SDK evidence privacy check failed; bytes withheld");
 }
 async function retainScanAudit(root: string, executionId: string, audit: unknown, complete: boolean, secrets: readonly string[]) {
-  const bytes = Buffer.from(JSON.stringify({ schema: "paperclip.source-sdk-privacy-observation/v1", complete, audit }, null, 2) + "\n");
+  const bytes = Buffer.from(JSON.stringify({ schema: "outpost.source-sdk-privacy-observation/v1", complete, audit }, null, 2) + "\n");
   checkSecret(bytes, secrets);
   const directory = path.join(root, "artifacts-private", "cases", executionId.slice("chat-features.runner-opencode.local.".length), "snapshots");
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -97,7 +97,7 @@ export async function retainPreparedSourceSdk(input: { repositoryRoot: string; t
   const scanAudit = await scanner.audit();
   await retainScanAudit(root, input.executionIds[0]!, scanAudit, true, secrets);
   const syntax = scanAudit.observations.some(row => row.classification === "public_schema_type");
-  const receipt: RetainedBuild = { schema: syntax ? "paperclip.source-plugin-sdk/v2" : "paperclip.source-plugin-sdk/v1", ...(syntax ? { sourceRootSha256: hash(repository), scanAudit } : {}), executionId: input.executionIds[0]!, sourceRevision: input.sourceRevision!, retainedAt: new Date().toISOString(),
+  const receipt: RetainedBuild = { schema: syntax ? "outpost.source-plugin-sdk/v2" : "outpost.source-plugin-sdk/v1", ...(syntax ? { sourceRootSha256: hash(repository), scanAudit } : {}), executionId: input.executionIds[0]!, sourceRevision: input.sourceRevision!, retainedAt: new Date().toISOString(),
     buildHelperSha256: hash(await readFile(path.join(repository, "scripts/ensure-plugin-build-deps.mjs"))), lockSha256: hash(await readFile(path.join(repository, "pnpm-lock.yaml"))),
     certifiedTargets, files: buffers.map(({ bytes: _, ...row }) => ({ ...row, retainedPath: retainedPath(row.file), retainedSha256: row.sha256 })) };
   if (new Set(receipt.files.map(file => file.retainedPath)).size !== receipt.files.length) throw new Error("Source SDK retained filename collision");
@@ -117,12 +117,12 @@ export async function verifyRetainedSourceSdk(root: string, executionId: string,
   const secrets = diagnosticSecrets(knownSecrets).values, files = await boundedTree(staging(root));
   const receiptFile = files.find(row => row.file === "receipt.json"); if (!receiptFile) throw new Error("Source SDK retained receipt missing");
   const receipt = JSON.parse(receiptFile.bytes.toString("utf8")) as RetainedBuild;
-  if (!["paperclip.source-plugin-sdk/v1", "paperclip.source-plugin-sdk/v2"].includes(receipt.schema) || receipt.executionId !== executionId || receipt.sourceRevision !== sourceRevision
+  if (!["outpost.source-plugin-sdk/v1", "outpost.source-plugin-sdk/v2"].includes(receipt.schema) || receipt.executionId !== executionId || receipt.sourceRevision !== sourceRevision
     || !hex(receipt.buildHelperSha256) || !hex(receipt.lockSha256) || !Array.isArray(receipt.files)) throw new Error("Source SDK retained identity mismatch");
   const actual = files.filter(row => row.file !== "receipt.json");
   if (actual.length !== receipt.files.length || actual.some(row => !targets.some(target => row.file.startsWith(`${target}/`))
     || !receipt.files.some(expected => expected.file === row.file && expected.retainedPath === retainedPath(row.file) && expected.size === row.size && expected.sha256 === row.sha256 && expected.retainedSha256 === row.sha256))) throw new Error("Source SDK retained bytes changed");
-  if (receipt.schema === "paperclip.source-plugin-sdk/v2") {
+  if (receipt.schema === "outpost.source-plugin-sdk/v2") {
     if (!receipt.scanAudit || receipt.sourceRootSha256 !== hash(await realpath(repositoryRoot))) throw new Error("Source SDK public source custody changed");
     const scanner = createSdkArtifactScanner(await realpath(repositoryRoot), secrets);
     for (const file of actual) if (!await scanner.scan(file.file, file.bytes)) throw new Error("Source SDK evidence privacy check failed; bytes withheld");
@@ -152,8 +152,8 @@ export interface SourceSdkAuditCapture { executionId: string; context: Parameter
 function closedSdkAudit(value: unknown): boolean {
   const object = (v: any, keys: string[]) => !!v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).sort().join() === [...keys].sort().join();
   const v = value as any, a = v?.audit;
-  if (!object(v, ["schema", "complete", "audit"]) || v.schema !== "paperclip.source-sdk-privacy-observation/v1" || typeof v.complete !== "boolean"
-    || !object(a, ["schema", "suppressedFindings", "bounded", "publicSource", "observations"]) || a.schema !== "paperclip.source-sdk-scan/v1" || a.suppressedFindings !== 0
+  if (!object(v, ["schema", "complete", "audit"]) || v.schema !== "outpost.source-sdk-privacy-observation/v1" || typeof v.complete !== "boolean"
+    || !object(a, ["schema", "suppressedFindings", "bounded", "publicSource", "observations"]) || a.schema !== "outpost.source-sdk-scan/v1" || a.suppressedFindings !== 0
     || typeof a.bounded !== "boolean" || !Array.isArray(a.observations) || a.observations.length > 4096) return false;
   if (a.publicSource !== null) {
     const hashes = ["manifestSha256", "lockSha256", "compilerPackageSha256", "parserPackageSha256", "parserEntrySha256", "zodPackageSha256", "zodEntrySha256", "zodTypeGraphSha256"];

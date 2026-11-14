@@ -62,7 +62,7 @@ version, command, permission, and process-ownership checks remain enforced.
 
 Bind the selected provider's credentials in the agent environment, for example
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY`.
-Custom models use `PAPERCLIP_PI_PROVIDERS`, an explicit JSON object in Pi's
+Custom models use `OUTPOST_PI_PROVIDERS`, an explicit JSON object in Pi's
 `models.json` providers format. The runner writes it into the private Pi home,
 forwards explicitly bound credential references, and includes its digest in
 recovery identity. Credential commands and control-plane credential references
@@ -106,7 +106,7 @@ model, Pi 1.0 supports `off`, `low`, `high`, and `max`. Pi's implicit `medium`
 default resolves to `high`; Pi 0.84.2 also resolved that default to `high`, so
 this is a configuration gap rather than evidence of a new Pi 1.0 default.
 
-The [provider-free wire proof](../../packages/paperclip-runner/test-fixtures/pi-acp/thinking-modes.v13.darwin-arm64.json)
+The [provider-free wire proof](../../packages/outpost-runner/test-fixtures/pi-acp/thinking-modes.v13.darwin-arm64.json)
 records actual Pi 1.0 request bodies changing from `high` to `low` through ACP,
 truthful `max` restoration, blocked non-loopback connections, and owned-process
 retirement. Synthetic responses establish propagation, not paid qualification.
@@ -247,7 +247,7 @@ paperclipai runtime import-remote /path/to/release/linux-x64 --sha256 MANIFEST_S
 
 Obtain `MANIFEST_SHA256` from the trusted release channel, separately from the
 copied directory. The directory contains `companion.json`,
-`bin/paperclip-runnerd`, and the complete `provider-pack/`. Import verifies the
+`bin/outpost-runnerd`, and the complete `provider-pack/`. Import verifies the
 installed server's exact build commit, qualified Pi profile, Linux x64 ELF,
 manifest digest, and every file, mode, directory and contained symbolic link.
 External hardlinks, escaping links, extra or modified files, and unsafe modes
@@ -255,7 +255,7 @@ are rejected. This command performs no network requests or model calls and does
 not run the Linux executable on the Mac.
 
 The destination is the private `remote-companions/linux-x64` directory beneath
-the actual installed `@paperclipai/server` package. It must be writable by the
+the actual installed `@outpost/server` package. It must be writable by the
 operator, outside the task workspace, and protected with the same host access
 controls as the server installation. It is not an agent workspace or a remote
 image's self-reported authority. An existing different or damaged installation
@@ -281,7 +281,7 @@ For release maintainers, assemble the Linux daemon and default provider pack
 for the **same final commit** as the public server/CLI packages. A reused daemon
 requires complete native source/config/protocol input equality and retains its
 original compiler/build provenance; the manifest does not claim recompilation. In a fresh
-release directory place those outputs at `bin/paperclip-runnerd` and
+release directory place those outputs at `bin/outpost-runnerd` and
 `provider-pack/`, preserving the pack's relative links and modes. Then run the
 source-owned manifest generator after building the matching server:
 
@@ -382,13 +382,13 @@ The first frozen v6 Product hello attempt fails before provider startup because
 the shared native-execution parser still admits only profile versions 1–5.
 Both assignment and automatic recovery runs reject the same input; no usage
 receipt exists. The early exclusive-key billing delta is $0 and cleanup passes.
-The [retained failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-hello-profile-rejection.v6.darwin-arm64.json)
+The [retained failure](../../packages/outpost-runner/test-fixtures/pi-acp/product-hello-profile-rejection.v6.darwin-arm64.json)
 includes the actual local sidecar, Node, daemon, closure and pack identities.
 The parser repair is included in frozen source `edf14a067`. Its second hello
 attempt passes that boundary but fails at the 30-second `session.open` deadline.
 No terminal usage exists; both immediate and delayed exclusive-key deltas are $0,
 and all 40 owned process identities are gone. The
-[v6 startup proof](../../packages/paperclip-runner/test-fixtures/pi-acp/startup-diagnostic.v6.darwin-arm64.json)
+[v6 startup proof](../../packages/outpost-runner/test-fixtures/pi-acp/startup-diagnostic.v6.darwin-arm64.json)
 retains that failure and the credential-free diagnosis. Bounded 32-worker file
 hashing and snapshot copying preserve all integrity checks, canonical ordering,
 the 32 MiB snapshot batch ceiling, and fully drained failure cleanup. A diagnostic
@@ -399,8 +399,8 @@ cache and load; these are admission diagnostics, not authenticated qualification
 No timeout or provider-closure identity changes in this repair.
 
 The opt-in regression is `node --test test/pi-closed-startup.test.mjs` from the
-Runner package, with `PAPERCLIP_TEST_PI_STARTUP_PACKAGE_ROOT` pointing at a built
-Runner package containing Pi assets and `PAPERCLIP_TEST_PI_STARTUP_RUNNER_BINARY`
+Runner package, with `OUTPOST_TEST_PI_STARTUP_PACKAGE_ROOT` pointing at a built
+Runner package containing Pi assets and `OUTPOST_TEST_PI_STARTUP_RUNNER_BINARY`
 pointing at its compatible daemon. It spawns a clean environment, submits no
 prompt, asserts terminal admission rejection within the unchanged 30-second
 deadline, and verifies the daemon closes. It does not inherit provider credentials.
@@ -435,8 +435,8 @@ boundaries explicit.
 | Native tools | `read`, `grep`, `find`, `ls`, `write`, `edit`, and `bash` pass the immutable extension gate before execution. File roots and read-only mode are checked before and after a permission wait. The host sandbox remains authoritative for shell commands and races. |
 | Permissions | Native tool approval uses ACP `session/request_permission`, with allow once, allow for the session, and deny. Only offered options are accepted. Session grants cover an identical operation and still revalidate paths. Questions never become approvals. |
 | Questions | The owned `paperclip_native_question` tool exposes Pi `select`, `confirm`, `input`, and `editor` through ACP form elicitation. Select is single-choice with stable option IDs. Pi returns `false` for both No and dismissal of confirm, so the tool reports `negative_or_cancelled`; it never invents a confirmed answer. Other methods return explicit cancellation. Permissions and semantic Plan approval remain separate. |
-| Agent files | Only the authenticated execution's registered `agent_files` working copy can become `AGENT_HOME`. The Pi wrapper takes `PAPERCLIP_PI_AGENT_HOME` from the runner's bound launch, ignores ambient `AGENT_HOME`, and admits that canonical directory alongside the task workspace. Protected overlap, directory replacement and symlink escape fail closed. Read-only policy still forbids writes. `PI_CODING_AGENT_DIR` remains private provider state. |
-| Semantic tools | Runner-bound HTTP MCP catalogs (numeric loopback HTTP or assigned HTTPS gateways) register under exact `mcp__<server>__<tool>` names. Calls use an occurrence-scoped delivery ID and preserve the bounded native ID as private ACP-wire provenance, together with the cancellation signal. Common normalized events currently drop that metadata. Authenticated PRP tool handling owns semantic authorization and durable interactions. Only the exact session-assigned gateway URL and credential are used, with redirects disabled. Ambient and unassigned MCP servers are not admitted. |
+| Agent files | Only the authenticated execution's registered `agent_files` working copy can become `AGENT_HOME`. The Pi wrapper takes `OUTPOST_PI_AGENT_HOME` from the runner's bound launch, ignores ambient `AGENT_HOME`, and admits that canonical directory alongside the task workspace. Protected overlap, directory replacement and symlink escape fail closed. Read-only policy still forbids writes. `PI_CODING_AGENT_DIR` remains private provider state. |
+| Semantic tools | Runner-bound HTTP MCP catalogs (numeric loopback HTTP or assigned HTTPS gateways) register under exact `mcp__<server>__<tool>` names. Calls use an occurrence-scoped delivery ID and preserve the bounded native ID as private ACP-wire provenance, together with the cancellation signal. Common normalized events currently drop that metadata. Authenticated ORP tool handling owns semantic authorization and durable interactions. Only the exact session-assigned gateway URL and credential are used, with redirects disabled. Ambient and unassigned MCP servers are not admitted. |
 | Plans and artifacts | Pi has no native structured plan or artifact channel. Paperclip plan and artifact semantic tools remain available through the MCP bridge; native file edits retain bounded, workspace-confined ACP diff projection. Tool text/image results are preserved, and resource blocks are recorded without following URLs. |
 | Steering | Capability-negotiated `pi/steer` issues native RPC `steer` during an active turn. `pi/follow_up` explicitly queues native RPC `follow_up`. Neither is inferred from a second ACP prompt. Each takes `{sessionId, message}` and returns `{accepted: true, sessionId, kind}` with the matching control kind. |
 | Usage | Prompt results sum actual assistant message usage receipts across continuations. Input, output, cache reads/writes, total tokens and Pi-reported pricing estimates have provenance. Context-window occupancy is not billed usage. No receipt means no usage assertion; absent cache or cost fields remain unknown. Pi calculates cost from its model catalog rates, so this is not an authoritative provider bill. |
@@ -454,7 +454,7 @@ host must inspect this advertisement before sending provider extension requests.
 
 ## Native model instruction delivery (profile version 6)
 
-The [fresh/load model-request proof](../../packages/paperclip-runner/test-fixtures/pi-acp/prompt-delivery.v6.darwin-arm64.json)
+The [fresh/load model-request proof](../../packages/outpost-runner/test-fixtures/pi-acp/prompt-delivery.v6.darwin-arm64.json)
 uses the actual pinned wrapper launch helper, owned extension, and Pi SDK
 `AgentSession.prompt` with a synthetic model stream. Captured model requests
 contain the exact composed Paperclip execution prompt, custom instruction-entry
@@ -464,12 +464,12 @@ its current system prompt and latest task constraints. The old root is absent
 from the current system prompt; historical user messages still retain prior
 root text, which the current guidance explicitly supersedes.
 
-Pi uses `PAPERCLIP_PI_SYSTEM_INSTRUCTIONS` in its runner-owned launch
+Pi uses `OUTPOST_PI_SYSTEM_INSTRUCTIONS` in its runner-owned launch
 configuration and appends it through `before_agent_start`. Generic ACP
 `_meta.systemPrompt` is ignored, so that metadata alone is insufficient. This
 proof captures the native model-request boundary, beyond host options or wire
 metadata. It uses no real credentials or network inference and does not exercise
-a complete ACPX/PRP process or qualify an authenticated Product journey.
+a complete ACPX/ORP process or qualify an authenticated Product journey.
 
 ## Occurrence identity (profile version 4)
 
@@ -555,22 +555,22 @@ qualification requirements for version 7.
 
 ## Verified launch and packaging contract
 
-The wrapper rejects ambient launch unless `PAPERCLIP_ACPX_ISOLATED_CONTEXT=1`.
+The wrapper rejects ambient launch unless `OUTPOST_ACPX_ISOLATED_CONTEXT=1`.
 It executes an absolute bound Node executable with an absolute bound Pi CLI path,
 without a shell or PATH lookup. The common command lease must supply:
 
-- `PAPERCLIP_PI_NODE_EXECUTABLE`, `PAPERCLIP_PI_ENTRYPOINT`, and
-  `PAPERCLIP_PI_EXTENSION_PATH`: files in the immutable private provider snapshot.
+- `OUTPOST_PI_NODE_EXECUTABLE`, `OUTPOST_PI_ENTRYPOINT`, and
+  `OUTPOST_PI_EXTENSION_PATH`: files in the immutable private provider snapshot.
 - `PI_CODING_AGENT_DIR`: isolated persisted session/auth/settings home.
-- `PAPERCLIP_PI_READ_ONLY`: exactly `0` or `1`.
-- `PAPERCLIP_PI_READ_ROOTS` and `PAPERCLIP_PI_PROTECTED_ROOTS`: JSON arrays of
+- `OUTPOST_PI_READ_ONLY`: exactly `0` or `1`.
+- `OUTPOST_PI_READ_ROOTS` and `OUTPOST_PI_PROTECTED_ROOTS`: JSON arrays of
   absolute allowed skill/read roots and protected runtime/config roots. Assigned
   skills must use a separate immutable lease outside the protected runtime and
   executable roots; overlapping roots fail admission. Skill roots are always
   immutable, even when nested inside a writable workspace.
-- `PAPERCLIP_PI_SYSTEM_INSTRUCTIONS`: admitted instructions, bounded to 32 KiB.
+- `OUTPOST_PI_SYSTEM_INSTRUCTIONS`: admitted instructions, bounded to 32 KiB.
 
-The wrapper synthesizes `PAPERCLIP_PI_RUNTIME_CONFIGURATION` for its child,
+The wrapper synthesizes `OUTPOST_PI_RUNTIME_CONFIGURATION` for its child,
 including only session-bound MCP servers. The owned extension captures and deletes
 this configuration environment variable before model shell execution. Credentials
 remain accessible only through the deliberately admitted runtime mechanisms.
@@ -590,7 +590,7 @@ missing sentinel kills the subprocess before the first model prompt.
 
 `pi-verified-runtime.ts` inventories and checks the complete graph, including
 Node, wrapper helper, extension, package metadata, native libraries, WASM and
-resources. The manifest schema is `paperclip.pi-runtime-files.v1`, with relative
+resources. The manifest schema is `outpost.pi-runtime-files.v1`, with relative
 `node`, `piEntrypoint`, `extension`, `wrapperEntrypoint` fields and a complete
 `files` array of SHA-256-bound regular files or contained relative symlinks.
 Hardlinked files, escaping links, changed files, and undeclared files fail
@@ -602,12 +602,12 @@ The published Pi package has a shrinkwrap and a nested dependency graph. Provide
 pack creation must copy the complete installed graph and use the same pinned Pi
 family dependencies, rather than reconstructing the graph from `cli.js` imports.
 The emitted owned extension must be included in every macOS arm64/x64 and Linux
-x64 pack; the candidate materializer emits it at `runtime/extensions/paperclip.js`. The wrapper's `dist/paperclip-runtime.js` is
+x64 pack; the candidate materializer emits it at `runtime/extensions/outpost.js`. The wrapper's `dist/paperclip-runtime.js` is
 part of its verified package and must never be omitted from a copy or hash.
 
 ## Verification and maintenance
 
-The [v5 offline pack proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v5.darwin-arm64.json)
+The [v5 offline pack proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v5.darwin-arm64.json)
 binds runtime source `aec26ad83f1d082f0d0a5eaffbd615a9e2e26155`, combined macOS
 pack `sha256:cf7d0998bbc2bed7b893c726c2b6455ba8a683d9cff7d92afedbff2d5900d500`,
 and immutable daemon `sha256:fe03a5f5e7b7d51aafb398aa435e4a200ca6e0206c46b84ba0baa15aa0be5f31`.
@@ -615,7 +615,7 @@ Recursive workspace typecheck and full build pass. Focused checks pass 43
 TypeScript tests including actual installation launch, 19 installed-wrapper/native
 SDK tests, eight materializer tests and 13 Rust backend tests. Independent review
 recomputed the v5 digest and verified all 13,827 installed files. The
-[security closure proof](../../packages/paperclip-runner/test-fixtures/pi-acp/security-closure-proof.v5.json)
+[security closure proof](../../packages/outpost-runner/test-fixtures/pi-acp/security-closure-proof.v5.json)
 retains npm's vulnerable pre-replacement result, the fixed installed version,
 unchanged upstream metadata, target pins and exact runtime file changes.
 
@@ -630,7 +630,7 @@ runtime source trees remain identical to `aec26ad83`. Linux execution is recorde
 separately. The two clean lock resolutions match `9eea6018…`; tracked lock bytes
 remain unchanged.
 
-The [v4 offline proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v4.darwin-arm64.json)
+The [v4 offline proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v4.darwin-arm64.json)
 binds frozen source `f556110d588a9de9fefe676a9a62bf09e98afb85`, combined pack
 `sha256:4df7e9fa164929c7ae7d8e8711f0bf7d587d9fa6a246d0a8340f318f57168855`,
 and release Runner SHA-256
@@ -658,7 +658,7 @@ against a deterministic RPC fixture. It proves initialization, streaming,
 terminal usage, question versus permission routing, explicit steering, provider
 exit, required sentinel, and typed failure settlement. It requires the exact
 installed pinned package; an absent or unpatched dependency is a failure.
-`PAPERCLIP_TEST_PI_ACP_PACKAGE` can select a separately installed pinned fixture.
+`OUTPOST_TEST_PI_ACP_PACKAGE` can select a separately installed pinned fixture.
 These fixtures invoke no model or paid API.
 
 At source `f58cfa1cbf4503b93a0be4480f51b492d8203b7c`, all 30 tests in those
@@ -686,7 +686,7 @@ package tests; do not preserve an old qualified command hash after changing byte
 
 Primary references reviewed:
 
-- [Harness priorities report](https://pages.paperclip.ing/2026-09-25-harness-priorities/report.md)
+- [Harness priorities report](https://pages.outpost.ing/2026-09-25-harness-priorities/report.md)
 - [pi-acp source](https://github.com/svkozak/pi-acp)
 - [Pi RPC protocol](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/rpc.md)
 - [Pi extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md)
@@ -694,7 +694,7 @@ Primary references reviewed:
 
 ## Candidate distribution build
 
-Run `node packages/paperclip-runner/scripts/materialize-pi-distribution.mjs
+Run `node packages/outpost-runner/scripts/materialize-pi-distribution.mjs
 /absolute/new-output` on the target build host. Supported targets are macOS arm64,
 macOS x64 and Linux x64; no cross-platform qualification is inferred. The builder
 uses exact official Node 24.21.0, pinned archive SHA-256 and executable SHA-256
@@ -713,7 +713,7 @@ configuration and an environment without npm or provider credentials. The builde
 checks every locked installed version and upstream shrinkwrap entry (with the
 exact security exception below), applies the
 owned ACP patch, verifies the helper matches its TypeScript source, and compiles
-the owned extension to `runtime/extensions/paperclip.js`.
+the owned extension to `runtime/extensions/outpost.js`.
 
 Profile v5 replaces only the nested `undici@8.9.0` with `8.10.2`. Both an
 existing-lock resolution and a fresh resolution ignore npm's scoped override
@@ -784,7 +784,7 @@ no terminal login option. The materializer returns the runtime `version`,
 For the exact OpenRouter qualification model, Pi AI 0.84.2's
 `dist/providers/data/openrouter.json` selects `openai-completions`. Its
 `dist/api/openai-completions.js` assigns `usage.output` from `completion_tokens`,
-which already includes reasoning tokens; `usage.reasoning` is a subset. PRP must
+which already includes reasoning tokens; `usage.reasoning` is a subset. ORP must
 therefore use zero additional thought tokens for this pinned profile, rather than
 counting that subset twice. Missing cache categories remain unknown at the wrapper
 receipt boundary. `usage.cost` is a Pi catalog pricing estimate, never an invoice.
@@ -809,7 +809,7 @@ cannot continue invisibly. Successful compaction reports
 helper discards failed-attempt usage, so any retry or missing compaction receipt
 invalidates complete-turn token/cost totals instead of inventing complete coverage.
 
-The retained [macOS ARM64 provider-pack admission proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
+The retained [macOS ARM64 provider-pack admission proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
 records source `7710736ca3924c655c5b0efd172cfd3c0173766a`, with version 3
 runtime source `06cf356a8bc94f709fcd15606fe05e17933fe3b2`. The latter differs only
 by the capability report and Pi evidence JSON; all execution tree hashes match.
@@ -826,39 +826,39 @@ Version 3 verification passes TypeScript and release Runner builds, 95 focused
 Vitest cases in seven files including actual-distribution launch, 25 installed
 package/receipt/materializer checks, and 16 native-provider Rust tests. These
 checks do not constitute full repository verification or paid qualification.
-The [version 2 dd78 proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.dd78df1e.json)
+The [version 2 dd78 proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.dd78df1e.json)
 retains the earlier pack used for hello, model admission and restrictive denial.
 Its 107 Vitest checks and 22 installed checks remain tied to that source.
 
-The [9f2d0420e proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.9f2d0420e.json)
+The [9f2d0420e proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.9f2d0420e.json)
 retains the earlier source and pack that reproduced the startup timeout. Its 97
 Vitest checks and 22 package checks, including the corrected explicit package-path
 invocation, remain historical evidence.
 
-The [a6167ce3a proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.a6167ce3a.json)
-and [58511d79d proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.58511d79d.json)
+The [a6167ce3a proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.a6167ce3a.json)
+and [58511d79d proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.58511d79d.json)
 remain historical observations. The 128 targeted checks, 31 installation checks
 and 17 package checks remain pinned to `58511d79d`; the full Runner suite
 (2,202 passed, 11 skipped) and 13 native-provider Rust tests remain pinned to
 `2e65b64d5`. They are not relabeled as checks of the latest source.
 
-The [pre-launch-boundary proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.2e65b64d5.darwin-arm64.json)
+The [pre-launch-boundary proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.2e65b64d5.darwin-arm64.json)
 retains source `2e65b64d5a2148583109b8157d6e72f54f5ad29b` and manifest
 `sha256:7300b9c449c02b61d2f93ef765f371c277e39a58d04739c6c24dcf7939500701`,
 including the full runner suite and native-provider Rust results. It predates the
 final runner environment allowlist and direct candidate-admission fixes.
 
-The [pre-policy proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.d039e1b7b.darwin-arm64.json)
+The [pre-policy proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.d039e1b7b.darwin-arm64.json)
 retains source `d039e1b7b072862b4c326ba7194dc42617fa5984` and manifest
 `sha256:5a47fc67b886c1e05d0f630ed89c1b9f5324610b649d1db020a3e036e36fc85d`,
 including its cleanup-timeout retry history. It predates the Node engine metadata
 and corresponding manifest/closure identities.
 
-The [previous integrated proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.f58cfa1cb.darwin-arm64.json)
+The [previous integrated proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.f58cfa1cb.darwin-arm64.json)
 retains source `f58cfa1cbf4503b93a0be4480f51b492d8203b7c` and manifest
 `sha256:3de76fb7d3902d29285e3da51e36d2ba4654c29bab0c867a6209fadea77c2181`.
 It covers the retry-status repair before the HTTPS and shared runtime fixes.
-The [earlier integrated proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.1e0d11c48.darwin-arm64.json)
+The [earlier integrated proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-provider-pack-proof.1e0d11c48.darwin-arm64.json)
 retains source `1e0d11c482f8ef50b6afc1430cb736579114b266` and manifest
 `sha256:f859e30e51326ff875d616e2bb3fd4c0246ce1f58a5988968b91bae176a68281`
 with its narrower capability assertions. These files are historical evidence,
@@ -881,9 +881,9 @@ every field in Pi's native event stream. These are explicit follow-ups:
   metadata and redaction. Extend field-by-field wrapper/canonical/browser parity
   without giving notices terminal authority or treating deterministic tests as
   paid qualification. See the [wrapper patch](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/patches/pi-acp%400.0.33.patch#L381),
-  [notice adapter](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/packages/paperclip-runner/src/drivers/acpx/pi-extension-adapter.ts#L22),
-  [package regressions](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/packages/paperclip-runner/test/pi-acp-package-contract.test.mjs#L225),
-  [adapter regressions](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/packages/paperclip-runner/src/drivers/acpx/pi-extension-adapter.test.ts#L5),
+  [notice adapter](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/packages/outpost-runner/src/drivers/acpx/pi-extension-adapter.ts#L22),
+  [package regressions](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/packages/outpost-runner/test/pi-acp-package-contract.test.mjs#L225),
+  [adapter regressions](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/packages/outpost-runner/src/drivers/acpx/pi-extension-adapter.test.ts#L5),
   and [UI details](https://github.com/paperclipai/paperclip/blob/41503eb38f03c436b1569f9f0204625bb4d58782/ui/src/components/task-chat/TaskChatProtocolActivityRow.tsx#L283).
 - **P1 — native queue state.** `queue_update` contains steering and follow-up queues. Extension calls
   acknowledge RPC acceptance, but the wrapper does not project that event into
@@ -914,7 +914,7 @@ every field in Pi's native event stream. These are explicit follow-ups:
 
 ## Authenticated local qualification progress
 
-The [v5 native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.v5.darwin-arm64.json)
+The [v5 native controls proof](../../packages/outpost-runner/test-fixtures/pi-acp/native-controls-proof.v5.darwin-arm64.json)
 passes the unchanged probe on frozen `aec26ad83` / pack `cf7d0998…` in 19.199 seconds.
 The original write invocation `pi-849b369266c920633abffa988509e4ba61fcdf464f62c73900fd5ddd6d477402`
 correlates with the denied failed-tool update. The decision is fsynced before either control request; both control
@@ -930,7 +930,7 @@ controls and denial on the patched profile; it does not qualify Product recovery
 or remote execution.
 
 
-The [v4 native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.v4.darwin-arm64.json)
+The [v4 native controls proof](../../packages/outpost-runner/test-fixtures/pi-acp/native-controls-proof.v4.darwin-arm64.json)
 passes on frozen `f556110d5` / pack `4df7e9fa…`: one native write request uses the
 same normalized invocation ID in its persisted decision and failed tool update;
 the original deny option is written only after both control acknowledgements.
@@ -947,7 +947,7 @@ Undici 7.29.0. Profile v5 fixes both copies as described above. The separately a
 control proof uses that repaired closure; no further paid case is authorized.
 This paid v4 proof remains bound to its original bytes.
 
-The first [v4 plan attempt](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-infrastructure-failure.v4.darwin-arm64.json)
+The first [v4 plan attempt](../../packages/outpost-runner/test-fixtures/pi-acp/product-plan-infrastructure-failure.v4.darwin-arm64.json)
 failed before provider startup: embedded PostgreSQL could not initialize the
 Product fixture. Canonical classification is `transient_infrastructure`, with
 zero provider prompts and two unchanged post-attempt key-billing observations.
@@ -964,7 +964,7 @@ whose recorded creator PID was present. Startup and graceful shutdown now pass;
 the current checkpoint above supersedes this historical qualification hold.
 
 
-The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
+The [sanitized attempt ledger](../../packages/outpost-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
 retains all twenty attempts, including eight failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
@@ -1005,7 +1005,7 @@ and task, then found a dormant Pi-only rejection in the verified runnerd backend
 factory (`transportDriverIdentity`); it again submitted no model prompt and
 incurred zero measured billing delta. The shared identity correction is included
 in foundation `c3b7e9ecd`. The next attempt passed those guards but stopped at
-`PRP command session.open timed out` after 36.5 seconds of run startup; cleanup
+`ORP command session.open timed out` after 36.5 seconds of run startup; cleanup
 passed and the measured key billing delta remained zero. It produced no terminal
 usage receipt or matcher success.
 
@@ -1020,7 +1020,7 @@ regression failed before repair; 45 live-session tests and three focused follow-
 checks passed, with source typecheck. This is a confirmed protocol defect, but
 its causal contribution to the earlier model timeout is not proven.
 
-The [startup diagnostic](../../packages/paperclip-runner/test-fixtures/pi-acp/startup-diagnostic.darwin-arm64.json)
+The [startup diagnostic](../../packages/outpost-runner/test-fixtures/pi-acp/startup-diagnostic.darwin-arm64.json)
 reproduces that failure without credentials through the deployed Runner transport.
 Its `run.prepare` command completes, while `session.open` remains pending at the
 unchanged 30-second deadline. Separately timing the same 13,827-file, 234 MB
@@ -1032,7 +1032,7 @@ promises before cleanup. The same tree then copied in 5.851 seconds; ten securit
 and concurrency tests and both Runner TypeScript checks passed. The rebuilt
 `dd78df1e` pack then settled the full credential-free Runner
 `session.open` request in 10.087 seconds (10.198 including close), within the
-unchanged deadline. It returned terminal `session_ensure_failed`; the outer PRP
+unchanged deadline. It returned terminal `session_ensure_failed`; the outer ORP
 response omits the underlying credential error. The independent immutable ACP
 probe from the same pack asserted the missing-credential error directly. This
 is timely rejection, not authenticated session success. The earlier timeout
@@ -1051,7 +1051,7 @@ retained. This result proves startup admission, not a completed Product journey.
 The explicit retry adds an idle-sleep assertion and a wall-clock supervisor bound
 without changing the provider timeout, canonical oracle or evidence scanner.
 
-The explicit [hello06 Product proof](../../packages/paperclip-runner/test-fixtures/pi-acp/product-hello-proof.darwin-arm64.json)
+The explicit [hello06 Product proof](../../packages/outpost-runner/test-fixtures/pi-acp/product-hello-proof.darwin-arm64.json)
 passes all six canonical matchers, including the exact response once, task `done`,
 run `succeeded`, native runtime and local environment. Pi executes
 `mcp__paperclip__paperclip_finish`, then reports a completed turn and succeeded run.
@@ -1061,7 +1061,7 @@ The catalog notice estimates $0.00384062; measured key billing is $0.000654767.
 Product correctly marks dollar coverage `unpriced` and incomplete. These values
 are not interchangeable.
 
-The separate [authenticated model-selection proof](../../packages/paperclip-runner/test-fixtures/pi-acp/model-admission-proof.darwin-arm64.json)
+The separate [authenticated model-selection proof](../../packages/outpost-runner/test-fixtures/pi-acp/model-admission-proof.darwin-arm64.json)
 sends no prompt and measures zero key billing delta. It reads the actual ACP
 model response, selects the declared model, and observes
 `openrouter/deepseek/deepseek-v4-flash-0731` after Pi's native RPC state refresh.
@@ -1077,10 +1077,10 @@ reports and fixtures; an execution-source change requires a fresh build.
 
 | Execution source path | Git tree at `dd78df1e` |
 | --- | --- |
-| `packages/paperclip-runner/src` | `a8123cb4396c77ce0127d5ccf49d3584b63a9a58` |
-| `packages/paperclip-runner/scripts` | `9ede97769bb3f2bbfa8e02be220b5ce06e438a99` |
-| `packages/paperclip-runner/runner` | `2cc84e150aecbd5faf2c8bcecc4b6352c24dbca8` |
-| `packages/paperclip-runner/protocol` | `1d50458fb572d0c75f9a398f419209c52c23ba6f` |
+| `packages/outpost-runner/src` | `a8123cb4396c77ce0127d5ccf49d3584b63a9a58` |
+| `packages/outpost-runner/scripts` | `9ede97769bb3f2bbfa8e02be220b5ce06e438a99` |
+| `packages/outpost-runner/runner` | `2cc84e150aecbd5faf2c8bcecc4b6352c24dbca8` |
+| `packages/outpost-runner/protocol` | `1d50458fb572d0c75f9a398f419209c52c23ba6f` |
 | `patches` | `1e2f846b8b2dda202b79ee83baeb0860a3b9ab64` |
 | `server/src` | `b267adc1e0ad36955b68314829cfd4256ab88d37` |
 | `tests/runner-e2e` | `5ff4b8a85a14e3e005e3e240c145899c0bc742b5` |
@@ -1118,19 +1118,19 @@ fresh paid qualification before those behaviors can be claimed for its bytes;
 the new immutable-pack checks above pass.
 
 
-The [restrictive-denial proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-denial-proof.darwin-arm64.json)
+The [restrictive-denial proof](../../packages/outpost-runner/test-fixtures/pi-acp/native-denial-proof.darwin-arm64.json)
 retains the version 2 real native write rejection: the original offered decision
 was durably recorded before responding, the matching tool failed, the prompt
 settled, and an independent filesystem check found no forbidden marker. This is
-direct ACP delivery proof; it does not exercise PRP restart replay.
+direct ACP delivery proof; it does not exercise ORP restart replay.
 
-The [file-edit failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-file-failure.darwin-arm64.json)
+The [file-edit failure](../../packages/outpost-runner/test-fixtures/pi-acp/product-file-failure.darwin-arm64.json)
 retains the candidate timeout, five generic finish errors, missing file oracle,
 unknown terminal usage and successful process cleanup. These failures are kept
 alongside the version 3 corrections rather than overwritten by a future retry.
 ## Version 3 live evidence
 
-The [file delivery proof](../../packages/paperclip-runner/test-fixtures/pi-acp/product-file-proof.darwin-arm64.json)
+The [file delivery proof](../../packages/outpost-runner/test-fixtures/pi-acp/product-file-proof.darwin-arm64.json)
 passes all seven canonical matchers. The independent oracle reads the exact
 24-byte workspace file before cleanup. The first finish request fails because a
 workspace-only file is not downloadable; the retained validation message tells
@@ -1139,7 +1139,7 @@ browser shows the download card and Done status. All five Bash results are
 non-null; canonical exit code remains unknown. The case measured $0.003324737.
 No separate raw copy of the workspace file was retained.
 
-The [typed question proof](../../packages/paperclip-runner/test-fixtures/pi-acp/product-question-proof.darwin-arm64.json)
+The [typed question proof](../../packages/outpost-runner/test-fixtures/pi-acp/product-question-proof.darwin-arm64.json)
 passes all six matchers. The browser submits option ID `cobalt` for question ID
 `verification-word`; the same durable interaction becomes answered and a distinct
 warm continuation completes. The pending form and final answer were visually
@@ -1147,7 +1147,7 @@ inspected. This is continuation without server restart. The waiting run has no
 usage receipt, while the continuation has one; total token coverage remains
 partial. The measured key delta is $0.001413697.
 
-The [plan failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-failure.darwin-arm64.json)
+The [plan failure](../../packages/outpost-runner/test-fixtures/pi-acp/product-plan-failure.darwin-arm64.json)
 retains a complete two-step Plan at revision 1 and an unanswered confirmation
 bound to that exact revision. The provider run succeeds and the task remains in
 review. The real browser trace shows `task-chat-plan-preview-fallback` inside a
@@ -1160,7 +1160,7 @@ operation authority. Its negative fixture retains the observed fallback, and the
 positive settled-turn UI regression passes. A fresh daemon and new source-pinned
 live run are still required.
 
-The [native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.darwin-arm64.json)
+The [native controls proof](../../packages/outpost-runner/test-fixtures/pi-acp/native-controls-proof.darwin-arm64.json)
 submits one ACP prompt to the actual selected model. While its native write waits
 for permission, both explicit controls acknowledge the same active session. The
 original offered denial ID is persisted and fsynced before the pipe response.
@@ -1175,14 +1175,14 @@ controls on a live process, not durable queue replay after process replacement.
 All four observations use immutable pack `eb31cada…` at source `7710736ca…`,
 with runtime source `06cf356a8…`; they predate the combined provider integration
 `7ab463697…`. Execution tree hashes are retained in the Product proofs. The
-[Linux x64 proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-native-proof.linux-x64.v3.json)
+[Linux x64 proof](../../packages/outpost-runner/test-fixtures/pi-acp/offline-native-proof.linux-x64.v3.json)
 uses profile version 3 at source `06cf356a8…`, image
 `sha256:c5fa7976bba92a186a2f70dc8b8ddc58ab86606b80a819c89bf550d2d057c832`.
 It launches the verified native wrapper, initializes ACP protocol 1 and exits
 cleanly on EOF with network disabled and no credentials or model prompts. This
 proves Linux executable admission; authenticated Daytona behavior remains pending.
 
-The explicit [plan02 follow-up](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-resume-failure.darwin-arm64.json)
+The explicit [plan02 follow-up](../../packages/outpost-runner/test-fixtures/pi-acp/product-plan-resume-failure.darwin-arm64.json)
 uses combined pack `0800f101…` from source `7ab463697…` and fresh daemon
 `955d0714…` from `e35b11db2…`. It passes the repaired Plan presentation boundary
 and accepts the exact revision. The resumed run then fails after 120 seconds.
@@ -1212,7 +1212,7 @@ provider credentials, user npm configuration, `HOME`, `NODE_OPTIONS` and
 `NODE_PATH` are excluded; TLS certificate validation stays enabled.
 
 The public server carries a self-contained setup tool and small pinned inputs in
-`dist/vendor/paperclip-runner/cli`; the installed host closure lives in that
+`dist/vendor/outpost-runner/cli`; the installed host closure lives in that
 server package's `provider-assets/pi/<platform>`. Setup validates an existing
 closure again before accepting it. A corrupt existing installation is left
 untouched and rejected; reinstall the same Paperclip release into a clean package

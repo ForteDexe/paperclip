@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { AgentConfigurationRecord } from "../lib/agent-records.js";
 import { prepareAgentConfiguration } from "../services/agent-configuration.js";
 

@@ -11,14 +11,14 @@ Reads a multiline markdown comment from stdin when stdin is piped. This preserve
 newlines when building the JSON payload for PATCH /api/issues/{issueId}.
 
 Examples:
-  scripts/outpost-task-update.sh --task-id "$PAPERCLIP_TASK_ID" --status in_progress <<'MD'
+  scripts/outpost-task-update.sh --task-id "$OUTPOST_TASK_ID" --status in_progress <<'MD'
   Investigating formatting
 
   - Pulled the raw comment body
   - Comparing it with the run transcript
   MD
 
-  scripts/outpost-task-update.sh --task-id "$PAPERCLIP_TASK_ID" --status done --dry-run <<'MD'
+  scripts/outpost-task-update.sh --task-id "$OUTPOST_TASK_ID" --status done --dry-run <<'MD'
   Done
 
   - Fixed the issue update helper
@@ -33,7 +33,7 @@ require_command() {
   fi
 }
 
-issue_id="${PAPERCLIP_TASK_ID:-}"
+issue_id="${OUTPOST_TASK_ID:-}"
 status=""
 comment_arg=""
 dry_run=0
@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$issue_id" ]]; then
-  printf 'Missing task id. Pass --task-id or set PAPERCLIP_TASK_ID.\n' >&2
+  printf 'Missing task id. Pass --task-id or set OUTPOST_TASK_ID.\n' >&2
   exit 1
 fi
 
@@ -97,8 +97,8 @@ if [[ "$dry_run" == "1" ]]; then
   exit 0
 fi
 
-if [[ -z "${PAPERCLIP_API_URL:-}" || -z "${PAPERCLIP_API_KEY:-}" || -z "${PAPERCLIP_RUN_ID:-}" ]]; then
-  printf 'Missing PAPERCLIP_API_URL, PAPERCLIP_API_KEY, or PAPERCLIP_RUN_ID.\n' >&2
+if [[ -z "${OUTPOST_API_URL:-}" || -z "${OUTPOST_API_KEY:-}" || -z "${OUTPOST_RUN_ID:-}" ]]; then
+  printf 'Missing OUTPOST_API_URL, OUTPOST_API_KEY, or OUTPOST_RUN_ID.\n' >&2
   exit 1
 fi
 
@@ -115,9 +115,9 @@ while :; do
   set +e
   response="$(
     curl -sS -m 30 -X PATCH \
-      "$PAPERCLIP_API_URL/api/issues/$issue_id" \
-      -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
-      -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" \
+      "$OUTPOST_API_URL/api/issues/$issue_id" \
+      -H "Authorization: Bearer $OUTPOST_API_KEY" \
+      -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
       -H 'Content-Type: application/json' \
       --data-binary "$payload" \
       -w '\n%{http_code}'

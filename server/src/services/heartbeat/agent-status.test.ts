@@ -3,14 +3,14 @@ import {
   activityLog, agentInstructionWorkingCopies, agents, agentWakeupRequests, companies,
   createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, heartbeatRuns,
   issues, nativeRunFinalizations, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createHeartbeatAgentStatus, settledAgentWorkCondition } from "./agent-status.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_AGENT_STATUS_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_AGENT_STATUS_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describePostgres = support.supported ? describe : describe.skip;
 if (!support.supported) console.warn(`Skipping agent status database tests: ${support.reason}`);
@@ -160,7 +160,7 @@ describePostgres("heartbeat agent status", () => {
   it.each(["valid", "wrong_run", "missing_receipt", "pending_cleanup"])("requires exact failed remote cleanup proof: %s", async kind => {
     const { companyId, agentId, runId } = await seed();
     const leaseId = randomUUID();
-    const receipt = { schema: "paperclip.remote-termination.v1", companyId, runId: kind === "wrong_run" ? randomUUID() : runId,
+    const receipt = { schema: "outpost.remote-termination.v1", companyId, runId: kind === "wrong_run" ? randomUUID() : runId,
       leaseId, provider: "daytona", providerLeaseId: "synthetic-allocation", state: "destroyed" };
     await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: runId,
       status: "failed", leasePolicy: "ephemeral", provider: "daytona", providerLeaseId: "synthetic-allocation",

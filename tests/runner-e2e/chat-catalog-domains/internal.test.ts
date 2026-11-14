@@ -795,9 +795,9 @@ describe("repository fixture prerequisites and readback", () => {
   it("requires explicit disposable GitHub configuration rather than adopting ambient auth", () => {
     expect(externalPrerequisiteReceipt("projects.add-repository", undefined, {})).toMatchObject({ configured: false, provider: "github" });
     const config = validateExternalConfig({ schemaVersion: 1, providers: { github: { disposable: true, resourceIds: ["101"],
-      credentialEnv: ["PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN"], prerequisites: { siteRepositoryId: "101", siteRepositoryFullName: "owned-qa/synthetic-site", tokenEnv: "PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN" } } } });
+      credentialEnv: ["OUTPOST_CHAT_EVAL_GITHUB_TOKEN"], prerequisites: { siteRepositoryId: "101", siteRepositoryFullName: "owned-qa/synthetic-site", tokenEnv: "OUTPOST_CHAT_EVAL_GITHUB_TOKEN" } } } });
     expect(externalPrerequisiteReceipt("projects.add-repository", config, {}).configured).toBe(false);
-    expect(externalPrerequisiteReceipt("projects.add-repository", config, { PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN: "synthetic-unit-value" }).configured).toBe(true);
+    expect(externalPrerequisiteReceipt("projects.add-repository", config, { OUTPOST_CHAT_EVAL_GITHUB_TOKEN: "synthetic-unit-value" }).configured).toBe(true);
   });
   it("rejects a plausible authorized ID paired with a different current repository name", () => {
     const o = valid("projects.add-repository"); Object.assign(o, { repositories: [{ id: "101", fullName: "acorn/another", connectionIds: ["connection"] }] });

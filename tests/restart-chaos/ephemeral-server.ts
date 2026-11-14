@@ -5,7 +5,7 @@ import { databaseUrlFromConfig } from "./time-faults.js";
 
 export async function ephemeralServerEnvironment(input: { configPath: string; temporaryRoot: string; extraEnvironment: Record<string, string> }): Promise<Record<string, string>> {
   const { configPath, temporaryRoot, extraEnvironment } = input;
-  if (extraEnvironment.PAPERCLIP_STORAGE_PROVIDER !== "s3") throw new Error("--ephemeral-server needs the wave's object store (--storage s3)");
+  if (extraEnvironment.OUTPOST_STORAGE_PROVIDER !== "s3") throw new Error("--ephemeral-server needs the wave's object store (--storage s3)");
   const config = JSON.parse(await readFile(configPath, "utf8")) as { secrets?: { localEncrypted?: { keyFilePath?: string } } };
   const keyFile = String(config.secrets?.localEncrypted?.keyFilePath ?? path.join(path.dirname(configPath), "secrets", "master.key"));
   if (!path.resolve(keyFile).startsWith(`${path.resolve(temporaryRoot)}${path.sep}`)) throw new Error("--ephemeral-server: the wave's master key file escapes its temporary root");
@@ -16,10 +16,10 @@ export async function ephemeralServerEnvironment(input: { configPath: string; te
     await writeFile(keyFile, masterKey, { mode: 0o600, flag: "wx" });
   }
   return {
-    PAPERCLIP_EPHEMERAL_SERVER: "true", PAPERCLIP_DURABLE_AGENT_FILES: "true", PAPERCLIP_SHARED_UI_ASSETS: "true",
-    PAPERCLIP_DATABASE_LISTEN_URL: databaseUrlFromConfig(configPath), PAPERCLIP_SECRETS_MASTER_KEY: masterKey,
-    RUN_LOG_S3_BUCKET: extraEnvironment.PAPERCLIP_STORAGE_S3_BUCKET!, RUN_LOG_S3_ENDPOINT: extraEnvironment.PAPERCLIP_STORAGE_S3_ENDPOINT!,
-    RUN_LOG_S3_REGION: extraEnvironment.PAPERCLIP_STORAGE_S3_REGION!, RUN_LOG_S3_FORCE_PATH_STYLE: "true",
-    RUN_LOG_S3_PREFIX: `${extraEnvironment.PAPERCLIP_STORAGE_S3_PREFIX ?? ""}run-logs`,
+    OUTPOST_EPHEMERAL_SERVER: "true", OUTPOST_DURABLE_AGENT_FILES: "true", OUTPOST_SHARED_UI_ASSETS: "true",
+    OUTPOST_DATABASE_LISTEN_URL: databaseUrlFromConfig(configPath), OUTPOST_SECRETS_MASTER_KEY: masterKey,
+    RUN_LOG_S3_BUCKET: extraEnvironment.OUTPOST_STORAGE_S3_BUCKET!, RUN_LOG_S3_ENDPOINT: extraEnvironment.OUTPOST_STORAGE_S3_ENDPOINT!,
+    RUN_LOG_S3_REGION: extraEnvironment.OUTPOST_STORAGE_S3_REGION!, RUN_LOG_S3_FORCE_PATH_STYLE: "true",
+    RUN_LOG_S3_PREFIX: `${extraEnvironment.OUTPOST_STORAGE_S3_PREFIX ?? ""}run-logs`,
   };
 }

@@ -12,8 +12,8 @@ import { privilegedInstanceCases, gradeRestartService } from "./privileged-insta
 afterEach(() => vi.unstubAllEnvs());
 const rendered = "Restart the service.\n\nHistory stays intact.";
 async function run(afterText = rendered, beforeText = rendered, afterVisible = true, changedStoredBody = false) {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", "/tmp/owned-restart-history");
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_SERVER_LOG", "/tmp/owned-restart-history/server.log");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", "/tmp/owned-restart-history");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_SERVER_LOG", "/tmp/owned-restart-history/server.log");
   fixture.log = ""; fixture.receipt = {};
   let restarted = false;
   const body = { text: beforeText, visible: true, innerText: vi.fn(async () => { expect(restarted).toBe(false); return body.text; }), first: () => body };

@@ -3,7 +3,7 @@ import { lstat, mkdtemp, readFile, readlink, rm, stat, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "smol-toml";
-import { DEFAULT_AGENT_OBSERVABILITY_CAPTURE } from "@paperclipai/shared";
+import { DEFAULT_AGENT_OBSERVABILITY_CAPTURE } from "@outpost/shared";
 import { buildProviderObservabilityLaunch, applyObservabilityEnvironment, observabilitySecretValues } from "./agent-observability.js";
 import { prepareCodexObservabilityProfile, replaceCodexProfileArgs, selectedCodexProfile, disableCodexObservabilityArgs } from "./codex-observability-profile.js";
 import { buildInvocationEnvForLogs } from "./server-utils.js";
@@ -86,8 +86,8 @@ it("isolates overlapping ACPX export settings while sharing the saved provider c
     prepareAcpxCodexObservabilityHome(home, otherAgent, "other-agent"),
   ]);
   expect(a).not.toBe(c);
-  expect(parse(await readFile(join(a, "config.toml"), "utf8")).otel).toMatchObject({ span_attributes: { "paperclip.agent.id": input.agentId } });
-  expect(parse(await readFile(join(c, "config.toml"), "utf8")).otel).toMatchObject({ span_attributes: { "paperclip.agent.id": "other-agent" } });
+  expect(parse(await readFile(join(a, "config.toml"), "utf8")).otel).toMatchObject({ span_attributes: { "outpost.agent.id": input.agentId } });
+  expect(parse(await readFile(join(c, "config.toml"), "utf8")).otel).toMatchObject({ span_attributes: { "outpost.agent.id": "other-agent" } });
   await writeFile(join(a, "sessions", "saved-conversation.jsonl"), "conversation checkpoint");
   expect(await readFile(join(b, "sessions", "saved-conversation.jsonl"), "utf8")).toBe("conversation checkpoint");
   expect(parse(await readFile(join(a, "config.toml"), "utf8")).otel).toMatchObject({ log_agent_responses: true });
@@ -116,10 +116,10 @@ it.each([true, false])("preserves refreshed Codex credentials across repeated an
 
 it("keeps OpenCode export opt-in and credentials out of ordinary task environment projections", () => {
   const launch = buildProviderObservabilityLaunch({ ...input, kind: "opencode" });
-  expect(launch.environment).toMatchObject({ PAPERCLIP_OBSERVABILITY_OPENCODE: "1", OTEL_LOG_USER_PROMPTS: "1", OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: input.tracesEndpoint });
+  expect(launch.environment).toMatchObject({ OUTPOST_OBSERVABILITY_OPENCODE: "1", OTEL_LOG_USER_PROMPTS: "1", OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: input.tracesEndpoint });
   expect(observabilitySecretValues(launch)).toContain(input.headers.authorization);
   expect(JSON.stringify(buildInvocationEnvForLogs({ ...launch.environment }))).not.toContain("a%2Cb");
   const disabled = buildProviderObservabilityLaunch({ ...input, kind: "opencode", enabled: false });
-  expect(disabled.environment).toMatchObject({ PAPERCLIP_OBSERVABILITY_OPENCODE: "0" });
+  expect(disabled.environment).toMatchObject({ OUTPOST_OBSERVABILITY_OPENCODE: "0" });
   expect(disabled.environment).not.toHaveProperty("OTEL_EXPORTER_OTLP_TRACES_HEADERS");
 });

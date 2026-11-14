@@ -46,7 +46,7 @@ workflow does not opt itself in. Its five-minute active outage and later complet
 replacement retain the existing native identity and no-replay checks.
 The server's S3 override is admitted only for this suite and the explicit
 `rolling-web-deployment` suite, and only from explicit
-`PAPERCLIP_RUNNER_E2E_WORKSPACE_STORAGE_*` configuration, with a unique instance
+`OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_*` configuration, with a unique instance
 prefix. Ambient storage settings remain stripped and rejected for other suites.
 Snapshot objects, databases, raw provider IDs, and execution workspaces remain
 private. Public checkpoint evidence contains only fixture IDs, saved-version
@@ -347,7 +347,7 @@ directory accepts no new entries. Agents must keep creating files in `/tmp`, so
 a sandboxed attempt creates its root in `/var/tmp` instead of `/tmp`. The
 agent's workspace, home and Paperclip home stay readable inside that root. If
 harness material would stay under the shared temporary directory or contain the
-agent's state, the launcher fails the attempt in CI and warns elsewhere. The E2E server entry starts each `paperclip-runnerd` (through `spawn`,
+agent's state, the launcher fails the attempt in CI and warns elsewhere. The E2E server entry starts each `outpost-runnerd` (through `spawn`,
 `spawnSync`, `execFile` or `execFileSync`, by absolute path or PATH; a shell
 launch is refused) through
 `agent-filesystem-sandbox.py`, which applies a Landlock domain and then execs
@@ -368,7 +368,7 @@ nothing about the case from another run's saved session, run log or provider
 trace, or from the attempt instance's database files and secrets. The launcher passes the instance root to the server entry, and each
 runnerd launch additionally hides the instance's `durable-sessions/`,
 `runner/`, `control-plane/` and `opencode/` directories under
-`runtime/paperclip-runner/`, and `data/run-logs/`, `data/provider-traces/`,
+`runtime/outpost-runner/`, and `data/run-logs/`, `data/provider-traces/`,
 `data/backups/`, `db/` and `secrets/`. It then exposes only the launch's own
 entries, found from its `--state-dir`, `--session-id` and provider trace path:
 its durable session directory (or Codex runner state directory), its OpenCode
@@ -388,7 +388,7 @@ any failure. A run still sees its own session's control-plane state.
 Landlock cannot hide `/proc/<pid>/cmdline`. Same-user `hidepid` does not help
 either: it hides only other users' processes. Landlock does deny reading a
 process's environment, memory and file descriptors outside the sandbox, so CI
-passes the selected cell in `PAPERCLIP_RUNNER_E2E_SELECTED_ID` instead of
+passes the selected cell in `OUTPOST_RUNNER_E2E_SELECTED_ID` instead of
 `--id`; the launcher reads and removes it. The workflow keeps `--id` for target
 branches that predate this.
 
@@ -593,7 +593,7 @@ foreign inodes fail before any signal. Native Linux calibration exercises both
 descriptor launches with synthetic owned processes and no provider credentials;
 it does not qualify paid Pi behavior or change previous failed grades.
 
-These fixtures run without `paperclip-runnerd --trusted-launch-root`, so the
+These fixtures run without `outpost-runnerd --trusted-launch-root`, so the
 Runner still hands providers a sealed memfd Node and the memfd assertions above
 are unchanged. Under a trusted launch root (the agent computer's read-only Runner
 ROM) the Runner instead holds the ROM's own Node file. Kimi admission then takes

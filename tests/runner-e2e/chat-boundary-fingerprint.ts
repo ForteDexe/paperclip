@@ -30,18 +30,18 @@ export function chatBoundaryFingerprint(descriptor: ChatCatalogDescriptor, execu
   const privateInputNameIdentity = retainedPrivateInputNames === undefined ? chatPrivateInputNameIdentity(execution.id, env) : retainedPrivateInputNames;
   let installedIdentity: unknown = null;
   if (descriptor.boundaryTarget === "empty-installed-target") {
-    const cli = env.PAPERCLIP_CHAT_BOUNDARY_CLI; const expectedCli = env.PAPERCLIP_CHAT_BOUNDARY_CLI_SHA256;
-    const expectedServer = env.PAPERCLIP_CHAT_BOUNDARY_SERVER_SHA256;
+    const cli = env.OUTPOST_CHAT_BOUNDARY_CLI; const expectedCli = env.OUTPOST_CHAT_BOUNDARY_CLI_SHA256;
+    const expectedServer = env.OUTPOST_CHAT_BOUNDARY_SERVER_SHA256;
     if (!cli || !path.isAbsolute(cli) || !expectedCli || !expectedServer) throw new Error("Empty-installation boundary requires actual immutable installed CLI and server identity pins");
     if (realpathSync(cli) !== cli) throw new Error("Boundary installed CLI must be canonical and unlinked");
     const cliManifest = JSON.parse(readFileSync(path.resolve(path.dirname(cli), "../package.json"), "utf8"));
-    const serverManifestPath = findPackageJSON("@paperclipai/server", pathToFileURL(cli));
+    const serverManifestPath = findPackageJSON("@outpost/server", pathToFileURL(cli));
     if (!serverManifestPath) throw new Error("Boundary CLI has no resolvable installed server");
     const serverManifest = JSON.parse(readFileSync(serverManifestPath, "utf8"));
     const serverEntry = path.join(path.dirname(serverManifestPath), "dist/index.js");
     const digest = (name: string) => createHash("sha256").update(readFileSync(name)).digest("hex");
     const cliSha256 = digest(cli); const serverSha256 = digest(serverEntry);
-    if (cliManifest.name !== "paperclipai" || serverManifest.name !== "@paperclipai/server" || cliManifest.version !== serverManifest.version
+    if (cliManifest.name !== "paperclipai" || serverManifest.name !== "@outpost/server" || cliManifest.version !== serverManifest.version
       || cliSha256 !== expectedCli || serverSha256 !== expectedServer) throw new Error("Boundary installed CLI/server differ from their declared pins");
     installedIdentity = { version: cliManifest.version, cliSha256, serverSha256 };
   } else if (descriptor.boundaryTarget !== "authenticated-harness") throw new Error("Boundary target identity is undeclared");

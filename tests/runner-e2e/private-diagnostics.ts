@@ -2,7 +2,7 @@ import { lstatSync, readFileSync, realpathSync, renameSync, writeFileSync } from
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { findSecretLeak, normalizedSecrets, redactText } from "./redaction.js";
-export const PRIVATE_DIAGNOSTICS_ENV = "PAPERCLIP_RUNNER_E2E_PRIVATE_DIAGNOSTICS";
+export const PRIVATE_DIAGNOSTICS_ENV = "OUTPOST_RUNNER_E2E_PRIVATE_DIAGNOSTICS";
 interface Envelope { version: 1; executionIds: string[]; secrets: string[]; productDelivered?: string[] }
 function checkedPath(filename: string, temporaryRoot: string) {
   const parent = path.join(temporaryRoot, "selected-private-inputs");
@@ -34,7 +34,7 @@ const productDelivered = new Set<string>();
 export function registerProductDeliveredSecret(secrets: string[], value: string, env: NodeJS.ProcessEnv = process.env) {
   if (!value) throw new Error("Product-delivered secret must be a non-empty string");
   productDelivered.add(value);
-  const filename = env[PRIVATE_DIAGNOSTICS_ENV], temporaryRoot = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const filename = env[PRIVATE_DIAGNOSTICS_ENV], temporaryRoot = env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (filename && temporaryRoot) {
     const current = read(filename, temporaryRoot);
     const temporary = `${filename}.${process.pid}.delivered`;
@@ -51,7 +51,7 @@ export function isProductDeliveredSecret(value: string) { return productDelivere
  * only the launcher/test host receives this private path, never the product. */
 export function trackedPrivateSecrets(initial: string[], executionId: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const filename = env[PRIVATE_DIAGNOSTICS_ENV]; if (!filename) return initial;
-  const temporaryRoot = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const temporaryRoot = env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!temporaryRoot) throw new Error("Private diagnostic registry requires an owned temporary root");
   const previous = read(filename, temporaryRoot);
   if (!previous.executionIds.includes(executionId)) throw new Error("Private diagnostic registry execution mismatch");

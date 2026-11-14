@@ -10,7 +10,7 @@ import type {
   HeartbeatRunEvent,
   ProviderTraceFieldMapping,
   ProviderTraceFrame,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   ArrowRight,
   Braces,
@@ -33,7 +33,7 @@ import { heartbeatsApi, type ProviderTraceInspection } from "@/api/heartbeats";
 import { accessApi } from "@/api/access";
 import { QueryErrorState } from "@/components/QueryView";
 import { useResilientFetch } from "@/hooks/useResilientFetch";
-import { parsePaperclipRunnerStdoutLine } from "@/adapters/paperclip-runner";
+import { parsePaperclipRunnerStdoutLine } from "@/adapters/outpost-runner";
 import { TaskChatProtocolCard } from "@/components/task-chat/TaskChatProtocolCard";
 import type { TaskChatProtocolItem } from "@/components/task-chat/task-chat-model";
 import { transcriptToTaskChatItems } from "@/components/task-chat/transcript-adapter";
@@ -80,7 +80,7 @@ type TraceOperation = {
   nativeMethods: string[];
   directions: string[];
   dispositions: string[];
-  prpTypes: string[];
+  orpTypes: string[];
   visible: boolean;
   timestamp: number;
 };
@@ -187,8 +187,8 @@ function frameItemType(entry: TraceEntry) {
 
 function eventPrp(event: HeartbeatRunEvent) {
   const payload = record(event.payload);
-  const prpEvent = record(payload.prpEvent);
-  return Object.keys(prpEvent).length > 0 ? prpEvent : payload;
+  const orpEvent = record(payload.orpEvent);
+  return Object.keys(orpEvent).length > 0 ? orpEvent : payload;
 }
 
 function eventSourceId(event: HeartbeatRunEvent) {
@@ -329,12 +329,12 @@ function buildOperations(
       interpretations: stages,
       events: groupEvents,
       title,
-      subtitle: `${range} · ${groupEvents.length} PRP event${groupEvents.length === 1 ? "" : "s"}`,
+      subtitle: `${range} · ${groupEvents.length} ORP event${groupEvents.length === 1 ? "" : "s"}`,
       itemType: itemTypes.at(-1) ?? "",
       nativeMethods: methods,
       directions: unique(groupFrames.map((frame) => text(frame.direction))),
       dispositions: unique(stages.map((entry) => text(entry.disposition))),
-      prpTypes: unique(groupEvents.map((event) => event.eventType)),
+      orpTypes: unique(groupEvents.map((event) => event.eventType)),
       visible: groupEvents.some((event) => visibilityDecision(event).visible),
       timestamp: Math.min(...groupFrames.map(frameTimestamp)),
     });
@@ -348,12 +348,12 @@ function buildOperations(
       interpretations: [],
       events: [event],
       title: event.eventType,
-      subtitle: `PRP ${eventSourceId(event) || `event ${event.seq}`} · no raw correlation`,
+      subtitle: `ORP ${eventSourceId(event) || `event ${event.seq}`} · no raw correlation`,
       itemType: "",
       nativeMethods: [],
       directions: [],
       dispositions: [],
-      prpTypes: [event.eventType],
+      orpTypes: [event.eventType],
       visible: decision.visible,
       timestamp: eventTimestamp(event),
     });
@@ -590,13 +590,13 @@ function InterpretationStage({ entry, last }: { entry: TraceEntry; last: boolean
 }
 
 function typedPrpFields(event: HeartbeatRunEvent) {
-  const prp = eventPrp(event);
-  const payload = record(prp.payload);
+  const orp = eventPrp(event);
+  const payload = record(orp.payload);
   const item = record(payload.item);
   return [
     ["Event type", event.eventType],
-    ["Source event", text(prp.sourceEventId)],
-    ["Sequence", scalar(prp.sourceSequence) || String(event.seq)],
+    ["Source event", text(orp.sourceEventId)],
+    ["Sequence", scalar(orp.sourceSequence) || String(event.seq)],
     ["Item type", text(item.type) || text(payload.kind)],
     ["Status", text(payload.status) || text(item.status)],
     ["Query", text(payload.query) || text(item.query)],
@@ -604,10 +604,10 @@ function typedPrpFields(event: HeartbeatRunEvent) {
 }
 
 function ProductionSurfacePreview({ event, runId }: { event: HeartbeatRunEvent; runId: string }) {
-  const prp = eventPrp(event);
+  const orp = eventPrp(event);
   const ts = new Date(event.createdAt).toISOString();
   const entries = parsePaperclipRunnerStdoutLine(
-    JSON.stringify({ type: "paperclip.prp.event", event: prp }),
+    JSON.stringify({ type: "outpost.orp.event", event: orp }),
     ts,
   );
   const item = transcriptToTaskChatItems(entries, {
@@ -666,7 +666,7 @@ export function RunnerInspector({
   const [direction, setDirection] = useState("all");
   const [nativeMethod, setNativeMethod] = useState("all");
   const [disposition, setDisposition] = useState("all");
-  const [prpType, setPrpType] = useState("all");
+  const [orpType, setPrpType] = useState("all");
   const [visibility, setVisibility] = useState("all");
   const [revealed, setRevealed] = useState<Record<string, ProviderTraceFrame>>({});
   const [rawTraceAccess, setRawTraceAccess] = useState<RawTraceAccess | null>(null);
@@ -813,12 +813,12 @@ export function RunnerInspector({
       if (direction !== "all" && !operation.directions.includes(direction)) return false;
       if (nativeMethod !== "all" && !operation.nativeMethods.includes(nativeMethod)) return false;
       if (disposition !== "all" && !operation.dispositions.includes(disposition)) return false;
-      if (prpType !== "all" && !operation.prpTypes.includes(prpType)) return false;
+      if (orpType !== "all" && !operation.orpTypes.includes(orpType)) return false;
       if (visibility === "visible" && !operation.visible) return false;
       if (visibility === "hidden" && operation.visible) return false;
       return true;
     }),
-    [direction, disposition, nativeMethod, operations, prpType, query, visibility],
+    [direction, disposition, nativeMethod, operations, orpType, query, visibility],
   );
 
   useEffect(() => {
@@ -1033,7 +1033,7 @@ export function RunnerInspector({
             ) : null}
           </div>
           <SheetDescription id="runner-inspector-description">
-            Correlate exact provider traffic with every interpretation stage, canonical PRP event, and production surface.
+            Correlate exact provider traffic with every interpretation stage, canonical ORP event, and production surface.
           </SheetDescription>
           <div className="flex gap-1 pt-1" role="tablist" aria-label="Runner inspector views">
             {VIEW_OPTIONS.map((option) => {
@@ -1073,14 +1073,14 @@ export function RunnerInspector({
           {!loading && !loadError && canInspectRaw === false ? (
             <div className="m-4 rounded-md border border-border bg-muted/20 p-4">
               <p className="font-medium">Raw provider traces require an instance administrator.</p>
-              <p className="mt-1 text-sm text-muted-foreground">Canonical PRP events and presentation decisions remain inspectable below.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Canonical ORP events and presentation decisions remain inspectable below.</p>
             </div>
           ) : null}
           {!loading && !loadError && canInspectRaw === true && !inspection?.trace ? (
             <div className="m-4 flex items-start justify-between gap-4 rounded-md border border-border bg-muted/20 p-4">
               <div>
                 <p className="font-medium">Raw provider capture was off for this run.</p>
-                <p className="mt-1 text-sm text-muted-foreground">Canonical PRP events and persisted presentation decisions remain available below.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Canonical ORP events and persisted presentation decisions remain available below.</p>
               </div>
               {onRerunWithTrace && canInspectRaw === true ? (
                 <Button size="sm" onClick={onRerunWithTrace}><RefreshCw className="mr-1.5 h-4 w-4" />Re-run with provider trace</Button>
@@ -1093,10 +1093,10 @@ export function RunnerInspector({
               <div className="space-y-6 p-5">
                 {loading ? <p className="text-sm text-muted-foreground">Loading run pipeline…</p> : null}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                  <StatCard label="Provider" value={capturedProviders.join(", ") || inspection?.trace?.provider || "PRP only"} detail={inspection?.trace ? `captured through ${inspection.trace.provider}` : "capture was off"} />
+                  <StatCard label="Provider" value={capturedProviders.join(", ") || inspection?.trace?.provider || "ORP only"} detail={inspection?.trace ? `captured through ${inspection.trace.provider}` : "capture was off"} />
                   <StatCard label="Raw frames" value={frames.length} detail={inspection?.trace ? formatBytes(inspection.trace.byteCount) : "no exact bytes"} />
                   <StatCard label="Operations" value={operations.length} detail="correlated groups" />
-                  <StatCard label="PRP events" value={events.length} detail={`${visibleEventCount} visible`} />
+                  <StatCard label="ORP events" value={events.length} detail={`${visibleEventCount} visible`} />
                   <StatCard label="Mappings" value={interpretations.length} detail={`${ignoredCount} ignored`} />
                   <StatCard label="Run status" value={run?.status ?? "unknown"} detail={inspection?.trace ? traceBadgeLabel(inspection.trace.status, inspection.trace.expiresAt) : "Raw capture off"} />
                 </div>
@@ -1140,7 +1140,7 @@ export function RunnerInspector({
                 <Select value={direction} onValueChange={setDirection}><SelectTrigger><SelectValue placeholder="Direction" /></SelectTrigger><SelectContent><SelectItem value="all">All directions</SelectItem><SelectItem value="client_to_provider">Client → provider</SelectItem><SelectItem value="provider_to_client">Provider → client</SelectItem><SelectItem value="provider_stderr">Provider stderr</SelectItem></SelectContent></Select>
                 <Select value={nativeMethod} onValueChange={setNativeMethod}><SelectTrigger><SelectValue placeholder="Native method" /></SelectTrigger><SelectContent><SelectItem value="all">All native methods</SelectItem>{unique(frames.map(frameMethod)).sort().map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
                 <Select value={disposition} onValueChange={setDisposition}><SelectTrigger><SelectValue placeholder="Mapping" /></SelectTrigger><SelectContent><SelectItem value="all">All mappings</SelectItem>{["mapped", "generic", "ignored", "rejected", "operator_only"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
-                <Select value={prpType} onValueChange={setPrpType}><SelectTrigger><SelectValue placeholder="PRP type" /></SelectTrigger><SelectContent><SelectItem value="all">All PRP types</SelectItem>{unique(events.map((event) => event.eventType)).sort().map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
+                <Select value={orpType} onValueChange={setPrpType}><SelectTrigger><SelectValue placeholder="ORP type" /></SelectTrigger><SelectContent><SelectItem value="all">All ORP types</SelectItem>{unique(events.map((event) => event.eventType)).sort().map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select>
                 <Select value={visibility} onValueChange={setVisibility}><SelectTrigger><SelectValue placeholder="Visibility" /></SelectTrigger><SelectContent><SelectItem value="all">Visible + hidden</SelectItem><SelectItem value="visible">Visible</SelectItem><SelectItem value="hidden">Hidden</SelectItem></SelectContent></Select>
               </div>
               <div className="grid min-h-0 flex-1 lg:grid-cols-(--gtc-runner-inspector-pipeline)">
@@ -1152,7 +1152,7 @@ export function RunnerInspector({
                       <button key={operation.key} type="button" onClick={() => setSelectedKey(operation.key)} className="mb-1 w-full rounded-lg border border-transparent px-3 py-2.5 text-left hover:bg-muted/50 data-[selected=true]:border-border data-[selected=true]:bg-muted" data-selected={selectedOperation?.key === operation.key}>
                         <span className="flex items-center gap-2"><span className={cn("h-2 w-2 shrink-0 rounded-full", operation.events.length ? operation.visible ? "bg-primary" : "bg-secondary-foreground" : "bg-muted-foreground")} role="img" aria-label={operation.events.length ? operation.visible ? "Visible production event" : "Hidden production event" : "No production event"} /><span className="min-w-0 flex-1 truncate text-sm font-medium">{operation.title}</span>{operation.frames.length > 1 ? <Badge variant="outline" className="px-1.5 text-(length:--text-nano)">{operation.frames.length} frames</Badge> : null}</span>
                         <span className="mt-1 block truncate pl-4 text-(length:--text-nano) text-muted-foreground">{operation.subtitle}</span>
-                        <span className="mt-1.5 flex flex-wrap gap-1 pl-4">{operation.prpTypes.slice(0, 3).map((type) => <span key={type} className="rounded bg-background px-1.5 py-0.5 font-mono text-(length:--text-nano) text-muted-foreground">{type}</span>)}</span>
+                        <span className="mt-1.5 flex flex-wrap gap-1 pl-4">{operation.orpTypes.slice(0, 3).map((type) => <span key={type} className="rounded bg-background px-1.5 py-0.5 font-mono text-(length:--text-nano) text-muted-foreground">{type}</span>)}</span>
                       </button>
                     ))}
                   </div>
@@ -1161,7 +1161,7 @@ export function RunnerInspector({
                   {selectedOperation ? (
                     <div className="space-y-6 p-5">
                       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/20 px-4 py-3">
-                        <strong className="text-sm">{selectedOperation.title}</strong><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">{selectedOperation.frames.length} raw frame{selectedOperation.frames.length === 1 ? "" : "s"}</span><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">{selectedOperation.interpretations.length} mapping stage{selectedOperation.interpretations.length === 1 ? "" : "s"}</span><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">{selectedEvents.length} PRP event{selectedEvents.length === 1 ? "" : "s"}</span>
+                        <strong className="text-sm">{selectedOperation.title}</strong><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">{selectedOperation.frames.length} raw frame{selectedOperation.frames.length === 1 ? "" : "s"}</span><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">{selectedOperation.interpretations.length} mapping stage{selectedOperation.interpretations.length === 1 ? "" : "s"}</span><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs text-muted-foreground">{selectedEvents.length} ORP event{selectedEvents.length === 1 ? "" : "s"}</span>
                       </div>
                       <section>
                         <div className="mb-2 flex flex-wrap items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">1</span><h3 className="text-sm font-semibold">Provider frames</h3><span className="text-xs text-muted-foreground">server-redacted by default</span></div>
@@ -1174,21 +1174,21 @@ export function RunnerInspector({
                             {canInspectRaw === true ? <Button size="sm" variant="outline" onClick={() => void reveal(Number(selectedFrame.frameId))}><Eye className="mr-1.5 h-4 w-4" />Reveal exact frame</Button> : null}
                             {revealedFrame ? <div className="rounded-md border border-destructive/30 p-2"><p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-destructive"><ShieldAlert className="h-3.5 w-3.5" />Exact unredacted frame</p><JsonExplorer value={decodeExactFrame(revealedFrame.rawBase64)} label="Search exact frame" /></div> : null}
                           </div>
-                        ) : <p className="text-sm text-muted-foreground">This PRP event has no recoverable raw frame.</p>}
+                        ) : <p className="text-sm text-muted-foreground">This ORP event has no recoverable raw frame.</p>}
                       </section>
                       <section>
                         <div className="mb-3 flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">2</span><h3 className="text-sm font-semibold">Interpretation stages</h3></div>
                         {selectedInterpretations.length ? selectedInterpretations.map((entry, index) => <InterpretationStage key={`${entry.debugChannel}:${entry.debugSequence}:${index}`} entry={entry} last={index === selectedInterpretations.length - 1} />) : <p className="text-sm text-muted-foreground">No interpretation stage was recorded for this frame.</p>}
                       </section>
                       <section>
-                        <div className="mb-3 flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">3</span><h3 className="text-sm font-semibold">Canonical PRP events</h3></div>
+                        <div className="mb-3 flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">3</span><h3 className="text-sm font-semibold">Canonical ORP events</h3></div>
                         {selectedEvents.length ? selectedEvents.map((event) => (
                           <div key={event.id} className="mb-3 overflow-hidden rounded-lg border border-border bg-card">
                             <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2"><code className="text-xs font-semibold">{event.eventType}</code><Badge variant="outline">seq {event.seq}</Badge><button type="button" className="ml-auto text-xs text-primary underline-offset-4 hover:underline" onClick={() => { setVisibility(visibilityDecision(event).visible ? "visible" : "hidden"); setSelectedKey(selectedOperation.key); }}>Why isn’t this visible?</button></div>
                             <dl className="grid gap-x-4 gap-y-1 px-3 py-2 text-xs sm:grid-cols-(--gtc-runner-inspector-fields)">{typedPrpFields(event).map(([label, value]) => <div key={label} className="contents"><dt className="text-muted-foreground">{label}</dt><dd className="min-w-0 break-words font-mono">{value}</dd></div>)}</dl>
                             <details className="border-t border-border/70"><summary className="flex cursor-pointer list-none items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground"><ChevronDown className="h-3.5 w-3.5" />Canonical event JSON</summary><div className="p-3 pt-0"><JsonExplorer value={eventPrp(event)} /></div></details>
                           </div>
-                        )) : <p className="text-sm text-muted-foreground">This provider operation emitted no canonical PRP events.</p>}
+                        )) : <p className="text-sm text-muted-foreground">This provider operation emitted no canonical ORP events.</p>}
                       </section>
                       <section>
                         <div className="mb-3 flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">4</span><h3 className="text-sm font-semibold">Production presentation</h3></div>
@@ -1201,7 +1201,7 @@ export function RunnerInspector({
                           <div className="mt-3 rounded-lg border border-border bg-accent/30 p-3">
                             <p className="text-xs font-semibold text-accent-foreground">Semantic finalization lineage</p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Provider-native transport and model-authored tool arguments are separate layers. PRP normalized the model payload, then server policy chose the issue disposition.
+                              Provider-native transport and model-authored tool arguments are separate layers. ORP normalized the model payload, then server policy chose the issue disposition.
                             </p>
                             {ignoredAttentionRequests.some((candidate) => record(candidate).sourceKind === "environment_constraint") ? (
                               <p className="mt-2 text-xs">

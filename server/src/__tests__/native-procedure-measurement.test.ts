@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
-import type { Db } from "@paperclipai/db";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
-import { buildNativeModelEnvelope, parseNativeExecutionInput, type NativeExecutionInput } from "../../../packages/paperclip-runner/src/contracts/native-execution.js";
-import type { PersistedNativeSession } from "../../../packages/paperclip-runner/src/contracts/native-session-backend.js";
-import { NATIVE_RUNTIME_ASSET_SCHEMA, PAPERCLIP_EXECUTION_PROMPT, PAPERCLIP_EXECUTION_PROMPT_REVISION, canonicalNativeRuntimeContextDigest, nativeRuntimePromptDigest } from "../../../packages/paperclip-runner/src/contracts/runtime-context.js";
-import { createRunnerdNativeSessionBackend } from "../../../packages/paperclip-runner/src/backends/codex-native-backend.js";
-import { resolveQualifiedAcpxProfile } from "../../../packages/paperclip-runner/src/drivers/acpx/qualified-profiles.js";
-import { FakeCodexTransport, WORKSPACE } from "../../../packages/paperclip-runner/src/drivers/codex/codex-app-server-driver.test-support.js";
-import { startOpenCodeMcpBridge } from "../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.js";
+import type { Db } from "@outpost/db";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { buildNativeModelEnvelope, parseNativeExecutionInput, type NativeExecutionInput } from "../../../packages/outpost-runner/src/contracts/native-execution.js";
+import type { PersistedNativeSession } from "../../../packages/outpost-runner/src/contracts/native-session-backend.js";
+import { NATIVE_RUNTIME_ASSET_SCHEMA, OUTPOST_EXECUTION_PROMPT, OUTPOST_EXECUTION_PROMPT_REVISION, canonicalNativeRuntimeContextDigest, nativeRuntimePromptDigest } from "../../../packages/outpost-runner/src/contracts/runtime-context.js";
+import { createRunnerdNativeSessionBackend } from "../../../packages/outpost-runner/src/backends/codex-native-backend.js";
+import { resolveQualifiedAcpxProfile } from "../../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js";
+import { FakeCodexTransport, WORKSPACE } from "../../../packages/outpost-runner/src/drivers/codex/codex-app-server-driver.test-support.js";
+import { startOpenCodeMcpBridge } from "../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.js";
 
 // Production catalog selection, scripted provider transport: this measures what
 // Paperclip delivers, not the vendor's private prompt, tokenizer or billing.
@@ -40,17 +40,17 @@ function execution(provider: NativeExecutionInput["provider"]): NativeExecutionI
   const entry = readFileSync(new URL("server/src/onboarding-assets/default/AGENTS.md", root), "utf8");
   writeFileSync(`${WORKSPACE}/AGENTS.md`, entry);
   const context = {
-    prompt: { revision: PAPERCLIP_EXECUTION_PROMPT_REVISION, text: PAPERCLIP_EXECUTION_PROMPT, digest: nativeRuntimePromptDigest() },
+    prompt: { revision: OUTPOST_EXECUTION_PROMPT_REVISION, text: OUTPOST_EXECUTION_PROMPT, digest: nativeRuntimePromptDigest() },
     instructions: { entryPath: "AGENTS.md", bundle: { schema: NATIVE_RUNTIME_ASSET_SCHEMA, rootPath: WORKSPACE, digest: sha(entry), manifestDigest: sha(entry), fileCount: 1, totalBytes: Buffer.byteLength(entry) } },
     skills: [], mcp: { assignmentSetId: "none", digest: "0".repeat(64), bindingId: null },
   };
   return parseNativeExecutionInput({
-    schema: "paperclip.native-execution-input.v5", binding: { companyId: identity.companyId, agentId: identity.agentId, issueId: identity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
+    schema: "outpost.native-execution-input.v5", binding: { companyId: identity.companyId, agentId: identity.agentId, issueId: identity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
     task: { identifier: "TASK-1", title: "Review delegated work", description: "Review delegated work", prompt: "Review delegated work.", workMode: "standard" },
     workspace: { cwd: WORKSPACE, repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: "session", driverKind: provider.kind === "acpx" ? "acpx_runtime" : provider.kind === "opencode" ? "opencode_server" : "codex_app_server", protocolVersion: 1 },
     provider, executionMode: "default", planningContext: null,
-    completionContract: { id: "contract", sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.completion-contract.v1", contract: { revision: "1", objective: "Review delegated work", criteria: [{ id: "objective", requirement: "Review complete" }] } },
+    completionContract: { id: "contract", sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.completion-contract.v1", contract: { revision: "1", objective: "Review delegated work", criteria: [{ id: "objective", requirement: "Review complete" }] } },
     interactionResponses: [], credentialBindings: [],
     runtimeContext: { ...context, aggregateDigest: canonicalNativeRuntimeContextDigest(context) },
   });
@@ -88,7 +88,7 @@ describe("production native procedure instruction measurement", () => {
       const captured = transport(provider);
       captured.readResponse = { thread: { id: "thread-1", sessionId: "provider-session-1", cwd: WORKSPACE, turns: [] } };
       const current = phase === "continuation" ? parseNativeExecutionInput({ ...input, continuationPrompt: "Review the teammate's saved result." }) : input;
-      const backend = createRunnerdNativeSessionBackend(current, { transportFactory: () => captured, dynamicTools: tools, environment: { PAPERCLIP_WORKSPACE_CWD: WORKSPACE } });
+      const backend = createRunnerdNativeSessionBackend(current, { transportFactory: () => captured, dynamicTools: tools, environment: { OUTPOST_WORKSPACE_CWD: WORKSPACE } });
       const recovery = checkpoint ? await backend.recoverSession!(checkpoint, { signal: new AbortController().signal }) : null;
       if (recovery) expect(recovery.recovered).toBe(true);
       const session = recovery?.session ?? await backend.openSession({ identity, workingDirectory: WORKSPACE });
@@ -103,7 +103,7 @@ describe("production native procedure instruction measurement", () => {
         const delivered = setup.dynamicTools as Record<string, unknown>[];
         expect(delivered.filter(tool => !["paperclip_finish", "paperclip_block"].includes(String(tool.name)))).toEqual(tools);
         expect(delivered).toHaveLength(tools.length + 2);
-        expect(instructions).toContain(PAPERCLIP_EXECUTION_PROMPT);
+        expect(instructions).toContain(OUTPOST_EXECUTION_PROMPT);
         expect(JSON.parse((turn.input as {text: string}[])[0]!.text)).toEqual(envelope);
         receipts.push({ provider: provider.kind, phase, instructions: measure(instructions), tools: measure(delivered), input: measure(turn.input),
           fullProjection: measure({ instructions, tools: delivered, input: turn.input }), deliveredToolCount: delivered.length });
@@ -127,30 +127,30 @@ describe("production native procedure instruction measurement", () => {
 });
 
 afterAll(() => {
-  const output = process.env.PAPERCLIP_NATIVE_PROCEDURE_MEASUREMENT;
+  const output = process.env.OUTPOST_NATIVE_PROCEDURE_MEASUREMENT;
   if (!output) return;
   if (receipts.length !== 9 || !mcpReceipt) throw new Error("Refusing incomplete instruction measurement");
   const paths = [
     "server/src/onboarding-assets/default/AGENTS.md",
-    "packages/paperclip-runner/src/contracts/runtime-context.ts",
-    "packages/paperclip-runner/src/protocol-actions/hire-agent.ts",
-    "packages/paperclip-runner/src/protocol-actions/create-task.ts",
-    "packages/paperclip-runner/src/protocol-actions/set-dependencies.ts",
-    "packages/paperclip-runner/src/catalog/semantic-action-catalog.ts",
-    "packages/paperclip-runner/generated/semantic-action-catalog.json",
-    "packages/paperclip-runner/generated/capability/semantic-tool-contracts.json",
-    "packages/paperclip-runner/protocol/fixtures/evals/native-execution-seeded.json",
-    "packages/paperclip-runner/protocol/manifest.json",
-    "packages/paperclip-runner/src/backends/codex-native-backend.ts",
-    "packages/paperclip-runner/src/drivers/opencode/mcp-bridge.ts",
-    "server/src/services/native-runtime/paperclip-runner-tool-authority.ts",
+    "packages/outpost-runner/src/contracts/runtime-context.ts",
+    "packages/outpost-runner/src/protocol-actions/hire-agent.ts",
+    "packages/outpost-runner/src/protocol-actions/create-task.ts",
+    "packages/outpost-runner/src/protocol-actions/set-dependencies.ts",
+    "packages/outpost-runner/src/catalog/semantic-action-catalog.ts",
+    "packages/outpost-runner/generated/semantic-action-catalog.json",
+    "packages/outpost-runner/generated/capability/semantic-tool-contracts.json",
+    "packages/outpost-runner/protocol/fixtures/evals/native-execution-seeded.json",
+    "packages/outpost-runner/protocol/manifest.json",
+    "packages/outpost-runner/src/backends/codex-native-backend.ts",
+    "packages/outpost-runner/src/drivers/opencode/mcp-bridge.ts",
+    "server/src/services/native-runtime/outpost-runner-tool-authority.ts",
     "server/src/services/connection-tool-definitions.ts",
     "packages/shared/src/connection-intent-guidance.ts",
     "packages/shared/src/validators/connection-intent.ts",
     "server/src/services/native-runtime/native-session-resume.ts",
     "server/src/__tests__/native-procedure-measurement.test.ts",
   ];
-  writeFileSync(output, `${JSON.stringify({ schema: "paperclip.native-procedure-measurement.v2",
+  writeFileSync(output, `${JSON.stringify({ schema: "outpost.native-procedure-measurement.v2",
     sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
     sourceDirty: execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim().length > 0,
     measuredInputsDirty: execFileSync("git", ["status", "--porcelain", "--", ...paths], { cwd: root, encoding: "utf8" }).trim().length > 0,

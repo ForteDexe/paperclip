@@ -71,13 +71,13 @@ describe("actual task-bound repository preparation and missing-access continuati
 });
 describe("real own-workload authority proof provenance", () => {
   const closed = { identityMatched: true, runId: "worker-run", identityContextId: "context", runSecretListAvailable: true, githubSecretNotBound: true, secretStatus: 403, brokerStatus: 200, brokerAbsent: true, brokerEnvEmpty: true, rawGitCredentialPresent: false };
-  function event() { return { eventType: "item.completed", payload: { prpEvent: { payload: { item: { type: "command_execution", command: workloadBoundaryCode, exit_code: 0, aggregated_output: `PAPERCLIP_GIT_BOUNDARY ${JSON.stringify(closed)}\n` } } } } }; }
+  function event() { return { eventType: "item.completed", payload: { orpEvent: { payload: { item: { type: "command_execution", command: workloadBoundaryCode, exit_code: 0, aggregated_output: `OUTPOST_GIT_BOUNDARY ${JSON.stringify(closed)}\n` } } } } }; }
   it("requires actual terminal command output rather than model/file JSON or untrusted failure", () => {
     expect(protectedWorkload(workloadBoundaryReceipts([event()]))).toBe(true);
     expect(protectedWorkload(workloadBoundaryReceipts([{ ...event(), eventType: "assistant.message" }]))).toBe(false);
-    const wrong = event(); wrong.payload.prpEvent.payload.item.command = "echo fabricated";
+    const wrong = event(); wrong.payload.orpEvent.payload.item.command = "echo fabricated";
     expect(protectedWorkload(workloadBoundaryReceipts([wrong]))).toBe(false);
-    const failed = event(); failed.payload.prpEvent.payload.item.exit_code = 1;
+    const failed = event(); failed.payload.orpEvent.payload.item.exit_code = 1;
     expect(protectedWorkload(workloadBoundaryReceipts([failed]))).toBe(false);
     expect(protectedWorkload([{ ...closed, identityMatched: false }])).toBe(false);
     expect(protectedWorkload([{ ...closed, runSecretListAvailable: false }])).toBe(false);

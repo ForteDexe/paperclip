@@ -323,5 +323,5 @@ does not qualify provider login or agent execution.
 
 The lifecycle regressions can use a dedicated external PostgreSQL database when
 embedded PostgreSQL is unavailable. Set
-`PAPERCLIP_AGENT_LIFECYCLE_TEST_DATABASE_URL` to a database ending in `_test`
+`OUTPOST_AGENT_LIFECYCLE_TEST_DATABASE_URL` to a database ending in `_test`
 before running `server/src/modules/agent-lifecycle/__tests__/lifecycle.test.ts`.

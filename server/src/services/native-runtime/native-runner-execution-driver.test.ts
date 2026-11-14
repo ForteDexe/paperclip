@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { RunnerIngressEndpoint } from "@paperclipai/adapter-utils/runner-connectivity";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { RunnerIngressEndpoint } from "@outpost/adapter-utils/runner-connectivity";
 import pino from "pino";
-import { environmentRunnerIngressErrorData, JsonRpcCallError, PluginEnvironmentRunnerIngressError } from "@paperclipai/plugin-sdk";
+import { environmentRunnerIngressErrorData, JsonRpcCallError, PluginEnvironmentRunnerIngressError } from "@outpost/plugin-sdk";
 import { NativeRunnerIngressAcquisitionError, prepareNativeRemoteRunner, createNativeRunnerExecutionDriver } from "./native-runner-execution-driver.js";
 
 const transport = vi.hoisted(() => ({
@@ -11,8 +11,8 @@ const transport = vi.hoisted(() => ({
   checkpoint: vi.fn(),
   checkpointRegistration: vi.fn(),
 }));
-vi.mock("../../realtime/runner-prp-ws.js", () => ({ registerRunnerPrpAuthority: transport.register }));
-vi.mock("../../realtime/runner-prp-outbound.js", () => ({ connectRunnerPrpIngress: transport.connect }));
+vi.mock("../../realtime/runner-orp-ws.js", () => ({ registerRunnerPrpAuthority: transport.register }));
+vi.mock("../../realtime/runner-orp-outbound.js", () => ({ connectRunnerPrpIngress: transport.connect }));
 vi.mock("./native-runner-checkpoint.js", () => ({ nativeRunnerCheckpointRegistration: transport.checkpointRegistration }));
 
 const binding = { companyId: "company", issueId: "issue", agentId: "agent", runId: "run-a" };
@@ -130,7 +130,7 @@ describe("shared Runner execution driver", () => {
     const prepare = vi.fn();
     const driver = createNativeRunnerExecutionDriver({
       target: ssh, binding, prepareRemote: prepare, runnerPublicUrl: "wss://core.example",
-      runnerCaBundlePath: "/nonexistent/paperclip-runner-test-ca.pem",
+      runnerCaBundlePath: "/nonexistent/outpost-runner-test-ca.pem",
     });
     await expect(driver.controlPlaneRegistration!(authority)).rejects.toThrow("runner_direct_wss_failed");
     expect(prepare).not.toHaveBeenCalled();

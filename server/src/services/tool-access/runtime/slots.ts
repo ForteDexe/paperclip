@@ -1,8 +1,8 @@
 import type { ActorInfo } from "../types.js";
 import { and, desc, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { toolConnections, toolRuntimeSlots } from "@paperclipai/db";
-import type { ToolRuntimeSlot } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { toolConnections, toolRuntimeSlots } from "@outpost/db";
+import type { ToolRuntimeSlot } from "@outpost/shared";
 import { HttpError, notFound } from "../../../errors.js";
 import { logActivity } from "../../activity-log.js";
 import { createToolRuntimeSupervisor, ToolRuntimeSupervisorError } from "../../tool-runtime-supervisor.js";
@@ -50,7 +50,7 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
   async function ensureRuntimeSlot(
     connection: typeof toolConnections.$inferSelect,
   ): Promise<ToolRuntimeSlot | null> {
-    if (connection.transport !== "local_stdio" || connection.config.templateId === "paperclip.cognee-cloud") return null;
+    if (connection.transport !== "local_stdio" || connection.config.templateId === "outpost.cognee-cloud") return null;
     const slotKey = `mcp:${connection.companyId}:${connection.id}`;
     const [existing] = await db
       .select()

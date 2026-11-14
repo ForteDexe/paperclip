@@ -86,8 +86,8 @@ describe("cli telemetry", () => {
   it("respects telemetry.enabled=false from the config file", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cli-telemetry-"));
     const configPath = makeConfigPath(root, false);
-    process.env.PAPERCLIP_HOME = path.join(root, "home");
-    process.env.PAPERCLIP_INSTANCE_ID = "telemetry-test";
+    process.env.OUTPOST_HOME = path.join(root, "home");
+    process.env.OUTPOST_INSTANCE_ID = "telemetry-test";
 
     const { initTelemetryFromConfigFile } = await import("../telemetry.js");
     const client = initTelemetryFromConfigFile(configPath);
@@ -98,8 +98,8 @@ describe("cli telemetry", () => {
 
   it("stays disabled even when legacy configuration requests telemetry", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cli-telemetry-"));
-    process.env.PAPERCLIP_HOME = path.join(root, "home");
-    process.env.PAPERCLIP_INSTANCE_ID = "telemetry-test";
+    process.env.OUTPOST_HOME = path.join(root, "home");
+    process.env.OUTPOST_INSTANCE_ID = "telemetry-test";
 
     const { initTelemetry, flushTelemetry, getTelemetryClient } = await import("../telemetry.js");
     const client = initTelemetry({ enabled: true });

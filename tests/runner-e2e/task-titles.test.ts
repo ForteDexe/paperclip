@@ -7,7 +7,7 @@ import { gradeTaskTitle, taskTitlePrompt, taskTitleTasks, TASK_TITLE_EARLY_CALL_
 const prompt = taskTitlePrompt("fixture");
 const provisional = prompt.replace(/\s+/g, " ").slice(0, 120);
 const title = "API key rotation checklist";
-const event = (eventType: string, payload: unknown) => ({ eventType, payload: { prpEvent: { payload } } });
+const event = (eventType: string, payload: unknown) => ({ eventType, payload: { orpEvent: { payload } } });
 const start = (id: string, name: string, input: unknown = {}) => event("item.started", { item: { id, name, type: "tool_use", input } });
 function evidence(): TaskTitleEvidenceInput {
   return {

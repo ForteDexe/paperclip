@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import { persistActivity, publishActivity } from "./activity-log.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
@@ -61,7 +61,7 @@ export async function rearmExhaustedCapturePolicy(db: Db, input: WorkspaceRecove
     await tx.update(issueRecoveryActions).set({ ownerType: "system", ownerAgentId: null, ownerUserId: null,
       nextAction: CAPTURE_POLICY_REARM_MESSAGE, updatedAt: at,
       evidence: { ...action.evidence, systemRecovery: next, [CAPTURE_POLICY_RECOVERY_KEY]: marker,
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: run.id, status: "queued", stage: "verifying_stop",
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: run.id, status: "queued", stage: "verifying_stop",
           attempt: 0, attemptLimit: 6, retryable: true, message: CAPTURE_POLICY_REARM_MESSAGE,
           requestIds: Array.isArray(prior?.requestIds) ? prior.requestIds : [] } },
     }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));

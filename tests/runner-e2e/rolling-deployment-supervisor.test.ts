@@ -17,11 +17,11 @@ import { superviseRollingDeployment } from "./rolling-deployment-supervisor.js";
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 it.each([undefined, "prior-disposable-key"])("shares the server key with checkpoint observation and restores %s on failure", async prior => {
-  vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", prior);
+  vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", prior);
   let material: ReturnType<ReturnType<typeof createLocalEncryptedCipher>["encrypt"]>;
   mocks.start.mockImplementation(async ({ sharedEnvironment }) => {
-    expect(process.env.PAPERCLIP_SECRETS_MASTER_KEY).toBe(sharedEnvironment.PAPERCLIP_SECRETS_MASTER_KEY);
-    expect(mocks.writeFile).toHaveBeenCalledWith("/fixture/secrets/master.key", sharedEnvironment.PAPERCLIP_SECRETS_MASTER_KEY,
+    expect(process.env.OUTPOST_SECRETS_MASTER_KEY).toBe(sharedEnvironment.OUTPOST_SECRETS_MASTER_KEY);
+    expect(mocks.writeFile).toHaveBeenCalledWith("/fixture/secrets/master.key", sharedEnvironment.OUTPOST_SECRETS_MASTER_KEY,
       { mode: 0o600, flag: "wx" });
     material = createLocalEncryptedCipher("write").encrypt("synthetic checkpoint");
     return { child: { exitCode: null, signalCode: null }, configPath: "/fixture/config.json",
@@ -33,12 +33,12 @@ it.each([undefined, "prior-disposable-key"])("shares the server key with checkpo
   });
   await expect(superviseRollingDeployment({ temporaryRoot: "/fixture", repositoryRoot: "/fixture",
     configPath: "/fixture/config.json", port: 1, executionIds: ["rolling"], cancelled: () => false,
-    environment: { PAPERCLIP_STORAGE_PROVIDER: "s3" },
+    environment: { OUTPOST_STORAGE_PROVIDER: "s3" },
   })).rejects.toThrow("synthetic observer failure");
   expect(mocks.observer).toHaveBeenCalledOnce();
   expect(mocks.stop).toHaveBeenCalledOnce();
   expect(mocks.close).toHaveBeenCalledOnce();
-  expect(process.env.PAPERCLIP_SECRETS_MASTER_KEY).toBe(prior);
+  expect(process.env.OUTPOST_SECRETS_MASTER_KEY).toBe(prior);
 });
 
 
@@ -56,7 +56,7 @@ it("keeps open deployment probe tasks out of the agent workflow's company", asyn
   }));
   await expect(superviseRollingDeployment({ temporaryRoot: "/fixture", repositoryRoot: "/fixture",
     configPath: "/fixture/config.json", port: 1, executionIds: ["rolling"], cancelled: () => false,
-    environment: { PAPERCLIP_STORAGE_PROVIDER: "s3" },
+    environment: { OUTPOST_STORAGE_PROVIDER: "s3" },
   })).rejects.toThrow("probe fixture boundary reached");
   expect(routes).toEqual(["/api/companies", "/api/companies/probe-company/issues"]);
   expect(mocks.stop).toHaveBeenCalledOnce();

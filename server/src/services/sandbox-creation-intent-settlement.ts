@@ -1,5 +1,5 @@
 import { and, eq, gt, sql } from "drizzle-orm";
-import { sandboxCreationOperations, type Db } from "@paperclipai/db";
+import { sandboxCreationOperations, type Db } from "@outpost/db";
 import { readControllerProcess } from "./controller-process-identity.js";
 import { notifyEnvironmentCleanup } from "./environment-cleanup-notifications.js";
 import type { OwnerProof } from "./owner-proof.js";

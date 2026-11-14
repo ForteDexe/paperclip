@@ -217,7 +217,7 @@ dependencies only for canonical master pushes that verify the event's exact SHA.
 The `release-typecheck-v2` cache is separate from Runner verification because
 those jobs compile different profiles. The pinned toolchain is selected before
 cache lookup, and the cache action receives the Runner crate through the same
-checkout-independent `$HOME/paperclip-runner-rust` path as the Runner lanes
+checkout-independent `$HOME/outpost-runner-rust` path as the Runner lanes
 (see `RELEASE-AUTOMATION-SETUP.md`). Workspace crates and installed cargo
 binaries are excluded, and all typechecks still execute. A missing or
 invalidated cache triggers compilation.

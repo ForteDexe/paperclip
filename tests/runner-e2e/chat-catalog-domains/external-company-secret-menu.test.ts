@@ -1,12 +1,12 @@
 import {expect,it} from "vitest";
 import {chromium} from "@playwright/test";
 import {companySecretSetupURL,deploymentSecretGuidance} from "./external-company-secret.js";
-const origin="https://paperclip.example",chat=origin+"/RUN/chat",settings="/RUN/company/settings",secrets=settings+"/secrets";
+const origin="https://outpost.example",chat=origin+"/RUN/chat",settings="/RUN/company/settings",secrets=settings+"/secrets";
 const body="Use Company settings → Secrets (company-prefixed `/company/settings/secrets`) via New secret to enter the deployment key on that page (not in chat). After saving, I will bind the secret reference to Morgan's environment.";
 const directions='<strong>Company settings → Secrets</strong> (company-prefixed <code>/company/settings/secrets</code>) via <strong>New secret</strong>';
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("uses actual visible company menu links and preserves the bound chat without accepting unsafe alternatives",async()=>{
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("uses actual visible company menu links and preserves the bound chat without accepting unsafe alternatives",async()=>{
  expect(deploymentSecretGuidance(body)).toBe(true);
- const browser=await chromium.launch({headless:true,...process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
+ const browser=await chromium.launch({headless:true,...process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
  const scenarios=[
   {name:"ordinary menu",settings,secrets,accepted:true},
   {name:"streamlined account menu",settings,secrets,accepted:true,account:true},

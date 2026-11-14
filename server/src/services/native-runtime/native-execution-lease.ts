@@ -1,6 +1,6 @@
 import { notifyLiveRunRecovery } from "../live-run-recovery-notifications.js";
-import type { Db } from "@paperclipai/db";
-import { environmentLeases, heartbeatRuns, livenessDb, nativeRunFinalizations } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { environmentLeases, heartbeatRuns, livenessDb, nativeRunFinalizations } from "@outpost/db";
 import { and, eq, gt, isNotNull, isNull, notExists, or, sql, type SQL } from "drizzle-orm";
 import { currentNativeControllerIdentity, type NativeControllerIdentity } from "./native-restart-recovery.js";
 import { OPERATOR_ATTESTED_CONTROLLER_HOST } from "./native-controller-host-recovery.js";

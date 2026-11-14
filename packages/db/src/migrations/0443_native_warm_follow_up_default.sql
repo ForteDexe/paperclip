@@ -16,7 +16,7 @@ migrated AS (
   UPDATE agents AS agent
   SET adapter_config = agent.adapter_config - 'lifecycleMode',
       updated_at = now()
-  WHERE agent.adapter_type = 'paperclip_runner'
+  WHERE agent.adapter_type = 'outpost_runner'
     AND agent.adapter_config->>'lifecycleMode' = 'per_turn'
     AND (
       agent.adapter_config->>'provider' IN ('codex', 'opencode')

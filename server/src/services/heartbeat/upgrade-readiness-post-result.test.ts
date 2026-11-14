@@ -5,9 +5,9 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { agents, companies, completionContracts, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, executionWorkspaces,
-  heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments, workspaceOperations } from "@paperclipai/db";
+  heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments, workspaceOperations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { DurablePrpControlPlane } from "../../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane } from "../../vendor/outpost-runner/index.js";
 import { currentNativeControllerIdentity } from "../native-runtime/native-restart-recovery.js";
 import { nativeRunnerCheckpointWriter } from "../native-runtime/native-runner-checkpoint.js";
 import { readUpgradeReadiness } from "./upgrade-readiness.js";
@@ -23,10 +23,10 @@ describe("post-result upgrade readiness", () => {
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("post-result-upgrade-");
     db = createDb(database.connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "a".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     for (const [key, value] of Object.entries({ RAILWAY_PROJECT_ID: "project", RAILWAY_ENVIRONMENT_ID: "environment",
-      RAILWAY_SERVICE_ID: "service", RAILWAY_DEPLOYMENT_ID: "deployment", PAPERCLIP_CLOUD_STACK_ID: "stack",
-      PAPERCLIP_CLOUD_API_ORIGIN: "https://cloud.example", PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "fixture-token" })) vi.stubEnv(key, value);
+      RAILWAY_SERVICE_ID: "service", RAILWAY_DEPLOYMENT_ID: "deployment", OUTPOST_CLOUD_STACK_ID: "stack",
+      OUTPOST_CLOUD_API_ORIGIN: "https://cloud.example", OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fixture-token" })) vi.stubEnv(key, value);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterEach(async () => { if (runs.length) await db.update(heartbeatRuns).set({ status: "succeeded" }).where(inArray(heartbeatRuns.id, runs)); });
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); vi.unstubAllEnvs(); });
@@ -37,15 +37,15 @@ describe("post-result upgrade readiness", () => {
     const resultId = randomUUID(), runnerInstanceId = randomUUID(), nativeSessionId = randomUUID();
     const controller = await currentNativeControllerIdentity();
     const leaseOwner = `execution:${randomUUID()}`;
-    const remote = { schema: "paperclip.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId: "sandbox",
+    const remote = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId: "sandbox",
       remoteCwd: "/workspace", epoch: 1, state: "prepared", snapshotId: null };
-    const authority = { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
+    const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
       location: { environmentId, leaseId, providerLeaseId: "sandbox", remoteCwd: "/workspace" }, writerRunId: runId, dirty: true };
     await db.insert(companies).values({ id: companyId, name: "Upgrade", issuePrefix: `P${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Accepted work", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "fixture", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
       canonicalSha256: "a".repeat(64), createdByActorType: "system", createdByActorId: "test" });
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: "isolated_workspace",
@@ -146,9 +146,9 @@ describe("post-result upgrade readiness", () => {
     expect((await f.probe()).ready).toBe(false);
     await db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(Date.now() + 60_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
     expect((await f.probe()).ready).toBe(true);
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "");
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "");
     expect((await f.probe()).ready).toBe(false);
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "fixture-token");
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "fixture-token");
   });
 
   it("allows independent admitted work while observing both saved results", async () => {
@@ -218,7 +218,7 @@ describe("post-result upgrade readiness", () => {
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...run.runnerProfileJson, nativeWorkspaceFinalizationOwner: owner } }).where(eq(heartbeatRuns.id, f.runId));
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-    vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "fixture", alg: "EdDSA", use: "sig" }] }));
+    vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "fixture", alg: "EdDSA", use: "sig" }] }));
     let stopped = false;
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(JSON.parse(String(init?.body))).toEqual({ runId: f.runId, ownerToken: owner.token, worker });

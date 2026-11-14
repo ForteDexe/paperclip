@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SLACK_MANAGER_SCOPES } from "@paperclipai/shared";
+import { SLACK_MANAGER_SCOPES } from "@outpost/shared";
 import { developmentSlackManager } from "../services/connectors/slack/setup/development-manager.js";
 
 const roots: string[] = [];
@@ -11,7 +11,7 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), "slack-development-")); roots.push(root);
   const path = join(root, "manager.json");
   writeFileSync(path, JSON.stringify({ appId: "A123", clientId: "123.456", clientSecret: "client-secret-canary" }), { mode: 0o600 });
-  return { path, env: { NODE_ENV: "development", PAPERCLIP_SLACK_MANAGED_SETUP_ENABLED: "true", PAPERCLIP_SLACK_MANAGER_DEVELOPMENT_CONFIG: path } };
+  return { path, env: { NODE_ENV: "development", OUTPOST_SLACK_MANAGED_SETUP_ENABLED: "true", OUTPOST_SLACK_MANAGER_DEVELOPMENT_CONFIG: path } };
 }
 const origin = () => "https://local-test.trycloudflare.com";
 const identity = { subject: "actor", companyId: "company", profile: "slack.manager" as const };
@@ -23,7 +23,7 @@ describe("local managed Slack qualification", () => {
     const { env } = fixture();
     expect(developmentSlackManager(origin, {})).toBeNull();
     expect(developmentSlackManager(origin, { ...env, NODE_ENV: "production" })).toBeNull();
-    expect(developmentSlackManager(origin, { ...env, PAPERCLIP_SLACK_MANAGED_SETUP_ENABLED: "false" })).toBeNull();
+    expect(developmentSlackManager(origin, { ...env, OUTPOST_SLACK_MANAGED_SETUP_ENABLED: "false" })).toBeNull();
   });
   it("rejects readable secrets and invalid HTTPS origins", async () => {
     const { env, path } = fixture(); chmodSync(path, 0o644);

@@ -9,7 +9,7 @@ import {
 import type {
   PaperclipQuestionResponse,
   PaperclipQuestionSet,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 import type { MentionOption } from "@/components/MarkdownEditor";
 import { DecisionCardFooter } from "@/components/DecisionCardFooter";
 import { MarkdownBody } from "@/components/MarkdownBody";
@@ -417,7 +417,7 @@ function QuestionFormForRequest({
     setError(null);
     try {
       await onSubmit({
-        schema: "paperclip.question_response.v1",
+        schema: "outpost.question_response.v1",
         answers: structuredClone(responseAnswers),
       });
       if (draftKey) clearDraft(draftKey);

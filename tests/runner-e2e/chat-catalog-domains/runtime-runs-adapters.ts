@@ -41,7 +41,7 @@ export const runtimeRunsAdaptersCases = [runtimeDefinition("runs-adapters.list-m
   const restricted = await readAgentResource(ctx, `/api/agents/${worker.id}/runtime-state`);
   if (discovered.status !== 200 || !Array.isArray(discovered.data)) throw new Error("Scenario requires admitted real coding model discovery");
   let publicOpenRouterCatalog: Model[] | undefined, publicCatalogScope: OpenRouterCatalogScope | undefined, publicCatalogStatus: number | undefined;
-  if (worker.adapterType === "paperclip_runner" && worker.adapterConfig?.provider === "opencode" && String(worker.adapterConfig.model).startsWith("openrouter/")) {
+  if (worker.adapterType === "outpost_runner" && worker.adapterConfig?.provider === "opencode" && String(worker.adapterConfig.model).startsWith("openrouter/")) {
     const lead = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`);
     publicCatalogScope = openRouterCatalogScope(ctx.input.fixtures.company.id, ctx.input.fixtures.agent.id, worker, lead);
     if (!publicCatalogScope) throw new Error("Model catalog setup requires the actual same-company OpenRouter account reference and native environment binding");
@@ -53,7 +53,7 @@ export const runtimeRunsAdaptersCases = [runtimeDefinition("runs-adapters.list-m
   return { worker, admittedModels: discovered.data, discoveryStatus: discovered.status, agentRuntimeInventoryStatus: restricted.status,
     ...(publicOpenRouterCatalog ? { publicOpenRouterCatalog, publicCatalogScope, publicCatalogStatus } : {}) };
 }, gradeModelOptions, {
-  oracleVersion: "paperclip.chat-catalog.model-options.scoped-catalog.v5",
+  oracleVersion: "outpost.chat-catalog.model-options.scoped-catalog.v5",
   sourceFiles: ["chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/runtime-runs-adapters.ts", "chat-scenarios/runs-adapters.yaml", "chat-catalog-domains/model-option-catalog.ts", "run-observations.ts"],
   async observe(ctx, state) {
     const { observeRuntime } = await import("./runtime-support.js");
@@ -79,14 +79,14 @@ const MODEL_DISCOVERY_OPERATION = "GET /api/companies/{companyId}/adapters/{type
 export function countModelDiscoveryReads(events: Record<string, unknown>[], runIds: string[]) {
   const record = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   return events.filter(event => {
-    const prp = record(record(event.payload).prpEvent), item = record(record(prp.payload).item), result = record(item.result);
-    return event.eventType === "item.completed" && item.type === "tool_result" && runIds.includes(String(prp.runId))
+    const orp = record(record(event.payload).orpEvent), item = record(record(orp.payload).item), result = record(item.result);
+    return event.eventType === "item.completed" && item.type === "tool_result" && runIds.includes(String(orp.runId))
       && result.apiOperationId === MODEL_DISCOVERY_OPERATION && result.ok === true && result.status === 200;
   }).length;
 }
 
 export function modelDiscoveryEndpoint(companyId: string, worker: RuntimeAgent) {
-  if (worker.adapterType !== "paperclip_runner" || !["codex", "opencode"].includes(String(worker.adapterConfig?.provider)) || !worker.defaultEnvironmentId)
+  if (worker.adapterType !== "outpost_runner" || !["codex", "opencode"].includes(String(worker.adapterConfig?.provider)) || !worker.defaultEnvironmentId)
     throw new Error("Model discovery requires the actually selected native provider and environment");
-  return `/api/companies/${encodeURIComponent(companyId)}/adapters/paperclip_runner/models?provider=${worker.adapterConfig!.provider}&environmentId=${encodeURIComponent(worker.defaultEnvironmentId)}`;
+  return `/api/companies/${encodeURIComponent(companyId)}/adapters/outpost_runner/models?provider=${worker.adapterConfig!.provider}&environmentId=${encodeURIComponent(worker.defaultEnvironmentId)}`;
 }

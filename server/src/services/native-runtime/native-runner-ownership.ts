@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { environmentLeases, heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { environmentLeases, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { remoteExecutionHasStopped } from "../remote-execution-termination.js";
 import { readSystemRecovery } from "../system-recovery-state.js";
@@ -119,7 +119,7 @@ export function nativeControllerAuthorityDigest(owner: Pick<typeof nativeRunFina
   "companyId" | "issueId" | "runId" | "leaseOwner" | "controllerGeneration" | "controllerBootId" |
   "controllerHostHash" | "controllerPid" | "controllerProcessStartedAt">, expiryEpoch: string | null): string {
   return createHash("sha256").update(JSON.stringify([
-    "paperclip.native-controller-authority.v1", owner.companyId, owner.issueId, owner.runId,
+    "outpost.native-controller-authority.v1", owner.companyId, owner.issueId, owner.runId,
     owner.leaseOwner, owner.controllerGeneration, owner.controllerBootId, owner.controllerHostHash,
     owner.controllerPid, owner.controllerProcessStartedAt?.toISOString() ?? null, expiryEpoch,
   ])).digest("hex");

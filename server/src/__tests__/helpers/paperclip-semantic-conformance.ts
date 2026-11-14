@@ -14,7 +14,7 @@ import {
   issueRelations,
   issues,
   issueThreadInteractions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   CapabilitySemanticDispatcher,
   createCapabilityFixtureState,
@@ -28,7 +28,7 @@ import {
   type SemanticConformanceAdapter,
   type SemanticConformanceObservation,
   type SemanticConformanceVector,
-} from "../../vendor/paperclip-runner/testing.js";
+} from "../../vendor/outpost-runner/testing.js";
 
 import { errorHandler } from "../../middleware/index.js";
 import { issueRoutes } from "../../routes/issues.js";
@@ -197,7 +197,7 @@ class PaperclipRouteSemanticPort {
     const task = this.#state.tasks.find((candidate) => candidate.id === this.binding.taskId);
     if (task === undefined) throw new Error("semantic_conformance_task_missing");
     return {
-      schema: "paperclip.capability.run-context.v1",
+      schema: "outpost.capability.run-context.v1",
       company: {
         id: this.ids.companyId,
         name: "Semantic Conformance",

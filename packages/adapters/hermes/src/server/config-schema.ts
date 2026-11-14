@@ -1,4 +1,4 @@
-import type { AdapterConfigSchema } from "@paperclipai/adapter-utils";
+import type { AdapterConfigSchema } from "@outpost/adapter-utils";
 
 import {
   DEFAULT_GRACE_SEC,
@@ -95,7 +95,7 @@ export function getConfigSchema(): AdapterConfigSchema {
         key: "paperclipApiUrl",
         label: "Outpost API URL",
         type: "text",
-        hint: "Optional API base override. Defaults to PAPERCLIP_API_URL.",
+        hint: "Optional API base override. Defaults to OUTPOST_API_URL.",
       },
       {
         key: "promptTemplate",

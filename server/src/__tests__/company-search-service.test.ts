@@ -17,8 +17,8 @@ import {
   labels,
   projectAccessMembers,
   projects,
-} from "@paperclipai/db";
-import { companySearchQuerySchema, COMPANY_SEARCH_MAX_QUERY_LENGTH } from "@paperclipai/shared";
+} from "@outpost/db";
+import { companySearchQuerySchema, COMPANY_SEARCH_MAX_QUERY_LENGTH } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -31,7 +31,7 @@ import {
 import { issueReadSqlCondition, projectReadSqlCondition } from "../services/authorization.js";
 import { issueService } from "../services/issues.js";
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_COMPANY_SEARCH_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_COMPANY_SEARCH_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -236,8 +236,8 @@ describeEmbeddedPostgres("companySearchService", () => {
   });
 
   it.each(["all", "comments", "documents"] as const)("preserves issue-result-only %s text matching and read boundaries", async scope => {
-    const previous = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    const previous = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
       const companyId = await createCompany();
       const comment = await createIssue(companyId, { title: "Comment context" });
@@ -263,8 +263,8 @@ describeEmbeddedPostgres("companySearchService", () => {
       expect(result.results.every(row => row.type === "issue")).toBe(true);
       expect(result.countsByType).toMatchObject({ agent: 0, project: 0, artifact: 0 });
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-      else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previous;
+      if (previous === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+      else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previous;
     }
   });
 
@@ -395,8 +395,8 @@ describeEmbeddedPostgres("companySearchService", () => {
   });
 
   it("keeps private task artifacts out of an unrelated member's search", async () => {
-    const previousMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    const previousMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
       const companyId = await createCompany();
       const agentId = await createAgent(companyId, { name: "Private Writer" });
@@ -420,8 +420,8 @@ describeEmbeddedPostgres("companySearchService", () => {
       expect(owner.results.filter(row => row.type === "artifact")).toHaveLength(1);
       expect(owner.countsByType.artifact).toBe(1);
     } finally {
-      if (previousMode === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-      else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousMode;
+      if (previousMode === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+      else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousMode;
     }
   });
 
@@ -964,8 +964,8 @@ describeEmbeddedPostgres("companySearchService", () => {
   });
 
   it("pushes private issue filtering into list, count, and company search queries", async () => {
-    const previousMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    const previousMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
       const companyId = await createCompany();
       const ownerId = `owner-${randomUUID()}`;
@@ -1012,14 +1012,14 @@ describeEmbeddedPostgres("companySearchService", () => {
       );
       expect(result.results.map((row) => row.id)).toEqual([openId]);
     } finally {
-      if (previousMode === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-      else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousMode;
+      if (previousMode === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+      else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousMode;
     }
   });
 
   it("pushes private project filtering into project search and counts", async () => {
-    const previousMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    const previousMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
       const companyId = await createCompany();
       const memberId = `member-${randomUUID()}`;
@@ -1053,8 +1053,8 @@ describeEmbeddedPostgres("companySearchService", () => {
       expect(memberResult.results.map((row) => row.id)).toEqual(expect.arrayContaining([openId, privateId]));
       expect(memberResult.countsByType.project).toBe(2);
     } finally {
-      if (previousMode === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-      else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousMode;
+      if (previousMode === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+      else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousMode;
     }
   });
 });

@@ -8,14 +8,14 @@ const retained = JSON.parse(readFileSync(new URL("./fixtures/copilot-attached-di
 function fixture() {
   const rows = structuredClone(retained.rows);
   const proposed = rows.find((r: any) => r.eventType === "run.result.proposed");
-  const frame = proposed.payload.prpEvent;
+  const frame = proposed.payload.orpEvent;
   const notices = readCopilotToolEvidence(rows, proposed.runId);
   const command = notices.find(n => n.stage === "tool" && n.status === "pending" && n.mode === "async")!;
   const expected = { companyId: proposed.companyId, runId: proposed.runId, turnId: frame.turnId,
     nativeSessionId: command.sessionId, command, summary: frame.payload.summary, requireContextRead: true };
   return { rows, notices, command, expected };
 }
-const payload = (r: any) => r.payload.prpEvent.payload;
+const payload = (r: any) => r.payload.orpEvent.payload;
 const detail = (r: any, name: string, value: string) => { payload(r).details.find((d: any) => d.name === name).value = value; };
 describe("bounded individually attested context discovery sequence", () => {
   it("calibrates the retained two-discovery completion without treating the failed live attempt as qualified", () => {
@@ -42,7 +42,7 @@ describe("bounded individually attested context discovery sequence", () => {
     if (kind === "duplicate-receipt") f.rows.push(structuredClone(second));
     if (kind === "missing-receipt") f.rows.splice(f.rows.indexOf(second), 1);
     if (kind === "borrowed-identity") detail(second, "callIdentitySha256", payload(receipts[0]).details.find((d: any) => d.name === "callIdentitySha256").value);
-    if (kind === "foreign-session") second.payload.prpEvent.normalizedSessionId = "foreign";
+    if (kind === "foreign-session") second.payload.orpEvent.normalizedSessionId = "foreign";
     if (kind === "mutation") payload(start).readOnly = false;
     if (kind === "another-query") payload(start).progress = "paperclip-search_api (pending): create_task";
     if (kind === "native-result-mismatch") detail(second, "resultSha256", "f".repeat(64));

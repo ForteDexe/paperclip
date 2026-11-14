@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentWakeupRequests, heartbeatRunEvents, heartbeatRuns, issueAttachments, issueComments, issues } from "@paperclipai/db";
-import type { SourceTrustMetadata } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { agentWakeupRequests, heartbeatRunEvents, heartbeatRuns, issueAttachments, issueComments, issues } from "@outpost/db";
+import type { SourceTrustMetadata } from "@outpost/shared";
 
 import { queuedCommentIdsFromWakePayload } from "../issue-queued-comment-queue.js";
 import { deliveredQueuedCommentIds } from "../queued-comment-delivery.js";
@@ -27,7 +27,7 @@ import { PROVIDER_TURN_ACCEPTED_EVENT_TYPES } from "./provider-attempt-outcome.j
  * before the turn was accepted repeats the same claim from the receipt.
  */
 export const FIRST_TURN_QUEUED_INPUT_KEY = "firstTurnQueuedInput";
-export const FIRST_TURN_QUEUED_INPUT_SCHEMA = "paperclip.first-turn-queued-input.v1";
+export const FIRST_TURN_QUEUED_INPUT_SCHEMA = "outpost.first-turn-queued-input.v1";
 
 const DEFERRED_WAKE_STATUS = "deferred_issue_execution";
 const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
@@ -241,7 +241,7 @@ export async function runAcceptsFirstTurnQueuedInput(
 ): Promise<boolean> {
   if (run.status !== "running") return false;
   const preparingNative = run.runtimeMode === "legacy" && !run.runtimeModeResolvedAt &&
-    record(record(run.runnerProfileJson).adapterDispatch).adapterType === "paperclip_runner";
+    record(record(run.runnerProfileJson).adapterDispatch).adapterType === "outpost_runner";
   if (run.runtimeMode !== "native" && !preparingNative) return false;
   if (readFirstTurnQueuedInputReceipt(run)) return false;
   const [accepted] = await tx.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(

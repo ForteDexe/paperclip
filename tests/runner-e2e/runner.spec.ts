@@ -287,7 +287,7 @@ function sortRunsChronologically(runs: readonly RunRecord[]): RunRecord[] {
 async function restartIsolatedPaperclipServer(input: {
   api: RunnerApi;
   requestId: string;
-  kimiCandidateAdmission?: import("../../packages/paperclip-runner/src/drivers/acpx/candidate-admission.js").AcpxCandidateAdmission;
+  kimiCandidateAdmission?: import("../../packages/outpost-runner/src/drivers/acpx/candidate-admission.js").AcpxCandidateAdmission;
   deadlineAt: number;
   preserveRunner?: RestartRunnerIdentity;
   discardControllerCache?: boolean;
@@ -355,7 +355,7 @@ async function restartIsolatedPaperclipServer(input: {
 }
 
 const executionIds = (() => {
-  const encoded = process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS;
+  const encoded = process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS;
   if (encoded) {
     const parsed = JSON.parse(encoded) as unknown;
     if (
@@ -364,24 +364,24 @@ const executionIds = (() => {
       parsed.some((value) => typeof value !== "string")
     ) {
       throw new Error(
-        "PAPERCLIP_RUNNER_E2E_EXECUTION_IDS must be a non-empty JSON string array",
+        "OUTPOST_RUNNER_E2E_EXECUTION_IDS must be a non-empty JSON string array",
       );
     }
     return parsed;
   }
-  const single = process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_ID;
+  const single = process.env.OUTPOST_RUNNER_E2E_EXECUTION_ID;
   if (!single)
-    throw new Error("PAPERCLIP_RUNNER_E2E_EXECUTION_IDS is required");
+    throw new Error("OUTPOST_RUNNER_E2E_EXECUTION_IDS is required");
   return [single];
 })();
 const executions = executionIds.map(runnerExecutionById);
 // Direct Playwright invocation must enforce the same admission boundary as
 // launch.ts before reading any provider credential from the environment.
 assertRunnerE2EPrerequisites(executions);
-const attempt = Number(process.env.PAPERCLIP_RUNNER_E2E_ATTEMPT ?? "1");
-const temporaryRoot = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
-const privateRoot = process.env.PAPERCLIP_RUNNER_E2E_PRIVATE_DIR;
-const workspacePath = process.env.PAPERCLIP_RUNNER_E2E_WORKSPACE;
+const attempt = Number(process.env.OUTPOST_RUNNER_E2E_ATTEMPT ?? "1");
+const temporaryRoot = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
+const privateRoot = process.env.OUTPOST_RUNNER_E2E_PRIVATE_DIR;
+const workspacePath = process.env.OUTPOST_RUNNER_E2E_WORKSPACE;
 if (!temporaryRoot || !privateRoot || !workspacePath)
   throw new Error("Runner E2E temporary/private/workspace paths are required");
 
@@ -493,11 +493,11 @@ function nativeRunEventIntegrityFailures(
     } else {
       lastOuterSeq = event.seq;
     }
-    const envelope = record(event.payload?.prpEvent);
+    const envelope = record(event.payload?.orpEvent);
     if (Object.keys(envelope).length === 0) continue;
     if (!isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)) {
       failures.push(
-        `run ${run.id} exposed a malformed PRP envelope (schema=${String(envelope.schema)}, version=${String(envelope.schemaVersion)})`,
+        `run ${run.id} exposed a malformed ORP envelope (schema=${String(envelope.schema)}, version=${String(envelope.schemaVersion)})`,
       );
     }
     if (envelope.runId !== run.id) {
@@ -630,12 +630,12 @@ for (const execution of executions) {
       verifyNativeInstructionPreflight(process.env[NATIVE_INSTRUCTION_PREFLIGHT_ENV]);
     }
     const credentials = credentialValues();
-    const secrets = trackedPrivateSecrets(normalizedSecrets([...Object.values(credentials), ...EVAL_OBSERVABILITY_SECRET_NAMES.map(name => process.env[name]), process.env.PAPERCLIP_E2E_GATEWAY_TOKEN]), execution.id);
+    const secrets = trackedPrivateSecrets(normalizedSecrets([...Object.values(credentials), ...EVAL_OBSERVABILITY_SECRET_NAMES.map(name => process.env[name]), process.env.OUTPOST_E2E_GATEWAY_TOKEN]), execution.id);
     const privateInputs = execution.suite.id === "chat-features" ? readChatPrivateInputs(execution.id, secrets) : undefined;
     const traceConfig = evalBraintrustConfig(process.env);
     const trace = traceConfig ? new EvalAttemptTrace(traceConfig, {
-      campaignId: process.env.PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID ?? "",
-      attemptId: process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID ?? "",
+      campaignId: process.env.OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID ?? "",
+      attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ?? "",
       executionId: execution.id, provider: execution.profile.provider, model: execution.profile.model, environment: execution.environment.id,
     }, {
       suiteId: execution.suite.id, suiteDefinitionHash: execution.suiteDefinitionHash,
@@ -961,12 +961,12 @@ for (const execution of executions) {
     try {
       trace?.phase("setup");
       await saveTrace();
-      if (execution.profile.provider === "cursor_cloud") await assertCursorCloudCallbackIngress(process.env.PAPERCLIP_PUBLIC_URL!);
+      if (execution.profile.provider === "cursor_cloud") await assertCursorCloudCallbackIngress(process.env.OUTPOST_PUBLIC_URL!);
       const catalogDescriptor = execution.suite.id === "chat-features" ? findChatCatalogCase(execution.task.id) : undefined;
       if (catalogDescriptor) {
         bindInvitationEnrollmentPrerequisite(api, {
           verifyRuntime: () => verifyInvitationSourceProof({ temporaryRoot, sourceRoot: path.resolve(import.meta.dirname, "../.."),
-            apiOrigin: api.baseURL, attemptId: process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID ?? "", executionId: execution.id,
+            apiOrigin: api.baseURL, attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ?? "", executionId: execution.id,
             health: () => api.get("/api/health") }),
           evidence: completionEvidence,
         });
@@ -1050,14 +1050,14 @@ for (const execution of executions) {
           sourceRevision: resolveRunnerE2ESource().sha, secrets }),
         retain: proof => writeSanitizedJson(snapshotsDir, "sdk-canary-pre-fixture.json", proof, secrets),
         fixtures: async () => execution.task.flow === "first_task"
-        ? await setupFirstTaskFixtures({ page, api, execution, nonce, credentials, daytonaImage: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE, deadlineAt: startedAtMs + deadlineMs, observe: value => { fixtures = value; }, onCompanyCreated })
+        ? await setupFirstTaskFixtures({ page, api, execution, nonce, credentials, daytonaImage: process.env.OUTPOST_E2E_DAYTONA_IMAGE, deadlineAt: startedAtMs + deadlineMs, observe: value => { fixtures = value; }, onCompanyCreated })
         : await setupLiveFixtures({
         api,
         execution,
         executionNonce: nonce,
         workspacePath,
         credentials,
-        daytonaImage: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE,
+        daytonaImage: process.env.OUTPOST_E2E_DAYTONA_IMAGE,
         cleanupDeadlineAt: kimiLifecycleTiming?.cleanupDeadlineAt,
         onCompanyCreated,
       }) });
@@ -1096,9 +1096,9 @@ for (const execution of executions) {
         ? createRemoteNativeBootstrap({
           api, daytona: await createRemoteFixtureClient(credentials.DAYTONA_API_KEY ?? ""),
           companyId: fixtures.company.id, environmentId: fixtures.environment.id, agentId: fixtures.agent.id,
-          image: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE ?? "",
-          nodeSha256: process.env.PAPERCLIP_E2E_DAYTONA_NODE_SHA256 ?? "",
-          runnerdSha256: process.env.PAPERCLIP_E2E_DAYTONA_RUNNERD_SHA256 ?? "",
+          image: process.env.OUTPOST_E2E_DAYTONA_IMAGE ?? "",
+          nodeSha256: process.env.OUTPOST_E2E_DAYTONA_NODE_SHA256 ?? "",
+          runnerdSha256: process.env.OUTPOST_E2E_DAYTONA_RUNNERD_SHA256 ?? "",
           deadlineAt: kimiWorkDeadlineAt ?? startedAtMs + deadlineMs,
           requireCopilotTaskContext: execution.profile.qualificationCandidate === "copilot",
           evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
@@ -1441,7 +1441,7 @@ for (const execution of executions) {
             catalogFailureCaptureAttempted = true;
             primaryError ??= error;
             try { await writeSanitizedJson(snapshotsDir, "failed-attempt-checkpoint.json", {
-              schema: "paperclip.runner-e2e.failed-attempt-checkpoint/v1", executionId: execution.id,
+              schema: "outpost.runner-e2e.failed-attempt-checkpoint/v1", executionId: execution.id,
               qualification: "unqualified", featureOutcome: "unknown", phase: "before_owned_retirement",
             }, secrets); } finally { await cancelActiveRunsForCleanup(20_000); }
           },
@@ -1717,7 +1717,7 @@ for (const execution of executions) {
             requestId: restartRequestId,
             deadlineAt,
           });
-          const documentSentinel = `__paperclip_runner_restart_${nonce.replaceAll("-", "_")}`;
+          const documentSentinel = `__outpost_runner_restart_${nonce.replaceAll("-", "_")}`;
           await page.evaluate(
             (key) => Reflect.set(window, key, true),
             documentSentinel,
@@ -2011,7 +2011,7 @@ for (const execution of executions) {
           }
           const journalEvidence = execution.suite.id === "daytona-journal-continuity" && completedTurn === 1
             ? await largeJournalEvidence({
-                stateRoot: path.join(process.env.PAPERCLIP_HOME!, "instances", process.env.PAPERCLIP_INSTANCE_ID!, "runtime", "paperclip-runner", "durable-sessions"),
+                stateRoot: path.join(process.env.OUTPOST_HOME!, "instances", process.env.OUTPOST_INSTANCE_ID!, "runtime", "outpost-runner", "durable-sessions"),
                 runId: chronologicalRuns.at(-1)!.id,
                 minimumBytes: 2 * 1024 * 1024,
                 minimumCompletedStimulusCalls: 240,
@@ -2045,7 +2045,7 @@ for (const execution of executions) {
           })).toBeVisible({ timeout: reviewUiTimeout() });
           const turnReply = page.getByTestId("task-chat-thread")
             .getByTestId("task-chat-agent-bubble")
-            .filter({ hasText: `PAPERCLIP_E2E_WARM_T${completedTurn}_${nonce}` }).last();
+            .filter({ hasText: `OUTPOST_E2E_WARM_T${completedTurn}_${nonce}` }).last();
           await expect(turnReply).toBeVisible({ timeout: reviewUiTimeout() });
           const pendingReview = waitingState.interactions.find(isPendingWarmConfirmation)!;
           const reviewCard = page.getByTestId("task-chat-interaction")
@@ -2193,7 +2193,7 @@ for (const execution of executions) {
             ? Date.parse(candidate.finishedAt)
             : Number.NaN;
           const acquisition = record(
-            record(candidate.contextSnapshot).paperclipEnvironment,
+            record(candidate.contextSnapshot).outpostEnvironment,
           ).sandboxLeaseAcquisition;
           const acquisitionOutcome = record(acquisition).outcome;
           return {
@@ -2435,7 +2435,7 @@ for (const execution of executions) {
       }
 
       const context = record(run.contextSnapshot);
-      const environmentContext = record(context.paperclipEnvironment);
+      const environmentContext = record(context.outpostEnvironment);
       const workspaceContext = record(context.paperclipWorkspace);
       const environmentDriver =
         environmentContext.driver ?? persistedEnvironment.driver;
@@ -2443,7 +2443,7 @@ for (const execution of executions) {
         environmentDriver === "sandbox" ? "daytona" : environmentDriver;
       const observedRuntimeMode =
         run.runtimeMode ??
-        (persistedAgent.adapterType === "paperclip_runner"
+        (persistedAgent.adapterType === "outpost_runner"
           ? "native"
           : "legacy");
       const matcherObservation = {
@@ -2593,7 +2593,7 @@ for (const execution of executions) {
       }
       if (execution.task.flow === "warm_three_turn") {
         const runEnvironmentContexts = selectedRuns.map((candidate) =>
-          record(record(candidate.contextSnapshot).paperclipEnvironment),
+          record(record(candidate.contextSnapshot).outpostEnvironment),
         );
         const leaseIds = runEnvironmentContexts.map((entry) => entry.leaseId);
         const acquisitionOutcomes = runEnvironmentContexts.map(
@@ -2903,7 +2903,7 @@ for (const execution of executions) {
         if (execution.environment.id === "daytona") {
           const authenticated = spanPayloads.some(
             (event) =>
-              event.span === "runner.prp.authenticate" &&
+              event.span === "runner.orp.authenticate" &&
               event.outcome === "ok",
           );
           if (!authenticated) {
@@ -2922,7 +2922,7 @@ for (const execution of executions) {
             candidate.runnerInstanceId ||
             candidateEvents.some(
               (event) =>
-                Object.keys(record(event.payload?.prpEvent)).length > 0,
+                Object.keys(record(event.payload?.orpEvent)).length > 0,
             )
           ) {
             invariantFailures.push(
@@ -3233,7 +3233,7 @@ for (const execution of executions) {
                     run.contextSnapshot?.issueId as string | undefined])].filter((id): id is string => Boolean(id)))], secrets });
               } catch {
                 // Supplemental evidence must never prevent owned fixture cleanup.
-                taskChat = { schema: "paperclip.runner-e2e.task-chat/v1", capturedAt: new Date().toISOString(),
+                taskChat = { schema: "outpost.runner-e2e.task-chat/v1", capturedAt: new Date().toISOString(),
                   status: "unavailable", threads: [], missing: ["capture"] };
               }
               await workerTiming.enter("feedback");
@@ -3349,11 +3349,11 @@ for (const execution of executions) {
         fallbackFinishedAt: new Date(finishedAtMs),
       }), fixtures ?? {});
       const resultWithoutBilling: RunnerE2EResult = {
-        schema: "paperclip.runner-e2e.result/v2",
-        ...(process.env.PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID && process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID ? {
+        schema: "outpost.runner-e2e.result/v2",
+        ...(process.env.OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID && process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ? {
           accountingIdentity: {
-            campaignId: process.env.PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID,
-            attemptId: process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID,
+            campaignId: process.env.OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID,
+            attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID,
           },
         } : {}),
         executionId: execution.id,

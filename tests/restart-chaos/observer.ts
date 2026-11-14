@@ -103,7 +103,7 @@ export function toRunSample(run: Json): RunSample {
 interface RunEventCursor {
   seq: number;
   lastAt: string | null;
-  /** Tool starts minus tool ends. PRP item ids are not unique per tool call, so this counts. */
+  /** Tool starts minus tool ends. ORP item ids are not unique per tool call, so this counts. */
   openTools: number;
   /** The run's latest recorded local runner process, until recovery reports it stopped. */
   process: { pid: number; startedAt: string } | null;

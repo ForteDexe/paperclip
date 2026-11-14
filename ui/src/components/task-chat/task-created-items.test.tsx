@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { taskCreatedItems } from "./task-created-items";
 import { TaskChatTaskCreatedCard } from "./TaskChatTaskCreatedCard";
 

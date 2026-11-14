@@ -858,7 +858,7 @@ describe("Chat SDK endpoint runtime", () => {
     const firstChat = captures.chats[0] as unknown as { shutdownCalls: number };
     const response = await registry.handleWebhook(
       "endpoint-1",
-      new Request("https://paperclip.test/api/chat/webhooks/endpoint-1", {
+      new Request("https://outpost.test/api/chat/webhooks/endpoint-1", {
         method: "POST",
       }),
     );
@@ -947,7 +947,7 @@ describe("Chat SDK endpoint runtime", () => {
           expect(sdkShutdown).toHaveBeenCalledOnce();
           await expect(first.initialize()).rejects.toThrow(/retired/);
           await expect(
-            first.handleWebhook(new Request("https://paperclip.test/webhook")),
+            first.handleWebhook(new Request("https://outpost.test/webhook")),
           ).rejects.toThrow(/retired/);
           expect(initialize).toHaveBeenCalledOnce();
           if (operation === "replace") {
@@ -1021,7 +1021,7 @@ describe("Chat SDK endpoint runtime", () => {
         return new Response("accepted", { status: 202 });
       };
       const ingress = first
-        .handleWebhook(new Request("https://paperclip.test/webhook"))
+        .handleWebhook(new Request("https://outpost.test/webhook"))
         .then(
           (response) => response.status,
           (error: Error) => error.message,
@@ -1102,7 +1102,7 @@ describe("Chat SDK endpoint runtime", () => {
       });
       try {
         const outcome = await runtime
-          .handleWebhook(new Request("https://paperclip.test/webhook"))
+          .handleWebhook(new Request("https://outpost.test/webhook"))
           .then(
             (response) => response.status,
             (error: Error) => error.message,
@@ -1132,7 +1132,7 @@ describe("Chat SDK endpoint runtime", () => {
       const webhook = await registry
         .handleWebhook(
           "endpoint-1",
-          new Request("https://paperclip.test/webhook"),
+          new Request("https://outpost.test/webhook"),
         )
         .then(
           () => "accepted",
@@ -1371,7 +1371,7 @@ describe("Chat SDK endpoint runtime", () => {
     let responseSettled = false;
     const responsePromise = runtime
       .handleWebhook(
-        new Request("https://paperclip.test/api/chat/webhooks/endpoint-1", {
+        new Request("https://outpost.test/api/chat/webhooks/endpoint-1", {
           method: "POST",
         }),
       )
@@ -1433,7 +1433,7 @@ describe("Chat SDK endpoint runtime", () => {
     let responseSettled = false;
     const responsePromise = runtime
       .handleWebhook(
-        new Request("https://paperclip.test/api/chat/webhooks/endpoint-1", {
+        new Request("https://outpost.test/api/chat/webhooks/endpoint-1", {
           method: "POST",
         }),
         { waitUntil: externalWaitUntil },
@@ -1488,7 +1488,7 @@ describe("Chat SDK endpoint runtime", () => {
     };
 
     const first = await runtime.handleWebhook(
-      new Request("https://paperclip.test/api/chat/webhooks/endpoint-1", {
+      new Request("https://outpost.test/api/chat/webhooks/endpoint-1", {
         method: "POST",
       }),
     );
@@ -1497,7 +1497,7 @@ describe("Chat SDK endpoint runtime", () => {
     expect(await first.text()).toContain("durably accept");
 
     const retried = await runtime.handleWebhook(
-      new Request("https://paperclip.test/api/chat/webhooks/endpoint-1", {
+      new Request("https://outpost.test/api/chat/webhooks/endpoint-1", {
         method: "POST",
       }),
     );
@@ -1546,7 +1546,7 @@ describe("Chat SDK endpoint runtime", () => {
 
     let settled = false;
     const responsePromise = runtime
-      .handleWebhook(new Request("https://paperclip.test/telegram"))
+      .handleWebhook(new Request("https://outpost.test/telegram"))
       .then((response) => {
         settled = true;
         return response;
@@ -1596,7 +1596,7 @@ describe("Chat SDK endpoint runtime", () => {
     };
 
     const response = await runtime.handleWebhook(
-      new Request("https://paperclip.test/telegram", {
+      new Request("https://outpost.test/telegram", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -1641,7 +1641,7 @@ describe("Chat SDK endpoint runtime", () => {
 
     const startedAt = Date.now();
     const response = await runtime.handleWebhook(
-      new Request("https://paperclip.test/telegram"),
+      new Request("https://outpost.test/telegram"),
     );
     expect(response.status).toBe(503);
     expect(response.headers.get("retry-after")).toBe("1");
@@ -1655,7 +1655,7 @@ describe("Chat SDK endpoint runtime", () => {
     await expect(
       registry.handleWebhook(
         "missing",
-        new Request("https://paperclip.test/api/chat/webhooks/missing", {
+        new Request("https://outpost.test/api/chat/webhooks/missing", {
           method: "POST",
         }),
       ),

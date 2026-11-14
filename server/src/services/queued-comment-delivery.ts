@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { heartbeatRunEvents, heartbeatRuns, issueComments, type Db } from "@paperclipai/db";
+import { heartbeatRunEvents, heartbeatRuns, issueComments, type Db } from "@outpost/db";
 
 /** The wake reason an inbound chat message records (see chat inbound wakeups). */
 export const EXTERNAL_CHAT_MESSAGE_WAKE_REASON = "External chat message received";
@@ -54,7 +54,7 @@ function firstTurnDeliveredSql(companyId: string, issueId: string, agentId: stri
   return sql`exists (select 1 from ${heartbeatRuns} first_turn_run
       where first_turn_run.company_id = ${companyId} and first_turn_run.agent_id = ${agentId}
         and (first_turn_run.native_issue_id = ${issueId} or first_turn_run.context_snapshot->>'issueId' = ${issueId})
-        and first_turn_run.context_snapshot->'firstTurnQueuedInput'->>'schema' = 'paperclip.first-turn-queued-input.v1'
+        and first_turn_run.context_snapshot->'firstTurnQueuedInput'->>'schema' = 'outpost.first-turn-queued-input.v1'
         and first_turn_run.context_snapshot->'firstTurnQueuedInput'->>'runId' = first_turn_run.id::text
         and first_turn_run.context_snapshot->'firstTurnQueuedInput'->'commentIds' ? ${issueComments.id}::text
         and (first_turn_run.context_snapshot->'firstTurnQueuedInput'->>'claimedAt')::timestamptz >= date_trunc('milliseconds', ${issueComments.updatedAt})

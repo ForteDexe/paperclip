@@ -27,7 +27,7 @@ import {
 import type {
   IssueQueuedCommentEntry,
   IssueQueuedCommentQueue,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { cn } from "@/lib/utils";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { extractImageRefs, stripStandaloneImageEmbeds } from "./task-chat-attachments";

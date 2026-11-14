@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { AnchorHTMLAttributes, ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Agent, IssueRecoveryAction } from "@paperclipai/shared";
+import type { Agent, IssueRecoveryAction } from "@outpost/shared";
 import { IssueRecoveryActionCard, NativeControllerContainmentRecovery, deriveRecoveryCardState } from "./IssueRecoveryActionCard";
 
 const containmentApi = vi.hoisted(() => ({ resolveRecoveryAction: vi.fn() }));
@@ -1188,7 +1188,7 @@ describe("original-host controller containment in task recovery", () => {
   afterEach(() => client.clear());
   function mount(canManage = true, reason = "controller_process_space_unverified", authority = digest) {
     const action = buildAction({ kind: "active_run_watchdog", ownerType: "board", cause: "native_restart_recovery_blocked",
-      evidence: { runId, reason, controllerAuthority: { schema: "paperclip.native-controller-authority.v1", digest: authority } } });
+      evidence: { runId, reason, controllerAuthority: { schema: "outpost.native-controller-authority.v1", digest: authority } } });
     const issue = { id: "ordinary-task", status: "in_progress" as const, activeRecoveryAction: action };
     const element = <QueryClientProvider client={client}><NativeControllerContainmentRecovery key={authority} issue={issue}
       canManage={canManage} onRecorded={onRecorded} /></QueryClientProvider>;

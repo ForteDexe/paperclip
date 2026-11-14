@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import { listReadyPluginEnvironmentDrivers, pluginSupportsLoginPty } from "../services/plugin-environment-driver.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 
@@ -15,7 +15,7 @@ vi.mock("../services/plugin-registry.js", () => ({
 }));
 
 const PLUGIN_ID = "plugin-capability";
-const PLUGIN_KEY = "paperclip.capability-sandbox-provider";
+const PLUGIN_KEY = "outpost.capability-sandbox-provider";
 
 const manifest: PaperclipPluginManifestV1 = {
   id: PLUGIN_KEY,

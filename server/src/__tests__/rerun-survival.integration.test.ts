@@ -3,11 +3,11 @@ import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { mergePaperclipConfig, paperclipConfigSchema } from "@paperclipai/shared";
+import { mergePaperclipConfig, paperclipConfigSchema } from "@outpost/shared";
 import {
   updateEnvFileContents,
   writeEnvFileAtomicallyIfChanged,
-} from "@paperclipai/shared/env-file";
+} from "@outpost/shared/env-file";
 import { resourceStatus, stockHash } from "../services/managed-resource-drift.js";
 import { agentInstructionsService, resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
 
@@ -49,8 +49,8 @@ afterEach(async () => {
       cleanupDirs.delete(dir);
     }),
   );
-  delete process.env.PAPERCLIP_HOME;
-  delete process.env.PAPERCLIP_INSTANCE_ID;
+  delete process.env.OUTPOST_HOME;
+  delete process.env.OUTPOST_INSTANCE_ID;
 });
 
 const BASE_CONFIG = {
@@ -149,8 +149,8 @@ describe("setup/sync rerun survival — cross-cutting", () => {
 
   it("keeps operator edits and additions when managed instructions reconciliation detects drift", async () => {
     const home = await tmp("pap16587-instr-home-");
-    process.env.PAPERCLIP_HOME = home;
-    process.env.PAPERCLIP_INSTANCE_ID = "test-instance";
+    process.env.OUTPOST_HOME = home;
+    process.env.OUTPOST_INSTANCE_ID = "test-instance";
 
     const svc = agentInstructionsService();
     const agent = { id: "agent-1", companyId: "company-1", name: "Agent 1", adapterConfig: {} };

@@ -68,9 +68,9 @@ export async function privateNotionOAuth(
         secrets.push(item.value);
   await signInPublicFixturePerson(ctx.input.api, ctx.input.page.context());
   const receiptPath = process.env[PUBLIC_ORIGIN_RECEIPT_ENV],
-    attemptId = process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID;
+    attemptId = process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID;
   const executions = JSON.parse(
-    process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "[]",
+    process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]",
   ) as string[];
   if (!receiptPath || !attemptId || executions.length !== 1)
     throw new Error(
@@ -122,13 +122,13 @@ export async function privateNotionOAuth(
   await chmod(directory, 0o700);
   try {
     const request = path.join(directory, "request.json"),
-      channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL;
+      channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
     await writeFile(
       request,
       JSON.stringify({
         ...input,
         executablePath:
-          process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
+          process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
           (channel ? undefined : chromium.executablePath()),
         channel,
       }),

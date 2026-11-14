@@ -16,7 +16,7 @@ import {
   issueThreadInteractions,
   projectWorkspaces,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -237,7 +237,7 @@ describeEmbeddedPostgres("decision training", () => {
       companyId: seeded.companyId,
       projectId: seeded.projectId,
       name: "Primary workspace",
-      repoUrl: "https://github.com/paperclipai/paperclip.git",
+      repoUrl: "https://github.com/paperclipai/outpost.git",
       metadata: { commitSha: "abcdef1234567890" },
       isPrimary: false,
       createdAt: new Date("2026-07-16T11:00:00.000Z"),
@@ -247,7 +247,7 @@ describeEmbeddedPostgres("decision training", () => {
       companyId: seeded.companyId,
       projectId: seeded.projectId,
       name: "Post-cutoff workspace",
-      repoUrl: "https://github.com/paperclipai/paperclip.git",
+      repoUrl: "https://github.com/paperclipai/outpost.git",
       metadata: { commitSha: "ffffffffffffffff" },
       isPrimary: true,
       createdAt: new Date("2026-07-16T11:00:00.000Z"),

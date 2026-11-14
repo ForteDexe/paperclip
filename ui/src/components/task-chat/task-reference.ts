@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { getIssueCoreQueryOptions } from "@/lib/issueDetailCache";
 import { queryKeys } from "@/lib/queryKeys";
 

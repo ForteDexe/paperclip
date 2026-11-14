@@ -63,7 +63,7 @@ function findDesign(): ChatCatalogCase {
     return { project: p, task: t, ownerId, olderTask, olderApprovalComment, originalTasks: [olderTask, t, marketing, hidden], approvedRevision: { id: approvedRevision.latestRevisionId, body: approvedRevision.body },
       approvalComment, draftRevisionId: draft.latestRevisionId, draftBody, privateTask: hidden, privateMarker };
   }, gradeDesignSearch);
-  return { ...base, authentication: "human-session", oracleVersion: "paperclip.chat-catalog.internal.find-design.structural.v1", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-design-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
+  return { ...base, authentication: "human-session", oracleVersion: "outpost.chat-catalog.internal.find-design.structural.v1", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-design-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
     async observe(ctx, state): Promise<DesignObservation> {
       if (!key) throw new Error("Design probe credential was not created during setup");
       const read = async (path: string) => {

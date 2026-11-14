@@ -10,11 +10,11 @@ it("serves a derived runtime-only catalog while preserving shipped roles, permis
   try {
     expect(await teamRuntimeCatalogServerEnvironment({ executionIds: ["unrelated"], temporaryRoot, repositoryRoot })).toEqual({});
     const env = await teamRuntimeCatalogServerEnvironment({ executionIds: ["chat-features.runner-opencode.local.teams.install-team"], temporaryRoot, repositoryRoot });
-    expect(env.PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE).toBe("paperclip_runner");
+    expect(env.OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE).toBe("outpost_runner");
     const original = JSON.parse(await readFile(path.join(repositoryRoot, "packages/teams-catalog/generated/catalog.json"), "utf8"));
     const team = original.teams.find((row: { slug: string }) => row.slug === "product-engineering");
     const adapterConfig = { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", timeoutSec: 0, lifecycleMode: "per_turn", opencodePermissionMode: "allow", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "test-account", version: "latest" } } };
-    const adapters = Object.fromEntries(team.agentSlugs.map((slug: string) => [slug, { adapterType: "paperclip_runner", adapterConfig }]));
+    const adapters = Object.fromEntries(team.agentSlugs.map((slug: string) => [slug, { adapterType: "outpost_runner", adapterConfig }]));
     const result = await normalizeTeamRuntimeCatalog({ repositoryRoot, temporaryRoot, team, adapters });
     expect(result.originalContentHash).toBe(team.contentHash);
     expect(result.effectiveContentHash).not.toBe(team.contentHash);
@@ -22,11 +22,11 @@ it("serves a derived runtime-only catalog while preserving shipped roles, permis
     expect(result.effectivePackage).toEqual({ ...result.originalPackage, contentHash: result.effectiveContentHash });
     expect(result.nonRuntimeFilesUnchanged).toBe(true);
     expect(result.nonRuntimeSidecarFieldsUnchanged).toBe(true);
-    const sidecar = YAML.parse(await readFile(path.join(teamRuntimeCatalogRoot(temporaryRoot), team.path, ".paperclip.yaml"), "utf8"));
+    const sidecar = YAML.parse(await readFile(path.join(teamRuntimeCatalogRoot(temporaryRoot), team.path, ".outpost.yaml"), "utf8"));
     expect(sidecar.agents.cto.permissions).toEqual({ canCreateAgents: true });
-    for (const slug of team.agentSlugs) expect(sidecar.agents[slug].adapter).toEqual({ type: "paperclip_runner", config: adapterConfig });
+    for (const slug of team.agentSlugs) expect(sidecar.agents[slug].adapter).toEqual({ type: "outpost_runner", config: adapterConfig });
     expect(result.team.requiredSkills).toEqual(team.requiredSkills);
-    const sidecarPath = path.join(teamRuntimeCatalogRoot(temporaryRoot), team.path, ".paperclip.yaml");
+    const sidecarPath = path.join(teamRuntimeCatalogRoot(temporaryRoot), team.path, ".outpost.yaml");
     const beforeBootstrap = await readFile(sidecarPath);
     await expect(teamRuntimeCatalogServerEnvironment({ executionIds: ["chat-features.runner-opencode.local.teams.install-team"], temporaryRoot, repositoryRoot })).rejects.toThrow();
     expect((await readFile(sidecarPath)).equals(beforeBootstrap)).toBe(true);

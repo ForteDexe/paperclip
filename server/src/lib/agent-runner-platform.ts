@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { paperclipRunnerSupportsPlatform } from "@paperclipai/shared";
+import { paperclipRunnerSupportsPlatform } from "@outpost/shared";
 
 type LocalRunnerTarget = {
   driver: "local";

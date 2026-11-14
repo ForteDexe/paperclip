@@ -22,15 +22,15 @@ function createPayload(payloadPath: string, version: string): string {
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-update-"));
   previousHome = process.env.HOME;
-  previousPaperclipHome = process.env.PAPERCLIP_HOME;
+  previousPaperclipHome = process.env.OUTPOST_HOME;
   process.env.HOME = path.join(root, "home");
-  process.env.PAPERCLIP_HOME = path.join(root, "paperclip");
+  process.env.OUTPOST_HOME = path.join(root, "paperclip");
 });
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   if (previousHome === undefined) delete process.env.HOME; else process.env.HOME = previousHome;
-  if (previousPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousPaperclipHome;
+  if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousPaperclipHome;
   fs.rmSync(root, { recursive: true, force: true });
   process.exitCode = undefined;
 });

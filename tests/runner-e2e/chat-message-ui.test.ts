@@ -2,8 +2,8 @@ import { expect, it } from "vitest";
 import { chromium } from "@playwright/test";
 import { sendChatMessage } from "./chat-flow.js";
 
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_MESSAGE_CANARY !== "1")("sends ordinary chat without dismissing a current form on desktop and mobile", async () => {
-  const browser = await chromium.launch({ headless: true, ...(process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE } : {}) });
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_MESSAGE_CANARY !== "1")("sends ordinary chat without dismissing a current form on desktop and mobile", async () => {
+  const browser = await chromium.launch({ headless: true, ...(process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ? { executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE } : {}) });
   try {
     for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
       const page = await browser.newPage({ viewport });

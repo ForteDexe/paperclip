@@ -28,8 +28,8 @@ export async function createPreviewFixture(ctx: ChatCatalogContext) {
   const sdkUrl = new URL("../../../packages/plugins/sdk/dist/index.js", import.meta.url).href;
   try {
     const mirror = await mirrorPreviewSdk(fileURLToPath(new URL("../../../packages/plugins/sdk/", import.meta.url)), temporary);
-    await promisify(execFile)(process.execPath, ["--import", loader, cli, "plugin", "init", "@paperclip-eval/website-preview", "--output", temporary, "--display-name", "Website Preview Eval", "--sdk-path", mirror.sdkPath], { cwd: temporary, timeout: 30_000, maxBuffer: 256_000, env: { HOME: temporary, PATH: process.env.PATH ?? "", NODE_ENV: "test", DO_NOT_TRACK: "1", PAPERCLIP_TELEMETRY_DISABLED: "1" } });
-    const key = `paperclip.eval-preview-${ctx.input.nonce.replace(/[^a-z0-9]/gi, "").toLowerCase()}`;
+    await promisify(execFile)(process.execPath, ["--import", loader, cli, "plugin", "init", "@paperclip-eval/website-preview", "--output", temporary, "--display-name", "Website Preview Eval", "--sdk-path", mirror.sdkPath], { cwd: temporary, timeout: 30_000, maxBuffer: 256_000, env: { HOME: temporary, PATH: process.env.PATH ?? "", NODE_ENV: "test", DO_NOT_TRACK: "1", OUTPOST_TELEMETRY_DISABLED: "1" } });
+    const key = `outpost.eval-preview-${ctx.input.nonce.replace(/[^a-z0-9]/gi, "").toLowerCase()}`;
     const manifest = previewFixtureManifest(key);
     const marker = `Synthetic website preview ${ctx.input.nonce}`;
     const manifestSource = `export default ${JSON.stringify(manifest)};\n`;

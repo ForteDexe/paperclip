@@ -1,4 +1,4 @@
-import type { Issue, IssueBlockerStalledWakeContext } from "@paperclipai/shared";
+import type { Issue, IssueBlockerStalledWakeContext } from "@outpost/shared";
 import { useQueries } from "@tanstack/react-query";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Link } from "@/lib/router";

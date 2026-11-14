@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { chatActions, chatEndpoints, toolConnections, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, toolConnections, type Db } from "@outpost/db";
 import type { VerifiedIdleCapabilities } from "../../idle-incoming-wake-capability.js";
 import { parseSlackFormBinding, parseSlackFormPublicEnrollment, slackFormSetupRecord, sameSlackFormBinding } from "./cloud-forms.js";
 import { matchSlackConfiguredCoverage, type SlackConfiguredRequirement } from "./configured-coverage.js";

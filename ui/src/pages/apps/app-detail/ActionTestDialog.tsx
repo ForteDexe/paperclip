@@ -19,8 +19,8 @@ import type {
   ToolConnectionTestCallStatus,
   ToolConnectionTestDecision,
   ToolUpstreamPending,
-} from "@paperclipai/shared";
-import { checkOAuthEndpointUrl } from "@paperclipai/shared";
+} from "@outpost/shared";
+import { checkOAuthEndpointUrl } from "@outpost/shared";
 import { Link } from "@/lib/router";
 import { describeError } from "@/api/errors";
 import { toolsApi } from "@/api/tools";

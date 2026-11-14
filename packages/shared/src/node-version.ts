@@ -1,7 +1,7 @@
 export const MINIMUM_NODE_VERSION = "24.11.0";
 export const NODE_VERSION_INSTALL_GUIDE_URL =
   "https://github.com/paperclipai/paperclip/blob/master/doc/INSTALLING.md#recommended-install";
-const NODE_VERSION_WARNING_EMITTED = Symbol.for("@paperclipai/node-version-warning-emitted");
+const NODE_VERSION_WARNING_EMITTED = Symbol.for("@outpost/node-version-warning-emitted");
 
 function parseVersion(version: string): [number, number, number] | null {
   const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
@@ -25,7 +25,7 @@ export function formatNodeVersionWarning(version: string): string | null {
   if (isSupportedNodeVersion(version)) return null;
   const currentVersion = version.trim() || "unknown";
   return [
-    `[paperclip] warning: Node.js ${currentVersion} is unsupported. Outpost requires Node.js ${MINIMUM_NODE_VERSION} or newer.`,
+    `[outpost] warning: Node.js ${currentVersion} is unsupported. Outpost requires Node.js ${MINIMUM_NODE_VERSION} or newer.`,
     `Running executable: ${process.execPath}`,
     "Upgrade Node.js with your version manager, or follow the recommended downloaded install.sh workflow:",
     `  ${NODE_VERSION_INSTALL_GUIDE_URL}`,

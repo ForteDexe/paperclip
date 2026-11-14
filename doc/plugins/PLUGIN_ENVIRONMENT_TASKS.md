@@ -16,7 +16,7 @@ Implement `onEnvironmentTask` with the SDK types:
 import type {
   PluginEnvironmentTaskParams,
   PluginEnvironmentTaskResult,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 
 type TaskHook = (
   params: PluginEnvironmentTaskParams,
@@ -64,7 +64,7 @@ Each result must contain the task ID from the request. Core rejects a result
 with a different ID or result kind. A WSS URL must have no user information,
 query, or fragment. Return authentication in the secret headers.
 
-`submit` contains the PRP version range, Runner identity, bootstrap ticket,
+`submit` contains the ORP version range, Runner identity, bootstrap ticket,
 authorized project IDs, and optional launch limits. It can also contain a saved
 task ID for session reuse and a typed Codex or Claude credential. Core does not
 supply an executable command or a guest path.
@@ -181,7 +181,7 @@ error data.
 | `runner_revision_mismatch` | The installed Runner does not match the revision that the plugin launches. Throw it from `describe` or `submit` before you prepare or start a task. | A run that has not started provider work is retried for up to 10 minutes. Agent verification checks again every minute. The task is not blocked during this wait. |
 
 ```ts
-import { PluginEnvironmentTaskError } from "@paperclipai/plugin-sdk";
+import { PluginEnvironmentTaskError } from "@outpost/plugin-sdk";
 
 if (installed.revision !== expectedRevision) {
   throw new PluginEnvironmentTaskError("runner_revision_mismatch");
@@ -201,7 +201,7 @@ choices. Resource paths identify source locations. The plugin must resolve them
 for its execution environment.
 
 The result contains a configuration ID, requirements digest, and provider
-descriptor. The schema is `paperclip.runner.launch-requirements.v1`.
+descriptor. The schema is `outpost.runner.launch-requirements.v1`.
 The digest is SHA-256 over the requirements JSON. Sort object keys in lexical
 order at every level. Keep array order. Omit absent optional fields.
 The execution owner must preserve Core policy and resource assignments.
@@ -246,7 +246,7 @@ Preparation must save this source binding with its new configuration. Submission
 must verify the same binding before it starts the source process.
 
 Core requires the source run to have a committed successful result, an encrypted
-PRP journal, confirmed physical termination, and no other source consumer. Core
+ORP journal, confirmed physical termination, and no other source consumer. Core
 claims the source under the current native controller lease. This does not change
 the source run's status or result. A stale source controller cannot write its
 journal after this claim. Workspace export and settlement holds still apply.
@@ -314,7 +314,7 @@ and an operation. It derives the plugin and driver from the lease. A change to
 the environment configuration cannot redirect cleanup to a new provider.
 
 Before preparation or submission, Core checks the active lease, run, issue, and every project
-in the company. It checks the submitting run ID separately from a retained PRP
+in the company. It checks the submitting run ID separately from a retained ORP
 identity. Session reuse requires the same agent, environment, workspace, and
 provider. Checkpoint resumption also requires a retained source task and proof of termination.
 Opt-in Codex warm reuse instead hands off the same retained process through an

@@ -14,7 +14,7 @@ afterEach(async () => { await Promise.all(temporary.splice(0).map(root => rm(roo
 const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBv0AAAAASUVORK5CYII=", "base64");
 function fixture(): RunnerE2EResult {
   const cell = runnerMatrix.find(row => row.id === "github-review-journey.configured-agent.local.setup-and-first-review")!;
-  return { schema: "paperclip.runner-e2e.result/v2", executionId: cell.id, suiteId: cell.suite.id, suiteDefinitionHash: cell.suiteDefinitionHash,
+  return { schema: "outpost.runner-e2e.result/v2", executionId: cell.id, suiteId: cell.suite.id, suiteDefinitionHash: cell.suiteDefinitionHash,
     profileId: cell.profile.id, environmentId: "local", caseId: cell.task.id, provider: "opencode", model: "configured-model", runtimeMode: "native",
     attempt: 1, status: "failed", error: "native_session_interrupted", cleanup: "passed", durationMs: 1000,
     startedAt: "2026-10-24T00:00:00Z", finishedAt: "2026-10-24T00:00:01Z",

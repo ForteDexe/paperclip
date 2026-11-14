@@ -19,7 +19,7 @@ There are two distinct things people loosely call "the skills store":
 
 | Layer | What it is | Lives in |
 |---|---|---|
-| **The catalog** | A curated, read-only set of skills that ships with Paperclip | The `@paperclipai/skills-catalog` package |
+| **The catalog** | A curated, read-only set of skills that ships with Paperclip | The `@outpost/skills-catalog` package |
 | **Your company library** | The skills actually installed in *your* company, which agents can run | The `company_skills` database table |
 
 The catalog is the shelf you browse. Your company library is the cart you've checked
@@ -185,7 +185,7 @@ repository. Source-access or download failures retain
 all previously installed versions. Changes to shared files create a new version
 for each selected entrypoint; pinned versions retain their original repository.
 
-Authors can optionally add `paperclip.skills.json` at the repository root:
+Authors can optionally add `outpost.skills.json` at the repository root:
 
 ```json
 {
@@ -429,7 +429,7 @@ in the company activity log.
 
 ## Reference: the catalog package
 
-The catalog is its own publishable package, `@paperclipai/skills-catalog`:
+The catalog is its own publishable package, `@outpost/skills-catalog`:
 
 - `catalog/bundled/**` and `catalog/optional/**` — the source skill directories
 - `scripts/build-catalog-manifest.ts` — compiles the directories into `generated/catalog.json`

@@ -6,7 +6,7 @@ import {
   heartbeatRuns,
   agentIdentityKeys,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   S3Client,
@@ -22,7 +22,7 @@ import { recoverSettledNativeRunLog, readRecoverableRunLog } from "./native-run-
 import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { createNativeRunLogTestTables } from "../../__tests__/helpers/native-run-log-database.js";
-import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import type { StorageProvider } from "../../storage/types.js";
 import { appendNativeCredentialUpdate } from "./native-credential-updates.js";
 import { appendRetainedNativeCleanupEvent } from "./native-session-executor.js";
@@ -33,8 +33,8 @@ import { createHeartbeatRunOutput } from "../heartbeat/run-output.js";
 import { createAgentIdentityRedactor } from "../agent-identity-redaction.js";
 import { ObjectJournalConflictError } from "../object-byte-journal.js";
 
-const url = resolveExternalTestDatabaseUrl("PAPERCLIP_RUN_EVIDENCE_MIGRATION_DATABASE_URL");
-const endpoint = process.env.PAPERCLIP_LOG_TEST_S3_ENDPOINT;
+const url = resolveExternalTestDatabaseUrl("OUTPOST_RUN_EVIDENCE_MIGRATION_DATABASE_URL");
+const endpoint = process.env.OUTPOST_LOG_TEST_S3_ENDPOINT;
 describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
   const schema = `native_log_${randomUUID().replaceAll("-", "")}`,
     bucket = `pc-native-log-${randomUUID()}`;
@@ -104,7 +104,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     const begin = { companyId: binding.companyId, agentId: binding.agentId, runId: binding.runId };
     const port = new PaperclipControlPlanePort(db, binding);
     const event = (seq: number): PrpEvent => ({
-      schema: "paperclip.prp.event.v1",
+      schema: "outpost.orp.event.v1",
       schemaVersion: 1,
       sourceInstanceId: binding.sourceInstanceId,
       sourceEventId: `${binding.sourceInstanceId}:${seq}`,
@@ -241,12 +241,12 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     await f.port.appendEvent(f.event(1));
     const credential = (sourceSeq: number): PrpEvent => ({
       ...f.event(sourceSeq),
-      schema: "paperclip.prp.event.v3",
+      schema: "outpost.orp.event.v3",
       schemaVersion: 3,
       priority: 0,
       eventType: "auth.credentials.updated",
       payload: {
-        schema: "paperclip.auth.credentials.updated.v1",
+        schema: "outpost.auth.credentials.updated.v1",
         provider: "codex",
         bindingId: "test-auth",
         revision: 1,
@@ -365,7 +365,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     expect((await b.read(h)).content.trim().split("\n")).toHaveLength(1);
   });
   it("redacts the existing agent identity and registered secrets before publishing recovered native output", async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "e".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "e".repeat(64));
     const f = await fixture();
     const keys = generateKeyPairSync("ed25519"),
       privateKeyPem = keys.privateKey.export({ type: "pkcs8", format: "pem" }).toString();

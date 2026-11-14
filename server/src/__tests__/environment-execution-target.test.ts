@@ -12,7 +12,7 @@ import {
   measureStartupStep,
   runWithoutActiveStep,
   SANDBOX_STARTUP_SPAN_ATTRS,
-} from "@paperclipai/adapter-utils/acpx-engine/startup-timing";
+} from "@outpost/adapter-utils/acpx-engine/startup-timing";
 import {
   DEFAULT_SANDBOX_REMOTE_CWD,
   resolveEnvironmentExecutionTarget,
@@ -100,13 +100,13 @@ function recordParentContext() {
 describe("resolveEnvironmentExecutionTarget", () => {
   beforeEach(() => {
     mockResolveEnvironmentDriverConfigForRuntime.mockReset();
-    delete process.env.PAPERCLIP_API_URL;
-    delete process.env.PAPERCLIP_RUNTIME_API_URL;
+    delete process.env.OUTPOST_API_URL;
+    delete process.env.OUTPOST_RUNTIME_API_URL;
   });
 
   it("forwards the physical task binding through the plugin task target", async () => {
     const task = vi.fn(async () => ({ kind: "accepted" as const, taskId: "physical-task" }));
-    const target = await resolveEnvironmentExecutionTarget({ db: {} as never, companyId: "company", adapterType: "paperclip_runner",
+    const target = await resolveEnvironmentExecutionTarget({ db: {} as never, companyId: "company", adapterType: "outpost_runner",
       environment: { id: "environment", driver: "plugin", config: {} }, leaseMetadata: {},
       lease: { id: "lease", companyId: "company", environmentId: "environment", providerLeaseId: "physical-task", metadata: {} } as never,
       environmentRuntime: { supportsTasks: async () => true, task } as never });
@@ -176,7 +176,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
       },
       leaseId: "lease-1",
       leaseMetadata: {
-        paperclipApiUrl: "https://paperclip.example.test",
+        paperclipApiUrl: "https://outpost.example.test",
       },
       lease: null,
       environmentRuntime: null,

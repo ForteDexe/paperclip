@@ -5,9 +5,9 @@ const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
 const origin: BootstrapReadNotice = { runId: "run", sessionId: "session", turnId: "turn", toolCallId: "tested", stage: "tool", operation: "execute", status: "pending", seq: 20 };
 function read(status = "completed", seq = 1): BootstrapReadNotice { return { ...origin, toolCallId: "bootstrap", operation: "read", readTargetSha256: `sha256:${createHash("sha256").update(actionFile).digest("hex")}`, status, seq }; }
 function receipt(type = "completed", status = "completed", seq = 2) {
-  return { runId: "run", seq, protocolSchemaVersion: 1, eventType: `tool.execution.${type}`, payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: `tool.execution.${type}`, emittedAt: new Date(seq).toISOString(),
-    payload: { schema: "paperclip.tool.execution.v1", executionId: "bootstrap", transport: "builtin", operation: "read", target: actionFile, status },
+  return { runId: "run", seq, protocolSchemaVersion: 1, eventType: `tool.execution.${type}`, payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: `tool.execution.${type}`, emittedAt: new Date(seq).toISOString(),
+    payload: { schema: "outpost.tool.execution.v1", executionId: "bootstrap", transport: "builtin", operation: "read", target: actionFile, status },
   } } };
 }
 it.each(["completed", "failed"])("accepts an exact %s read even when the first native event is terminal", status => {
@@ -21,7 +21,7 @@ it("accepts a complete started/progressed/failed lifecycle, including failed unp
 it.each([
   "wrong-target", "missing-target", "foreign-run", "foreign-turn", "foreign-row-run", "wrong-source", "wrong-schema", "wrong-payload", "wrong-transport", "wrong-operation", "wrong-event-type", "invalid-date", "duplicate-row", "duplicate-seq", "conflicting-target", "missing-row", "missing-terminal", "late-row", "unknown-read-origin",
 ])("rejects %s durable proof", variant => {
-  const row = receipt(), rows = [row]; const notices = [read(), origin]; const event = row.payload.prpEvent;
+  const row = receipt(), rows = [row]; const notices = [read(), origin]; const event = row.payload.orpEvent;
   if (variant === "wrong-target") event.payload.target = "private.txt";
   if (variant === "missing-target") delete (event.payload as any).target;
   if (variant === "foreign-run") event.runId = "other";
@@ -36,7 +36,7 @@ it.each([
   if (variant === "invalid-date") event.emittedAt = "unknown";
   if (variant === "duplicate-row") rows.push(structuredClone(row));
   if (variant === "duplicate-seq") row.seq = 1;
-  if (variant === "conflicting-target") { const other = receipt("completed", "completed", 3); other.payload.prpEvent.payload.target = "foreign.txt"; rows.push(other); }
+  if (variant === "conflicting-target") { const other = receipt("completed", "completed", 3); other.payload.orpEvent.payload.target = "foreign.txt"; rows.push(other); }
   if (variant === "missing-row") rows.length = 0;
   if (variant === "missing-terminal") { rows[0] = receipt("started", "running"); notices[0] = read("pending"); }
   if (variant === "late-row") row.seq = 21;
@@ -45,8 +45,8 @@ it.each([
 });
 it("does not exempt unrelated earlier reads or infer a path from a title", () => {
   const unrelated = { ...read(), toolCallId: "private-read", seq: 3 };
-  const wrong = receipt("completed", "completed", 4); wrong.payload.prpEvent.payload.executionId = "private-read"; wrong.payload.prpEvent.payload.target = "secrets.txt";
-  Object.assign(wrong.payload.prpEvent.payload, { name: `Read ${actionFile}` });
+  const wrong = receipt("completed", "completed", 4); wrong.payload.orpEvent.payload.executionId = "private-read"; wrong.payload.orpEvent.payload.target = "secrets.txt";
+  Object.assign(wrong.payload.orpEvent.payload, { name: `Read ${actionFile}` });
   expect(() => withoutProvenBootstrapReads([read(), unrelated, origin], origin, { actionFile, events: [receipt(), wrong] })).toThrow();
   expect(withoutProvenBootstrapReads([read(), unrelated, origin], origin)).toHaveLength(3);
 });
@@ -72,7 +72,7 @@ it("mirrors stable ASCII bounds and rejects invalid native identities", () => {
 
 it("accepts omitted terminal path/kind only with the retained single-path origin attestation", () => {
   const started = receipt("started", "running", 2), completed = receipt("completed", "failed", 4);
-  Object.assign(completed.payload.prpEvent.payload, { target: null, operation: "unknown" });
+  Object.assign(completed.payload.orpEvent.payload, { target: null, operation: "unknown" });
   const notices = [read("pending", 1), read("failed", 3), origin], proof = { actionFile, events: [started, completed] };
   expect(withoutProvenBootstrapReads(notices, origin, proof)).toEqual([origin]);
   for (const digest of [undefined, `sha256:${"0".repeat(64)}`]) {
@@ -82,8 +82,8 @@ it("accepts omitted terminal path/kind only with the retained single-path origin
 });
 
 it.each(["cursor", "copilot"] as const)("correlates actual %s passive notices through the public reader and canonical omitted-field updates", async provider => {
-  const { createCursorToolEvidence } = await import("../../packages/paperclip-runner/src/drivers/acpx/cursor-tool-evidence.js");
-  const { createCopilotToolEvidence } = await import("../../packages/paperclip-runner/src/drivers/acpx/copilot-tool-evidence.js");
+  const { createCursorToolEvidence } = await import("../../packages/outpost-runner/src/drivers/acpx/cursor-tool-evidence.js");
+  const { createCopilotToolEvidence } = await import("../../packages/outpost-runner/src/drivers/acpx/copilot-tool-evidence.js");
   const { readCursorToolEvidence } = await import("./cursor-native-evidence.js");
   const { readCopilotToolEvidence } = await import("./copilot-evidence.js");
   const create = provider === "cursor" ? createCursorToolEvidence : createCopilotToolEvidence;
@@ -91,8 +91,8 @@ it.each(["cursor", "copilot"] as const)("correlates actual %s passive notices th
   for (const variant of ["exact", "wrong-path", "multi-path", "ambiguous-update"]) {
     const rows: any[] = [];
     const projector = create({ sessionId: "session", turnId: "turn", workingDirectory: "/workspace", active: () => true,
-      emit: event => rows.push({ runId: "run", seq: rows.length * 2 + 1, protocolSchemaVersion: 1, eventType: event.eventType, payload: { prpEvent: {
-        schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", emittedAt: new Date(1).toISOString(), eventType: event.eventType, payload: event.payload,
+      emit: event => rows.push({ runId: "run", seq: rows.length * 2 + 1, protocolSchemaVersion: 1, eventType: event.eventType, payload: { orpEvent: {
+        schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", emittedAt: new Date(1).toISOString(), eventType: event.eventType, payload: event.payload,
       } } }),
     });
     const path = variant === "wrong-path" ? "private.txt" : actionFile;
@@ -101,7 +101,7 @@ it.each(["cursor", "copilot"] as const)("correlates actual %s passive notices th
     const evaluate = () => {
       const readNotices = readEvidence(rows, "run");
       const started = receipt("started", "running", 2), end = receipt("completed", "failed", 4);
-      Object.assign(end.payload.prpEvent.payload, { target: null, operation: "unknown" });
+      Object.assign(end.payload.orpEvent.payload, { target: null, operation: "unknown" });
       return withoutProvenBootstrapReads([...readNotices, origin], origin, { actionFile, events: [...rows, started, end] });
     };
     if (variant === "exact") expect(evaluate()).toEqual([origin]); else expect(evaluate).toThrow();
@@ -110,18 +110,18 @@ it.each(["cursor", "copilot"] as const)("correlates actual %s passive notices th
 
 it("accepts bounded correlated progress for status-omitting native content updates", () => {
   const notices = [read("pending", 1), read("completed", 5), origin];
-  const progressed = receipt("progressed", "running", 3); Object.assign(progressed.payload.prpEvent.payload, { target: null, operation: "unknown" });
+  const progressed = receipt("progressed", "running", 3); Object.assign(progressed.payload.orpEvent.payload, { target: null, operation: "unknown" });
   const events = [receipt("started", "running", 2), progressed, receipt("completed", "completed", 6)];
   expect(withoutProvenBootstrapReads(notices, origin, { actionFile, events })).toEqual([origin]);
-  progressed.payload.prpEvent.payload.target = "other.txt";
+  progressed.payload.orpEvent.payload.target = "other.txt";
   expect(() => withoutProvenBootstrapReads(notices, origin, { actionFile, events })).toThrow();
 });
 
 it("requires the exact short Copilot setup path and rejects a miscopied path", () => {
   const shortPath = ".paperclip-eval-action-4c0217d3b2bb.txt";
   const notice = { ...read(), readTargetSha256: `sha256:${createHash("sha256").update(shortPath).digest("hex")}` };
-  const row = receipt(); row.payload.prpEvent.payload.target = shortPath;
+  const row = receipt(); row.payload.orpEvent.payload.target = shortPath;
   expect(withoutProvenBootstrapReads([notice, origin], origin, { actionFile: shortPath, events: [row] })).toEqual([origin]);
-  row.payload.prpEvent.payload.target = shortPath.replace("d3", "");
+  row.payload.orpEvent.payload.target = shortPath.replace("d3", "");
   expect(() => withoutProvenBootstrapReads([notice, origin], origin, { actionFile: shortPath, events: [row] })).toThrow(/proof/);
 });

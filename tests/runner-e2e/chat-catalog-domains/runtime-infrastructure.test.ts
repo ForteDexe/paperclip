@@ -4,7 +4,7 @@ import { savedCall } from "./api-read-receipts.test-fixtures.js";
 function valid(id = "recovery.explain-stall") {
   const recovery = { id: "recovery", companyId: "company", sourceIssueId: "website", kind: "active_run_watchdog", cause: "native_session_retry_exhausted", ownerType: "board", ownerAgentId: null,
     returnOwnerAgentId: "morgan", recoveryIssueId: null, evidence: { runId: "run", coordinatorAttempt: 3, recoveryDisposition: "native_session_retry_exhausted" }, maxAttempts: 3, wakePolicy: null, nextAction: "Inspect the provider trace and explicitly choose a replacement run or provider configuration; automatic provider work is stopped." };
-  return { scenarioId: id, origin: "http://paperclip.test", companyId: "company", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
+  return { scenarioId: id, origin: "http://outpost.test", companyId: "company", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
     runs: [{ id: "run", agentId: "morgan", status: "failed" }, { id: "source", agentId: "ceo", status: "succeeded" }],
     state: { task: { id: "website", identifier: "COM-2" }, queryRecoveryRead: true, worker: { id: "morgan" }, failure: { id: "run", status: "failed", nativePhase: "terminal_failure" }, recoveryBefore: recovery, recoveryAfter: { ...recovery },
       setupFaults: [1, 2, 3].map(pid => ({ runId: "run", pid, errorCode: "native_runner_process_exited" })), sourceRecoveryVisible: true,
@@ -31,7 +31,7 @@ it("accepts a genuine call_api recovery read after the port redacts its body, bo
   expect(readSourceRecoveryRecord(read("GET /api/issues/{id}/recovery-actions", { id: "website" }, 403), "website", "run", "COM-1")).toBe(false);
 });
 it("reads the recovery record only from exact product tool output", () => {
-  const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { prpEvent: { sourceKind: "runner", payload: { status, output } } } });
+  const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { status, output } } } });
   const actions = '{"apiOperationId":"GET /api/issues/{id}/recovery-actions","body":{"active":{"sourceIssueId":"website"}}}';
   const run = '{\\"apiOperationId\\": \\"GET /api/heartbeat-runs/{runId}\\", \\"id\\": \\"run\\"}';
   expect(readSourceRecoveryRecord([event(actions)], "website", "run")).toBe(true);

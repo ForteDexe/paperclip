@@ -9,7 +9,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations,
-  nativeRunResults, issueRecoveryActions, workspaceOperations, type Db } from "@paperclipai/db";
+  nativeRunResults, issueRecoveryActions, workspaceOperations, type Db } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { issueService } from "../services/issues.js";
 import { nativeWorkspaceFinalizationWork } from "../services/native-runtime/native-workspace-finalization-work.js";
@@ -23,7 +23,7 @@ import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
 import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/paperclip-runner/testing.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
@@ -41,11 +41,11 @@ describe("workspace finalization scheduled lifecycle", () => {
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), "workspace-finalization-work-"));
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = join(root, "logs");
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_WORKSPACE_FINALIZATION_WORK_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_FINALIZATION_WORK_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("workspace-finalization-work-");
     db = createDb(external ?? temporary!.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Workspace finalization", issuePrefix: `WF${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Workspace worker", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Workspace worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0; settled.mockClear();
@@ -86,7 +86,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
     await db.insert(issues).values({ id: issueId, companyId, title: "Preserve completed work", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "workspace-worker-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "workspace-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "workspace-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
@@ -135,8 +135,8 @@ describe("workspace finalization scheduled lifecycle", () => {
   });
   it.each(["restore", "worktree"])("honors %s suppression through the public heartbeat registration", async mode => {
     const binding = await seed(); await complete(binding);
-    const runtimeEnv = mode === "restore" ? { PAPERCLIP_DATABASE_RESTORE_IN_PROGRESS: "true" }
-      : { PAPERCLIP_IN_WORKTREE: "true", PAPERCLIP_INSTANCE_ID: "workspace-suppression-test" };
+    const runtimeEnv = mode === "restore" ? { OUTPOST_DATABASE_RESTORE_IN_PROGRESS: "true" }
+      : { OUTPOST_IN_WORKTREE: "true", OUTPOST_INSTANCE_ID: "workspace-suppression-test" };
     const settings = instanceSettingsService(db, { runtimeEnv });
     if (mode === "worktree") await settings.updateExperimental({ enableWorktreeRunExecution: false });
     const heartbeat = heartbeatService(db, { runtimeEnv });

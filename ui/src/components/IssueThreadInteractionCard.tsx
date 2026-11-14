@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@outpost/shared";
 import { AlertTriangle, ArrowUpRight, Bot, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDashed, Clock, ExternalLink, FileText, GitBranch, ImagePlus, KeyRound, Loader2, MessageSquareQuote, MinusCircle, ShieldAlert, ThumbsUp, TriangleAlert, Wrench, X, XCircle } from "lucide-react";
 import { Link } from "@/lib/router";
 import { appTabHref } from "@/pages/apps/app-tabs";
@@ -1238,7 +1238,7 @@ function AskUserQuestionsCard({
           draftKey={`issue-question:${interaction.companyId}:${interaction.id}`}
           disabled={!onSubmitInteractionAnswers}
           initialResponse={interaction.result?.answers ? {
-            schema: "paperclip.question_response.v1",
+            schema: "outpost.question_response.v1",
             answers: Object.fromEntries(interaction.result.answers.map((answer) => [
               answer.questionId,
               interaction.payload.questionSet!.questions.find((question) => question.id === answer.questionId)?.answerMode === "text"

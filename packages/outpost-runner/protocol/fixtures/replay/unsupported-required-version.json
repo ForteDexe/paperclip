@@ -1,0 +1,13 @@
+{
+  "schema": "outpost.orp.fixture.v1", "fixtureVersion": 1, "protocolVersion": 4,
+  "name": "Unsupported required version", "description": "A fixture that requires ORP v4 must fail closed in a ORP v3 consumer.",
+  "identity": { "schema": "outpost.orp.identity.v1", "companyId": "company_replay", "issueId": "issue_replay_v2", "runId": "run_replay_v2", "environmentLeaseId": "lease_replay_v2", "runnerInstanceId": "runner_replay", "normalizedSessionId": "session_replay_v2", "driverSessionId": "driver_replay_v2" },
+  "capabilities": { "schema": "outpost.orp.capabilities.v1", "sessionReusePolicy": "new_per_run", "driver": { "kind": "future", "version": "2.0.0" }, "steer": true, "interrupt": true, "resume": true, "runtimeRequests": true, "structuredResult": true, "typedEvents": true },
+  "commands": [{ "schema": "outpost.orp.command.v1", "commandId": "command_v2_prepare", "controllerSeq": 1, "type": "run.prepare", "issuedAt": "2026-08-07T13:00:00.000Z", "payload": {} }],
+  "events": [
+    { "schema": "outpost.orp.event.v1", "sourceEventId": "event_v2_01", "sourceSeq": 1, "sourceInstanceId": "runner_replay", "sourceKind": "runner", "runId": "run_replay_v2", "normalizedSessionId": "session_replay_v2", "eventType": "run.result.proposed", "schemaVersion": 1, "priority": 0, "emittedAt": "2026-08-07T13:00:00.010Z", "payload": { "schema": "outpost.run_result.v1", "reportedWorkDisposition": "done", "summary": "This result requires ORP v2.", "completionClaim": { "contractRevision": "replay-contract-v2", "objectiveSatisfied": true, "criteria": [], "remainingWork": [] }, "evidence": [], "verification": [], "attentionRequests": [], "artifacts": [] } },
+    { "schema": "outpost.orp.event.v1", "sourceEventId": "event_v2_02", "sourceSeq": 2, "sourceInstanceId": "runner_replay", "sourceKind": "runner", "runId": "run_replay_v2", "normalizedSessionId": "session_replay_v2", "eventType": "run.terminal", "schemaVersion": 1, "priority": 0, "emittedAt": "2026-08-07T13:00:00.020Z", "payload": { "schema": "outpost.orp.terminal.v1", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "done" } }
+  ],
+  "requests": [],
+  "result": { "schema": "outpost.run_result.v1", "reportedWorkDisposition": "done", "summary": "This result requires ORP v2.", "completionClaim": { "contractRevision": "replay-contract-v2", "objectiveSatisfied": true, "criteria": [], "remainingWork": [] }, "evidence": [], "verification": [], "attentionRequests": [], "artifacts": [] }
+}

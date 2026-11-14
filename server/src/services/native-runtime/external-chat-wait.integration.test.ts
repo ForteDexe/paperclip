@@ -48,12 +48,12 @@ import {
   toolOauthStates,
   chatVoiceSessions, chatVoiceReplies, chatVoiceToolCalls,
   workspaceOperations,
-} from "@paperclipai/db";
-import { validatePrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+} from "@outpost/db";
+import { validatePrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 import type {
   PrpStructuredRunResult,
   PrpTerminalState,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { finalizeNativeRun, recoverCommittedNativeReviewResponse } from "./native-run-finalizer.js";
@@ -96,14 +96,14 @@ import { resolveExternalChatQuestionResponse } from "./external-chat-question-re
 import { listExternalReviewWaits } from "./external-review-wait.js";
 import { materializeExternalChatQuestionResponseInput } from "./external-chat-question-response-input.js";
 import * as nativeInteractionBridge from "./native-interaction-bridge.js";
-import { defaultGitHubReviewPolicy, type AskUserQuestionsInteraction } from "@paperclipai/shared";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { defaultGitHubReviewPolicy, type AskUserQuestionsInteraction } from "@outpost/shared";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { createLocalDiskStorageProvider } from "../../storage/local-disk-provider.js";
 import { createStorageService } from "../../storage/service.js";
 import { subscribeAllCompanyLiveEvents } from "../live-events.js";
 
 describe("native external-chat response wait", () => {
-  const externalTestDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+  const externalTestDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
   let temporary: Awaited<
     ReturnType<typeof startEmbeddedPostgresTestDatabase>
   > | null = null;
@@ -169,7 +169,7 @@ describe("native external-chat response wait", () => {
       id: agentId,
       companyId,
       name: "Waiting chat agent",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
       runtimeConfig: {},
       status: "active",
@@ -189,7 +189,7 @@ describe("native external-chat response wait", () => {
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -373,7 +373,7 @@ describe("native external-chat response wait", () => {
       sourceInstanceId: runnerInstanceId,
     });
     const result: PrpStructuredRunResult = {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary:
         "The requested photo is prepared. I will wait for your next message.",
@@ -401,7 +401,7 @@ describe("native external-chat response wait", () => {
       ...resultOverrides,
     };
     const terminal: PrpTerminalState = {
-      schema: "paperclip.prp.terminal.v1",
+      schema: "outpost.orp.terminal.v1",
       turnTerminalState: "completed",
       runTerminalState: "succeeded",
       reportedWorkDisposition: result.reportedWorkDisposition,
@@ -773,9 +773,9 @@ describe("native external-chat response wait", () => {
       })
       .where(eq(chatDeliveries.id, fixture.deliveryId));
     const interactionSvc = issueThreadInteractionService(db);
-    const previousPublicUrl = process.env.PAPERCLIP_PUBLIC_URL;
-    process.env.PAPERCLIP_PUBLIC_URL = withLink
-      ? "https://board.paperclip.example"
+    const previousPublicUrl = process.env.OUTPOST_PUBLIC_URL;
+    process.env.OUTPOST_PUBLIC_URL = withLink
+      ? "https://board.outpost.example"
       : "http://127.0.0.1:3103";
     let interaction: Awaited<ReturnType<typeof interactionSvc.create>>;
     try {
@@ -810,8 +810,8 @@ describe("native external-chat response wait", () => {
       );
     } finally {
       if (previousPublicUrl === undefined)
-        delete process.env.PAPERCLIP_PUBLIC_URL;
-      else process.env.PAPERCLIP_PUBLIC_URL = previousPublicUrl;
+        delete process.env.OUTPOST_PUBLIC_URL;
+      else process.env.OUTPOST_PUBLIC_URL = previousPublicUrl;
     }
     const publicationKey = `interaction:${interaction.id}:${fixture.endpointId}`;
     const [publication] = await db
@@ -1263,7 +1263,7 @@ describe("native external-chat response wait", () => {
     await attestAnswer(f);
     expect(await authorizeChatConversationForBoundRun(db, f, f.context, "read")).toMatchObject({ conversationId: f.conversationId });
     await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.userId));
-    await expect(authorizeChatConversationForBoundRun(db, f, f.context, "read")).rejects.toThrow(answerRoute === "board" ? "paperclip_runner_chat_attachment_binding_denied" : "paperclip_runner_chat_attachment_principal_denied");
+    await expect(authorizeChatConversationForBoundRun(db, f, f.context, "read")).rejects.toThrow(answerRoute === "board" ? "outpost_runner_chat_attachment_binding_denied" : "outpost_runner_chat_attachment_principal_denied");
     await db.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.principalId, f.userId));
     if (receipt) await db.update(chatVoiceToolCalls).set({ response: { ...receipt.response, resultSha256: "different-answer" } }).where(eq(chatVoiceToolCalls.id, receipt.id));
     else await db.update(issueComments).set({authorUserId: randomUUID()}).where(eq(issueComments.id, f.commentId));
@@ -1405,7 +1405,7 @@ describe("native external-chat response wait", () => {
     ).toBe(true);
     expect(fixture.context.paperclipExternalChatQuestionResponse).toMatchObject(
       {
-        schema: "paperclip.external_chat_question_response.v1",
+        schema: "outpost.external_chat_question_response.v1",
         interactionId: fixture.interactionId,
         sourceRunId: fixture.sourceRunId,
         responseDeliveryId: fixture.responseDeliveryId,
@@ -1655,7 +1655,7 @@ describe("native external-chat response wait", () => {
       }),
     ).resolves.toBe(true);
     expect(fixture.context.paperclipExternalChatQuestionResponse).toMatchObject({
-      schema: "paperclip.external_chat_question_response.v1",
+      schema: "outpost.external_chat_question_response.v1",
       interactionId: fixture.interactionId,
       responseDeliveryId: fixture.responseDeliveryId,
       sourceRunId: fixture.sourceRunId,
@@ -1839,7 +1839,7 @@ describe("native external-chat response wait", () => {
               .where(eq(chatEndpoints.id, fixture.endpointId));
           }
           await expect(invoke()).rejects.toThrow(
-            "paperclip_runner_chat_attachment_destination_denied",
+            "outpost_runner_chat_attachment_destination_denied",
           );
           expect(
             await db
@@ -1875,7 +1875,7 @@ describe("native external-chat response wait", () => {
             .set({ contextSnapshot: context })
             .where(eq(heartbeatRuns.id, fixture.runId));
           await expect(invoke()).rejects.toThrow(
-            "paperclip_runner_chat_attachment_binding_denied",
+            "outpost_runner_chat_attachment_binding_denied",
           );
           await expect(
             db
@@ -1940,8 +1940,8 @@ describe("native external-chat response wait", () => {
           }
           await expect(invoke()).rejects.toThrow(
             mutation === "membership_revoked"
-              ? "paperclip_runner_chat_attachment_principal_denied"
-              : "paperclip_runner_chat_attachment_binding_denied",
+              ? "outpost_runner_chat_attachment_principal_denied"
+              : "outpost_runner_chat_attachment_binding_denied",
           );
           expect(
             await db
@@ -2180,7 +2180,7 @@ describe("native external-chat response wait", () => {
         }),
       ).rejects.toThrow(
         kind === "membership_revoked"
-          ? "paperclip_runner_chat_attachment_principal_denied"
+          ? "outpost_runner_chat_attachment_principal_denied"
           : "reviewed_chat_execution_binding_not_authorized",
       );
     },
@@ -2866,7 +2866,7 @@ describe("native external-chat response wait", () => {
       await Promise.allSettled([holder, reader]);
     }
     expect(await reader).toBe(
-      "paperclip_runner_chat_attachment_binding_denied",
+      "outpost_runner_chat_attachment_binding_denied",
     );
   });
 
@@ -3646,7 +3646,7 @@ describe("native external-chat response wait", () => {
         fixture.issueId,
         "Prepared exactly these files for this chat response.",
         { agentId: fixture.agentId, runId: fixture.runId },
-        { authorizationReason: "paperclip_runner_protocol" },
+        { authorizationReason: "outpost_runner_protocol" },
       );
       const selected = [];
       for (const [originalFilename, contentType] of [
@@ -4423,7 +4423,7 @@ describe("native external-chat response wait", () => {
         fixture.issueId,
         "Prepared the original file",
         { agentId: fixture.agentId, runId: fixture.runId },
-        { authorizationReason: "paperclip_runner_protocol" },
+        { authorizationReason: "outpost_runner_protocol" },
       );
       const attachment = await issueService(db).createAttachment({
         issueId: fixture.issueId,
@@ -5397,7 +5397,7 @@ describe("native external-chat response wait", () => {
       messageIds: acceptedSource ? [fixture.commentId] : [], cause: "retry_failed_run" });
     const authority = new PaperclipRunnerToolAuthority(db, fixture);
     const read = () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} });
-    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
     const report = { ...fixture.result, continuation: undefined, completionClaim: {
       ...fixture.result.completionClaim, objectiveSatisfied: false,
       criteria: [{ criterionId: "response", status: "unknown" as const, evidenceRefs: [] }],
@@ -5447,7 +5447,7 @@ describe("native external-chat response wait", () => {
     const fixture = await seedInheritedReviewCompletionTurn(true);
     const authority = new PaperclipRunnerToolAuthority(db, fixture);
     const read = () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} });
-    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
     const report = { ...fixture.result, continuation: absent === "malformed-first" ? "response_wake" : absent };
     if (absent === "malformed-first") {
       expect(await resolveCompletionContinuation(report, fixture.runId, read)).toEqual(report);
@@ -5483,7 +5483,7 @@ describe("native external-chat response wait", () => {
     const fixture = await seedInheritedReviewCompletionTurn(false);
     await seedCurrentAuthorReply(fixture);
     const authority = new PaperclipRunnerToolAuthority(db, fixture);
-    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
     const resolved = await resolveCompletionContinuation({ ...fixture.result, continuation }, fixture.runId,
       () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} })) as PrpStructuredRunResult;
     expect(resolved).toMatchObject({ continuation: { kind: "response_wake" } });
@@ -5589,7 +5589,7 @@ describe("native external-chat response wait", () => {
     const fixture = await seedPublishedReviewCompletionTurn();
     const authority = new PaperclipRunnerToolAuthority(db, fixture);
     const read = () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} });
-    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
     const report = { ...fixture.result, continuation: absent === "malformed-first" ? "response_wake" : absent };
     if (absent === "malformed-first") {
       // Explicit malformed input remains invalid; the next omitted report can
@@ -5638,7 +5638,7 @@ describe("native external-chat response wait", () => {
       if (gate === "ownership_changed") await db.update(issues).set({ executionRunId: null })
         .where(eq(issues.id, fixture.issueId));
       const authority = new PaperclipRunnerToolAuthority(db, fixture);
-      const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+      const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
       await expect(resolveCompletionContinuation({ ...fixture.result, continuation: undefined }, fixture.runId,
         () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} }))).rejects.toThrow();
       expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, fixture.companyId))).toHaveLength(0);
@@ -5648,7 +5648,7 @@ describe("native external-chat response wait", () => {
   it("serializes an actual connection disable against the final status committer proof", async () => {
     const fixture = await seedPublishedReviewCompletionTurn();
     const authority = new PaperclipRunnerToolAuthority(db, fixture);
-    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+    const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
     const result = await resolveCompletionContinuation({ ...fixture.result, continuation: null }, fixture.runId,
       () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} })) as PrpStructuredRunResult;
     await nativeCompletionFeedback(db, fixture.runId, result);
@@ -5702,7 +5702,7 @@ describe("native external-chat response wait", () => {
       const fixture = turn === "current" ? await seedPublishedReviewCompletionTurn() : await seedInheritedReviewCompletionTurn(turn === "resume");
       const reply = turn === "reply" ? await seedCurrentAuthorReply(fixture as Awaited<ReturnType<typeof seedInheritedReviewCompletionTurn>>) : null;
       const authority = new PaperclipRunnerToolAuthority(db, fixture);
-      const { resolveCompletionContinuation } = await import(new URL("../../../../packages/paperclip-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
+      const { resolveCompletionContinuation } = await import(new URL("../../../../packages/outpost-runner/src/drivers/completion-continuation.ts", import.meta.url).href);
       const result = await resolveCompletionContinuation({ ...fixture.result, continuation: null }, fixture.runId,
         () => authority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} })) as PrpStructuredRunResult;
       const revoke = () => reply

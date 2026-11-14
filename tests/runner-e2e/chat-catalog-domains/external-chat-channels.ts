@@ -21,7 +21,7 @@ export const chatChannelExternalCases = [definition("chat-channels.provider-disa
   return { worker, disabledBefore: saved.enableChatConnectors === false, priorChatConnectors: settings.enableChatConnectors,
     resultPath: `/${ctx.input.fixtures.company.issuePrefix}/company/settings/instance/experimental`, resultLabel: "Experimental" };
 }, gradeDisabledChannel, {
-  oracleVersion: "paperclip.chat-catalog.external.v2",
+  oracleVersion: "outpost.chat-catalog.external.v2",
   sourceFiles: ["chat-catalog-domains/external-chat-channels.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/chat-channels.yaml"],
   async observe(ctx, state) {
     const settings = await ctx.input.api.get<Record<string, unknown>>("/api/instance/settings/experimental");

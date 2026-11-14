@@ -3,12 +3,12 @@ import { isDeepStrictEqual } from "node:util";
 import { and, desc, eq, exists, inArray, isNotNull, ne, not, notInArray, or, sql } from "drizzle-orm";
 import {
   heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, nativeRunnerCheckpoints, nativeRunResults, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   NativeExecutionInput,
   PersistedNativeSession,
-} from "../../vendor/paperclip-runner/index.js";
-import { canonicalNativeRuntimeContextDigest, parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
+import { canonicalNativeRuntimeContextDigest, parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 
 export type NativeToolExecutionTargetKind = "local" | "remote";
 
@@ -19,7 +19,7 @@ export type NativeToolExecutionTargetKind = "local" | "remote";
 export function nativeRuntimeContractForProvider(
   provider: NativeExecutionInput["provider"],
 ): string | undefined {
-  return provider.kind === "acpx" ? "paperclip.acpx-runtime-contract.v1" : undefined;
+  return provider.kind === "acpx" ? "outpost.acpx-runtime-contract.v1" : undefined;
 }
 
 /**
@@ -36,7 +36,7 @@ export function nativeToolContractFingerprintForTarget(
   return `sha256:${createHash("sha256")
     .update(
       JSON.stringify({
-        schema: "paperclip.native-tool-contract.v19",
+        schema: "outpost.native-tool-contract.v19",
         executionTargetKind,
         advertisementPolicy: {
           // Direct provider threads retain declarations from thread/start.
@@ -54,37 +54,37 @@ export function nativeToolContractFingerprintForTarget(
             "always_advertised_run_issue_agent_binding_gated_current_task_description.v2",
           semanticCompletion: "finish_accessible_deliverable_evidence.v4",
           ...(providerKind === "opencode"
-            ? { opencodeAssignedMcpTools: "server_gateway_prp_on_demand_exact_names.v2" }
+            ? { opencodeAssignedMcpTools: "server_gateway_orp_on_demand_exact_names.v2" }
             : {}),
           connectorTools: "assigned_resources_and_pinned_skill_bundle.v1",
           chatTaskTools: "durable_task_binding_and_accepted_origin.v1",
           githubResponses: "bound_working_comment_progress_and_final.v1",
           githubInstructionSkills: "trusted_configuration_native_selection.v1",
           ...(executionTargetKind === "remote"
-            ? { assignedMcpTools: "codex_server_gateway_prp_relay.v1" }
+            ? { assignedMcpTools: "codex_server_gateway_orp_relay.v1" }
             : {}),
         },
         tools: [
           { name: "register_deliverable", version: 2 },
-          { name: "generate_image", semanticContract: "paperclip.server-openai-image-generation.v1", version: 1 },
+          { name: "generate_image", semanticContract: "outpost.server-openai-image-generation.v1", version: 1 },
           {
             name: "read_current_wake_comments",
-            semanticContract: "paperclip.server-current-wake-comments.v1",
+            semanticContract: "outpost.server-current-wake-comments.v1",
             version: 1,
           },
           {
             name: "list_chat_attachments",
-            semanticContract: "paperclip.server-chat-attachment-reuse.v1",
+            semanticContract: "outpost.server-chat-attachment-reuse.v1",
             version: 1,
           },
           {
             name: "reuse_chat_attachment",
-            semanticContract: "paperclip.server-chat-attachment-reuse.v1",
+            semanticContract: "outpost.server-chat-attachment-reuse.v1",
             version: 1,
           },
           {
             name: "read_chat_attachment",
-            semanticContract: "paperclip.server-chat-attachment-read.v1",
+            semanticContract: "outpost.server-chat-attachment-read.v1",
             version: 1,
           },
           { name: "request_human_input", version: 1 },
@@ -569,9 +569,9 @@ export function buildNativeExecutionWithCheckpoint(input: {
   // A presentation-only upgrade must not rotate a healthy provider session or
   // lose a durable goal. Keep its v4/v5 format until that session naturally ends.
   // All ordinary identity, workspace, provider, tool and recovery checks still apply.
-  if (input.previousRun && (execution.schema === "paperclip.native-execution-input.v4" || execution.schema === "paperclip.native-execution-input.v5")) {
+  if (input.previousRun && (execution.schema === "outpost.native-execution-input.v4" || execution.schema === "outpost.native-execution-input.v5")) {
     const previousSchema = record(record(input.previousRun.runnerProfileJson).nativeExecutionInput).schema;
-    if ((previousSchema === "paperclip.native-execution-input.v4" || previousSchema === "paperclip.native-execution-input.v5") && previousSchema !== execution.schema) {
+    if ((previousSchema === "outpost.native-execution-input.v4" || previousSchema === "outpost.native-execution-input.v5") && previousSchema !== execution.schema) {
       const { completionSources: _sources, ...common } = execution as typeof execution & { completionSources?: unknown };
       const retainedFormat = parseNativeExecutionInput({ ...common, schema: previousSchema });
       const retainedCheckpoint = rebindNativeSessionCheckpoint({

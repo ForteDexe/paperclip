@@ -4,9 +4,9 @@ import {createRequire} from "node:module";
 import {readFile} from "node:fs/promises";
 import {acceptCompanySecretConfirmation,companySecretConfirmationHandoff,visibleCompanySecretConfirmationURL} from "./external-company-secret-confirmation.js";
 import {deploymentSecretGuidance} from "./external-company-secret.js";
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("uses the actual visible route and one real confirmation POST only after a current-human save",async()=>{
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("uses the actual visible route and one real confirmation POST only after a current-human save",async()=>{
  const ui=await readFile(new URL("../../../ui/src/components/IssueThreadInteractionCard.tsx",import.meta.url),"utf8");expect(ui).toContain("data-decision-prompt");expect(ui).toContain("onAcceptInteraction(interaction)");
- const browser=await chromium.launch({headless:true,...(process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{})});
+ const browser=await chromium.launch({headless:true,...(process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{})});
  try{for(const fault of ["none","pre-save","foreign owner","hidden","foreign route","failed accept"]){
   const page=await browser.newPage();page.setDefaultTimeout(700);let posts=0;
   const prompt=`In Settings > Secrets (\`${fault==="foreign route"?"https://foreign.invalid/RUN/company/settings/secrets":"/RUN/company/settings/secrets"}\`), choose New secret and save the deployment key value, then accept this card. Do not paste it in chat. I will bind the secret to Morgan's environment.`;
@@ -21,13 +21,13 @@ it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("uses the a
  }}finally{await browser.close();}
 },15000);
 
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("matches whitespace rendered by the actual production confirmation prompt",async()=>{
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("matches whitespace rendered by the actual production confirmation prompt",async()=>{
  const source=await readFile(new URL("../../../ui/src/components/IssueThreadInteractionCard.tsx",import.meta.url),"utf8");
  const jsx=source.match(/<div data-decision-prompt=\{compact \? true : undefined\}[^>]*>\s*\{interaction.payload.prompt\}\s*<\/div>/)?.[0];expect(jsx).toBeDefined();
  const require=createRequire(new URL("../../../ui/package.json",import.meta.url)),React=require("react"),{renderToStaticMarkup}=require("react-dom/server"),{transformSync}=require("esbuild");
  const render=new Function("React","interaction","compact",transformSync(`const rendered = (${jsx});`,{loader:"tsx",jsxFactory:"React.createElement"}).code+";return rendered;");
  const prompt="In Settings > Secrets (`/RUN/company/settings/secrets`),\n  choose New secret and save the value, then accept this card. Do not paste it in chat.";
  const markup=renderToStaticMarkup(render(React,{payload:{prompt}},true));
- const browser=await chromium.launch({headless:true,...(process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{})});
+ const browser=await chromium.launch({headless:true,...(process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{})});
  try{const page=await browser.newPage();await page.setContent(`<section data-testid="task-chat-composer-takeover">${markup}</section>`);expect(await visibleCompanySecretConfirmationURL(page,{prompt},"http://127.0.0.1:3300","RUN",()=>700)).toBe("http://127.0.0.1:3300/RUN/company/settings/secrets");await page.locator("[data-decision-prompt]").evaluate(node=>node.textContent="Different secure-save request");await expect(visibleCompanySecretConfirmationURL(page,{prompt},"http://127.0.0.1:3300","RUN",()=>700)).rejects.toThrow();}finally{await browser.close();}
 },10000);

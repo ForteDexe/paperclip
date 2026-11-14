@@ -151,34 +151,6 @@ The [chat directive](../../server/src/services/agent-conversations.ts) tells age
 to use company-prefixed relative task links or platform-supplied absolute origins.
 This adds no permission and does not qualify the whole capability or its denied cases.
 
-## `conference-room`
-
-Capability ID: `agent-chat/conference-room`.
-
-Review: `baseline`.
-
-API: `present` — representative operation IDs:
-
-- `POST /api/board/chat/stream`.
-
-Agent access: `partial` — Existing SSE client in local_trusted mode with the
-experimental gate.
-
-Policy: Conversation discovery/creation requires a board user;
-task access follows task visibility.
-
-Evidence: `source-only` — [implementation](../../server/src/routes/issues.ts#L18077) at
-the reviewed commit above.
-
-Verification: `not-run` — exercise a listed permitted operation with actual agent
-credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
-remaining operations before qualifying the whole capability.
-
-Gaps: Not callable through generic REST tooling: protocol and deployment constraints
-apply. This route is not guarded by assertBoard, so its intended agent policy needs
-clarification.
-
 ### Required quality-review handoff
 
 `request_human_input` suggestions and native `create_task` accept the same optional `requiredQualityReview` contract; task creation persists it atomically. Execution uses existing confirmation/item-verdict interactions with explicit quality-review keys and exact document/attachment targets. The server stamps the current requirement fingerprint, forces human-only resolution, validates current targets, and independently prevents completion until every required output has human approval. Agents cannot remove or weaken an existing requirement. Existing task read/write company and actor checks remain authoritative. Publication/delivery authority is unchanged. Completion-only chat wakes receive bounded canonical decision references and guidance to reuse reviews, not start duplicate ones.

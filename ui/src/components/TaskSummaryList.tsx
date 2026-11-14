@@ -1,4 +1,4 @@
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { timeAgo } from "@/lib/timeAgo";
 import { IssueRow } from "./IssueRow";
 

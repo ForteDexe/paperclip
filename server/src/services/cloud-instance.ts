@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ManagedExperimentalFeatureKey } from "@paperclipai/shared";
+import type { ManagedExperimentalFeatureKey } from "@outpost/shared";
 
 const CLOUD_STAGING_EXPERIMENTAL_KEYS: ReadonlySet<string> = new Set([
   "autoRestartDevServerWhenIdle",
@@ -11,7 +11,6 @@ const CLOUD_STAGING_EXPERIMENTAL_KEYS: ReadonlySet<string> = new Set([
   "enableChatConnectors",
   "enableClassicTaskInterface",
   "enableCombinedInboxTasks",
-  "enableConferenceRoomChat",
   "enableDecisions",
   "enableEnvironments",
   "enableExperimentalFileViewer",
@@ -71,14 +70,14 @@ export function isCloudManagedInstance(
   env: CloudInstanceEnv = process.env,
 ): boolean {
   return (
-    normalizeOptionalEnvValue(env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN) !== null ||
-    env.PAPERCLIP_MANAGED_CONFIG !== undefined
+    normalizeOptionalEnvValue(env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN) !== null ||
+    env.OUTPOST_MANAGED_CONFIG !== undefined
   );
 }
 
 export function isCloudStagingInstance(env: CloudInstanceEnv = process.env): boolean {
-  const host = normalizeOptionalEnvValue(env.PAPERCLIP_PRIMARY_HOST);
-  return isCloudManagedInstance(env) && host !== null && /^[a-z0-9-]+\.staging\.paperclip\.app$/i.test(host);
+  const host = normalizeOptionalEnvValue(env.OUTPOST_PRIMARY_HOST);
+  return isCloudManagedInstance(env) && host !== null && /^[a-z0-9-]+\.staging\.outpost\.app$/i.test(host);
 }
 
 /**
@@ -94,11 +93,11 @@ export function getCloudStackContext(
   if (!isCloudManagedInstance(env)) return null;
 
   return {
-    stackId: normalizeOptionalEnvValue(env.PAPERCLIP_CLOUD_STACK_ID),
-    stackSlug: normalizeOptionalEnvValue(env.PAPERCLIP_STACK_SLUG),
-    accountGroupId: normalizeOptionalEnvValue(env.PAPERCLIP_CLOUD_ACCOUNT_GROUP_ID),
-    primaryHost: normalizeOptionalEnvValue(env.PAPERCLIP_PRIMARY_HOST),
-    cloudOrigin: normalizeOptionalEnvValue(env.PAPERCLIP_CLOUD_API_ORIGIN),
+    stackId: normalizeOptionalEnvValue(env.OUTPOST_CLOUD_STACK_ID),
+    stackSlug: normalizeOptionalEnvValue(env.OUTPOST_STACK_SLUG),
+    accountGroupId: normalizeOptionalEnvValue(env.OUTPOST_CLOUD_ACCOUNT_GROUP_ID),
+    primaryHost: normalizeOptionalEnvValue(env.OUTPOST_PRIMARY_HOST),
+    cloudOrigin: normalizeOptionalEnvValue(env.OUTPOST_CLOUD_API_ORIGIN),
   };
 }
 

@@ -1,4 +1,4 @@
-# `@paperclipai/plugin-daytona`
+# `@outpost/plugin-daytona`
 
 Published Daytona sandbox provider plugin for Outpost.
 
@@ -9,7 +9,7 @@ This package lives in the Outpost monorepo, but it is intentionally excluded fro
 From an Outpost instance, install:
 
 ```text
-@paperclipai/plugin-daytona
+@outpost/plugin-daytona
 ```
 
 The host plugin installer runs `npm install` into the managed plugin directory, so transitive dependencies such as `@daytonaio/sdk` are pulled in during installation.
@@ -57,7 +57,7 @@ pnpm exec vitest run --config vitest.sdk-ingress.config.ts
 pnpm typecheck
 ```
 
-These commands assume the repo root has already been installed once so the local `@paperclipai/plugin-sdk` workspace package is available to the compiler during development.
+These commands assume the repo root has already been installed once so the local `@outpost/plugin-sdk` workspace package is available to the compiler during development.
 
 The dedicated `vitest.sdk-ingress.config.ts` requires this package's installed, pinned Daytona SDK. It sends
 local HTTP faults through the real SDK and worker RPC without a provider account

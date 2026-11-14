@@ -38,8 +38,8 @@ import plugin, {
   WARM_IDLE_AUTO_STOP_MARGIN_MINUTES,
   STUCK_STOPPING_FORCE_AFTER_MS,
 } from "./plugin.js";
-import type { PluginContext } from "@paperclipai/plugin-sdk";
-import { environmentSyncErrorData, readEnvironmentSyncErrorDiagnostic, withEnvironmentSyncErrorCapture, environmentCreationCleanupErrorData, readEnvironmentCreationCleanupError, readEnvironmentAcquisitionDiagnostic, PluginEnvironmentStopError, environmentStopErrorData, readEnvironmentStopFailure } from "@paperclipai/plugin-sdk";
+import type { PluginContext } from "@outpost/plugin-sdk";
+import { environmentSyncErrorData, readEnvironmentSyncErrorDiagnostic, withEnvironmentSyncErrorCapture, environmentCreationCleanupErrorData, readEnvironmentCreationCleanupError, readEnvironmentAcquisitionDiagnostic, PluginEnvironmentStopError, environmentStopErrorData, readEnvironmentStopFailure } from "@outpost/plugin-sdk";
 import manifest from "./manifest.js";
 import { parseTarVerboseListingLine, splitLinkEntryOnce } from "./file-sync.js";
 import * as duplexCommands from "./duplex-command-stream.js";
@@ -2267,7 +2267,7 @@ describe("Daytona sandbox provider plugin", () => {
       companyId: "company-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-setup",
-      templateLabel: " Paperclip Env 1 ",
+      templateLabel: " Outpost Env 1 ",
       sourceTemplateRef: "source-secret-snapshot",
       previousTemplateRef: "previous-secret-snapshot",
       timeoutMs: 120000,
@@ -2495,7 +2495,7 @@ describe("Daytona sandbox provider plugin", () => {
     const sandbox = createMockSandbox({ id: "ephemeral-owned" });
     mockCreate.mockResolvedValue(sandbox);
     const base = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1", agentId: "agent-1",
-      issueId: "issue-1", adapterType: "paperclip_runner", config: { reuseLease: false } };
+      issueId: "issue-1", adapterType: "outpost_runner", config: { reuseLease: false } };
     const lease = await plugin.definition.onEnvironmentAcquireLease!({ ...base, runId: "run-1" });
     const sentinel = lease.metadata!.workspaceSentinel as { token: string; result: string };
     expect(sentinel).toMatchObject({ token: expect.stringMatching(/^[a-f0-9]{64}$/), result: "written" });
@@ -3766,7 +3766,7 @@ describe("Daytona sandbox provider plugin", () => {
         const setup = spans.find((span) => span.name === "session.open");
         expect(setup).toBeDefined();
         expect(setup!.ended).toBe(true);
-        expect(setup!.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
+        expect(setup!.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
 
         await plugin.definition.onEnvironmentReleaseLease?.({
           driverKey: "daytona",
@@ -3778,7 +3778,7 @@ describe("Daytona sandbox provider plugin", () => {
         const teardown = spans.find((span) => span.name === "session.close");
         expect(teardown).toBeDefined();
         expect(teardown!.ended).toBe(true);
-        expect(teardown!.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
+        expect(teardown!.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
       } finally {
         restore();
       }
@@ -6470,9 +6470,9 @@ describe("daytona native file-sync hooks", () => {
     expect(transfer).toBeDefined();
     expect(transfer!.ended).toBe(true);
     // One serial guard round trip before the transfer: mkdir (with the zstd probe).
-    expect(transfer!.attributes["paperclip.sandbox.startup.transfer.guard.count"]).toBe(1);
-    expect(transfer!.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
-    expect(typeof transfer!.attributes["paperclip.sandbox.startup.transfer.wall_ms"]).toBe("number");
+    expect(transfer!.attributes["outpost.sandbox.startup.transfer.guard.count"]).toBe(1);
+    expect(transfer!.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
+    expect(typeof transfer!.attributes["outpost.sandbox.startup.transfer.wall_ms"]).toBe("number");
     // A bulk file upload builds no host tarball, so it opens no pack span.
     expect(spans.find((span) => span.name === "pack")).toBeUndefined();
   });
@@ -6501,7 +6501,7 @@ describe("daytona native file-sync hooks", () => {
     // An upload to the sandbox is an inbound transfer.
     const transfer = spans.find((span) => span.name === "transfer");
     expect(transfer).toBeDefined();
-    expect(transfer!.attributes["paperclip.sandbox.startup.transfer.direction"]).toBe("inbound");
+    expect(transfer!.attributes["outpost.sandbox.startup.transfer.direction"]).toBe("inbound");
   });
 
   it("marks the outbound transfer span with the outbound direction attribute", async () => {
@@ -6534,7 +6534,7 @@ describe("daytona native file-sync hooks", () => {
     // A download from the sandbox is an outbound transfer.
     const transfer = spans.find((span) => span.name === "transfer");
     expect(transfer).toBeDefined();
-    expect(transfer!.attributes["paperclip.sandbox.startup.transfer.direction"]).toBe("outbound");
+    expect(transfer!.attributes["outpost.sandbox.startup.transfer.direction"]).toBe("outbound");
   });
 
   it("opens a pack span and a transfer span around a directory mapping sync", async () => {
@@ -6570,13 +6570,13 @@ describe("daytona native file-sync hooks", () => {
     const pack = spans.find((span) => span.name === "pack");
     expect(pack).toBeDefined();
     expect(pack!.ended).toBe(true);
-    expect(pack!.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
-    expect(typeof pack!.attributes["paperclip.sandbox.startup.pack.wall_ms"]).toBe("number");
+    expect(pack!.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
+    expect(typeof pack!.attributes["outpost.sandbox.startup.pack.wall_ms"]).toBe("number");
 
     const transfer = spans.find((span) => span.name === "transfer");
     expect(transfer).toBeDefined();
     // One serial guard round trip before the transfer: mkdir.
-    expect(transfer!.attributes["paperclip.sandbox.startup.transfer.guard.count"]).toBe(1);
+    expect(transfer!.attributes["outpost.sandbox.startup.transfer.guard.count"]).toBe(1);
   });
 
   it("opens ensureDirectory, transfer, promote spans in call order for a file-mapping sync", async () => {
@@ -6613,12 +6613,12 @@ describe("daytona native file-sync hooks", () => {
     ]);
     for (const span of spans) {
       expect(span.ended).toBe(true);
-      expect(span.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
+      expect(span.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
       // A per-round-trip span carries no `*.wall_ms` attribute; the native span
       // width carries its time. Only `pack` and `transfer` keep a wall_ms value.
       if (span.name !== "transfer") {
-        expect(span.attributes["paperclip.sandbox.startup.ensureDirectory.wall_ms"]).toBeUndefined();
-        expect(span.attributes["paperclip.sandbox.startup.promote.wall_ms"]).toBeUndefined();
+        expect(span.attributes["outpost.sandbox.startup.ensureDirectory.wall_ms"]).toBeUndefined();
+        expect(span.attributes["outpost.sandbox.startup.promote.wall_ms"]).toBeUndefined();
       }
     }
   });
@@ -6660,7 +6660,7 @@ describe("daytona native file-sync hooks", () => {
       "extractTarball",
     ]);
     for (const span of spans) {
-      expect(span.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
+      expect(span.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
     }
   });
 
@@ -6702,7 +6702,7 @@ describe("daytona native file-sync hooks", () => {
     ]);
     const provision = spans.find((span) => span.name === "postUploadCommand");
     expect(provision!.ended).toBe(true);
-    expect(provision!.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
+    expect(provision!.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
   });
 
   it("gzip-tars a directory mapping host-side honoring excludes and the followSymlinks flag, then extracts it in-sandbox via a single quoted tar command", async () => {
@@ -7739,9 +7739,9 @@ describe("daytona native file-sync hooks", () => {
     expect(transfer).toBeDefined();
     expect(transfer!.ended).toBe(true);
     // One serial guard round trip before the transfer: the validate-and-snapshot.
-    expect(transfer!.attributes["paperclip.sandbox.startup.transfer.guard.count"]).toBe(1);
-    expect(transfer!.attributes["paperclip.sandbox.startup.provider"]).toBe("daytona");
-    expect(typeof transfer!.attributes["paperclip.sandbox.startup.transfer.wall_ms"]).toBe("number");
+    expect(transfer!.attributes["outpost.sandbox.startup.transfer.guard.count"]).toBe(1);
+    expect(transfer!.attributes["outpost.sandbox.startup.provider"]).toBe("daytona");
+    expect(typeof transfer!.attributes["outpost.sandbox.startup.transfer.wall_ms"]).toBe("number");
   });
 
   it("opens a transfer span around a directory-mapping download with the guard round-trip count", async () => {
@@ -7781,8 +7781,8 @@ describe("daytona native file-sync hooks", () => {
     expect(transfer!.ended).toBe(true);
     // Two serial guard round trips before the transfer: confinement + in-sandbox
     // tar.
-    expect(transfer!.attributes["paperclip.sandbox.startup.transfer.guard.count"]).toBe(2);
-    expect(typeof transfer!.attributes["paperclip.sandbox.startup.transfer.wall_ms"]).toBe("number");
+    expect(transfer!.attributes["outpost.sandbox.startup.transfer.guard.count"]).toBe(2);
+    expect(typeof transfer!.attributes["outpost.sandbox.startup.transfer.wall_ms"]).toBe("number");
   });
 });
 

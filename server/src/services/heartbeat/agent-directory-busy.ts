@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { AgentDirectoryOperationBusyError } from "../agent-directory-working-copies.js";
 import { deferNativeRunForBusyAgentDirectory } from "../native-runtime/native-controller-recovery.js";
 import { AGENT_DIRECTORY_WAIT_RETRY_REASON } from "../execution-recovery-attempt.js";

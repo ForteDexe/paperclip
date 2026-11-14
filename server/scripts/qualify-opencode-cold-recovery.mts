@@ -53,7 +53,7 @@ import {
   recordNativeProviderPackAdmission,
   rememberRecoveredNativeProviderPack,
 } from "../src/services/native-runtime/native-provider-pack-admission.js";
-import { captureLegacyDurablePrpCheckpoint } from "../../packages/paperclip-runner/src/control-plane/durable-prp-control-plane.js";
+import { captureLegacyDurablePrpCheckpoint } from "../../packages/outpost-runner/src/control-plane/durable-orp-control-plane.js";
 
 const exec = promisify(execFile),
   repo = fileURLToPath(new URL("../../", import.meta.url));
@@ -69,7 +69,7 @@ if (!values["old-image"] || !values["new-image"] || !values.output)
   throw Error(
     "Required: --old-image sha256:<64 hex> --new-image sha256:<64 hex> --output <absolute JSON path>",
   );
-if (process.env.PAPERCLIP_TEST_DATABASE_URL)
+if (process.env.OUTPOST_TEST_DATABASE_URL)
   throw Error(
     "Qualification requires its own local embedded PostgreSQL server",
   );
@@ -112,8 +112,8 @@ for (const [name, image] of Object.entries(images)) {
 if (metadata.old.Architecture !== metadata.next.Architecture)
   throw Error("Images must have matching architectures");
 const root = await mkdtemp(join(tmpdir(), "paperclip-native-cold-full-"));
-process.env.PAPERCLIP_HOME = join(root, "fixture-home");
-process.env.PAPERCLIP_SECRETS_MASTER_KEY = randomBytes(32).toString("hex");
+process.env.OUTPOST_HOME = join(root, "fixture-home");
+process.env.OUTPOST_SECRETS_MASTER_KEY = randomBytes(32).toString("hex");
 const home = "/home/native-fixture",
   base = home + "/paperclip-workspace",
   account = userInfo();
@@ -141,18 +141,18 @@ const extract = async (image: string, source: string, destination: string) => {
 };
 await extract(
   images.old,
-  "/opt/paperclip-runner/provider-pack/provider-pack.json",
+  "/opt/outpost-runner/provider-pack/provider-pack.json",
   join(root, "old-provider-pack.json"),
 );
 await extract(
   images.next,
-  "/opt/paperclip-runner/provider-pack/provider-pack.json",
+  "/opt/outpost-runner/provider-pack/provider-pack.json",
   join(root, "new-provider-pack.json"),
 );
 await extract(
   images.next,
-  "/app/server/dist/vendor/paperclip-runner/bin/paperclip-runnerd",
-  join(root, "paperclip-runnerd"),
+  "/app/server/dist/vendor/outpost-runner/bin/outpost-runnerd",
+  join(root, "outpost-runnerd"),
 );
 const manifest = JSON.parse(
   await readFile(join(root, "old-provider-pack.json"), "utf8"),
@@ -210,7 +210,7 @@ const create = async (first: boolean) => {
     "--mount",
     `type=bind,src=${passwd},dst=/etc/passwd,readonly`,
     "--mount",
-    `type=bind,src=${join(root, "paperclip-runnerd")},dst=/qualified-runnerd,readonly`,
+    `type=bind,src=${join(root, "outpost-runnerd")},dst=/qualified-runnerd,readonly`,
     "--mount",
     `type=bind,src=${fileURLToPath(new URL("./fixtures/opencode-cold-recovery.mjs", import.meta.url))},dst=/native-probe.mjs,readonly`,
     "--env",
@@ -348,7 +348,7 @@ const probe = async (id: string, input: any) => {
     "node",
     "/native-probe.mjs",
     JSON.stringify({
-      sdk: repo + "/packages/paperclip-runner/dist",
+      sdk: repo + "/packages/outpost-runner/dist",
       manifest,
       workspace,
       runtime,
@@ -375,7 +375,7 @@ try {
     id: ids.agent,
     companyId: ids.company,
     name: "Owned native worker",
-    adapterType: "paperclip_runner",
+    adapterType: "outpost_runner",
   });
   await db.insert(t.environments).values({
     id: ids.environment,
@@ -475,7 +475,7 @@ try {
   workspace = prepared.remoteRoot;
   runtime =
     workspace +
-    "/.paperclip-runtime/paperclip-runner/sessions/retained/filesystem/opencode";
+    "/.paperclip-runtime/outpost-runner/sessions/retained/filesystem/opencode";
   execution = {
     binding: { ...binding, executionWorkspaceId: reserved.id },
     provider: { kind: "opencode", model: "paperclip/qualification" },
@@ -497,7 +497,7 @@ try {
     bootstrapNode: "/usr/local/bin/node",
     manifest,
     nonce: randomUUID(),
-    sourceRoot: "/opt/paperclip-runner/provider-pack",
+    sourceRoot: "/opt/outpost-runner/provider-pack",
     stageFile: stage(original.path),
   });
   const originalState = home + "/controller-original",

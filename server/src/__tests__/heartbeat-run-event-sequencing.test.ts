@@ -8,7 +8,7 @@ import {
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   allocateHeartbeatRunEventSeq,
   appendHeartbeatRunEvent,
@@ -16,7 +16,7 @@ import {
 } from "../services/heartbeat-run-events.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_EVENT_SEQUENCING_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_EVENT_SEQUENCING_TEST_DATABASE_URL");
 async function clearExternalFixture(db: ReturnType<typeof createDb>, companyId: string) {
   if (!externalUrl) return;
   await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, companyId));
@@ -67,7 +67,7 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
       installDatabaseResponseCapture(db, { heartbeatRunEvents }, capture);
       try { expect((await append(5002)).highestContiguousSourceSeq).toBe(5000); }
       finally { capture.flush(); }
-      const reads = events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1"
+      const reads = events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1"
         && event.table === "heartbeat_run_events" && (event.operation === "select" || event.operation === "execute"));
       expect(reads.reduce((sum, event) => sum + Number(event.calls), 0)).toBeGreaterThan(0);
       expect(reads.reduce((sum, event) => sum + Number(event.rows), 0)).toBeLessThan(16);

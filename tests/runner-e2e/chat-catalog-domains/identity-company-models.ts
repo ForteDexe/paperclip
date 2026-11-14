@@ -125,7 +125,7 @@ export const companyModelIdentityCases: readonly ChatCatalogCase[] = specs.map(s
   } catch (error) { const prior = fastExperiments.get(ctx); if (prior !== undefined) { await ctx.input.api.patch("/api/instance/settings/experimental", { enableFastResponses: prior }); fastExperiments.delete(ctx); } throw error; }
 }, gradeCompanyModel, {
   sourceFiles: sources, authentication: "human-session", requiredCredentials: ["OPENROUTER_API_KEY"], attemptTimeoutMs: 420_000,
-  ...(spec.id === "companies.fast-responses" ? { oracleVersion: "paperclip.chat-catalog.identity.fast-responses.v2" } : {}),
+  ...(spec.id === "companies.fast-responses" ? { oracleVersion: "outpost.chat-catalog.identity.fast-responses.v2" } : {}),
   async act(ctx, state) {
     await waitForCompanySettingsTurn(ctx); const root = `/api/companies/${ctx.input.fixtures.company.id}`; const source = ctx.input.page.url();
     state.afterReplyEnabled = (await ctx.input.api.get<{ settings: Settings }>(`${root}/${spec.path}`)).settings.enabled;

@@ -9,15 +9,15 @@ vi.mock("@playwright/test", () => ({ expect: (locator: { count(): number }) => (
   toBeVisible: async () => expect(locator.count()).toBe(1),
 }) }));
 function fixture(fallback = true) {
-  const question = { schema: "paperclip.question_set.v1", questions: [{ id: "answer", header: "Pi native provider death", prompt: "Answer", answerMode: "text", required: true }] };
-  const request = { schema: "paperclip.runtime_request.v2", requestKind: "runtime", type: "input", status: "pending", requestId: "request", turnId: "turn", itemId: "request", input: question,
+  const question = { schema: "outpost.question_set.v1", questions: [{ id: "answer", header: "Pi native provider death", prompt: "Answer", answerMode: "text", required: true }] };
+  const request = { schema: "outpost.runtime_request.v2", requestKind: "runtime", type: "input", status: "pending", requestId: "request", turnId: "turn", itemId: "request", input: question,
     origin: { adapter: "acpx-runtime-sidecar", provider: "pi", method: "elicitation/create" } };
   const wrap = (eventType: string, sourceSeq: number, payload: Row): Row => ({ companyId: "company", runId: "run", seq: sourceSeq, protocolSchemaVersion: 1, eventType,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", itemId: "request",
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", itemId: "request",
       normalizedSessionId: "session", sourceInstanceId: "runner", sourceSeq, sourceEventId: `runner:run:${sourceSeq}`, payload } } });
   const state = { issue: { id: "issue", companyId: "company", status: "in_progress" }, runs: [{ id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner" } as Row],
     interactions: [{ id: "original", companyId: "company", issueId: "issue", kind: "ask_user_questions", sourceRunId: "run", status: "pending", result: null,
-      continuationPolicy: "none", resolverPolicy: "human_only", idempotencyKey: "paperclip-runner-question:run:request", payload: { runtimeRequestId: "request", questionSet: question } } as Row] };
+      continuationPolicy: "none", resolverPolicy: "human_only", idempotencyKey: "outpost-runner-question:run:request", payload: { runtimeRequestId: "request", questionSet: question } } as Row] };
   const events = [wrap("turn.started", 1, {}), wrap("runtime_request.created", 2, { request })];
   const pending = observePiPendingNativeInput(state, events, "company", "Pi native provider death");
   const before = structuredClone({ state, events });
@@ -40,26 +40,26 @@ it.each([
   ["foreign supersession", (f: ReturnType<typeof fixture>) => { f.state.interactions[0]!.result.supersededByInteractionId = "other"; }],
   ["missing expiry", (f: ReturnType<typeof fixture>) => { f.events.splice(2, 1); }],
   ["model-only claim", f => { f.events[2] = { eventType: "assistant.message", payload: { text: "The callback expired" } }; }],
-  ["controller injected expiry", f => { f.events[2]!.payload.prpEvent.sourceKind = "control_plane"; }],
-  ["cancelled instead of lost", f => { f.events[2]!.eventType = f.events[2]!.payload.prpEvent.eventType = "runtime_request.cancelled"; }],
-  ["resolved instead of lost", f => { f.events[2]!.eventType = f.events[2]!.payload.prpEvent.eventType = "runtime_request.resolved"; }],
-  ["normal durable handoff", f => { f.events[2]!.payload.prpEvent.payload.reason = "durable_handoff"; }],
-  ["replay allowed", f => { f.events[2]!.payload.prpEvent.payload.replayAllowed = true; }],
-  ["foreign request", f => { f.events[2]!.payload.prpEvent.payload.requestId = "other"; }],
-  ["foreign item", f => { f.events[2]!.payload.prpEvent.payload.itemId = "other"; }],
-  ["missing canonical request", f => { delete f.events[2]!.payload.prpEvent.payload.request; }],
-  ["replaced canonical question", f => { f.events[2]!.payload.prpEvent.payload.request = { ...f.events[2]!.payload.prpEvent.payload.request, input: {} }; }],
-  ["duplicate expiry", f => { f.events.push(f.wrap("runtime_request.expired", 5, f.events[2]!.payload.prpEvent.payload)); }],
+  ["controller injected expiry", f => { f.events[2]!.payload.orpEvent.sourceKind = "control_plane"; }],
+  ["cancelled instead of lost", f => { f.events[2]!.eventType = f.events[2]!.payload.orpEvent.eventType = "runtime_request.cancelled"; }],
+  ["resolved instead of lost", f => { f.events[2]!.eventType = f.events[2]!.payload.orpEvent.eventType = "runtime_request.resolved"; }],
+  ["normal durable handoff", f => { f.events[2]!.payload.orpEvent.payload.reason = "durable_handoff"; }],
+  ["replay allowed", f => { f.events[2]!.payload.orpEvent.payload.replayAllowed = true; }],
+  ["foreign request", f => { f.events[2]!.payload.orpEvent.payload.requestId = "other"; }],
+  ["foreign item", f => { f.events[2]!.payload.orpEvent.payload.itemId = "other"; }],
+  ["missing canonical request", f => { delete f.events[2]!.payload.orpEvent.payload.request; }],
+  ["replaced canonical question", f => { f.events[2]!.payload.orpEvent.payload.request = { ...f.events[2]!.payload.orpEvent.payload.request, input: {} }; }],
+  ["duplicate expiry", f => { f.events.push(f.wrap("runtime_request.expired", 5, f.events[2]!.payload.orpEvent.payload)); }],
   ["new native turn", f => { f.events.push(f.wrap("turn.started", 5, {})); }],
   ["successful provider", f => { f.state.runs[0]!.status = "succeeded"; }],
   ["Stop cancellation", f => { f.state.runs[0]!.resultJson = { nativeCancellation: {} }; }],
   ["worker failure without turn failure", f => { f.events.pop(); }],
-  ["completed turn", f => { f.events[3]!.eventType = f.events[3]!.payload.prpEvent.eventType = "turn.completed"; }],
+  ["completed turn", f => { f.events[3]!.eventType = f.events[3]!.payload.orpEvent.eventType = "turn.completed"; }],
   ["terminal before expiry", f => { f.events[3]!.seq = 0; }],
   ["second run", f => { f.state.runs.push({ ...f.state.runs[0], id: "other" }); }],
   ["restored session", f => { f.state.runs[0]!.nativeSessionId = "restored"; }],
   ["foreign company", f => { f.events[2]!.companyId = "foreign"; }],
-  ["foreign source", f => { f.events[2]!.payload.prpEvent.sourceInstanceId = "foreign"; }],
+  ["foreign source", f => { f.events[2]!.payload.orpEvent.sourceInstanceId = "foreign"; }],
   ["original still pending", f => { f.state.interactions[0]!.status = "pending"; }],
   ["answered original", f => { f.state.interactions[0]!.status = "answered"; }],
   ["rebound original card", f => { f.state.interactions[0]!.sourceRunId = "other"; }],
@@ -74,7 +74,7 @@ it.each([
 async function journey(staleStatus = 409, markerEffect = false) {
   const f = fixture(), evidence = new Map<string, unknown>(), posted: string[] = [];
   let lost = false, signals = 0, retired = false;
-  Object.assign(f.before.state.runs[0]!, { contextSnapshot: { executionWorkspaceId: "workspace", paperclipEnvironment: { leaseId: "lease" } },
+  Object.assign(f.before.state.runs[0]!, { contextSnapshot: { executionWorkspaceId: "workspace", outpostEnvironment: { leaseId: "lease" } },
     runnerProfileJson: { nativeExecutionInput: { binding: { executionWorkspaceId: "workspace" } } } });
   const root = { pid: 21, startTicks: "100", bootId: "boot" };
   const composer: any = { count: () => 1, filter: () => composer };

@@ -11,7 +11,7 @@ describe("returned CLI command admission", () => {
     expect(websiteCreateArgv(command(valid), target)).toEqual(["issue", "create", "--company-id", "owned-company", "--title", "Website task", "--project-id", "launch", "--assignee-agent-id", "morgan"]);
     expect(websiteCreateArgv(command(valid + " --json"), target).at(-1)).toBe("--json");
     expect(websiteCreateArgv(command(valid.replace("Website task", "Landing page refresh")), target)[5]).toBe("Landing page refresh");
-    const retained = 'npx paperclipai issue create --company-id "$PAPERCLIP_COMPANY_ID" --title "Build the website" --project-id "<LAUNCH_PROJECT_ID>" --assignee-agent-id "<MORGAN_AGENT_ID>" --status todo --standalone';
+    const retained = 'npx paperclipai issue create --company-id "$OUTPOST_COMPANY_ID" --title "Build the website" --project-id "<LAUNCH_PROJECT_ID>" --assignee-agent-id "<MORGAN_AGENT_ID>" --status todo --standalone';
     expect(websiteCreateArgv(command(retained), target)).toEqual(["issue", "create", "--company-id", target.company,
       "--title", "Build the website", "--project-id", target.project, "--assignee-agent-id", target.agent, "--status", "todo", "--standalone"]);
   });
@@ -26,7 +26,7 @@ describe("returned CLI command admission", () => {
     expect(validContextGuidance(valid, target)).toBe(true);
     expect(validContextGuidance(valid.replace("use acorn", "use acorn --invented yes"), target)).toBe(false);
     expect(validContextGuidance(command("paperclipai context use acorn"), target)).toBe(false);
-    expect(validContextGuidance(command('export PAPERCLIP_COMPANY_ID="owned-company"\nnpx paperclipai board setup\necho "$PAPERCLIP_COMPANY_ID"'), target)).toBe(false);
+    expect(validContextGuidance(command('export OUTPOST_COMPANY_ID="owned-company"\nnpx paperclipai board setup\necho "$OUTPOST_COMPANY_ID"'), target)).toBe(false);
     // The company is known in the conversation, so its placeholder is not bound.
     expect(validContextGuidance(command("paperclipai context set --profile acorn --api-base <API_BASE> --company-id <COMPANY_ID> --use\npaperclipai context show"), target)).toBe(false);
     // The person's own Paperclip address is a placeholder the agent cannot fill; it binds to the fixture origin.

@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import { z } from "zod";
 import { createBundledPluginPackageResolver, type BundledPluginRegistration } from "./bundled-plugin-package.js";
 import type { ResolvedBundledPlugin } from "./bundled-plugins.js";

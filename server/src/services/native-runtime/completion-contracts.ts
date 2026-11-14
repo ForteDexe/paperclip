@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
-import { completionContracts } from "@paperclipai/db";
-import type { NativeCompletionSource, StrictCompletionContractInput } from "../../vendor/paperclip-runner/index.js";
+import type { Db } from "@outpost/db";
+import { completionContracts } from "@outpost/db";
+import type { NativeCompletionSource, StrictCompletionContractInput } from "../../vendor/outpost-runner/index.js";
 
 import { nativeSha256 } from "./canonical.js";
 import { isConversation, type ConversationIdentity } from "../agent-conversations.js";
 
-export const NATIVE_COMPLETION_CONTRACT_SCHEMA = "paperclip.completion-contract.v1";
+export const NATIVE_COMPLETION_CONTRACT_SCHEMA = "outpost.completion-contract.v1";
 export const NATIVE_COMPLETION_POLICY_VERSION = "phase6-v4";
 
 /** Canonical persisted receipt includes the policy that governs the contract. */

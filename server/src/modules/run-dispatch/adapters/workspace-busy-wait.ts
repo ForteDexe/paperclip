@@ -1,6 +1,6 @@
 import { and, eq, gt, inArray, ne, sql } from "drizzle-orm";
-import { executionWorkspaces, heartbeatRuns, issues, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { executionWorkspaces, heartbeatRuns, issues, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { notifyScheduledRetryDispatch } from "../../../services/run-dispatch-notifications.js";
 import { notifyScheduledRetryCancellation } from "../../../services/scheduled-retry-cancellation-notifications.js";
 import { readRemoteWorkspaceWriterHold, runOwnerFenceHeldSql } from "../../../services/remote-workspace-writer-hold.js";

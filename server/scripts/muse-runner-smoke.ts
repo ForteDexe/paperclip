@@ -1,7 +1,7 @@
 /** Opt-in deterministic operator smoke against an isolated loopback server.
  * This scripts a synthetic external worker through production HTTP/native Runner
  * surfaces. It is not a registered Product E2E campaign or live Muse qualification.
- * pnpm --filter @paperclipai/server exec tsx scripts/muse-runner-smoke.ts --run --base http://127.0.0.1:3311 \
+ * pnpm --filter @outpost/server exec tsx scripts/muse-runner-smoke.ts --run --base http://127.0.0.1:3311 \
  *   --auth-file /private/path/operator.json --company <uuid> --agent <uuid> \
  *   --instance <instance-id> --server-source-sha <40-char-sha> --evidence-dir /private/path/evidence
  */
@@ -12,7 +12,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { digestPaperclipSemanticContent } from "../src/vendor/paperclip-runner/index.js";
+import { digestPaperclipSemanticContent } from "../src/vendor/outpost-runner/index.js";
 
 type Json = Record<string, unknown>;
 function object(value: unknown): Json {
@@ -48,7 +48,7 @@ const startedAt = new Date().toISOString(), deadline = Date.now() + 5 * 60_000;
 const marker = `synthetic-muse-${randomUUID()}`;
 const bindingPath = `/api/companies/${companyId}/agents/${agentId}/muse-binding`;
 const evidence: Json = {
-  schema: "paperclip.synthetic-muse-smoke.v1", synthetic: true,
+  schema: "outpost.synthetic-muse-smoke.v1", synthetic: true,
   registeredCampaign: false, liveMuseQualification: false, browserVerified: false,
   sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), serverSourceSha,
   scriptSha256: createHash("sha256").update(await readFile(fileURLToPath(import.meta.url))).digest("hex"),
@@ -134,7 +134,7 @@ async function accept(work: Json): Promise<void> {
   assert.equal(run.runtimeMode, "native"); assert.equal(run.driverKind, "muse_external");
   assert.equal(run.status, "running");
   const profile = object(object(run.runnerProfileJson).nativeExecutionInput);
-  assert.equal(profile.schema, "paperclip.native-execution-input.v8");
+  assert.equal(profile.schema, "outpost.native-execution-input.v8");
   assert.equal(object(profile.workspace).access, "none");
   step("native-accepted", { turn: runIds.length, runId });
 }
@@ -146,7 +146,7 @@ async function finish(work: Json, summary: string): Promise<void> {
     evidence: [], verification: [{ commandOrCheck: "Independent board document readback", status: "pass" }] };
   const receipt = await command({ command: "tool", assignmentId: work.assignmentId, name: "paperclip_finish", arguments: result });
   const canonical = object(object(receipt.result).completionReport);
-  assert.equal(canonical.schema, "paperclip.run_result.v1"); assert.equal(canonical.reportedWorkDisposition, "done");
+  assert.equal(canonical.schema, "outpost.run_result.v1"); assert.equal(canonical.reportedWorkDisposition, "done");
   await command({ command: "finish", assignmentId: work.assignmentId, result: canonical });
   const runId = string(object(work.binding).runId);
   const run = await until("server native finalization", async () => object(await board(`/api/heartbeat-runs/${runId}`)), value =>
@@ -240,7 +240,7 @@ try {
   step("native-document-written", { runId: runIds[0], canonicalBody: true });
   const nativeRequestId = `smoke-question-${randomUUID()}`;
   await command({ command: "request_user_input", assignmentId: first.assignmentId, nativeRequestId,
-    questionSet: { schema: "paperclip.question_set.v1", questions: [{ id: "environment", prompt: "Which synthetic environment?", required: true,
+    questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "environment", prompt: "Which synthetic environment?", required: true,
       answerMode: "single_select", options: [{ id: "test", label: "Test" }, { id: "production", label: "Production" }] }] } });
   const interaction = await until("actual pending native question", async () =>
     rows(await board(`/api/issues/${issueId}/interactions`)).find(row => row.kind === "ask_user_questions" && object(row.payload).runtimeRequestId === nativeRequestId) ?? {}, value => value.status === "pending");
@@ -248,11 +248,11 @@ try {
   const pendingEvent = await until("durable runtime_request.created v2", async () =>
     rows(await board(`/api/heartbeat-runs/${runIds[0]}/events?limit=1000`)).find(row => {
       if (row.eventType !== "runtime_request.created") return false;
-      const event = object(object(row.payload).prpEvent ?? {});
+      const event = object(object(row.payload).orpEvent ?? {});
       return event.eventType === "runtime_request.created" && object(object(event.payload).request).requestId === nativeRequestId;
     }) ?? {}, value => typeof value.id === "number");
-  const nativeRequest = object(object(object(object(pendingEvent.payload).prpEvent).payload).request);
-  assert.equal(nativeRequest.schema, "paperclip.runtime_request.v2"); assert.equal(nativeRequest.status, "pending");
+  const nativeRequest = object(object(object(object(pendingEvent.payload).orpEvent).payload).request);
+  assert.equal(nativeRequest.schema, "outpost.runtime_request.v2"); assert.equal(nativeRequest.status, "pending");
   step("native-question-pending", { runId: runIds[0], interactionId: interaction.id, nativeRequestId });
   const answered = object(await board(`/api/issues/${issueId}/interactions/${interaction.id}/respond`, "POST", {
     answers: [{ questionId: "environment", optionIds: ["test"] }] })); assert.equal(answered.status, "answered");
@@ -262,10 +262,10 @@ try {
   const resolvedEvent = await until("durable native answer resolution", async () =>
     rows(await board(`/api/heartbeat-runs/${runIds[0]}/events?limit=1000`)).find(row => {
       if (row.eventType !== "runtime_request.resolved") return false;
-      const event = object(object(row.payload).prpEvent ?? {});
+      const event = object(object(row.payload).orpEvent ?? {});
       return event.eventType === "runtime_request.resolved" && object(event.payload).requestId === nativeRequestId;
     }) ?? {}, value => typeof value.id === "number");
-  const resolvedPayload = object(object(object(resolvedEvent.payload).prpEvent).payload);
+  const resolvedPayload = object(object(object(resolvedEvent.payload).orpEvent).payload);
   assert.equal(resolvedPayload.turnId, input.turnId); assert.equal(resolvedPayload.action, "submit");
   const continuationReceiptId = randomUUID(), continuationFile = join(evidenceDirectory, `continuation-${continuationReceiptId}.json`);
   await writeFile(continuationFile, JSON.stringify({ synthetic: true, continuationReceiptId, requestId: nativeRequestId,

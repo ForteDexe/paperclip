@@ -1,4 +1,4 @@
-import type { RequestConfirmationResult } from "@paperclipai/shared";
+import type { RequestConfirmationResult } from "@outpost/shared";
 
 /** GitHub reports repository permission failures inside successful MCP HTTP
  * responses. Do not infer that every 403 is an access problem (rate limits also

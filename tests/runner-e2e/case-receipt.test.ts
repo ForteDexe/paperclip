@@ -133,7 +133,7 @@ describe("receipt smoke fixture", () => {
 describe("persisted case document read evidence", () => {
   const operation = "GET /api/cases/{id}/documents/{key}";
   const event = (seq: number, eventType: string, payload: Record<string, any>) => ({ seq, eventType, protocolSchemaVersion: 2,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v2", schemaVersion: 2, sourceKind: "runner", payload } } });
+    payload: { orpEvent: { schema: "outpost.orp.event.v2", schemaVersion: 2, sourceKind: "runner", payload } } });
   function read() {
     return [event(1, "item.started", { item: { type: "tool_use", name: "call_api", id: "read", input: { operationId: operation, pathParams: { id: "case", key: "receipt" } } } }),
       event(2, "item.completed", { item: { type: "tool_result", id: "read", tool_use_id: "read", result: { ok: true, status: 200, apiOperationId: operation,
@@ -152,19 +152,19 @@ describe("persisted case document read evidence", () => {
   const corruptions: Array<[string, (events: any[]) => void]> = [
     ["missing call input", events => { events.shift(); }],
     ["missing tool completion", events => { events.pop(); }],
-    ["a failed API response", events => { events[1].payload.prpEvent.payload.item.result.ok = false; }],
-    ["a refused API status", events => { events[1].payload.prpEvent.payload.item.result.status = 403; }],
-    ["a failed execution", events => { events[2].payload.prpEvent.payload.status = "failed"; }],
-    ["an unrelated execution ID", events => { events[2].payload.prpEvent.payload.executionId = "other"; }],
-    ["an unrelated result ID", events => { events[1].payload.prpEvent.payload.item.id = "other"; }],
-    ["an unrelated tool-use ID", events => { events[1].payload.prpEvent.payload.item.tool_use_id = "other"; }],
-    ["a task document read", events => { events[0].payload.prpEvent.payload.item.input.operationId = "GET /api/issues/{id}/documents/{key}"; }],
-    ["a write with document-looking result", events => { events[0].payload.prpEvent.payload.item.input.operationId = "PUT /api/cases/{id}/documents/{key}"; }],
-    ["a different returned operation", events => { events[1].payload.prpEvent.payload.item.result.apiOperationId = "GET /api/agents/me"; }],
-    ["a different returned document", events => { events[1].payload.prpEvent.payload.item.result.data.key = "review"; }],
-    ["a result without persisted revision", events => { delete events[1].payload.prpEvent.payload.item.result.data.latestRevisionId; }],
-    ["a result without returned body", events => { delete events[1].payload.prpEvent.payload.item.result.data.body; }],
-    ["provider-authored receipt lookalikes", events => { events.forEach(row => { row.payload.prpEvent.sourceKind = "provider"; }); }],
+    ["a failed API response", events => { events[1].payload.orpEvent.payload.item.result.ok = false; }],
+    ["a refused API status", events => { events[1].payload.orpEvent.payload.item.result.status = 403; }],
+    ["a failed execution", events => { events[2].payload.orpEvent.payload.status = "failed"; }],
+    ["an unrelated execution ID", events => { events[2].payload.orpEvent.payload.executionId = "other"; }],
+    ["an unrelated result ID", events => { events[1].payload.orpEvent.payload.item.id = "other"; }],
+    ["an unrelated tool-use ID", events => { events[1].payload.orpEvent.payload.item.tool_use_id = "other"; }],
+    ["a task document read", events => { events[0].payload.orpEvent.payload.item.input.operationId = "GET /api/issues/{id}/documents/{key}"; }],
+    ["a write with document-looking result", events => { events[0].payload.orpEvent.payload.item.input.operationId = "PUT /api/cases/{id}/documents/{key}"; }],
+    ["a different returned operation", events => { events[1].payload.orpEvent.payload.item.result.apiOperationId = "GET /api/agents/me"; }],
+    ["a different returned document", events => { events[1].payload.orpEvent.payload.item.result.data.key = "review"; }],
+    ["a result without persisted revision", events => { delete events[1].payload.orpEvent.payload.item.result.data.latestRevisionId; }],
+    ["a result without returned body", events => { delete events[1].payload.orpEvent.payload.item.result.data.body; }],
+    ["provider-authored receipt lookalikes", events => { events.forEach(row => { row.payload.orpEvent.sourceKind = "provider"; }); }],
     ["a mismatched protocol version", events => { events[1].protocolSchemaVersion = 3; }],
     ["a completion before its call", events => { events[2].seq = 0; }],
   ];
@@ -175,8 +175,8 @@ describe("persisted case document read evidence", () => {
 
   it("proves the exact read using the production persistence redaction contract", () => {
     const events = redactRunnerApiPayloads(read());
-    const input = events[0]!.payload.prpEvent.payload.item.input;
-    const result = events[1]!.payload.prpEvent.payload.item.result;
+    const input = events[0]!.payload.orpEvent.payload.item.input;
+    const result = events[1]!.payload.orpEvent.payload.item.result;
     expect(input.pathParams).toBeUndefined();
     expect(input).toMatchObject({ operationId: operation, data: REDACTED_EVENT_VALUE, apiPayloadRedacted: true,
       apiPayloadSha256: nativeSha256({ operationId: operation, pathParams: { id: "case", key: "receipt" } }) });
@@ -189,28 +189,28 @@ describe("persisted case document read evidence", () => {
 
   it("accepts canonical property ordering and the explicitly supported empty query", () => {
     const events = read();
-    events[0]!.payload.prpEvent.payload.item.input = { query: {}, pathParams: { key: "receipt", id: "case" }, operationId: operation };
+    events[0]!.payload.orpEvent.payload.item.input = { query: {}, pathParams: { key: "receipt", id: "case" }, operationId: operation };
     expect(hasCaseDocumentRead(redactRunnerApiPayloads(events), "case", "receipt")).toBe(true);
   });
 
   const redactedCorruptions: Array<[string, (events: any[]) => void]> = [
-    ["missing request digest", events => { delete events[0].payload.prpEvent.payload.item.input.apiPayloadSha256; }],
-    ["incorrect request digest", events => { events[0].payload.prpEvent.payload.item.input.apiPayloadSha256 = "a".repeat(64); }],
-    ["missing request redaction marker", events => { delete events[0].payload.prpEvent.payload.item.input.apiPayloadRedacted; }],
-    ["unredacted request data", events => { events[0].payload.prpEvent.payload.item.input.data = {}; }],
-    ["reintroduced request parameters", events => { events[0].payload.prpEvent.payload.item.input.pathParams = { id: "case", key: "receipt" }; }],
-    ["missing response digest", events => { delete events[1].payload.prpEvent.payload.item.result.apiPayloadSha256; }],
-    ["malformed response digest", events => { events[1].payload.prpEvent.payload.item.result.apiPayloadSha256 = "invalid"; }],
-    ["missing response redaction marker", events => { delete events[1].payload.prpEvent.payload.item.result.apiPayloadRedacted; }],
-    ["unredacted response data", events => { events[1].payload.prpEvent.payload.item.result.data = { id: "receipt", key: "receipt", latestRevisionId: "receipt-1", body: "{}" }; }],
-    ["unsuccessful redacted response", events => { events[1].payload.prpEvent.payload.item.result.ok = false; }],
-    ["refused redacted response", events => { events[1].payload.prpEvent.payload.item.result.status = 404; }],
-    ["mismatched redacted operation", events => { events[1].payload.prpEvent.payload.item.result.apiOperationId = "GET /api/agents/me"; }],
-    ["unrelated redacted result", events => { events[1].payload.prpEvent.payload.item.id = "other-call"; }],
-    ["unrelated redacted execution", events => { events[2].payload.prpEvent.payload.executionId = "other-call"; }],
+    ["missing request digest", events => { delete events[0].payload.orpEvent.payload.item.input.apiPayloadSha256; }],
+    ["incorrect request digest", events => { events[0].payload.orpEvent.payload.item.input.apiPayloadSha256 = "a".repeat(64); }],
+    ["missing request redaction marker", events => { delete events[0].payload.orpEvent.payload.item.input.apiPayloadRedacted; }],
+    ["unredacted request data", events => { events[0].payload.orpEvent.payload.item.input.data = {}; }],
+    ["reintroduced request parameters", events => { events[0].payload.orpEvent.payload.item.input.pathParams = { id: "case", key: "receipt" }; }],
+    ["missing response digest", events => { delete events[1].payload.orpEvent.payload.item.result.apiPayloadSha256; }],
+    ["malformed response digest", events => { events[1].payload.orpEvent.payload.item.result.apiPayloadSha256 = "invalid"; }],
+    ["missing response redaction marker", events => { delete events[1].payload.orpEvent.payload.item.result.apiPayloadRedacted; }],
+    ["unredacted response data", events => { events[1].payload.orpEvent.payload.item.result.data = { id: "receipt", key: "receipt", latestRevisionId: "receipt-1", body: "{}" }; }],
+    ["unsuccessful redacted response", events => { events[1].payload.orpEvent.payload.item.result.ok = false; }],
+    ["refused redacted response", events => { events[1].payload.orpEvent.payload.item.result.status = 404; }],
+    ["mismatched redacted operation", events => { events[1].payload.orpEvent.payload.item.result.apiOperationId = "GET /api/agents/me"; }],
+    ["unrelated redacted result", events => { events[1].payload.orpEvent.payload.item.id = "other-call"; }],
+    ["unrelated redacted execution", events => { events[2].payload.orpEvent.payload.executionId = "other-call"; }],
     ["missing redacted execution completion", events => { events.pop(); }],
-    ["a failed redacted execution", events => { events[2].payload.prpEvent.payload.status = "failed"; }],
-    ["a provider-authored redacted lookalike", events => { events.forEach(row => { row.payload.prpEvent.sourceKind = "provider"; }); }],
+    ["a failed redacted execution", events => { events[2].payload.orpEvent.payload.status = "failed"; }],
+    ["a provider-authored redacted lookalike", events => { events.forEach(row => { row.payload.orpEvent.sourceKind = "provider"; }); }],
   ];
   it.each(redactedCorruptions)("rejects %s", (_name, corrupt) => {
     const events = redactRunnerApiPayloads(read()); corrupt(events);
@@ -223,7 +223,7 @@ describe("persisted case document read evidence", () => {
     { operationId: "PUT /api/cases/{id}/documents/{key}", pathParams: { id: "case", key: "receipt" } },
     { operationId: operation, pathParams: { id: "case", key: "receipt" }, query: { unknown: "value" } },
   ])("rejects a production-redacted request for different inputs %j", input => {
-    const events = read(); events[0]!.payload.prpEvent.payload.item.input = input;
+    const events = read(); events[0]!.payload.orpEvent.payload.item.input = input;
     expect(hasCaseDocumentRead(redactRunnerApiPayloads(events), "case", "receipt")).toBe(false);
   });
 
@@ -244,7 +244,7 @@ describe("persisted case document read evidence", () => {
 
   function nativeReadThenWrite() {
     return readThenWrite().map(row => {
-      const payload = row.payload.prpEvent.payload;
+      const payload = row.payload.orpEvent.payload;
       const item = payload.item;
       if (item?.type === "tool_use") {
         const write = item.input.operationId.startsWith("PUT");
@@ -270,13 +270,13 @@ describe("persisted case document read evidence", () => {
 
   it.each([false, true])("rejects incomplete or misattributed native case read evidence (production redaction: %s)", persist => {
     const mutations = [
-      (events: any[]) => { events[0].payload.prpEvent.payload.item.input.caseId = "other-case"; },
-      (events: any[]) => { events[0].payload.prpEvent.payload.item.input.key = "other-document"; },
-      (events: any[]) => { events[1].payload.prpEvent.payload.item.result.ok = false; },
-      (events: any[]) => { events[2].payload.prpEvent.payload.name = "call_api"; },
+      (events: any[]) => { events[0].payload.orpEvent.payload.item.input.caseId = "other-case"; },
+      (events: any[]) => { events[0].payload.orpEvent.payload.item.input.key = "other-document"; },
+      (events: any[]) => { events[1].payload.orpEvent.payload.item.result.ok = false; },
+      (events: any[]) => { events[2].payload.orpEvent.payload.name = "call_api"; },
       (events: any[]) => { events[3].seq = 0; },
-      (events: any[]) => { events[4].payload.prpEvent.payload.item.result.status = 409; },
-      (events: any[]) => { events.forEach(row => { row.payload.prpEvent.sourceKind = "provider"; }); },
+      (events: any[]) => { events[4].payload.orpEvent.payload.item.result.status = 409; },
+      (events: any[]) => { events.forEach(row => { row.payload.orpEvent.sourceKind = "provider"; }); },
     ];
     for (const mutate of mutations) {
       const events = nativeReadThenWrite();
@@ -299,15 +299,15 @@ describe("persisted case document read evidence", () => {
     ["missing case-document write", events => { events.splice(3); }],
     ["missing write result", events => { events.splice(4, 1); }],
     ["missing write completion", events => { events.pop(); }],
-    ["failed write execution", events => { events[5].payload.prpEvent.payload.status = "failed"; }],
-    ["failed write response", events => { events[4].payload.prpEvent.payload.item.result.ok = false; }],
-    ["refused write status", events => { events[4].payload.prpEvent.payload.item.result.status = 409; }],
-    ["unrelated write response operation", events => { events[4].payload.prpEvent.payload.item.result.apiOperationId = operation; }],
-    ["unrelated write result ID", events => { events[4].payload.prpEvent.payload.item.id = "unrelated"; }],
-    ["unrelated write tool-use ID", events => { events[4].payload.prpEvent.payload.item.tool_use_id = "unrelated"; }],
-    ["unrelated write completion", events => { events[5].payload.prpEvent.payload.executionId = "unrelated"; }],
+    ["failed write execution", events => { events[5].payload.orpEvent.payload.status = "failed"; }],
+    ["failed write response", events => { events[4].payload.orpEvent.payload.item.result.ok = false; }],
+    ["refused write status", events => { events[4].payload.orpEvent.payload.item.result.status = 409; }],
+    ["unrelated write response operation", events => { events[4].payload.orpEvent.payload.item.result.apiOperationId = operation; }],
+    ["unrelated write result ID", events => { events[4].payload.orpEvent.payload.item.id = "unrelated"; }],
+    ["unrelated write tool-use ID", events => { events[4].payload.orpEvent.payload.item.tool_use_id = "unrelated"; }],
+    ["unrelated write completion", events => { events[5].payload.orpEvent.payload.executionId = "unrelated"; }],
     ["write completed before it started", events => { events[5].seq = 0; }],
-    ["provider-authored write lookalike", events => { for (const row of events.slice(3)) row.payload.prpEvent.sourceKind = "provider"; }],
+    ["provider-authored write lookalike", events => { for (const row of events.slice(3)) row.payload.orpEvent.sourceKind = "provider"; }],
   ];
   describe.each([false, true])("read-before-write evidence (production redaction: %s)", persist => {
     it.each(writeCorruptions)("rejects %s", (_name, corrupt) => {
@@ -321,24 +321,24 @@ describe("persisted case document read evidence", () => {
     const later = structuredClone(events.slice(3));
     later.forEach(row => {
       row.seq += 3;
-      const payload = row.payload.prpEvent.payload;
+      const payload = row.payload.orpEvent.payload;
       if (payload.item) { payload.item.id = "later-write"; if (payload.item.tool_use_id) payload.item.tool_use_id = "later-write"; }
       if (payload.executionId) payload.executionId = "later-write";
     });
-    events[4]!.payload.prpEvent.payload.item.result.ok = false;
+    events[4]!.payload.orpEvent.payload.item.result.ok = false;
     expect(hasCaseDocumentRead(redactRunnerApiPayloads([...events, ...later]), "case", "receipt", true)).toBe(false);
   });
 
   it.each([
-    (events: any[]) => { delete events[4].payload.prpEvent.payload.item.result.apiPayloadSha256; },
-    (events: any[]) => { delete events[3].payload.prpEvent.payload.item.input.apiPayloadSha256; },
+    (events: any[]) => { delete events[4].payload.orpEvent.payload.item.result.apiPayloadSha256; },
+    (events: any[]) => { delete events[3].payload.orpEvent.payload.item.input.apiPayloadSha256; },
     (events: any[]) => {
-      delete events[3].payload.prpEvent.payload.item.input.apiPayloadSha256;
-      delete events[3].payload.prpEvent.payload.item.input.apiPayloadRedacted;
+      delete events[3].payload.orpEvent.payload.item.input.apiPayloadSha256;
+      delete events[3].payload.orpEvent.payload.item.input.apiPayloadRedacted;
     },
     (events: any[]) => {
-      delete events[4].payload.prpEvent.payload.item.result.apiPayloadSha256;
-      delete events[4].payload.prpEvent.payload.item.result.apiPayloadRedacted;
+      delete events[4].payload.orpEvent.payload.item.result.apiPayloadSha256;
+      delete events[4].payload.orpEvent.payload.item.result.apiPayloadRedacted;
     },
   ])("rejects inconsistent production-redacted write receipts %s", corrupt => {
     const events = redactRunnerApiPayloads(readThenWrite());
@@ -349,7 +349,7 @@ describe("persisted case document read evidence", () => {
 
 describe("ordinary task document read evidence", () => {
   const event = (seq: number, eventType: string, payload: Record<string, any>) => ({ seq, eventType, protocolSchemaVersion: 2,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v2", schemaVersion: 2, sourceKind: "runner", payload } } });
+    payload: { orpEvent: { schema: "outpost.orp.event.v2", schemaVersion: 2, sourceKind: "runner", payload } } });
   const document = (key: string) => ({ id: `${key}-id`, issueId: "task", key, latestRevisionId: `${key}-revision`,
     latestRevisionNumber: 1, latestBody: "{}" });
   function evidence() {
@@ -372,22 +372,22 @@ describe("ordinary task document read evidence", () => {
     expect(hasTaskDocumentRead(evidence(), "task", "other-key", true)).toBe(false);
   });
   const corruptions: Array<[string, (events: any[]) => void]> = [
-    ["read result belongs to another task", e => { e[1].payload.prpEvent.payload.item.result.document.issueId = "other-task"; }],
-    ["write result belongs to another task", e => { e[4].payload.prpEvent.payload.item.result.document.issueId = "other-task"; }],
-    ["unpersisted document", e => { delete e[1].payload.prpEvent.payload.item.result.document.latestRevisionId; }],
-    ["missing returned body", e => { delete e[1].payload.prpEvent.payload.item.result.document.latestBody; }],
-    ["wrong returned key", e => { e[1].payload.prpEvent.payload.item.result.document.key = "other-key"; }],
-    ["wrong call key", e => { e[0].payload.prpEvent.payload.item.input.key = "other-key"; }],
-    ["unrelated read result", e => { e[1].payload.prpEvent.payload.item.id = "other"; }],
-    ["unrelated read execution", e => { e[2].payload.prpEvent.payload.executionId = "other"; }],
-    ["read execution failed", e => { e[2].payload.prpEvent.payload.status = "failed"; }],
-    ["write execution failed", e => { e[5].payload.prpEvent.payload.status = "failed"; }],
+    ["read result belongs to another task", e => { e[1].payload.orpEvent.payload.item.result.document.issueId = "other-task"; }],
+    ["write result belongs to another task", e => { e[4].payload.orpEvent.payload.item.result.document.issueId = "other-task"; }],
+    ["unpersisted document", e => { delete e[1].payload.orpEvent.payload.item.result.document.latestRevisionId; }],
+    ["missing returned body", e => { delete e[1].payload.orpEvent.payload.item.result.document.latestBody; }],
+    ["wrong returned key", e => { e[1].payload.orpEvent.payload.item.result.document.key = "other-key"; }],
+    ["wrong call key", e => { e[0].payload.orpEvent.payload.item.input.key = "other-key"; }],
+    ["unrelated read result", e => { e[1].payload.orpEvent.payload.item.id = "other"; }],
+    ["unrelated read execution", e => { e[2].payload.orpEvent.payload.executionId = "other"; }],
+    ["read execution failed", e => { e[2].payload.orpEvent.payload.status = "failed"; }],
+    ["write execution failed", e => { e[5].payload.orpEvent.payload.status = "failed"; }],
     ["missing successful write result", e => { e.splice(4, 1); }],
     ["write starts before read result", e => { e[3].seq = 1; }],
     ["read finishes after write starts", e => { e[2].seq = 5; }],
-    ["provider-authored lookalikes", e => { e.forEach(row => { row.payload.prpEvent.sourceKind = "provider"; }); }],
+    ["provider-authored lookalikes", e => { e.forEach(row => { row.payload.orpEvent.sourceKind = "provider"; }); }],
     ["wrong envelope version", e => { e[1].protocolSchemaVersion = 3; }],
-    ["retired case tool", e => { e[0].payload.prpEvent.payload.item.name = "read_case_document"; }],
+    ["retired case tool", e => { e[0].payload.orpEvent.payload.item.name = "read_case_document"; }],
   ];
   it.each(corruptions)("rejects %s", (_label, mutate) => {
     const rows = evidence(); mutate(rows);

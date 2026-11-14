@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { join, posix } from "node:path";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
 
 // Descriptor reads keep credentials private, bounded, and independent of the workspace.

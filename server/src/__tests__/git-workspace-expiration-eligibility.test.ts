@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, projects, projectWorkspaces, workspaceOperations } from "@paperclipai/db";
+import { agents, companies, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, projects, projectWorkspaces, workspaceOperations } from "@outpost/db";
 import { isGitWorkspaceExpirationEligible } from "../services/git-workspace-expiration.js";
 import { createSystemRecovery } from "../services/system-recovery-state.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -40,7 +40,7 @@ describeDatabase("Git expiration eligibility", () => {
     const [operation] = await db.insert(workspaceOperations).values({ companyId: f.companyId,
       executionWorkspaceId: f.workspace.id, issueId: f.issueId, phase: "remote_workspace_migration",
       status: state === "running" ? "running" : "failed",
-      metadata: state === "running" ? { schema: "paperclip.remote-workspace-migration.v1" }
+      metadata: state === "running" ? { schema: "outpost.remote-workspace-migration.v1" }
         : { lastFailure: { code: "source_expired_during_import" } } }).returning();
     expect(await f.eligible()).toBe(false);
     await db.delete(workspaceOperations).where(eq(workspaceOperations.id, operation.id));

@@ -17,10 +17,10 @@ effect immediately without restarting the server.
 Use the instance's configured authentication public URL, or explicitly set:
 
 ```sh
-PAPERCLIP_PUBLIC_URL=https://YOUR-PAPERCLIP-HOST
+OUTPOST_PUBLIC_URL=https://YOUR-PAPERCLIP-HOST
 ```
 
-The retired `PAPERCLIP_PUBLIC_MCP_ENABLED` variable has no effect. The persisted
+The retired `OUTPOST_PUBLIC_MCP_ENABLED` variable has no effect. The persisted
 `enablePublicMcp` setting controls discovery, sign-in, tools and event delivery.
 Turning it off blocks new calls and deliveries; already delegated work continues.
 Connection management and revocation remain available. Turning it back on allows
@@ -146,7 +146,7 @@ the code, and approve or decline. The private device code and issued tokens stay
 inside the CLI. Configure the second command as a local stdio MCP server in a host
 without native device support. Do not copy tokens into chat or MCP configuration.
 
-The CLI stores credentials separately under `$PAPERCLIP_HOME/mcp` (default
+The CLI stores credentials separately under `$OUTPOST_HOME/mcp` (default
 `~/.paperclip/mcp`), with a private directory and files, atomic replacement and a
 cross-process refresh mutex. It forwards only to the exact bound resource and
 rejects redirects. A failed write is never retried automatically because it may
@@ -372,9 +372,9 @@ directory broker keeps its original ten-tool connection.
 
 | Event | Required filters | Payload |
 | --- | --- | --- |
-| `paperclip.task.status_changed` | `companyId`, `taskId`; optional `statuses` | Task ID, status, company ID and task link |
-| `paperclip.task.comment_created` | `companyId`, `taskId` | Task/company IDs, comment ID and task link |
-| `paperclip.task.document_updated` | `companyId`, `taskId` | Task/company IDs, document key, revision and task link |
+| `outpost.task.status_changed` | `companyId`, `taskId`; optional `statuses` | Task ID, status, company ID and task link |
+| `outpost.task.comment_created` | `companyId`, `taskId` | Task/company IDs, comment ID and task link |
+| `outpost.task.document_updated` | `companyId`, `taskId` | Task/company IDs, document key, revision and task link |
 
 In an Events-capable ChatGPT Work Cloud chat or dot, ask, for example:
 “Watch this task. When it finishes, read its report and tell me the result.”
@@ -401,7 +401,7 @@ must read current authorized state before responding or taking an action.
 Subscriptions last at most 24 hours (default), with a 30-second minimum. Hosted
 subscriptions last at most five minutes and never outlive the broker access
 proof: refresh the OAuth token before refreshing a subscription when necessary.
-The tenant verifies that proof through the fixed `PAPERCLIP_CLOUD_API_ORIGIN`
+The tenant verifies that proof through the fixed `OUTPOST_CLOUD_API_ORIGIN`
 broker before each delivery, checking current Cloud membership as well as local
 company membership, grant revocation and task access. A compatible Cloud broker
 must be deployed first for hosted Events. Direct connections to a Cloud tenant

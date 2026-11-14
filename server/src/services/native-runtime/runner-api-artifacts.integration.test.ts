@@ -2,22 +2,22 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { assets, runnerApiResponseReservations } from "@paperclipai/db";
+import { assets, runnerApiResponseReservations } from "@outpost/db";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("authorized read artifacts through real routes and storage", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
-  const oldSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const oldSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   beforeAll(async () => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer();
   }, 60000);
   afterAll(async () => {
     await server?.close();
-    if (oldSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    else process.env.PAPERCLIP_AGENT_JWT_SECRET = oldSecret;
+    if (oldSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+    else process.env.OUTPOST_AGENT_JWT_SECRET = oldSecret;
   });
 
   it.each([200, 204])("returns an explicit empty HTTP %s receipt without storage or quota reservations", async status => {

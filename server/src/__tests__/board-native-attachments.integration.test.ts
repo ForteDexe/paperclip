@@ -22,7 +22,7 @@ import {
   issueAttachments,
   issueComments,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 import { createStorageService } from "../storage/service.js";
@@ -98,7 +98,7 @@ describe("Board upload receipt to native wake staging", () => {
         id,
         companyId,
         name: id,
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: { provider: "codex" },
         runtimeConfig: {},
         status: "active",

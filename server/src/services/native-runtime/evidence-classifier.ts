@@ -1,5 +1,5 @@
 import { and, eq, or } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   approvals,
   caseHandoffs,
@@ -9,13 +9,13 @@ import {
   issueAttachments,
   issueThreadInteractions,
   issueWorkProducts,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   normalizePrpResultSignals,
   type PrpIgnoredAttentionRequest,
   type PrpNormalizedAttentionRequest,
   type PrpVerificationReasonCode,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 
 export type NativeEvidenceOutcome = "accepted" | "missing" | "rejected" | "unverifiable";
 
@@ -145,7 +145,7 @@ async function classifyEvidenceRef(input: {
     if (!event) {
       return { ref: input.ref, kind: "event", outcome: "missing", reasonCode: "durable_run_event_missing", durableRecordId: null };
     }
-    const evidenceOutcome = readNativeEventEvidenceOutcome(record(event.payload).prpEvent);
+    const evidenceOutcome = readNativeEventEvidenceOutcome(record(event.payload).orpEvent);
     if (evidenceOutcome === "accepted") {
       return { ref: input.ref, kind: "event", outcome: "accepted", reasonCode: "control_plane_evidence_accepted", durableRecordId: String(event.id) };
     }

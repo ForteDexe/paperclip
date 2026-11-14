@@ -22,7 +22,7 @@ echo "PC_HOME: $PC_HOME"
 
 env \
   HOME="$PC_HOME" \
-  PAPERCLIP_HOME="$PC_HOME/.paperclip" \
+  OUTPOST_HOME="$PC_HOME/.paperclip" \
   npm_config_cache="$PC_CACHE" \
   npm_config_userconfig="$PC_HOME/.npmrc" \
   PATH="$PC_HOME/.local/bin:$PATH" \
@@ -32,13 +32,13 @@ test -x "$PC_HOME/.local/bin/paperclipai"
 test -L "$PC_HOME/.paperclip/cli/current"
 test -f "$PC_HOME/.paperclip/cli/install.json"
 
-env HOME="$PC_HOME" PAPERCLIP_HOME="$PC_HOME/.paperclip" PATH="$PC_HOME/.local/bin:$PATH" paperclipai --version
-env HOME="$PC_HOME" PAPERCLIP_HOME="$PC_HOME/.paperclip" PATH="$PC_HOME/.local/bin:$PATH" paperclipai doctor \
+env HOME="$PC_HOME" OUTPOST_HOME="$PC_HOME/.paperclip" PATH="$PC_HOME/.local/bin:$PATH" paperclipai --version
+env HOME="$PC_HOME" OUTPOST_HOME="$PC_HOME/.paperclip" PATH="$PC_HOME/.local/bin:$PATH" paperclipai doctor \
   --config "$PC_TEST_ROOT/missing-config.json" >/dev/null || true
 
 env \
   HOME="$PC_HOME" \
-  PAPERCLIP_HOME="$PC_HOME/.paperclip" \
+  OUTPOST_HOME="$PC_HOME/.paperclip" \
   PATH="$PC_HOME/.local/bin:$PATH" \
   pnpm --dir "$REPO_ROOT" paperclipai uninstall
 

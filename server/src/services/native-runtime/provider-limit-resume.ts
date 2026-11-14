@@ -6,8 +6,8 @@ import {
   issueRecoveryActions,
   issues,
   type Db,
-} from "@paperclipai/db";
-import { readProviderFailure } from "@paperclipai/shared";
+} from "@outpost/db";
+import { readProviderFailure } from "@outpost/shared";
 import { HttpError } from "../../errors.js";
 import { logger } from "../../middleware/logger.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
@@ -40,10 +40,10 @@ const LIMIT_CATEGORIES = ["rate_limit", "quota_exhausted"];
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
-/** The provider-reported failure on a settled turn event, raw or PRP-wrapped. */
+/** The provider-reported failure on a settled turn event, raw or ORP-wrapped. */
 function providerFailureOf(payload: unknown) {
   const direct = asRecord(asRecord(payload).error).providerFailure;
-  const wrapped = asRecord(asRecord(asRecord(asRecord(payload).prpEvent).payload).error).providerFailure;
+  const wrapped = asRecord(asRecord(asRecord(asRecord(payload).orpEvent).payload).error).providerFailure;
   return readProviderFailure(direct) ?? readProviderFailure(wrapped);
 }
 

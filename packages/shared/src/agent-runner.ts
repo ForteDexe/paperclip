@@ -29,7 +29,7 @@ export function paperclipRunnerCreationLifecycle(
     ? {} : { lifecycleMode: "per_turn" };
 }
 
-export const PAPERCLIP_RUNNER_MINIMUM_GLIBC_VERSION = "2.39";
+export const OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION = "2.39";
 
 function supportsLinuxLibc(libc?: "glibc" | "musl" | "unknown", version?: string): boolean {
   if (libc !== undefined && libc !== "glibc") return false;
@@ -38,7 +38,7 @@ function supportsLinuxLibc(libc?: "glibc" | "musl" | "unknown", version?: string
   if (!match) return false;
   const major = Number(match[1]), minor = Number(match[2]);
   if (!Number.isSafeInteger(major) || !Number.isSafeInteger(minor)) return false;
-  const [requiredMajor, requiredMinor] = PAPERCLIP_RUNNER_MINIMUM_GLIBC_VERSION.split(".").map(Number);
+  const [requiredMajor, requiredMinor] = OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION.split(".").map(Number);
   return major > requiredMajor! || (major === requiredMajor && minor >= requiredMinor!);
 }
 
@@ -51,7 +51,7 @@ export function paperclipRunnerSupportsPlatform(harness: string, platform: strin
 }
 
 export function agentHarnessType(adapterType: string, config: Record<string, unknown> = {}): string {
-  if (adapterType !== "paperclip_runner") return adapterType;
+  if (adapterType !== "outpost_runner") return adapterType;
   if (config.provider === undefined || config.provider === "codex") return "codex_local";
   if (config.provider === "opencode") return "opencode_local";
   if (config.provider === "acpx") {
@@ -62,7 +62,7 @@ export function agentHarnessType(adapterType: string, config: Record<string, unk
 }
 
 export function agentRunner(adapterType: string): AgentRunner {
-  return adapterType === "paperclip_runner" ? "paperclip" : "legacy";
+  return adapterType === "outpost_runner" ? "paperclip" : "legacy";
 }
 
 /** Stable configuration group across native and legacy execution backends. */

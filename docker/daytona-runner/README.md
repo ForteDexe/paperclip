@@ -7,7 +7,7 @@ passed. The public CLI installation command is `paperclipai runtime setup cursor
 it runs explicitly on the execution host and is never an npm installation hook.
 
 This image is the Paperclip Cloud fleet sandbox image plus a source-built
-`paperclip-runnerd` and immutable provider pack. The pack contains Node 24.11,
+`outpost-runnerd` and immutable provider pack. The pack contains Node 24.11,
 OpenCode 1.18.34, the compiled OpenCode proxy, ACPX 0.22.0 sidecar, qualified ACP
 agents, and the production lockfile. Its manifest digests each executable bridge
 and records the runner source revision as provenance. Its interface declaration
@@ -43,12 +43,12 @@ provider manifest, and remote controller version checks aligned.
 
 ## Build and verify
 
-Run `pnpm --filter @paperclipai/paperclip-runner test:opencode:qualification`
+Run `pnpm --filter @outpost/outpost-runner test:opencode:qualification`
 after installing dependencies to exercise the actual pinned OpenCode executable.
 It checks health/version, session creation and retrieval, SSE messages, an async
 prompt, and session deletion against a loopback mock provider. It uses an
 isolated home, starts no paid model request, and retires its process group.
-Set `PAPERCLIP_TEST_OPENCODE_BINARY` to the materialized Linux executable when
+Set `OUTPOST_TEST_OPENCODE_BINARY` to the materialized Linux executable when
 qualifying an assembled provider pack.
 
 
@@ -59,16 +59,16 @@ checksums cover amd64.
 content_id="$(pnpm --silent test:e2e:runner:image-id)"
 docker buildx build \
   --platform linux/amd64 \
-  --build-arg PAPERCLIP_RUNNER_CONTENT_ID="${content_id}" \
-  --build-arg PAPERCLIP_RUNNER_SOURCE_REVISION="$(git rev-parse HEAD)" \
-  --build-arg PAPERCLIP_RUNNER_LOCK_SHA256="$(shasum -a 256 pnpm-lock.yaml | cut -d ' ' -f 1)" \
+  --build-arg OUTPOST_RUNNER_CONTENT_ID="${content_id}" \
+  --build-arg OUTPOST_RUNNER_SOURCE_REVISION="$(git rev-parse HEAD)" \
+  --build-arg OUTPOST_RUNNER_LOCK_SHA256="$(shasum -a 256 pnpm-lock.yaml | cut -d ' ' -f 1)" \
   --tag "paperclip-daytona-runner:e2e-content-${content_id}" \
   --load \
   --file docker/daytona-runner/Dockerfile \
   .
 
 docker run --rm --platform linux/amd64 \
-  --entrypoint paperclip-runnerd \
+  --entrypoint outpost-runnerd \
   "paperclip-daytona-runner:e2e-content-${content_id}" \
   --build-metadata
 ```
@@ -85,7 +85,7 @@ syntax version, resolve and review its registry digest and update both values in
 the first Dockerfile line. Git commits that do not change those inputs reuse the
 same content tag.
 
-`PAPERCLIP_RUNNER_SOURCE_REVISION` remains the full Git SHA that built the first
+`OUTPOST_RUNNER_SOURCE_REVISION` remains the full Git SHA that built the first
 published copy and is retained as provenance rather than cache identity.
 
 ## Use in Paperclip
@@ -93,13 +93,13 @@ published copy and is retained as provenance rather than cache identity.
 Publish the image to a registry Daytona can pull, or use the environment
 editor's **Configure image** flow to produce a Daytona snapshot. Set the
 environment image to that immutable tag or snapshot. Paperclip probes the
-sandbox user's `PATH` for `paperclip-runnerd` and `codex` and checks
-`/opt/paperclip-runner/provider-pack` for OpenCode and ACPX. It uses the pack
+sandbox user's `PATH` for `outpost-runnerd` and `codex` and checks
+`/opt/outpost-runner/provider-pack` for OpenCode and ACPX. It uses the pack
 when its selected provider interface and platform are compatible. App source
 revisions and unrelated provider pins do not force an update. Startup reads the
 small manifest in the existing runner metadata query. It does not scan the pack,
 run a version command, or transfer files on this path. Otherwise it stages the pack configured by
-`PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH`. Remote OpenCode and ACPX never
+`OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH`. Remote OpenCode and ACPX never
 fall back to host-local processes.
 
 `src/live/provider-pack-contract.json` in the Runner package declares the
@@ -128,9 +128,9 @@ verification. An attached session retains the exact pack and daemon identity
 admitted at launch. Publish one new image with the interface declaration to enable
 reuse across later compatible app releases.
 
-Do not promote `paperclip-runner-e2e-20260826-v2` for OpenCode or ACPX. Build a
+Do not promote `outpost-runner-e2e-20260826-v2` for OpenCode or ACPX. Build a
 new immutable image or snapshot from a clean committed revision and pass that
-full Git SHA as `PAPERCLIP_RUNNER_SOURCE_REVISION`.
+full Git SHA as `OUTPOST_RUNNER_SOURCE_REVISION`.
 
 Do not bake provider credentials, Paperclip bootstrap tickets, or Daytona
 preview tokens into this image. They remain per-run secret material.
@@ -145,12 +145,12 @@ Provider CLI updates are manifest-only changes: repository CI owns the root
 lockfile. Resolve the complete workspace manifest graph in the build context
 before invoking Docker, matching CI when a source commit precedes the lockfile
 bot. The trusted workflow supplies this resolved lockfile as an immutable artifact.
-The complete resolved lockfile must match `PAPERCLIP_RUNNER_LOCK_SHA256` before
+The complete resolved lockfile must match `OUTPOST_RUNNER_LOCK_SHA256` before
 package installation or lifecycle execution. Review and refresh that digest
 with source dependency changes; registry-time resolution drift fails closed.
 The Product E2E workflow resolves one lockfile before the image build. It
 verifies the downloaded artifact, then passes that artifact's SHA-256 as the
-`PAPERCLIP_RUNNER_LOCK_SHA256` build argument. The Dockerfile checks the resolved
+`OUTPOST_RUNNER_LOCK_SHA256` build argument. The Dockerfile checks the resolved
 lock against this value before installation. The Dockerfile has no default
 digest: standalone builds pass the SHA-256 of the lockfile in their build
 context, and a missing or malformed value fails before installation instead of
@@ -165,7 +165,7 @@ download dependencies when a task starts.
 ## Candidate ACP qualification assets
 
 Provider branches can build their pinned assets with
-`node packages/paperclip-runner/scripts/build-provider-pack.mjs /absolute/pack --candidate-providers=cursor`
+`node packages/outpost-runner/scripts/build-provider-pack.mjs /absolute/pack --candidate-providers=cursor`
 (or `copilot` or `pi`). The source revision must include the named provider's
 builder. Assets are installed at build time under `provider-assets/<provider>/<platform>-<architecture>`.
 The pack manifest binds each complete asset tree. Runtime admission separately
@@ -173,7 +173,7 @@ checks the provider's source-owned closure pins and copies a verified launch sna
 A pack with candidate assets does not qualify or enable that provider.
 
 For an isolated Linux x64 Daytona qualification image, pass
-`--build-arg PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS=cursor` with the normal build arguments.
+`--build-arg OUTPOST_RUNNER_CANDIDATE_PROVIDERS=cursor` with the normal build arguments.
 Compute its content ID with the same selection:
 `pnpm --silent test:e2e:runner:image-id --candidate-providers=cursor`.
 Candidate assets and the default pack have distinct image identities. Never reuse

@@ -2,9 +2,9 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as runner from "../../vendor/paperclip-runner/index.js";
+import * as runner from "../../vendor/outpost-runner/index.js";
 
-import type { PaperclipSemanticToolDefinition } from "../../vendor/paperclip-runner/index.js";
+import type { PaperclipSemanticToolDefinition } from "../../vendor/outpost-runner/index.js";
 import {
   buildNativeRunnerArguments,
   buildNativeRunnerPreparePayload,
@@ -17,8 +17,8 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(
 
 describe("installed runner selection", () => {
   it("uses the runner's platform-aware packaged selection", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runner-selection-"));
-    const binary = join(root, "paperclip-runnerd");
+    const root = await mkdtemp(join(tmpdir(), "outpost-runner-selection-"));
+    const binary = join(root, "outpost-runnerd");
     try {
       await writeFile(binary, "test executable", { mode: 0o700 });
       const select = vi.spyOn(runner, "defaultCapabilityRunnerdBinary").mockReturnValue(binary);
@@ -31,7 +31,7 @@ describe("installed runner selection", () => {
   });
 
   it("keeps an explicit usable override and rejects a relative override", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runner-selection-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runner-selection-"));
     const binary = join(root, "configured-runnerd");
     try {
       await writeFile(binary, "test executable", { mode: 0o700 });
@@ -63,7 +63,7 @@ describe("selected remote daemon target", () => {
     ["Darwin", "arm64", "darwin", "arm64"], ["Darwin", "x86_64", "darwin", "x64"],
   ] as const)("uses the packaged %s/%s daemon independent of the controller", async (os, arch, platform, architecture) => {
     const root = await mkdtemp(join(tmpdir(), "paperclip-ssh-daemon-"));
-    const binary = join(root, "paperclip-runnerd");
+    const binary = join(root, "outpost-runnerd");
     try {
       await writeFile(binary, header(`${platform}-${architecture}`));
       const select = vi.spyOn(runner, "defaultCapabilityRunnerdBinaryAsync").mockResolvedValue(binary);
@@ -76,13 +76,13 @@ describe("selected remote daemon target", () => {
   it.each(["arm64", "x64"].flatMap(controllerArch => ["arm64", "x64"].map(targetArch => ({ controllerArch, targetArch }))))(
     "selects the actual Linux $targetArch sandbox bytes on a Mac $controllerArch controller", async ({ controllerArch, targetArch }) => {
       const root = await mkdtemp(join(tmpdir(), "paperclip-sandbox-daemon-"));
-      const binary = join(root, "paperclip-runnerd");
+      const binary = join(root, "outpost-runnerd");
       try {
         vi.stubGlobal("process", { ...process, platform: "darwin", arch: controllerArch });
         await writeFile(binary, header(`linux-${targetArch}`));
         const controllerBinary = join(root, "controller-runnerd");
         await writeFile(controllerBinary, header(`darwin-${controllerArch}`), { mode: 0o700 });
-        vi.stubEnv("PAPERCLIP_RUNNER_BINARY", controllerBinary);
+        vi.stubEnv("OUTPOST_RUNNER_BINARY", controllerBinary);
         const select = vi.spyOn(runner, "defaultCapabilityRunnerdBinaryAsync").mockResolvedValue(binary);
         const target = remote(`Linux\n${targetArch === "arm64" ? "aarch64" : "x86_64"}\n`);
         expect(await resolveRemotePaperclipRunnerBinary({ runner: target, remoteCwd: "/sandbox-workspace" })).toBe(binary);
@@ -99,7 +99,7 @@ describe("selected remote daemon target", () => {
         const fresh = join(root, "fresh-runnerd"), stale = join(root, "stale-packaged-runnerd");
         await writeFile(fresh, Buffer.concat([header(`${platform}-${architecture}`), Buffer.from("fresh")]), { mode: 0o700 });
         await writeFile(stale, Buffer.concat([header(`${platform}-${architecture}`), Buffer.from("stale")]), { mode: 0o700 });
-        vi.stubEnv("PAPERCLIP_RUNNER_BINARY", fresh);
+        vi.stubEnv("OUTPOST_RUNNER_BINARY", fresh);
         const select = vi.spyOn(runner, "defaultCapabilityRunnerdBinaryAsync").mockResolvedValue(stale);
         const target = remote(`${platform === "linux" ? "Linux" : "Darwin"}\n${architecture === "arm64" ? "arm64" : "x86_64"}\n`);
         expect(await resolveRemotePaperclipRunnerBinary({ runner: target, remoteCwd: "/workspace" })).toBe(fresh);
@@ -114,18 +114,18 @@ describe("selected remote daemon target", () => {
       const override = join(root, "configured-runnerd"), fallback = join(root, "packaged-runnerd");
       if (scenario !== "missing") await writeFile(override, scenario === "malformed" ? Buffer.alloc(64) : header("linux-arm64"), { mode: 0o700 });
       await writeFile(fallback, header("linux-x64"), { mode: 0o700 });
-      vi.stubEnv("PAPERCLIP_RUNNER_BINARY", scenario === "relative" ? "relative-runnerd" : override);
+      vi.stubEnv("OUTPOST_RUNNER_BINARY", scenario === "relative" ? "relative-runnerd" : override);
       vi.spyOn(runner, "defaultCapabilityRunnerdBinaryAsync").mockResolvedValue(fallback);
       const request = resolveRemotePaperclipRunnerBinary({ runner: remote("Linux\nx86_64\n"), remoteCwd: "/workspace" });
       if (scenario === "missing") expect(await request).toBe(fallback);
-      else await expect(request).rejects.toThrow(scenario === "relative" ? "PAPERCLIP_RUNNER_BINARY must be an absolute path" : "runner_remote_artifact_platform_mismatch");
+      else await expect(request).rejects.toThrow(scenario === "relative" ? "OUTPOST_RUNNER_BINARY must be an absolute path" : "runner_remote_artifact_platform_mismatch");
     } finally { await rm(root, { recursive: true, force: true }); }
   });
   it("ignores a relative controller override when the actual target differs", async () => {
     const root = await mkdtemp(join(tmpdir(), "paperclip-cross-host-daemon-"));
     try {
       vi.stubGlobal("process", { ...process, platform: "darwin", arch: "arm64" });
-      vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "relative-controller-runnerd");
+      vi.stubEnv("OUTPOST_RUNNER_BINARY", "relative-controller-runnerd");
       const binary = join(root, "linux-runnerd");
       await writeFile(binary, header("linux-arm64"));
       const select = vi.spyOn(runner, "defaultCapabilityRunnerdBinaryAsync").mockResolvedValue(binary);
@@ -138,7 +138,7 @@ describe("selected remote daemon target", () => {
     const binary = join(root, "configured-runnerd");
     try {
       vi.stubGlobal("process", { ...process, platform: "linux", arch: "arm64" });
-      vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "invalid-relative-controller-override");
+      vi.stubEnv("OUTPOST_RUNNER_BINARY", "invalid-relative-controller-override");
       if (scenario !== "missing") await writeFile(binary, scenario === "malformed" ? Buffer.alloc(64) : header(scenario === "matching" ? "linux-arm64" : "linux-x64"));
       const select = vi.spyOn(runner, "defaultCapabilityRunnerdBinaryAsync");
       const request = resolveRemotePaperclipRunnerBinary({ runner: remote("Linux\naarch64\n"), remoteCwd: "/workspace", configuredPath: binary });
@@ -188,7 +188,7 @@ const tool: PaperclipSemanticToolDefinition = {
   inputSchema: { type: "object" },
   outputSchema: { type: "object" },
   annotations: {
-    semanticContract: "paperclip.semantic-action.v1",
+    semanticContract: "outpost.semantic-action.v1",
     version: 1,
     placement: "always",
     effect: "read",
@@ -217,7 +217,7 @@ describe("buildNativeRunnerPreparePayload", () => {
         providerSessionId: "thread-1",
       },
       authorizedTools: {
-        schema: "paperclip.runner.authorized-tools.v1",
+        schema: "outpost.runner.authorized-tools.v1",
         schemaVersion: 1,
         catalogDigest:
           "sha256:4e0332535c9e2ff1f5e43089517ee1b46654bfc9cb2ed51efbea4be50db21009",
@@ -228,10 +228,10 @@ describe("buildNativeRunnerPreparePayload", () => {
 });
 
 it("validates only local Runner configuration without requiring or probing an artifact", () => {
-  expect(() => assertPaperclipRunnerBinaryConfiguration("relative-runnerd")).toThrow("PAPERCLIP_RUNNER_BINARY must be an absolute path");
-  vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "relative-controller-runnerd");
-  expect(() => assertPaperclipRunnerBinaryConfiguration()).toThrow("PAPERCLIP_RUNNER_BINARY must be an absolute path");
-  expect(() => resolvePaperclipRunnerBinary()).toThrow("PAPERCLIP_RUNNER_BINARY must be an absolute path");
+  expect(() => assertPaperclipRunnerBinaryConfiguration("relative-runnerd")).toThrow("OUTPOST_RUNNER_BINARY must be an absolute path");
+  vi.stubEnv("OUTPOST_RUNNER_BINARY", "relative-controller-runnerd");
+  expect(() => assertPaperclipRunnerBinaryConfiguration()).toThrow("OUTPOST_RUNNER_BINARY must be an absolute path");
+  expect(() => resolvePaperclipRunnerBinary()).toThrow("OUTPOST_RUNNER_BINARY must be an absolute path");
   expect(() => assertPaperclipRunnerBinaryConfiguration("")).not.toThrow();
   expect(() => assertPaperclipRunnerBinaryConfiguration(join(tmpdir(), "not-present-configuration-only-runnerd"))).not.toThrow();
 });

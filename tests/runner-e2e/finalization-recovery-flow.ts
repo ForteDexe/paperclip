@@ -16,11 +16,11 @@ import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 
 type Row = Record<string, any>;
-const acceptedResults = (events: Row[]) => events.flatMap(event => event.payload?.prpEvent?.eventType === "run.result.accepted"
-  ? [event.payload.prpEvent.payload.result] : []);
-const providerTurns = (events: Row[]) => events.filter(event => event.payload?.prpEvent?.eventType === "turn.started" && event.payload.prpEvent.sourceKind === "runner").length;
+const acceptedResults = (events: Row[]) => events.flatMap(event => event.payload?.orpEvent?.eventType === "run.result.accepted"
+  ? [event.payload.orpEvent.payload.result] : []);
+const providerTurns = (events: Row[]) => events.filter(event => event.payload?.orpEvent?.eventType === "turn.started" && event.payload.orpEvent.sourceKind === "runner").length;
 const eventReceipts = (events: Row[]) => events.flatMap(event => {
-  const value = event.payload?.prpEvent;
+  const value = event.payload?.orpEvent;
   return value && ["run.result.accepted", "turn.started"].includes(value.eventType)
     ? [{ runId: value.runId, sourceInstanceId: value.sourceInstanceId, sourceEventId: value.sourceEventId,
       sourceSeq: value.sourceSeq, eventType: value.eventType, emittedAt: value.emittedAt }] : [];

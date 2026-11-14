@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within, waitFor } from "storybook/test";
 import { NewAgent } from "@/pages/NewAgent";
 import { AgentBasicsDialog } from "@/components/new-agent/AgentBasicsDialog";
-import { models } from "@paperclipai/adapter-codex-local";
+import { models } from "@outpost/adapter-codex-local";
 import { storybookHiredAgent } from "../../../fixtures/paperclipData";
 import { resetOnboardingFixtureState, setOnboardingFixtureState } from "../../../fixtures/onboardingEnvironment";
 
@@ -26,23 +26,23 @@ function installCodexCreationFixture({ setupFailure = false, nativeRunnerEnabled
     if (url.pathname === "/api/adapters") {
       const response = await previous(input, init);
       const adapters = (await response.json()).map((adapter: { type: string }) => adapter.type === "codex_local" ? { ...adapter, supportedRunners: unqualifiedTarget ? ["legacy"] : ["paperclip", "legacy"], defaultRunner: unqualifiedTarget ? "legacy" : "paperclip" } : adapter);
-      return Response.json(nativeRunnerEnabled || unqualifiedTarget ? [...adapters, { type: "paperclip_runner", label: "Paperclip Runner", source: "builtin", loaded: true, disabled: false, modelsCount: 0 }] : adapters);
+      return Response.json(nativeRunnerEnabled || unqualifiedTarget ? [...adapters, { type: "outpost_runner", label: "Outpost Runner", source: "builtin", loaded: true, disabled: false, modelsCount: 0 }] : adapters);
     }
     if (url.pathname.endsWith("/adapters/codex_local/models")) return Response.json(models);
     if (url.pathname.endsWith("/adapters/codex_local/test-environment")) {
       const request = body();
-      const native = request.runner === "paperclip" || request.adapterType === "paperclip_runner"
+      const native = request.runner === "paperclip" || request.adapterType === "outpost_runner"
         || (request.runner !== "legacy" && !unqualifiedTarget);
-      return Response.json({ adapterType: native ? "paperclip_runner" : "codex_local", testedAt: new Date(0).toISOString(), status: setupFailure && native ? "fail" : "pass",
-        checks: setupFailure && native ? [{ code: "runner_missing", level: "error", message: "Paperclip Runner is missing from this environment.", hint: "Install the runner in the selected environment, then retry setup." }]
-          : [{ code: native ? "paperclip_runner_codex_hello_probe_passed" : "codex_hello_probe_passed", level: "info", message: "The selected runtime responded." }],
+      return Response.json({ adapterType: native ? "outpost_runner" : "codex_local", testedAt: new Date(0).toISOString(), status: setupFailure && native ? "fail" : "pass",
+        checks: setupFailure && native ? [{ code: "runner_missing", level: "error", message: "Outpost Runner is missing from this environment.", hint: "Install the runner in the selected environment, then retry setup." }]
+          : [{ code: native ? "outpost_runner_codex_hello_probe_passed" : "codex_hello_probe_passed", level: "info", message: "The selected runtime responded." }],
       });
     }
     if (url.pathname.endsWith("/agent-hires")) {
       const request = body();
-      const native = request.runner === "paperclip" || request.adapterType === "paperclip_runner"
+      const native = request.runner === "paperclip" || request.adapterType === "outpost_runner"
         || (request.runner !== "legacy" && !unqualifiedTarget);
-      created = { ...storybookHiredAgent, ...request, adapterType: native ? "paperclip_runner" : "codex_local", adapterConfig: { ...request.adapterConfig, ...(native ? { provider: "codex" } : {}) } };
+      created = { ...storybookHiredAgent, ...request, adapterType: native ? "outpost_runner" : "codex_local", adapterConfig: { ...request.adapterConfig, ...(native ? { provider: "codex" } : {}) } };
       return Response.json({ agent: created, approval: null });
     }
     if (url.pathname === `/api/agents/${created.id}`) return Response.json(created);
@@ -99,7 +99,7 @@ export const AutomaticLegacyOnUnqualifiedTarget: Story = {
   },
 };
 export const OldNativeCodexLink: Story = {
-  parameters: { initialEntries: ["/PAP/agents/new?name=Nova&adapterType=paperclip_runner&runnerProvider=codex"], codexCreationFixture: { unqualifiedTarget: true } },
+  parameters: { initialEntries: ["/PAP/agents/new?name=Nova&adapterType=outpost_runner&runnerProvider=codex"], codexCreationFixture: { unqualifiedTarget: true } },
   play: async context => {
     await expectRunnerHidden(context);
   },
@@ -108,7 +108,7 @@ export const AutomaticLight: Story = { ...AutomaticCodex, globals: { theme: "lig
 export const LegacyMobile: Story = { ...ExplicitLegacy, globals: { viewport: { value: "mobile1", isRotated: false } } };
 export const SetupFailure: Story = { parameters: { codexCreationFixture: { setupFailure: true } }, play: async context => {
   await connectCodex(context);
-  await expect(await within(context.canvasElement).findByText("Paperclip Runner is missing from this environment.")).toBeVisible();
+  await expect(await within(context.canvasElement).findByText("Outpost Runner is missing from this environment.")).toBeVisible();
   await expectRunnerHidden(context);
 } };
 export const TaskReady: Story = {
@@ -118,7 +118,7 @@ export const TaskReady: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "Finish setup" }));
     await expect(await canvas.findByRole("heading", { name: /is ready/ })).toBeVisible();
     const agent = await (await fetch(`/api/agents/${storybookHiredAgent.id}`)).json();
-    await expect(agent.adapterType).toBe("paperclip_runner");
+    await expect(agent.adapterType).toBe("outpost_runner");
     await expect(agent.adapterConfig.provider).toBe("codex");
   },
 };
@@ -131,9 +131,9 @@ export const ExperimentalNativeHarnesses: Story = {
     await userEvent.click(await dialog.findByRole("button", { name: "Choose adapter" }));
     await userEvent.click(await dialog.findByText("Advanced", { exact: true, selector: "summary" }));
     await userEvent.click(await dialog.findByRole("button", { name: "Experimental harness" }));
-    await expect(await dialog.findByRole("option", { name: "Grok Build (Paperclip Runner)" })).toBeVisible();
-    await expect(await dialog.findByRole("option", { name: "OpenCode (Paperclip Runner)" })).toBeVisible();
-    await userEvent.click(await dialog.findByRole("option", { name: "Claude Code (Paperclip Runner)" }));
+    await expect(await dialog.findByRole("option", { name: "Grok Build (Outpost Runner)" })).toBeVisible();
+    await expect(await dialog.findByRole("option", { name: "OpenCode (Outpost Runner)" })).toBeVisible();
+    await userEvent.click(await dialog.findByRole("option", { name: "Claude Code (Outpost Runner)" }));
     await expect(await dialog.findByRole("button", { name: "Experimental harness" })).toHaveTextContent("Claude Code");
     await expect(await dialog.findByRole("button", { name: "Configure agent" })).toBeEnabled();
   },

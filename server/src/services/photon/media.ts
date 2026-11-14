@@ -57,7 +57,7 @@ export function validateHeifDimensions(body: Buffer): void {
         totalPixels += width * height;
         if (totalPixels > MAX_PIXELS * 3 || ++dimensions > 512)
           throw new Error("HEIF image collection exceeds the pixel limit");
-      } else if (["meta", "iprp", "ipco"].includes(type)) {
+      } else if (["meta", "iorp", "ipco"].includes(type)) {
         visit(content + (type === "meta" ? 4 : 0), at + size, depth + 1);
       }
       at += size;

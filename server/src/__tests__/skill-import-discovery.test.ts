@@ -1,8 +1,8 @@
 import { expect, it, vi } from "vitest";
 import { searchRunnerApi } from "../services/native-runtime/runner-api-catalog.js";
 import { executeRunnerApi, validateRunnerApiCall } from "../services/native-runtime/runner-api-client.js";
-import { startOpenCodeMcpBridge } from "../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.js";
-import { searchApiAction } from "../../../packages/paperclip-runner/src/protocol-actions/search-api.js";
+import { startOpenCodeMcpBridge } from "../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.js";
+import { searchApiAction } from "../../../packages/outpost-runner/src/protocol-actions/search-api.js";
 
 const operationId = "POST /api/companies/{companyId}/skills/import";
 const context = { companyId: "company-a", issueId: "issue-a", runId: "run-a", workMode: "standard" };
@@ -64,7 +64,7 @@ it("keeps foreign-company and read-only-mode import calls denied before dispatch
 it("preserves the actual agent credential and source-policy denial returned by the route", async () => {
   const request = vi.fn<typeof fetch>(async () => Response.json({ error: "Skill import policy denied" }, { status: 403 }));
   const result = await executeRunnerApi({ operationId, body: { source: "/owned-company-workspace/example-skill" } }, context,
-    { apiUrl: "https://paperclip.test", token: "synthetic-agent-only", fetch: request,
+    { apiUrl: "https://outpost.test", token: "synthetic-agent-only", fetch: request,
       readFile: async () => { throw new Error("No file read required"); },
       saveResponse: async () => { throw new Error("No capture required"); } });
   expect(result).toMatchObject({ ok: false, status: 403, data: { error: "Skill import policy denied" } });

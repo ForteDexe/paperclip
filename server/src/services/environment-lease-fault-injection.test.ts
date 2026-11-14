@@ -15,7 +15,7 @@ describe("lease acquisition fault injection (chaos EP1)", () => {
   beforeAll(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "lease-fault-"));
     control = path.join(directory, "control.json");
-    vi.stubEnv("PAPERCLIP_CHAOS_LEASE_FAULT_CONTROL", control);
+    vi.stubEnv("OUTPOST_CHAOS_LEASE_FAULT_CONTROL", control);
     vi.resetModules();
     seam = await import("./environment-lease-fault-injection.js");
     ({ readTransientLeaseAcquisitionFailure } = await import("./environment-provider-unavailable-error.js"));

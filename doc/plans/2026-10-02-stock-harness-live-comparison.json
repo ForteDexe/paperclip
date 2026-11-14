@@ -1,10 +1,10 @@
 {
-  "schema": "paperclip.stock-harness.safe-comparison/v1",
+  "schema": "outpost.stock-harness.safe-comparison/v1",
   "candidateSha": "f02d8d0df327abb43b20c7e7beb86798239abbf5",
   "baselineSha": "12c5433c67dc2e62916b879349c7ba2b6e0431f0",
   "nativeCodexFixHeldConstant": "408f70e69f9c5e49cb4377f4886ac2001bfa67a2",
   "comparisonManifest": {
-    "schema": "paperclip.stock-harness-comparison.v1",
+    "schema": "outpost.stock-harness-comparison.v1",
     "variant": "previous-instructions",
     "candidateSha": "f02d8d0df327abb43b20c7e7beb86798239abbf5",
     "restoredInstructionsFrom": "e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88",
@@ -161,7 +161,7 @@
     ]
   },
   "baselineInfrastructureRecovery": {
-    "schema": "paperclip.stock-harness.infra-recovery/v1",
+    "schema": "outpost.stock-harness.infra-recovery/v1",
     "sourceSha": "12c5433c67dc2e62916b879349c7ba2b6e0431f0",
     "originalRun": 37042864888,
     "originalJob": 110958906481,
@@ -203,7 +203,7 @@
     "Reconstructed reports use separate copies with directory-layout-only repair; original public reports retain infrastructure failures."
   ],
   "fixtureMatchProof": {
-    "schema": "paperclip.stock-harness.fixture-match-proof/v1",
+    "schema": "outpost.stock-harness.fixture-match-proof/v1",
     "cells": [
       {
         "executionId": "stock-harness.legacy-codex.local.ordered-comment-continuation",

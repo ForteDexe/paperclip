@@ -73,7 +73,7 @@ it("preserves the original provider failure as sanitized scan provenance", () =>
 it("permits only account identity in private Codex diagnostic databases, never artifact scans or tokens", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "codex-private-log-")); directories.push(temporary);
   const root = path.join(temporary, "paperclip-home");
-  const home = path.join(root, "instances/runner-e2e-test/runtime/paperclip-runner/durable-sessions/session/codex-home");
+  const home = path.join(root, "instances/runner-e2e-test/runtime/outpost-runner/durable-sessions/session/codex-home");
   await mkdir(home, { recursive: true });
   const file = path.join(home, "logs_2.sqlite-wal");
   const options = { sources, includeShapes: false, privateCodexRuntimeIdentityRoot: root };
@@ -106,7 +106,7 @@ it("permits only account identity in private Codex diagnostic databases, never a
 it("allows the exact upstream rollout ownership field while scanning all conversation content", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "codex-private-rollout-")); directories.push(temporary);
   const root = path.join(temporary, "paperclip-home");
-  const file = path.join(root, "instances/test/runtime/paperclip-runner/durable-sessions/session/codex-home/sessions/2026/10/26/rollout-test.jsonl");
+  const file = path.join(root, "instances/test/runtime/outpost-runner/durable-sessions/session/codex-home/sessions/2026/10/26/rollout-test.jsonl");
   await mkdir(path.dirname(file), { recursive: true });
   const options = { sources, includeShapes: false, privateCodexRuntimeIdentityRoot: root };
   const metadata = { type: "session_meta", payload: { creator_account_id: tokens.account_id, base_instructions: { text: "Ordinary instructions" } } };

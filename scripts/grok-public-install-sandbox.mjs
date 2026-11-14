@@ -79,7 +79,7 @@ export function runMacInitialInstallWithDiagnostics(install, { sourceRevision, p
       } catch {}
       const codes = new Set(['ETIMEDOUT', 'ENOENT', 'EACCES', 'EPERM', 'ENOMEM', 'ENOBUFS', 'EIO', 'EPIPE', 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER']);
       const signals = new Set(['SIGTERM', 'SIGKILL', 'SIGABRT', 'SIGINT', 'SIGHUP', 'SIGQUIT', 'SIGSEGV', 'SIGBUS']);
-      writeFileSync(receiptPath, JSON.stringify({ schema: 'paperclip.runner.mac-public-install-failure.v1',
+      writeFileSync(receiptPath, JSON.stringify({ schema: 'outpost.runner.mac-public-install-failure.v1',
         sourceRevision, platform, architecture, phase: 'initial-npm-install', outcome: 'FAILED', qualified: false,
         runtimeNotAttempted: true, providerCalls: 0, elapsedMilliseconds: Math.round(performance.now() - started), timeoutMilliseconds: 600000,
         error: { code: codes.has(error?.code) ? error.code : null, status: Number.isInteger(error?.status) ? error.status : null,
@@ -168,11 +168,11 @@ export function installedClaudeProbeSource(indexPath) {
   return `
     import assert from 'node:assert/strict';
     import { pathToFileURL } from 'node:url';
-    assert.equal(process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT, undefined);
-    assert.equal(process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST, undefined);
+    assert.equal(process.env.OUTPOST_ACPX_PROVIDER_PACKAGE_ROOT, undefined);
+    assert.equal(process.env.OUTPOST_ACPX_PROVIDER_PACKAGE_MANIFEST, undefined);
     const { probeAcpxClaudeInstallation } = await import(pathToFileURL(${JSON.stringify(indexPath)}).href);
     await probeAcpxClaudeInstallation('claude-opus-5-5');
-    console.log(JSON.stringify({ schema: 'paperclip.claude-installed-admission.v1',
+    console.log(JSON.stringify({ schema: 'outpost.claude-installed-admission.v1',
       platform: process.platform, architecture: process.arch, model: 'claude-opus-5-5',
       packageIntegrityAndNoFollowLease: 'passed', defaultPackageAuthority: true, providerCalls: 0 }));
   `;
@@ -313,15 +313,15 @@ export function installedDaemonProbeSource(outputRoot, consumerRoot, sourceRevis
     const { defaultCapabilityRunnerdBinary } = await import(pathToFileURL(join(output, 'live/runnerd-codex-transport.js')).href);
     const { runnerBinaryTarget } = await import(pathToFileURL(join(output, 'live/runner-binary.js')).href);
     const { parsePaperclipRunnerdBuildMetadata } = await import(pathToFileURL(join(output, 'evals/runnerd-artifact.js')).href);
-    const { PAPERCLIP_RUNNER_BUILD_METADATA: expected } = await import(pathToFileURL(join(output, 'evals/build-metadata.js')).href);
+    const { OUTPOST_RUNNER_BUILD_METADATA: expected } = await import(pathToFileURL(join(output, 'evals/build-metadata.js')).href);
     const manifest = JSON.parse(readFileSync(join(output, 'bin/release-manifest.json'), 'utf8'));
     const targets = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'];
-    assert.equal(manifest.schema, 'paperclip.runner.release-binaries.v1');
+    assert.equal(manifest.schema, 'outpost.runner.release-binaries.v1');
     assert.equal(manifest.sourceRevision, ${JSON.stringify(sourceRevision)});
     assert.deepEqual(Object.keys(manifest.platforms).sort(), targets.sort());
     for (const target of targets) {
       const record = manifest.platforms[target];
-      assert.equal(record.path, target + '/paperclip-runnerd');
+      assert.equal(record.path, target + '/outpost-runnerd');
       const file = join(output, 'bin', record.path); assert.ok(inside(file));
       const bytes = readFileSync(file);
       assert.equal(runnerBinaryTarget(bytes), target);
@@ -336,8 +336,8 @@ export function installedDaemonProbeSource(outputRoot, consumerRoot, sourceRevis
     assert.equal(metadata.binaryContractVersion, expected.contracts.runnerdArtifact);
     assert.equal(metadata.nativeExecutionVersion, expected.contracts.nativeExecution);
     assert.equal(metadata.harnessDriverVersion, expected.contracts.harnessDriver);
-    assert.equal(metadata.prp.name, expected.prp.name);
-    assert.ok(metadata.prp.minimumVersion <= expected.prp.maximumVersion && metadata.prp.maximumVersion >= expected.prp.minimumVersion);
+    assert.equal(metadata.orp.name, expected.orp.name);
+    assert.ok(metadata.orp.minimumVersion <= expected.orp.maximumVersion && metadata.orp.maximumVersion >= expected.orp.minimumVersion);
     console.log(JSON.stringify({ installedRunnerDaemonVerified: true, target, sourceRevision: manifest.sourceRevision,
       sha256: manifest.platforms[target].sha256, buildMetadata: metadata, providerCalls: 0 }));
   `;

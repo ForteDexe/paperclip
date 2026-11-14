@@ -14,15 +14,15 @@ import {
   statusCardUpdates,
   withDedicatedDbConnection,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   CompanySearchIssueSummary,
   CreateStatusCard,
   PatchStatusCard,
   WriteStatusCardQuery,
   WriteStatusCardSummary,
-} from "@paperclipai/shared";
-import { companySearchQuerySchema, ISSUE_PRIORITIES, ISSUE_STATUSES, STATUS_CARD_AGENT_MAX_CARDS } from "@paperclipai/shared";
+} from "@outpost/shared";
+import { companySearchQuerySchema, ISSUE_PRIORITIES, ISSUE_STATUSES, STATUS_CARD_AGENT_MAX_CARDS } from "@outpost/shared";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";

@@ -87,7 +87,7 @@ function valid(id: string) {
     o.runs.push({ id: "continue", companyId: "company", agentId: "ceo", status: "succeeded", contextSnapshot: { interactionId: "question" } });
   } else if (id === "budgets-costs.set-budget") {
     Object.assign(o.state, { worker: { id: "morgan" }, other: { id: "other" }, beforeHumanAmount: 500, humanSaved: true, agentWriteStatus: 403,
-      workerConfig: { adapterType: "paperclip_runner" }, currentWorkerConfig: { adapterType: "paperclip_runner" } });
+      workerConfig: { adapterType: "outpost_runner" }, currentWorkerConfig: { adapterType: "outpost_runner" } });
     Object.assign(o, { budget: { companyId: "company", policies: [
       { scopeType: "agent", scopeId: "morgan", companyId: "company", amount: 5000, metric: "billed_cents", windowKind: "calendar_month_utc", isActive: true },
       { scopeType: "agent", scopeId: "other", amount: 500 },
@@ -157,10 +157,10 @@ describe("identity catalog independent oracle calibration", () => {
   });
   it("requires native provider question identity and answer-bearing creation provenance", () => {
     const o = valid("questions-and-approvals.necessary-question"); const original = o.state.original as Interaction;
-    o.runs = [o.runs[0]!]; original.payload.runtimeRequestId = "request-7"; original.idempotencyKey = "paperclip-runner-question:run:request-7";
+    o.runs = [o.runs[0]!]; original.payload.runtimeRequestId = "request-7"; original.idempotencyKey = "outpost-runner-question:run:request-7";
     expect(gradeQuestions(o).passed).toBe(true);
-    original.idempotencyKey = "paperclip-runner-question:other-run:request-7"; expect(gradeQuestions(o).passed).toBe(false);
-    original.idempotencyKey = "paperclip-runner-question:run:request-7"; (o.state.taskBrief as { createdAt: string }).createdAt = "2026-10-25T12:00:00.000Z";
+    original.idempotencyKey = "outpost-runner-question:other-run:request-7"; expect(gradeQuestions(o).passed).toBe(false);
+    original.idempotencyKey = "outpost-runner-question:run:request-7"; (o.state.taskBrief as { createdAt: string }).createdAt = "2026-10-25T12:00:00.000Z";
     expect(gradeQuestions(o).passed).toBe(false);
   });
   it("approved read is graded on the provider nonce and one provider receipt, not the provider sentence", () => {
@@ -283,7 +283,7 @@ describe("existing multipart form fidelity", () => {
   });
   it("projects actual pending fields and validation without future answers or selected defaults", () => {
     const form = { id: "existing", title: "Launch page details", kind: "ask_user_questions", status: "pending", result: { answers: [{ questionId: "headline", otherText: "PRIVATE FUTURE ANSWER" }] },
-      payload: { version: 1, questionSet: { schema: "paperclip.question_set.v1", title: "Launch page details", questions: [
+      payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", title: "Launch page details", questions: [
         { id: "audience", prompt: "Who?", answerMode: "single_select", required: true, options: [{ id: "teams", label: "Teams" }, { id: "researchers", label: "Researchers" }] },
         { id: "headline", prompt: "Headline?", answerMode: "text", required: true, textValidation: { minLength: 1, maxLength: 140 } },
       ] } } };

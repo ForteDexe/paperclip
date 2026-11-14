@@ -1,4 +1,4 @@
-import type { Agent, AiConnectionList } from "@paperclipai/shared";
+import type { Agent, AiConnectionList } from "@outpost/shared";
 import { getAdapterLabel } from "@/adapters/adapter-display-registry";
 import { pendingAgentSetupDisplayAdapter } from "./agent-setup-choice";
 import { agentConnection, agentDefaultModel, bulkAgentHarness } from "./bulk-agent-settings";

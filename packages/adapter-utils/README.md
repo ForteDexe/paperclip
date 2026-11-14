@@ -1,4 +1,4 @@
-# @paperclipai/adapter-utils
+# @outpost/adapter-utils
 
 Shared utilities for Outpost adapters: process spawning, environment
 injection, sandbox/SSH transport, workspace sync, and the round-trip helpers

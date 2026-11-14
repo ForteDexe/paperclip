@@ -2,11 +2,11 @@ import fs from "node:fs/promises";
 import { mkdtemp, mkdir, readFile, readdir, chmod, lstat, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
-  PAPERCLIP_OPERATIONAL_SKILL_KEY,
+  OUTPOST_OPERATIONAL_SKILL_KEY,
   type PaperclipSkillEntry,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const serviceMocks = vi.hoisted(() => ({
@@ -66,12 +66,12 @@ beforeEach(async () => {
   serviceMocks.readCommittedForRuntime.mockResolvedValue(null);
   serviceMocks.githubBotConnectionIdsForRun.mockResolvedValue(new Set());
   serviceMocks.spekoToolsForSession.mockResolvedValue([]);
-  previousPaperclipHome = process.env.PAPERCLIP_HOME;
-  previousInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+  previousPaperclipHome = process.env.OUTPOST_HOME;
+  previousInstanceId = process.env.OUTPOST_INSTANCE_ID;
   const root = await mkdtemp(path.join(tmpdir(), "paperclip-native-context-"));
   temporaryRoots.push(root);
-  process.env.PAPERCLIP_HOME = root;
-  process.env.PAPERCLIP_INSTANCE_ID = "runtime_context_test";
+  process.env.OUTPOST_HOME = root;
+  process.env.OUTPOST_INSTANCE_ID = "runtime_context_test";
   serviceMocks.getEffectiveToolAssignmentsForAgent.mockResolvedValue({
     agentId: "agent-1",
     profiles: [],
@@ -90,10 +90,10 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  if (previousPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-  else process.env.PAPERCLIP_HOME = previousPaperclipHome;
-  if (previousInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-  else process.env.PAPERCLIP_INSTANCE_ID = previousInstanceId;
+  if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+  else process.env.OUTPOST_HOME = previousPaperclipHome;
+  if (previousInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+  else process.env.OUTPOST_INSTANCE_ID = previousInstanceId;
   // A rejected Promise.all does not cancel the other materializers. Let their
   // bounded local writes settle before removing the read-only asset tree.
   await new Promise((resolve) => setTimeout(resolve, 25));
@@ -115,7 +115,7 @@ describe("buildNativeRuntimeContext", () => {
     });
     const context = await buildNativeRuntimeContext({
       db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "paperclip_runner", adapterConfig: { instructionsBundleMode: "managed" } },
+      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: { instructionsBundleMode: "managed" } },
       runId: "run-1", runtimeConfig: {}, runtimeSkillEntries: [],
     });
     expect(await readFile(path.join(context.instructions.bundle.rootPath, context.instructions.entryPath), "utf8"))
@@ -147,7 +147,7 @@ describe("buildNativeRuntimeContext", () => {
     await writeFile(path.join(workingRoot, "instructions/CHARter.md"), "Original instructions.\n");
     const context = await buildNativeRuntimeContext({
       db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "paperclip_runner", adapterConfig: {} },
+      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: {} },
       runId: "run-1",
       runtimeConfig: {},
       runtimeSkillEntries: [],
@@ -188,7 +188,7 @@ describe("buildNativeRuntimeContext", () => {
           id: "agent-1",
           companyId: "company-1",
           name: "Reviewer",
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: {},
         },
         runId: "run-1",
@@ -243,7 +243,7 @@ describe("buildNativeRuntimeContext", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Reviewer",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
       },
       runId: "run-1",
@@ -282,7 +282,7 @@ describe("buildNativeRuntimeContext", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Reviewer",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
       },
       runId: "run-1",
@@ -345,7 +345,7 @@ describe("buildNativeRuntimeContext", () => {
   it("does not materialize assigned skills or external MCP in preconfigured mode", async () => {
     serviceMocks.exportFiles.mockResolvedValue({ entryFile: "AGENTS.md", files: { "AGENTS.md": "Test\n" } });
     const context = await buildNativeRuntimeContext({ db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "paperclip_runner", adapterConfig: {} },
+      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: {} },
       runId: "run-1", runtimeConfig: { homeMode: "preconfigured", paperclipSkillSync: { desiredSkills: ["missing"] } },
       runtimeSkillEntries: [{ key: "missing", runtimeName: "missing", source: "/does/not/exist", sourceStatus: "missing" }],
     });
@@ -362,7 +362,7 @@ describe("buildNativeRuntimeContext", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Reviewer",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
       },
       runId: "run-1",
@@ -385,12 +385,12 @@ describe("buildNativeRuntimeContext", () => {
       ...base,
       runtimeConfig: {
         paperclipSkillSync: {
-          desiredSkills: [PAPERCLIP_OPERATIONAL_SKILL_KEY, "company-1/supported"],
+          desiredSkills: [OUTPOST_OPERATIONAL_SKILL_KEY, "company-1/supported"],
         },
       },
       runtimeSkillEntries: [
         {
-          key: PAPERCLIP_OPERATIONAL_SKILL_KEY,
+          key: OUTPOST_OPERATIONAL_SKILL_KEY,
           runtimeName: "paperclip",
           source: "/unused",
         },

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { HttpError } from "../errors.js";
 import { HTTP_LOG_REDACT_PATHS } from "../middleware/http-log-redaction.js";
 import { errorHandler } from "../middleware/error-handler.js";
-import { testAdapterEnvironmentSchema } from "@paperclipai/shared";
+import { testAdapterEnvironmentSchema } from "@outpost/shared";
 import { createHttpLogger } from "../middleware/logger.js";
 
 it("redacts a routine caller run token on ordinary HTTP routes", async () => {
@@ -517,7 +517,7 @@ describe("HTTP logger redaction", () => {
 
     expect(chunks.join("")).not.toContain(capability);
     const log = JSON.parse(chunks.join("").trim());
-    expect(log.req.headers["x-paperclip-runner-scope-token"]).toBe("[Redacted]");
+    expect(log.req.headers["x-outpost-runner-scope-token"]).toBe("[Redacted]");
     expect(log.req.url).toBe(path);
     expect(log.res.statusCode).toBe(status);
   });

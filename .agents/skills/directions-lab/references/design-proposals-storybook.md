@@ -325,7 +325,7 @@ Rules the file encodes:
    whose status is neither `historical` nor `proposed` (165-169: "Historical examples, proposals and
    guides do not remove gaps."); tested at `storybook-catalog.test.mjs:75-99`. Approval is human and
    visual: "It remains proposed until visual approval." (`DESIGN.md:150-151`).
-3. Sandbox (a step between proposed and adopted, not a stage; `lifecycle.md` §8). `VITE_PAPERCLIP_DESIGN_SANDBOX=true` in the dev
+3. Sandbox (a step between proposed and adopted, not a stage; `lifecycle.md` §8). `VITE_OUTPOST_DESIGN_SANDBOX=true` in the dev
    app adds the same `.design-proposal-theme` marker to `<body>` and a bottom-right "Design proposals:
    On/Off" toggle (`ui/src/context/DesignSandboxContext.tsx:14-37`; `DESIGN.md:724-739`). Use it to
    inspect real pages on real data for missing token mappings and component variants; it is "an

@@ -1,10 +1,10 @@
-import type { SetIssueTitle } from "@paperclipai/shared";
-import { ISSUE_CHAT_BOOTSTRAP_MAX_IDS, ISSUE_SUMMARIES_MAX_IDS, type IssueChatBootstrap } from "@paperclipai/shared";
+import type { SetIssueTitle } from "@outpost/shared";
+import { ISSUE_CHAT_BOOTSTRAP_MAX_IDS, ISSUE_SUMMARIES_MAX_IDS, type IssueChatBootstrap } from "@outpost/shared";
 import type { RunForIssue } from "./activity";
 import type { ActiveRunForIssue, LiveRunForIssue } from "./heartbeats";
-import type { IssueSummary } from "@paperclipai/shared";
-import type { ExecutionReconciliation } from "@paperclipai/shared";
-import type { IssueContextUsage } from "@paperclipai/shared";
+import type { IssueSummary } from "@outpost/shared";
+import type { ExecutionReconciliation } from "@outpost/shared";
+import type { IssueContextUsage } from "@outpost/shared";
 import type {
   AcceptedPlanDecompositionSummary,
   AskUserQuestionsAnswer,
@@ -47,7 +47,7 @@ import type {
   ReleaseIssueTreeHoldResponse,
   UpsertIssueWatchdog,
   UpsertIssueDocument,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { api, ApiError, detachInflightGet, type RequestOptions } from "./client";
 import { CommentSubmissionUnknownError } from "../lib/comment-submit-result";
 import { classifySendFailure } from "../lib/pending-send";
@@ -435,7 +435,7 @@ export const issuesApi = {
       data,
     ),
   confirmRunStopped: (id: string, data: { runId: string; stopEvidence: string }) =>
-    api.post<{ runId: string; alreadyStopped: boolean; presentation: import("@paperclipai/shared").TaskInterruptionPresentation | null }>(
+    api.post<{ runId: string; alreadyStopped: boolean; presentation: import("@outpost/shared").TaskInterruptionPresentation | null }>(
       `/issues/${id}/recovery-actions/confirm-run-stopped`, data),
   confirmControllerStopped: (id: string, data: { actionId: string; runId: string; stopEvidence: string }) =>
     api.post<{ runId: string; status: "queued" }>(`/issues/${id}/recovery-actions/confirm-controller-stopped`, data),
@@ -448,7 +448,7 @@ export const issuesApi = {
   retryTask: (issueId: string, body: { idempotencyKey: string; observedRunId: string | null }) =>
     api.post<{ requestId: string | null; accepted: boolean; stale: boolean;
       scheduledRetry?: { outcome: "promoted" | "already_promoted" | "gate_suppressed" | "waiting" | "no_scheduled_retry"; message: string };
-      presentation: import("@paperclipai/shared").TaskInterruptionPresentation | null }>(`/issues/${issueId}/retry`, body),
+      presentation: import("@outpost/shared").TaskInterruptionPresentation | null }>(`/issues/${issueId}/retry`, body),
   recoverWorkspace: (id: string, data: { actionId: string; runId: string; idempotencyKey: string }) =>
     api.post<{ actionId: string; status: string }>(`/issues/${id}/recovery-actions/recover-workspace`, data),
   reconstructWorkspace: (id: string, data: { actionId: string; runId: string; expectedStatusVersion: number; attachmentIds: string[];

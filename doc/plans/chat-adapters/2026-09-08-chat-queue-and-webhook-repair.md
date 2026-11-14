@@ -3,7 +3,7 @@
 ## Execution target
 
 The isolated live agent remains Maya E2E, `31f56712-3944-423e-b7c7-404bb8fbb993`,
-using `paperclip_runner` and `gpt-5.6-luna`. The initial live runner binary was
+using `outpost_runner` and `gpt-5.6-luna`. The initial live runner binary was
 `af19f64dfdf7e2e4efb5b41275e26cd873338315207c36fd4d108bdb69bae3c1`.
 Actual Codex app-server source/continuation evidence and measured Slack,
 Discord, and Telegram timings are recorded in the
@@ -282,7 +282,7 @@ Browser input became responsive again. The earlier prepared drafts were not
 counted; the following are newly submitted, provider-visible requests on the
 `84a601459` server and staged `a0fd2789…` runner. All four active endpoints
 (Slack, Discord, GitHub, Telegram) still bind to Maya E2E with adapter
-`paperclip_runner` and configured model `gpt-5.6-luna`. Each run below also
+`outpost_runner` and configured model `gpt-5.6-luna`. Each run below also
 independently records `driver_kind=codex_app_server` and the same model in its
 native execution profile. No Terra substitution or legacy adapter was used.
 
@@ -573,7 +573,7 @@ is an operator-recovery UX gap, not a reason to bypass identity checks.
 After verifying that retention and the absence of the old processes, root
 submitted `TG-AFTER-RETIRED-CHECKPOINT-0908` at 14:00:46.314. Run
 `a4938fcc-dc2c-4146-a776-12512cf4b613` started at 14:00:47.771 using
-Paperclip Runner, Codex app-server, and Luna. The configured low-effort field
+Outpost Runner, Codex app-server, and Luna. The configured low-effort field
 was later found not to reach this native path; effective effort is unverified.
 The provider produced `paperclip_finish` at 14:01:26.348, but the run stayed
 active without delivering its answer. Working/progress publications each
@@ -1297,7 +1297,7 @@ current-task cluster remained to clean up; no further unchanged retry was run.
 
 ### Reasoning-effort evidence correction
 
-The live runs demonstrably use native Paperclip Runner, Codex app-server and
+The live runs demonstrably use native Outpost Runner, Codex app-server and
 `gpt-5.6-luna`. Earlier notes also called them low reasoning because Maya's
 agent configuration contains `modelReasoningEffort: "low"`. A final audit
 found that this legacy field is **not projected by the native execution path**.
@@ -1553,7 +1553,7 @@ catalog, without an error banner or sign-in redirect.
 One `DISPATCH-MERGE-0908` continuation was sent through each signed-in provider
 UI. Slack, GitHub and Telegram returned exactly `DISPATCH-MERGE-READY` in
 **16.188 / 17.441 / 14.776 seconds**; native Luna execution used
-**13.622 / 12.898 / 11.510 seconds**. All used Paperclip Runner with Codex
+**13.622 / 12.898 / 11.510 seconds**. All used Outpost Runner with Codex
 app-server, one current wake comment, one succeeded run and one accepted
 native result. Each retained its existing task/current conversation generation
 and used one provider message for working→final, with one attempt per update.
@@ -1755,7 +1755,7 @@ current design, production code and test coverage are retained.
 Full merged workspace typecheck and build passed. Root reloaded the live Board
 after a transient `useCompany` error during merge editing; the normal reload
 restored Activity, agent overview and Channels. The overview identifies
-Paperclip Runner and `gpt-5.6-luna`. The new upstream section heading duplicated
+Outpost Runner and `gpt-5.6-luna`. The new upstream section heading duplicated
 the Channels panel's own heading. A browser regression reproduced **two**
 headings where one was expected. The parent now leaves this title to its
 existing panel. Root inspected before/after screenshots and verified one
@@ -1910,7 +1910,7 @@ These live journeys used server 58, started at **20:27:40.584 UTC** and ready
 at **20:27:45.773** on September 8. Its server baseline is `63c8b5d8d`; the
 subsequent wireframe-only commit changes no runtime bytes. The runner SHA-256
 remains `e758b7cdb6ba7c9f176d89cbd17b98dc4c42975326012582d6a7cdf230fb0373`.
-Both journeys used Maya E2E, native Paperclip Runner, Codex app-server and
+Both journeys used Maya E2E, native Outpost Runner, Codex app-server and
 `gpt-5.6-luna`. They do not qualify the uncommitted exact-retry implementation.
 
 ### Slack: edited-source reuse is refused without leaking a file
@@ -1937,7 +1937,7 @@ Its only current input was comment `af4df257-af6c-4361-9abc-4badc39a71b8`.
 The actual `reuse_chat_attachment` call at sequence 34 used original comment
 `54a3c07b-2f34-4a8c-8c0e-432b4d1fa751` and attachment
 `5040777e-5fa6-424c-9c50-8eb3e8cc1021`. Sequence 35 returned
-`paperclip_runner_chat_attachment_source_denied`, `is_error: true`, at
+`outpost_runner_chat_attachment_source_denied`, `is_error: true`, at
 **20:58:58.873**. There was one reuse attempt and zero new attachments, work
 products or file publications. The original stored asset remained unchanged.
 Working and final each used one attempt on Slack message `1788901131.307639`.
@@ -2531,7 +2531,7 @@ ownership-barrier verification.
 From the live Board dashboard, root opened original failed run
 `38dfc3ec-4fa7-4ed4-8563-7650dfce3d47` and used its Retry control once. New run
 `7c4827a6-705a-4295-8196-f51a821a4af3` retained the exact latest wake comment and
-source-run link. The Board showed Paperclip Runner / Codex / `gpt-5.6-luna`,
+source-run link. The Board showed Outpost Runner / Codex / `gpt-5.6-luna`,
 then success in 15 seconds. In the private disposable GitHub QA repository,
 comment `5593571969` changed from working feedback to exactly
 `CONTROL-FIRST-B-READY`. Refresh and screenshot inspection confirmed persistence
@@ -2695,7 +2695,7 @@ remote byte hashes; exact-byte checks here are deterministic local API tests.
 
 Server 64 runs `58de1c105` on loopback 3137 with the normally built runner
 `4acf2d1dbe99a6202d07b6d0be73b469ebf153103cda2bbd097e5e4233fcd57a`.
-Maya uses Paperclip Runner / Codex app-server / `gpt-5.6-luna`, not a legacy
+Maya uses Outpost Runner / Codex app-server / `gpt-5.6-luna`, not a legacy
 adapter. Signed-in provider UI created Discord thread `1547043763581358111`
 (CHA-32) and Slack thread `1788914422.188869` (CHA-33). Initial checklist and
 short follow-up turns succeeded; these first pairs were sequential, not a
@@ -2843,7 +2843,7 @@ The opt-in actual-provider regression is now reproducible:
 node --import ./server/node_modules/tsx/dist/loader.mjs scripts/tests/native-cleanup-paginated-codex.mjs
 ```
 
-It requires exact Codex CLI 0.153.4 (`PAPERCLIP_TEST_CODEX_BINARY` may select it),
+It requires exact Codex CLI 0.153.4 (`OUTPOST_TEST_CODEX_BINARY` may select it),
 uses only fresh synthetic homes, and makes no `turn/start` or model request.
 It proves the real stale-path failure, successful same-thread paginated resume
 after staging relocation, and successful resume after canonical activation.
@@ -4161,7 +4161,7 @@ attachment ceiling. The pinned attachment-factory seam is checked at startup.
 The final Telegram cohort passes **21/21** (14 new, six video-note and one
 existing media case) on fresh `chat_telegram_optional_media_20260909_final01`;
 helper/runtime checks pass **85/85**, and plain server TypeScript passes.
-A separate fresh process with `PAPERCLIP_ATTACHMENT_MAX_BYTES=2097152`
+A separate fresh process with `OUTPOST_ATTACHMENT_MAX_BYTES=2097152`
 passes its service rejection case with 2 MB guidance. Logs are
 `telegram-optional-media-{red01,final01,units-final,types-final,cap01}-0909.log`.
 Independent review found no remaining code blocker. Provider HTTP is simulated;
@@ -4915,7 +4915,7 @@ The Mac became available and the user restored Eigenjoy's Discord login.
 Root operated the signed-in in-app browser for every provider action below;
 parallel agents correlated only the exact fresh tasks, receipts and files.
 These observations are on **server 78**, loaded `ea528f44c`, with the retained
-qualified runner and Maya's native `paperclip_runner` / Codex / Luna path.
+qualified runner and Maya's native `outpost_runner` / Codex / Luna path.
 They supersede the earlier locked-browser state, not the historical failures.
 
 ### Slack: one thread, FIFO, real files, actual Stop and continuation
@@ -5107,7 +5107,7 @@ provider results do not satisfy its live qualification.
 
 All provider actions used the already signed-in in-app browser, Eigenjoy's
 account and the existing Maya bot. The live process still loaded server 78
-(`ea528f44c`), with `paperclip_runner` / Codex / `gpt-5.6-luna`.
+(`ea528f44c`), with `outpost_runner` / Codex / `gpt-5.6-luna`.
 
 DM command attempts at 13:20 and 13:25 were rejected before Paperclip because
 Discord required a shared guild with DMs enabled. They later appeared as
@@ -5241,7 +5241,7 @@ does not establish whether the model or earlier native sanitization caused it.
 It remains a quality follow-up, not a reason to weaken credential redaction.
 
 The exact qualified release binary was copied to private ignored
-`qualified-runner-79.z262Ty/paperclip-runnerd` under the live QA runtime root.
+`qualified-runner-79.z262Ty/outpost-runnerd` under the live QA runtime root.
 Its SHA256 still equals `6844f20ee4a5fb7f7963117263a384f520054b4bd1e0f812fc58a4f34808b503`;
 mode is 0500 and strict codesign verification passed. It is **not activated**.
 No installed binary, live server, old runner journal or agent status changed.
@@ -6681,7 +6681,7 @@ The Rust failure is the first five-second loop of
 `durable_descendant_lineage_survives_capacity_and_provider_restoration`, before
 restoration or capacity assertions. That target reported 80 passed, one failed
 and two ignored helper declarations in 82.37s; its 8,190-turn rollover passed.
-The saved fixture `paperclip-runner-codex-descendant-restoration-89523-52` has an
+The saved fixture `outpost-runner-codex-descendant-restoration-89523-52` has an
 active root, 255 descendants, no pending or queued events, next event sequence
 259 and no receipt-limit interrupt. The 128-events-per-poll limit accounts for
 the exact prefix: root turn-start plus 255 descendant starts make two batches.

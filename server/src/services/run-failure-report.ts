@@ -1,6 +1,6 @@
 import { currentRunFailureText } from "./native-runtime/native-exact-resume-failure.js";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { agents, dotRunnerAssignments, grokBotDispatches, heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { agents, dotRunnerAssignments, grokBotDispatches, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { captureRunFailure, type RunFailureStatus } from "../sentry.js";
 import {
   collectRunFailureDiagnostics,
@@ -13,7 +13,7 @@ import {
 } from "./run-failure-diagnostics.js";
 import { logger } from "../middleware/logger.js";
 import { isUnexpectedRunCancellation } from "./run-cancellation.js";
-import { readConnectionFailure, type ConnectionFailure } from "@paperclipai/adapter-utils/connection-failure";
+import { readConnectionFailure, type ConnectionFailure } from "@outpost/adapter-utils/connection-failure";
 import { isAiConnectionConfigurationReason } from "./ai-connection-configuration-failure.js";
 import { readRunFailureReportingMode, type RunFailureReportingMode } from "../sentry-run-failure-policy.js";
 import { RESTRICTED_WORKSPACE_SOURCE_REASON } from "./workspace-source-restriction.js";

@@ -1,4 +1,4 @@
-import type { AgentLifecycleOperation, AgentLifecycleState } from "@paperclipai/shared";
+import type { AgentLifecycleOperation, AgentLifecycleState } from "@outpost/shared";
 import type { LifecycleCommand } from "../domain/policy.js";
 
 export interface LifecycleAgent {

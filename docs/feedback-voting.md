@@ -108,7 +108,7 @@ feedback-export-20260331T120000Z/
 feedback-export-20260331T120000Z.zip
 ```
 
-Exports are full by default. `traces/` keeps the Paperclip envelope, while `full-traces/` contains the richer per-trace bundle plus any recoverable adapter-native files.
+Exports are full by default. `traces/` keeps the Outpost envelope, while `full-traces/` contains the richer per-trace bundle plus any recoverable adapter-native files.
 
 Feedback text redaction preserves hostnames, dotted filenames, public schema IDs,
 and authentication terms such as “bearer tokens.” Dotted text must have an encoded
@@ -191,7 +191,7 @@ Votes you choose to share are sent to the Telemetry Backend immediately from the
 - App server responsibility: build the bundle, POST it to Telemetry Backend, update trace status
 - Telemetry Backend responsibility: authenticate the request, validate payload shape, compress/store the bundle, return the final object key
 - Retry behavior: failed uploads move to `failed` with an error message in `failureReason`, and the worker retries them on later ticks
-- Default endpoint: when no feedback export backend URL is configured, Paperclip falls back to `https://telemetry.paperclip.ing`
+- Default endpoint: when no feedback export backend URL is configured, Paperclip falls back to `https://telemetry.outpost.ing`
 - Important nuance: the uploaded object is a snapshot of the full bundle at vote time. If you fetch a local bundle later and the underlying adapter session file has continued to grow, the local regenerated bundle may be larger than the already-uploaded snapshot for that same trace.
 
 Exported objects use a deterministic key pattern so they are easy to inspect:

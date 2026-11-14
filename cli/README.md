@@ -4,11 +4,11 @@
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
-  <a href="https://docs.paperclip.ing"><strong>Docs</strong></a> &middot;
+  <a href="https://docs.outpost.ing"><strong>Docs</strong></a> &middot;
   <a href="https://github.com/paperclipai/paperclip"><strong>GitHub</strong></a> &middot;
   <a href="https://discord.gg/paperclipai"><strong>Discord</strong></a> &middot;
   <a href="https://x.com/papercliping"><strong>Twitter</strong></a> &middot;
-  <a href="https://paperclip.ing"><strong>Website</strong></a>
+  <a href="https://outpost.ing"><strong>Website</strong></a>
 </p>
 
 <p align="center">
@@ -288,7 +288,7 @@ If you already have Outpost configured, rerunning `onboard` keeps the existing c
 Or manually:
 
 ```bash
-git clone https://github.com/paperclipai/paperclip.git
+git clone https://github.com/paperclipai/outpost.git
 cd paperclip
 pnpm install
 pnpm dev
@@ -408,7 +408,7 @@ We welcome contributions. See the [contributing guide](https://github.com/paperc
 
 ## License
 
-MIT &copy; 2026 [Outpost Labs, Inc](https://paperclip.ing)
+MIT &copy; 2026 [Outpost Labs, Inc](https://outpost.ing)
 
 ## Star History
 

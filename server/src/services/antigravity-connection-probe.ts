@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "@paperclipai/adapter-utils";
-import { NativeEnvironmentProbeCleanupError, probeNativeRunnerEnvironment, resolveAcpxRuntimeRoot } from "../vendor/paperclip-runner/index.js";
+import type { AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
+import { NativeEnvironmentProbeCleanupError, probeNativeRunnerEnvironment, resolveAcpxRuntimeRoot } from "../vendor/outpost-runner/index.js";
 import { logger } from "../middleware/logger.js";
 import { resolveAntigravityCandidateAdmission } from "./native-runtime/acpx-qualification.js";
 import { antigravityCredentialTurn, prepareAntigravityRunnerCredentials } from "./native-runtime/antigravity-runner-credentials.js";
@@ -31,7 +31,7 @@ export function antigravityConnectionProbeFailure(companyId: string, error: unkn
     classification: admission?.[2] ?? "unclassified",
     ...(admission ? { retryable: admission[1] === "true" } : {}),
   }, installation ? "Antigravity installation check failed before account verification" : "Antigravity runtime admission check failed");
-  return { adapterType: "paperclip_runner", status: "fail", testedAt: new Date().toISOString(), checks: [{ code, level: "error",
+  return { adapterType: "outpost_runner", status: "fail", testedAt: new Date().toISOString(), checks: [{ code, level: "error",
     message: installation ? "Outpost could not complete the local Google Antigravity installation check."
       : "Google Antigravity could not complete its runtime check.",
     hint: installation ? "The instance operator needs to repair this runtime before Test can verify your Google connection."
@@ -71,7 +71,7 @@ export async function testAntigravityConnection(context: AdapterEnvironmentTestC
     transportOptions: { runnerBinary, externallySandboxed: false,
       acpxAgent: "antigravity", acpxCandidateAdmission: admission, acpxRuntimeDirectory,
       acpxPermissionMode: "approve-reads", acpxPermissionModePinned: true,
-      prpIdentity: { runnerInstanceId: `setup-runner-${nonce}`, runId: `setup-${nonce}`, normalizedSessionId,
+      orpIdentity: { runnerInstanceId: `setup-runner-${nonce}`, runId: `setup-${nonce}`, normalizedSessionId,
         environmentLeaseId: `setup-lease-${nonce}`, turnId: `setup-turn-${nonce}`, itemId: `setup-item-${nonce}` } },
     onCleanupConfirmed: async () => {
       // The native owner proves physical retirement before this callback.
@@ -84,7 +84,7 @@ export async function testAntigravityConnection(context: AdapterEnvironmentTestC
     || receipt.sessionAdmissionPassed !== true || receipt.admissionOnly !== true || receipt.helloProbePassed !== false) {
     throw new Error("The selected Google runtime returned no matching account and model admission receipt.");
   }
-  return { adapterType: "paperclip_runner", status: "pass", testedAt: new Date().toISOString(),
+  return { adapterType: "outpost_runner", status: "pass", testedAt: new Date().toISOString(),
     checks: [{ code: "antigravity_metadata_verified", level: "info",
       message: "The Google Antigravity candidate verified the selected account and exact model. No model prompt was sent." }] };
 }

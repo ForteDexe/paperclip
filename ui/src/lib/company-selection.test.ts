@@ -94,7 +94,7 @@ describe("resolveCompanyArchiveDeparture", () => {
   const justArchived = { id: "old", name: "Old Co", issuePrefix: "OLD", status: "archived" };
   const active = { id: "pap", name: "Outpost", issuePrefix: "PAP", status: "active" };
   const alsoArchived = { id: "ret", name: "Retail", issuePrefix: "RET", status: "archived" };
-  const portfolioUrl = "https://my.paperclip.app/orgs?manage=1";
+  const portfolioUrl = "https://my.outpost.app/orgs?manage=1";
 
   it("switches to another active company when one exists, even on cloud", () => {
     expect(

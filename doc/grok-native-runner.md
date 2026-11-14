@@ -1,7 +1,7 @@
 # Grok Build native runner
 
 Select **Grok Build** in the native runner provider selector. The stored contract is
-`adapterType: "paperclip_runner"` with `provider: "acpx"`, `acpxAgent: "grok"`,
+`adapterType: "outpost_runner"` with `provider: "acpx"`, `acpxAgent: "grok"`,
 and `model: "grok-4.7"`. Existing `grok_local` agents keep their legacy adapter
 until an explicit upgrade. On a qualified macOS ARM64 or Linux x64 computer,
 **Harness / Runtime → Upgrade runner** preserves the agent, model, account,
@@ -74,7 +74,7 @@ guarded at the pack boundary by the provider pack's `contractDigest`, so the
 controller reuses an installed pack only when that digest matches and stages its
 current verified pack otherwise. Earlier profile versions decode for recovery,
 but they do not authorize a fresh launch. After changing the launcher, run
-`pnpm --filter @paperclipai/paperclip-runner generate:acpx-profiles`; the
+`pnpm --filter @outpost/outpost-runner generate:acpx-profiles`; the
 `check:acpx-profiles` build gate refuses a stale digest.
 
 Provision Grok Build 1.0.13 at
@@ -82,7 +82,7 @@ Provision Grok Build 1.0.13 at
 The sandbox provisioning helper is explicit and is never run by npm:
 
 ```sh
-sudo node packages/paperclip-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok
+sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok
 ```
 
 The standard Daytona image provisions it separately from the provider pack.
@@ -140,7 +140,7 @@ interactive sign-in UI. Authentication mode remains part of the profile identity
 After a subscription upgrade, a fresh `grok login` may be needed if the existing
 login still reports the previous entitlement through ACP.
 
-`packages/paperclip-runner/scripts/grok-native-smoke.mjs` records explicit auth,
+`packages/outpost-runner/scripts/grok-native-smoke.mjs` records explicit auth,
 model/binary identity, MCP outcome, durable resume and restrictive permissions.
 Pass `--auth subscription --auth-file /private/path/auth.json --output /private/report.json`
 or `--auth api --output /private/report.json` with an explicitly supplied key.
@@ -173,10 +173,10 @@ positive probe mounts that binary read-only at the canonical sandbox path.
 
 
 The Cloud application image also carries the controller-owned provider pack and
-sets `PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH`. Remote ACPX execution verifies
+sets `OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH`. Remote ACPX execution verifies
 the sandbox against that pack before using it, or stages the matching pack when
 needed. The Cloud controller image does not install the native Grok executable;
 the selected sandbox image must provide the prerequisite above.
-Cloud builds must supply the full source SHA through `PAPERCLIP_BUILD_COMMIT`
+Cloud builds must supply the full source SHA through `OUTPOST_BUILD_COMMIT`
 to produce that verified pack. Unstamped local Cloud builds still work for other
 features, but omit the pack and cannot start remote ACPX sessions.

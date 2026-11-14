@@ -18,7 +18,7 @@ import {
   issueDocuments,
   issues,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const support = await getEmbeddedPostgresTestSupport();

@@ -3,9 +3,9 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { canonicalProviderEventsFromCodex } from "../../../packages/paperclip-runner/src/provider-events.js";
-import { createPrpSemanticToolInputEnvelope, createPrpSemanticToolResultEnvelope, digestPrpSemanticContent } from "../../../packages/paperclip-runner/src/protocol/semantic-tool-receipts.js";
-import { validatePrpEvent } from "../../../packages/paperclip-runner/src/protocol/replay-contract.js";
+import { canonicalProviderEventsFromCodex } from "../../../packages/outpost-runner/src/provider-events.js";
+import { createPrpSemanticToolInputEnvelope, createPrpSemanticToolResultEnvelope, digestPrpSemanticContent } from "../../../packages/outpost-runner/src/protocol/semantic-tool-receipts.js";
+import { validatePrpEvent } from "../../../packages/outpost-runner/src/protocol/replay-contract.js";
 import { redactEventPayload } from "../../../server/src/redaction.js";
 import { readAssignedSkill, RUNNER_BRIDGE_READ_OPERATIONS } from "../../../server/src/services/native-runtime/runner-bridge-tools.js";
 import { savedSkillFixture, savedSkillReadAssignment, savedSkillReadReceipts } from "./saved-skill-use-evidence.js";
@@ -21,8 +21,8 @@ const hash = (value: string | Buffer) => createHash("sha256").update(value).dige
 function event(seq: number, eventType: string, payload: Row, itemId = correlation.itemId): Row {
   return { ...binding, seq, eventType, protocolSchemaVersion: 1, sourceSeq: seq,
     sourceInstanceId: "runner-instance", sourceEventId: `event-${seq}`,
-    payload: redactEventPayload({ prpEvent: {
-      schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", ...correlation, itemId,
+    payload: redactEventPayload({ orpEvent: {
+      schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", ...correlation, itemId,
       priority: 0, emittedAt: "2026-11-03T12:00:00.000Z",
       sourceSeq: seq, sourceInstanceId: "runner-instance", sourceEventId: `event-${seq}`,
       eventType, payload,
@@ -35,7 +35,7 @@ async function observedRead(text = fixture.markdown, rawInput?: Row) {
   try {
     const files = [{ path: "SKILL.md", sha256: hash(text), mode: 0o444, size: Buffer.byteLength(text) }];
     const digest = hash(JSON.stringify(files)), rootPath = path.join(directory, "bundles", digest);
-    const manifest = `${JSON.stringify({ schema: "paperclip.runtime-asset-manifest.v1", digest,
+    const manifest = `${JSON.stringify({ schema: "outpost.runtime-asset-manifest.v1", digest,
       fileCount: 1, totalBytes: Buffer.byteLength(text), files })}\n`;
     await mkdir(rootPath, { recursive: true });
     await mkdir(path.join(directory, "manifests"));
@@ -77,15 +77,15 @@ async function observations(text = fixture.markdown, rawInput?: Row) {
 const read = (value: Awaited<ReturnType<typeof observations>>, f = fixture) =>
   savedSkillReadReceipts(value.events, binding, f, undefined, value.assignment, value.run);
 const semantic = (value: Awaited<ReturnType<typeof observations>>, index: number) =>
-  value.events[index]!.payload.prpEvent.payload.semantic_tool as Row;
+  value.events[index]!.payload.orpEvent.payload.semantic_tool as Row;
 
 describe("saved-skill Codex native authority", () => {
   it("accepts the complete real read's authoritative input/result commitment after API redaction", async () => {
     const value = await observations();
     expect(RUNNER_BRIDGE_READ_OPERATIONS.has("read_assigned_skill")).toBe(true);
     expect(Object.keys(value.result).sort()).toEqual(["byteSize", "nextOffset", "path", "sha256", "skill", "text", "versionId"]);
-    for (const row of value.events) expect(validatePrpEvent(row.payload.prpEvent).ok).toBe(true);
-    expect(value.events[0]!.payload.prpEvent.payload).toMatchObject({ transport: "dynamic", readOnly: null, namespace: null });
+    for (const row of value.events) expect(validatePrpEvent(row.payload.orpEvent).ok).toBe(true);
+    expect(value.events[0]!.payload.orpEvent.payload).toMatchObject({ transport: "dynamic", readOnly: null, namespace: null });
     expect(read(value)).toEqual([{ runId: "run", executionId: callId, seq: 3 }]);
   });
 
@@ -105,10 +105,10 @@ describe("saved-skill Codex native authority", () => {
   it("rejects raw dynamic calls even when they copy the complete source and invent readOnly/namespace", async () => {
     const value = await observations();
     value.events = [value.events[0]!, value.events[3]!];
-    for (const row of value.events) Object.assign(row.payload.prpEvent.payload,
+    for (const row of value.events) Object.assign(row.payload.orpEvent.payload,
       { name: "paperclip_read_assigned_skill", readOnly: true, namespace: "paperclip",
         output: JSON.stringify({ type: "inputText", text: JSON.stringify(value.result) }), outputTruncated: false });
-    const p = value.events[1]!.payload.prpEvent.payload; p.outputBytes = Buffer.byteLength(p.output);
+    const p = value.events[1]!.payload.orpEvent.payload; p.outputBytes = Buffer.byteLength(p.output);
     expect(read(value)).toEqual([]);
   });
 
@@ -132,9 +132,9 @@ describe("saved-skill Codex native authority", () => {
     ["foreign call", (v: any) => { semantic(v, 2).callId = "foreign"; }],
     ["foreign turn", (v: any) => { semantic(v, 2).correlation.turnId = "foreign"; }],
     ["foreign item", (v: any) => { semantic(v, 2).correlation.itemId = "foreign"; }],
-    ["foreign source", (v: any) => { v.events[2].sourceInstanceId = v.events[2].payload.prpEvent.sourceInstanceId = "foreign"; }],
+    ["foreign source", (v: any) => { v.events[2].sourceInstanceId = v.events[2].payload.orpEvent.sourceInstanceId = "foreign"; }],
     ["foreign operation", (v: any) => { for (const i of [1, 2]) semantic(v, i).operationId = "paperclip_read_assigned_skill"; }],
-    ["MCP carriers", (v: any) => { for (const i of [1, 2]) v.events[i].eventType = v.events[i].payload.prpEvent.eventType = i === 1 ? "mcp_app.tool_input" : "mcp_app.tool_result"; }],
+    ["MCP carriers", (v: any) => { for (const i of [1, 2]) v.events[i].eventType = v.events[i].payload.orpEvent.eventType = i === 1 ? "mcp_app.tool_input" : "mcp_app.tool_result"; }],
     ["failed result", (v: any) => { semantic(v, 2).outcome = "failed"; }],
     ["wrong boundary", (v: any) => { semantic(v, 2).authorizationBoundary = "company"; }],
     ["wrong receipt", (v: any) => { semantic(v, 2).operationReceiptId = "foreign"; }],

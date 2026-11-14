@@ -43,7 +43,7 @@ import {
   statusDecisions,
   workAssessments,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type { NativeEvidenceAssessment } from "../services/native-runtime/evidence-classifier.js";
 import { classifyNativeEvidence } from "../services/native-runtime/evidence-classifier.js";
 import {
@@ -142,7 +142,7 @@ type FixtureObservation = PolicyObservation & {
 type DisabledLiveEntrypoint = "attention" | "cancellation" | "reconciliation" | "rollout";
 
 const corpusPath = fileURLToPath(new URL(
-  "../../../packages/paperclip-runner/spec/fixtures/status-authority-sdk.json",
+  "../../../packages/outpost-runner/spec/fixtures/status-authority-sdk.json",
   import.meta.url,
 ));
 
@@ -412,7 +412,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   const outsideAgentId = randomUUID();
 
   beforeAll(async () => {
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_STATUS_CORPUS_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_STATUS_CORPUS_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-status-corpus-");
     db = createDb(external ?? temporary!.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Status corpus", issuePrefix: `PSC${companyId.replaceAll("-", "").toUpperCase()}` });
@@ -493,7 +493,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -606,7 +606,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       agent: {
         id: agentId,
         status: "running",
-        adapterType: fixture.mode === "native" ? "paperclip_runner" : "codex_local",
+        adapterType: fixture.mode === "native" ? "outpost_runner" : "codex_local",
       },
       issue: { id: seeded.issueId, workMode: "standard" },
       target: { kind: "local" },
@@ -899,7 +899,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           enabled,
           runtimeConfig,
           adapterConfig: experimentalAdapterConfig,
-          agent: { id: agentId, status: "running", adapterType: "paperclip_runner" },
+          agent: { id: agentId, status: "running", adapterType: "outpost_runner" },
           issue: { id: seeded.issueId, workMode: "standard" },
           target: { kind: "local" },
           workspaceId: "fixture-workspace",
@@ -912,7 +912,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
             enabled,
             runtimeConfig,
             adapterConfig: experimentalAdapterConfig,
-            agent: { id: agentId, status: "running", adapterType: "paperclip_runner" },
+            agent: { id: agentId, status: "running", adapterType: "outpost_runner" },
             issue: { id: seeded.issueId, workMode: "standard" },
             target: { kind: "local" },
             workspaceId: "fixture-workspace",
@@ -928,7 +928,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         if (
           activeResolution.kind !== "native"
           || freshMode !== "rejected"
-          || freshReason !== "paperclip_runner_rollout_disabled"
+          || freshReason !== "outpost_runner_rollout_disabled"
           || runtimeConfig.nativeRunner.mode !== "native"
         ) {
           throw new Error(`${fixture.id}: global kill-switch transition missing`);
@@ -1795,7 +1795,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         if (
           execution.observed.activeMode !== "native"
           || execution.observed.freshMode !== "rejected"
-          || execution.observed.freshReason !== "paperclip_runner_rollout_disabled"
+          || execution.observed.freshReason !== "outpost_runner_rollout_disabled"
           || execution.observed.profileMode !== "native"
         ) continue;
       }
@@ -1857,7 +1857,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   }
 
   it("executes all 53 fixtures, joins all 70 matrix rows, and rejects mutated comparison fields", async () => {
-    expect(corpus.schema).toBe("paperclip.status-authority-conformance.v1");
+    expect(corpus.schema).toBe("outpost.status-authority-conformance.v1");
     expect(corpus.fixtures).toHaveLength(53);
 
     const observations = new Map<string, FixtureObservation>();
@@ -2791,7 +2791,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       let ref = `work_product:${seeded.workProductId}`;
       const attachment = { id: evidenceId, companyId, issueId: seeded.issueId, assetId };
       const event = { companyId, agentId, runId: seeded.runId, seq: 90001, eventType: "evidence.recorded",
-        payload: { prpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } };
+        payload: { orpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } };
       if (kind === "approval") {
         ref = `approval:${evidenceId}`;
         await db.insert(approvals).values({ id: evidenceId, companyId, type: "hire_agent", status: "approved", payload: {} });
@@ -3179,7 +3179,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   it("rejects wrong, missing, and duplicate criterion IDs before accepting completion", async () => {
     const seeded = await seedFixture({ ...corpus.fixtures[0]!, id: `criteria-feedback-${randomUUID()}` });
     const [stored] = await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, seeded.resultId!));
-    const valid = stored!.resultJson.result as import("../vendor/paperclip-runner/index.js").PrpStructuredRunResult;
+    const valid = stored!.resultJson.result as import("../vendor/outpost-runner/index.js").PrpStructuredRunResult;
     for (const criteria of [[], [{ criterionId: "invented", status: "satisfied", evidenceRefs: [] }], [...valid.completionClaim.criteria, ...valid.completionClaim.criteria]]) {
       await expect(nativeCompletionFeedback(db, seeded.runId, { ...valid, completionClaim: { ...valid.completionClaim, criteria } } as never)).rejects.toThrow("exactly these criterion IDs");
     }

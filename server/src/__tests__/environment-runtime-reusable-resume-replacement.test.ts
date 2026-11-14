@@ -1,4 +1,4 @@
-import { JsonRpcCallError, environmentResumeErrorData } from "@paperclipai/plugin-sdk";
+import { JsonRpcCallError, environmentResumeErrorData } from "@outpost/plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
@@ -13,8 +13,8 @@ import {
   heartbeatRuns,
   plugins,
   projects,
-} from "@paperclipai/db";
-import type { Environment } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { Environment } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { environmentRuntimeService } from "../services/environment-runtime.ts";
@@ -28,7 +28,7 @@ vi.mock("../services/native-runtime/native-harness-backup-storage.js", () => ({
     Boolean(input.stamp && (input.stamp as { authorizedProviderLeaseId?: unknown }).authorizedProviderLeaseId === input.providerLeaseId)),
 }));
 
-const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_ENVIRONMENT_RUNTIME_TEST_DATABASE_URL");
+const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_ENVIRONMENT_RUNTIME_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -87,7 +87,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     const providerConfig = { provider: "fake-plugin", image: "fake:test", timeoutMs: 300_000, reuseLease: true };
     await db.insert(companies).values({ id: companyId, name: "Acme", status: "active" });
     await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "active",
-      adapterType: "paperclip_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+      adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Paperclip Sandbox", driver: "sandbox", status: "active",
       config: providerConfig });
     await db.insert(plugins).values({
@@ -122,7 +122,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
       },
       getWorker: () => ({ supportedMethods: ["environmentResumeLease", "environmentReleaseLease", "environmentDestroyLease"] }),
     } as unknown as PluginWorkerManager });
-    const created = await priming.acquireRunLease({ companyId, environment, issueId: null, agentId, adapterType: "paperclip_runner",
+    const created = await priming.acquireRunLease({ companyId, environment, issueId: null, agentId, adapterType: "outpost_runner",
       heartbeatRunId: previousRunId, persistedExecutionWorkspace: { id: executionWorkspaceId, mode: "isolated_workspace" } });
     // The run then ended after a clean final save and left its lease-bound
     // harness backup stamp. A lease saved by an older release has no
@@ -132,7 +132,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
       ...(shape.leaseStatus === "released" ? metadata : created.lease.metadata),
       remoteWorkspaceId: executionWorkspaceId,
       ...(shape.backupStamp === false ? {} : { nativeHarnessBackup: {
-        schema: "paperclip.native-harness-backup-stamp.v2", sourceProviderLeaseId: providerLeaseId,
+        schema: "outpost.native-harness-backup-stamp.v2", sourceProviderLeaseId: providerLeaseId,
         authorizedProviderLeaseId: providerLeaseId,
       } }),
     }))!;
@@ -146,7 +146,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     // This run already holds the workspace writer slot (reserved before the
     // environment is acquired); the saved version is the previous run's save.
     await db.update(executionWorkspaces).set({ metadata: { remoteWorkspace: {
-      schema: "paperclip.remote-workspace.v1", epoch: 2, snapshotId: shape.snapshot === null ? null : snapshotId,
+      schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId: shape.snapshot === null ? null : snapshotId,
       source: { kind: "empty" }, writerRunId: runId, dirty: shape.dirty ?? false,
       location: { environmentId, leaseId: lease.id, providerLeaseId, remoteCwd: "/home/daytona/paperclip-workspace/.paperclip-workspaces/w" },
     } } }).where(eq(executionWorkspaces.id, executionWorkspaceId));
@@ -174,7 +174,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
   function acquire(seeded: Awaited<ReturnType<typeof seed>>, runtime: ReturnType<typeof environmentRuntimeService>,
     runId = seeded.runId) {
     return runtime.acquireRunLease({ companyId: seeded.companyId, environment: seeded.environment, issueId: null,
-      agentId: seeded.agentId, adapterType: "paperclip_runner", heartbeatRunId: runId,
+      agentId: seeded.agentId, adapterType: "outpost_runner", heartbeatRunId: runId,
       persistedExecutionWorkspace: { id: seeded.executionWorkspaceId, mode: "isolated_workspace" } });
   }
 
@@ -254,7 +254,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
   // Runner on this sandbox, did no provider work, and asked for a fresh one.
   async function markReplaceBeforeReuse(seeded: Awaited<ReturnType<typeof seed>>) {
     await environmentService(db).updateLeaseMetadata(seeded.lease.id, { ...seeded.lease.metadata,
-      replaceBeforeReuse: { schema: "paperclip.replace-before-reuse.v1", runId: randomUUID(), predecessorRunId: randomUUID(),
+      replaceBeforeReuse: { schema: "outpost.replace-before-reuse.v1", runId: randomUUID(), predecessorRunId: randomUUID(),
         recordedAt: new Date().toISOString() } });
   }
 

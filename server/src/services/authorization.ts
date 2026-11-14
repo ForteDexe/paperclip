@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { agentInteractionDenial, type AgentInteractionDenial, type AgentInteractionOperation } from "./agent-interaction-policy.js";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
 import { withHumanDirectedWork } from "./human-directed-work.js";
@@ -24,7 +24,7 @@ import {
   projectAccessMembers,
   projects,
   userInboxAgentPolicies,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   AgentApiKeyScope,
   InboxAgentPolicyMode,
@@ -32,7 +32,7 @@ import type {
   PrincipalType,
   SkillTestAgentKeyScope,
   TaskBridgeAgentKeyScope,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   LOW_TRUST_REVIEW_PRESET,
   extractAgentMentionIds,
@@ -40,7 +40,7 @@ import {
   lowTrustBoundarySchema,
   lowTrustReviewPresetPolicySchema,
   type LowTrustBoundary,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   LOW_TRUST_ISSUE_ANCESTRY_MAX_DEPTH,
   isIssueWithinLowTrustBoundary,
@@ -562,7 +562,7 @@ export type ProjectPrivacyRow = {
 };
 
 export function issuePrivacyMode(): "off" | "shadow" | "enforce" {
-  const mode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE?.trim().toLowerCase();
+  const mode = process.env.OUTPOST_ISSUE_PRIVACY_MODE?.trim().toLowerCase();
   if (mode === "off" || mode === "shadow") return mode;
   return "enforce";
 }
@@ -698,14 +698,14 @@ export async function projectReadSqlCondition(db: Db | DbTransaction, actor: Aut
 }
 
 function responsibleUserSnapshotTtlMs() {
-  const raw = process.env.PAPERCLIP_RESPONSIBLE_USER_AUTHZ_CACHE_TTL_MS?.trim();
+  const raw = process.env.OUTPOST_RESPONSIBLE_USER_AUTHZ_CACHE_TTL_MS?.trim();
   if (!raw) return 5_000;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 5_000;
 }
 export function responsibleUserAuthzShadowMode() {
-  const mode = process.env.PAPERCLIP_RESPONSIBLE_USER_AUTHZ_MODE?.trim().toLowerCase();
-  const shadow = process.env.PAPERCLIP_RESPONSIBLE_USER_AUTHZ_SHADOW?.trim().toLowerCase();
+  const mode = process.env.OUTPOST_RESPONSIBLE_USER_AUTHZ_MODE?.trim().toLowerCase();
+  const shadow = process.env.OUTPOST_RESPONSIBLE_USER_AUTHZ_SHADOW?.trim().toLowerCase();
   return mode === "shadow" || shadow === "1" || shadow === "true" || shadow === "yes";
 }
 

@@ -14,7 +14,7 @@ import { createHash, createHmac, generateKeyPairSync, randomUUID, sign } from "n
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { activityLog, agents, applyPendingMigrations, authUsers, chatActions, chatEndpoints, companies, companyMemberships,
-  toolApplications, toolConnections, createDb, closeCheckpointDb, closeFileStorageDb, closeLivenessDb } from "@paperclipai/db";
+  toolApplications, toolConnections, createDb, closeCheckpointDb, closeFileStorageDb, closeLivenessDb } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { stageSlackFormEnrollment, stageSlackFormOwnerConfiguration, reconcileSlackFormEnrollment, reconcilePendingSlackFormWork } from "../services/chat-channels/slack/form-owner.js";
 import { acceptSlackFormRetirementLocally, transferSlackFormRetirement } from "../services/chat-channels/slack/form-retirement-work.js";
@@ -23,7 +23,7 @@ import { parseSlackFormBinding } from "../services/chat-channels/slack/cloud-for
 import { retrySlackFormAcknowledgement } from "../services/chat-channels/slack/form-retry.js";
 import { connectionManagementService } from "../services/connection-management.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_SLACK_RETIREMENT_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_SLACK_RETIREMENT_TEST_DATABASE_URL");
 if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error("Guarded retirement SQL requires an explicit external database");
 (external ? describe : describe.skip)("Slack retirement original-custody SQL handoff", () => {
   let db: ReturnType<typeof createDb>, companyId: string, endpointId: string, connectionId: string, applicationId: string, agentId: string, actorId: string, actionId: string;
@@ -33,8 +33,8 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
   const trigger = "slack_retirement_controlled_update";
   function signCurrentReceipt(kid = "retirement-sql-key") {
     const pair = generateKeyPairSync("ed25519");
-    vi.stubEnv("PAPERCLIP_CLOUD_STACK_ID", identity.instanceId);
-    vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }));
+    vi.stubEnv("OUTPOST_CLOUD_STACK_ID", identity.instanceId);
+    vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }));
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
     const receipt = slackFormRetirementReceipt(binding, identity.environment, actorId);
     const body = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
@@ -106,7 +106,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const body=encode({alg:"EdDSA",typ:CLOUD_CONTROL_JWS_TYPE,kid})+"."+encode({v:1,iss:"paperclip-cloud",aud:CLOUD_CONTROL_AUDIENCE,
       sub:identity.instanceId,action:"task-drain:read",requestId:randomUUID(),iat:now,exp:now+60,idleCapabilities:capabilities});
     const claims=verifyCloudControlAssertion({compactJws:body+"."+sign(null,Buffer.from(body),key.privateKey).toString("base64url"),expectedAction:"task-drain:read",
-      env:{PAPERCLIP_CLOUD_STACK_ID:identity.instanceId,PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS:JSON.stringify({keys:[{...key.publicKey.export({format:"jwk"}),kid,use:"sig",alg:"EdDSA"}]})}});
+      env:{OUTPOST_CLOUD_STACK_ID:identity.instanceId,OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS:JSON.stringify({keys:[{...key.publicKey.export({format:"jwk"}),kid,use:"sig",alg:"EdDSA"}]})}});
     if(!claims.idleCapabilities)throw new Error("Actual signed retained-history capability absent");
     return claims.idleCapabilities as VerifiedIdleCapabilities;
   }
@@ -216,7 +216,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
       viewDigest: null, terminalDigest: "d".repeat(64), outcome: "no_effect", finalizedAt: now });
     const signAck = (kid: string) => {
       const pair = generateKeyPairSync("ed25519"), encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-      vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }));
+      vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }));
       const body = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
       return body + "." + sign(null, Buffer.from(body), pair.privateKey).toString("base64url");
     };
@@ -227,7 +227,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
         appReceiptId: id, view: null, outcome: "no_effect", submitReceiptId: null, rejectionDigest: receipt.terminalDigest, encryptedEvidence: null },
         cloudProofAcceptance: { version: 1, binding, operationId, appReceiptId: id, outcome: "no_effect", terminalDigest: receipt.terminalDigest, acceptedAt: now },
         formAck: { version: 1, phase: "accepted", leaseId: "exact-refresh-lease", deliveryId, receiptJws: oldJws, receipt }, nextAttemptAt: now } });
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "9".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "9".repeat(64));
     await db.transaction(tx => retainSlackFormOpeningProof(tx, { companyId, appReceiptId: id, original,
       operation: { version: 1, binding, grantId: "grant", id: operationId, externalId: "controlled-external-id", deliveryId, requestDigest, triggerDigest: "f".repeat(64),
         userId: "UTEST", acceptedAt: now, triggerDeadline: now, phase: "rejected", view: null, closed: null, acknowledgement: null, rejection: null } }));
@@ -382,7 +382,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const owner = { identity, protocol, resolveBotToken: async () => { throw new Error("GC has no new credential use"); }, report: () => {} };
     const due = await reconcilePendingSlackFormWork(db, owner); const pending = await row(); expect(pending.result?.phase).toBe("retirement_gc_pending");
     expect(pending.result?.attempts).toBe(1); expect(due).toBe(Date.parse(String(pending.result?.nextAttemptAt))); if (due === null) throw new Error("GC debt lost its retry deadline");
-    vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", "");
+    vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", "");
     while (Date.now() < due) await new Promise(resolve => setTimeout(resolve, due - Date.now()));
     expect(await reconcilePendingSlackFormWork(db, owner)).toBeNull(); expect((await row()).result?.phase).toBe("transferred"); expect(releases).toBe(2);
   }, 15000);
@@ -436,7 +436,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
       environment: identity.environment, signPrivateKey, sealPrivateKey }, request: async () => { throw new Error("Unexpected external connector request"); } });
     const lease = vi.spyOn(connector, "leaseEvents").mockResolvedValue(null);
     expect((await readSlackFormRetainedConsumer(db, connector)).owner).toMatchObject({ companyId, requiresDelivery: false });
-    const pendingWorker = githubConnectionEventService(db, { connector, env: { PAPERCLIP_GITHUB_EVENT_POLLING: "1" } });
+    const pendingWorker = githubConnectionEventService(db, { connector, env: { OUTPOST_GITHUB_EVENT_POLLING: "1" } });
     await pendingWorker.pollOnce(); expect(lease).toHaveBeenCalledTimes(1); expect(pendingWorker.nextPollAt()).not.toBeNull();
     let releases = 0;
     await transferSlackFormAckReceipt(db, { companyId, actionId: sessionId, instanceId: identity.instanceId, protocol: async values => {
@@ -449,7 +449,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     expect(completed?.result?.formAck).toMatchObject({ phase: "transferred", leaseId: "exact-session-lease", receipt });
     expect(completed?.result?.nextAttemptAt).toBeNull(); expect(releases).toBe(1);
     expect(await readSlackFormRetainedConsumer(db, connector)).toEqual({ owner: null, attention: [] });
-    const completedWorker = githubConnectionEventService(db, { connector, env: { PAPERCLIP_GITHUB_EVENT_POLLING: "1" } });
+    const completedWorker = githubConnectionEventService(db, { connector, env: { OUTPOST_GITHUB_EVENT_POLLING: "1" } });
     await completedWorker.pollOnce(); expect(lease).toHaveBeenCalledTimes(2); expect(completedWorker.nextPollAt()).toBeNull();
     await completedWorker.pollOnce(); expect(lease).toHaveBeenCalledTimes(2);
   });

@@ -1,6 +1,6 @@
-import { listTaskWorkspacesSchema, prepareWorkspaceRepositorySchema, selectTaskWorkspaceSchema } from "@paperclipai/shared";
+import { listTaskWorkspacesSchema, prepareWorkspaceRepositorySchema, selectTaskWorkspaceSchema } from "@outpost/shared";
 import { badRequest } from "../errors.js";
-import { executionWorkspaceRepositories, type Db } from "@paperclipai/db";
+import { executionWorkspaceRepositories, type Db } from "@outpost/db";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 export async function pendingTaskRepository(db: Pick<Db, "select">, input: {

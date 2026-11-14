@@ -54,7 +54,7 @@ The rebased branch passed the full Linux build and typecheck. Repository tests
 were run by project and serialized shard. All 143 serialized server suites passed.
 The runner TypeScript suite passed 1,599 tests with two platform skips. Rust
 release tests, conformance and replay checks passed. The required API authority
-check passed 814 tests, including the real runnerd/PRP/HTTP integration.
+check passed 814 tests, including the real runnerd/ORP/HTTP integration.
 
 Retained verification logs record the initial environment failures and targeted
 reruns: missing `jq`, an overlay-filesystem identity test that passed on tmpfs,

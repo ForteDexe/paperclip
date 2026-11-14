@@ -21,7 +21,7 @@ export function activeStopWorkBoundary(run: Row, events: Row[]): StopWorkBoundar
   const command = activeFollowupBoundary(run, events);
   if (!command) return null;
   const commandRow = events.find(row => row.seq === command.startedSeq)!;
-  const turnId = commandRow.payload.prpEvent.turnId;
+  const turnId = commandRow.payload.orpEvent.turnId;
   const issueId = run.nativeIssueId ?? run.issueId ?? run.contextSnapshot?.issueId;
   const accounting = run.usageJson;
   if (!text(turnId) || !text(issueId) || !text(accounting?.accountingReceiptSourceId)
@@ -29,10 +29,10 @@ export function activeStopWorkBoundary(run: Row, events: Row[]): StopWorkBoundar
   const binding = { runId: run.id, companyId: run.companyId, agentId: run.agentId };
   const bound = (row: Row) => isBoundNativePrpEventRow(row, binding, command.sourceInstanceId);
   const turnStart = events.findLast(row => bound(row) && row.eventType === "turn.started");
-  if (!turnStart || turnStart.payload.prpEvent.turnId !== turnId || turnStart.seq >= command.startedSeq) return null;
+  if (!turnStart || turnStart.payload.orpEvent.turnId !== turnId || turnStart.seq >= command.startedSeq) return null;
   const usage = events.findLast(row => bound(row) && row.seq > turnStart.seq && row.eventType === "item.completed"
-    && row.payload.prpEvent.turnId === turnId && row.payload.prpEvent.payload?.kind === "usage");
-  const report = usage?.payload.prpEvent.payload.usage;
+    && row.payload.orpEvent.turnId === turnId && row.payload.orpEvent.payload?.kind === "usage");
+  const report = usage?.payload.orpEvent.payload.usage;
   const delta = report?.runDelta;
   if (!usage || report?.runDeltaComplete !== true || report.usageBasis === "session_cumulative"
     || report.usageSource === "session_cumulative" || !delta || typeof delta !== "object" || Array.isArray(delta)

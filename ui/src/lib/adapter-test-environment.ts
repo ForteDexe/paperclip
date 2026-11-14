@@ -1,4 +1,4 @@
-import type { Environment } from "@paperclipai/shared";
+import type { Environment } from "@outpost/shared";
 
 /**
  * The managed-sandbox-only policy hides the local environment and runs every

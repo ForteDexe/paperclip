@@ -17,7 +17,7 @@ import {
   heartbeatRuns,
   issues,
   startEmbeddedPostgresTestDatabase,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 import { createAgentLifecycle } from "../src/services/agent-lifecycle.js";
 

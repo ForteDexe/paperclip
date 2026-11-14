@@ -47,8 +47,8 @@ test("cache excludes workspace code and executable installs, and preserves full 
 // is the first place a later edit would quietly break that promise.
 test("the typecheck pin step is identical to the Runner writer's", () => {
   const PIN = /# rust-cache hashes its absolute cache paths[\s\S]*?echo "path=\$pinned" >> "\$GITHUB_OUTPUT"\n/;
-  const writer = workflow.split("\n  verify_paperclip_runner:\n")[1];
-  assert.ok(writer, "release-verify.yml is missing the verify_paperclip_runner job");
+  const writer = workflow.split("\n  verify_outpost_runner:\n")[1];
+  assert.ok(writer, "release-verify.yml is missing the verify_outpost_runner job");
   const theirs = writer.match(PIN);
   const mine = typecheck.match(PIN);
   assert.ok(theirs, "the Runner writer must pin the Runner Rust workspace path");

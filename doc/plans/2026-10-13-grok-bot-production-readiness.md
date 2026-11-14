@@ -29,7 +29,7 @@ There is no testing call, case-count, token or spending cap. The user withdrew t
 
 ### Release disposition and user path
 
-The supported path is Settings → Experimental: opt into Assistant connections (MCP), Paperclip Runner and Grok Bot. Then use Agents → New agent → Invite external agent → Grok Bot. The product guide is `doc/grok-bot-agent.md`.
+The supported path is Settings → Experimental: opt into Assistant connections (MCP), Outpost Runner and Grok Bot. Then use Agents → New agent → Invite external agent → Grok Bot. The product guide is `doc/grok-bot-agent.md`.
 
 The release remains experimental. Grok retains account-wide plugin access, native apps and persistent context. Paperclip does not report its spending, provide a complete transcript, reset its remote context or guarantee remote process termination. Stop revokes Paperclip work authority and future dispatch. These are declared provider limits.
 

@@ -35,7 +35,7 @@ import {
   teamsConversationId,
 } from "../../chat-control-chronology.js";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatConversations,
@@ -44,10 +44,10 @@ import {
   chatEndpoints,
   chatExternalPrincipals,
   chatMessageLinks,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatProvider,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import { normalizeTelegramRichMessage } from "../../chat-telegram-rich-intake.js";
 

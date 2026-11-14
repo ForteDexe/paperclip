@@ -69,8 +69,8 @@ it.each([
   boundary.hold = hold;
   boundary.spawnErrors = [];
   home = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-readiness-"));
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_MANAGED_RUNTIME_HTTPS", "off");
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_MANAGED_RUNTIME_HTTPS", "off");
   vi.stubEnv("SHELL", shell);
   const unhandled: unknown[] = [];
   const observe = (error: unknown) => { unhandled.push(error); };

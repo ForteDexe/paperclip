@@ -204,7 +204,7 @@ export interface AdapterSandboxExecutionTarget extends AdapterExecutionTargetWor
    * environment. Absent means no grant.
    */
   readonly enableSandboxDuplexBridge?: boolean;
-  /** Host-owned lifecycle override for paperclip_runner in this environment. */
+  /** Host-owned lifecycle override for outpost_runner in this environment. */
   readonly runnerLifecyclePolicy?:
     | { mode: "per_turn"; idleTimeoutMs: null }
     | { mode: "warm"; idleTimeoutMs: number }
@@ -455,15 +455,15 @@ function resolveHostForUrl(rawHost: string): string {
 
 function resolveDefaultPaperclipApiUrl(): string {
   const runtimeHost = resolveHostForUrl(
-    process.env.PAPERCLIP_LISTEN_HOST ?? process.env.HOST ?? "localhost",
+    process.env.OUTPOST_LISTEN_HOST ?? process.env.HOST ?? "localhost",
   );
   // 3100 matches the default Paperclip dev server port when the runtime does not provide one.
-  const runtimePort = process.env.PAPERCLIP_LISTEN_PORT ?? process.env.PORT ?? "3100";
+  const runtimePort = process.env.OUTPOST_LISTEN_PORT ?? process.env.PORT ?? "3100";
   return `http://${runtimeHost}:${runtimePort}`;
 }
 
 function isBridgeDebugEnabled(env: NodeJS.ProcessEnv): boolean {
-  const value = env.PAPERCLIP_BRIDGE_DEBUG?.trim().toLowerCase();
+  const value = env.OUTPOST_BRIDGE_DEBUG?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
@@ -665,7 +665,7 @@ export function formatAdapterExecutionTimeoutErrorMessage(
 
 /**
  * One-line start-of-run statement of the effective wall-clock timeout and its
- * source. Callers prefix with `[paperclip] ` and append a newline.
+ * source. Callers prefix with `[outpost] ` and append a newline.
  */
 export function formatAdapterExecutionTimeoutStartLogLine(
   resolution: AdapterExecutionTargetTimeoutResolution,
@@ -901,7 +901,7 @@ function applyRunDispositionSeam(
   const disposition = settleRunDisposition();
   if (!disposition.failed) return result;
   const lossReason = disposition.lossReason ?? "other";
-  const note = `[paperclip] The sandbox duplex control channel was lost (${lossReason}) before the run completed.\n`;
+  const note = `[outpost] The sandbox duplex control channel was lost (${lossReason}) before the run completed.\n`;
   const separator = result.stderr.length > 0 && !result.stderr.endsWith("\n") ? "\n" : "";
   return {
     ...result,
@@ -1283,7 +1283,7 @@ export async function ensureAdapterExecutionTargetRuntimeCommandInstalled(input:
         const reason = result.timedOut ? "timed out" : `exited ${result.exitCode ?? "?"}`;
         await input.onLog(
           "stderr",
-          `[paperclip] Install command ${reason} (${installCommand}) but ${detectCommand} is on PATH; continuing.\n`,
+          `[outpost] Install command ${reason} (${installCommand}) but ${detectCommand} is on PATH; continuing.\n`,
         );
       }
       return;
@@ -1644,7 +1644,7 @@ export function githubOperationLauncherDirectory(input: GitHubLauncherLocation):
   if (!/^[a-zA-Z0-9_-]+$/.test(input.runId)) throw new Error("Invalid GitHub launcher run ID");
   return input.target?.kind === "remote"
     ? path.posix.join(input.target.remoteCwd, ".paperclip-runtime",
-        ...(input.target.transport === "sandbox" ? ["paperclip-runner"] : []), "github", input.runId)
+        ...(input.target.transport === "sandbox" ? ["outpost-runner"] : []), "github", input.runId)
     : path.join(os.tmpdir(), "paperclip-github-runtime", input.runId);
 }
 
@@ -1700,18 +1700,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const cp = require('node:child_process');
 const env = {};
-env.PAPERCLIP_RUNNER_NETWORK_ROOTS = JSON.stringify(['/etc/resolv.conf','/etc/hosts','/etc/nsswitch.conf','/etc/ssl/certs','/etc/ssl/cert.pem'].flatMap(p => { try { return [fs.realpathSync(p)]; } catch { return []; } }));
+env.OUTPOST_RUNNER_NETWORK_ROOTS = JSON.stringify(['/etc/resolv.conf','/etc/hosts','/etc/nsswitch.conf','/etc/ssl/certs','/etc/ssl/cert.pem'].flatMap(p => { try { return [fs.realpathSync(p)]; } catch { return []; } }));
 if (process.argv[1] === 'host') {
   for (const [key, value] of Object.entries(process.env)) {
-    if (/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|PAPERCLIP_GIT_TOKEN|GH_CONFIG_DIR|GIT_CONFIG_(GLOBAL|SYSTEM|NOSYSTEM|COUNT|KEY_\d+|VALUE_\d+)|GIT_(AUTHOR|COMMITTER)_(NAME|EMAIL)|GIT_ASKPASS|SSH_ASKPASS|SSH_AUTH_SOCK|GIT_SSH_COMMAND|GIT_SSH)$/.test(key)) env[key] = value;
+    if (/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|OUTPOST_GIT_TOKEN|GH_CONFIG_DIR|GIT_CONFIG_(GLOBAL|SYSTEM|NOSYSTEM|COUNT|KEY_\d+|VALUE_\d+)|GIT_(AUTHOR|COMMITTER)_(NAME|EMAIL)|GIT_ASKPASS|SSH_ASKPASS|SSH_AUTH_SOCK|GIT_SSH_COMMAND|GIT_SSH)$/.test(key)) env[key] = value;
   }
-  env.PAPERCLIP_GITHUB_HOST_HOME = process.env.HOME || '';
+  env.OUTPOST_GITHUB_HOST_HOME = process.env.HOME || '';
   env.GH_CONFIG_DIR ||= path.join(process.env.XDG_CONFIG_HOME || path.join(process.env.HOME || '', '.config'), 'gh');
 }
 try {
   const top = cp.execFileSync('git', ['rev-parse', '--show-toplevel'], {encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
   if (fs.realpathSync(top) === fs.realpathSync(process.cwd())) {
-    env.PAPERCLIP_GIT_METADATA_ROOTS = JSON.stringify(cp.execFileSync('git', ['rev-parse','--path-format=absolute','--git-common-dir','--git-dir'], {encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim().split('\n').map(p => fs.realpathSync(p)));
+    env.OUTPOST_GIT_METADATA_ROOTS = JSON.stringify(cp.execFileSync('git', ['rev-parse','--path-format=absolute','--git-common-dir','--git-dir'], {encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim().split('\n').map(p => fs.realpathSync(p)));
   }
 } catch {}
 process.stdout.write("\0" + JSON.stringify(env) + "\0");
@@ -1726,9 +1726,9 @@ process.stdout.write("\0" + JSON.stringify(env) + "\0");
     // A legacy SSH host may run a standalone agent binary without Node. Use
     // only the shell and Git, and emit bounded, NUL-framed environment records.
     const probe = String.raw`
-printf '\0PAPERCLIP_GIT_CONTEXT_V1\0'
+printf '\0OUTPOST_GIT_CONTEXT_V1\0'
 if [ "$1" = host ]; then
-  for key in GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN PAPERCLIP_GIT_TOKEN GH_CONFIG_DIR GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM GIT_CONFIG_COUNT GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_ASKPASS SSH_ASKPASS SSH_AUTH_SOCK GIT_SSH_COMMAND GIT_SSH; do
+  for key in GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN OUTPOST_GIT_TOKEN GH_CONFIG_DIR GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM GIT_CONFIG_COUNT GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_ASKPASS SSH_ASKPASS SSH_AUTH_SOCK GIT_SSH_COMMAND GIT_SSH; do
     eval 'value=${"$"}{'"$key"'-}'
     [ -z "$value" ] || printf '%s\0%s\0' "$key" "$value"
   done
@@ -1741,7 +1741,7 @@ if [ "$1" = host ]; then
     done
     index=$((index + 1))
   done
-  printf 'PAPERCLIP_GITHUB_HOST_HOME\0%s\0' "$HOME"
+  printf 'OUTPOST_GITHUB_HOST_HOME\0%s\0' "$HOME"
   printf 'GH_CONFIG_DIR\0%s\0' "${"$"}{GH_CONFIG_DIR:-${"$"}{XDG_CONFIG_HOME:-$HOME/.config}/gh}"
 fi
 for file in /etc/resolv.conf /etc/hosts /etc/nsswitch.conf /etc/ssl/certs /etc/ssl/cert.pem; do
@@ -1753,7 +1753,7 @@ for file in /etc/resolv.conf /etc/hosts /etc/nsswitch.conf /etc/ssl/certs /etc/s
   done
   if [ -e "$file" ]; then
     parent=$(cd "$(dirname "$file")" && pwd -P) || continue
-    printf 'PAPERCLIP_RUNNER_NETWORK_ROOT\0%s\0' "$parent/$(basename "$file")"
+    printf 'OUTPOST_RUNNER_NETWORK_ROOT\0%s\0' "$parent/$(basename "$file")"
   fi
 done
 cwd=$(pwd -P)
@@ -1762,10 +1762,10 @@ if [ -n "$top" ] && [ "$(cd "$top" && pwd -P)" = "$cwd" ]; then
   for kind in --git-common-dir --git-dir; do
     root=$(git rev-parse --path-format=absolute "$kind" 2>/dev/null) || continue
     root=$(cd "$root" && pwd -P) || continue
-    printf 'PAPERCLIP_GIT_METADATA_ROOT\0%s\0' "$root"
+    printf 'OUTPOST_GIT_METADATA_ROOT\0%s\0' "$root"
   done
 fi
-printf '\0PAPERCLIP_GIT_CONTEXT_END\0'
+printf '\0OUTPOST_GIT_CONTEXT_END\0'
 `;
     const result = await adapterExecutionTargetCommandRunner(remote).execute({
       command: "sh", args: ["-c", probe, "paperclip-git-context", input.hostCredentials ? "host" : "managed"],
@@ -1774,7 +1774,7 @@ printf '\0PAPERCLIP_GIT_CONTEXT_END\0'
       cwd: remote.remoteCwd, timeoutMs: 15_000,
     });
     if (result.exitCode !== 0) throw new Error("Could not read execution-target Git context");
-    const payload = result.stdout.split("\0PAPERCLIP_GIT_CONTEXT_V1\0")[1]?.split("\0PAPERCLIP_GIT_CONTEXT_END\0")[0];
+    const payload = result.stdout.split("\0OUTPOST_GIT_CONTEXT_V1\0")[1]?.split("\0OUTPOST_GIT_CONTEXT_END\0")[0];
     if (payload === undefined) throw new Error("Could not read execution-target Git context");
     discovered = {};
     const records = payload.split("\0");
@@ -1783,12 +1783,12 @@ printf '\0PAPERCLIP_GIT_CONTEXT_END\0'
     for (let index = 0; index + 1 < records.length; index += 2) {
       const key = records[index]!;
       const value = records[index + 1]!;
-      if (key === "PAPERCLIP_GIT_METADATA_ROOT") roots.push(value);
-      else if (key === "PAPERCLIP_RUNNER_NETWORK_ROOT") networkRoots.push(value);
+      if (key === "OUTPOST_GIT_METADATA_ROOT") roots.push(value);
+      else if (key === "OUTPOST_RUNNER_NETWORK_ROOT") networkRoots.push(value);
       else discovered[key] = value;
     }
-    discovered.PAPERCLIP_GIT_METADATA_ROOTS = JSON.stringify([...new Set(roots)]);
-    discovered.PAPERCLIP_RUNNER_NETWORK_ROOTS = JSON.stringify([...new Set(networkRoots)]);
+    discovered.OUTPOST_GIT_METADATA_ROOTS = JSON.stringify([...new Set(roots)]);
+    discovered.OUTPOST_RUNNER_NETWORK_ROOTS = JSON.stringify([...new Set(networkRoots)]);
   } else {
     const result = await promisify(execFile)(process.execPath, args, { cwd: input.cwd, timeout: 15_000, maxBuffer: 1024 * 1024 });
     try { discovered = JSON.parse(result.stdout.split("\0")[1] ?? ""); }
@@ -1796,11 +1796,11 @@ printf '\0PAPERCLIP_GIT_CONTEXT_END\0'
   }
   // Controller-derived roots and mode must not be replaced by agent bindings.
   return { ...discovered, ...input.env,
-    ...(input.hostCredentials ? { PAPERCLIP_GITHUB_HOST_HOME: discovered.PAPERCLIP_GITHUB_HOST_HOME } : {}),
-    PAPERCLIP_GIT_METADATA_ROOTS: discovered.PAPERCLIP_GIT_METADATA_ROOTS ?? "[]",
-    PAPERCLIP_RUNNER_NETWORK_ROOTS: discovered.PAPERCLIP_RUNNER_NETWORK_ROOTS ?? "[]",
-    PAPERCLIP_GITHUB_AUTH_MODE: input.hostCredentials ? "host" : "managed",
-    PAPERCLIP_RUNNER_NETWORK_ACCESS: input.networkAccess ? "enabled" : "disabled",
+    ...(input.hostCredentials ? { OUTPOST_GITHUB_HOST_HOME: discovered.OUTPOST_GITHUB_HOST_HOME } : {}),
+    OUTPOST_GIT_METADATA_ROOTS: discovered.OUTPOST_GIT_METADATA_ROOTS ?? "[]",
+    OUTPOST_RUNNER_NETWORK_ROOTS: discovered.OUTPOST_RUNNER_NETWORK_ROOTS ?? "[]",
+    OUTPOST_GITHUB_AUTH_MODE: input.hostCredentials ? "host" : "managed",
+    OUTPOST_RUNNER_NETWORK_ACCESS: input.networkAccess ? "enabled" : "disabled",
   };
 }
 
@@ -1848,7 +1848,7 @@ export async function prepareGitHubOperationLaunchers(input: {
     for (const [program, body] of Object.entries(files)) await fs.writeFile(path.join(directory, program), body, { mode: 0o700 });
   }
   return { ...input.env, PATH: managedPath, ZDOTDIR: directory, BASH_ENV: `${directory}/.bashrc`,
-    GH_CONFIG_DIR: configDirectory, PAPERCLIP_GITHUB_LAUNCHER_DIR: directory };
+    GH_CONFIG_DIR: configDirectory, OUTPOST_GITHUB_LAUNCHER_DIR: directory };
 }
 
 function buildBridgeResponseHeaders(response: Response): Record<string, string> {
@@ -2151,7 +2151,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
   // the existing path; upload larger envelopes in bounded chunks instead.
   const commandEnv: Record<string, string> = {};
   if (commandPayload.length <= 64 * 1024) {
-    commandEnv.PAPERCLIP_PROCESS_SESSION_COMMAND_B64 = commandPayload;
+    commandEnv.OUTPOST_PROCESS_SESSION_COMMAND_B64 = commandPayload;
   } else {
     const payloadPath = path.posix.join(sessionDir, "command.b64");
     const runPayloadSetup = async (script: string) => {
@@ -2183,7 +2183,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
   // event files with the host poll below. The streamed path launches the wrapper
   // as one foreground session command further down instead, so skip this.
   if (!streamOutput) {
-    await onLog("stdout", `[paperclip] Starting ACP process session bridge in sandbox (${target.providerKey ?? "provider"}).\n`);
+    await onLog("stdout", `[outpost] Starting ACP process session bridge in sandbox (${target.providerKey ?? "provider"}).\n`);
     const startResult = await runSandboxBridgeControlCommand(runner, {
       command: shellCommand,
       args: shellCommandArgs(
@@ -2191,14 +2191,14 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
           `mkdir -p ${shellQuote(stdinDir)} ${shellQuote(eventsDir)}`,
           // I3: no numeric process identifier anywhere. Background the
           // wrapper and let it go; do not capture `$!`.
-          `PAPERCLIP_PROCESS_SESSION_DIR=${shellQuote(sessionDir)} ` +
+          `OUTPOST_PROCESS_SESSION_DIR=${shellQuote(sessionDir)} ` +
             Object.entries(commandEnv).map(([key, value]) => `${key}=${shellQuote(value)} `).join("") +
             `nohup node ${shellQuote(remoteScriptPath)} >/dev/null 2>&1 < /dev/null &`,
         ].join("\n"),
       ),
       cwd: target.remoteCwd,
       env: {
-        PAPERCLIP_SANDBOX_EXEC_CHANNEL: "bridge",
+        OUTPOST_SANDBOX_EXEC_CHANNEL: "bridge",
       },
       timeoutMs,
       // The wrapper launch is bridge plumbing. Keep it off the persistent
@@ -2269,7 +2269,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
     const signal = ACP_PROCESS_TERMINAL_SIGNALS.find((name) => name === event.signal) ?? "unknown";
     terminalEvidence = { source, outcome, exitCode: code, signal };
     logFailureWithoutWaiting(
-      `[paperclip] ACP process session terminal: source=${source} outcome=${outcome} exitCode=${code} signal=${signal}.\n`,
+      `[outpost] ACP process session terminal: source=${source} outcome=${outcome} exitCode=${code} signal=${signal}.\n`,
     );
   };
   const pendingRemoteEvents: Array<{
@@ -2433,7 +2433,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
               }
               // stop() awaits this input chain before sending shutdown. Run-log
               // persistence must not hold teardown open when it stalls or fails.
-              logFailureWithoutWaiting(`[paperclip] ${message}\n`);
+              logFailureWithoutWaiting(`[outpost] ${message}\n`);
             }
           });
         }
@@ -2536,7 +2536,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
 
     await onLog(
       "stdout",
-      `[paperclip] Starting streamed ACP process session bridge in sandbox (${target.providerKey ?? "provider"}).\n`,
+      `[outpost] Starting streamed ACP process session bridge in sandbox (${target.providerKey ?? "provider"}).\n`,
     );
     // Fire the long-lived command; do NOT await it here. `useSession` forces the
     // persistent session so the provider streams the wrapper stdout back through
@@ -2571,9 +2571,9 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
             args: shellCommandArgs(`node ${shellQuote(remoteScriptPath)}`),
             cwd: target.remoteCwd,
             env: {
-              PAPERCLIP_PROCESS_SESSION_DIR: sessionDir,
+              OUTPOST_PROCESS_SESSION_DIR: sessionDir,
               ...commandEnv,
-              PAPERCLIP_SANDBOX_EXEC_CHANNEL: "bridge",
+              OUTPOST_SANDBOX_EXEC_CHANNEL: "bridge",
             },
             timeoutMs,
             useSession: true,
@@ -2708,7 +2708,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
       stopReadingForShutdownAck = true;
       if (!acknowledgedInTime) {
         logFailureWithoutWaiting(
-          `[paperclip] ACP process session wrapper did not acknowledge shutdown within ${DEFAULT_PROCESS_SESSION_SHUTDOWN_WAIT_MS}ms; removing the session directory anyway.\n`,
+          `[outpost] ACP process session wrapper did not acknowledge shutdown within ${DEFAULT_PROCESS_SESSION_SHUTDOWN_WAIT_MS}ms; removing the session directory anyway.\n`,
         );
       }
       // Unconditional: this removal runs whether or not the wrapper
@@ -2798,7 +2798,7 @@ const PROCESS_SESSION_STDIN_POLL_TAIL = `child.stdin.on("error", () => {});
 // and write an error event, so a lost message fails loud, and let later files
 // run.
 const stdinMaxParseRetries = (() => {
-  const raw = Number.parseInt(process.env.PAPERCLIP_PROCESS_SESSION_STDIN_MAX_RETRIES || "", 10);
+  const raw = Number.parseInt(process.env.OUTPOST_PROCESS_SESSION_STDIN_MAX_RETRIES || "", 10);
   return Number.isFinite(raw) && raw > 0 ? raw : 100;
 })();
 const stdinParseRetries = new Map();
@@ -2816,7 +2816,7 @@ let stdinGapRetries = 0;
 // call sends. A test can override it through the environment, so a stubborn
 // child does not force a slow test.
 const terminateGraceMs = (() => {
-  const raw = Number.parseInt(process.env.PAPERCLIP_PROCESS_SESSION_TERMINATE_GRACE_MS || "", 10);
+  const raw = Number.parseInt(process.env.OUTPOST_PROCESS_SESSION_TERMINATE_GRACE_MS || "", 10);
   return Number.isFinite(raw) && raw > 0 ? raw : 3000;
 })();
 
@@ -2897,7 +2897,7 @@ async function statPathIdentity(candidatePath) {
   const stats = await fs.lstat(candidatePath);
   if (stats.isSymbolicLink()) {
     const error = new Error("Refusing a symbolic link on a process session control path.");
-    error.code = "EPAPERCLIP_SYMLINK";
+    error.code = "EOUTPOST_SYMLINK";
     throw error;
   }
   if (!stats.isDirectory()) {
@@ -3084,7 +3084,7 @@ async function verifySessionIdentity() {
         ? "the control path no longer exists"
         : code === "ENOTDIR"
           ? "the control path is no longer a directory"
-          : code === "EPAPERCLIP_SYMLINK"
+          : code === "EOUTPOST_SYMLINK"
             ? "the control path is now a symbolic link"
             : "lstat failed" + (code ? " with " + code : "");
     process.stderr.write("Latching on a lost process session identity: " + reason + ". Terminating.\\n");
@@ -3213,7 +3213,7 @@ void pollStdin().catch((error) => void writeEvent({ type: "error", message: erro
 const PROCESS_SESSION_READ_COMMAND = `
 let config;
 try {
-  let commandPayload = process.env.PAPERCLIP_PROCESS_SESSION_COMMAND_B64;
+  let commandPayload = process.env.OUTPOST_PROCESS_SESSION_COMMAND_B64;
   if (!commandPayload) {
     const payloadPath = path.posix.join(sessionDir, "command.b64");
     const handle = await fs.open(payloadPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
@@ -3248,7 +3248,7 @@ function getProcessSessionRemoteStreamSource(): string {
 import { promises as fs, constants as fsConstants } from "node:fs";
 import path from "node:path";
 
-const sessionDir = process.env.PAPERCLIP_PROCESS_SESSION_DIR;
+const sessionDir = process.env.OUTPOST_PROCESS_SESSION_DIR;
 if (!sessionDir) throw new Error("Missing process session bridge env.");
 
 const stdinDir = path.posix.join(sessionDir, "stdin");
@@ -3291,8 +3291,8 @@ ${PROCESS_SESSION_READ_COMMAND}
 // session dir and the command payload. Scrub both keys before they reach the
 // spawned child, so the child never inherits a path to its own control files.
 const childEnv = { ...process.env, ...(config.env || {}) };
-delete childEnv.PAPERCLIP_PROCESS_SESSION_DIR;
-delete childEnv.PAPERCLIP_PROCESS_SESSION_COMMAND_B64;
+delete childEnv.OUTPOST_PROCESS_SESSION_DIR;
+delete childEnv.OUTPOST_PROCESS_SESSION_COMMAND_B64;
 
 // I1: exactly one child process per emitted wrapper. Do not add a second
 // tracked child handle.
@@ -3331,7 +3331,7 @@ function getProcessSessionRemoteEventFileSource(): string {
 import { promises as fs, constants as fsConstants } from "node:fs";
 import path from "node:path";
 
-const sessionDir = process.env.PAPERCLIP_PROCESS_SESSION_DIR;
+const sessionDir = process.env.OUTPOST_PROCESS_SESSION_DIR;
 if (!sessionDir) throw new Error("Missing process session bridge env.");
 
 const stdinDir = path.posix.join(sessionDir, "stdin");
@@ -3382,8 +3382,8 @@ ${PROCESS_SESSION_READ_COMMAND}
 // session dir and the command payload. Scrub both keys before they reach the
 // spawned child, so the child never inherits a path to its own control files.
 const childEnv = { ...process.env, ...(config.env || {}) };
-delete childEnv.PAPERCLIP_PROCESS_SESSION_DIR;
-delete childEnv.PAPERCLIP_PROCESS_SESSION_COMMAND_B64;
+delete childEnv.OUTPOST_PROCESS_SESSION_DIR;
+delete childEnv.OUTPOST_PROCESS_SESSION_COMMAND_B64;
 
 // I1: exactly one child process per emitted wrapper. Do not add a second
 // tracked child handle.
@@ -4444,7 +4444,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
   const queueDir = path.posix.join(bridgeRuntimeDir, "queue");
   const assetRemoteDir = path.posix.join(bridgeRuntimeDir, "server");
   const bridgeToken = createSandboxCallbackBridgeToken();
-  const configuredAttachmentBytes = Number(process.env.PAPERCLIP_ATTACHMENT_MAX_BYTES);
+  const configuredAttachmentBytes = Number(process.env.OUTPOST_ATTACHMENT_MAX_BYTES);
   // A larger upload limit needs multipart headroom. A smaller attachment limit
   // remains enforced by the API and must not shrink unrelated JSON responses.
   const defaultBodyBytes = Number.isSafeInteger(configuredAttachmentBytes) && configuredAttachmentBytes > 0
@@ -4456,12 +4456,12 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
       : defaultBodyBytes;
   // The bridge worker runs inside the same process that serves the Paperclip
   // API, so forwarded sandbox calls must target the LOCAL listen origin. The
-  // PAPERCLIP_RUNTIME_API_URL / PAPERCLIP_API_URL exports now prefer a
+  // OUTPOST_RUNTIME_API_URL / OUTPOST_API_URL exports now prefer a
   // configured public base URL, which is the origin browsers and external
   // agents use; routing this in-process loopback hop through the network edge
   // breaks deployments whose public origin sits behind a session-gated proxy
   // (every forwarded agent API call is rejected at the edge). Server boot
-  // exports PAPERCLIP_LISTEN_HOST / PAPERCLIP_LISTEN_PORT before any run
+  // exports OUTPOST_LISTEN_HOST / OUTPOST_LISTEN_PORT before any run
   // executes, and resolveDefaultPaperclipApiUrl() maps wildcard listen hosts
   // to the loopback address of the same family (0.0.0.0 -> 127.0.0.1,
   // :: -> [::1]), so the fallback is always loopback-reachable.
@@ -4476,7 +4476,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
 
   await onLog(
     "stdout",
-    `[paperclip] Starting sandbox callback bridge for ${input.adapterKey} in ${bridgeRuntimeDir}.\n`,
+    `[outpost] Starting sandbox callback bridge for ${input.adapterKey} in ${bridgeRuntimeDir}.\n`,
   );
 
   const bridgeAsset = await createSandboxCallbackBridgeAsset();
@@ -4495,7 +4495,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
     transport: "http2",
   });
 
-  // PAPERCLIP_BRIDGE_DEBUG opts into verbose stdout logs of every bridge proxy
+  // OUTPOST_BRIDGE_DEBUG opts into verbose stdout logs of every bridge proxy
   // request/response. The query string is logged verbatim, so callers who pass
   // auth tokens or other sensitive values as query parameters should be aware
   // those values appear in the host process's stdout when this flag is enabled.
@@ -4534,7 +4534,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
     if (emitDebugLog) {
       await onLog(
         "stdout",
-        `[paperclip] Bridge proxy ${method} ${request.path}${request.query ? `?${request.query}` : ""}\n`,
+        `[outpost] Bridge proxy ${method} ${request.path}${request.query ? `?${request.query}` : ""}\n`,
       );
     }
     const headers = new Headers();
@@ -4568,7 +4568,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
     if (emitDebugLog) {
       await onLog(
         "stdout",
-        `[paperclip] Bridge proxy response ${response.status} for ${method} ${request.path}${request.query ? `?${request.query}` : ""}\n`,
+        `[outpost] Bridge proxy response ${response.status} for ${method} ${request.path}${request.query ? `?${request.query}` : ""}\n`,
       );
     }
     // The host delivered response headers, so the response-body read starts after
@@ -4705,12 +4705,12 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
         shellCommand,
       });
       const gatewayEnv: Record<string, string> = {
-        PAPERCLIP_API_BRIDGE_MODE: SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE,
-        PAPERCLIP_BRIDGE_TOKEN: bridgeToken,
-        PAPERCLIP_BRIDGE_HOST: "127.0.0.1",
-        PAPERCLIP_BRIDGE_PORT: String(assignedPort),
-        PAPERCLIP_BRIDGE_NONCE: nonce,
-        PAPERCLIP_BRIDGE_MAX_BODY_BYTES: String(maxBodyBytes),
+        OUTPOST_API_BRIDGE_MODE: SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE,
+        OUTPOST_BRIDGE_TOKEN: bridgeToken,
+        OUTPOST_BRIDGE_HOST: "127.0.0.1",
+        OUTPOST_BRIDGE_PORT: String(assignedPort),
+        OUTPOST_BRIDGE_NONCE: nonce,
+        OUTPOST_BRIDGE_MAX_BODY_BYTES: String(maxBodyBytes),
       };
       const command = buildDuplexGatewayLaunchArgv({
         shellCommand,
@@ -4736,7 +4736,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
       duplexChannelOpen.fallback(reason);
       await onLog(
         "stderr",
-        `[paperclip] Could not open the sandbox duplex channel (${reason}). Using the file bridge.\n`,
+        `[outpost] Could not open the sandbox duplex channel (${reason}). Using the file bridge.\n`,
       );
       channel = null;
     }
@@ -4758,7 +4758,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
         duplexChannelOpen.fallback(duplexReadinessFallbackReason(readiness.reason));
         await onLog(
           "stderr",
-          `[paperclip] Sandbox duplex readiness failed (${readiness.reason}). Using the file bridge.\n`,
+          `[outpost] Sandbox duplex readiness failed (${readiness.reason}). Using the file bridge.\n`,
         );
       } else {
         // Readiness passed. The gate retained every byte that followed the
@@ -4784,7 +4784,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
           duplexChannelOpen.fallback("preface_missing");
           await onLog(
             "stderr",
-            "[paperclip] Sandbox HTTP/2 client preface did not appear inside the bounded readiness buffer (preface_missing). Using the file bridge.\n",
+            "[outpost] Sandbox HTTP/2 client preface did not appear inside the bounded readiness buffer (preface_missing). Using the file bridge.\n",
           );
         } else {
           // The run disposition latch for the http2_v1 path, in the same
@@ -4808,7 +4808,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
             }
             const lossClass = anyStreamDispatched ? "post_dispatch" : "pre_dispatch";
             duplexObservability.recordLoss(lossClass, reason);
-            void onLog("stderr", `[paperclip] Sandbox HTTP/2 channel lost (${reason}). The run fails.\n`);
+            void onLog("stderr", `[outpost] Sandbox HTTP/2 channel lost (${reason}). The run fails.\n`);
           };
 
           // The forward handler applies the real host token and the run id
@@ -4848,7 +4848,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
             forwardRequest: http2ForwardRequest,
             routes: HTTP2_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST,
             // The same resolved limit the launch environment hands the
-            // sandbox-side gateway (`PAPERCLIP_BRIDGE_MAX_BODY_BYTES`,
+            // sandbox-side gateway (`OUTPOST_BRIDGE_MAX_BODY_BYTES`,
             // below), so the host check and the gateway check enforce one
             // value instead of the host silently falling back to the
             // package default.
@@ -4890,7 +4890,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
           duplexChannelOpen.ready();
           await onLog(
             "stdout",
-            "[paperclip] Sandbox HTTP/2 transport ready; serving the host-assigned origin.\n",
+            "[outpost] Sandbox HTTP/2 transport ready; serving the host-assigned origin.\n",
           );
           // Stream run logs on the http2 path with the same gate and the same
           // log line as the file path. The http2 path starts no file-bridge
@@ -4911,13 +4911,13 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
               logsDir: duplexLogsDir,
               shellCommand,
             });
-            await onLog("stdout", "[paperclip] Sandbox run log streaming enabled for this run.\n");
+            await onLog("stdout", "[outpost] Sandbox run log streaming enabled for this run.\n");
           }
           return {
             env: {
-              PAPERCLIP_API_URL: sandboxOrigin,
-              PAPERCLIP_API_KEY: bridgeToken,
-              PAPERCLIP_API_BRIDGE_MODE: SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE,
+              OUTPOST_API_URL: sandboxOrigin,
+              OUTPOST_API_KEY: bridgeToken,
+              OUTPOST_API_BRIDGE_MODE: SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE,
             },
             runLogTail: duplexRunLogTail,
             readRunDisposition: (): DuplexBrokerRunDisposition => dispositionLatch.disposition,
@@ -4952,7 +4952,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
       shellCommand,
     });
     // `startSandboxCallbackBridgeWorker` keeps its awaited queue-directory
-    // setup on the active `bridge.paperclip` step, and runs each request under
+    // setup on the active `bridge.outpost` step, and runs each request under
     // the run parent context (see `runWithRuntimeParent` inside that function).
     // So the startup `mkdir` execs stay parented to the step, and every later
     // request `sandbox.exec` span parents to the live run span.
@@ -4995,15 +4995,15 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
       logsDir: sandboxCallbackBridgeDirectories(queueDir).logsDir,
       shellCommand,
     });
-    await onLog("stdout", "[paperclip] Sandbox run log streaming enabled for this run.\n");
+    await onLog("stdout", "[outpost] Sandbox run log streaming enabled for this run.\n");
   }
 
   return {
     env: {
-      PAPERCLIP_API_URL: server.baseUrl,
-      PAPERCLIP_API_KEY: bridgeToken,
-      PAPERCLIP_API_BRIDGE_MODE: "queue_v1",
-      PAPERCLIP_BRIDGE_QUEUE_DIR: queueDir,
+      OUTPOST_API_URL: server.baseUrl,
+      OUTPOST_API_KEY: bridgeToken,
+      OUTPOST_API_BRIDGE_MODE: "queue_v1",
+      OUTPOST_BRIDGE_QUEUE_DIR: queueDir,
     },
     runLogTail,
     stop: async () => {

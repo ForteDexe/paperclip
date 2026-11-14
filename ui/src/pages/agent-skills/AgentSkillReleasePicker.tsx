@@ -1,4 +1,4 @@
-import type { CompanySkillVersionSummary } from "@paperclipai/shared";
+import type { CompanySkillVersionSummary } from "@outpost/shared";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,

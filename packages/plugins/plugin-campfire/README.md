@@ -24,7 +24,7 @@ From the Outpost repository root:
 
 ```powershell
 corepack pnpm install --ignore-scripts
-corepack pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
+corepack pnpm --filter @outpost/plugin-sdk ensure-build-deps
 corepack pnpm --filter @forted/plugin-campfire exec node ./esbuild.config.mjs
 corepack pnpm --filter @forted/plugin-campfire exec vitest run
 corepack pnpm paperclipai run

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Db } from "@paperclipai/db";
-import { INSTANCE_FEATURE_CATALOG } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { INSTANCE_FEATURE_CATALOG } from "@outpost/shared";
 import {
   applyManagedExperimentalOverlay,
   instanceSettingsService,
@@ -20,7 +20,7 @@ const MANAGED_RAW = JSON.stringify({
 });
 
 function managedEnv(raw: string | undefined = MANAGED_RAW) {
-  return { PAPERCLIP_MANAGED_CONFIG: raw };
+  return { OUTPOST_MANAGED_CONFIG: raw };
 }
 
 /**
@@ -85,13 +85,13 @@ describe("applyManagedExperimentalOverlay", () => {
 });
 
 describe("instanceSettingsService managed overlay", () => {
-  it.each(["team.staging.paperclip.app", "team.paperclip.app"])(
+  it.each(["team.staging.outpost.app", "team.outpost.app"])(
     "enables private Notebook through managed config without changing stored opt-out on %s",
     async (primaryHost) => {
       const row = settingsRow({ enablePaperclipNotebook: false });
       const { db, persistedSets } = stubDb(row);
       const service = instanceSettingsService(db, { runtimeEnv: {
-        PAPERCLIP_PRIMARY_HOST: primaryHost,
+        OUTPOST_PRIMARY_HOST: primaryHost,
         ...managedEnv(JSON.stringify({
           v: 1, mode: "cloud", catalogVersion: "test",
           features: { enablePaperclipNotebook: true }, plugins: { autoInstall: [] },
@@ -122,7 +122,7 @@ describe("instanceSettingsService managed overlay", () => {
     }
   });
 
-  it.each(["team.staging.paperclip.app", "team.paperclip.app", undefined])(
+  it.each(["team.staging.outpost.app", "team.outpost.app", undefined])(
     "enforces every Cloud-enabled flag over old tenant values on %s",
     async (primaryHost) => {
       const features = Object.fromEntries(Object.entries(INSTANCE_FEATURE_CATALOG)
@@ -131,7 +131,7 @@ describe("instanceSettingsService managed overlay", () => {
       const stored = Object.fromEntries(Object.keys(features).map((key) => [key, false]));
       const { db, persistedSets } = stubDb(settingsRow(stored));
       const runtimeEnv = {
-        PAPERCLIP_PRIMARY_HOST: primaryHost,
+        OUTPOST_PRIMARY_HOST: primaryHost,
         ...managedEnv(JSON.stringify({
           v: 1, mode: "cloud", catalogVersion: "test",
           features, plugins: { autoInstall: [] },
@@ -160,7 +160,7 @@ describe("instanceSettingsService managed overlay", () => {
     const row = settingsRow({ enableManagedSandboxOnly: false });
     const { db, persistedSets } = stubDb(row);
     const runtimeEnv = {
-      PAPERCLIP_PRIMARY_HOST: "team.staging.paperclip.app",
+      OUTPOST_PRIMARY_HOST: "team.staging.outpost.app",
       ...managedEnv(JSON.stringify({
         v: 1, mode: "cloud", catalogVersion: "test",
         features: { enableManagedSandboxOnly: true }, plugins: { autoInstall: [] },
@@ -191,7 +191,7 @@ describe("instanceSettingsService managed overlay", () => {
         features: { enableStatusCards: true, enableChatConnectors: false, enableNativeRunner: true },
         plugins: { autoInstall: [] },
       })),
-      PAPERCLIP_PRIMARY_HOST: "team.staging.paperclip.app",
+      OUTPOST_PRIMARY_HOST: "team.staging.outpost.app",
     };
     const service = instanceSettingsService(db, { runtimeEnv });
     const managedKeys = {
@@ -220,7 +220,7 @@ describe("instanceSettingsService managed overlay", () => {
 
     const changedDefaults = instanceSettingsService(db, { runtimeEnv: {
       ...runtimeEnv,
-      PAPERCLIP_MANAGED_CONFIG: JSON.stringify({
+      OUTPOST_MANAGED_CONFIG: JSON.stringify({
         v: 1, mode: "cloud", catalogVersion: "test",
         features: { enableStatusCards: false, enableChatConnectors: true, enableNativeRunner: true },
         plugins: { autoInstall: [] },
@@ -230,7 +230,7 @@ describe("instanceSettingsService managed overlay", () => {
       enableStatusCards: false, enableChatConnectors: true, enableNativeRunner: true,
     });
 
-    const production = instanceSettingsService(db, { runtimeEnv: { ...runtimeEnv, PAPERCLIP_PRIMARY_HOST: "team.paperclip.app" } });
+    const production = instanceSettingsService(db, { runtimeEnv: { ...runtimeEnv, OUTPOST_PRIMARY_HOST: "team.outpost.app" } });
     expect(await production.getExperimental()).toMatchObject({
       enableChatConnectors: false, enableNativeRunner: true,
       managedKeys: { enableChatConnectors: { managed: true }, enableNativeRunner: { managed: true } },
@@ -240,7 +240,7 @@ describe("instanceSettingsService managed overlay", () => {
   it("preserves Cloud owner access policy on staging", async () => {
     const { db } = stubDb(settingsRow({ enableOwnerInstanceAdmin: false }));
     const service = instanceSettingsService(db, { runtimeEnv: {
-      PAPERCLIP_PRIMARY_HOST: "team.staging.paperclip.app",
+      OUTPOST_PRIMARY_HOST: "team.staging.outpost.app",
       ...managedEnv(JSON.stringify({
         v: 1, mode: "cloud", catalogVersion: "test",
         features: { enableOwnerInstanceAdmin: true }, plugins: { autoInstall: [] },
@@ -290,7 +290,7 @@ describe("instanceSettingsService managed overlay", () => {
   it("fails closed at construction on a malformed managed config", () => {
     const { db } = stubDb(settingsRow({}));
     expect(() => instanceSettingsService(db, { runtimeEnv: managedEnv("{bad") })).toThrow(
-      /PAPERCLIP_MANAGED_CONFIG is not valid JSON/,
+      /OUTPOST_MANAGED_CONFIG is not valid JSON/,
     );
   });
 

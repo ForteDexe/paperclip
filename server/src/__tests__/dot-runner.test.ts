@@ -1,4 +1,4 @@
-import { applyPendingMigrations } from "@paperclipai/db";
+import { applyPendingMigrations } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createGrokRoutineDispatcher } from "../services/grok-bot/dispatcher.js";
 import { grokRoutineService } from "../services/grok-bot/routine.js";
@@ -19,7 +19,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { budgetPolicies, costEvents, grokBotRoutines, grokBotDispatches, agents, authUsers, companies, companyMemberships, createDb, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, dotRunnerOperations,
-  heartbeatRuns, mcpOauthGrants, issueAttachments, activityLog, agentWakeupRequests, issueComments, issues, nativeRunResults, nativeRunFinalizations, completionContracts, mcpEventDeliveries, mcpEventSubscriptions, workspaceOperations, workAssessments, statusDecisions, issueThreadInteractions } from "@paperclipai/db";
+  heartbeatRuns, mcpOauthGrants, issueAttachments, activityLog, agentWakeupRequests, issueComments, issues, nativeRunResults, nativeRunFinalizations, completionContracts, mcpEventDeliveries, mcpEventSubscriptions, workspaceOperations, workAssessments, statusDecisions, issueThreadInteractions } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createPublicMcpOAuth, DEVICE_GRANT } from "../services/public-mcp/oauth.js";
 import { createPublicMcpExecutor } from "../services/public-mcp/capabilities.js";
@@ -27,9 +27,9 @@ import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "../routes/pub
 import { createPublicMcpEvents } from "../services/public-mcp/events.js";
 import type { EventFetch } from "../services/public-mcp/event-webhooks.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { canonicalNativeRuntimeContextDigest, type StrictCompletionContractInput } from "../vendor/paperclip-runner/index.js";
+import { canonicalNativeRuntimeContextDigest, type StrictCompletionContractInput } from "../vendor/outpost-runner/index.js";
 import { createDotRunnerMcpTools, dotRunnerBroker } from "../services/dot-runner-broker.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { prepareNativeHeartbeatRun } from "../services/native-runtime/prepare-native-run.js";
 import { buildNativeExecutionInput } from "../services/native-runtime/native-execution-input.js";
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
@@ -37,7 +37,7 @@ import { executePaperclipNativeSession } from "../services/native-runtime/native
 import { registerAssignedMcpGateway } from "../services/native-runtime/assigned-mcp-tools.js";
 import type { ToolGatewayService } from "../services/tool-gateway.js";
 import { documentService } from "../services/documents.js";
-import { setupRunnerPrpWebSocketServer } from "../realtime/runner-prp-ws.js";
+import { setupRunnerPrpWebSocketServer } from "../realtime/runner-orp-ws.js";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
 import { resolveHeartbeatNativeRuntimeMode, resolveNativeRuntimeMode } from "../services/native-runtime/runtime-mode.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -45,7 +45,7 @@ import { consumeDotHistoryReceipt, publishActiveDotComment } from "../services/d
 import { createPostgresWakeQueueAdapter } from "../modules/wake-queue/adapters/postgres.js";
 import { createReleaseIssueExecution } from "../modules/wake-queue/application/use-cases.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_DOT_RUNNER_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_DOT_RUNNER_TEST_DATABASE_URL");
 
 function uploadGrantUrl(grant: { url: string } | { attachment: unknown }) {
   if (!("url" in grant)) throw new Error("Expected an upload grant");
@@ -57,16 +57,16 @@ describe("durable Dot Runner integration", () => {
   let db: ReturnType<typeof createDb>;
   let root: string;
   beforeAll(async () => {
-    const runnerRoot = fileURLToPath(new URL("../../../packages/paperclip-runner/", import.meta.url));
-    execFileSync("cargo", ["build", "--release", "--locked", "--manifest-path", join(runnerRoot, "runner/Cargo.toml"), "-p", "paperclip-runner-core", "--bin", "paperclip-runnerd"], { cwd: runnerRoot, stdio: "inherit", timeout: 300000 });
+    const runnerRoot = fileURLToPath(new URL("../../../packages/outpost-runner/", import.meta.url));
+    execFileSync("cargo", ["build", "--release", "--locked", "--manifest-path", join(runnerRoot, "runner/Cargo.toml"), "-p", "outpost-runner-core", "--bin", "outpost-runnerd"], { cwd: runnerRoot, stdio: "inherit", timeout: 300000 });
     if (externalUrl) await applyPendingMigrations(externalUrl);
     else temporary = await startEmbeddedPostgresTestDatabase("paperclip-dot-runner-");
     db = createDb(externalUrl ?? temporary.connectionString);
     root = await mkdtemp(join(tmpdir(), "paperclip-dot-state-"));
-    vi.stubEnv("PAPERCLIP_IN_WORKTREE", "false");
-    vi.stubEnv("PAPERCLIP_RUNNER_BINARY", join(runnerRoot, "runner/target/release", process.platform === "win32" ? "paperclip-runnerd.exe" : "paperclip-runnerd"));
-    vi.stubEnv("PAPERCLIP_RUNNER_STATE_DIR", join(root, "runner-state"));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
+    vi.stubEnv("OUTPOST_RUNNER_BINARY", join(runnerRoot, "runner/target/release", process.platform === "win32" ? "outpost-runnerd.exe" : "outpost-runnerd"));
+    vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", join(root, "runner-state"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true, enableOpenAiDot: true, enableNativeRunner: false });
   }, 360000);
   afterEach(async () => {
@@ -93,12 +93,12 @@ describe("durable Dot Runner integration", () => {
     for (const key of ["enableOpenAiDot", "enablePublicMcp"] as const) {
       await settings.updateExperimental({ [key]: false });
       try {
-        vi.stubEnv("PAPERCLIP_ENABLE_OPENAI_DOT", "1");
+        vi.stubEnv("OUTPOST_ENABLE_OPENAI_DOT", "1");
         expect(await broker.enabled()).toBe(false);
         await expect(broker.createPairing({ companyId: randomUUID(), agentId: randomUUID(), operatorId: randomUUID() })).rejects.toThrow("experimental settings");
       } finally { await settings.updateExperimental({ [key]: true }); }
     }
-    vi.stubEnv("PAPERCLIP_ENABLE_OPENAI_DOT", "0");
+    vi.stubEnv("OUTPOST_ENABLE_OPENAI_DOT", "0");
     expect(await broker.enabled()).toBe(true);
   });
 
@@ -107,7 +107,7 @@ describe("durable Dot Runner integration", () => {
       enabled: true,
       runtimeConfig: {},
       adapterConfig: { provider: "openai_dot", dotBindingId: randomUUID(), allowUnmeteredProvider: true },
-      agent: { status: "active", adapterType: "paperclip_runner" },
+      agent: { status: "active", adapterType: "outpost_runner" },
       issue: { id: randomUUID(), workMode: "standard" },
       target: { kind: "local" },
       workspaceId: null,
@@ -116,7 +116,7 @@ describe("durable Dot Runner integration", () => {
     expect(resolveNativeRuntimeMode({ ...input, enabled: false, dotEnabled: true })).toMatchObject({ kind: "native", profile: { backend: "openai_dot_mcp" } });
     expect(() => resolveNativeRuntimeMode({ ...input, enabled: false, dotEnabled: true,
       adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "anthropic/claude-sonnet-4-6" },
-    })).toThrow("Paperclip Runner is experimental and disabled");
+    })).toThrow("Outpost Runner is experimental and disabled");
     expect(resolveHeartbeatNativeRuntimeMode({ ...input, enabled: false, dotEnabled: false,
       persisted: { runtimeMode: "native", runtimeModeReason: null, runtimeModeResolvedAt: new Date(), driverKind: "openai_dot_mcp" },
     })).toMatchObject({ kind: "native", profile: { backend: "openai_dot_mcp" } });
@@ -130,8 +130,8 @@ describe("durable Dot Runner integration", () => {
     const [company] = await db.insert(companies).values({ name: "Dot test", issuePrefix: "DT" + randomBytes(3).toString("hex") }).returning();
     await db.insert(companyMemberships).values({ companyId: company!.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
     await accessService(db).setPrincipalPermission(company!.id, "user", userId, "agents:create", true, userId);
-    const [agent] = await db.insert(agents).values({ companyId: company!.id, name: provider === "grok_bot" ? "Grok Bot" : "Dot", adapterType: "paperclip_runner", status: "active", adapterConfig: { provider, allowUnmeteredProvider: true } }).returning();
-    const config = { origin: "https://paperclip.example", resource: "https://paperclip.example/mcp/runner" };
+    const [agent] = await db.insert(agents).values({ companyId: company!.id, name: provider === "grok_bot" ? "Grok Bot" : "Dot", adapterType: "outpost_runner", status: "active", adapterConfig: { provider, allowUnmeteredProvider: true } }).returning();
+    const config = { origin: "https://outpost.example", resource: "https://outpost.example/mcp/runner" };
     const oauth = createPublicMcpOAuth(db, config);
     const client = await oauth.register({ client_name: "Dedicated Dot", redirect_uris: ["https://chatgpt.com/connector_platform/oauth/callback"] }, randomUUID());
     const verifier = randomBytes(32).toString("base64url");
@@ -164,7 +164,7 @@ describe("durable Dot Runner integration", () => {
       received.push(body); return new Response(null, { status: 204 });
     };
     const events = createPublicMcpEvents(db, oauth, async () => { throw new Error("personal API dispatch forbidden"); }, { enableDotRunner: true, fetch: fetcher, ...options });
-    const subscription = { name: "paperclip.dot.mailbox_updated", arguments: { companyId: company!.id, bindingId: pairing.bindingId }, delivery: { mode: "webhook", url: "https://example.com/dot-hook", secret } };
+    const subscription = { name: "outpost.dot.mailbox_updated", arguments: { companyId: company!.id, bindingId: pairing.bindingId }, delivery: { mode: "webhook", url: "https://example.com/dot-hook", secret } };
     if (provider === "grok_bot") {
       const routines = grokRoutineService(db, async () => ({ delivery: "accepted", httpStatus: 200 }));
       await routines.configure({ companyId: company!.id, agentId: agent!.id, bindingId: pairing.bindingId, operatorId: userId,
@@ -806,10 +806,10 @@ describe("durable Dot Runner integration", () => {
   it("authorizes admitted Dot reviews while preserving the worker and rejecting stale review authority", async () => {
     const f = await fixture();
     const companyId = f.company.id;
-    const [worker] = await db.insert(agents).values({ companyId, name: "Original worker", status: "active", adapterType: "paperclip_runner" }).returning();
+    const [worker] = await db.insert(agents).values({ companyId, name: "Original worker", status: "active", adapterType: "outpost_runner" }).returning();
     const [issue] = await db.insert(issues).values({ companyId, title: "Review another agent's work", status: "in_review", statusVersion: 3, assigneeAgentId: worker!.id }).returning();
     const issueId = issue!.id;
-    const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "fixture",
+    const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture",
       risk: "low", completionAuthority: "agent", incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: randomUUID(), createdByActorType: "user", createdByActorId: f.userId }).returning();
     const [source] = await db.insert(heartbeatRuns).values({ companyId, agentId: worker!.id, nativeIssueId: issueId, runtimeMode: "native", status: "succeeded",
       completionContractId: contract!.id, completionContractSha256: contract!.canonicalSha256 }).returning();
@@ -967,7 +967,7 @@ describe("durable Dot Runner integration", () => {
     { name: "Dot local Rust", managed: false, provider: "openai_dot" as const, revokeDuringUpload: false },
     { name: "Grok local Rust", managed: false, provider: "grok_bot" as const, revokeDuringUpload: false },
     { name: "Grok upload revocation Rust", managed: false, provider: "grok_bot" as const, revokeDuringUpload: true },
-    ...(process.env.PAPERCLIP_DOT_DAYTONA_LIVE === "1" ? [{ name: "private Daytona Rust", managed: true, provider: "openai_dot" as const, revokeDuringUpload: false }] : []),
+    ...(process.env.OUTPOST_DOT_DAYTONA_LIVE === "1" ? [{ name: "private Daytona Rust", managed: true, provider: "openai_dot" as const, revokeDuringUpload: false }] : []),
   ])("signed readiness, native tools and finalization through $name", async ({ managed, provider, revokeDuringUpload }) => {
     const remote = managed ? await (await import("./helpers/dot-daytona.js")).startDotDaytona(root) : null;
     try {
@@ -1002,19 +1002,19 @@ describe("durable Dot Runner integration", () => {
         const [connectedAgent] = await db.select().from(agents).where(eq(agents.id, f.agent.id));
         await db.update(agents).set({ adapterConfig: { ...connectedAgent!.adapterConfig, dotBindingId: f.snapshot.bindingId, dotWorkspaceAccess: true, dotAttachmentAccess: true } }).where(eq(agents.id, f.agent.id));
       }
-      vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "fixture-cloud");
+      vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "fixture-cloud");
       try {
         for (const useRunnerd of [false, true]) {
           await expect(executePaperclipNativeSession({ db, execution, runnerInstanceId: prepared.runnerInstanceId,
             useRunnerd, turnTimeoutMs: 1000, onEvent: async () => {} }))
             .rejects.toThrow("dot_cloud_requires_managed_runner");
         }
-      } finally { vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", ""); }
+      } finally { vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", ""); }
       const resultPromise = executePaperclipNativeSession({ db, execution,
         ...(remote ? { runnerExecutionTarget: remote.target, runnerRemoteBinaryPath: remote.runnerBinary, runnerIngressAuthorized: true }
           : { dotWorkspaceRoot: root }),
         runnerInstanceId: prepared.runnerInstanceId,
-        runnerEnvironment: { PAPERCLIP_NATIVE_MCP_NAME: "paperclip-assigned", PAPERCLIP_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/dot-fixture", PAPERCLIP_NATIVE_MCP_TOKEN: "fixture-gateway-secret" },
+        runnerEnvironment: { OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/dot-fixture", OUTPOST_NATIVE_MCP_TOKEN: "fixture-gateway-secret" },
         useRunnerd: true, turnTimeoutMs: 45000, onEvent: async event => { observed.push(event); }, onLog: async () => {} });
       // Attach a handler immediately: a bootstrap error must never become an unhandled rejection.
       let startupError: unknown;
@@ -1210,7 +1210,7 @@ describe("durable Dot Runner integration", () => {
         await f.broker.operation(f.principal, assignment!.id, completionId, "tool", { name: "paperclip_finish", arguments: result });
         await vi.waitFor(async () => expect(await f.broker.operationStatus(f.principal, assignment!.id, completionId)).toMatchObject({ status: "completed", isError: false }), { timeout: 10000 });
         expect(await f.broker.operationStatus(f.principal, assignment!.id, completionId)).toMatchObject({ result: { completionReport: {
-          schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", artifacts: [], attentionRequests: [],
+          schema: "outpost.run_result.v1", reportedWorkDisposition: "done", artifacts: [], attentionRequests: [],
           verification: [{ commandOrCheck: "17 + 25", status: "passed" }],
         } } });
         if (provider === "grok_bot") await db.update(grokBotDispatches).set({ status: "accepted", sentAt: new Date() })

@@ -1,5 +1,5 @@
 import { registerActiveRunSilenceWork } from "./adapters/deadline-work.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { createPostgresWatchdogAdapter } from "./adapters/postgres.js";
 import { createProcessAdapter } from "./adapters/process.js";
 import {

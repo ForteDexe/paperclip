@@ -52,7 +52,7 @@ export const runtimeBuiltInCases = [runtimeDefinition("agents.configure-required
   const agentCountBefore = (await ctx.input.api.get<RuntimeAgent[]>(`${root}/agents`)).length;
   return { worker, builtInBefore, instructionAgentId: worker.id, originalInstruction, historicalTask, agentCountBefore };
 }, gradeBuiltInConfiguration, {
-  oracleVersion: "paperclip.chat-catalog.runtime.configure-required-agent.v3",
+  oracleVersion: "outpost.chat-catalog.runtime.configure-required-agent.v3",
   sourceFiles: ["chat-catalog-domains/runtime-built-in.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "protected-summarizer-identity", "historical-task-unrun"] },
   async verifySetup(ctx, state) {

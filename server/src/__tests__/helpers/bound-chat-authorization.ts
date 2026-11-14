@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { agents, companies, createDb, issues, issueComments, toolApplications,
   toolConnections, chatEndpoints, chatEndpointResources, chatConversations,
   chatExternalPrincipals, chatIdentityLinks, companyMemberships, chatDeliveries,
-  chatMessageLinks, type Db } from "@paperclipai/db";
+  chatMessageLinks, type Db } from "@outpost/db";
 export async function seedBoundChatAuthorization(db: Db) {
   const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(),
     otherIssueId = randomUUID(), runId = randomUUID(), endpointId = randomUUID(),
@@ -26,7 +26,7 @@ export async function seedBoundChatAuthorization(db: Db) {
       id: agentId,
       companyId,
       name: "Chat runner",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
       status: "active",
     });

@@ -195,8 +195,8 @@ describe("runner API catalog", () => {
   });
   it.each(runnerApiCatalog().filter(operation => operation.transport === "rest"))("resolves the catalog route $operationId inside the bound origin", operation => {
     const pathParams = Object.fromEntries(operation.parameters.filter(parameter => parameter.in === "path").map(parameter => [parameter.name, parameter.name === "companyId" ? context.companyId : "fixture-id"]));
-    const url = runnerApiUrl(operation, { operationId: operation.operationId, pathParams }, context, "https://paperclip.test");
-    expect(url.origin).toBe("https://paperclip.test");
+    const url = runnerApiUrl(operation, { operationId: operation.operationId, pathParams }, context, "https://outpost.test");
+    expect(url.origin).toBe("https://outpost.test");
     expect(url.pathname).not.toContain("{");
     expect(operation.responses).toBeDefined();
     expect(operation.authorization.actor).toBeTruthy();
@@ -415,9 +415,9 @@ describe("runner API request boundary", () => {
       runnerApiOperation(projects),
       input,
       context,
-      "https://paperclip.test/api",
+      "https://outpost.test/api",
     );
-    expect(url.origin).toBe("https://paperclip.test");
+    expect(url.origin).toBe("https://outpost.test");
     expect(url.pathname).toBe("/api/companies/company-a/projects");
     expect(url.searchParams.get("q")).toBe("hello & goodbye");
   });
@@ -433,7 +433,7 @@ describe("runner API request boundary", () => {
           runnerApiOperation(input.operationId),
           input,
           context,
-          "https://paperclip.test",
+          "https://outpost.test",
         ),
       ).toThrow();
     },

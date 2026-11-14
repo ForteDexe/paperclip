@@ -32,7 +32,7 @@ export function gradePauseAgent(value: unknown) {
 }
 export const runtimeLifecycleCases = [runtimeDefinition("agents.pause-agent", ctx => busyRuntimeWorker(ctx, { observationDeadlineAt: chatCatalogOriginalPhaseDeadline(ctx) }), gradePauseAgent, {
   sourceFiles: ["chat-catalog-domains/runtime-agent-lifecycle.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],
-  oracleVersion: "paperclip.chat-catalog.runtime-pause.v3", expectedRunCount: 2, attemptTimeoutMs: 600_000,
+  oracleVersion: "outpost.chat-catalog.runtime-pause.v3", expectedRunCount: 2, attemptTimeoutMs: 600_000,
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "real-busy-worker", "worker-task-scope"] },
   async verifySetup(ctx, state) {
     const c = checks(); const worker = state.worker as RuntimeAgent;

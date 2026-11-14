@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
-import { environmentLeases, executionWorkspaces, heartbeatRuns, nativeRunResults, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { environmentLeases, executionWorkspaces, heartbeatRuns, nativeRunResults, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { persistActivity } from "../activity-log.js";
 import { hasNativeExecutionStartEvidence } from "../native-runtime/native-restart-recovery.js";
 import {

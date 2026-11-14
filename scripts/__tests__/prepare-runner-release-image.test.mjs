@@ -48,7 +48,7 @@ daemonBytes[5] = 1;
 daemonBytes.writeUInt16LE(62, 18);
 const daemonDigest = 'sha256:' + createHash('sha256').update(daemonBytes).digest('hex');
 const binding = { source, pack: { digest: 'release', payload: { productionLock: 'original', candidateProviders: { pi: 'qualified' } } },
-  receipt: { schema: 'paperclip.runner.release-artifact.v1', sourceRevision: source, target: 'linux-x64', sha256: daemonDigest },
+  receipt: { schema: 'outpost.runner.release-artifact.v1', sourceRevision: source, target: 'linux-x64', sha256: daemonDigest },
   release: { sourceRevision: source, platforms: { 'linux-x64': { sha256: daemonDigest } } }, daemonBytes };
 binding.publicPack = structuredClone(binding.pack);
 
@@ -73,7 +73,7 @@ test('image daemon must match source, receipt, public package and actual archite
 });
 
 test('frozen release JSON must be the bounded requested source file', () => {
-  const path = 'packages/paperclip-runner/acpx-profiles.json';
+  const path = 'packages/outpost-runner/acpx-profiles.json';
   const content = Buffer.from(JSON.stringify({ acpxVersion: 'frozen' }));
   const file = { type: 'file', path, encoding: 'base64', size: content.length, content: content.toString('base64') };
   assert.deepEqual(decodeReleaseJson(file, path), { acpxVersion: 'frozen' });
@@ -83,7 +83,7 @@ test('frozen release JSON must be the bounded requested source file', () => {
 });
 
 test('frozen Kimi closure data is decoded without executing release source', () => {
-  const path = 'packages/paperclip-runner/src/drivers/acpx/kimi-closure-pins.ts';
+  const path = 'packages/outpost-runner/src/drivers/acpx/kimi-closure-pins.ts';
   const source = `throw new Error("must not execute");\nexport const KIMI_DISTRIBUTION_CLOSURE_SHA256 = Object.freeze({ "darwin-arm64": "${'a'.repeat(64)}", "linux-x64": "${'b'.repeat(64)}", });`;
   const bytes = Buffer.from(source), file = { type: 'file', path, encoding: 'base64', size: bytes.length, content: bytes.toString('base64') };
   assert.deepEqual(decodeReleaseKimiClosures(file, path), { 'darwin-arm64': 'a'.repeat(64), 'linux-x64': 'b'.repeat(64) });

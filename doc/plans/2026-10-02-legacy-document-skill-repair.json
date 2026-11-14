@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.legacy-document-skill-repair.safe-comparison/v1",
+  "schema": "outpost.legacy-document-skill-repair.safe-comparison/v1",
   "asOf": "2026-10-02T21:22:00Z",
   "partial": false,
   "expectedCellsPerVariant": 4,
@@ -442,7 +442,7 @@
     }
   ],
   "matchedProfileProof": {
-    "schema": "paperclip.legacy-document-skill-repair.fixture-match-proof/v1",
+    "schema": "outpost.legacy-document-skill-repair.fixture-match-proof/v1",
     "cells": [
       {
         "executionId": "stock-harness.legacy-claude.local.assigned-skill-explicit-invocation",
@@ -492,7 +492,7 @@
     }
   ],
   "toolDeliveryAudit": {
-    "schema": "paperclip.legacy-document-repair.tool-audit/v1",
+    "schema": "outpost.legacy-document-repair.tool-audit/v1",
     "rows": [
       {
         "variant": "candidate",

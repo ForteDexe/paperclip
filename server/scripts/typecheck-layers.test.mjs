@@ -593,7 +593,7 @@ describe("typecheckLowMemory", () => {
   it("runs every step in low-memory mode and stops at a failure", () => {
     const calls = [];
     const run = (args, { env }) => {
-      calls.push([args, env.PAPERCLIP_TYPECHECK_LOW_MEMORY]);
+      calls.push([args, env.OUTPOST_TYPECHECK_LOW_MEMORY]);
       return calls.length === 1 ? 0 : 3;
     };
 
@@ -834,7 +834,7 @@ describe("runTsc", () => {
       );
       writeFileSync(path.join(root, "src", "a.ts"), `export const value: number = "not a number";\n`);
 
-      const { status } = runTsc([], { cwd: root, env: { ...process.env, PAPERCLIP_TSC_EMIT_ONLY: "1" } });
+      const { status } = runTsc([], { cwd: root, env: { ...process.env, OUTPOST_TSC_EMIT_ONLY: "1" } });
 
       expect(status).toBe(0);
       expect(existsSync(path.join(root, "dist", "a.js"))).toBe(true);
@@ -847,7 +847,7 @@ describe("runTsc", () => {
   it("accepts build mode with low-memory mode on", () => {
     const { status } = runTsc(["-b", "--dry"], {
       cwd: serverRoot,
-      env: { ...process.env, PAPERCLIP_TYPECHECK_LOW_MEMORY: "1" },
+      env: { ...process.env, OUTPOST_TYPECHECK_LOW_MEMORY: "1" },
     });
 
     expect(status).toBe(0);
@@ -856,7 +856,7 @@ describe("runTsc", () => {
 
 describe("emitOnlyTscArgs", () => {
   it("removes checks and declarations only in emit-only mode", () => {
-    expect(emitOnlyTscArgs({ PAPERCLIP_TSC_EMIT_ONLY: "1" })).toEqual([
+    expect(emitOnlyTscArgs({ OUTPOST_TSC_EMIT_ONLY: "1" })).toEqual([
       "--noCheck",
       "--declaration",
       "false",
@@ -869,14 +869,14 @@ describe("emitOnlyTscArgs", () => {
   it("is what the Dockerfile selects for the server build", () => {
     const dockerfile = readFileSync(path.join(serverRoot, "..", "Dockerfile"), "utf8");
 
-    expect(dockerfile).toContain("RUN PAPERCLIP_TSC_EMIT_ONLY=1 pnpm --filter @paperclipai/server build\n");
+    expect(dockerfile).toContain("RUN OUTPOST_TSC_EMIT_ONLY=1 pnpm --filter @outpost/server build\n");
   });
 });
 
 describe("lowMemoryTscArgs", () => {
   it("uses one thread only when low-memory mode is on", () => {
-    expect(lowMemoryTscArgs({ PAPERCLIP_TYPECHECK_LOW_MEMORY: "1" })).toEqual(["--singleThreaded"]);
-    expect(lowMemoryTscArgs({ PAPERCLIP_TYPECHECK_LOW_MEMORY: "0" })).toEqual([]);
+    expect(lowMemoryTscArgs({ OUTPOST_TYPECHECK_LOW_MEMORY: "1" })).toEqual(["--singleThreaded"]);
+    expect(lowMemoryTscArgs({ OUTPOST_TYPECHECK_LOW_MEMORY: "0" })).toEqual([]);
     expect(lowMemoryTscArgs({})).toEqual([]);
   });
 });

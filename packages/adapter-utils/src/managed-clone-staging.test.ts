@@ -39,7 +39,7 @@ async function createRepo(cwd: string, contents: string): Promise<void> {
   await mkdir(cwd, { recursive: true });
   await git(cwd, ["init", "-b", "main"]);
   await git(cwd, ["config", "user.name", "Paperclip Test"]);
-  await git(cwd, ["config", "user.email", "test@paperclip.dev"]);
+  await git(cwd, ["config", "user.email", "test@outpost.dev"]);
   await writeFile(path.join(cwd, "README.md"), contents);
   await git(cwd, ["add", "."]);
   await git(cwd, ["commit", "-m", contents]);

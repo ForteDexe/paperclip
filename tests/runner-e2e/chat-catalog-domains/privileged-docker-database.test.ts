@@ -10,7 +10,7 @@ beforeEach(() => { vi.stubEnv("DOCKER_HOST", ""); vi.stubEnv("DOCKER_CONTEXT", "
 afterEach(async () => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 // These are deterministic control-admission tests, never a simulated eval pass.
 async function fixture() {
-  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-runner-e2e-"))); roots.push(root);
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-runner-e2e-"))); roots.push(root);
   await chmod(root, 0o700);
   const directory = path.join(root, "docker-postgres-private"); await mkdir(directory, { mode: 0o700 });
   const nonce = "1".repeat(32), password = "2".repeat(64), configFile = path.join(root, "config.json"), filename = path.join(directory, "receipt.json");
@@ -25,8 +25,8 @@ async function fixture() {
   await writeFile(filename, JSON.stringify(receipt), { mode: 0o600 });
   await writeFile(path.join(directory, "password"), password, { mode: 0o600 });
   await writeFile(configFile, JSON.stringify({ database: { mode: "postgres", connectionString: receipt.connectionString } }), { mode: 0o600 });
-  const labels = { "ai.paperclip.runner-e2e.kind": "postgres", "ai.paperclip.runner-e2e.nonce": nonce,
-    "ai.paperclip.runner-e2e.root": createHash("sha256").update(root).digest("hex"), "ai.paperclip.runner-e2e.uid": String(process.getuid?.()) };
+  const labels = { "ai.outpost.runner-e2e.kind": "postgres", "ai.outpost.runner-e2e.nonce": nonce,
+    "ai.outpost.runner-e2e.root": createHash("sha256").update(root).digest("hex"), "ai.outpost.runner-e2e.uid": String(process.getuid?.()) };
   const container = { Id: receipt.containerId, Name: `/${receipt.containerName}`, Image: POSTGRES_IMAGE_ID,
     Config: { Image: POSTGRES_IMAGE, Labels: labels, Env: ["POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password", "POSTGRES_USER=owned_user", "POSTGRES_DB=owned_db"] },
     HostConfig: { Privileged: false, NetworkMode: "bridge", PortBindings: { "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "55432" }] } },
@@ -66,7 +66,7 @@ it("refuses changed engine/container/volume/cluster before any stop", async () =
     const f = await fixture(), control = await prepareOwnedDockerDatabase(f.root, f.configFile, f.run);
     if (kind === "engine") f.state.engine = "foreign";
     if (kind === "container") f.state.container.Id = "4".repeat(64);
-    if (kind === "volume") f.state.volume.Labels["ai.paperclip.runner-e2e.uid"] = "foreign";
+    if (kind === "volume") f.state.volume.Labels["ai.outpost.runner-e2e.uid"] = "foreign";
     if (kind === "cluster") f.state.cluster.systemIdentifier = "99999";
     await expect(control.stop()).rejects.toThrow(); expect(f.state.calls.some(args => args.includes("stop"))).toBe(false);
   }

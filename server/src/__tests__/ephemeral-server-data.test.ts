@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, afterEach, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentFileRoots, agentInstructionWorkingCopies, agents, companies, companySkills, companySkillVersions, environments, executionWorkspaces, heartbeatRuns, providerTraceRecords, createDb } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { agentFileRoots, agentInstructionWorkingCopies, agents, companies, companySkills, companySkillVersions, environments, executionWorkspaces, heartbeatRuns, providerTraceRecords, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { assertEphemeralServerData, readEphemeralServerDataEligibility } from "../services/ephemeral-server-contract.js";
 import { initializeDurableAgentFiles } from "../services/agent-file-durability.js";
@@ -13,7 +13,7 @@ beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("ephe
 afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
 afterEach(() => vi.unstubAllEnvs());
 it("refuses volume-dependent rows before readiness and accepts their durable replacement", async () => {
-  vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true"); vi.stubEnv("PAPERCLIP_DURABLE_AGENT_FILES", "true");
+  vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true"); vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "true");
   await expect(assertEphemeralServerData(db)).resolves.toBeUndefined();
   const companyId = randomUUID(), agentId = randomUUID();
   await db.insert(companies).values({ id: companyId, name: "Deployment gate", issuePrefix: "GATE" });
@@ -43,7 +43,7 @@ it("refuses volume-dependent rows before readiness and accepts their durable rep
 });
 
 it("keeps replacement readiness independent of a serving controller's unfinished skill selection", async () => {
-  vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true"); vi.stubEnv("PAPERCLIP_DURABLE_AGENT_FILES", "true");
+  vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true"); vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "true");
   const companyId = randomUUID(), agentId = randomUUID(), skillId = randomUUID(), versionId = randomUUID();
   await db.insert(companies).values({ id: companyId, name: "Overlapping skill preparation", issuePrefix: "PINS" });
   await db.insert(agents).values({ id: agentId, companyId, name: "Preparing agent" });
@@ -68,7 +68,7 @@ it("keeps replacement readiness independent of a serving controller's unfinished
 });
 
 it("keeps an unsettled local instruction copy visible after its canonical files become durable", async () => {
-  vi.stubEnv("PAPERCLIP_DURABLE_AGENT_FILES", "true");
+  vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "true");
   const companyId = randomUUID(), agentId = randomUUID();
   await db.insert(companies).values({ id: companyId, name: "Private copy preservation", issuePrefix: "COPY" });
   await db.insert(agents).values({ id: agentId, companyId, name: "File owner" });
@@ -81,19 +81,19 @@ it("keeps an unsettled local instruction copy visible after its canonical files 
     .toContain("local_instruction_copies_require_settlement");
   expect((await db.select().from(agentInstructionWorkingCopies).where(eq(agentInstructionWorkingCopies.runId, run.id)))[0]).toEqual(copy);
   await db.update(agentInstructionWorkingCopies).set({ state: "unavailable", processStoppedAt: new Date(),
-    receipt: { schema: "paperclip.agent-files.v1", cleanupPending: false } }).where(eq(agentInstructionWorkingCopies.runId, run.id));
+    receipt: { schema: "outpost.agent-files.v1", cleanupPending: false } }).where(eq(agentInstructionWorkingCopies.runId, run.id));
   expect((await readEphemeralServerDataEligibility(db, { purpose: "startup" })).blockers)
     .not.toContain("local_instruction_copies_require_settlement");
 });
 
 it("recognizes a Runner workspace owned by its selected plugin environment", async () => {
-  vi.stubEnv("PAPERCLIP_DURABLE_AGENT_FILES", "true");
+  vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "true");
   const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID();
   const owner = { agentId, environmentId, pluginKey: "fixture.task-storage", driverKey: "tasks" };
   await db.insert(companies).values({ id: companyId, name: "Provider-owned workspace", issuePrefix: "PROV" });
   await db.insert(environments).values({ id: environmentId, name: `Task provider ${environmentId}`,
     driver: "plugin", config: { pluginKey: owner.pluginKey, driverKey: owner.driverKey } });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Provider Runner", adapterType: "paperclip_runner" });
+  await db.insert(agents).values({ id: agentId, companyId, name: "Provider Runner", adapterType: "outpost_runner" });
   await db.transaction(tx => initializeDurableAgentFiles(tx as unknown as Db, { id: agentId, companyId }));
   const [workspace] = await db.insert(executionWorkspaces).values({ companyId, name: "Provider task",
     mode: "shared_workspace", strategyType: "project_primary", providerType: "adapter_managed",
@@ -108,7 +108,7 @@ it("recognizes a Runner workspace owned by its selected plugin environment", asy
 });
 
 it("keeps local workspaces and invalid provider ownership as migration blockers", async () => {
-  vi.stubEnv("PAPERCLIP_DURABLE_AGENT_FILES", "true");
+  vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "true");
   const companyId = randomUUID(), foreignCompanyId = randomUUID(), agentId = randomUUID(), foreignAgentId = randomUUID();
   const localAgentId = randomUUID(), environmentId = randomUUID(), localEnvironmentId = randomUUID(), emptyEnvironmentId = randomUUID();
   const owner = { agentId, environmentId, pluginKey: "fixture.task-storage", driverKey: "tasks" };
@@ -120,8 +120,8 @@ it("keeps local workspaces and invalid provider ownership as migration blockers"
     { id: emptyEnvironmentId, name: `Empty ${emptyEnvironmentId}`, driver: "plugin", config: { pluginKey: "", driverKey: "" } },
   ]);
   await db.insert(agents).values([
-    { id: agentId, companyId, name: "Runner owner", adapterType: "paperclip_runner" },
-    { id: foreignAgentId, companyId: foreignCompanyId, name: "Foreign Runner", adapterType: "paperclip_runner" },
+    { id: agentId, companyId, name: "Runner owner", adapterType: "outpost_runner" },
+    { id: foreignAgentId, companyId: foreignCompanyId, name: "Foreign Runner", adapterType: "outpost_runner" },
     { id: localAgentId, companyId, name: "Local process", adapterType: "process" },
   ]);
   for (const agent of [{ id: agentId, companyId }, { id: foreignAgentId, companyId: foreignCompanyId }, { id: localAgentId, companyId }]) {

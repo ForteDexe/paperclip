@@ -194,7 +194,7 @@ async function main(): Promise<number> {
   if (options.env === "daytona") {
     // Fail before a 3-minute boot, not after it.
     const missing = [!process.env.DAYTONA_API_KEY && "DAYTONA_API_KEY",
-      !options.passthrough.includes("--daytona-image") && !process.env.PAPERCLIP_E2E_DAYTONA_IMAGE && "--daytona-image (or PAPERCLIP_E2E_DAYTONA_IMAGE)"]
+      !options.passthrough.includes("--daytona-image") && !process.env.OUTPOST_E2E_DAYTONA_IMAGE && "--daytona-image (or OUTPOST_E2E_DAYTONA_IMAGE)"]
       .filter(Boolean);
     if (missing.length) throw new Error(`--env daytona needs ${missing.join(" and ")}`);
   }

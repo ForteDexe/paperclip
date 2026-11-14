@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { isValidIanaTimeZone, type WorkspacePreference } from "@paperclipai/shared";
+import { isValidIanaTimeZone, type WorkspacePreference } from "@outpost/shared";
 import { workspacePreferencesApi } from "@/api/workspacePreferences";
 import { queryKeys } from "@/lib/queryKeys";
 

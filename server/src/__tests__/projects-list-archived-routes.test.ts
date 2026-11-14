@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, companies, companyMemberships, createDb, environments, projectAccessMembers, projects } from "@paperclipai/db";
+import { activityLog, companies, companyMemberships, createDb, environments, projectAccessMembers, projects } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -129,12 +129,12 @@ describeEmbeddedPostgres("project list archived route defaults", () => {
 describeEmbeddedPostgres("private project route visibility", { concurrent: false }, () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  const previousPrivacyMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
+  const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
 
   beforeAll(async () => {
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-private-project-routes-");
     db = createDb(tempDb.connectionString);
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
   }, 20_000);
 
   afterEach(async () => {
@@ -144,8 +144,8 @@ describeEmbeddedPostgres("private project route visibility", { concurrent: false
   });
 
   afterAll(async () => {
-    if (previousPrivacyMode === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousPrivacyMode;
+    if (previousPrivacyMode === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousPrivacyMode;
     await tempDb?.cleanup();
   });
 

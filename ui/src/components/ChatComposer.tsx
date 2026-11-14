@@ -15,7 +15,7 @@ import { cn } from "../lib/utils";
 /**
  * Shared chat composer (PAP-95a / PAP-96).
  *
- * One reusable input shell used by BOTH the conference room (BoardChat) and
+ * One reusable input shell used by chat surfaces and
  * task comments (IssueChatThread). It is intentionally a *plain textarea* —
  * **no formatting toolbar** — with attach + send. The focus state is a neutral
  * border darkening (no blue focus ring) so the box reads as calm chrome in both
@@ -24,8 +24,8 @@ import { cn } from "../lib/utils";
  * Task-only chrome — the yellow planning chip and the assignee footer — is NOT
  * baked in here. It layers on through the `tone`, `leadingTools`, and
  * `trailingTools` props (wired by PAP-95b). The @project/@task picker layers on
- * through PAP-95f. The conference room adopts this bare: textarea + send (+ attach
- * when a handler is supplied), no mode chip, since the room has no task lifecycle.
+ * through PAP-95f. Non-task chat adopts the bare textarea + send form (+ attach
+ * when a handler is supplied), without task-lifecycle controls.
  */
 
 export interface ChatComposerAttachment {

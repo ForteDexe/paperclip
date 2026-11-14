@@ -16,7 +16,7 @@ import {
   toolProfileEntries,
   toolProfiles,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { errorHandler } from "../middleware/index.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
@@ -27,7 +27,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 
-const externalDatabaseUrl = process.env.PAPERCLIP_TOOL_ACCESS_TEST_DATABASE_URL?.trim();
+const externalDatabaseUrl = process.env.OUTPOST_TOOL_ACCESS_TEST_DATABASE_URL?.trim();
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeDatabase = support.supported ? describe : describe.skip;
 

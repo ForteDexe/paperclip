@@ -7,9 +7,9 @@ import test from "node:test";
 import { debugContract, debugKey } from "../runner-debug-crate-cache.mjs";
 import { markCurrent } from "../runner-release-crate-cache.mjs";
 
-const bins = [...readFileSync("packages/paperclip-runner/runner/crates/runner-core/Cargo.toml", "utf8")
+const bins = [...readFileSync("packages/outpost-runner/runner/crates/runner-core/Cargo.toml", "utf8")
   .matchAll(/\[\[bin\]\]\nname = "([^"]+)"/g)].map(match => match[1]);
-const metadata = { workspace_members: ["core"], packages: [{ id: "core", name: "paperclip-runner-core",
+const metadata = { workspace_members: ["core"], packages: [{ id: "core", name: "outpost-runner-core",
   targets: bins.map(name => ({ name, kind: ["bin"] })) }] };
 
 test("every debug binary must be complete before the restored units are marked fresh", t => {
@@ -23,7 +23,7 @@ test("every debug binary must be complete before the restored units are marked f
     mkdirSync(path.dirname(filename), { recursive: true });
     writeFileSync(filename, "cached artifact");
   }
-  const dependency = path.join(root, "packages/paperclip-runner/runner/target/debug/deps/libserde-123.rlib");
+  const dependency = path.join(root, "packages/outpost-runner/runner/target/debug/deps/libserde-123.rlib");
   writeFileSync(dependency, "dependency");
   const previous = statSync(dependency).mtimeMs;
   assert.equal(markCurrent({ root, ...contract }).action, "marked");
@@ -62,7 +62,7 @@ test("the process-table library is cached with the crate, and any other workspac
 test("debug cache keys invalidate source, included inputs, deletions and compiler flags", t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "runner-debug-key-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const source = path.join(root, "packages/paperclip-runner/runner/crates/runner-core/src/lib.rs");
+  const source = path.join(root, "packages/outpost-runner/runner/crates/runner-core/src/lib.rs");
   mkdirSync(path.dirname(source), { recursive: true });
   writeFileSync(source, "pub fn run() {}\n");
   execFileSync("git", ["init", "-q"], { cwd: root });
@@ -80,7 +80,7 @@ test("debug cache keys invalidate source, included inputs, deletions and compile
   rmSync(source);
   assert.notEqual(debugKey(root, env), first);
   writeFileSync(source, "pub fn run() {}\n");
-  const protocol = path.join(root, "packages/paperclip-runner/protocol/input.json");
+  const protocol = path.join(root, "packages/outpost-runner/protocol/input.json");
   mkdirSync(path.dirname(protocol), { recursive: true });
   writeFileSync(protocol, "{}");
   execFileSync("git", ["add", "."], { cwd: root });

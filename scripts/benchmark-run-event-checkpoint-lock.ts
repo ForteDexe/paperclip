@@ -1,7 +1,7 @@
 /**
  * Local proof for the run-event append lock and controller checkpoint saves.
  *
- * A native run appends every PRP event through `appendHeartbeatRunEvent`,
+ * A native run appends every ORP event through `appendHeartbeatRunEvent`,
  * which locks the run row. The controller then saves its checkpoint: a new
  * `event:N` row plus the `cursor` row. The new row's foreign key check takes
  * FOR KEY SHARE on the same run row. This script replays that pattern with the
@@ -22,7 +22,7 @@
  *
  *   git show <base>:server/src/services/heartbeat-run-events.ts \
  *     > server/src/services/heartbeat-run-events.baseline.ts
- *   pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-run-event-checkpoint-lock.ts
+ *   pnpm --filter @outpost/server exec tsx ../scripts/benchmark-run-event-checkpoint-lock.ts
  *
  * Optional: EVENTS (default 400 per pass), PASSES (4), HOLD_MS (5), EVENT_KIB (2), SERIAL (0).
  * Delete the baseline copy afterwards.
@@ -45,7 +45,7 @@ const baseline = await import(baselinePath) as typeof candidate;
 const size = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 const EVENTS = size("EVENTS", 400), PASSES = size("PASSES", 4), HOLD_MS = size("HOLD_MS", 5), EVENT_KIB = size("EVENT_KIB", 2);
 const SERIAL = process.env.SERIAL === "1";
-process.env.PAPERCLIP_SECRETS_MASTER_KEY ??= randomBytes(32).toString("base64");
+process.env.OUTPOST_SECRETS_MASTER_KEY ??= randomBytes(32).toString("base64");
 
 const keepAlive = setInterval(() => {}, 1_000);
 const temporary = await startEmbeddedPostgresTestDatabase("run-event-checkpoint-lock-");
@@ -85,7 +85,7 @@ try {
       // The append commits before the controller ACKs, like onCommittedEvent.
       await appendDb.transaction(async tx => {
         await append(tx as unknown as typeof appendDb, { companyId: company!.id, agentId: agent!.id, runId,
-          eventType: "item.completed", stream: "system", level: "info", payload: { prpEvent: event },
+          eventType: "item.completed", stream: "system", level: "info", payload: { orpEvent: event },
           nativeSource: { sourceInstanceId: "bench-runner", sourceEventId: `event-${seq}`, sourceSeq: seq,
             protocolSchemaVersion: 1, canonicalPayload: event } });
         if (HOLD_MS) await tx.execute(drizzleSql`select pg_sleep(${HOLD_MS / 1000})`);

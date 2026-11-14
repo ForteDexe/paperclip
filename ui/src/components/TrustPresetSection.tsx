@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AgentPermissions, TrustPreset } from "@paperclipai/shared";
+import type { AgentPermissions, TrustPreset } from "@outpost/shared";
 import { Check, Lock, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, CollapsibleSection } from "./agent-config-primitives";
@@ -205,7 +205,7 @@ export function TrustPresetSection({
                 Want to set more than one containment boundary?{" "}
                 <a
                   className="underline underline-offset-2 hover:text-foreground"
-                  href="https://paperclip.ing/ee"
+                  href="https://outpost.ing/ee"
                   target="_blank"
                   rel="noreferrer"
                 >

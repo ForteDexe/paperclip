@@ -1,5 +1,5 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@outpost/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api, detachInflightGets } from "@/api/client";
 import { bindAccount } from "./account-scope";

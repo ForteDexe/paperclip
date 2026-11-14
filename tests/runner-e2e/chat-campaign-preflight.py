@@ -30,7 +30,7 @@ def inspect(root):
                    "semaphore_limit": limits[0], "semaphore_headroom": limits[0] - consumed,
                    "shared_memory_segments": len(segments), "shared_memory_limit": limits[1],
                    "shared_memory_headroom": limits[1] - len(segments)}
-    runner = root / "packages/paperclip-runner/runner/target/debug/paperclip-runnerd"
+    runner = root / "packages/outpost-runner/runner/target/debug/outpost-runnerd"
     tools = {name: bool(shutil.which(name)) for name in ["node", "pnpm", "python3", "codex"]}
     credentials = {name: bool(os.getenv(name)) for name in ["CODEX_AUTH_JSON", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DAYTONA_API_KEY"]}
     status, revision = command(["git", "-C", str(root), "rev-parse", "HEAD"])
@@ -45,7 +45,7 @@ def inspect(root):
             "credentialsPresent": credentials,
             "privateCodexAuthFilePresent": (pathlib.Path.home() / ".codex/auth.json").is_file(),
             "localEnvironmentFilePresent": (root / ".env.runner-e2e.local").is_file(),
-            "immutableDaytonaImageConfigured": "@sha256:" in os.getenv("PAPERCLIP_E2E_DAYTONA_IMAGE", ""),
+            "immutableDaytonaImageConfigured": "@sha256:" in os.getenv("OUTPOST_E2E_DAYTONA_IMAGE", ""),
             "ipc": ipc, "singleInstanceIpcGuardPassed": ipc_guard,
             "ipcGuardLimits": {"minimumFreeSemaphores": 34, "minimumFreeSharedMemorySlots": 2},
             "limitations": ["Credential existence does not establish account validity.",

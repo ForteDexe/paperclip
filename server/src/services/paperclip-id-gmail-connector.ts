@@ -11,15 +11,15 @@ export {
   GOOGLE_WORKSPACE_CONNECTOR_PROFILES,
   PaperclipCloudConnectorError as PaperclipIdConnectorError,
   createPaperclipCloudConnector as createPaperclipIdGmailConnector,
-  paperclipCloudConnectorCapabilitiesFromEnv as paperclipIdGoogleConnectorCapabilitiesFromEnv,
-  paperclipCloudConnectorConfigFromEnv as paperclipIdGmailConnectorConfigFromEnv,
+  outpostCloudConnectorCapabilitiesFromEnv as outpostIdGoogleConnectorCapabilitiesFromEnv,
+  outpostCloudConnectorConfigFromEnv as outpostIdGmailConnectorConfigFromEnv,
 } from "./paperclip-cloud-connector.js";
 
 export type {
   PaperclipCloudConnector as PaperclipIdGmailConnector,
   PaperclipCloudConnector as PaperclipIdGoogleWorkspaceConnector,
   PaperclipCloudConnectorConfig as PaperclipIdGmailConnectorConfig,
-  PaperclipCloudConnectorEnvironment as PaperclipIdConnectorEnvironment,
+  OutpostCloudConnectorEnvironment as OutpostIdConnectorEnvironment,
   PaperclipCloudConnectorOperation as PaperclipIdConnectorOperation,
   SealedGmailCredentials,
   SealedGoogleWorkspaceCredentials,

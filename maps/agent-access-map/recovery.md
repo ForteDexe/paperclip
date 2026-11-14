@@ -134,7 +134,7 @@ Review: `operation-reviewed`.
 Supported restoration and automatic attempts retain source/owner/attempt authority.
 
 Main-server replacement uses a private, encrypted Postgres controller journal
-and the runner's existing authenticated PRP connection. It adds no agent-facing
+and the runner's existing authenticated ORP connection. It adds no agent-facing
 mutation API. Controller generations and expiring execution leases fence writes;
 the runner retains its admitted artifact and active turn. Saved tool receipts
 can restore responses, safe reads recheck current authority, and uncertain

@@ -207,7 +207,7 @@ What exists today, and what changes:
   (`assertExecutionTaskParent`). Chat-created work hangs off its *own* top-level
   task, not the chat. `originIssueId` = the conversation records the link.
 - **Runner `create_task` in a conversation** always creates top-level and has no
-  parent input (`paperclip-runner-tool-authority.ts:1706/1803`). To allow
+  parent input (`outpost-runner-tool-authority.ts:1706/1803`). To allow
   "top-level task + subtasks" in one chat, let the conversation-bound tool accept
   an optional parent **that is a task created from this same conversation**
   (`originIssueId` = this conversation). Anything else is ignored (created
@@ -261,9 +261,9 @@ Routes (`server/src/routes/issues.ts`):
 
 ## 6. Every agent/harness creator (covered by the choke points; one test each)
 
-- Runner `create_task`: `paperclip-runner-tool-authority.ts:1803` always calls
+- Runner `create_task`: `outpost-runner-tool-authority.ts:1803` always calls
   `createChild(binding.issueId)`. Update its description in
-  `packages/paperclip-runner/src/protocol-actions/create-task.ts`.
+  `packages/outpost-runner/src/protocol-actions/create-task.ts`.
 - Project tools `create_task`: `project-tools.ts:50`.
 - Native `create_delegated_issue`: `status-decision-committer.ts:729`.
 - Accepted-plan decomposition: `issues.ts:~10021`. Its cursor tracks explicit

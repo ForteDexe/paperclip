@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { discoverPiModels, execute, testEnvironment } from "@paperclipai/adapter-pi-local/server";
+import { discoverPiModels, execute, testEnvironment } from "@outpost/adapter-pi-local/server";
 
 async function writeFakePiCommand(commandPath: string): Promise<void> {
   const script = `#!/usr/bin/env node
@@ -228,14 +228,14 @@ console.log(JSON.stringify({ type: "agent_end", messages: [] }));
     await fs.chmod(commandPath, 0o755);
 
     const serverSecrets = {
-      PAPERCLIP_AGENT_JWT_SECRET: "server-jwt-secret",
-      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: "server-tool-action-secret",
-      PAPERCLIP_SECRETS_MASTER_KEY_FILE: "/server/master.key",
+      OUTPOST_AGENT_JWT_SECRET: "server-jwt-secret",
+      OUTPOST_TOOL_ACTION_SIGNING_SECRET: "server-tool-action-secret",
+      OUTPOST_SECRETS_MASTER_KEY_FILE: "/server/master.key",
     };
     const permittedEnv = {
-      PAPERCLIP_RUNTIME_API_URL: "https://runtime.example.test",
-      PAPERCLIP_LISTEN_HOST: "127.0.0.1",
-      PAPERCLIP_LISTEN_PORT: "3100",
+      OUTPOST_RUNTIME_API_URL: "https://runtime.example.test",
+      OUTPOST_LISTEN_HOST: "127.0.0.1",
+      OUTPOST_LISTEN_PORT: "3100",
     };
     const inheritedEnv = { ...serverSecrets, ...permittedEnv };
     const previous = { HOME: process.env.HOME, ...Object.fromEntries(Object.keys(inheritedEnv).map((k) => [k, process.env[k]])) };
@@ -277,7 +277,7 @@ console.log(JSON.stringify({ type: "agent_end", messages: [] }));
         (line) => JSON.parse(line) as { args: string[]; env: Record<string, string> },
       );
       const discovery = captures.find(({ args }) => args.includes("--list-models"));
-      const execution = captures.find(({ env }) => env.PAPERCLIP_AGENT_ID === "agent-env");
+      const execution = captures.find(({ env }) => env.OUTPOST_AGENT_ID === "agent-env");
       const probe = captures.find(({ args }) => args.includes("Respond with hello."));
       expect(discovery).toBeDefined();
       expect(execution).toBeDefined();
@@ -287,7 +287,7 @@ console.log(JSON.stringify({ type: "agent_end", messages: [] }));
         expect(capture.env.AGENT_SETTING).toBe("kept");
         expect(capture.env).toMatchObject(permittedEnv);
       }
-      expect(execution!.env.PAPERCLIP_API_KEY).toBe("run-jwt-token");
+      expect(execution!.env.OUTPOST_API_KEY).toBe("run-jwt-token");
     } finally {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key];

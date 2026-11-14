@@ -2,10 +2,10 @@ import { startNativeSessionExecutionLeaseRenewal } from "./native-execution-leas
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { eq, sql } from "drizzle-orm";
-import { checkpointDb, livenessDb, nativeRunFinalizations } from "@paperclipai/db";
+import { checkpointDb, livenessDb, nativeRunFinalizations } from "@outpost/db";
 import { beforeAll, expect } from "vitest";
-import { createRunnerdCodexTransport, DurablePrpControlPlane } from "../../vendor/paperclip-runner/index.js";
-import { registerRunnerPrpAuthority } from "../../realtime/runner-prp-ws.js";
+import { createRunnerdCodexTransport, DurablePrpControlPlane } from "../../vendor/outpost-runner/index.js";
+import { registerRunnerPrpAuthority } from "../../realtime/runner-orp-ws.js";
 import { nativeRunnerCheckpointWriter } from "./native-runner-checkpoint.js";
 import { nativeRestartFixture, describeEmbeddedPostgres, realProcessIt, waitForCondition } from "../../__tests__/helpers/native-restart.js";
 
@@ -137,9 +137,9 @@ describeEmbeddedPostgres("native runner restart recovery: checkpoint-cost", () =
         }
       }
     }
-    const report = { schema: "paperclip.checkpoint-cost/v1", samples,
+    const report = { schema: "outpost.checkpoint-cost/v1", samples,
       scope: "isolated Postgres; control operations included; WAL is diagnostic; no production capacity claim" };
-    if (process.env.PAPERCLIP_TEST_CHECKPOINT_COST_REPORT) await writeFile(process.env.PAPERCLIP_TEST_CHECKPOINT_COST_REPORT,
+    if (process.env.OUTPOST_TEST_CHECKPOINT_COST_REPORT) await writeFile(process.env.OUTPOST_TEST_CHECKPOINT_COST_REPORT,
       `${JSON.stringify(report, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     // Each stream size was checked independently; total setup counts remain
     // diagnostic because control-message batching is scheduling-dependent.

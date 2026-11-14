@@ -12,7 +12,7 @@ import {
   issueWorkProducts,
   plugins,
   pluginCompanySettings,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   preparePluginWorkspace,
   inspectPluginWorkspace,

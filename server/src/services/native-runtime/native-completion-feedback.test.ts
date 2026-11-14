@@ -1,16 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, documentRevisions, executionWorkspaces, executionWorkspaceRepositories, heartbeatRuns, issueExecutionDecisions, issues, issueThreadInteractions, issueTreeHolds, issueDocuments } from "@paperclipai/db";
+import { agents, companies, createDb, documentRevisions, executionWorkspaces, executionWorkspaceRepositories, heartbeatRuns, issueExecutionDecisions, issues, issueThreadInteractions, issueTreeHolds, issueDocuments } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
-import type { PrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 import { documentService } from "../documents.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import { executionStageApprovedByRun } from "./native-run-finalizer.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const done: PrpStructuredRunResult = {
-  schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Document saved.",
+  schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Document saved.",
   completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] },
   evidence: [], verification: [], attentionRequests: [], artifacts: [],
 };
@@ -23,7 +23,7 @@ describe("native final-response feedback", () => {
   async function fixture(existingCompanyId?: string) {
     const companyId = existingCompanyId ?? randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     if (!existingCompanyId) await db.insert(companies).values({ id: companyId, name: "Feedback", issuePrefix: `FB${companyId.slice(0, 8).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner", status: "active" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" });
     await db.insert(issues).values({ id: issueId, companyId, identifier: `FB${companyId.slice(0, 8).toUpperCase()}-${existingCompanyId ? 2 : 1}`, title: "Save the task document", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
@@ -46,7 +46,7 @@ describe("native final-response feedback", () => {
   }
   it("sends the active review participant to record its stage decision before reporting", async () => {
     const value = await fixture(), stageId = randomUUID(), otherAgentId = randomUUID();
-    await db.insert(agents).values({ id: otherAgentId, companyId: value.companyId, name: "Implementer", adapterType: "paperclip_runner", status: "active" });
+    await db.insert(agents).values({ id: otherAgentId, companyId: value.companyId, name: "Implementer", adapterType: "outpost_runner", status: "active" });
     const pending = { status: "pending", currentStageId: stageId, currentStageIndex: 0, currentStageType: "review",
       currentParticipant: { type: "agent", agentId: value.agentId }, returnAssignee: { type: "agent", agentId: otherAgentId },
       completedStageIds: [], lastDecisionId: null, lastDecisionOutcome: null };
@@ -427,7 +427,7 @@ describe("native final-response feedback", () => {
     await expect(nativeCompletionFeedback(db, concatenated.runId, { ...report, blocker: { ...report.blocker!, owner: { kind: "system", name: "PaperclipAI document service" } } }))
       .rejects.toThrow("Paperclip answered this report");
     const runnerNamed = await fixture();
-    await expect(nativeCompletionFeedback(db, runnerNamed.runId, { ...report, blocker: { ...report.blocker!, owner: { kind: "system", name: "paperclip_runner" } } }))
+    await expect(nativeCompletionFeedback(db, runnerNamed.runId, { ...report, blocker: { ...report.blocker!, owner: { kind: "system", name: "outpost_runner" } } }))
       .rejects.toThrow("Paperclip answered this report");
     // A genuinely external service, a non-system owner, or a finished run is not re-checked.
     const other = await fixture();

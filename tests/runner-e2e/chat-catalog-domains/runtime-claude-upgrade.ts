@@ -24,13 +24,13 @@ export function compatibleLegacyClaudeSettings(text: string, model: string): Rec
 export function upgradeReplyMatches(reply: string, phase: "guidance" | "saved") {
   if (/I(?:['’]ve| have)?\s+(?:already\s+)?(?:upgraded|converted)|(?:conversion|upgrade)\s+(?:proves|guarantees).*success|(?:live run|execution)\s+(?:has\s+)?(?:passed|succeeded)/i.test(reply)) return false;
   return phase === "guidance" ? /upgrade|configuration|runtime settings/i.test(reply) && /human|you|person|operator|control|button/i.test(reply) && /Claude|model|instructions/i.test(reply)
-    : /saved|converted|upgraded|Paperclip Runner/i.test(reply) && /run|execution|session/i.test(reply) && /still|not|until|separate|need|verify|test|first|yet/i.test(reply);
+    : /saved|converted|upgraded|Outpost Runner/i.test(reply) && /run|execution|session/i.test(reply) && /still|not|until|separate|need|verify|test|first|yet/i.test(reply);
 }
 export function gradeClaudeUpgrade(value: unknown) {
   const c = checks(), o = runtimeObservation(value); c.add("actual-legacy-conversion-evidence", !!o, "Actual saved legacy state, supported human upgrade and post-conversion native work are required."); if (!o) return c.result();
   const s = o.state, before = s.worker as Agent, after = o.agents.find(row => row.id === before?.id), config = after?.adapterConfig;
   c.add("unsupported-setting-atomically-rejected", s.legacyUnchangedBeforeHuman === true && s.unsupportedHttpStatus === 422 && s.unsupportedActionable === true && s.failedConversionUnchanged === true, "A real human upgrade with extraArgs fails actionably without any partial saved conversion.");
-  c.add("compatible-human-conversion-preserves-identity-and-bindings", !!after && after.companyId === o.companyId && after.adapterType === "paperclip_runner" && agentHarnessType(after.adapterType, config) === "claude_local"
+  c.add("compatible-human-conversion-preserves-identity-and-bindings", !!after && after.companyId === o.companyId && after.adapterType === "outpost_runner" && agentHarnessType(after.adapterType, config) === "claude_local"
     && config?.model === before.adapterConfig.model && config?.provider === "acpx" && config?.acpxAgent === "claude" && s.supportedHumanUpgrade === true && s.bindingsRetained === true && s.instructionsRetained === true && s.historyRetained === true,
     "Supported conversion preserves Morgan, Claude, model, computer/account, exact instructions and genuine human task history.");
   c.add("fresh-first-actual-native-session", s.noPriorWorkerSession === true && s.futureRunFresh === true && s.futureHistoryRead === true && s.savedValidationPassed === true
@@ -90,7 +90,7 @@ export const runtimeClaudeUpgradeCases = [runtimeDefinition("runs-adapters.upgra
     s.failedConversionUnchanged = badAfter.adapterType === "claude_local" && JSON.stringify(badAfter.adapterConfig) === JSON.stringify(badBefore.adapterConfig) && JSON.stringify(badAfter.runtimeConfig) === JSON.stringify(badBefore.runtimeConfig) && badAfter.defaultEnvironmentId === badBefore.defaultEnvironmentId;
     await ctx.input.api.patch(`/api/agents/${worker.id}`, { adapterConfig: worker.adapterConfig }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await ctx.input.page.getByRole("button", { name: "Upgrade runner", exact: true }).click();
-    const converted = await pollUntil({ label: "Actual supported human Claude conversion", deadlineAt: Date.now() + 60000, load: () => ctx.input.api.get<Agent>(`/api/agents/${worker.id}`), accept: row => row.adapterType === "paperclip_runner" });
+    const converted = await pollUntil({ label: "Actual supported human Claude conversion", deadlineAt: Date.now() + 60000, load: () => ctx.input.api.get<Agent>(`/api/agents/${worker.id}`), accept: row => row.adapterType === "outpost_runner" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByRole("button", { name: "Upgrade runner", exact: true })).toHaveCount(0); s.supportedHumanUpgrade = true;
     s.bindingsRetained = converted.defaultEnvironmentId === worker.defaultEnvironmentId && JSON.stringify(converted.runtimeConfig.aiConnection) === JSON.stringify(worker.runtimeConfig.aiConnection);
     const instruction = await ctx.input.api.get<InstructionFile>(`/api/agents/${worker.id}/instructions-bundle/file?path=AGENTS.md`), prior = s.instruction as InstructionFile;

@@ -1,6 +1,6 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
-import { heartbeatRuns } from "@paperclipai/db";
+import { heartbeatRuns } from "@outpost/db";
 import { readNativeLocalProcessStop, readUnidentifiedLocalRunnerStop, recordUnidentifiedLocalRunnerStop } from "../native-local-process-stop.js";
 import { NATIVE_PROVIDER_RECOVERY_ATTEMPT_LIMIT } from "./native-restart-recovery.js";
 

@@ -8,8 +8,8 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { agents, closeRegisteredClients, companies, completionContracts, createDb, environmentLeases, environments,
   executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, projects,
-  workspaceOperations, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+  workspaceOperations, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { resolveManagedProjectWorkspaceDir } from "../home-paths.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -38,8 +38,8 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
   });
   beforeEach(async () => {
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "pc-remote-hold-")));
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "61".repeat(32));
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
     storage = createStorageService(createLocalDiskStorageProvider(path.join(home, "objects")));
   });
   afterEach(async () => {
@@ -57,7 +57,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     const companyId = randomUUID(), projectId = randomUUID(), runId = randomUUID(), remoteId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Remote hold", issuePrefix: `H${companyId.slice(0, 6)}` });
     await db.insert(projects).values({ id: projectId, companyId, name: "Legacy project" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Held remote worker", adapterType: "paperclip_runner" }).returning();
+    const [agent] = await db.insert(agents).values({ companyId, name: "Held remote worker", adapterType: "outpost_runner" }).returning();
     const [issue] = await db.insert(issues).values({ companyId, projectId, title: "Earlier local task", status: "blocked", statusVersion: 28 }).returning();
     const root = resolveManagedProjectWorkspaceDir({ companyId, projectId });
     await fs.mkdir(root, { recursive: true }); await fs.writeFile(path.join(root, "saved.txt"), "preserved local work\n");
@@ -76,9 +76,9 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     const [baseline] = await db.insert(executionWorkspaceSnapshots).values({ companyId, executionWorkspaceId: remoteId,
       sourceOperationId: randomUUID(), sourceRunId: randomUUID(), generation: 10, epoch: 8, status: "committed",
       sha256: "89".repeat(32), manifestDigest: "90".repeat(32), objectKey: `${companyId}/retained-baseline`, byteSize: 281 }).returning();
-    const reference = { schema: "paperclip.remote-workspace-run.v1", workspaceId: remoteId, leaseId: randomUUID(),
+    const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId: remoteId, leaseId: randomUUID(),
       providerLeaseId: randomUUID(), remoteCwd: `/workspaces/${remoteId}`, epoch: 9, state: "prepared", snapshotId: baseline.id };
-    const authority = { schema: "paperclip.remote-workspace.v1", epoch: reference.epoch, snapshotId: baseline.id, source: { kind: "empty" },
+    const authority = { schema: "outpost.remote-workspace.v1", epoch: reference.epoch, snapshotId: baseline.id, source: { kind: "empty" },
       location: { environmentId: environment.id, leaseId: reference.leaseId, providerLeaseId: reference.providerLeaseId,
         remoteCwd: reference.remoteCwd }, writerRunId: runId, dirty: true };
     const [remote] = await db.insert(executionWorkspaces).values({ id: remoteId, companyId, projectId, sourceIssueId: issue.id,
@@ -103,7 +103,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
       cause, fingerprint: nativeSha256({ runId, failureCode: cause }), ownerType: "board", returnOwnerAgentId: agent.id,
       nextAction: "Preserve remote work", evidence: { runId, systemRecovery: { ...createSystemRecovery(runId),
         phase: "preserve_files", state: "exhausted", attempts: 4, retriesUsed: 3 }, workspaceRecovery: {
-        schema: "paperclip.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop", attempt: 4, requestIds: [] } } }).returning();
+        schema: "outpost.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop", attempt: 4, requestIds: [] } } }).returning();
     await db.update(issues).set({ executionWorkspaceId: remoteId }).where(eq(issues.id, issue.id));
     return { companyId, workspaceId: leaf.id, root, cwd, legacy, remote, run, owner, lease, action, reference, authority, issue, baseline };
   }
@@ -131,7 +131,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     expect(inspected.sources[0].remoteWorkspace?.id).toBe(f.remote.id);
     expect(await inspectOnlineLegacyWorkspaceRecoverySource(db, { workspace: f.legacy, runId: f.run.id })).toBeNull();
     expect(await hold(f)).toMatchObject({ finalizedHold: null, remoteHold: {
-      schema: "paperclip.remote-workspace-preservation.v1", runId: f.run.id, workspaceId: f.remote.id,
+      schema: "outpost.remote-workspace-preservation.v1", runId: f.run.id, workspaceId: f.remote.id,
     } });
     const put = storage.putFile.bind(storage);
     vi.spyOn(storage, "putFile").mockImplementationOnce(async input => {
@@ -191,7 +191,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
         .where(eq(nativeRunResults.runId, f.run.id));
       if (change === "task") await db.update(issues).set({ checkoutRunId: f.run.id }).where(eq(issues.id, f.issue.id));
       if (change === "history-marker") await db.update(issueRecoveryActions).set({ evidence: {
-        ...f.action.evidence, historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId: f.run.id, leaseIds: [f.lease.id] },
+        ...f.action.evidence, historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: f.run.id, leaseIds: [f.lease.id] },
       } }).where(eq(issueRecoveryActions.id, f.action.id));
       if (change === "recovery-state") await db.update(issueRecoveryActions).set({ evidence: {
         ...f.action.evidence, systemRecovery: { ...createSystemRecovery(f.run.id), state: "running" },

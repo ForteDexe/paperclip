@@ -1,4 +1,4 @@
-import type { AgentApiKeyScope } from "@paperclipai/shared";
+import type { AgentApiKeyScope } from "@outpost/shared";
 import { forbidden } from "../../errors.js";
 
 const taskTools = new Set([

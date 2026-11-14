@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyPendingMigrations, createDb, closeRegisteredClients, companies, authUsers, mcpOauthGrants } from "@paperclipai/db";
+import { applyPendingMigrations, createDb, closeRegisteredClients, companies, authUsers, mcpOauthGrants } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "../../lib/dedicated-test-database-url.js";
 import { accessService } from "../../services/access.js";
 import { instanceSettingsService } from "../../services/instance-settings.js";
@@ -13,12 +13,12 @@ import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "../../routes/
 import { errorHandler } from "../../middleware/error-handler.js";
 import { readDotOriginalTokenPrincipal } from "./original-token-principal.js";
 
-const url=resolveExternalTestDatabaseUrl("PAPERCLIP_DOT_PRINCIPAL_LEAF_TEST_DATABASE_URL");
+const url=resolveExternalTestDatabaseUrl("OUTPOST_DOT_PRINCIPAL_LEAF_TEST_DATABASE_URL");
 const origin="https://dot-principal-leaf.example.test",resource=origin+"/mcp/runner";
 describe.skipIf(!url)("actual OAuth producer and original-token principal leaf; no Cloud transport",()=>{
   let db:ReturnType<typeof createDb>,app:express.Express,oauth:ReturnType<typeof createPublicMcpOAuth>;
   let companyId:string,otherCompanyId:string,userId:string,number=0,calls=0;
-  beforeAll(async()=>{vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));await applyPendingMigrations(url!);},90_000);
+  beforeAll(async()=>{vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));await applyPendingMigrations(url!);},90_000);
   afterAll(()=>{vi.unstubAllEnvs();});
   beforeEach(async()=>{
     db=createDb(url!,{maxConnections:2,applicationName:"dot-principal-current-leaf"});

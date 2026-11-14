@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as realDelay } from "node:timers/promises";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   activityLog, applyPendingMigrations, reconcileDatabaseWork, agents, agentSessionGoalActions, agentTaskSessions, companies, createDb,
   completionContracts, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -23,10 +23,10 @@ import { createHeartbeatRunPreparation } from "./run-preparation.js";
 import { createHeartbeatRunState } from "./run-state.js";
 import { createHeartbeatScheduling, type HeartbeatSchedulingDependencies } from "./scheduling.js";
 import { readIdleSleepSafety } from "../idle-sleep-safety.js";
-import { PaperclipRunnerToolAuthority } from "../native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../native-runtime/outpost-runner-tool-authority.js";
 import { finalizeNativeRun } from "../native-runtime/native-run-finalizer.js";
 import { nativeCompletionFeedback } from "../native-runtime/native-completion-feedback.js";
-import type { PrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 
 vi.mock("../live-events.js", () => ({ publishLiveEvent: vi.fn() }));
 
@@ -89,7 +89,7 @@ describe("heartbeat scheduling module boundary", () => {
   );
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_HEARTBEAT_SCHEDULING_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_HEARTBEAT_SCHEDULING_TEST_DATABASE_URL");
 const postgres = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
@@ -110,7 +110,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     await db.execute(sql`truncate table companies restart identity cascade`);
   });
 
-  async function fixture(adapterType = "paperclip_runner") {
+  async function fixture(adapterType = "outpost_runner") {
     const [company] = await db.insert(companies).values({ name: "Scheduling", issuePrefix: "SCH" }).returning();
     const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Scheduled agent", adapterType, createdAt: dueAt }).returning();
     const [issue] = await db.insert(issues).values({
@@ -343,7 +343,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     const timeoutAt = new Date(start.getTime() + 120_000).toISOString();
     const [contract] = await db.insert(completionContracts).values({
       companyId: f.company.id, issueId: f.issue.id, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", criteria: [] }, canonicalSha256: randomUUID(),
       createdByActorType: "system", createdByActorId: "test",
@@ -361,7 +361,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       monitor: { nextCheckAt, timeoutAt, notes: "Check once saved", recoveryPolicy: "escalate_to_board" },
     } });
     const result: PrpStructuredRunResult = {
-      schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded", summary: "Wait for the check.",
+      schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "Wait for the check.",
       completionClaim: { contractRevision: "test", objectiveSatisfied: false, criteria: [],
         remainingWork: [{ description: "Check after saving", blocksCompletion: true }] },
       continuation: { kind: "monitor", summary: "Wait for the saved check", idempotencyKey: "wait" },
@@ -371,7 +371,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     const [saved] = await db.insert(nativeRunResults).values({
       companyId: f.company.id, issueId: f.issue.id, runId: run!.id, completionContractId: contract!.id,
       serverFingerprint: randomUUID(), canonicalSha256: randomUUID(), schemaStatus: "accepted",
-      resultJson: { result, terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded",
+      resultJson: { result, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded",
         turnTerminalState: "completed", reportedWorkDisposition: "yielded" } },
     }).returning();
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run!.id));
@@ -621,7 +621,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       const deadline = now.getTime() + 3_600_000;
       await db.update(issues).set({ monitorNextCheckAt: new Date(deadline),
         executionPolicy: { monitor: { nextCheckAt: new Date(deadline).toISOString() } } }).where(eq(issues.id, f.issue.id));
-      const runtimeEnv = { PAPERCLIP_IN_WORKTREE: "true", PAPERCLIP_INSTANCE_ID: "monitor-activation-fixture" };
+      const runtimeEnv = { OUTPOST_IN_WORKTREE: "true", OUTPOST_INSTANCE_ID: "monitor-activation-fixture" };
       const settings = instanceSettingsService(db, { runtimeEnv });
       await settings.updateExperimental({ enableWorktreeRunExecution: false });
       const heartbeat = heartbeatService(db, { runtimeEnv });
@@ -660,7 +660,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
 
     it("uses fresh worktree activation for immediate monitor deadline inspection", async () => {
       const f = await fixture();
-      const runtimeEnv = { PAPERCLIP_IN_WORKTREE: "true", PAPERCLIP_INSTANCE_ID: "monitor-fresh-fixture" };
+      const runtimeEnv = { OUTPOST_IN_WORKTREE: "true", OUTPOST_INSTANCE_ID: "monitor-fresh-fixture" };
       const settings = instanceSettingsService(db, { runtimeEnv });
       await settings.updateExperimental({ enableWorktreeRunExecution: false });
       const heartbeat = heartbeatService(db, { runtimeEnv });

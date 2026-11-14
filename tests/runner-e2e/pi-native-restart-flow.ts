@@ -2,7 +2,7 @@ import { parseRestartRunnerIdentity, type RestartRunnerIdentity } from "./proces
 import { createHash, randomBytes } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
-import { validatePrpStructuredRunResult } from "../../packages/paperclip-runner/src/protocol/replay-contract.js";
+import { validatePrpStructuredRunResult } from "../../packages/outpost-runner/src/protocol/replay-contract.js";
 import { pollUntil } from "./api.js";
 import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
 import { isValidNativePrpEnvelope } from "./native-event-envelope.js";
@@ -38,7 +38,7 @@ function inspect(state: State, events: readonly Row[], companyId: string, header
   requireProof(id(card.id) && card.companyId === companyId && card.issueId === state.issue.id && card.kind === "ask_user_questions"
     && card.sourceRunId === run.id && card.continuationPolicy === "none" && card.resolverPolicy === "human_only", "question is not the native callback");
   requireProof(Array.isArray(events) && events.length > 0 && events.length <= 20_000, "bounded durable events required");
-  const rows = events.filter(row => rec(row.payload).prpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).prpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
+  const rows = events.filter(row => rec(row.payload).orpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seenRows = new Set<number>(), seenSources = new Set<string>(), cursors = new Map<string, number>();
   for (const { row, event } of rows) {
     requireProof(row.companyId === companyId && row.runId === run.id && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
@@ -61,12 +61,12 @@ function inspect(state: State, events: readonly Row[], companyId: string, header
   requireProof(created.length === 1, "exactly one native request creation required");
   const opening = created[0]!, request = rec(opening.event.payload?.request), questionSet = rec(request.input);
   const question = Array.isArray(questionSet.questions) && questionSet.questions.length === 1 ? rec(questionSet.questions[0]) : {};
-  requireProof(request.schema === "paperclip.runtime_request.v2" && request.requestKind === "runtime" && request.type === "input" && request.status === "pending"
+  requireProof(request.schema === "outpost.runtime_request.v2" && request.requestKind === "runtime" && request.type === "input" && request.status === "pending"
     && id(request.requestId) && id(request.itemId) && id(request.turnId) && request.turnId === opening.event.turnId && request.itemId === opening.event.itemId
-    && hasAcpxNativeOrigin(request.origin, "pi", "elicitation/create") && questionSet.schema === "paperclip.question_set.v1"
+    && hasAcpxNativeOrigin(request.origin, "pi", "elicitation/create") && questionSet.schema === "outpost.question_set.v1"
     && id(question.id) && question.answerMode === "text" && question.header === header
     && card.payload?.runtimeRequestId === request.requestId && digest(card.payload.questionSet) === digest(questionSet)
-    && card.idempotencyKey === `paperclip-runner-question:${run.id}:${request.requestId}`, "canonical Pi input request identity missing");
+    && card.idempotencyKey === `outpost-runner-question:${run.id}:${request.requestId}`, "canonical Pi input request identity missing");
   const submitted = rows.filter(x => x.event.eventType === "turn.submitted");
   const unboundSubmission = submitted.find(x => x.event.turnId == null);
   if (unboundSubmission) {
@@ -89,7 +89,7 @@ function inspect(state: State, events: readonly Row[], companyId: string, header
   return { run, card, rows, binding };
 }
 
-/** Grade public state and PRP receipts; assistant prose is never restart proof. */
+/** Grade public state and ORP receipts; assistant prose is never restart proof. */
 export function observePiPendingNativeInput(state: State, events: readonly Row[], companyId: string, header: string): PiRestartPending {
   const { run, card, rows, binding } = inspect(state, events, companyId, header);
   requireProof(state.issue.status === "in_progress" && run.status === "running" && card.status === "pending" && card.result == null
@@ -110,7 +110,7 @@ export function gradePiRestartCompletion(state: State, events: readonly Row[], p
   const delivered = resolved[0]!.event, response = rec(delivered.payload);
   requireProof(response.requestId === pending.requestId && response.turnId === pending.turnId && response.itemId === pending.itemId
     && response.action === "submit" && delivered.itemId === pending.itemId && delivered.sourceSeq > pending.createdSourceSeq
-    && digest(response.response) === digest({ schema: "paperclip.question_response.v1", answers: { [pending.questionId]: { text: answer } } }),
+    && digest(response.response) === digest({ schema: "outpost.question_response.v1", answers: { [pending.questionId]: { text: answer } } }),
   "hidden browser answer was not delivered to the original native request");
   requireProof(terminal.length === 1 && terminal[0]!.event.eventType === "turn.completed" && terminal[0]!.event.payload?.status === "completed"
     && terminal[0]!.event.payload?.error == null && terminal[0]!.event.sourceSeq > delivered.sourceSeq
@@ -123,7 +123,7 @@ export function gradePiRestartCompletion(state: State, events: readonly Row[], p
     && digest(proposed[0]!.event.payload) === digest(result)
     && proposed[0]!.row.seq > resolved[0]!.row.seq && proposed[0]!.row.seq < terminal[0]!.row.seq
     && accepted[0]!.row.seq > terminal[0]!.row.seq && runTerminal[0]!.row.seq > accepted[0]!.row.seq
-    && digest(runTerminal[0]!.event.payload) === digest({ schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }),
+    && digest(runTerminal[0]!.event.payload) === digest({ schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }),
   "control-plane completion does not accept the original successful native result");
   requireProof(card.status === "answered" && Array.isArray(card.result?.answers) && card.result.answers.length === 1
     && card.result.answers[0].questionId === pending.questionId && card.result.answers[0].otherText === answer, "durable interaction answer missing or wrong");

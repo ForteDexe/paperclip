@@ -11,7 +11,7 @@ import {
   storageLocalDiskConfigSchema,
   storageS3ConfigSchema,
   type PaperclipConfig,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { z } from "zod";
 
 const publicUrl = z.string().url().refine((value) => {

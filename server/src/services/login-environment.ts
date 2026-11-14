@@ -1,4 +1,4 @@
-import { agents, environmentLeases, type Db } from "@paperclipai/db";
+import { agents, environmentLeases, type Db } from "@outpost/db";
 import { and, asc, eq, isNull, notExists, notInArray, or, sql } from "drizzle-orm";
 import { badRequest, forbidden, notFound } from "../errors.js";
 import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
@@ -42,7 +42,7 @@ export async function resolveLoginEnvironmentTarget(
     ));
     const [agent] = await db.select({ id: agents.id }).from(agents).where(and(
       eq(agents.companyId, input.companyId),
-      eq(agents.adapterType, "paperclip_runner"),
+      eq(agents.adapterType, "outpost_runner"),
       notExists(activeLogin),
       settings.defaultEnvironmentId === environment.id
         ? or(matchesEnvironment, isNull(agents.defaultEnvironmentId))
@@ -58,7 +58,7 @@ export async function resolveLoginEnvironmentTarget(
   const [agent] = await db.select().from(agents).where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId))).limit(1);
   if (!agent || agent.companyId !== input.companyId) throw notFound("Agent not found");
   const inherited = agent.defaultEnvironmentId ?? (await instanceSettingsService(db).get()).defaultEnvironmentId;
-  if (inherited !== environment.id || agent.adapterType !== "paperclip_runner" || !["ready", "verifying"].includes(agent.lifecycleState)) {
+  if (inherited !== environment.id || agent.adapterType !== "outpost_runner" || !["ready", "verifying"].includes(agent.lifecycleState)) {
     throw badRequest("The selected agent computer is not available for sign-in.", { code: "login_agent_unavailable" });
   }
   return { environment, agentId: agent.id };

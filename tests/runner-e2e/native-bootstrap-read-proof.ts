@@ -14,12 +14,12 @@ const hashId = (domain: string, id: string) => `acpx-tool-${createHash("sha256")
  * this path. Mirror the sidecar byte bound followed by the Rust opaque ID. */
 export function bootstrapReadExecutionId(toolCallId: string): string {
   if (!toolCallId || toolCallId.length > 240 || /[\u0000-\u001f\u007f]/u.test(toolCallId) || toolCallId.includes("[REDACTED]")) throw new Error("Invalid bootstrap native tool identity");
-  const bounded = Buffer.byteLength(toolCallId) > 240 ? hashId("paperclip.acpx.provider-identity.v1\0", toolCallId) : toolCallId;
-  return /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(bounded) && Buffer.byteLength(bounded) <= 160 ? bounded : hashId("paperclip.acpx.opaque-item.v1\0", bounded);
+  const bounded = Buffer.byteLength(toolCallId) > 240 ? hashId("outpost.acpx.provider-identity.v1\0", toolCallId) : toolCallId;
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(bounded) && Buffer.byteLength(bounded) <= 160 ? bounded : hashId("outpost.acpx.opaque-item.v1\0", bounded);
 }
 
 /** Exempt only completed reads with the exact single-path native attestation on
- * every notice. Canonical PRP retains only the first location and may omit path
+ * every notice. Canonical ORP retains only the first location and may omit path
  * and kind on update, so it cannot establish single-file provenance by itself.
  * Validate its correlated lifecycle and reject every conflicting explicit path;
  * the passive origin attestation supplies cardinality and retained path proof.
@@ -47,7 +47,7 @@ export function withoutProvenBootstrapReads<T extends BootstrapReadNotice>(
   const receipts = new Map<string, Array<{ seq: number; type: string; status: string; operation: string }>>();
   const receiptSeq = new Set<number>();
   for (const value of proof.events) {
-    const row = record(value), event = record(record(row.payload).prpEvent), payload = record(event.payload);
+    const row = record(value), event = record(record(row.payload).orpEvent), payload = record(event.payload);
     const type = row.eventType;
     const family = typeof type === "string" && type.startsWith("tool.execution.");
     const correlated = groups.has(payload.executionId);
@@ -55,10 +55,10 @@ export function withoutProvenBootstrapReads<T extends BootstrapReadNotice>(
     const earlierRead = family && payload.operation === "read" && row.seq < origin.seq;
     if (!correlated && !earlierRead) continue;
     if (!family || !["tool.execution.started", "tool.execution.progressed", "tool.execution.completed"].includes(type)
-      || row.runId !== origin.runId || row.protocolSchemaVersion !== 1 || event.schema !== "paperclip.prp.event.v1"
+      || row.runId !== origin.runId || row.protocolSchemaVersion !== 1 || event.schema !== "outpost.orp.event.v1"
       || event.schemaVersion !== 1 || event.sourceKind !== "runner" || event.runId !== origin.runId || event.turnId !== origin.turnId
       || event.eventType !== type || !Number.isFinite(Date.parse(event.emittedAt))
-      || payload.schema !== "paperclip.tool.execution.v1" || payload.transport !== "builtin" || !["read", "unknown"].includes(payload.operation)
+      || payload.schema !== "outpost.tool.execution.v1" || payload.transport !== "builtin" || !["read", "unknown"].includes(payload.operation)
       || (payload.target !== null && payload.target !== proof.actionFile) || !groups.has(payload.executionId)
       || !Number.isSafeInteger(row.seq) || row.seq < 0 || row.seq >= origin.seq || receiptSeq.has(row.seq) || noticeSeq.has(row.seq)) throw invalid();
     receiptSeq.add(row.seq);
@@ -81,7 +81,7 @@ export function withoutProvenBootstrapReads<T extends BootstrapReadNotice>(
         || (last ? c.type !== "tool.execution.completed" || c.status !== native.at(-1)!.status
           : c.status !== "running" || c.type !== (index === 0 ? "tool.execution.started" : "tool.execution.progressed"))) throw invalid();
     }
-    // Native shape/content updates may omit status. PRP emits a progressed row
+    // Native shape/content updates may omit status. ORP emits a progressed row
     // while the passive observer retains its attestation without another notice.
     // Such rows remain subject to exact identity, target, order and terminal checks.
     // Any later notice for this origin means the supposed bootstrap was not

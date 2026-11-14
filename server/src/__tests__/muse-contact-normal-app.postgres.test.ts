@@ -10,8 +10,8 @@ import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { activityLog, agents, authUsers, checkpointDb, closeRegisteredClients,
   companies, createDb, fileStorageDb, heartbeatRuns, livenessDb, mcpOauthGrants,
-  museAgentBindings, museMailboxItems, museReceiverContactBuckets, subscribeDatabaseWork } from "@paperclipai/db";
-import { MUSE_OAUTH_SCOPES, MUSE_RESOURCE_PATH } from "@paperclipai/shared";
+  museAgentBindings, museMailboxItems, museReceiverContactBuckets, subscribeDatabaseWork } from "@outpost/db";
+import { MUSE_OAUTH_SCOPES, MUSE_RESOURCE_PATH } from "@outpost/shared";
 import { resolveExternalTestDatabaseUrl } from "../lib/dedicated-test-database-url.js";
 import { accessService } from "../services/access.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -27,8 +27,8 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { removeTestHome } from "./remove-test-home.js";
 
-const databaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_MUSE_CONTACT_NORMAL_TEST_DATABASE_URL");
-const origin = "https://muse-contact.paperclip.test";
+const databaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_MUSE_CONTACT_NORMAL_TEST_DATABASE_URL");
+const origin = "https://muse-contact.outpost.test";
 const host = new URL(origin).host;
 const resource = origin + MUSE_RESOURCE_PATH;
 const redirect = "https://muse-contact-client.example.test/oauth/callback";
@@ -82,7 +82,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
       { message: "Sign in as a company operator to configure Muse.", code: "company_operator_required" },
       { message: "Missing permission: agents:create.", code: "agents_create_permission_missing" },
       { message: "Permission agents:create does not cover the requested scope.", code: "agents_create_scope_denied" },
-      { message: "Enable Muse and Paperclip Runner in experimental settings.", code: "muse_runner_disabled" },
+      { message: "Enable Muse and Outpost Runner in experimental settings.", code: "muse_runner_disabled" },
     ].find(value => parsed.success && value.message === parsed.data.error);
     return fixed ? { status, ...fixed }
       : { status, code: "unclassified_invitation_response", message: "Invitation response details withheld" };
@@ -142,17 +142,17 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
   }
 
   beforeAll(async () => {
-    const output = process.env.PAPERCLIP_MUSE_CONTACT_ACCEPTANCE_PATH;
+    const output = process.env.OUTPOST_MUSE_CONTACT_ACCEPTANCE_PATH;
     if (!output || !path.isAbsolute(output)) throw new Error("Explicit absolute owned Muse acceptance artifact required");
     artifactPath = output;
-    expect(process.env.PAPERCLIP_CLOUD_STACK_ID).toBeUndefined();
+    expect(process.env.OUTPOST_CLOUD_STACK_ID).toBeUndefined();
     home = await mkdtemp(path.join(tmpdir(), "muse-contact-normal-"));
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_CONFIG", path.join(home, "runtime-config.json"));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
-    vi.stubEnv("PAPERCLIP_PUBLIC_URL", origin);
-    vi.stubEnv("PAPERCLIP_AUTH_PUBLIC_BASE_URL", origin);
-    vi.stubEnv("PAPERCLIP_API_URL", origin);
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_CONFIG", path.join(home, "runtime-config.json"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("OUTPOST_PUBLIC_URL", origin);
+    vi.stubEnv("OUTPOST_AUTH_PUBLIC_BASE_URL", origin);
+    vi.stubEnv("OUTPOST_API_URL", origin);
     if (!databaseUrl) throw new Error("Explicit Muse test database required");
     await openNormalApp();
     const owner = currentDb();

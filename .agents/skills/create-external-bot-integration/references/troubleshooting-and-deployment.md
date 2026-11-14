@@ -87,8 +87,8 @@ supported public-client method with PKCE. Inspect the complete advertised method
 do not disable authentication or exact redirect/resource validation to work around
 a preference mismatch. Keep S256 PKCE and current registration checks.
 
-An optional `PAPERCLIP_MCP_AUTHORIZATION_ORIGIN` supported a different authorized
-browser ingress to the same instance, while `PAPERCLIP_PUBLIC_URL` retained the
+An optional `OUTPOST_MCP_AUTHORIZATION_ORIGIN` supported a different authorized
+browser ingress to the same instance, while `OUTPOST_PUBLIC_URL` retained the
 MCP resource/issuer/token origin. This was a workaround for different client
 reachability, not an OAuth requirement. Use only explicitly configured trusted
 origins and verify callback/CSRF/issuer behavior. Prefer a single working origin.

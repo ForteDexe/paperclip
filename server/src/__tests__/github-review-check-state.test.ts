@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, chatMessageLinks, createDb, heartbeatRuns, type Db } from "@paperclipai/db";
+import { agents, chatMessageLinks, createDb, heartbeatRuns, type Db } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { captureReviewWaitQueries, seedGitHubReviewCheck, seedGitHubReviewWait,
   type CapturedReviewWaitQuery } from "./helpers/github-review-wait.js";
@@ -11,8 +11,8 @@ describe("GitHub review lookups by source comment and delivery", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   beforeAll(async () => {
-    if (process.env.PAPERCLIP_TEST_DATABASE_URL) {
-      db = createDb(process.env.PAPERCLIP_TEST_DATABASE_URL);
+    if (process.env.OUTPOST_TEST_DATABASE_URL) {
+      db = createDb(process.env.OUTPOST_TEST_DATABASE_URL);
     } else {
       temporary = await startEmbeddedPostgresTestDatabase("github-review-check-state-");
       db = createDb(temporary.connectionString);

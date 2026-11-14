@@ -2,12 +2,12 @@ import { NativeControllerRecoveryWaitingError } from "../native-runtime/native-c
 
 import { createNativeUsageDelivery } from "../native-runtime/native-usage-delivery.js";
 import { flushBudgetEvaluationWork } from "../budgets.js";
-import { NativeSessionCloseUnrecoverableError, type PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { NativeSessionCloseUnrecoverableError, type PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { agents, budgetPolicies, companies, completionContracts, nativeRunResults, costEvents, agentWakeupRequests, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, issues, executionWorkspaces, nativeRunFinalizations, runUsageReceipts, workspaceOperations, type Db } from "@paperclipai/db";
+import { agents, budgetPolicies, companies, completionContracts, nativeRunResults, costEvents, agentWakeupRequests, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, issues, executionWorkspaces, nativeRunFinalizations, runUsageReceipts, workspaceOperations, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { trace } from "@opentelemetry/api";
@@ -35,11 +35,11 @@ import { executeHeartbeatRuntime, type HeartbeatRuntimeExecutionInput } from "./
 import { prepareNativeHeartbeatRun } from "../native-runtime/prepare-native-run.js";
 import { buildNativeCompletionContract } from "../native-runtime/completion-contracts.js";
 import { currentNativeControllerIdentity } from "../native-runtime/native-restart-recovery.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT } from "../../vendor/paperclip-runner/testing.js";
-import type { ControlPlanePort, NativeExecutionInputV1 } from "@paperclipai/paperclip-runner";
+import { CONTROL_PLANE_CONFORMANCE_RESULT } from "../../vendor/outpost-runner/testing.js";
+import type { ControlPlanePort, NativeExecutionInputV1 } from "@outpost/outpost-runner";
 const postResultProvider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async original => ({
-  ...await original<typeof import("../../vendor/paperclip-runner/index.js")>(), executeNativeSession: postResultProvider.execute,
+vi.mock("../../vendor/outpost-runner/index.js", async original => ({
+  ...await original<typeof import("../../vendor/outpost-runner/index.js")>(), executeNativeSession: postResultProvider.execute,
 }));
 
 // Keep real accounting, workspace barriers, and task-session persistence. Providers
@@ -62,7 +62,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
   let home: string;
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), "paperclip-runtime-execution-"));
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     database = await startRecoveryPostgres("paperclip-runtime-execution");
     db = createDb(database.connectionString);
     await db.execute(sql`set client_min_messages = warning`);
@@ -76,7 +76,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
 
   async function fixture(native = false, provider: "codex" | "grok_bot" | "openai_dot" = "codex") {
     const [company] = await db.insert(companies).values({ name: "Runtime execution", issuePrefix: "EXE" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Executing agent", status: "running", adapterType: native ? "paperclip_runner" : "process", adapterConfig: provider === "codex" ? { provider } : { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: true, [provider === "grok_bot" ? "externalBindingId" : "dotBindingId"]: randomUUID() } }).returning();
+    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Executing agent", status: "running", adapterType: native ? "outpost_runner" : "process", adapterConfig: provider === "codex" ? { provider } : { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: true, [provider === "grok_bot" ? "externalBindingId" : "dotBindingId"]: randomUUID() } }).returning();
     const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Complete this task", assigneeAgentId: agent.id }).returning();
     const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id, scopeKind: "issue", status: "running", runtimeMode: native ? "native" : "legacy" }).returning();
     const state = createHeartbeatRunState(db);
@@ -88,7 +88,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
       taskPrompt: issue.title, workspace: { id: run.id, cwd: home, repoUrl: null, repoRef: null, branchName: null },
       normalizedSessionId: null, provider, runtimeContext: nativeRuntimeContextFixture(),
       dotBinding: { bindingId: randomUUID(), bindingGeneration: 1, companyId: company.id, agentId: agent.id, acceptByUnixMs: Date.now() + 60_000, expiresAtUnixMs: Date.now() + 120_000 },
-      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1", contract: { revision: "1", objective: issue.title, criteria: [{ id: "output", requirement: issue.title }] } },
+      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1", contract: { revision: "1", objective: issue.title, criteria: [{ id: "output", requirement: issue.title }] } },
     }) : null;
     const input: HeartbeatRuntimeExecutionInput = {
       run, agent, options: {},
@@ -136,8 +136,8 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
       const completion = buildNativeCompletionContract(issue, { revision: contract.revision });
       await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: issue.id, phase: "observed" });
       const execution: NativeExecutionInputV1 = {
-        schema: "paperclip.native-execution-input.v1", interactionResponses: [], credentialBindings: [], binding: { companyId: run.companyId, agentId: run.agentId, issueId: issue.id, runId: run.id, executionWorkspaceId: run.id },
-        completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1", contract: completion },
+        schema: "outpost.native-execution-input.v1", interactionResponses: [], credentialBindings: [], binding: { companyId: run.companyId, agentId: run.agentId, issueId: issue.id, runId: run.id, executionWorkspaceId: run.id },
+        completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1", contract: completion },
         provider: { kind: "codex", model: "test-model" },
         task: { identifier: issue.id, title: issue.title, description: null, prompt: "Local post-result fault", workMode: "standard" },
         workspace: { cwd: home, repoUrl: null, repoRef: null, branchName: null },
@@ -146,7 +146,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
       input.runtime.nativeExecution = execution;
       input.runtime.nativeRunnerInstanceId = prepared.runnerInstanceId;
       input.workspace.nativeWorkspaceSync = { mode: "host_current", reference: {
-        schema: "paperclip.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
+        schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId: run.id, leaseId: randomUUID(), providerLeaseId: "controlled-local", remoteCwd: home, resourceDisposition: null },
         restoreWorkspace: vi.fn(async () => {}), cleanup: vi.fn(async () => {}) };
       const diagnosticExpected = ["current", "stopped", "unknown-code", "permission", "io", "diagnostic-sink-failed"].includes(scenario);
@@ -206,7 +206,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
       postResultProvider.execute.mockReset().mockImplementationOnce(async (options: { controlPlane: ControlPlanePort }) => {
         await options.controlPlane.openRun({ identity: { companyId: run.companyId, issueId: issue.id, runId: run.id, agentId: run.agentId, sessionId: prepared.normalizedSessionId }, backendKind: "mock", sourceInstanceId: prepared.runnerInstanceId });
         await options.controlPlane.completeRun({ result: { ...CONTROL_PLANE_CONFORMANCE_RESULT, completionClaim: { ...CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim, contractRevision: completion.revision } },
-          terminal: { schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: prepared.turnId });
+          terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: prepared.turnId });
         const [owner] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
         const controller = await currentNativeControllerIdentity();
         expect(owner).toMatchObject({ phase: "workspace_finalizing", attempt: 1, controllerGeneration: 1, controllerBootId: controller.bootId, controllerPid: controller.pid, controllerProcessStartedAt: controller.processStartedAt });
@@ -298,8 +298,8 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     const completion = buildNativeCompletionContract(issue, { revision: contract.revision });
     await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: issue.id, phase: "observed" });
     input.runtime.nativeExecution = {
-      schema: "paperclip.native-execution-input.v1", interactionResponses: [], credentialBindings: [], binding: { companyId: run.companyId, agentId: run.agentId, issueId: issue.id, runId: run.id, executionWorkspaceId: run.id },
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1", contract: completion },
+      schema: "outpost.native-execution-input.v1", interactionResponses: [], credentialBindings: [], binding: { companyId: run.companyId, agentId: run.agentId, issueId: issue.id, runId: run.id, executionWorkspaceId: run.id },
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1", contract: completion },
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: issue.id, title: issue.title, description: null, prompt: "Local runner settlement fault", workMode: "standard" },
       workspace: { cwd: home, repoUrl: null, repoRef: null, branchName: null },
@@ -309,7 +309,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     postResultProvider.execute.mockReset().mockImplementationOnce(async (options: { controlPlane: ControlPlanePort }) => {
       await options.controlPlane.openRun({ identity: { companyId: run.companyId, issueId: issue.id, runId: run.id, agentId: run.agentId, sessionId: prepared.normalizedSessionId }, backendKind: "mock", sourceInstanceId: prepared.runnerInstanceId });
       await options.controlPlane.completeRun({ result: { ...CONTROL_PLANE_CONFORMANCE_RESULT, completionClaim: { ...CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim, contractRevision: completion.revision } },
-        terminal: { schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: prepared.turnId });
+        terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: prepared.turnId });
       if (scenario === "terminal-unreadable") {
         await db.update(nativeRunResults).set({ resultJson: sql`${nativeRunResults.resultJson} - 'terminal'` }).where(eq(nativeRunResults.runId, run.id));
       }
@@ -372,8 +372,8 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     const completion = buildNativeCompletionContract(issue, { revision: contract.revision });
     await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: issue.id, phase: "observed" });
     input.runtime.nativeExecution = {
-      schema: "paperclip.native-execution-input.v1", interactionResponses: [], credentialBindings: [], binding: { companyId: run.companyId, agentId: run.agentId, issueId: issue.id, runId: run.id, executionWorkspaceId: run.id },
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1", contract: completion },
+      schema: "outpost.native-execution-input.v1", interactionResponses: [], credentialBindings: [], binding: { companyId: run.companyId, agentId: run.agentId, issueId: issue.id, runId: run.id, executionWorkspaceId: run.id },
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1", contract: completion },
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: issue.id, title: issue.title, description: null, prompt: "Local post-result I/O fault", workMode: "standard" },
       workspace: { cwd: home, repoUrl: null, repoRef: null, branchName: null },
@@ -383,7 +383,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     postResultProvider.execute.mockReset().mockImplementationOnce(async (options: { controlPlane: ControlPlanePort }) => {
       await options.controlPlane.openRun({ identity: { companyId: run.companyId, issueId: issue.id, runId: run.id, agentId: run.agentId, sessionId: prepared.normalizedSessionId }, backendKind: "mock", sourceInstanceId: prepared.runnerInstanceId });
       await options.controlPlane.completeRun({ result: { ...CONTROL_PLANE_CONFORMANCE_RESULT, completionClaim: { ...CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim, contractRevision: completion.revision } },
-        terminal: { schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: prepared.turnId });
+        terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: prepared.turnId });
       await readFile(join(home, `missing-${run.id}`, "harmless-checkpoint"));
       throw new Error("fixture must fail with ENOENT");
     });
@@ -588,7 +588,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     const { input, run } = await fixture(true);
     await db.update(heartbeatRuns).set({ nativeIssueId: input.task.issueId }).where(eq(heartbeatRuns.id, run.id));
     await db.insert(nativeRunFinalizations).values({ companyId: run.companyId, issueId: input.task.issueId!, runId: run.id, phase: "retryable_failure" });
-    const error = new Error('native_session_recovery_failed: Error: PRP command run.attach failed: {"result":{"message":"run.attach requires a settled Codex provider session: active_turn"}}');
+    const error = new Error('native_session_recovery_failed: Error: ORP command run.attach failed: {"result":{"message":"run.attach requires a settled Codex provider session: active_turn"}}');
     vi.mocked(executePaperclipNativeSession).mockRejectedValueOnce(error);
     await expect(executeHeartbeatRuntime(db, input)).rejects.toMatchObject({ name: "NativeSessionResumeScheduledError", original: error });
     expect(input.output.onLog).toHaveBeenCalledWith("stderr", expect.stringContaining("doc/execution-semantics.md#session-settlement-after-a-run"));
@@ -624,7 +624,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     });
     input.workspace.nativeWorkspaceSync = {
       mode: "host_current",
-      reference: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+      reference: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId: run.id, leaseId: randomUUID(), providerLeaseId: "sandbox", remoteCwd: "/workspace", resourceDisposition: null },
       restoreWorkspace: restore,
@@ -704,7 +704,7 @@ describe.skipIf(!support.supported)("heartbeat runtime execution boundary", () =
     const { input, run } = await fixture(true, provider);
     input.workspace.nativeWorkspaceSync = {
       mode: "host_current",
-      reference: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+      reference: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId: run.id, leaseId: randomUUID(), providerLeaseId: "sandbox", remoteCwd: "/workspace", resourceDisposition: "destroy" },
       restoreWorkspace: vi.fn(), cleanup: vi.fn(),

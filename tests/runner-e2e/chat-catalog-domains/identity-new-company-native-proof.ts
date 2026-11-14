@@ -46,17 +46,17 @@ export function requireNativeFirstAgentProof(input: {
   const { company, agent, humanId, environment, savedSetupAgentId, probes, hires, connection, accounts, grants, installs } = input;
   const binding = agent.runtimeConfig.aiConnection;
   const matches = (request: NativeSetupRequest) => request.companyId === company.id && request.agentId === savedSetupAgentId
-    && request.environmentId === environment.id && request.adapterType === "paperclip_runner" && request.provider === "opencode"
+    && request.environmentId === environment.id && request.adapterType === "outpost_runner" && request.provider === "opencode"
     && request.model === NEW_COMPANY_NATIVE_MODEL && request.containsCredential === false
     && request.binding?.provider === "openrouter" && request.binding.method === "api_key" && request.binding.mode === "delegated"
     && request.binding.connectionId === connection.connectionId && request.binding.grantId === connection.grantId;
   if (environment.driver !== "local" || !environment.id || probes.length !== 1 || hires.length !== 1
-    || !matches(probes[0]!) || probes[0]!.httpStatus !== 200 || probes[0]!.resultAdapterType !== "paperclip_runner" || probes[0]!.status !== "pass"
+    || !matches(probes[0]!) || probes[0]!.httpStatus !== 200 || probes[0]!.resultAdapterType !== "outpost_runner" || probes[0]!.status !== "pass"
     || probes[0]!.checks.some(check => check.level === "error") || !probes[0]!.checks.some(check => check.code === "opencode_hello_probe_passed")
     || !Number.isInteger(probes[0]!.sequence) || probes[0]!.sequence < 1 || !Number.isInteger(hires[0]!.sequence) || probes[0]!.sequence >= hires[0]!.sequence
     || !matches(hires[0]!) || hires[0]!.httpStatus < 200 || hires[0]!.httpStatus >= 300 || hires[0]!.resultAgentId !== savedSetupAgentId)
     throw new Error("New company requires one current same-agent native OpenCode account/model/local-target test and hire");
-  if (agent.id !== savedSetupAgentId || agent.companyId !== company.id || agent.role !== "ceo" || agent.adapterType !== "paperclip_runner"
+  if (agent.id !== savedSetupAgentId || agent.companyId !== company.id || agent.role !== "ceo" || agent.adapterType !== "outpost_runner"
     || agent.adapterConfig.provider !== "opencode" || agent.adapterConfig.model !== NEW_COMPANY_NATIVE_MODEL
     || agent.defaultEnvironmentId !== environment.id || agent.lifecycleState !== "ready" || !["idle", "active"].includes(agent.status)
     || agent.runtimeConfig.heartbeat?.enabled !== false

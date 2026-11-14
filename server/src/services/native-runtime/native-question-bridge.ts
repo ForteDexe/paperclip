@@ -1,20 +1,20 @@
 import { notifyLiveRunRecovery } from "../live-run-recovery-notifications.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
-import { heartbeatRuns, issueThreadInteractions } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRuns, issueThreadInteractions } from "@outpost/db";
 import type {
   AskUserQuestionsInteraction,
   RespondIssueThreadInteraction,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
-import { questionSetToAskUserQuestionsPayload } from "@paperclipai/shared";
+import { questionSetToAskUserQuestionsPayload } from "@outpost/shared";
 
-import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import {
   parsePaperclipQuestionSet,
   type PaperclipQuestionSet,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import { logger } from "../../middleware/logger.js";
 import { unprocessable } from "../../errors.js";
 import { logActivity } from "../activity-log.js";
@@ -24,7 +24,7 @@ import type { NativeRunStoreBinding } from "./native-run-coordinator-store.js";
 
 import { parseQuestionInteractionAnswers, parseSavedQuestionInteractionAnswers } from "../question-interaction-answers.js";
 
-const QUESTION_KEY_PREFIX = "paperclip-runner-question:";
+const QUESTION_KEY_PREFIX = "outpost-runner-question:";
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 export const NATIVE_QUESTION_CANCELLATION_CONTEXT_KEY = "nativeQuestionCancellation";
 
@@ -130,7 +130,7 @@ export async function projectNativeRuntimeRequest(input: {
   const request = record(record(input.event.payload)?.request);
   if (
     !request
-    || request.schema !== "paperclip.runtime_request.v2"
+    || request.schema !== "outpost.runtime_request.v2"
     || request.status !== "pending"
     || typeof request.requestId !== "string"
     || !REQUEST_ID_PATTERN.test(request.requestId)
@@ -240,7 +240,7 @@ export async function validateNativeQuestionResponseInput(
   }
 }
 
-/** Queue an answered interaction into the active durable PRP command stream. */
+/** Queue an answered interaction into the active durable ORP command stream. */
 export async function deliverNativeQuestionResponse(
   db: Db,
   interaction: AskUserQuestionsInteraction,

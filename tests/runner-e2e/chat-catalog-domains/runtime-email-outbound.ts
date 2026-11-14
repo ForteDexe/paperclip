@@ -45,9 +45,9 @@ export function outboundOrdinaryHandoff(input: { companyId: string; sourceId: st
    && row.contextSnapshot.wakeSource === "assignment" && row.contextSnapshot.wakeReason === "issue_assigned");
   if (admitted.length !== 1) return [];
   const producer = admitted[0]!.contextSnapshot?.source;
-  const protocol = producer === "paperclip_runner.create_task" && admitted[0]!.contextSnapshot?.parentIssueId === (work.parentId ?? null) && work.originId?.startsWith(`paperclip-runner:create-task:${sourceId}:`)
-   && work.originId.length > `paperclip-runner:create-task:${sourceId}:`.length && /^[a-f0-9]{64}$/.test(work.originFingerprint ?? "")
-   && created.some(row => row.details?.source === "paperclip_runner_protocol");
+  const protocol = producer === "outpost_runner.create_task" && admitted[0]!.contextSnapshot?.parentIssueId === (work.parentId ?? null) && work.originId?.startsWith(`outpost-runner:create-task:${sourceId}:`)
+   && work.originId.length > `outpost-runner:create-task:${sourceId}:`.length && /^[a-f0-9]{64}$/.test(work.originFingerprint ?? "")
+   && created.some(row => row.details?.source === "outpost_runner_protocol");
   const publicIssueCreate = producer === "issue.create" && created.some(row => row.details?.source === undefined);
   return protocol || publicIssueCreate ? [{ work, run: admitted[0]!, canonical: canonical[0]! }] : [];
  });
@@ -60,7 +60,7 @@ export function outboundThreadMatches(thread: EmailThreadSummary, emailTask: Ent
 const requirement = externalRequirements["chat-channels.outbound-email"]!;
 export const runtimeOutboundEmailCases = [runtimeDefinition("chat-channels.outbound-email", async ctx => {
  try {
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, attemptId = process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID; if (!root || !attemptId) throw new Error("Exact owned receipt duplicate server hook is required before provider setup");
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT, attemptId = process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID; if (!root || !attemptId) throw new Error("Exact owned receipt duplicate server hook is required before provider setup");
   const installed = readOwnedEmailDuplicate<{ executionId: string; attemptId: string; pid: number }>(root, "installed.json"); if (installed.executionId !== ctx.input.execution.id || installed.attemptId !== attemptId || !Number.isSafeInteger(installed.pid)) throw new Error("Selected outbound receipt duplicate hook does not bind this exact attempt");
   const source = await openStandingChat(ctx), connection = await prepareOwnedEmailConnection(ctx), nonce = randomUUID(), marker = `Launch draft ${nonce}`, draft = `${marker}\nAcorn helps independent teams launch accessible product pages. The launch page introduces the product, explains the lightweight workflow, and invites readers to join the early-access list. The launch date is November 12 and the public contact is launch@example.test.`;
   await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${source.id}`, { waitUntil: "domcontentloaded" });
@@ -94,7 +94,7 @@ export const runtimeOutboundEmailCases = [runtimeDefinition("chat-channels.outbo
   s.normalTaskBound = !!sent.handoff && sent.handoff.work.id === work.id && sent.handoff.run.id === run.id;
   const events = run ? await collectRunEvents<{ seq?: number; eventType?: string; payload?: unknown }>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : []; s.actualNativeSendBound = actualOriginalEmailSend(events, { companyId, taskId: work.id, endpointId, publicationId: publication.id });
   const direct = await inspectOwnedEmailPublication(ctx, publication, String(s.startedAt)); s.independentProviderCount = direct.matchedSent?.length; s.originalProviderReceiptMatched = direct.originalMessageMatched;
-  const duplicateRequest = duplicateRequests.get(ctx)!, root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!;
+  const duplicateRequest = duplicateRequests.get(ctx)!, root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!;
   const duplicate = await pollUntil({ label: "Actual authentic sent-receipt network duplicate observed", deadlineAt: Date.now() + 30000, load: async () => { try { return readOwnedEmailDuplicate<EmailDuplicateReceipt>(root, "receipt.json"); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; } }, accept: row => !!row });
   s.authenticDuplicateBound = duplicate?.executionId === duplicateRequest.executionId && duplicate.attemptId === duplicateRequest.attemptId && duplicate.nonce === duplicateRequest.nonce && duplicate.publicationId === publication.id && duplicate.providerMessageId === publication.providerMessageId && /^[a-f0-9]{64}$/.test(duplicate.authenticPayloadSha256) && duplicate.injectedDuplicateCount === 1 && !duplicate.expired;
   await ctx.input.evidence("outbound-authentic-network-duplicate.json", { ...duplicate, injection: "one identical actual official message.sent frame replayed once; no fabricated provider response" });
@@ -111,5 +111,5 @@ export const runtimeOutboundEmailCases = [runtimeDefinition("chat-channels.outbo
   (s.providerProbes as unknown[]).push(...[direct, last].map(row => ({ phase: "actual-outbound-provider-receipt", directProviderProbeCount: row.directProviderProbeCount, status: "verified", usage: "unavailable", cost: "unavailable" })));
  },
  async verifyResult(ctx, s) { const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${s.emailTaskId}`, { waitUntil: "domcontentloaded" }); const task = await ctx.input.api.get<Entity>(`/api/issues/${s.emailTaskId}`); await expect(ctx.input.page.getByTestId("issue-detail-header").getByRole("heading", { name: task.title!, exact: true })).toBeVisible(); await ctx.input.capture("actual-outbound-email-thread", "The task-bound launch email and actual provider result", "outbound-email-thread.png"); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
- async cleanup(ctx) { try { const r = duplicateRequests.get(ctx); if (r) await releaseOwnedEmailReceiptDuplicate(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!, r); } finally { duplicateRequests.delete(ctx); await cleanupOwnedEmailConnection(ctx); } },
+ async cleanup(ctx) { try { const r = duplicateRequests.get(ctx); if (r) await releaseOwnedEmailReceiptDuplicate(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!, r); } finally { duplicateRequests.delete(ctx); await cleanupOwnedEmailConnection(ctx); } },
 })];

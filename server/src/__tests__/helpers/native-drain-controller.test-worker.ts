@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { closeRegisteredClients, createDb, heartbeatRunEvents } from "@paperclipai/db";
+import { closeRegisteredClients, createDb, heartbeatRunEvents } from "@outpost/db";
 import { registerLocalRuntimeApiServer } from "../../runtime-api.js";
 import { setStartupRecoveryPhase } from "../../startup-recovery-state.js";
 import { heartbeatService } from "../../services/heartbeat.js";

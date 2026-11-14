@@ -1,5 +1,5 @@
 import { and, eq, gt, like, sql } from "drizzle-orm";
-import { heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { currentControllerProcessStamp, readControllerProcess, type ControllerProcess } from "../controller-process-identity.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 import { notifyNativeFinalizationWork } from "../native-finalization-notifications.js";

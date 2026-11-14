@@ -11,7 +11,7 @@ vi.mock("./native-runner-checkpoint.js", () => ({
     const parsed = JSON.parse(state) as { identity: unknown; commands: Array<{ controllerSeq: number }> };
     return {
       recoveryEvidence: { normalizedSessionId: "session" },
-      records: new Map<string, string>([["header", JSON.stringify({ schema: "paperclip.runner.controller-checkpoint.v2", state: { identity: parsed.identity } })],
+      records: new Map<string, string>([["header", JSON.stringify({ schema: "outpost.runner.controller-checkpoint.v2", state: { identity: parsed.identity } })],
         ...parsed.commands.map(entry => [`command:${entry.controllerSeq}`, JSON.stringify(entry)] as [string, string])]),
       restoreSessionDirectory(root: string) {
         mkdirSync(join(root, "control-plane"), { recursive: true });
@@ -29,20 +29,20 @@ const identity = { runId: "run-a", runnerInstanceId: "runner", environmentLeaseI
 const drainId = `command_close_drain_${"d".repeat(32)}`;
 const suspendId = `command_close_suspend_${"e".repeat(32)}`;
 
-function command(controllerSeq: number, type: string, commandId = `command_prp_${String(controllerSeq).padStart(8, "0")}`) {
-  return { schema: "paperclip.prp.command.v1", commandId, controllerSeq, type, issuedAt: "2026-11-11T00:00:00.000Z",
+function command(controllerSeq: number, type: string, commandId = `command_orp_${String(controllerSeq).padStart(8, "0")}`) {
+  return { schema: "outpost.orp.command.v1", commandId, controllerSeq, type, issuedAt: "2026-11-11T00:00:00.000Z",
     payload: {}, status: "completed", result: null };
 }
 
 function control(commands: ReturnType<typeof command>[]) {
-  return JSON.stringify({ schema: "paperclip.runner.durable.control-plane-state.v1", identity, commands, committedEvents: [] });
+  return JSON.stringify({ schema: "outpost.runner.durable.control-plane-state.v1", identity, commands, committedEvents: [] });
 }
 
 const opened = [command(1, "run.prepare"), command(2, "session.open"), command(3, "turn.start")];
 const closed = [...opened, command(4, "runner.drain", drainId), command(5, "runner.suspend", suspendId)];
 
 function runner(processed: Array<{ commandId: string; controllerSeq: number; commandType: string; status?: string }>) {
-  return { schema: "paperclip.runner.durable.state.v1", ...identity, lifecycle: "suspended",
+  return { schema: "outpost.runner.durable.state.v1", ...identity, lifecycle: "suspended",
     lastControllerCommandSeq: Math.max(...processed.map(entry => entry.controllerSeq)),
     processedCommands: Object.fromEntries(processed.map(entry => [entry.commandId, { status: "completed", ...entry }])) };
 }
@@ -81,7 +81,7 @@ describe("warm controller journal", () => {
   });
 
   it("leaves another run's projection and a marker untouched", async () => {
-    writeFileSync(statePath, JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1", identity }));
+    writeFileSync(statePath, JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity }));
     checkpoints.set("run-a", control(closed));
     await expect(refreshRetiredWarmOwnerProjection(input())).resolves.toBe("unchanged");
     writeFileSync(statePath, control(opened));

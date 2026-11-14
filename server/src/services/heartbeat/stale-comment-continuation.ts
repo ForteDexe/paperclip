@@ -1,4 +1,4 @@
-import { activityLog, agentWakeupRequests, heartbeatRuns, issueComments, type Db } from "@paperclipai/db";
+import { activityLog, agentWakeupRequests, heartbeatRuns, issueComments, type Db } from "@outpost/db";
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { saveUndeliveredUserComments, taskClosedByAgentSql } from "../work-intent-outbox.js";
 

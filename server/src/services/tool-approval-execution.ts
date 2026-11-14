@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { toolActionRequests, toolInvocations, type Db } from "@paperclipai/db";
-import type { ToolRedactedValueSummary } from "@paperclipai/shared";
+import { toolActionRequests, toolInvocations, type Db } from "@outpost/db";
+import type { ToolRedactedValueSummary } from "@outpost/shared";
 import { notifyToolReviewChange } from "./tool-review-work-notifications.js";
 import { TOOL_APPROVAL_CONNECTION_MESSAGE, TOOL_APPROVAL_CONNECTION_REQUIRED } from "./tool-approval-connection.js";
 

@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
-import { agentWakeupRequests, heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { agentWakeupRequests, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { notifyExternalConversationSettlement } from "../external-conversation-settlement-notifications.js";
 import { notifyStrandedAgentStatus } from "../live-run-recovery-notifications.js";
 import type { OwnerProof } from "../owner-proof.js";

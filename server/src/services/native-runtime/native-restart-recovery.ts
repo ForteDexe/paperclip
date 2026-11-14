@@ -7,7 +7,7 @@ import { readNativeSessionResumptionAgent, restoreNativeSessionExecution } from 
 import { notifyLiveRunRecovery } from "../live-run-recovery-notifications.js";
 import { NATIVE_RETAINED_OWNER_WAIT } from "./native-controller-recovery.js";
 import { notifyNativeEnvironmentSettlement } from "../native-environment-settlement-notifications.js";
-import { remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { notifyExternalAgentSettlement } from "../../modules/external-agents/index.js";
 import { notifyNativeStatusReassessment } from "../native-status-reassessment-notifications.js";
 import { notifyUnsafeWorkspaceExportRunChange } from "../unsafe-workspace-export-notifications.js";
@@ -28,7 +28,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   environmentLeases,
@@ -37,7 +37,7 @@ import {
   issues,
   issueRecoveryActions,
   nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { REMOTE_CONTROLLER_LEASE_MS } from "./native-runner-recovery-contract.js";
 import { PROVIDER_ATTEMPT_CREDIT_GENERATION_LIMIT, providerAttemptChargesBudget, providerAttemptWindowStart, readProviderAttemptOutcome } from "./provider-attempt-outcome.js";
 import { readProcessStartedAt } from "../hot-restart.js";
@@ -52,7 +52,7 @@ import { logger } from "../../middleware/logger.js";
 import { issueRecoveryActionService } from "../issue-recovery-actions.js";
 import { isNewTerminalRunFailure, reportRunFailure } from "../run-failure-report.js";
 import { nativeControllerAuthorityDigest, isNativeRunnerOwnershipHeld, readNativeRemoteExecutionOwnership } from "./native-runner-ownership.js";
-import { nativeRestartContinuationInFlight, nativeRestartInterruptedTurnId, type PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+import { nativeRestartContinuationInFlight, nativeRestartInterruptedTurnId, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { retireSupersededNativeRetry } from "./native-superseded-retry.js";
 import { legacyWorkspaceRecoveryNotMigrated } from "../legacy-workspace-recovery-migration.js";
 import { requestNativeStartupCleanup, readNativeStartupContext, promoteNativeStartupCleanup } from "./native-startup-cleanup.js";
@@ -663,9 +663,9 @@ export function nativeProviderProcessIdentities(
     }
   }
   for (const providerEvent of providerEvents) {
-    const prpEvent = providerEvent.payload?.prpEvent;
-    const event = prpEvent && typeof prpEvent === "object" && !Array.isArray(prpEvent)
-      ? (prpEvent as Record<string, unknown>) : {};
+    const orpEvent = providerEvent.payload?.orpEvent;
+    const event = orpEvent && typeof orpEvent === "object" && !Array.isArray(orpEvent)
+      ? (orpEvent as Record<string, unknown>) : {};
     const eventPayload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
       ? (event.payload as Record<string, unknown>) : {};
     const processId = eventPayload.processId;
@@ -1017,7 +1017,7 @@ export async function surfaceNativeControllerNamespaceAttention(db: Db, input: {
       kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: input.run.agentId,
       cause: "native_restart_recovery_blocked", fingerprint,
       evidence: { runId: input.run.id, reason, executorStopEvidence: "unverified",
-        ...(!input.remoteProcess ? { controllerAuthority: { schema: "paperclip.native-controller-authority.v1",
+        ...(!input.remoteProcess ? { controllerAuthority: { schema: "outpost.native-controller-authority.v1",
           digest, leaseExpiresAt: input.coordinator.leaseExpiresAt!.toISOString() } } : {}) },
       nextAction: input.remoteProcess
         ? "Use the task's ordinary Stop action and its environment provider's stop/cleanup recovery. Wait for that exact controller/provider acknowledgement. Local PID checks and local containment confirmation cannot authorize remote recovery."
@@ -1069,7 +1069,7 @@ export async function claimNativeRestartRecoveries(input: {
       and(
         eq(heartbeatRuns.runtimeMode, "native"),
         legacyWorkspaceRecoveryNotMigrated(),
-        eq(agents.adapterType, "paperclip_runner"),
+        eq(agents.adapterType, "outpost_runner"),
         or(inArray(heartbeatRuns.status, ["running", "failed"]), and(
           eq(heartbeatRuns.status, "interrupted"), eq(nativeRunFinalizations.phase, "observed"),
           sql`${heartbeatRuns.resultJson}->'nativeCancellation'->>'dispatchState' = 'pending'`,

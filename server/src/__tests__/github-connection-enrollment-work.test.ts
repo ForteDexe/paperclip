@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { setImmediate as yieldForIo } from "node:timers/promises";
 import { createCipheriv, createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes, randomUUID, verify } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { companies, connectionEventDeliveries, connectionGrants, createDb, toolApplications, toolConnections } from "@paperclipai/db";
+import { companies, connectionEventDeliveries, connectionGrants, createDb, toolApplications, toolConnections } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { githubConnectionEventService } from "../services/github-connection-events.js";
@@ -29,8 +29,8 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("enrolls without recreation, drains an authenticated event, forgets removed identity and re-enrolls from quiet", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "github-live-enrollment-"));
-    const previous = { home: process.env.PAPERCLIP_HOME, instance: process.env.PAPERCLIP_INSTANCE_ID };
-    process.env.PAPERCLIP_HOME = root; process.env.PAPERCLIP_INSTANCE_ID = "enrollment-worker";
+    const previous = { home: process.env.OUTPOST_HOME, instance: process.env.OUTPOST_INSTANCE_ID };
+    process.env.OUTPOST_HOME = root; process.env.OUTPOST_INSTANCE_ID = "enrollment-worker";
     let server: Server | undefined;
     let worker: ReturnType<typeof registerGitHubConnectionEventWork> | undefined;
     let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
@@ -88,7 +88,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: app!.id, uid: randomUUID(), name: "GitHub", status: "active", enabled: true, transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", config: { sourceTemplateKey: "github", oauth: { connectorProfile: "github.code" } }, transportConfig: {} }).returning();
       const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId: connection!.id, kind: "user", subjectUserId: "owner", status: "active", providerTenant: { github: { userId: "42", login: "octocat", installationIds: ["101"], installationCount: 1, repositoryCount: 0, repositorySelection: "all", installationOwnerLogins: [], webhookHealth: "unhealthy" } } }).returning();
       grantId = grant!.id;
-      const env = { PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: origin, PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: "test" };
+      const env = { OUTPOST_CLOUD_CONNECTOR_BASE_URL: origin, OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "test" };
       const service = githubConnectionEventService(db, { env });
       const reserved: Awaited<ReturnType<typeof db.$client.reserve>>[] = [];
       try {
@@ -167,8 +167,8 @@ const support = await getEmbeddedPostgresTestSupport();
       releaseReplacementAck();
       await worker?.stop(); await coordinator?.stop(); vi.restoreAllMocks(); vi.useRealTimers();
       if (server) { const closed = once(server, "close"); server.close(); server.closeAllConnections(); await closed; }
-      if (previous.home === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previous.home;
-      if (previous.instance === undefined) delete process.env.PAPERCLIP_INSTANCE_ID; else process.env.PAPERCLIP_INSTANCE_ID = previous.instance;
+      if (previous.home === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previous.home;
+      if (previous.instance === undefined) delete process.env.OUTPOST_INSTANCE_ID; else process.env.OUTPOST_INSTANCE_ID = previous.instance;
       await rm(root, { recursive: true, force: true });
     }
   }, 30_000);

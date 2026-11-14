@@ -1,7 +1,7 @@
 import { slackFormRetirementReceipt } from "./ack-retirement-receipt.js";
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { expect, it } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { CAPABILITIES } from "../provider-catalog.js";
 import { verifyCloudControlAssertion, CLOUD_CONTROL_AUDIENCE, CLOUD_CONTROL_JWS_TYPE } from "../../cloud-runtime-identity.js";
 import type { IdleCapabilities, VerifiedIdleCapabilities } from "../../idle-incoming-wake-capability.js";
@@ -18,7 +18,7 @@ function verifiedPartial(): VerifiedIdleCapabilities {
   const body = encode({ alg: "EdDSA", typ: CLOUD_CONTROL_JWS_TYPE, kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: CLOUD_CONTROL_AUDIENCE,
     sub: binding.instanceId, action: "task-drain:read", requestId: randomUUID(), iat: now, exp: now + 60, idleCapabilities: caps });
   const claims = verifyCloudControlAssertion({ compactJws: body + "." + sign(null, Buffer.from(body), key.privateKey).toString("base64url"), expectedAction: "task-drain:read",
-    env: { PAPERCLIP_CLOUD_STACK_ID: binding.instanceId, PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...key.publicKey.export({ format: "jwk" }), kid, use: "sig", alg: "EdDSA" }] }) } });
+    env: { OUTPOST_CLOUD_STACK_ID: binding.instanceId, OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...key.publicKey.export({ format: "jwk" }), kid, use: "sig", alg: "EdDSA" }] }) } });
   if (!claims.idleCapabilities) throw new Error("Actual signed idle capability absent");
   return claims.idleCapabilities as VerifiedIdleCapabilities;
 }

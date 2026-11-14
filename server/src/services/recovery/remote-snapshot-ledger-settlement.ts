@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, workspaceOperations, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, workspaceOperations, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { persistActivity, publishActivity, type ActivityPublication } from "../activity-log.js";
 import type { OwnerProof } from "../owner-proof.js";
 import { readSaveWork } from "../remote-workspaces.js";
@@ -42,7 +42,7 @@ export async function retireEndedRemoteSnapshotLedgerRow(tx: Db, input: {
   const uploads = snapshot.metadata?.uploads;
   const attempted = Array.isArray(uploads) ? uploads.length > 0 : uploads !== undefined && uploads !== null;
   const status = attempted ? "delete_requested" as const : "deleted" as const;
-  const provenance = { schema: "paperclip.remote-snapshot-ledger-abandonment.v1", reason: ABANDONED_REMOTE_SNAPSHOT_LEDGER_REASON,
+  const provenance = { schema: "outpost.remote-snapshot-ledger-abandonment.v1", reason: ABANDONED_REMOTE_SNAPSHOT_LEDGER_REASON,
     proof: input.proof, previousStatus: snapshot.status, runId: snapshot.sourceRunId, operationId: snapshot.sourceOperationId,
     epoch: snapshot.epoch, workspaceEpoch: authority?.epoch ?? null, uploadAttempted: attempted, reconciledAt: input.now.toISOString() };
   await notifyRemoteWorkspaceSnapshots(tx, `workspace:${snapshot.executionWorkspaceId}`);

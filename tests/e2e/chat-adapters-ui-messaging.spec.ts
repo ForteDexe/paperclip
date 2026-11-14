@@ -249,7 +249,7 @@ test.describe("Board send delivery refresh", () => {
         await expect
           .poll(() =>
             page.evaluate(() =>
-              localStorage.getItem("paperclip.selectedCompanyId"),
+              localStorage.getItem("outpost.selectedCompanyId"),
             ),
           )
           .toBe(selected.companyId);
@@ -341,7 +341,7 @@ test.describe("Board send delivery refresh", () => {
         await expect
           .poll(() =>
             page.evaluate(() =>
-              localStorage.getItem("paperclip.selectedCompanyId"),
+              localStorage.getItem("outpost.selectedCompanyId"),
             ),
           )
           .toBe(target.companyId);

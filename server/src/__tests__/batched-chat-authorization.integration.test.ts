@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints, chatExternalPrincipals,
-  chatIdentityLinks, chatMessageLinks, companyMemberships, createDb, issueComments, type Db } from "@paperclipai/db";
+  chatIdentityLinks, chatMessageLinks, companyMemberships, createDb, issueComments, type Db } from "@outpost/db";
 import { seedBoundChatAuthorization } from "./helpers/bound-chat-authorization.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { authorizeChatConversationForBoundRun, authorizeChatConversationsForBoundRuns,
@@ -160,7 +160,7 @@ describe("batched bound-chat authorization", () => {
     await expect(single(invalid)).rejects.toThrow();
     await expect(authorizeChatConversationsForBoundRuns(db, f.companyId, [run(), invalid])).rejects.toThrow();
     await expect(authorizeChatConversationsForBoundRuns(db, randomUUID(), [run()]))
-      .rejects.toThrow("paperclip_runner_chat_authorization_batch_company_mismatch");
+      .rejects.toThrow("outpost_runner_chat_authorization_batch_company_mismatch");
   });
 
   it("reads the messages of all runs with one statement", async () => {

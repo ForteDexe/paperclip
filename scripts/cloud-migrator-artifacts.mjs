@@ -75,7 +75,7 @@ function packedMigrations(dbBytes) {
 
 /**
  * Whether each packed migration can be applied while the previous release is
- * still running. `classify` is classifyMigrationSequence from @paperclipai/db:
+ * still running. `classify` is classifyMigrationSequence from @outpost/db:
  * it takes the SQL of every migration in apply order. The overrides it honours
  * come only from the packed SQL itself.
  */
@@ -141,23 +141,23 @@ function assertCompatibilityMatchesPackage(manifest, dbBytes) {
 export function assertLockfile(lock, manifest) {
   const version = manifest.packageVersion;
   if (lock?.lockfileVersion !== 3 || !lock.packages || Array.isArray(lock.packages) ||
-      JSON.stringify(lock.packages[""]?.dependencies) !== JSON.stringify({ "@paperclipai/db": version })) throw new Error("Invalid migrator lockfile root.");
+      JSON.stringify(lock.packages[""]?.dependencies) !== JSON.stringify({ "@outpost/db": version })) throw new Error("Invalid migrator lockfile root.");
   for (const name of names) {
-    const pin = lock.packages[`node_modules/@paperclipai/${name}`];
+    const pin = lock.packages[`node_modules/@outpost/${name}`];
     const expected = manifest.packages[name];
     if (pin?.version !== version || pin.integrity !== expected.integrity || pin.resolved !== expected.url || pin.link || pin.inBundle) throw new Error("Migrator lockfile package pin mismatch.");
   }
-  if (lock.packages["node_modules/@paperclipai/db"].dependencies?.["@paperclipai/shared"] !== version) throw new Error("Migrator shared dependency mismatch.");
+  if (lock.packages["node_modules/@outpost/db"].dependencies?.["@outpost/shared"] !== version) throw new Error("Migrator shared dependency mismatch.");
   for (const [key, entry] of Object.entries(lock.packages)) {
     if (key === "") continue;
     if (!entry || typeof entry !== "object" || entry.link) throw new Error("Invalid migrator lockfile entry.");
-    if (/(?:^|\/)node_modules\/@paperclipai\/[^/]+$/.test(key) && !names.some((name) => key === `node_modules/@paperclipai/${name}`)) throw new Error("Unexpected internal migrator dependency.");
+    if (/(?:^|\/)node_modules\/@paperclipai\/[^/]+$/.test(key) && !names.some((name) => key === `node_modules/@outpost/${name}`)) throw new Error("Unexpected internal migrator dependency.");
     if (entry.inBundle === true) {
-      if (!key.startsWith("node_modules/@paperclipai/db/node_modules/")) throw new Error("Unexpected bundled dependency.");
+      if (!key.startsWith("node_modules/@outpost/db/node_modules/")) throw new Error("Unexpected bundled dependency.");
       continue;
     }
     if (!/^sha512-[A-Za-z0-9+/]{86}==$/.test(entry.integrity ?? "")) throw new Error("Migrator dependency has no strong integrity pin.");
-    if (names.some((name) => key === `node_modules/@paperclipai/${name}`)) continue;
+    if (names.some((name) => key === `node_modules/@outpost/${name}`)) continue;
     const url = new URL(entry.resolved);
     if (url.origin !== "https://registry.npmjs.org" || url.username || url.password || url.search || url.hash) throw new Error("Migrator dependency must resolve to npm.");
   }
@@ -170,21 +170,21 @@ export function buildBundle(directory, sha, { exec = execFileSync, classify } = 
   const packages = {};
   for (const name of names) {
     const bytes = readFileSync(path.join(directory, `${name}.tgz`));
-    assertMetadata(tarManifest(bytes), `@paperclipai/${name}`, sha);
+    assertMetadata(tarManifest(bytes), `@outpost/${name}`, sha);
     packages[name] = descriptor(bytes, "tgz");
   }
   const scratch = mkdtempSync(path.join(os.tmpdir(), "cloud-migrator-lock-"));
   try {
     for (const name of names) copyFileSync(path.join(directory, `${name}.tgz`), path.join(scratch, `${name}.tgz`));
     const root = { name: "paperclip-migrator-install-root", version: "0.0.0", private: true,
-      dependencies: { "@paperclipai/db": "file:db.tgz", "@paperclipai/shared": "file:shared.tgz" } };
+      dependencies: { "@outpost/db": "file:db.tgz", "@outpost/shared": "file:shared.tgz" } };
     writeFileSync(path.join(scratch, "package.json"), JSON.stringify(root));
     exec("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org"], { cwd: scratch, stdio: "inherit", timeout: 180_000 });
     const lock = JSON.parse(readFileSync(path.join(scratch, "package-lock.json"), "utf8"));
     // Both new packages are local during resolution. npm ci subsequently uses
     // these immutable URLs, without looking up the new npm versions.
-    lock.packages[""].dependencies = { "@paperclipai/db": versionFor(sha) };
-    for (const name of names) lock.packages[`node_modules/@paperclipai/${name}`].resolved = packages[name].url;
+    lock.packages[""].dependencies = { "@outpost/db": versionFor(sha) };
+    for (const name of names) lock.packages[`node_modules/@outpost/${name}`].resolved = packages[name].url;
     const lockBytes = Buffer.from(JSON.stringify(lock) + "\n");
     const dbBytes = readFileSync(path.join(directory, "db.tgz"));
     const manifest = { version: 1, sourceSha: sha, packageVersion: versionFor(sha), packages, lockfile: descriptor(lockBytes, "json"),
@@ -208,7 +208,7 @@ export function validateBundle(directory, sha) {
   for (const name of names) {
     const bytes = readFileSync(path.join(directory, `${name}.tgz`));
     verifyBytes(bytes, manifest.packages[name]);
-    assertMetadata(tarManifest(bytes), `@paperclipai/${name}`, sha);
+    assertMetadata(tarManifest(bytes), `@outpost/${name}`, sha);
     if (name === "db") assertCompatibilityMatchesPackage(manifest, bytes);
   }
   const bytes = readFileSync(path.join(directory, "package-lock.json"));
@@ -227,15 +227,15 @@ export function verifyInstall(directory, sha, { exec = execFileSync } = {}) {
       copyFileSync(path.join(directory, `${name}.tgz`), path.join(scratch, `${name}.tgz`));
       // The public objects do not exist yet. Only transport changes for this
       // smoke install; exact versions, integrity, root and transitive pins stay.
-      lock.packages[`node_modules/@paperclipai/${name}`].resolved = `file:${name}.tgz`;
+      lock.packages[`node_modules/@outpost/${name}`].resolved = `file:${name}.tgz`;
     }
     writeFileSync(path.join(scratch, "package.json"), JSON.stringify({ name: "paperclip-migrator-install-root", version: "0.0.0", private: true,
-      dependencies: { "@paperclipai/db": manifest.packageVersion } }));
+      dependencies: { "@outpost/db": manifest.packageVersion } }));
     writeFileSync(path.join(scratch, "package-lock.json"), JSON.stringify(lock));
     exec("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", "--update-notifier=false", "--cache", path.join(scratch, "empty-cache"),
       "--registry=https://registry.npmjs.org"], { cwd: scratch, stdio: "inherit", timeout: 180_000 });
-    for (const name of names) assertMetadata(JSON.parse(readFileSync(path.join(scratch, "node_modules", "@paperclipai", name, "package.json"), "utf8")), `@paperclipai/${name}`, sha);
-    exec(process.execPath, ["--input-type=module", "--eval", "await import('@paperclipai/db'); await import('@paperclipai/shared');"], { cwd: scratch, stdio: "inherit", timeout: 30_000 });
+    for (const name of names) assertMetadata(JSON.parse(readFileSync(path.join(scratch, "node_modules", "@paperclipai", name, "package.json"), "utf8")), `@outpost/${name}`, sha);
+    exec(process.execPath, ["--input-type=module", "--eval", "await import('@outpost/db'); await import('@outpost/shared');"], { cwd: scratch, stdio: "inherit", timeout: 30_000 });
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 }
 
@@ -266,7 +266,7 @@ export async function verifyPublished(sha, fetchImpl = fetch, { verifyProvenance
   await Promise.all(names.map(async (name) => {
     const bytes = await download(manifest.packages[name].url, fetchImpl);
     verifyBytes(bytes, manifest.packages[name]);
-    assertMetadata(tarManifest(bytes), `@paperclipai/${name}`, sha);
+    assertMetadata(tarManifest(bytes), `@outpost/${name}`, sha);
     if (name === "db" && manifest.migrationCompatibility !== undefined) assertCompatibilityMatchesPackage(manifest, bytes);
   }));
   const lock = await download(manifest.lockfile.url, fetchImpl);

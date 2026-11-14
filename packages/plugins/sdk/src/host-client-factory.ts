@@ -49,7 +49,7 @@
  */
 
 import { isDeepStrictEqual } from "node:util";
-import type { PluginCapability } from "@paperclipai/shared";
+import type { PluginCapability } from "@outpost/shared";
 import type { WorkerHostCallContext, WorkerToHostMethods, WorkerToHostMethodName } from "./protocol.js";
 import { PLUGIN_RPC_ERROR_CODES, validateProjectSnapshotRequest } from "./protocol.js";
 

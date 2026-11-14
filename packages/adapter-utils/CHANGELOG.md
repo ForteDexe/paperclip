@@ -1,4 +1,4 @@
-# @paperclipai/adapter-utils
+# @outpost/adapter-utils
 
 ## Unreleased
 

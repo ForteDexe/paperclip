@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { connectionGrants, toolConnections, type Db } from "@paperclipai/db";
+import { connectionGrants, toolConnections, type Db } from "@outpost/db";
 
 export const TOOL_APPROVAL_CONNECTION_REQUIRED = "approved_action_connection_required";
 export const TOOL_APPROVAL_CONNECTION_MESSAGE = "Your approval is saved. Reconnect the app to continue. Outpost will check the account and action again before it runs.";

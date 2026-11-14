@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../../__tests__/helpers/external-test-database.js";
@@ -13,7 +13,7 @@ import { legacyControllerBootId } from "../../../services/legacy-controller-leas
 import { PROCESS_START_REQUESTED } from "../../../services/native-local-process-stop.js";
 import { remoteTerminationReceipt } from "../../../services/remote-execution-termination.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_AGENT_LIFECYCLE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_AGENT_LIFECYCLE_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("pre-dispatch resource wait stop proof", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
@@ -28,7 +28,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const id = randomUUID();
     const [company] = await db.insert(companies).values({ name: "Resource wait", issuePrefix: `W${id.slice(0, 7)}` }).returning();
     const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Migrated agent",
-      adapterType: "paperclip_runner", status: "idle", lifecycleState: "ready" }).returning();
+      adapterType: "outpost_runner", status: "idle", lifecycleState: "ready" }).returning();
     const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
       status: "cancelled", invocationSource: "on_demand", errorCode, runtimeMode: "legacy", executionStage,
       startedAt: new Date("2000-01-01T00:00:00Z"), finishedAt: new Date("2000-01-01T00:00:01Z"),
@@ -84,7 +84,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["restore_unsafe_archive", "restore_lock_timeout"])("preserves an outstanding %s workspace obligation", async workspaceRestoreFailure => {
     const { agent, run } = await fixture();
     const [changed] = await db.update(heartbeatRuns).set({ resultJson: { ...run.resultJson, workspaceRestoreFailure,
-      workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1" } } }).where(eq(heartbeatRuns.id, run.id)).returning();
+      workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1" } } }).where(eq(heartbeatRuns.id, run.id)).returning();
     expect(await canRetryStoppedRun(db, changed)).toBe(false);
     expect(await agentExecutionsHaveStopped(db, [agent.id])).toBe(false);
   });

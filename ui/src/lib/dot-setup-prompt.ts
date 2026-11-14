@@ -1,4 +1,4 @@
-import { DOT_AGENT_TOOL_GUIDANCE } from "@paperclipai/shared/external-agent-guidance";
+import { DOT_AGENT_TOOL_GUIDANCE } from "@outpost/shared/external-agent-guidance";
 
 /** The live Dot connection prompt; callers supply an in-memory, expiring pairing code. */
 export function buildDotSetupPrompt({ companyId, agentId, resourceUrl, pairingCode, expiresAt }: {
@@ -24,7 +24,7 @@ This one-use code expires at ${expiresAt}. If it has expired, ask me for a fresh
 
 If you can obtain your own current avatar image, call paperclip_dot_set_avatar with its raw base64 PNG/JPEG/WebP bytes (at most 512 KiB) to use it as your Outpost avatar. Do not invent an avatar or block connection setup if the image is unavailable; you can set it later.
 
-Subscribe through MCP Events to paperclip.dot.mailbox_updated using Outpost ${companyId} and the binding ID returned by the inbox. Complete callback verification and follow the returned eventInstructions.
+Subscribe through MCP Events to outpost.dot.mailbox_updated using Outpost ${companyId} and the binding ID returned by the inbox. Complete callback verification and follow the returned eventInstructions.
 
 ${DOT_AGENT_TOOL_GUIDANCE}
 

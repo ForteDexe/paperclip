@@ -10,7 +10,7 @@ import {
   createDb,
   instanceUserRoles,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -23,7 +23,7 @@ import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "../m
 // statement. This proxy delays every client-to-server write by a fixed amount
 // so the number of sequential round trips shows up as wall time.
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_CLOUD_PROVISIONING_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_CLOUD_PROVISIONING_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -78,11 +78,11 @@ describeEmbeddedPostgres("cloud tenant actor round trips", () => {
     directDb = createDb(url);
     proxy = await startDelayProxy(new URL(url), ROUND_TRIP_DELAY_MS);
     slowDb = createDb(proxy.url);
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = SERVER_TOKEN;
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = SERVER_TOKEN;
   }, 30_000);
 
   afterAll(async () => {
-    delete process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
+    delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
     await directDb?.delete(activityLog);
     await directDb?.delete(principalPermissionGrants);
     await directDb?.delete(companyMemberships);

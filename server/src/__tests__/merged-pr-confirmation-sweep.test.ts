@@ -2,7 +2,7 @@ import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { inArray } from "drizzle-orm";
-import type { RequestConfirmationToolActionPayload } from "@paperclipai/shared";
+import type { RequestConfirmationToolActionPayload } from "@outpost/shared";
 import {
   activityLog,
   agents,
@@ -11,7 +11,7 @@ import {
   goals,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   extractGitHubPullRequestReferences,
   getMergeConfirmationPullRequestReferences,
@@ -150,7 +150,7 @@ describe("merged pull-request confirmation extraction", () => {
   });
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_MERGE_SWEEP_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_MERGE_SWEEP_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 

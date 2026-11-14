@@ -3,11 +3,11 @@ import postgres from "postgres";
 import { applyPendingMigrations, closeRegisteredClients } from "./client.js";
 
 export function testPostgresAdminUrl(): string | undefined {
-  const value = process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL?.trim();
+  const value = process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL?.trim();
   if (!value) return undefined;
   const url = new URL(value);
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
-    throw new Error("PAPERCLIP_TEST_POSTGRES_ADMIN_URL must be a PostgreSQL URL");
+    throw new Error("OUTPOST_TEST_POSTGRES_ADMIN_URL must be a PostgreSQL URL");
   }
   return value;
 }
@@ -23,7 +23,7 @@ export async function startTestPostgresDatabase(adminUrl: string): Promise<{
   cleanup(): Promise<void>;
 }> {
   const name = `paperclip_test_${randomUUID().replaceAll("-", "")}`;
-  const setting = process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+  const setting = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
   const template = setting === "0" ? undefined : setting;
   if (template && !/^paperclip_test_template_[a-f0-9]+$/.test(template)) {
     throw new Error("Invalid disposable test template name");

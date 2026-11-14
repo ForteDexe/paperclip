@@ -73,6 +73,6 @@ const exportPlan = privilegedDefinition("cli-operations.export-document-cli", "p
   async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
 });
 exportPlan.sourceFiles = [...exportPlan.sourceFiles, "chat-catalog-domains/privileged-cli-support.ts", "../../cli/src/index.ts"];
-exportPlan.oracleVersion = "paperclip.chat-catalog.cli-document.v2";
+exportPlan.oracleVersion = "outpost.chat-catalog.cli-document.v2";
 exportPlan.cleanup = cleanupOwnedCli;
 export const privilegedDocumentCliCases = [exportPlan];

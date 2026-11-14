@@ -20,8 +20,8 @@ import {
   issues,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
-import type { ChatProvider } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { ChatProvider } from "@outpost/shared";
 import { enqueueIssueInteractionChatPublications, enqueueTerminalIssueInteractionChatPublications } from "../services/chat-interaction-publications.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
 import { resolveConfirmationFromComment } from "../services/confirmation-comment-resolution.js";
@@ -33,7 +33,7 @@ import {
 
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_CHAT_PUBLICATIONS_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_CHAT_PUBLICATIONS_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported
   ? describe
@@ -46,10 +46,10 @@ describeEmbeddedPostgres(
     let tempDb: Awaited<
       ReturnType<typeof startEmbeddedPostgresTestDatabase>
     > | null = null;
-    const previousPublicUrl = process.env.PAPERCLIP_PUBLIC_URL;
+    const previousPublicUrl = process.env.OUTPOST_PUBLIC_URL;
 
     beforeAll(async () => {
-      process.env.PAPERCLIP_PUBLIC_URL = "https://paperclip.example";
+      process.env.OUTPOST_PUBLIC_URL = "https://outpost.example";
       if (externalUrl) await applyPendingMigrations(externalUrl);
       else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-terminal-chat-interaction-");
       db = createDb(externalUrl ?? tempDb!.connectionString);
@@ -57,8 +57,8 @@ describeEmbeddedPostgres(
 
     afterAll(async () => {
       if (previousPublicUrl === undefined)
-        delete process.env.PAPERCLIP_PUBLIC_URL;
-      else process.env.PAPERCLIP_PUBLIC_URL = previousPublicUrl;
+        delete process.env.OUTPOST_PUBLIC_URL;
+      else process.env.OUTPOST_PUBLIC_URL = previousPublicUrl;
       await db?.$client.end({ timeout: 1 });
       await tempDb?.cleanup();
     });
@@ -80,7 +80,7 @@ describeEmbeddedPostgres(
         name: "Native chat agent",
         role: "operator",
         status: "idle",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
         runtimeConfig: {},
         permissions: {},
@@ -297,7 +297,7 @@ describeEmbeddedPostgres(
       const service = issueThreadInteractionService(db);
       const interaction = await service.create({ id: fixture.issueId, companyId: fixture.companyId }, {
         kind: "ask_user_questions", title: "Identify the failed change",
-        payload: { version: 1, questionSet: { schema: "paperclip.question_set.v1", description: "The answer determines the next test.", questions: [question] } },
+        payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", description: "The answer determines the next test.", questions: [question] } },
       } as Parameters<typeof service.create>[1], { agentId: fixture.agentId });
       const [publication] = await publicationsForInteraction(fixture.companyId, interaction.id);
       expect(publication.payload.card?.body).toContain(question.prompt);
@@ -331,7 +331,7 @@ describeEmbeddedPostgres(
       const options = Array.from({ length: count }, (_, index) => ({ id: `choice-${index}`, label: `Choice ${index}` }));
       const interaction = await service.create({ id: fixture.issueId, companyId: fixture.companyId }, {
         kind: "ask_user_questions",
-        payload: { version: 1, questionSet: { schema: "paperclip.question_set.v1", questions: [{
+        payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", questions: [{
           id: "choice", prompt: "Choose a fixture", answerMode: "single_select", required: true,
           options, customAnswer: { enabled: true },
         }] } },
@@ -384,7 +384,7 @@ describeEmbeddedPostgres(
         name: "Foreign agent",
         role: "operator",
         status: "idle",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
         runtimeConfig: {},
         permissions: {},

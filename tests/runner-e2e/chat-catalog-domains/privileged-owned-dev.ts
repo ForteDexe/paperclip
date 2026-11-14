@@ -35,7 +35,7 @@ export function boundedOwnedDevReason(output: string, secrets: readonly string[]
 /** Values that must never leave the attempt: launcher credentials and the owned checkout's generated .env. */
 async function ownedSecrets(o: OwnedDev) {
   const generated = await readFile(path.join(o.checkout, ".paperclip/.env"), "utf8").then(text => text.split(/\r?\n/).map(line => line.replace(/^[A-Z0-9_]+=/, "").replace(/^"|"$/g, "")).filter(value => value.length >= 8), () => [] as string[]);
-  return normalizedSecrets([...CREDENTIAL_NAMES, "BRAINTRUST_API_KEY", "PAPERCLIP_AGENT_JWT_SECRET", "PAPERCLIP_DECISION_SIGNING_SECRET", "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET", "PAPERCLIP_E2E_GATEWAY_TOKEN"].map(name => process.env[name]).concat(generated));
+  return normalizedSecrets([...CREDENTIAL_NAMES, "BRAINTRUST_API_KEY", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_DECISION_SIGNING_SECRET", "OUTPOST_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET", "OUTPOST_E2E_GATEWAY_TOKEN"].map(name => process.env[name]).concat(generated));
 }
 async function ownedReason(o: OwnedDev) {
   // Only the log tail is read: a crash-looping or verbose child must not make the diagnostic costly.
@@ -115,7 +115,7 @@ export function gradeOwnedDev(value: unknown) {
 }
 const dev = privilegedDefinition("cli-operations.owned-dev-instance", "privileged-owned-dev", {
   async setup(ctx) {
-    const temp = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, sourceConfig = process.env.PAPERCLIP_CONFIG, revision = process.env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA;
+    const temp = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT, sourceConfig = process.env.OUTPOST_CONFIG, revision = process.env.OUTPOST_RUNNER_E2E_SOURCE_SHA;
     if (!temp || !sourceConfig || !revision || !/^[a-f0-9]{40}$/.test(revision)) throw new Error("Owned dev companion requires a source-pinned immutable candidate and private source config");
     const root = await mkdtemp(path.join(await realpath(temp), "operator-dev-"));
     if (!(await realpath(sourceConfig)).startsWith(await realpath(temp) + path.sep)) throw new Error("Dev seed source config is outside this attempt");
@@ -124,7 +124,7 @@ const dev = privilegedDefinition("cli-operations.owned-dev-instance", "privilege
     const logs = path.join(await realpath(temp), "operator-dev-diagnostics"); await mkdir(logs, { recursive: true, mode: 0o700 });
     const o: OwnedDev = { root, checkout, home, instance: `eval-${ctx.input.nonce.replace(/[^a-z0-9]/gi, "").slice(0, 32)}`,
       loader: path.join(source, "cli/node_modules/tsx/dist/loader.mjs"), entry: path.join(checkout, "cli/src/index.ts"), log: path.join(logs, `${path.basename(root)}.log`),
-      env: { PATH: process.env.PATH, HOME: path.join(root, "operator-home"), PAPERCLIP_HOME: home, PAPERCLIP_TELEMETRY_DISABLED: "1", PAPERCLIP_NO_BROWSER: "1", NO_COLOR: "1" } };
+      env: { PATH: process.env.PATH, HOME: path.join(root, "operator-home"), OUTPOST_HOME: home, OUTPOST_TELEMETRY_DISABLED: "1", OUTPOST_NO_BROWSER: "1", NO_COLOR: "1" } };
     owned.set(ctx, o);
     // Copy actual selected candidate sources. Dependency links resolve only to
     // this immutable campaign candidate, never the shared mutable worktree.
@@ -151,11 +151,11 @@ const dev = privilegedDefinition("cli-operations.owned-dev-instance", "privilege
   },
   async act(ctx, state) {
     const initial = await settlePrivilegedChat(ctx); state.guidance = initial.reply; const o = owned.get(ctx)!;
-    state.hostInstallationsUnchanged = sameInstallations(state.installationsBefore as Record<string, string>, await paperclipInstallations(await realpath(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!)));
+    state.hostInstallationsUnchanged = sameInstallations(state.installationsBefore as Record<string, string>, await paperclipInstallations(await realpath(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!)));
     const reserve = async () => { const listener = createServer(); const port = await listenOnFetchAllowedPort(listener); await new Promise<void>((resolve, reject) => listener.close(e => e ? reject(e) : resolve())); return port; };
     const serverPort = await reserve(), dbPort = await reserve();
     if (serverPort === dbPort) throw new Error("Owned dev ports unexpectedly collide");
-    await command(o, ["worktree", "init", "--instance", o.instance, "--home", o.home, "--from-config", process.env.PAPERCLIP_CONFIG!, "--server-port", String(serverPort), "--db-port", String(dbPort), "--seed-mode", "minimal"]);
+    await command(o, ["worktree", "init", "--instance", o.instance, "--home", o.home, "--from-config", process.env.OUTPOST_CONFIG!, "--server-port", String(serverPort), "--db-port", String(dbPort), "--seed-mode", "minimal"]);
     o.config = path.join(o.checkout, ".paperclip/config.json");
     const actual = JSON.parse(await readFile(o.config, "utf8"));
     const actualData = await realpath(actual.database.embeddedPostgresDataDir);
@@ -192,9 +192,9 @@ const dev = privilegedDefinition("cli-operations.owned-dev-instance", "privilege
     await sendChatMessage(ctx.input.page, message); state.devReport = await companionPhase(ctx, initial.runs.map(r => r.id), message);
   }, grade: gradeOwnedDev, async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
 });
-dev.oracleVersion = "paperclip.chat-catalog.privileged.owned-dev-instance.v2"; dev.expectedRunCount = 2; dev.expectedHumanMessageCount = 2; dev.attemptTimeoutMs = 900000;
+dev.oracleVersion = "outpost.chat-catalog.privileged.owned-dev-instance.v2"; dev.expectedRunCount = 2; dev.expectedHumanMessageCount = 2; dev.attemptTimeoutMs = 900000;
 dev.cleanup = async ctx => { const o = owned.get(ctx); if (!o) return; await stop(o); if (o.config) await command(o, ["worktree:cleanup", o.instance, "--instance", o.instance, "--home", o.home]);
-  const root = await realpath(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!), directory = await realpath(o.root);
+  const root = await realpath(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!), directory = await realpath(o.root);
   if (!directory.startsWith(root + path.sep) || !path.basename(directory).startsWith("operator-dev-")) throw new Error("Refusing non-owned development cleanup");
   await rm(directory, { recursive: true }); owned.delete(ctx); };
 dev.sourceFiles = [...dev.sourceFiles, "../../cli/src/index.ts", "../../cli/src/commands/worktree.ts", "../../cli/src/commands/run.ts", "../e2e/fetch-allowed-port.ts", "redaction.ts"];

@@ -153,7 +153,7 @@ describe("worker performAction context", () => {
     try {
       await expect(callWorker("initialize", {
         manifest: {
-          id: "paperclip.test-worker-context",
+          id: "outpost.test-worker-context",
           apiVersion: 1,
           version: "1.0.0",
           displayName: "Worker Context Test",
@@ -279,7 +279,7 @@ describe("worker invocation scope propagation", () => {
     try {
       await callWorker("initialize", {
         manifest: {
-          id: "paperclip.scope-test",
+          id: "outpost.scope-test",
           apiVersion: 1,
           version: "1.0.0",
           displayName: "Scope test",
@@ -378,7 +378,7 @@ describe("worker configChanged cross-tenant guard", () => {
     async function initialize() {
       return await callWorker("initialize", {
         manifest: {
-          id: "paperclip.config-guard-test",
+          id: "outpost.config-guard-test",
           apiVersion: 1,
           version: "1.0.0",
           displayName: "Config Guard Test",
@@ -616,9 +616,9 @@ describe("worker provider tracer", () => {
         ctx.data.register("probe", async () => {
           for(let index=0;index<count;index++) {
           const span = ctx.tracer.startSpan("pack", {
-            attributes: { "paperclip.sandbox.startup.pack.wall_ms": 12 },
+            attributes: { "outpost.sandbox.startup.pack.wall_ms": 12 },
           });
-          span.setAttribute("paperclip.sandbox.startup.provider", "daytona");
+          span.setAttribute("outpost.sandbox.startup.provider", "daytona");
           span.end();
           }
           return { ok: true };
@@ -667,7 +667,7 @@ describe("worker provider tracer", () => {
     try {
       await callWorker("initialize", {
         manifest: {
-          id: "paperclip.tracer-test",
+          id: "outpost.tracer-test",
           apiVersion: 1,
           version: "1.0.0",
           displayName: "Tracer test",
@@ -706,8 +706,8 @@ describe("worker provider tracer", () => {
     expect((record.params as {children:unknown[]}).children[0]).toMatchObject({
       name: "pack",
       attributes: {
-        "paperclip.sandbox.startup.pack.wall_ms": 12,
-        "paperclip.sandbox.startup.provider": "daytona",
+        "outpost.sandbox.startup.pack.wall_ms": 12,
+        "outpost.sandbox.startup.provider": "daytona",
       },
     });
   });
@@ -822,7 +822,7 @@ describe("worker execute.log emitter", () => {
     try {
       await callWorker("initialize", {
         manifest: {
-          id: "paperclip.execute-log-test",
+          id: "outpost.execute-log-test",
           apiVersion: 1,
           version: "1.0.0",
           displayName: "Execute log test",
@@ -967,7 +967,7 @@ describe("worker setup-token pseudo-terminal dispatch", () => {
       await expect(
         callWorker("initialize", {
           manifest: {
-            id: "paperclip.login-pty",
+            id: "outpost.login-pty",
             apiVersion: 1,
             version: "1.0.0",
             displayName: "Login PTY Test",
@@ -1103,7 +1103,7 @@ describe("worker duplex channel dispatch", () => {
       await expect(
         callWorker("initialize", {
           manifest: {
-            id: "paperclip.duplex-channel",
+            id: "outpost.duplex-channel",
             apiVersion: 1,
             version: "1.0.0",
             displayName: "Duplex Channel Test",
@@ -1198,7 +1198,7 @@ describe("worker duplex channel dispatch", () => {
     try {
       const result = (await callWorker("initialize", {
         manifest: {
-          id: "paperclip.bare",
+          id: "outpost.bare",
           apiVersion: 1,
           version: "1.0.0",
           displayName: "Bare Test",

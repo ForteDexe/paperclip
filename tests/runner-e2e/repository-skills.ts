@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { realpath } from "node:fs/promises";
 import path from "node:path";
-import { parseNativeExecutionInput } from "../../packages/paperclip-runner/src/contracts/native-execution.js";
+import { parseNativeExecutionInput } from "../../packages/outpost-runner/src/contracts/native-execution.js";
 import { pollUntil, type RunnerApi } from "./api.js";
 import { nativeCompletionProfile } from "./native-completion-defaults.js";
 import { createRemoteFixtureClient } from "./remote-native-bootstrap.js";
@@ -116,15 +116,15 @@ export async function runRepositorySkillsFlow(input: {
   expect(runs[0]!.agentId).toBe(fixtures.agent.id);
   expect(issue.companyId).toBe(fixtures.company.id);
   expect(issue.assigneeAgentId).toBe(fixtures.agent.id);
-  expect(runs[0]!.contextSnapshot?.paperclipEnvironment?.id).toBe(fixtures.environment.id);
+  expect(runs[0]!.contextSnapshot?.outpostEnvironment?.id).toBe(fixtures.environment.id);
   expect(typeof runs[0]!.nativeSessionId).toBe("string");
   let bundles: RepositoryBundleReceipt[];
   let runtimeLocation: Parameters<typeof isOwnedRepositoryRuntimeRoot>[2];
   if (execution.environment.id === "local") {
-    const temporaryRoot = await realpath(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!);
+    const temporaryRoot = await realpath(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!);
     for (const root of roots) expect((await realpath(root)).startsWith(`${temporaryRoot}${path.sep}`)).toBe(true);
     bundles = (await Promise.all(roots.map(root => realpath(root)))).map(inspectRepositoryBundle);
-    const instanceRoot = await realpath(path.dirname(process.env.PAPERCLIP_CONFIG!));
+    const instanceRoot = await realpath(path.dirname(process.env.OUTPOST_CONFIG!));
     const sessionId = runs[0]!.nativeSessionId as string;
     // Read the active run's persisted, digest-validated execution context. These
     // immutable assets are normal provider inputs, not a fixture or library copy.

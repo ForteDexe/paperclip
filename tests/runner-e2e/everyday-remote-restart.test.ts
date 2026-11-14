@@ -15,8 +15,8 @@ function fixture() {
     status: "active", releasedAt: null, executionWorkspaceId: "workspace" }];
   const event = (seq: number, eventType: string, payload: Record<string, unknown> = {}, sourceKind = "runner", sourceSeq = seq) => {
     const sourceInstanceId = sourceKind === "runner" ? "runner" : "runner:control";
-    return { seq, runId: "run", companyId: "company", eventType, protocolSchemaVersion: 1, payload: { prpEvent: {
-      schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "run", normalizedSessionId: "session", sourceKind,
+    return { seq, runId: "run", companyId: "company", eventType, protocolSchemaVersion: 1, payload: { orpEvent: {
+      schema: "outpost.orp.event.v1", schemaVersion: 1, runId: "run", normalizedSessionId: "session", sourceKind,
       sourceInstanceId, sourceSeq, sourceEventId: `${sourceInstanceId}:run:${sourceSeq}`, eventType,
       turnId: eventType === "turn.submitted" ? null : "turn", payload,
     } } };
@@ -35,7 +35,7 @@ function fixture() {
   const final = { observedAt: "2026-10-22T00:02:00.000Z", run: finished, events: projectRemoteRestartEvents(finished, finalRows),
     operations: [{ companyId: "company", heartbeatRunId: "run", issueId: "task", executionWorkspaceId: "workspace",
       phase: "workspace_finalize", status: "succeeded" }], scheduledRetry: null as unknown, recoveryActions: [] as Record<string, unknown>[] };
-  const outage: ControllerOutageReceipt = { schema: "paperclip.e2e.controller-outage/v1", requestId: "story-test",
+  const outage: ControllerOutageReceipt = { schema: "outpost.e2e.controller-outage/v1", requestId: "story-test",
     signal: "SIGKILL", holdMs: 1000, previousPid: 100, replacementPid: 200,
     startedAt: "2026-10-22T00:00:00.000Z", stoppedAfterMs: 100, cacheDiscarded: true,
     replacementStartedAfterMs: 1100, readyAfterMs: 4000,
@@ -203,7 +203,7 @@ describe("remote restart lifecycle evidence", () => {
     expect(() => observeRemoteRestartBoundary(f.active, after, f.leases, f.scope)).toThrow("active original provider turn");
     expect(() => observeRemoteRestartBoundary(f.active, [...f.rows, f.event(5, "turn.started", { changed: true })], f.leases, f.scope, true))
       .toThrow("active original provider turn");
-    replay.payload.prpEvent.turnId = "another-turn";
+    replay.payload.orpEvent.turnId = "another-turn";
     expect(() => observeRemoteRestartBoundary(f.active, after, f.leases, f.scope, true)).toThrow("active original provider turn");
   });
 
@@ -235,7 +235,7 @@ describe("remote restart lifecycle evidence", () => {
     expect(() => observeRemoteRestartBoundary(f.active, f.rows.slice(0, 3), f.leases, f.scope)).toThrow("completed tool");
     expect(() => observeRemoteRestartBoundary(f.active, f.rows, [{ ...f.leases[0]!, companyId: "foreign" }], f.scope)).toThrow("exact active sandbox");
     const foreign = structuredClone(f.rows);
-    foreign[0]!.payload.prpEvent.normalizedSessionId = "foreign";
+    foreign[0]!.payload.orpEvent.normalizedSessionId = "foreign";
     expect(() => observeRemoteRestartBoundary(f.active, foreign, f.leases, f.scope)).toThrow("foreign, duplicate or invalid");
   });
 

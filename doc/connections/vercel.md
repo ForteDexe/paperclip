@@ -200,7 +200,7 @@ approval payloads with the instance tool-action signing secret. Approval summari
 and audit still use redacted values. Existing signed approval records remain
 readable and are not rewritten. Sensitive request identities also use this key
 to distinguish secret replacements without storing guessable secret hashes.
-The configured `PAPERCLIP_TOOL_ACTION_SIGNING_SECRET` takes precedence. When unset,
+The configured `OUTPOST_TOOL_ACTION_SIGNING_SECRET` takes precedence. When unset,
 Paperclip derives a separate signing key from its persisted secrets master key,
 using the configured master-key environment value or durable key file. Key rotation
 can invalidate retry matching; back up the configured signing key or master key

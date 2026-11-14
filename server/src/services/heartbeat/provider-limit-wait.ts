@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import { agents, heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { agents, heartbeatRuns } from "@outpost/db";
 import { logger } from "../../middleware/logger.js";
 import { AI_CONNECTION_POOL_WAIT_RETRY_REASON } from "../../modules/run-dispatch/index.js";
 import { agentProviderLimitCooldown } from "../native-runtime/native-startup-retry.js";

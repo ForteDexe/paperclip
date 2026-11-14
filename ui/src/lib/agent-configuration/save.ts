@@ -1,4 +1,4 @@
-import type { AgentConfigurationDocument, AgentConfigurationInput, AgentConfigurationWarning } from "@paperclipai/shared";
+import type { AgentConfigurationDocument, AgentConfigurationInput, AgentConfigurationWarning } from "@outpost/shared";
 import { agentsApi } from "../../api/agents";
 import { secretsApi } from "../../api/secrets";
 import { agentConfigurationPatch } from "../agent-configuration-yaml";

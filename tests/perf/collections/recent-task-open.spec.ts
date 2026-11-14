@@ -43,7 +43,7 @@ async function seedRecents(page: Page, request: APIRequestContext) {
       id: task.id, companyId, title: task.title, identifier: task.identifier, status: "backlog", recordedAt: Date.now() - index * 1000,
     }));
     for (const owner of new Set([userId ?? "__local_board__", "__local_board__"])) {
-      localStorage.setItem(`paperclip.recentTasks.v2:${companyId}:${owner}`, JSON.stringify(entries));
+      localStorage.setItem(`outpost.recentTasks.v2:${companyId}:${owner}`, JSON.stringify(entries));
     }
   }, { companyId: fixture.company.id, userId, recents });
 }
@@ -149,7 +149,7 @@ test("clicking a preloaded recent task shows its chat without first-frame reads"
 // response, as a slow hosted database would. Timings are evidence, not budgets.
 for (const apiDelayMs of [0, 150]) {
   test(`timing: click on a recent task to first chat frame (+${apiDelayMs} ms API latency)`, async ({ browser, request, baseURL }) => {
-    const runs = Math.max(5, Number(process.env.PAPERCLIP_COLLECTION_PERF_TIMING_RUNS ?? 5));
+    const runs = Math.max(5, Number(process.env.OUTPOST_COLLECTION_PERF_TIMING_RUNS ?? 5));
     const timings: number[] = [];
     const idleCounts: number[] = [];
     const afterClick: string[][] = [];

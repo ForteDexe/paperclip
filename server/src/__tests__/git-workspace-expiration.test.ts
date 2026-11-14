@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { companies, projects, projectWorkspaces, issues, executionWorkspaces, agents, heartbeatRuns, issueRecoveryActions, nativeRunFinalizations, workspaceRuntimeServices, executionWorkspaceRestorePoints, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { companies, projects, projectWorkspaces, issues, executionWorkspaces, agents, heartbeatRuns, issueRecoveryActions, nativeRunFinalizations, workspaceRuntimeServices, executionWorkspaceRestorePoints, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { markGitRestorePointExpired } from "../services/git-restore-point-storage.js";
 import { GIT_RESTORE_POINT_EXPIRED_WARNING } from "../services/execution-workspaces.js";
 import { getStorageService } from "../storage/index.js";
@@ -48,27 +48,27 @@ const gitEnv = { ...process.env, GIT_AUTHOR_NAME: "Fixture", GIT_AUTHOR_EMAIL: "
 const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env: gitEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const exists = (target: string) => fs.lstat(target).then(() => true, () => false);
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_GIT_EXPIRATION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_GIT_EXPIRATION_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = support.supported ? describe : describe.skip;
 describeEmbeddedPostgres("reconstructable Git expiration", () => {
   let db: ReturnType<typeof createDb>;
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let root: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
-  const previousInstance = process.env.PAPERCLIP_INSTANCE_ID;
+  const previousHome = process.env.OUTPOST_HOME;
+  const previousInstance = process.env.OUTPOST_INSTANCE_ID;
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("git-cache-expiration-");
     db = createDb(external ?? database.connectionString);
     root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-expiration-"));
-    process.env.PAPERCLIP_HOME = path.join(root, "home");
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
+    process.env.OUTPOST_HOME = path.join(root, "home");
+    process.env.OUTPOST_INSTANCE_ID = "default";
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`TRUNCATE TABLE companies CASCADE`); });
   afterAll(async () => {
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
-    if (previousInstance === undefined) delete process.env.PAPERCLIP_INSTANCE_ID; else process.env.PAPERCLIP_INSTANCE_ID = previousInstance;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
+    if (previousInstance === undefined) delete process.env.OUTPOST_INSTANCE_ID; else process.env.OUTPOST_INSTANCE_ID = previousInstance;
     await db.$client.end({ timeout: 1 }); await database?.cleanup(); await fs.rm(root, { recursive: true, force: true });
   });
 
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Fixture", status: "active",
       providerType: "local_fs", cwd: workspace.cwd, providerRef: workspace.cwd, repoUrl, baseRef: "origin/main", branchName: workspace.branchName,
       metadata: { createdByRuntime: workspace.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: workspace.baseRefSha,
-        ...(managed ? {} : { isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId, issueId, repoUrl } }) } });
+        ...(managed ? {} : { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } }) } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
     const row = () => db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId)).then(rows => rows[0]!);
     const expire = async (options: Partial<Parameters<typeof expireReconstructableGitWorkspace>[2]> = {}) =>
@@ -325,14 +325,14 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     }
 
     it("expires a workspace whose nested checkout has unsaved work and restores the checkout exactly", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       const unpushed = await unpushedNestedWork(f.nested.cwd);
       expect(await f.expire({ expireBase: false })).toMatchObject({ expired: false, skipReason: "dirty_or_untracked_files" });
       const result = await f.expire({ expireBase: false, restorePoint: restorePoint() });
       expect(result).toMatchObject({ expired: true, restorePoint: true, skipReason: null });
       const recipe = (await f.row()).metadata?.gitCacheRestoration as Record<string, any>;
-      expect(recipe.schema).toBe("paperclip.git-cache-restoration.v2");
+      expect(recipe.schema).toBe("outpost.git-cache-restoration.v2");
       expect(recipe.restorePoint).toBeUndefined();
       expect(recipe.contents.checkouts[0].restorePoint).toMatchObject({ head: unpushed, headOnRemote: false });
       expect(await ledger(f.workspaceId)).toMatchObject([{ status: "active", checkoutName: recipe.contents.checkouts[0].name }]);
@@ -344,7 +344,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("reopens with a fresh workspace and a warning when a nested checkout's restore point expired", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       expect(await f.expire({ expireBase: false, restorePoint: restorePoint() })).toMatchObject({ expired: true, restorePoint: true });
@@ -362,7 +362,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("expires and restores a nested checkout that only has an unpushed commit", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await fs.writeFile(path.join(f.nested.cwd, "nested.txt"), "nested B (unpushed)\n");
       git(f.nested.cwd, "commit", "-am", "Nested B unpushed");
@@ -376,7 +376,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("keeps a workspace whose nested checkout holds unpushed history only in another branch's reflog", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       const tree = git(f.nested.cwd, "rev-parse", "HEAD^{tree}");
       const orphan = execFileSync("git", ["commit-tree", tree, "-p", "HEAD", "-m", "Only in a reflog"],
@@ -391,7 +391,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("rolls back when new history appears after capture without changing files", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       const result = await f.expire({ expireBase: false, restorePoint: restorePoint(), beforeDelete: async () => {
@@ -404,7 +404,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("rolls back when the main worktree gains history after capture without changing files", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await fs.writeFile(path.join(f.cwd, "draft.md"), "untracked main work\n");
       const result = await f.expire({ expireBase: false, restorePoint: restorePoint(), beforeDelete: async () => {
@@ -421,7 +421,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       ["an oversized file", async (file: string) => { await fs.writeFile(file, "x".repeat(65 * 1024)); }],
       ["a symlink", async (file: string) => { await fs.symlink("/dev/zero", file); }],
     ])("keeps a workspace whose nested COMMIT_EDITMSG is %s without reading it unsafely", async (_name, plant) => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       const file = path.join(f.nested.cwd, ".git", "COMMIT_EDITMSG");
@@ -449,7 +449,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     }
 
     it("saves a clean nested checkout's stale remote-tracking commits in its restore point", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       const feature = await staleRemoteTrackingRef(f);
       expect(await f.expire({ expireBase: false })).toMatchObject({ expired: false, skipReason: "unpushed_managed_checkout" });
@@ -463,7 +463,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("rolls back when a nested checkout's remote-tracking refs change after capture", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await staleRemoteTrackingRef(f);
       const result = await f.expire({ expireBase: false, restorePoint: restorePoint(), beforeDelete: async () => {
@@ -477,7 +477,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("rolls back when only a nested checkout's remote-tracking reflog changes after capture", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await staleRemoteTrackingRef(f);
       const result = await f.expire({ expireBase: false, restorePoint: restorePoint(), beforeDelete: async () => {
@@ -490,7 +490,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("counts distinct reflog commits, not repeated entries, against the tip budget", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       const head = git(f.nested.cwd, "rev-parse", "HEAD");
@@ -502,7 +502,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("expires despite a stale pending restore point left by an earlier attempt", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       const generation = Number((await f.row()).metadata?.lifecycleGeneration ?? 0) + 1;
@@ -520,7 +520,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("keeps a workspace whose nested checkout has unpushed work on another branch", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       git(f.nested.cwd, "checkout", "-q", "-b", "side");
       await fs.writeFile(path.join(f.nested.cwd, "side.txt"), "side branch work\n");
@@ -535,7 +535,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("keeps the workspace and drops every restore point when a nested checkout changes after capture", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       const result = await f.expire({ expireBase: false, restorePoint: restorePoint(),
@@ -543,7 +543,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       expect(result).toMatchObject({ expired: false, skipReason: "restore_point_contents_changed" });
       expect(await fs.readFile(path.join(f.nested.cwd, "draft.md"), "utf8")).toBe("changed after capture\n");
       const recipe = (await f.row()).metadata?.gitCacheRestoration as Record<string, any>;
-      expect(recipe.schema).toBe("paperclip.git-cache-restoration.v1");
+      expect(recipe.schema).toBe("outpost.git-cache-restoration.v1");
       expect(recipe.contents.checkouts[0].restorePoint).toBeUndefined();
       expect(await ledger(f.workspaceId)).toMatchObject([{ status: "superseded" }]);
       vi.unstubAllEnvs();
@@ -1365,7 +1365,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("blocks unpushed nested work and saves it in a restore point", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await sharedFixture();
       const branch = git(f.nested.cwd, "symbolic-ref", "HEAD");
       await fs.writeFile(path.join(f.nested.cwd, "nested.txt"), "nested B (unpushed)\n");
@@ -1386,7 +1386,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("saves history kept only in the nested worktree's reflog and restores it there", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await sharedFixture();
       await fs.writeFile(path.join(f.nested.cwd, "nested.txt"), "rewritten away\n");
       git(f.nested.cwd, "commit", "-qam", "Only in the reflog");
@@ -1406,7 +1406,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     });
 
     it("blocks on stashes, unowned checked-out branches, and unpushed owned branches", async () => {
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
       const f = await sharedFixture();
       await fs.writeFile(path.join(f.nested.cwd, "nested.txt"), "stashed work\n");
       git(f.nested.cwd, "stash", "-q");

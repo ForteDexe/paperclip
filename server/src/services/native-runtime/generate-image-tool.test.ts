@@ -4,12 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agents, authUsers, budgetPolicies, companies, companyMemberships, costEvents, createDb, heartbeatRuns, issues, projects } from "@paperclipai/db";
+import { activityLog, agents, authUsers, budgetPolicies, companies, companyMemberships, costEvents, createDb, heartbeatRuns, issues, projects } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { aiConnectionService } from "../ai-connections.js";
 import { accountRunCost } from "../run-cost-accounting.js";
 import { budgetServiceInTransaction } from "../budgets.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { imageGenerationBindingForRun, priceGeneratedImage, requestOpenAiImage } from "./generate-image-tool.js";
 
 // One transparent 1x1 PNG. The handler only needs real PNG bytes to save.
@@ -24,8 +24,8 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
 
   beforeAll(async () => {
     home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-image-tool-home-")));
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "image-tool-fixture");
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "image-tool-fixture");
     temporary = await startRecoveryPostgres("paperclip-image-tool-");
     db = createDb(temporary.connectionString);
     await db.insert(authUsers).values({ id: "alice", name: "Alice", email: "alice@example.test", createdAt: new Date(), updatedAt: new Date() });
@@ -44,7 +44,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Pixel Bakery", issuePrefix: `PX${companyId.slice(0, 4).toUpperCase()}` });
     await db.insert(companyMemberships).values({ companyId, principalId: "alice", principalType: "user", status: "active", membershipRole: "owner" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Head baker", adapterType: "paperclip_runner",
+    await db.insert(agents).values({ id: agentId, companyId, name: "Head baker", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" }, status: "active" });
     const connection = await aiConnectionService(db).save(companyId, "alice", {
       provider: "openai", method: "api_key", name: "OpenAI", ownership: "shared",

@@ -1,5 +1,5 @@
 import { pluginIdleManifestGeneration } from "./plugin-idle-catalog.js";
-import { agents, heartbeatRuns, costEvents, issues, type Db } from "@paperclipai/db";
+import { agents, heartbeatRuns, costEvents, issues, type Db } from "@outpost/db";
 import { getTableName } from "drizzle-orm";
 import { readIdleAgentTimerSchedule } from "./heartbeat/idle-timer-schedule.js";
 import { createHeartbeatTimerPolicy } from "./heartbeat/timer-policy.js";
@@ -173,8 +173,8 @@ it("single and batch owner schedules share cap, actionable, UTC and decimal sema
 it("checks global suppression even without eligible timers and retains owner org-chain checks", async () => {
   for (const rows of [[], [timerAgent(1)], [{ ...timerAgent(1), status: "paused" }]]) {
     if (rows[0]?.status === "idle") rows[0].runtimeConfig = { heartbeat: { enabled: false } };
-    for (const env of [{ PAPERCLIP_IN_WORKTREE: "true" }, { PAPERCLIP_DATABASE_RESTORE_IN_PROGRESS: "1" },
-      { PAPERCLIP_RESTORE_IN_PROGRESS: "yes" }, { HEARTBEAT_SCHEDULER_ENABLED: "false" }]) {
+    for (const env of [{ OUTPOST_IN_WORKTREE: "true" }, { OUTPOST_DATABASE_RESTORE_IN_PROGRESS: "1" },
+      { OUTPOST_RESTORE_IN_PROGRESS: "yes" }, { HEARTBEAT_SCHEDULER_ENABLED: "false" }]) {
       let reads = 0;
       expect((await readIdleAgentTimerSchedule(fixtureDb({ agents: rows }, () => { reads++; }), now, env)).blocked).toBe(true);
       expect(reads).toBe(0);

@@ -122,7 +122,7 @@ describe("crashPoint armed by the environment", { timeout: 60_000 }, () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "crash-point-"));
     try {
       const receipt = path.join(dir, "receipt.jsonl");
-      const result = runChild({ PAPERCLIP_CRASH_POINT: `${first}:2`, PAPERCLIP_CRASH_POINT_RECEIPT: receipt });
+      const result = runChild({ OUTPOST_CRASH_POINT: `${first}:2`, OUTPOST_CRASH_POINT_RECEIPT: receipt });
       expect(result.signal).toBe("SIGKILL");
       expect(result.stdout).toBe("one\n");
       expect(result.stderr).toContain(`[crash-point] armed ${first}:2`);
@@ -135,7 +135,7 @@ describe("crashPoint armed by the environment", { timeout: 60_000 }, () => {
   it("ignores hits until the gate file exists", () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "crash-point-gate-"));
     try {
-      const result = runChild({ PAPERCLIP_CRASH_POINT: first, PAPERCLIP_CRASH_POINT_GATE: path.join(dir, "open") });
+      const result = runChild({ OUTPOST_CRASH_POINT: first, OUTPOST_CRASH_POINT_GATE: path.join(dir, "open") });
       expect(result.signal).toBeNull();
       expect(result.stdout).toBe("one\ntwo\n");
     } finally {
@@ -156,8 +156,8 @@ describe("crashPoint armed by the environment", { timeout: 60_000 }, () => {
         `crashPoint(${JSON.stringify(first)}); process.stdout.write("one\\n");`,
         `crashPoint(${JSON.stringify(first)}); process.stdout.write("two\\n");`,
       ].join("\n");
-      const result = runChild({ PAPERCLIP_CRASH_POINT: `${first}:2`, PAPERCLIP_CRASH_POINT_GATE: gate,
-        PAPERCLIP_CRASH_POINT_RECEIPT: receipt }, source);
+      const result = runChild({ OUTPOST_CRASH_POINT: `${first}:2`, OUTPOST_CRASH_POINT_GATE: gate,
+        OUTPOST_CRASH_POINT_RECEIPT: receipt }, source);
       expect(result.signal).toBe("SIGKILL");
       expect(result.stdout).toBe("closed\none\n");
       expect(JSON.parse(readFileSync(receipt, "utf8").trim())).toMatchObject({ point: first, hit: 2 });
@@ -182,7 +182,7 @@ describe("crashPoint armed by the environment", { timeout: 60_000 }, () => {
         `${hit} process.stdout.write("t2-one\\n");`,
         `${hit} process.stdout.write("t2-two\\n");`,
       ].join("\n");
-      const result = runChild({ PAPERCLIP_CRASH_POINT_CONTROL: control, PAPERCLIP_CRASH_POINT_RECEIPT: receipt }, source);
+      const result = runChild({ OUTPOST_CRASH_POINT_CONTROL: control, OUTPOST_CRASH_POINT_RECEIPT: receipt }, source);
       expect(result.signal).toBe("SIGKILL");
       expect(result.stdout).toBe("absent\nt1-one\nt2-one\n");
       expect(JSON.parse(readFileSync(receipt, "utf8").trim())).toMatchObject({ point: first, hit: 2, token: "t2" });
@@ -209,7 +209,7 @@ describe("crashPoint armed by the environment", { timeout: 60_000 }, () => {
         `writeFileSync(${JSON.stringify(control)}, "t2 ${first} fail pid=" + process.pid + "\\n");`,
         `try { crashPoint(${JSON.stringify(first)}); } catch (error) { process.stdout.write("default-" + error.name + "\\n"); }`,
       ].join("\n");
-      const result = runChild({ PAPERCLIP_CRASH_POINT_CONTROL: control, PAPERCLIP_CRASH_POINT_RECEIPT: receipt }, source);
+      const result = runChild({ OUTPOST_CRASH_POINT_CONTROL: control, OUTPOST_CRASH_POINT_RECEIPT: receipt }, source);
       expect(result.signal).toBeNull();
       expect(result.stdout).toBe("one-ok\ntwo-lock held\nthree-ok\nplain-ok\nother-pid-ok\ndefault-CrashPointInjectedFailure\n");
       const receipts = readFileSync(receipt, "utf8").trim().split("\n").map(line => JSON.parse(line));
@@ -221,14 +221,14 @@ describe("crashPoint armed by the environment", { timeout: 60_000 }, () => {
   });
 
   it("stays disarmed in production", () => {
-    const result = runChild({ PAPERCLIP_CRASH_POINT: first, NODE_ENV: "production" });
+    const result = runChild({ OUTPOST_CRASH_POINT: first, NODE_ENV: "production" });
     expect(result.signal).toBeNull();
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("one\ntwo\n");
   });
 
   it("refuses an unknown name at import", () => {
-    const result = runChild({ PAPERCLIP_CRASH_POINT: "sandbox.create.after_typo" });
+    const result = runChild({ OUTPOST_CRASH_POINT: "sandbox.create.after_typo" });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("unknown crash point");
   });

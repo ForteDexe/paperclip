@@ -3,19 +3,19 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmod, writeFile, symlink, mkdir, open } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { agents, agentApiKeys, agentWakeupRequests, assets, authUsers, documents, heartbeatRuns, issues, projects, routineDocuments, routineRevisions, routines, runnerApiResponseReservations, companySkills, companySkillVersions, companySkillTestRuns, companyMemberships, principalPermissionGrants, budgetPolicies, companies } from "@paperclipai/db";
+import { agents, agentApiKeys, agentWakeupRequests, assets, authUsers, documents, heartbeatRuns, issues, projects, routineDocuments, routineRevisions, routines, runnerApiResponseReservations, companySkills, companySkillVersions, companySkillTestRuns, companyMemberships, principalPermissionGrants, budgetPolicies, companies } from "@outpost/db";
 import { initializeRunIdentity } from "../run-identity.js";
 import { beforeAll, afterAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import * as nativeSetupReadiness from "./setup-readiness.js";
 import { secretService } from "../secrets.js";
 import { authorizationService } from "../authorization.js";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
-import { createRunnerdCodexTransport, defaultCapabilityRunnerdBinary } from "../../vendor/paperclip-runner/index.js";
+import { createRunnerdCodexTransport, defaultCapabilityRunnerdBinary } from "../../vendor/outpost-runner/index.js";
 import { runnerApiCatalog } from "./runner-api-catalog.js";
-import { registerRunnerPrpAuthority } from "../../realtime/runner-prp-ws.js";
+import { registerRunnerPrpAuthority } from "../../realtime/runner-orp-ws.js";
 import { createLocalAgentJwt } from "../../agent-auth-jwt.js";
 import { RUNNER_API_RESPONSE_MAX_BYTES, RUNNER_API_RESPONSE_RUN_MAX_BYTES } from "./runner-api-response-limits.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { prepareHeartbeatTaskContext } from "../heartbeat/task-context.js";
 import { createHeartbeatRunPreparation } from "../heartbeat/run-preparation.js";
 import { createAssignedMcpTools } from "./assigned-mcp-tools.js";
@@ -25,33 +25,33 @@ import { RUNNER_TOOL_RESULT_MAX_BYTES } from "./runner-tool-results.js";
 describe("runner API against real HTTP routes", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
   const nativeAuthProbe = vi.fn<typeof nativeSetupReadiness.testNativeRunnerAuthentication>(async () => ({
-    adapterType: "paperclip_runner", status: "fail", testedAt: new Date().toISOString(),
+    adapterType: "outpost_runner", status: "fail", testedAt: new Date().toISOString(),
     checks: [{ code: "codex_hello_probe_auth_required", level: "error", message: "The API authority fixture has no provider credentials." }],
   }));
   let restoreNativeAuthProbe: (() => void) | undefined;
-  const oldSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
-  const oldMasterKeyFile = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
+  const oldSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
+  const oldMasterKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
   beforeEach(() => {
-    vi.stubEnv("PAPERCLIP_RUNNER_API_TOOLS_ENABLED", undefined);
-    vi.stubEnv("PAPERCLIP_RUNNER_API_TOOLS_COMPANY_IDS", undefined);
+    vi.stubEnv("OUTPOST_RUNNER_API_TOOLS_ENABLED", undefined);
+    vi.stubEnv("OUTPOST_RUNNER_API_TOOLS_COMPANY_IDS", undefined);
   });
   afterEach(() => vi.unstubAllEnvs());
   beforeAll(async () => {
     // API authorization and replay use the real lifecycle; external model login is unavailable here.
     const probe = vi.spyOn(nativeSetupReadiness, "testNativeRunnerAuthentication").mockImplementation(nativeAuthProbe);
     restoreNativeAuthProbe = () => probe.mockRestore();
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer();
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = join(server.root, "master.key");
+    process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(server.root, "master.key");
   }, 60_000);
   afterAll(async () => {
     try { await server?.close(); }
     finally {
       restoreNativeAuthProbe?.();
-      if (oldMasterKeyFile === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-      else process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = oldMasterKeyFile;
-      if (oldSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-      else process.env.PAPERCLIP_AGENT_JWT_SECRET = oldSecret;
+      if (oldMasterKeyFile === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
+      else process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = oldMasterKeyFile;
+      if (oldSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+      else process.env.OUTPOST_AGENT_JWT_SECRET = oldSecret;
     }
   });
 
@@ -155,7 +155,7 @@ describe("runner API against real HTTP routes", () => {
       arguments: { artifactId: result.artifact.artifactId } })).rejects.toThrow("binding_not_authorized");
   });
 
-  it.skipIf(!process.env.PAPERCLIP_REQUIRE_RUNNER_API_INTEGRATION && !existsSync(defaultCapabilityRunnerdBinary())).each(["current", "legacy_http"])("runs runnerd → PRP → authority → actual authenticated HTTP (%s receipt)", async (receiptFormat) => {
+  it.skipIf(!process.env.OUTPOST_REQUIRE_RUNNER_API_INTEGRATION && !existsSync(defaultCapabilityRunnerdBinary())).each(["current", "legacy_http"])("runs runnerd → ORP → authority → actual authenticated HTTP (%s receipt)", async (receiptFormat) => {
     const fixture = await server.fixture();
     const provider = join(server.root, `scripted-api-provider-${receiptFormat}.mjs`);
     await writeFile(provider, `#!${process.execPath}
@@ -186,8 +186,8 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const bundle = createRunnerdCodexTransport({
       runnerBinary: defaultCapabilityRunnerdBinary(), codexCommand: provider, codexArgs: [],
       stateDirectory: join(server.root, `scripted-runner-${receiptFormat}`), lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
-      prpIdentity: { runnerInstanceId: "api-test", environmentLeaseId: "api-test-lease", runId: fixture.runId, normalizedSessionId: "api-test-session", turnId: "api-test-turn", itemId: "api-test-item" },
-      controlPlaneRegistration: prp => registerRunnerPrpAuthority({ companyId: fixture.companyId, runId: fixture.runId, authority: prp }),
+      orpIdentity: { runnerInstanceId: "api-test", environmentLeaseId: "api-test-lease", runId: fixture.runId, normalizedSessionId: "api-test-session", turnId: "api-test-turn", itemId: "api-test-item" },
+      controlPlaneRegistration: orp => registerRunnerPrpAuthority({ companyId: fixture.companyId, runId: fixture.runId, authority: orp }),
     });
     const results: any[] = [];
     bundle.transport.setServerRequestHandler(async request => {
@@ -195,7 +195,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const result = await fixture.authority.execute({ tool: params.tool, arguments: params.arguments, callId: params.callId });
       results.push(result);
       // Match production's dynamicToolResponse: an extra test-only envelope
-      // hides collisions between API response fields and PRP tool identity.
+      // hides collisions between API response fields and ORP tool identity.
       const { apiOperationId, ...receipt } = result as Record<string, unknown>;
       const wireResult = receiptFormat === "legacy_http" && params.tool === "call_api"
         ? { ...receipt, operationId: apiOperationId }
@@ -216,20 +216,20 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       expect(results).toHaveLength(3);
       expect(results[1]).toMatchObject({ status: 200, apiOperationId: "GET /api/companies/{companyId}/projects", data: [{ id: fixture.projectId, name: "Aurora" }] });
       expect(results[2]).toMatchObject({ ok: false, status: 404 });
-      expect(bundle.evidence().diagnostics).toContain("runnerd authenticated to the durable PRP control plane");
+      expect(bundle.evidence().diagnostics).toContain("runnerd authenticated to the durable ORP control plane");
     } finally { await bundle.transport.close(); }
   }, 30_000);
 
   it("cannot opt into API tools through a binding when the operator flag is false", async () => {
     const fixture = await server.fixture({ apiToolsEnabled: true });
-    process.env.PAPERCLIP_RUNNER_API_TOOLS_ENABLED = "false";
+    process.env.OUTPOST_RUNNER_API_TOOLS_ENABLED = "false";
     try {
       const names = (await fixture.authority.definitions()).map(tool => tool.name);
       expect(names).toContain("get_task_context");
       expect(names).not.toContain("search_api");
       expect(names).not.toContain("call_api");
       await expect(fixture.authority.execute({ tool: "call_api", callId: "disabled", arguments: { operationId: "GET /api/companies/{companyId}/projects" } })).rejects.toThrow("not_advertised");
-    } finally { delete process.env.PAPERCLIP_RUNNER_API_TOOLS_ENABLED; }
+    } finally { delete process.env.OUTPOST_RUNNER_API_TOOLS_ENABLED; }
   });
 
   it("uses route permissions for lifecycle payloads instead of fallback-only denials", async () => {
@@ -287,7 +287,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("uses the current run identity when an agent JWT carries a stale user claim", async () => {
     const fixture = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId, "stale-user");
+    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId, "stale-user");
     const response = await fetch(`${fixture.apiUrl}/api/companies/${fixture.companyId}/routines`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Current identity routine", assigneeAgentId: fixture.agentId, status: "paused" }),
@@ -387,9 +387,9 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     } }) as any;
     expect(saved).toMatchObject({ ok: true, status: 201, artifact: { artifactId: expect.any(String) } });
     const url = `${fixture.apiUrl}/api/assets/${saved.artifact.artifactId}/content`;
-    const owner = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId);
+    const owner = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId);
     expect((await fetch(url, { headers: { Authorization: `Bearer ${owner}` } })).status).toBe(200);
-    const [peer] = await server.db.insert(agents).values({ companyId: fixture.companyId, name: "Peer snapshot reader", status: "active", role: "ceo", adapterType: "paperclip_runner" }).returning();
+    const [peer] = await server.db.insert(agents).values({ companyId: fixture.companyId, name: "Peer snapshot reader", status: "active", role: "ceo", adapterType: "outpost_runner" }).returning();
     const [peerRun] = await server.db.insert(heartbeatRuns).values({ companyId: fixture.companyId, agentId: peer.id, status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } }).returning();
     await server.db.update(issues).set({ assigneeAgentId: peer.id, status: "in_progress", executionRunId: peerRun.id,
       description: `![private](/api/assets/${saved.artifact.artifactId}/content)`,
@@ -445,7 +445,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const [image] = await server.db.insert(assets).values({ companyId: fixture.companyId, ...stored, createdByAgentId: fixture.agentId }).returning();
       imageIds.push(image.id);
     }
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId, null, keyScope);
+    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId, null, keyScope);
     expect((await fetch(`${fixture.apiUrl}/api/assets/${imageIds[0]}/content`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(200);
     expect((await fetch(`${fixture.apiUrl}/api/assets/${imageIds[1]}/content`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(404);
     expect(await fixture.authority.execute({ tool: "call_api", callId: "scoped-image", arguments: {
@@ -459,7 +459,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("keeps restored webhook secrets inline and encrypts their replay receipts", async () => {
     const fixture = await server.fixture({ disableWakeOnDemand: true, conversation: true });
-    vi.stubEnv("PAPERCLIP_API_URL", fixture.apiUrl);
+    vi.stubEnv("OUTPOST_API_URL", fixture.apiUrl);
     await server.db.update(issues).set({ responsibleUserId: fixture.responsibleUserId }).where(eq(issues.id, fixture.issueId));
     const call = (callId: string, args: unknown) => fixture.authority.execute({ tool: "call_api", callId, arguments: args }) as Promise<any>;
     const created = await call("webhook-routine", { operationId: "POST /api/companies/{companyId}/routines", body: {
@@ -549,7 +549,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     expect(await reopened.recover(call)).toBeNull();
     await server.db.update(heartbeatRuns).set({ resultJson: run.resultJson }).where(eq(heartbeatRuns.id, fixture.runId));
     await server.db.update(agents).set({ status: "paused" }).where(eq(agents.id, fixture.agentId));
-    await expect(reopened.recover(call)).rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+    await expect(reopened.recover(call)).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
     await server.db.update(agents).set({ status: "active" }).where(eq(agents.id, fixture.agentId));
     expect(await effects()).toEqual(before);
   });
@@ -600,7 +600,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const disabled = new PaperclipRunnerToolAuthority(server.db, { ...fixture.authority.binding, apiToolsEnabled: false });
     expect(await disabled.recover(call)).toBeNull();
     await server.db.update(agents).set({ status: "paused" }).where(eq(agents.id, fixture.agentId));
-    await expect(fixture.authority.recover(call)).rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+    await expect(fixture.authority.recover(call)).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
     await server.db.update(agents).set({ status: "active" }).where(eq(agents.id, fixture.agentId));
     const snapshot = await fixture.snapshot();
     expect(snapshot.assets.filter(asset => asset.objectKey.includes("/runner-api/"))).toEqual([]);
@@ -612,7 +612,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     await server.db.insert(agents).values({ id: otherAgentId, companyId: fixture.companyId, name: "Unbound peer", status: "active" });
     const [peerRun] = await server.db.insert(heartbeatRuns).values({ companyId: fixture.companyId, agentId: otherAgentId, status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } }).returning();
     await server.db.update(issues).set({ assigneeAgentId: otherAgentId, status: "in_progress", executionRunId: peerRun.id }).where(eq(issues.id, fixture.blockerId));
-    const token = createLocalAgentJwt(otherAgentId, fixture.companyId, "paperclip_runner", peerRun.id);
+    const token = createLocalAgentJwt(otherAgentId, fixture.companyId, "outpost_runner", peerRun.id);
     expect((await fetch(`${fixture.apiUrl}/api/agents/me/secrets/${secret.key}/value`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Paperclip-Run-Id": peerRun.id } })).status).toBe(403);
   });
 
@@ -676,7 +676,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     expect(prepared.contextSnapshot).toMatchObject({ paperclipAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
       paperclipSkillTest: { skillKey: skill.key, skillVersionId: version.id } });
     const body = { kind: "secret", name: "parity/skill-test", value: "disposable-skill-test-value", justification: "Must remain denied" };
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId,
+    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId,
       fixture.responsibleUserId, { kind: "skill_test", issueId: fixture.issueId });
     const direct = await fetch(`${fixture.apiUrl}/api/agents/me/secret-proposals`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Paperclip-Run-Id": fixture.runId }, body: JSON.stringify(body),
@@ -695,7 +695,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     } }).where(eq(heartbeatRuns.id, fixture.runId));
     await server.db.update(issues).set({ workMode: "skill_test" }).where(eq(issues.id, fixture.issueId));
     await reprepareRun(fixture);
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId, null, { kind: "standard" });
+    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId, null, { kind: "standard" });
     const direct = await fetch(`${fixture.apiUrl}/api/companies/${fixture.companyId}/projects`, { headers: { Authorization: `Bearer ${token}` } });
     expect(direct.status).toBe(200);
     expect(await fixture.authority.execute({ tool: "call_api", callId: "standard-scope", arguments: {
@@ -705,8 +705,8 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("creates and reads secret proposals while preserving redaction and board review", async () => {
     const fixture = await server.fixture();
-    const keyFile = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = join(server.root, "proposal-master.key");
+    const keyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
+    process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(server.root, "proposal-master.key");
     try {
       const args = { operationId: "POST /api/agents/me/secret-proposals", body: {
         kind: "secret", name: "parity/example", value: "disposable-parity-secret", justification: "Test existing agent REST permission",
@@ -723,8 +723,8 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const [run] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.runId));
       expect(JSON.stringify(run.resultJson)).not.toContain(args.body.value);
     } finally {
-      if (keyFile === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-      else process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = keyFile;
+      if (keyFile === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
+      else process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = keyFile;
     }
   });
 
@@ -749,7 +749,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("matches direct agent REST authorization for formerly restricted routes", async () => {
     const fixture = await server.fixture({ disableWakeOnDemand: true });
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "paperclip_runner", fixture.runId);
+    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId);
     for (const [operationId, path, body] of [
       ["POST /api/agents/{id}/pause", `/api/agents/${fixture.agentId}/pause`, {}],
       ["POST /api/agents/{id}/resume", `/api/agents/${fixture.agentId}/resume`, {}],
@@ -806,7 +806,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("revokes advertised API tools without disabling dedicated operations", async () => {
     const fixture = await server.fixture();
     expect(fixture.authority.definitions().some(tool => tool.name === "call_api")).toBe(true);
-    vi.stubEnv("PAPERCLIP_RUNNER_API_TOOLS_ENABLED", "false");
+    vi.stubEnv("OUTPOST_RUNNER_API_TOOLS_ENABLED", "false");
     try {
       expect(fixture.authority.definitions().some(tool => tool.name === "search_api")).toBe(false);
       await expect(fixture.authority.execute({ tool: "call_api", callId: "revoked", arguments: {
@@ -855,7 +855,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     await server.db.insert(agentWakeupRequests).values({ id: intentId, companyId: fixture.companyId,
       agentId: fixture.agentId, runId: id, source: "on_demand", reason: "task_retry", status: "coalesced",
       requestedByActorType: "user", requestedByActorId: fixture.responsibleUserId ?? "board",
-      payload: { issueId: fixture.issueId, taskRetry: { schema: "paperclip.task-retry.v1", generationId: intentId,
+      payload: { issueId: fixture.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: intentId,
         sourceRunId: fixture.runId, actorId: fixture.responsibleUserId ?? "board", strategy: "fresh_isolated_workspace" } } });
     if (fixture.responsibleUserId) await initializeRunIdentity(server.db, { companyId: fixture.companyId, runId: id,
       issueId: fixture.issueId, responsibleUserId: fixture.responsibleUserId, cause: "instruction" });
@@ -889,7 +889,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     await server.db.insert(agentWakeupRequests).values({ id: intentId, companyId: fixture.companyId,
       agentId: fixture.agentId, runId: id, source: "on_demand", reason: "task_retry", status: "coalesced",
       requestedByActorType: "user", requestedByActorId: fixture.responsibleUserId ?? "board",
-      payload: { issueId: fixture.issueId, taskRetry: { schema: "paperclip.task-retry.v1", generationId: intentId,
+      payload: { issueId: fixture.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: intentId,
         sourceRunId: fixture.runId, actorId: fixture.responsibleUserId ?? "board", strategy: "fresh_isolated_workspace" } } });
     if (mode === "automatic_successor") {
       const parentId = id;
@@ -1057,7 +1057,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("counts old snapshots and other-run reservations against the company quota, and reclaims deletions", async () => {
     const fixture = await server.fixture();
-    vi.stubEnv("PAPERCLIP_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES", String(2 * RUNNER_API_RESPONSE_MAX_BYTES));
+    vi.stubEnv("OUTPOST_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES", String(2 * RUNNER_API_RESPONSE_MAX_BYTES));
     const [oldSnapshot] = await server.db.insert(assets).values({ companyId: fixture.companyId, provider: "local_disk",
       objectKey: `${fixture.companyId}/runner-api/old-snapshot`, contentType: "text/plain", byteSize: RUNNER_API_RESPONSE_MAX_BYTES,
       sha256: "old-snapshot", createdByAgentId: fixture.agentId }).returning();
@@ -1121,7 +1121,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("shares company admission across simultaneous runs", async () => {
     const fixture = await server.fixture();
-    vi.stubEnv("PAPERCLIP_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES", String(RUNNER_API_RESPONSE_MAX_BYTES));
+    vi.stubEnv("OUTPOST_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES", String(RUNNER_API_RESPONSE_MAX_BYTES));
     const otherRunId = randomUUID();
     await server.db.insert(heartbeatRuns).values({ id: otherRunId, companyId: fixture.companyId, agentId: fixture.agentId,
       status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } });
@@ -1221,7 +1221,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const sourceToken = createLocalAgentJwt(
         fixture.agentId,
         fixture.companyId,
-        "paperclip_runner",
+        "outpost_runner",
         fixture.runId,
       );
       expect(sourceToken).toBeTruthy();
@@ -1285,7 +1285,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const successorToken = createLocalAgentJwt(
         fixture.agentId,
         fixture.companyId,
-        "paperclip_runner",
+        "outpost_runner",
         successorRunId,
       );
       expect(successorToken).toBeTruthy();

@@ -3,9 +3,9 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { completionContracts, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@paperclipai/db";
+import { completionContracts, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { expect, vi } from "vitest";
-import { NativeSessionCloseUnrecoverableError, executeNativeSession, parseNativeExecutionInput, nativeSessionCleanupBlock, createNativeSessionBackend, createRunnerdCodexTransport, canonicalNativeRuntimeContextDigest } from "../../vendor/paperclip-runner/index.js";
+import { NativeSessionCloseUnrecoverableError, executeNativeSession, parseNativeExecutionInput, nativeSessionCleanupBlock, createNativeSessionBackend, createRunnerdCodexTransport, canonicalNativeRuntimeContextDigest } from "../../vendor/outpost-runner/index.js";
 import { describeEmbeddedPostgres, nativeRestartFixture, processAlive, realProcessIt, waitForCondition } from "../../__tests__/helpers/native-restart.js";
 import { buildNativeExecutionInput } from "./native-execution-input.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
@@ -42,7 +42,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
     const codexHome = join(runtimeRoot, `cut-turn-start-codex-home-${fixture.runId}`);
     await mkdir(sandbox, { recursive: true });
     await mkdir(codexHome, { recursive: true });
-    vi.stubEnv("PAPERCLIP_RUNNER_STATE_DIR", stateBase);
+    vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", stateBase);
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     const runtimeContext = nativeRuntimeContextFixture();
@@ -55,14 +55,14 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       taskPrompt: "Write the brief once.",
       workspace: { id: runId, cwd: sandbox, repoUrl: null, repoRef: null, branchName: null },
       normalizedSessionId, runtimeContext, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
-      completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue!, { revision: contract!.revision }) },
     });
     const resultFile = join(sandbox, "fixture-result.json");
     const hangFile = join(sandbox, "hang-turn-start");
     const calls = join(sandbox, "provider-calls.log");
     const execution = executionFor(fixture.runId, fixture.native.normalizedSessionId);
-    await writeFile(resultFile, JSON.stringify({ schema: "paperclip.run_result.v1", reportedWorkDisposition: "done",
+    await writeFile(resultFile, JSON.stringify({ schema: "outpost.run_result.v1", reportedWorkDisposition: "done",
       summary: "Controlled Retry completed.", completionClaim: { contractRevision: execution.completionContract.contract.revision,
         objectiveSatisfied: true, criteria: execution.completionContract.contract.criteria.map(criterion => ({
           criterionId: criterion.id, status: "satisfied", evidenceRefs: [] })), remainingWork: [] },
@@ -85,7 +85,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
               "--call-log", calls, "--durable-turn-ids", "--hang-turn-start", hangFile],
             runtimeContext, runnerRuntimeContext: runtimeContext, sourceCodexHome: codexHome,
             environment: { CODEX_HOME: codexHome, PATH: process.env.PATH }, closeGraceMs: 1_000, turnStartTimeoutMs: 20_000,
-            prpIdentity: identity, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } });
+            orpIdentity: identity, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } });
           bundles.push(bundle);
           return bundle.transport;
         } });
@@ -123,7 +123,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
         codexArgs: ["--state-file", join(sandbox, "provider.json"), "--call-log", calls, "--durable-turn-ids"],
         runtimeContext, runnerRuntimeContext: runtimeContext, sourceCodexHome: codexHome, resumeDynamicTools: [],
         environment: { CODEX_HOME: codexHome, PATH: process.env.PATH }, closeGraceMs: 1_000,
-        prpIdentity: { runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
+        orpIdentity: { runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
           runId: fixture.runId, normalizedSessionId: fixture.native.normalizedSessionId,
           turnId: `turn-${fixture.runId}`, itemId: `item-${fixture.runId}` },
         lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } });
@@ -147,7 +147,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       if (nativeSessionCleanupBlock({ companyId, issueId }) !== "operator_required") {
         const capabilities = { resume: true, typedEvents: true, steering: false, interruption: false, structuredResult: true };
         const identity = { runId: fixture.runId, sessionId: fixture.native.normalizedSessionId, companyId, issueId, agentId };
-        await expect(executeNativeSession({ input: parseNativeExecutionInput({ schema: "paperclip.native-execution-input.v1",
+        await expect(executeNativeSession({ input: parseNativeExecutionInput({ schema: "outpost.native-execution-input.v1",
           provider: { kind: "codex", model: null }, binding: execution.binding,
           task: { identifier: "NRR-CUT", title: issue!.title, description: null, prompt: "Write the brief once.", workMode: "standard" },
           workspace: { cwd: sandbox, repoUrl: null, repoRef: null, branchName: null },

@@ -56,8 +56,8 @@ const meta = {
   args: { savedConnection: true },
   beforeEach(context) {
     const scenario = (context.parameters.agentmailScenario ?? {}) as Scenario;
-    sessionStorage.removeItem(`paperclip.agentmail-setup:${COMPANY}:${CONNECTION}:choose`);
-    sessionStorage.removeItem(`paperclip.agentmail-setup:${COMPANY}:new:choose`);
+    sessionStorage.removeItem(`outpost.agentmail-setup:${COMPANY}:${CONNECTION}:choose`);
+    sessionStorage.removeItem(`outpost.agentmail-setup:${COMPANY}:new:choose`);
     const fixtureAgents = agents.map(agent => ({ ...agent, permissions: scenario.missingBoundary ? { trustPreset: "low_trust_review" } : {} }));
     const original = window.fetch;
     window.fetch = async (input, init) => {
@@ -92,8 +92,8 @@ const meta = {
         const restricted = scenario.scopedKey && url.pathname.includes(CONNECTION);
         return Response.json({
           scope: { scope_type: restricted ? "inbox" : "organization" },
-          inboxes: restricted ? [{ inbox_id: "support@agentmail.to" }] : [{ inbox_id: "support@agentmail.to" }, { inbox_id: "help@paperclip.example" }],
-          domains: restricted || scenario.noCustomDomain ? [] : [{ domain_id: "custom-domain", domain: "paperclip.example", status: "VERIFIED" }],
+          inboxes: restricted ? [{ inbox_id: "support@agentmail.to" }] : [{ inbox_id: "support@agentmail.to" }, { inbox_id: "help@outpost.example" }],
+          domains: restricted || scenario.noCustomDomain ? [] : [{ domain_id: "custom-domain", domain: "outpost.example", status: "VERIFIED" }],
         });
       }
       if ([CONNECTION, OTHER_ACCOUNT].some(id => url.pathname.endsWith(`/email/connections/${id}/check-address`))) {
@@ -150,7 +150,7 @@ export const InitialAddressTaken: Story = { name: "Initial name taken · Click a
   await chooseAddress(context);
   const canvas = within(context.canvasElement);
   await expect(await canvas.findByRole("alert")).toHaveTextContent(ADDRESS_TAKEN);
-  await expect(canvas.getByRole("button", { name: "ralph-agent@paperclip.example" })).toBeVisible();
+  await expect(canvas.getByRole("button", { name: "ralph-agent@outpost.example" })).toBeVisible();
 } };
 export const SharedDomain: Story = { name: "No custom domain · Shared AgentMail domain", parameters: { agentmailScenario: { noCustomDomain: true } }, play: chooseAddress };
 export const LookupUnavailable: Story = { name: "Address lookup temporarily unavailable", parameters: { agentmailScenario: { checkFailed: true } }, play: chooseAddress };
@@ -173,7 +173,7 @@ export const SwitchScopedAccount: Story = { name: "Inbox-only key · Switch to a
     const canvas = within(context.canvasElement);
     await userEvent.selectOptions(await canvas.findByLabelText("API key"), OTHER_ACCOUNT);
     await userEvent.click(canvas.getByRole("button", { name: "Continue" }));
-    await waitFor(() => expect(canvas.getByLabelText("Email domain")).toHaveValue("paperclip.example"));
+    await waitFor(() => expect(canvas.getByLabelText("Email domain")).toHaveValue("outpost.example"));
     await userEvent.clear(canvas.getByLabelText("Ralph’s email address"));
     await userEvent.type(canvas.getByLabelText("Ralph’s email address"), "ralph-mail");
     await expect(canvas.getByLabelText("Ralph’s email address")).toHaveValue("ralph-mail");
@@ -210,13 +210,13 @@ export const Mobile: Story = { name: "Mobile · Pick their email", globals: { vi
 export const TestedWalkthrough: Story = { name: "Verification · Correct a taken address and finish", play: async context => {
   await takenAddress(context);
   const canvas = within(context.canvasElement);
-  await userEvent.click(canvas.getByRole("button", { name: "taken-agent@paperclip.example" }));
+  await userEvent.click(canvas.getByRole("button", { name: "taken-agent@outpost.example" }));
   await expect(canvas.getByLabelText("Ralph’s email address")).toHaveValue("taken-agent");
   await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
   await waitFor(() => expect(canvas.getByRole("button", { name: "Create email address" })).toBeEnabled());
   await userEvent.click(canvas.getByRole("button", { name: "Create email address" }));
   await expect(await canvas.findByRole("heading", { name: "Your agent’s email is ready" })).toBeVisible();
-  await expect(canvas.getByText("taken-agent@paperclip.example", { exact: true })).toBeVisible();
+  await expect(canvas.getByText("taken-agent@outpost.example", { exact: true })).toBeVisible();
   await userEvent.click(canvas.getByRole("button", { name: "Done" }));
   await expect(await canvas.findByText("Setup complete.")).toBeVisible();
 } };

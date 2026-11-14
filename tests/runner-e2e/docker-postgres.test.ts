@@ -10,14 +10,14 @@ import { assertRunnerDatabaseIsolation, assertEmbeddedDatabaseIsolation } from "
 import { campaignDatabaseEvidenceEligible, type CampaignAttempt } from "./chat-campaign.js";
 import { assertChatCatalogFingerprintLane, fingerprintChatDependencyClosure } from "./chat-catalog-fingerprint.js";
 import { validateRetainedRunnerResult } from "./result-validation.js";
-import { buildPaperclipServerEnvironment } from "./harness-env.js";
+import { buildOutpostServerEnvironment } from "./harness-env.js";
 import { assertDockerCustodyMetadata } from "./docker-config-custody.js";
 import { findSecretLeakInDirectory } from "./redaction.js";
-import { createSanitizedCodexEnvironment } from "../../packages/paperclip-runner/src/drivers/codex/app-server-transport.js";
+import { createSanitizedCodexEnvironment } from "../../packages/outpost-runner/src/drivers/codex/app-server-transport.js";
 const roots: string[] = [];
 beforeEach(() => { vi.stubEnv("DOCKER_HOST", ""); vi.stubEnv("DOCKER_CONTEXT", ""); });
 afterEach(async () => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
-async function root() { const p = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-runner-e2e-"))); roots.push(p); return p; }
+async function root() { const p = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-runner-e2e-"))); roots.push(p); return p; }
 function daemon() {
   const artifact = selectedPostgresArtifact();
   const state = { calls: [] as string[][], engine: "engine-one", operatingSystem: "Docker Desktop", endpoint: "unix:///private/offline-docker.sock", container: null as any, volume: null as any, loseVolumeAck: false, loseContainerAck: false, inspectionError: false, volumeInspectionError: false, badImage: false, failStart: false };
@@ -62,7 +62,7 @@ function daemon() {
 }
 it("keeps embedded default and ambient URL scrubbing, refusing undeclared/unknown lanes", async () => {
   expect(selectedDatabaseLane({ DATABASE_URL: "postgres://unrelated" })).toBe("embedded-postgres");
-  expect(buildPaperclipServerEnvironment({ DATABASE_URL: "postgres://unrelated" }).DATABASE_URL).toBeUndefined();
+  expect(buildOutpostServerEnvironment({ DATABASE_URL: "postgres://unrelated" }).DATABASE_URL).toBeUndefined();
   expect(() => selectedDatabaseLane({ [DATABASE_LANE_ENV]: "ambient" })).toThrow();
   await expect(dockerDatabaseSupervisorEnvironment({ temporaryRoot: "/unowned", env: { [DOCKER_DATABASE_ENV]: "/unowned" } })).rejects.toThrow("Undeclared");
   await expect(dockerDatabaseSupervisorEnvironment({ temporaryRoot: "/unowned", env: { [DATABASE_LANE_ENV]: "owned-docker-postgres" } })).rejects.toThrow("missing");
@@ -84,7 +84,7 @@ it("binds exact image/engine/resources, strips admission data and removes only o
   await expect(assertRunnerDatabaseIsolation(configPath, temp, owned.filename, run)).rejects.toThrow("owned database lane");
   await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });
   await expect(assertEmbeddedDatabaseIsolation(configPath, temp)).rejects.toThrow("owned database lane");
-  const mutated = structuredClone(state.container); mutated.Config.Labels["ai.paperclip.runner-e2e.nonce"] = "foreign"; expect(() => assertOwnedContainer(mutated, owned.receipt)).toThrow("ownership");
+  const mutated = structuredClone(state.container); mutated.Config.Labels["ai.outpost.runner-e2e.nonce"] = "foreign"; expect(() => assertOwnedContainer(mutated, owned.receipt)).toThrow("ownership");
   await owned.close(); expect(state.container).toBeNull(); expect(state.volume).toBeNull(); expect(owned.receipt.status).toBe("removed");
   await expect(readFile(path.join(temp, "docker-postgres-private", "password"))).rejects.toThrow();
 });
@@ -128,7 +128,7 @@ it("preserves a lost-volume-ACK resource when inspection is unknown", async () =
 });
 it("refuses changed volume ownership without deletion", async () => {
   const temp = await root(), { state, run } = daemon(), owned = await startOwnedDockerDatabase({ temporaryRoot: temp, privateSecrets: [], run });
-  state.volume.Labels["ai.paperclip.runner-e2e.nonce"] = "foreign";
+  state.volume.Labels["ai.outpost.runner-e2e.nonce"] = "foreign";
   await expect(owned.close()).rejects.toThrow("volume absence is unconfirmed");
   expect(state.container).toBeNull(); expect(state.volume).not.toBeNull(); expect(owned.receipt.status).toBe("cleanup-failed");
 });
@@ -144,7 +144,7 @@ it("launcher failure state never reaps Darwin IPC or drops uncertain Docker reco
 });
 
 it("preserves old embedded result interpretation and rejects unverified or credential-bearing Docker proof", async () => {
-  const legacy = { schema: "paperclip.runner-e2e.result/v1", executionId: "offline", attempt: 1, status: "failed", profileId: "offline", environmentId: "local", caseId: "offline", provider: null, model: null, runtimeMode: "none", startedAt: "2026-10-27T00:00:00Z", finishedAt: "2026-10-27T00:00:01Z", durationMs: 1000, cleanup: "passed" };
+  const legacy = { schema: "outpost.runner-e2e.result/v1", executionId: "offline", attempt: 1, status: "failed", profileId: "offline", environmentId: "local", caseId: "offline", provider: null, model: null, runtimeMode: "none", startedAt: "2026-10-27T00:00:00Z", finishedAt: "2026-10-27T00:00:01Z", durationMs: 1000, cleanup: "passed" };
   const original = JSON.stringify(legacy); expect(() => validateRetainedRunnerResult(legacy)).not.toThrow(); expect(JSON.stringify(legacy)).toBe(original);
   const temp = await root(), { run } = daemon(), owned = await startOwnedDockerDatabase({ temporaryRoot: temp, privateSecrets: [], run }); await owned.close();
   const state = await dockerDatabaseLaunchState("owned-docker-postgres", temp), passed = { ...legacy, status: "passed", databaseIdentity: state.identity };
@@ -251,7 +251,7 @@ it("creates, verifies and cleans the explicit amd64 receipt using only the owned
   expect(databaseIdentityMatches(databaseFingerprintIdentity({ [DATABASE_LANE_ENV]: "owned-docker-postgres", [POSTGRES_ARTIFACT_ENV]: "linux-amd64" }), publicDockerDatabaseIdentity(owned.receipt))).toBe(true);
   expect(databaseIdentityMatches(databaseFingerprintIdentity({ [DATABASE_LANE_ENV]: "owned-docker-postgres" }), publicDockerDatabaseIdentity(owned.receipt))).toBe(false);
   await owned.close(); expect(state.container).toBeNull(); expect(state.volume).toBeNull(); expect(owned.receipt.status).toBe("removed");
-  const result = { schema: "paperclip.runner-e2e.result/v1", executionId: "remote-offline", attempt: 1, status: "passed", profileId: "offline", environmentId: "local", caseId: "offline", provider: null, model: null, runtimeMode: "none", startedAt: "2026-10-27T00:00:00Z", finishedAt: "2026-10-27T00:00:01Z", durationMs: 1000, cleanup: "passed", databaseIdentity: publicDockerDatabaseIdentity(owned.receipt) };
+  const result = { schema: "outpost.runner-e2e.result/v1", executionId: "remote-offline", attempt: 1, status: "passed", profileId: "offline", environmentId: "local", caseId: "offline", provider: null, model: null, runtimeMode: "none", startedAt: "2026-10-27T00:00:00Z", finishedAt: "2026-10-27T00:00:01Z", durationMs: 1000, cleanup: "passed", databaseIdentity: publicDockerDatabaseIdentity(owned.receipt) };
   expect(() => validateRetainedRunnerResult(result)).not.toThrow();
   for (const change of [{ architecture: undefined }, { image: POSTGRES_IMAGE }, { imageId: POSTGRES_IMAGE_ID }]) expect(() => validateRetainedRunnerResult({ ...result, databaseIdentity: { ...result.databaseIdentity, ...change } })).toThrow();
 });

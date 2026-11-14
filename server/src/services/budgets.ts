@@ -7,9 +7,9 @@ import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { notifyExternalObjectRefresh } from "./external-object-refresh-notifications.js";
 import { notifyApprovalWork } from "./approval-work-notifications.js";
 import { notifyAttentionRetentionWork, notifyCompanyRetentionWork } from "./retention-work-notifications.js";
-import { addCents, compareCents, normalizeCents } from "@paperclipai/shared";
+import { addCents, compareCents, normalizeCents } from "@outpost/shared";
 import { and, desc, eq, inArray, sql, or, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   agents,
@@ -22,7 +22,7 @@ import {
   costEvents,
   heartbeatRuns,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   BudgetIncident,
   BudgetIncidentResolutionInput,
@@ -35,7 +35,7 @@ import type {
   BudgetScopeType,
   BudgetThresholdType,
   BudgetWindowKind,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { HttpError, notFound, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { withAccountingReadSnapshot, withAccountingTransaction, withOperationAccountingTransaction } from "./accounting-transaction.js";

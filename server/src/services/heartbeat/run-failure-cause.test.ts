@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRunFailureCause } from "@paperclipai/shared";
+import { normalizeRunFailureCause } from "@outpost/shared";
 import { failureCauseFromAdapterResult, failureCauseFromError, isNativePreDispatchTransientFailure } from "./run-failure-cause.js";
 
 describe("run failure cause", () => {

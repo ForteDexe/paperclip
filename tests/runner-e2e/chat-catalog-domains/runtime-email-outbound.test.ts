@@ -15,12 +15,12 @@ vi.mock("../api.js", async original => ({ ...await original<object>(), pollUntil
 function actualHandoff() {
   const companyId = "company", sourceId = "chat", leadId = "ceo", canonicalId = "canonical";
   const work = { id: "work", companyId, parentId: null, workMode: "standard", assigneeAgentId: leadId, createdByAgentId: leadId,
-    status: "done", originKind: "manual", originRunId: canonicalId, originId: "paperclip-runner:create-task:chat:launch", originFingerprint: "a".repeat(64) };
+    status: "done", originKind: "manual", originRunId: canonicalId, originId: "outpost-runner:create-task:chat:launch", originFingerprint: "a".repeat(64) };
   const runs = [{ id: "setup", companyId, agentId: leadId, runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: sourceId, wakeCommentIds: ["draft"] } },
     { id: canonicalId, companyId, agentId: leadId, runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: sourceId, wakeCommentIds: ["canonical-human"] } },
-    { id: "work-run", companyId, agentId: leadId, issueId: work.id, wakeupRequestId: "assignment-wakeup", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: work.id, source: "paperclip_runner.create_task", wakeSource: "assignment", wakeReason: "issue_assigned", parentIssueId: null } },
+    { id: "work-run", companyId, agentId: leadId, issueId: work.id, wakeupRequestId: "assignment-wakeup", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: work.id, source: "outpost_runner.create_task", wakeSource: "assignment", wakeReason: "issue_assigned", parentIssueId: null } },
     { id: "completion", companyId, agentId: leadId, runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: sourceId, chatCompletionUpdates: [{ id: work.id, status: "done" }] } }];
-  const activity = [{ id: "created", companyId, entityId: work.id, entityType: "issue", action: "issue.created", actorType: "agent", actorId: leadId, agentId: leadId, runId: canonicalId, details: { source: "paperclip_runner_protocol" } }];
+  const activity = [{ id: "created", companyId, entityId: work.id, entityType: "issue", action: "issue.created", actorType: "agent", actorId: leadId, agentId: leadId, runId: canonicalId, details: { source: "outpost_runner_protocol" } }];
   const email = { id: "email-task", companyId, parentId: work.id, assigneeAgentId: leadId };
   const thread = { issueId: email.id, conversationId: "thread", endpoint: { id: "endpoint", companyId, assignedAgentId: leadId, status: "active" }, publications: [{ id: "publication", outcome: "sent" }] };
   return { companyId, sourceId, leadId, work, runs, activity, email, thread };
@@ -47,7 +47,7 @@ function pureHandoff(input = actualHandoff()) { return outboundOrdinaryHandoff({
  comments: [{ id: "draft", authorUserId: "person" }, { id: "canonical-human", authorUserId: "person" }] }); }
 it("rejects wrong originating actor, company, canonical run, idempotency and missing public audit evidence", () => {
  for (const mutate of [(v: ReturnType<typeof actualHandoff>) => { v.work.createdByAgentId = "foreign"; }, (v: ReturnType<typeof actualHandoff>) => { v.work.companyId = "foreign"; },
-  (v: ReturnType<typeof actualHandoff>) => { v.work.originRunId = "setup"; }, (v: ReturnType<typeof actualHandoff>) => { v.work.originId = "paperclip-runner:create-task:other:launch"; }, (v: ReturnType<typeof actualHandoff>) => { v.work.originFingerprint = "unbound"; },
+  (v: ReturnType<typeof actualHandoff>) => { v.work.originRunId = "setup"; }, (v: ReturnType<typeof actualHandoff>) => { v.work.originId = "outpost-runner:create-task:other:launch"; }, (v: ReturnType<typeof actualHandoff>) => { v.work.originFingerprint = "unbound"; },
   (v: ReturnType<typeof actualHandoff>) => { v.activity[0]!.actorId = "foreign"; }, (v: ReturnType<typeof actualHandoff>) => { v.activity[0]!.runId = "setup"; }, (v: ReturnType<typeof actualHandoff>) => { v.activity[0]!.entityId = "other"; }, (v: ReturnType<typeof actualHandoff>) => { v.activity.length = 0; }]) {
   const input = actualHandoff(); mutate(input); expect(pureHandoff(input)).toBeUndefined();
  }

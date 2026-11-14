@@ -26,7 +26,7 @@ test("a ready agent with a missing personal key offers Claude setup in chat and 
       adapterConfig: { engine: "acp", cwd: root, stateDir: path.join(root, "state"),
         agentCommand: `${JSON.stringify(process.execPath)} ${JSON.stringify(path.resolve("scripts/mcp-fixtures/servers/acp-stop-agent.mjs"))}`,
         env: { ANTHROPIC_API_KEY: { type: "user_secret_ref", key: definition.key, version: "latest", required: true },
-          PAPERCLIP_STOP_FIXTURE_ROOT: root } },
+          OUTPOST_STOP_FIXTURE_ROOT: root } },
     } }));
     const chatPath = `/api/companies/${company.id}/chats/${agent.id}`;
     await page.goto(`/${company.issuePrefix}/chats/${agent.id}`);

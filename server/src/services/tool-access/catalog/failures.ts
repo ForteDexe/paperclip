@@ -1,4 +1,4 @@
-import type { ToolConnectionHealthStatus } from "@paperclipai/shared";
+import type { ToolConnectionHealthStatus } from "@outpost/shared";
 import { HttpError, unprocessable } from "../../../errors.js";
 import { mcpConnectionFailureReason, retainMcpConnectionFailure } from "../../mcp-connection-failure.js";
 import type { ActorInfo } from "../types.js";

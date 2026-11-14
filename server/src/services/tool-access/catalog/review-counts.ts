@@ -1,6 +1,6 @@
 import { and, count, eq, isNotNull, sql } from "drizzle-orm";
-import { toolActionRequests, toolCatalogEntries, toolConnections, toolInvocations, type Db } from "@paperclipai/db";
-import type { ToolConnectionReviewCounts } from "@paperclipai/shared";
+import { toolActionRequests, toolCatalogEntries, toolConnections, toolInvocations, type Db } from "@outpost/db";
+import type { ToolConnectionReviewCounts } from "@outpost/shared";
 
 /** Counts for one already-authorized connection. Independent aggregates avoid catalog/request fanout. */
 export async function getToolConnectionReviewCounts(

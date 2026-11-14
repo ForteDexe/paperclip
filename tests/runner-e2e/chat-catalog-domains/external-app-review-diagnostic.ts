@@ -60,8 +60,8 @@ export async function readReviewAdmissionSnapshot(db: Db, b: ReviewAdmissionBind
 export async function observeReviewAdmission(b: ReviewAdmissionBinding, env: NodeJS.ProcessEnv = process.env) {
   let db: Db | undefined;
   try {
-    if (!env.PAPERCLIP_CONFIG || !env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT) return { available: false as const, reason: "owned_config_unavailable" as const };
-    const [root, filename] = await Promise.all([realpath(env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT), realpath(env.PAPERCLIP_CONFIG)]);
+    if (!env.OUTPOST_CONFIG || !env.OUTPOST_RUNNER_E2E_TEMP_ROOT) return { available: false as const, reason: "owned_config_unavailable" as const };
+    const [root, filename] = await Promise.all([realpath(env.OUTPOST_RUNNER_E2E_TEMP_ROOT), realpath(env.OUTPOST_CONFIG)]);
     if (!filename.startsWith(`${root}${path.sep}`)) return { available: false as const, reason: "owned_config_unavailable" as const };
     const config = paperclipConfigSchema.parse(JSON.parse(await readFile(filename, "utf8")));
     const url = config.database.mode === "postgres" ? config.database.connectionString

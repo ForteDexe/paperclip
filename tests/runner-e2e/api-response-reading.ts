@@ -27,7 +27,7 @@ export function responseEvidenceDescription(nonce: string) {
   return `${"Synthetic diagnostic padding.\n".repeat(1400)}\nEvidence code: ${responseEvidenceCode(nonce)}\n`;
 }
 
-/** Correlate trusted PRP call inputs, results, and completion receipts. */
+/** Correlate trusted ORP call inputs, results, and completion receipts. */
 export function gradeApiResponsePaging(events: readonly { eventType?: string; payload?: unknown }[], sourceIssueId: string) {
   const object = (value: unknown): Record<string, unknown> =>
     value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -35,7 +35,7 @@ export function gradeApiResponsePaging(events: readonly { eventType?: string; pa
   const results = new Map<string, Record<string, unknown>>();
   const completed = new Set<string>();
   for (const event of events) {
-    const payload = object(object(object(event.payload).prpEvent).payload);
+    const payload = object(object(object(event.payload).orpEvent).payload);
     const item = object(payload.item);
     if (event.eventType === "item.started" && item.type === "tool_use" && item.name === "call_api" && typeof item.id === "string") {
       inputs.set(item.id, object(item.input));

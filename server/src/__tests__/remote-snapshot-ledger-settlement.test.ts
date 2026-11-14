@@ -9,7 +9,7 @@ import {
   executionWorkspaces,
   heartbeatRuns,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import {
@@ -24,12 +24,12 @@ vi.mock("../storage/index.js", () => ({
   getStorageService: () => ({ abortIncompleteUploads: async (_companyId: string, key: string) => { aborted.keys.push(key); return 1; } }),
 }));
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_HISTORY_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 const kindReport = (report: OwnershipReport, kind: string) => report.kinds.find(entry => entry.kind === kind)!;
 const ledgerViolations = (report: OwnershipReport) =>
   report.violations.filter(violation => violation.kind === "remote_snapshot_ledger");
-const quiesced = { schema: "paperclip.remote-workspace-save-work.v1", activeIds: [], unknown: false,
+const quiesced = { schema: "outpost.remote-workspace-save-work.v1", activeIds: [], unknown: false,
   owners: {}, quiescedAt: minutesAgo(30).toISOString() };
 
 describe("remote snapshot ledger settlement", () => {
@@ -64,7 +64,7 @@ describe("remote snapshot ledger settlement", () => {
   async function workspace(authority: { epoch: number; writerRunId: string | null; dirty: boolean }) {
     const id = randomUUID();
     await db.insert(executionWorkspaces).values({ id, companyId, mode: "isolated_workspace", strategyType: "test", name: id,
-      metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", snapshotId: null,
+      metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", snapshotId: null,
         source: { kind: "git", repoUrl: "https://example.invalid/repo.git", ref: null }, location: null, ...authority } } });
     return id;
   }
@@ -101,7 +101,7 @@ describe("remote snapshot ledger settlement", () => {
     expect(kindReport(second, "remote_snapshot_ledger").inProgress).toBe(0);
     const row = await ledger(snapshotId);
     expect(row).toMatchObject({ status: "deleted", deleteAfter: null, lastError: "abandoned_remote_snapshot_upload" });
-    expect(row.metadata).toMatchObject({ abandonedUpload: { schema: "paperclip.remote-snapshot-ledger-abandonment.v1",
+    expect(row.metadata).toMatchObject({ abandonedUpload: { schema: "outpost.remote-snapshot-ledger-abandonment.v1",
       runId: failed, epoch: 1, workspaceEpoch: 3, uploadAttempted: false, previousStatus: "pending" } });
   });
 

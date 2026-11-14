@@ -2,7 +2,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 
 const {
   ensureAdapterExecutionTargetDirectory,
@@ -55,9 +55,9 @@ const {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@outpost/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/execution-target")>(
+    "@outpost/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -103,7 +103,7 @@ describe("opencode remote environment diagnostics", () => {
         ...successfulProbe, exitCode: 1, stdout: "", timedOut: outcome === "timed_out",
         stderr: outcome === "auth_required" ? "invalid API key" : "ProviderModelNotFoundError",
       });
-      const result = await testEnvironment({ companyId: "company-1", adapterType: "paperclip_runner",
+      const result = await testEnvironment({ companyId: "company-1", adapterType: "outpost_runner",
         config: { model: "openrouter/deepseek/deepseek-v4-flash-0731", env: { XDG_CONFIG_HOME: configHome } } });
       expect(discoverOpenCodeModels).not.toHaveBeenCalled();
       expect(ensureOpenCodeModelConfiguredAndAvailable).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe("opencode remote environment diagnostics", () => {
       runAdapterExecutionTargetProcess.mockResolvedValueOnce({ ...successfulProbe, exitCode: 1, stderr: "",
         stdout: JSON.stringify({ type: "error", sessionID: "session-1", error: { name: "APIError",
           data: { message, statusCode: 401, isRetryable: false, responseHeaders: { "access-control-expose-headers": "WWW-Authenticate" } } } }) });
-      const result = await testEnvironment({ companyId: "company-1", adapterType: "paperclip_runner",
+      const result = await testEnvironment({ companyId: "company-1", adapterType: "outpost_runner",
         config: { model: "openrouter/deepseek/deepseek-v4-flash-0731", env: { XDG_CONFIG_HOME: configHome } } });
       expect(result.status).toBe("warn");
       expect(result.checks.map(check => [check.code, check.level])).toContainEqual(["opencode_hello_probe_auth_required", "warn"]);
@@ -137,7 +137,7 @@ describe("opencode remote environment diagnostics", () => {
     const successfulProbe = await runAdapterExecutionTargetProcess.getMockImplementation()!();
     runAdapterExecutionTargetProcess.mockResolvedValueOnce({ ...successfulProbe, exitCode: 1, stderr: "",
       stdout: JSON.stringify({ type: "error", error: { name: "APIError", data: { message: "Upstream error", statusCode } } }) });
-    const result = await testEnvironment({ companyId: "company-1", adapterType: "paperclip_runner",
+    const result = await testEnvironment({ companyId: "company-1", adapterType: "outpost_runner",
       config: { model: "openrouter/deepseek/deepseek-v4-flash-0731", env: { XDG_CONFIG_HOME: configHome } } });
     expect(result.checks).toContainEqual(expect.objectContaining({ code: "opencode_hello_probe_failed", level: "error" }));
   });
@@ -145,7 +145,7 @@ describe("opencode remote environment diagnostics", () => {
   it("gives each concurrent native probe its own OpenCode data directory", async () => {
     vi.stubEnv("HOME", "/host/user");
     vi.stubEnv("XDG_DATA_HOME", "/host/user/.local/share");
-    const probe = () => testEnvironment({ companyId: "company-1", adapterType: "paperclip_runner",
+    const probe = () => testEnvironment({ companyId: "company-1", adapterType: "outpost_runner",
       config: { model: "openrouter/deepseek/deepseek-v4-flash-0731", env: { XDG_CONFIG_HOME: configHome } } });
     const results = await Promise.all([probe(), probe()]);
     expect(results.map(result => result.status)).toEqual(["pass", "pass"]);
@@ -175,7 +175,7 @@ describe("opencode remote environment diagnostics", () => {
   });
 
   it("rejects a malformed native model before starting the probe", async () => {
-    const result = await testEnvironment({ companyId: "company-1", adapterType: "paperclip_runner",
+    const result = await testEnvironment({ companyId: "company-1", adapterType: "outpost_runner",
       config: { model: "missing-provider", env: { XDG_CONFIG_HOME: configHome } } });
     expect(result.status).toBe("fail");
     expect(runAdapterExecutionTargetProcess).not.toHaveBeenCalled();
@@ -183,7 +183,7 @@ describe("opencode remote environment diagnostics", () => {
   });
 
   it("preserves an explicitly configured native probe directory", async () => {
-    await testEnvironment({ companyId: "company-1", adapterType: "paperclip_runner",
+    await testEnvironment({ companyId: "company-1", adapterType: "outpost_runner",
       config: { model: "provider/model", cwd: configHome, env: { XDG_CONFIG_HOME: configHome } } });
     const call = runAdapterExecutionTargetProcess.mock.calls[0] as unknown as [unknown, unknown, unknown, unknown, { cwd: string }];
     expect(call[4].cwd).toBe(configHome);

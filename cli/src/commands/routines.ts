@@ -11,9 +11,9 @@ import {
   formatEmbeddedPostgresError,
   prepareEmbeddedPostgresNativeRuntime,
   routines,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { eq, inArray } from "drizzle-orm";
-import { loadPaperclipEnvFile } from "../config/env.js";
+import { loadOutpostEnvFile } from "../config/env.js";
 import { readConfig, resolveConfigPath } from "../config/store.js";
 
 type RoutinesDisableAllOptions = {
@@ -236,13 +236,13 @@ export async function disableAllRoutinesInConfig(
   options: Pick<RoutinesDisableAllOptions, "config" | "companyId">,
 ): Promise<DisableAllRoutinesResult> {
   const configPath = resolveConfigPath(options.config);
-  loadPaperclipEnvFile(configPath);
+  loadOutpostEnvFile(configPath);
   const companyId =
     nonEmpty(options.companyId)
-    ?? nonEmpty(process.env.PAPERCLIP_COMPANY_ID)
+    ?? nonEmpty(process.env.OUTPOST_COMPANY_ID)
     ?? null;
   if (!companyId) {
-    throw new Error("Outpost ID is required. Pass --company-id or set PAPERCLIP_COMPANY_ID.");
+    throw new Error("Outpost ID is required. Pass --company-id or set OUTPOST_COMPANY_ID.");
   }
 
   const config = readConfig(configPath);

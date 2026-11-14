@@ -69,7 +69,7 @@ export function gradeHireRevision(value: unknown) {
   c.add("actual-board-selected-cheaper-choice", typeof o.state.cheaperModel === "string" && adapter?.model === o.state.cheaperModel
     && (original?.payload.adapterConfig as { model?: string } | undefined)?.model !== adapter?.model
     && Array.isArray(o.state.eligibleModels) && o.state.eligibleModels.includes(adapter.model) && o.state.originalOtherFieldsPreserved === true
-    && approval?.payload.adapterType === "paperclip_runner" && adapter.provider === "opencode"
+    && approval?.payload.adapterType === "outpost_runner" && adapter.provider === "opencode"
     && validHireModelChoice(o.state.modelChoice) && o.state.modelChoice.cheaperModel === adapter.model && o.state.modelChoice.originalModel === o.state.originalModel
     && (original?.payload.adapterConfig as { model?: string } | undefined)?.model === o.state.modelChoice.originalModel,
     "The actual public catalog and official published text/cache rates prove the selected1017 configuration costs less across all published rate variants. Only the pending proposed model changes; no inference or realized savings is claimed for the original configuration.");
@@ -90,7 +90,7 @@ export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDe
   const source = await openStandingChat(ctx); const { fixtures, execution, workspacePath, nonce } = ctx.input;
   const configuration = execution.profile.buildAgent({ environmentId: fixtures.environment.id, environmentFixtureId: execution.environment.id, workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
   const config = configuration.adapterConfig as Record<string, unknown>;
-  if (configuration.adapterType !== "paperclip_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL) throw new Error("This hire-revision fixture requires the requested native OpenCode1017 profile");
+  if (configuration.adapterType !== "outpost_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL) throw new Error("This hire-revision fixture requires the requested native OpenCode1017 profile");
   const models = await ctx.input.api.get<Array<{ id: string }>>(`/api/companies/${fixtures.company.id}/adapters/opencode_local/models?provider=openrouter&environmentId=${fixtures.environment.id}`);
   const modelChoice = await readHireModelChoice(models);
   const { originalModel, cheaperModel } = modelChoice;
@@ -106,7 +106,7 @@ export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDe
   return { sourceIssueId: source.id, originalApproval, originalHistoryCommentId: history.id, originalModel, cheaperModel, humanId: session.user.id,
     eligibleModels: models.map(row => row.id), modelChoice, beforeAgentCount: (await ctx.input.api.get<unknown[]>(`/api/companies/${fixtures.company.id}/agents`)).length };
 }, gradeHireRevision, {
-  authentication: "human-session", oracleVersion: "paperclip.chat-catalog.hire-revision.native1017.v6", sourceFiles: ["chat-catalog-domains/identity-hire-revision.ts", "chat-catalog-domains/identity-hire-model-choice.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-rendered-links.ts", "chat-scenarios/questions-and-approvals.yaml"],
+  authentication: "human-session", oracleVersion: "outpost.chat-catalog.hire-revision.native1017.v6", sourceFiles: ["chat-catalog-domains/identity-hire-revision.ts", "chat-catalog-domains/identity-hire-model-choice.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-rendered-links.ts", "chat-scenarios/questions-and-approvals.yaml"],
   async act(ctx, state) {
     const remaining = () => remainingIdentityObservationBudget(ctx);
     remaining(); await waitForReply(ctx, ctx.observationDeadlineAt); remaining();

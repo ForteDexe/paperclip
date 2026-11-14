@@ -1,4 +1,4 @@
-import type { heartbeatRuns, nativeRunFinalizations } from "@paperclipai/db";
+import type { heartbeatRuns, nativeRunFinalizations } from "@outpost/db";
 import type { LocalOwnerStamp } from "../owner-proof.js";
 
 /**

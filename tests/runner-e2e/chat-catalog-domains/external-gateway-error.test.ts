@@ -155,8 +155,8 @@ it("requires a trusted successful model tool result containing the exact separat
     eventType,
     protocolSchemaVersion: 2,
     payload: {
-      prpEvent: {
-        schema: "paperclip.prp.event.v2",
+      orpEvent: {
+        schema: "outpost.orp.event.v2",
         schemaVersion: 2,
         sourceKind: "runner",
         payload,

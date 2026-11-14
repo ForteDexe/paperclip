@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
-import { agents, heartbeatRuns, issues, issueComments } from "@paperclipai/db";
+import { agents, heartbeatRuns, issues, issueComments } from "@outpost/db";
 import { undeliveredConversationComments } from "../services/agent-conversations.js";
 import { DELIVERY_QUEUES, subscribeDeliveryWork } from "../services/delivery-work-notifications.js";
 import { issueService } from "../services/issues.js";
@@ -42,7 +42,7 @@ describeIssueRecovery("issue recovery production producers and conversations", (
     let hints = 0;
     const stop = subscribeDeliveryWork(state.db, DELIVERY_QUEUES.strandedAssignments, () => { hints++; });
     try {
-      await f.settings.updateExperimental({ enableConferenceRoomChat: true });
+      await f.settings.updateExperimental({ enableCases: true });
       await f.settings.updateExperimental({ enableAgentChat: false });
       expect(hints).toBe(0); await quiet();
     } finally { stop(); }

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, issueWorkProducts } from "@paperclipai/db";
+import { activityLog, agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, issueWorkProducts } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { issueRoutes } from "../routes/issues.js";
 import { errorHandler } from "../middleware/index.js";
@@ -11,11 +11,11 @@ import { createHeartbeatRunState } from "../services/heartbeat/run-state.js";
 import { activityService } from "../services/activity.js";
 import { documentService } from "../services/documents.js";
 
-const externalDatabase = process.env.PAPERCLIP_TASK_COLD_OPEN_DATABASE_URL;
+const externalDatabase = process.env.OUTPOST_TASK_COLD_OPEN_DATABASE_URL;
 if (externalDatabase) {
   const target = new URL(externalDatabase);
   if (!["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || !target.pathname.endsWith("_test"))
-    throw new Error("PAPERCLIP_TASK_COLD_OPEN_DATABASE_URL must name a disposable loopback database ending in _test");
+    throw new Error("OUTPOST_TASK_COLD_OPEN_DATABASE_URL must name a disposable loopback database ending in _test");
 }
 const support = externalDatabase ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("task cold-open reads", () => {
@@ -156,7 +156,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
 
   it("pages conversation events without ordinary tools, including identity-less deltas and requests", async () => {
     const event = (seq: number, eventType: string, payload: Record<string, unknown>, itemId?: string) => ({
-      companyId, runId, agentId, seq, eventType, payload: { prpEvent: { schema: "paperclip.prp.event.v1", eventType, itemId, payload } },
+      companyId, runId, agentId, seq, eventType, payload: { orpEvent: { schema: "outpost.orp.event.v1", eventType, itemId, payload } },
     });
     await db.insert(heartbeatRunEvents).values([
       event(1, "item.started", { kind: "toolCall", arguments: "large tool arguments" }, "tool"),
@@ -167,9 +167,9 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       event(6, "runtime_request.resolved", { requestId: "request" }),
       event(7, "item.completed", { kind: "assistant_message", text: "Final answer" }),
       event(8, "turn.completed", {}),
-      event(9, "provider.notice.recorded", { schema: "paperclip.provider.notice.v1", category: "mcp_server_startup_failed",
+      event(9, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "mcp_server_startup_failed",
         summary: "github MCP server failed to start: No such file or directory (os error 2)" }),
-      event(10, "provider.notice.recorded", { schema: "paperclip.provider.notice.v1", category: "configWarning", summary: "diagnostic" }),
+      event(10, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "configWarning", summary: "diagnostic" }),
     ]);
     const service = createHeartbeatRunState(db);
     const first = await service.listEvents(runId, 0, 2, true);
@@ -194,7 +194,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     await db.insert(heartbeatRuns).values({ id: planRunId, companyId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
     const event = (seq: number, eventType: string, item: Record<string, unknown>, turnId = "turn-1", sourceKind = "runner") => ({
       companyId, runId: planRunId, agentId, seq, eventType, message: "private tool message",
-      payload: { extra: "private outer payload", prpEvent: { schema: "paperclip.prp.event.v1", runId: planRunId,
+      payload: { extra: "private outer payload", orpEvent: { schema: "outpost.orp.event.v1", runId: planRunId,
         sourceKind, turnId, eventType, sourceSeq: seq, itemId: item.id, payload: { kind: item.type, item } } },
     });
     const call = (id: string, key = "plan") => ({ id, type: "tool_use", name: "write_document", input: { key, body: "private plan input" } });
@@ -217,7 +217,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       event(14, "item.completed", result("x".repeat(513))),
       event(15, "item.started", { ...call("read-plan"), name: "read_document" }),
       event(16, "item.completed", result("read-plan")),
-      { ...event(17, "item.completed", result("write-plan")), payload: { prpEvent: {
+      { ...event(17, "item.completed", result("write-plan")), payload: { orpEvent: {
         schema: "unknown", sourceKind: "runner", turnId: "turn-1", payload: { item: result("write-plan") } } } },
       event(18, "item.started", { id: "shared", type: "assistant_message", text: "ordinary conversation" }),
       event(19, "item.completed", result("shared", "notes")),
@@ -225,30 +225,30 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const service = createHeartbeatRunState(db);
     const first = await service.listEvents(planRunId, 0, 1, true);
     expect(first.map(event => event.seq)).toEqual([2]);
-    expect(first[0]).toMatchObject({ message: null, payload: { prpEvent: { sourceKind: "runner", sourceSeq: 2,
+    expect(first[0]).toMatchObject({ message: null, payload: { orpEvent: { sourceKind: "runner", sourceSeq: 2,
       payload: { item: { type: "tool_result", id: "write-plan", name: "write_document", input: { key: "plan" },
         result: { disposition: "applied", document: { key: "plan" } } } } } } });
     const rest = await service.listEvents(planRunId, 2, 1000, true);
     expect(rest.map(event => event.seq)).toEqual([3, 5, 18, 19]);
-    expect(rest[3]).toMatchObject({ message: "private tool message", payload: { prpEvent: { payload: { item: { result: { document: { key: "notes" } } } } } } });
-    expect(rest[0].payload).toMatchObject({ prpEvent: { payload: { item: { text: "Plan saved.\u0000" } } } });
+    expect(rest[3]).toMatchObject({ message: "private tool message", payload: { orpEvent: { payload: { item: { result: { document: { key: "notes" } } } } } } });
+    expect(rest[0].payload).toMatchObject({ orpEvent: { payload: { item: { text: "Plan saved.\u0000" } } } });
     const writes = [first[0], rest[1]];
     expect(JSON.stringify(writes)).not.toContain("private");
     expect(Buffer.byteLength(JSON.stringify(writes))).toBeLessThan(4_000);
     const full = await service.listEvents(planRunId);
     expect(full).toHaveLength(19);
-    expect(full[1].payload).toMatchObject({ extra: "private outer payload", prpEvent: { payload: { item: result("write-plan") } } });
+    expect(full[1].payload).toMatchObject({ extra: "private outer payload", orpEvent: { payload: { item: result("write-plan") } } });
   });
 
   it.each(nativePlanWrites.captures)("keeps the retained $provider Plan receipt alongside provider activity", async ({ events }) => {
     const captureRunId = randomUUID();
     await db.insert(heartbeatRuns).values({ id: captureRunId, companyId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
     await db.insert(heartbeatRunEvents).values(events.map(event => ({ ...event, companyId, agentId, runId: captureRunId,
-      payload: { prpEvent: { ...event.payload.prpEvent, runId: captureRunId } } })));
+      payload: { orpEvent: { ...event.payload.orpEvent, runId: captureRunId } } })));
     const service = createHeartbeatRunState(db);
     const compact = await service.listEvents(captureRunId, 0, 1000, true);
     expect(compact.map(event => event.seq)).toEqual([events.find(event => event.eventType === "item.completed")!.seq]);
-    expect(compact[0].payload).toMatchObject({ prpEvent: { payload: { item: {
+    expect(compact[0].payload).toMatchObject({ orpEvent: { payload: { item: {
       type: "tool_result", name: "write_document", result: { document: { key: "plan" } },
     } } } });
     expect(JSON.stringify(compact)).not.toContain("private fixture body");

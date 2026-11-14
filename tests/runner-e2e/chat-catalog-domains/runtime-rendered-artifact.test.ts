@@ -29,8 +29,8 @@ it("rejects actual multi-page navigation", () => expect(hasSimplerWebsite([...si
 it("accepts in-page navigation in a simple page", () => expect(hasSimplerWebsite([...simple(), node("A", "Signup", { href: "#signup", inNavigation: true })])).toBe(true));
 it("rejects the wrong visible product page", () => { const x = simple(); x[1]!.text = "Unrelated dashboard"; x[0]!.text = x[0]!.text.replace("Acorn Notes", "Ledgerly"); expect(hasSimplerWebsite(x)).toBe(false); });
 // Chromium remains explicit opt-in under the repository browser-suite contract.
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_RENDERED_ARTIFACT_CANARY !== "1")("qualifies actual rendered hidden/comment/complex controls without backend or provider calls", async () => {
-  const browser = await chromium.launch({ headless: true, ...(process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE } : {}) });
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_RENDERED_ARTIFACT_CANARY !== "1")("qualifies actual rendered hidden/comment/complex controls without backend or provider calls", async () => {
+  const browser = await chromium.launch({ headless: true, ...(process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ? { executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE } : {}) });
   const context = await browser.newContext(), page = await context.newPage();
   const ctx = { input: { page } } as unknown as ChatCatalogContext;
   const body = '<main><h1>Acorn <span>Notes</span></h1><p>Turn scattered research into a clear shared notebook for the whole team.</p><a href="#signup">Join early access</a></main>';

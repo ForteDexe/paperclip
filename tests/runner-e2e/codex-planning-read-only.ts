@@ -23,7 +23,7 @@ export function gradePlanningWriteRefusal(
   const attempts = events.flatMap(event => {
     if (event.eventType !== "tool.execution.completed") return [];
     const outer = object(event.payload);
-    const payload = typeof outer.name === "string" ? outer : object(object(outer.prpEvent).payload);
+    const payload = typeof outer.name === "string" ? outer : object(object(outer.orpEvent).payload);
     const name = typeof payload.name === "string" ? payload.name : "";
     if (!writeCommand.test(name)) return [];
     const status = typeof payload.status === "string" ? payload.status : null;

@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents, closeLivenessDb, companies, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   lockNativeExecutionLeaseForReacquire, nativeExecutionLeaseHeldCondition, renewNativeSessionExecutionLease,
   startNativeSessionExecutionLeaseRenewal,
@@ -43,7 +43,7 @@ describeEmbeddedPostgres("native execution lease taken back after a host sleep",
     await db.insert(companies).values({ id: companyId, name: "Lease", issuePrefix: "LRA",
       requireBoardApprovalForNewAgents: false });
     await db.insert(agents).values({ id: agentId, companyId, name: "Runner", role: "engineer", status: "active",
-      adapterType: "paperclip_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
+      adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
   }, 120_000);
 
   afterEach(() => vi.useRealTimers());

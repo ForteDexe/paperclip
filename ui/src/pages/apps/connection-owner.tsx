@@ -1,5 +1,5 @@
-import type { McpConnection, ToolConnection } from "@paperclipai/shared";
-import { humanizeConnectionDisplayName } from "@paperclipai/shared";
+import type { McpConnection, ToolConnection } from "@outpost/shared";
+import { humanizeConnectionDisplayName } from "@outpost/shared";
 import { Identity } from "@/components/Identity";
 import type { CompanyUserProfile } from "@/lib/company-members";
 

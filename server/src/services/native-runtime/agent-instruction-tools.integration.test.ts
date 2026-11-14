@@ -4,28 +4,28 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, authUsers, companies, companyMemberships, principalPermissionGrants, heartbeatRuns, issues, agentInstructionRevisions, createDb } from "@paperclipai/db";
+import { activityLog, agents, authUsers, companies, companyMemberships, principalPermissionGrants, heartbeatRuns, issues, agentInstructionRevisions, createDb } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { resolveManagedInstructionsRoot } from "../agent-instructions.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("canonical instruction tools through native authority", () => {
   let database: Awaited<ReturnType<typeof startRecoveryPostgres>>;
   let db: ReturnType<typeof createDb>;
   let home: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
+  const previousHome = process.env.OUTPOST_HOME;
   let companyId: string, agentId: string, targetAgentId: string, userId: string, runId: string, issueId: string, root: string;
   let authority: PaperclipRunnerToolAuthority;
   const entryFile = "policy/ENTRY.md";
   const original = "\uFEFF# Original\r\n\0☃\n";
   beforeAll(async () => {
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "instruction-tool-home-")));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     database = await startRecoveryPostgres("instruction-tool-db-");
     db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => {
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
     await database?.cleanup();
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
@@ -213,7 +213,7 @@ describe("canonical instruction tools through native authority", () => {
       await expect(authority.recover({ ...request, arguments: { ...request.arguments, baseRevisionId: randomUUID() } }))
         .rejects.toThrow("idempotency_conflict");
       await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, runId));
-      await expect(authority.recover(request)).rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+      await expect(authority.recover(request)).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
       await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, runId));
       await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, userId));
       await expect(authority.recover(request)).rejects.toMatchObject({ status: 403 });
@@ -323,7 +323,7 @@ describe("canonical instruction tools through native authority", () => {
     await expect(call("read_agent_instructions", { targetAgentId: foreignAgentId })).rejects.toMatchObject({ status: 404 });
     await expect(call("update_agent_instructions", { targetAgentId: foreignAgentId, entryFile, content: "foreign", baseRevisionId: null })).rejects.toMatchObject({ status: 404 });
     await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, runId));
-    await expect(call("read_agent_instructions")).rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+    await expect(call("read_agent_instructions")).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
     expect(await fs.readFile(path.join(root, entryFile), "utf8")).toBe(original);
   });
 });

@@ -1,11 +1,11 @@
 import { isAgentAwaitingSetup, requestAgentLifecycleRecheckInTransaction } from "../modules/agent-lifecycle/index.js";
-import { agents, companies } from "@paperclipai/db";
+import { agents, companies } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { connectionIntentService } from "./connection-intents.js";
 import { connectionContinuationPendingResponse, findSatisfiedToolConnection, satisfiedConnectionIntentService } from "./satisfied-connection-intents.js";
 import { isAiConnectionConfigurationFailure } from "./ai-auth-failure.js";
 import { and, eq, isNull, lte, asc, inArray, notInArray, desc, sql } from "drizzle-orm";
-import { connectionIntentDeliveries, issueThreadInteractions, issues, agentWakeupRequests, companyMemberships, heartbeatRuns, chatConversations, chatEndpoints, type Db } from "@paperclipai/db";
+import { connectionIntentDeliveries, issueThreadInteractions, issues, agentWakeupRequests, companyMemberships, heartbeatRuns, chatConversations, chatEndpoints, type Db } from "@outpost/db";
 import type { heartbeatService } from "./heartbeat.js";
 import { issueService } from "./issues.js";
 import { issueRecoveryActionService } from "./issue-recovery-actions.js";
@@ -123,7 +123,7 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
 
   async function deliver(interactionId: string) {
     // Deterministic acceptance-test failpoint: preserve committed outcomes across a server restart.
-    if (process.env.NODE_ENV === "test" && process.env.PAPERCLIP_TEST_CONNECTION_DELIVERY_HOLD === "1") return;
+    if (process.env.NODE_ENV === "test" && process.env.OUTPOST_TEST_CONNECTION_DELIVERY_HOLD === "1") return;
     const now = new Date();
     // The retry deadline is also the worker lease. A crashed worker is reclaimed.
     const [claimed] = await db.update(connectionIntentDeliveries)

@@ -22,19 +22,19 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatActions,
   chatDeliveries,
   chatEndpoints,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatEndpointSetupState,
   ChatProvider,
   ToolCredentialSecretRef,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   parseGitHubReceiptIdentity,

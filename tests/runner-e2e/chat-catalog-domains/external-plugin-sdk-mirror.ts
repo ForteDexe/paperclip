@@ -33,7 +33,7 @@ export async function mirrorPreviewSdk(source: string, ownedRoot: string) {
   }
   await copy("package.json");
   const manifest = JSON.parse(await readFile(path.join(sdkPath, "package.json"), "utf8"));
-  if (manifest.name !== "@paperclipai/plugin-sdk" || manifest.exports?.["."]?.import !== "./dist/index.js")
+  if (manifest.name !== "@outpost/plugin-sdk" || manifest.exports?.["."]?.import !== "./dist/index.js")
     throw new Error("SDK mirror is not the actual public plugin SDK package");
   await copy("dist");
   if (!files.some(file => file.path === path.join("dist", "index.js"))) throw new Error("SDK mirror has no real compiled entrypoint");

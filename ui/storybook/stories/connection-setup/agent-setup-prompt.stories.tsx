@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MCP_CONFIG_HELP_PROMPT } from "@paperclipai/shared";
+import { MCP_CONFIG_HELP_PROMPT } from "@outpost/shared";
 import { BookOpen, KeyRound } from "lucide-react";
 import { AgentSetupPrompt } from "@/components/AgentSetupPrompt";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { IssueContinuationHandoff } from "@/components/IssueContinuationHandoff"
 import { webhookAgentInstructions } from "../../fixtures/routineTriggerWizard";
 import { storybookContinuationHandoff } from "../../fixtures/paperclipData";
 
-const slackPrompt = buildSlackSetupPrompt(import.meta.env.VITE_PAPERCLIP_INSTANCE_URL ?? "");
+const slackPrompt = buildSlackSetupPrompt(import.meta.env.VITE_OUTPOST_INSTANCE_URL ?? "");
 const apiPrompt = `Help me connect my agent to the Paperclip API.
 
 First, ask me for my Paperclip instance URL if it is not already available. Read its API documentation and identify the company and agent I want to use.
@@ -151,11 +151,11 @@ export const AppPlacements: Story = {
       </div>
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Slack connection</h2>
-        <SlackSetupPrompt instanceUrl={import.meta.env.VITE_PAPERCLIP_INSTANCE_URL ?? ""} />
+        <SlackSetupPrompt instanceUrl={import.meta.env.VITE_OUTPOST_INSTANCE_URL ?? ""} />
       </section>
       <section className="space-y-3">
         <h2 className="text-sm font-medium">GitHub connection</h2>
-        <GitHubSetupPrompt instanceUrl={import.meta.env.VITE_PAPERCLIP_INSTANCE_URL ?? ""} />
+        <GitHubSetupPrompt instanceUrl={import.meta.env.VITE_OUTPOST_INSTANCE_URL ?? ""} />
       </section>
       <section className="space-y-3">
         <div className="flex items-center gap-2">

@@ -30,8 +30,8 @@
     "virtualModuleSideEffects": false
   },
   "externalImports": [
-    "@paperclipai/db",
-    "@paperclipai/shared/home-paths",
+    "@outpost/db",
+    "@outpost/shared/home-paths",
     "drizzle-orm",
     "node:async_hooks",
     "node:crypto",

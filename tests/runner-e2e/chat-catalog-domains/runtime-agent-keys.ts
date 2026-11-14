@@ -37,7 +37,7 @@ export function gradeAgentKey(value: unknown) {
   return c.result();
 }
 export const runtimeAgentKeyCases = [runtimeDefinition("agents.agent-api-key", async ctx => ({ worker: await runtimeWorker(ctx) }), gradeAgentKey, {
-  authentication: "human-session", oracleVersion: "paperclip.chat-catalog.agent-api-key.v3",
+  authentication: "human-session", oracleVersion: "outpost.chat-catalog.agent-api-key.v3",
   sourceFiles: ["chat-catalog-domains/runtime-agent-keys.ts", "chat-catalog-domains/runtime-private-key.ts", "chat-catalog-domains/runtime-private-key-worker.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/agents.yaml"],
   async act(ctx, state) {
     await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); const worker = state.worker as RuntimeAgent;

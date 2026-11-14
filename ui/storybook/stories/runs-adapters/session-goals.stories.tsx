@@ -5,7 +5,7 @@ import type {
   RunnerGoalPendingAction,
   RunnerGoalProjection,
   RunnerGoalStatus,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   RunnerGoalWidget,
   type RunnerGoalControl,
@@ -32,7 +32,7 @@ function projection(input: {
   return {
     issueId: "issue-story-goal",
     agentId: "agent-story-goal",
-    adapterType: "paperclip_runner",
+    adapterType: "outpost_runner",
     sessionId: "session-story-goal",
     capability: input.capability ?? codexCapability,
     goal: status

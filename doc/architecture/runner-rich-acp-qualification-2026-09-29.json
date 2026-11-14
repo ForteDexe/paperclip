@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.rich-acp-qualification-checkpoint.v1",
+  "schema": "outpost.rich-acp-qualification-checkpoint.v1",
   "updatedAt": "2026-09-29T21:39:23.882856+00:00",
   "qualificationStatus": "pending",
   "runtimeSource": "bd4cc29c3017ed5e1484423e842fd48e3b2f49f3",
@@ -207,7 +207,7 @@
       "reconciledAt": "2026-09-29T18:17:17.885254+00:00",
       "actualCostUsd": 0,
       "costCoverage": "No provider launch; GitHubaccount11\u219211 and extra0/0. No nativeUSDreceipt.",
-      "failure": "Embedded PostgreSQL bootstrap exited1 before webserver/API/provider startup; does not diagnose original PRP session.open timeout",
+      "failure": "Embedded PostgreSQL bootstrap exited1 before webserver/API/provider startup; does not diagnose original ORP session.open timeout",
       "attemptCount": 1,
       "productRunCount": 0,
       "providerInferenceTurns": 0,

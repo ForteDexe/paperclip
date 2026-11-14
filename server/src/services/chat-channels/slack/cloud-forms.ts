@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import { chatActions, chatConversations, chatPublications, type Db } from "@paperclipai/db";
+import { chatActions, chatConversations, chatPublications, type Db } from "@outpost/db";
 import type { ResolvedChatQuestionFormOpen } from "../../chat-question-forms.js";
 import { slackThreadChannelId } from "./messages.js";
 import { SlackCloudReceiptError, type SlackCloudEvent } from "./cloud-event.js";

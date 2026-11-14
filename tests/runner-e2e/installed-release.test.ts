@@ -19,11 +19,11 @@ describe("ordinary installed release smoke", () => {
   });
   it("uses the public compiled Daytona plugin beside the installed CLI", () => {
     const root = realpathSync(mkdtempSync(path.join(tmpdir(), "installed-daytona-"))); roots.push(root);
-    const cliRoot = path.join(root, "node_modules/paperclipai"), plugin = path.join(root, "node_modules/@paperclipai/plugin-daytona");
+    const cliRoot = path.join(root, "node_modules/paperclipai"), plugin = path.join(root, "node_modules/@outpost/plugin-daytona");
     mkdirSync(path.join(cliRoot, "dist"), { recursive: true }); mkdirSync(path.join(plugin, "dist"), { recursive: true });
     const cli = path.join(cliRoot, "dist/index.js"); writeFileSync(cli, "");
     writeFileSync(path.join(cliRoot, "package.json"), JSON.stringify({ name: "paperclipai", version: "0.0.0-verify" }));
-    const manifest = { name: "@paperclipai/plugin-daytona", version: "0.0.0-verify", paperclipPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" }, exports: { ".": { import: "./dist/index.js" } } };
+    const manifest = { name: "@outpost/plugin-daytona", version: "0.0.0-verify", paperclipPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" }, exports: { ".": { import: "./dist/index.js" } } };
     for (const file of ["manifest.js", "worker.js", "index.js"]) writeFileSync(path.join(plugin, "dist", file), "");
     writeFileSync(path.join(plugin, "package.json"), JSON.stringify(manifest));
     expect(installedReleaseDaytonaPlugin(cli)).toBe(plugin);
@@ -43,13 +43,13 @@ describe("ordinary installed release smoke", () => {
 
   it("removes repository executables, provider packs, native paths and loader injection", () => {
     const source = { PATH: "/repo/packages/node_modules/.bin:/tmp/provider-bin:/usr/bin:/tmp/node/bin", NODE_OPTIONS: "--import /repo/loader", NODE_PATH: "/repo/node_modules",
-      PAPERCLIP_RUNNER_BINARY: "/repo/runner", PAPERCLIP_RUNNER_PROVIDER_PACK_ROOT: "/private/pack",
-      PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH: "/private/pack", PAPERCLIP_ACPX_BUILTIN_ROOT: "/repo/providers",
-      PAPERCLIP_NATIVE_RUNTIME_CONTEXT_PATH: "/repo/context", PAPERCLIP_RUNNER_E2E_PORT: "3100", PAPERCLIP_HOME: "/tmp/home" };
-    expect(installedReleaseEnvironment(source, "/repo", "/tmp/provider-bin")).toEqual({ PATH: "/usr/bin:/tmp/node/bin", PAPERCLIP_RUNNER_E2E_PORT: "3100", PAPERCLIP_HOME: "/tmp/home" });
-    expect(source.PAPERCLIP_RUNNER_BINARY).toBe("/repo/runner");
+      OUTPOST_RUNNER_BINARY: "/repo/runner", OUTPOST_RUNNER_PROVIDER_PACK_ROOT: "/private/pack",
+      OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH: "/private/pack", OUTPOST_ACPX_BUILTIN_ROOT: "/repo/providers",
+      OUTPOST_NATIVE_RUNTIME_CONTEXT_PATH: "/repo/context", OUTPOST_RUNNER_E2E_PORT: "3100", OUTPOST_HOME: "/tmp/home" };
+    expect(installedReleaseEnvironment(source, "/repo", "/tmp/provider-bin")).toEqual({ PATH: "/usr/bin:/tmp/node/bin", OUTPOST_RUNNER_E2E_PORT: "3100", OUTPOST_HOME: "/tmp/home" });
+    expect(source.OUTPOST_RUNNER_BINARY).toBe("/repo/runner");
   });
   it("rejects qualification admission instead of silently relabeling it as production", () => {
-    expect(() => installedReleaseEnvironment({ PAPERCLIP_RUNNER_ACPX_QUALIFICATION: "cursor" }, "/repo", "/tmp/provider-bin")).toThrow("production admission");
+    expect(() => installedReleaseEnvironment({ OUTPOST_RUNNER_ACPX_QUALIFICATION: "cursor" }, "/repo", "/tmp/provider-bin")).toThrow("production admission");
   });
 });

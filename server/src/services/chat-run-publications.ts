@@ -17,7 +17,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   chatActions,
@@ -30,7 +30,7 @@ import {
   heartbeatRuns,
   issueComments,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { projectSafeChatPublication } from "./chat-publication-projection.js";
 import { safeChatTaskUrl } from "./chat-task-url.js";
 import { hasChatRunOwnedProviderInteraction } from "./chat-interaction-arbitration.js";
@@ -273,7 +273,7 @@ type ChatRunMilestoneCursor = {
 };
 
 const explicitlyAuthoredCommentReason = sql<boolean>`(
-    ${issueComments.metadata} ->> 'authorizationReason' = 'paperclip_runner_protocol'
+    ${issueComments.metadata} ->> 'authorizationReason' = 'outpost_runner_protocol'
     or left(coalesce(${issueComments.metadata} ->> 'authorizationReason', ''), 6) = 'allow_'
   )`;
 

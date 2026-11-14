@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import type { Project } from "@paperclipai/shared";
-import { createProjectSchema, updateProjectSchema } from "@paperclipai/shared";
+import type { Project } from "@outpost/shared";
+import { createProjectSchema, updateProjectSchema } from "@outpost/shared";
 import {
   addCommonClientOptions,
   apiPath,

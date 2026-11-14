@@ -12,7 +12,7 @@ const context = { GITHUB_REPOSITORY: 'paperclipai/paperclip', GITHUB_REF: 'refs/
 async function fixture(t, change = {}) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'testops-selection-')));
   t.after(() => rm(root, { recursive: true }));
-  const value = { schema: 'paperclip.chat-feature-testops-selection/v1', runId: '123', attempt: '1', workflowSha: 'a'.repeat(40), targetSha: 'a'.repeat(40),
+  const value = { schema: 'outpost.chat-feature-testops-selection/v1', runId: '123', attempt: '1', workflowSha: 'a'.repeat(40), targetSha: 'a'.repeat(40),
     allureJobRunId: '9', executionId, canonicalScenario: scenario, projectId: 1, planId: 8, jobId: 7, caseId: 91, fullName, launchId: 10, ...change };
   const bytes = Buffer.from(JSON.stringify(value));
   await mkdir(path.join(root, 'chat-testops-selection'));
@@ -47,10 +47,10 @@ test('actual upload facade copies authenticated workspace bytes to owned temp be
     environmentId: 'local', model: 'openrouter/deepseek/deepseek-v4.1-flash-1017', runtimeMode: 'native', attempt: 1,
     source: { sha: context.GITHUB_SHA }, status: 'passed', cleanup: 'passed', runIds: ['synthetic'], durationMs: 123,
     matcherResults: [{ matcher: { kind: 'json_path', path: 'chatFeature.createdTask', expected: true }, passed: true }], screenshots: [shot] };
-  const files = new Map([['normalized-results.json', Buffer.from(JSON.stringify({ schema: 'paperclip.runner-e2e.campaign/v2', campaignId: 'gha-123-1', results: [result] }))],
+  const files = new Map([['normalized-results.json', Buffer.from(JSON.stringify({ schema: 'outpost.runner-e2e.campaign/v2', campaignId: 'gha-123-1', results: [result] }))],
     ['junit.xml', Buffer.from('<testsuite tests="1"/>')], [`evidence/${executionId}/attempt-1/final-state.png`, png]]);
   for (const [name, bytes] of files) { await mkdir(path.dirname(path.join(root, name)), { recursive: true }); await writeFile(path.join(root, name), bytes); }
-  await writeFile(path.join(root, 'binding.json'), JSON.stringify({ schema: 'paperclip.chat-feature-testops-export/v1', runId: '123', attempt: '1',
+  await writeFile(path.join(root, 'binding.json'), JSON.stringify({ schema: 'outpost.chat-feature-testops-export/v1', runId: '123', attempt: '1',
     workflowSha: context.GITHUB_SHA, targetSha: context.GITHUB_SHA, executionId, campaignId: 'gha-123-1', resultStatus: 'passed', cleanup: 'passed',
     files: [...files].map(([name, bytes]) => ({ path: name, sha256: hash(bytes), bytes: bytes.length })) }));
   assert.equal(await reporter('upload', root, { ...f.env, RUNNER_TEMP: temporary }), 0);
@@ -145,7 +145,7 @@ async function bootstrapContextFixture(t, inputs = { operation: 'bootstrap', ALL
   await writeFile(path.join(state, 'job.json'), originalJob, { mode: 0o600 });
   const event = path.join(workspace, 'event.json'); await writeFile(event, JSON.stringify({ inputs }));
   return { ...f, state, originalJob, env: { ...f.env, RUNNER_TEMP: temporary, GITHUB_EVENT_PATH: event, ALLURE_JOB_RUN_ID: '',
-    ALLURE_ENDPOINT: 'https://paperclip.testops.cloud', ALLURE_PROJECT_ID: '1', ALLURE_TOKEN: 'SYNTHETIC_REPORTER_TOKEN', CHAT_TESTOPS_GITHUB_WORKFLOW_ID: '99' } };
+    ALLURE_ENDPOINT: 'https://outpost.testops.cloud', ALLURE_PROJECT_ID: '1', ALLURE_TOKEN: 'SYNTHETIC_REPORTER_TOKEN', CHAT_TESTOPS_GITHUB_WORKFLOW_ID: '99' } };
 }
 function bootstrapContextFetch(change = {}) {
   const calls = [];
@@ -195,7 +195,7 @@ test('post-watch facade runs exact official command with bounded pipes and prese
   assert.equal(await reporter('bootstrap-context', undefined, f.env, server.fetchImpl, execImpl), 0);
   const bytes = await readFile(path.join(f.state, 'registration.json'));
   const result = JSON.parse(bytes);
-  assert.equal(result.schema, 'paperclip.chat-feature-testops-bootstrap-registration/v1');
+  assert.equal(result.schema, 'outpost.chat-feature-testops-bootstrap-registration/v1');
   assert.equal(result.jobId, 7); assert.equal(result.allureJobRunId, '9'); assert.equal(result.launchId, 10);
   assert.equal(result.runId, '123'); assert.equal(result.workflowSha, context.GITHUB_SHA); assert.equal(result.targetSha, context.GITHUB_SHA);
   assert.equal(result.currentRunUrlMatches, true); assert.equal(result.publicWorkflowMatches, true);

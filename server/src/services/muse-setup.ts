@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { MUSE_ASSET_VERSION } from "@paperclipai/shared";
+import { MUSE_ASSET_VERSION } from "@outpost/shared";
 import { unprocessable } from "../errors.js";
 /** Published historical versions retain exact bytes; new installations use asset9. */
 export async function museReceiverAssets(assetVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = MUSE_ASSET_VERSION) {
@@ -16,7 +16,7 @@ export async function museReceiverAssets(assetVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
     } } };
 }
 export function musePublicOrigin(value?:string) {
-  const origin=value??process.env.PAPERCLIP_PUBLIC_URL??process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL??process.env.PAPERCLIP_MANAGED_RUNTIME_PUBLIC_URL;
+  const origin=value??process.env.OUTPOST_PUBLIC_URL??process.env.OUTPOST_AUTH_PUBLIC_BASE_URL??process.env.OUTPOST_MANAGED_RUNTIME_PUBLIC_URL;
   try {const parsed=new URL(origin??"");if(parsed.protocol!=="https:"||parsed.username||parsed.password||parsed.pathname!=="/"||parsed.search||parsed.hash)throw new Error();return parsed.origin;}
   catch {throw unprocessable("Configure a stable public HTTPS Outpost hostname before connecting Muse.");}
 }

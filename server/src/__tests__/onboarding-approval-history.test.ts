@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { activityLog, agents, companyMemberships, heartbeatRuns, issues, issueThreadInteractions } from "@paperclipai/db";
+import { activityLog, agents, companyMemberships, heartbeatRuns, issues, issueThreadInteractions } from "@outpost/db";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { documentService } from "../services/documents.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 
@@ -14,9 +14,9 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
   let decisionUserId: string;
   let cookie: string;
-  const originalSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const originalSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   beforeAll(async () => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer({ humanSessions: true });
     const board = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
     decisionUserId = board.responsibleUserId!;
@@ -24,8 +24,8 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
   }, 60_000);
   afterAll(async () => {
     await server?.close();
-    if (originalSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    else process.env.PAPERCLIP_AGENT_JWT_SECRET = originalSecret;
+    if (originalSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+    else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret;
   });
 
   type Fixture = Awaited<ReturnType<typeof server.fixture>>;
@@ -66,7 +66,7 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
     // Agent creation is fixture setup here; the live journey exercises hiring.
     const workerId = randomUUID();
     await server.db.insert(agents).values({ id: workerId, companyId: f.companyId, name: "Platform Engineer",
-      status: "active", adapterType: "paperclip_runner", runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } });
+      status: "active", adapterType: "outpost_runner", runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } });
     const executionId = await request(f, "confirmation", "Start Step 1: Discovery");
     return { f, plan, planId, hiringId, executionId, workerId };
   };
@@ -105,7 +105,7 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
         if (kind === "checkbox") expect(context.acceptedPlan.approvedOptions).toEqual([selected]);
         else expect(context.acceptedPlan).not.toHaveProperty("approvedOptions");
 
-        const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+        const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
         const post = async () => {
           const route = path === "decomposition" ? `/api/issues/${f.issueId}/accepted-plan-decompositions`
             : path === "REST child" ? `/api/issues/${f.issueId}/children` : `/api/companies/${f.companyId}/issues`;

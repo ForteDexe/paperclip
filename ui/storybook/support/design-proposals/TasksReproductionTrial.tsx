@@ -35,7 +35,7 @@ function TrialContent() {
     : <EmptyState icon={SearchX} message="No tasks match this view" description="Try another search or clear your filters." action="Clear filters" hideActionIcon onAction={clear} />;
 
   return <TruncatedTextMarqueeProvider>
-    <DesignPageShell title="Tasks" sidebarStorageKey="paperclip.design-agent-task-list-trial.sidebar-width"
+    <DesignPageShell title="Tasks" sidebarStorageKey="outpost.design-agent-task-list-trial.sidebar-width"
       sidebar={<DesignSidebar recentTasks={recentTasks.map(item => item.issue)} onNewTask={() => openNewIssue()} />}>
       <TaskListToolbar view={view} onViewChange={setView}
         query={query} onQueryChange={setQuery} layout={layout} onLayoutChange={setLayout}

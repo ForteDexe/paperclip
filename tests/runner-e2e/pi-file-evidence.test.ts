@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { collectPiFileEvidence, gradePiCopyback, gradePiFileEvidence, piFileContract, piFilePrompt, seedPiFile } from "./pi-file-evidence.js";
-import { canonicalProviderEventsFromAcpxRuntimeEvent, createAcpxToolEventNormalizer } from "../../packages/paperclip-runner/src/provider-events.js";
-import { safeAcpxLocations } from "../../packages/paperclip-runner/src/drivers/acpx/safe-locations.js";
+import { canonicalProviderEventsFromAcpxRuntimeEvent, createAcpxToolEventNormalizer } from "../../packages/outpost-runner/src/provider-events.js";
+import { safeAcpxLocations } from "../../packages/outpost-runner/src/drivers/acpx/safe-locations.js";
 import { classifyFailure } from "./failure-classifier.js";
 import { runnerMatrix } from "./catalog.js";
 
@@ -28,12 +28,12 @@ function fixture() {
     const canonical = canonicalProviderEventsFromAcpxRuntimeEvent(event, executionId, "turn")[0]!;
     return { companyId: "company", runId: "run", seq, protocolSchemaVersion: 1, eventType: canonical.eventType,
       sourceInstanceId: "runner", sourceSeq: seq, sourceEventId: `runner:run:${seq}`,
-      payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "runner",
+      payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "runner",
         sourceSeq: seq, sourceEventId: `runner:run:${seq}`, runId: "run", turnId: "turn", normalizedSessionId: "session", ...canonical } } };
   };
   return {
     environment: "local" as const, environmentId: "environment", nonce: "fixture", companyId: "company", issueId: "issue", agentId: "agent", attachmentId,
-    seed: { schema: "paperclip.e2e.pi-file-seed.v1", filename: c.filename,
+    seed: { schema: "outpost.e2e.pi-file-seed.v1", filename: c.filename,
       beforeSha256: createHash("sha256").update("ready-fixture\n").digest("hex"), byteSize: Buffer.byteLength(c.before) },
     workspaceBytes: Buffer.from(c.after), downloadedBytes: Buffer.from(c.after),
     run: { id: "run", companyId: "company", agentId: "agent", runtimeMode: "native", nativeSessionId: "session", runnerInstanceId: "runner", status: "succeeded", resultJson: { semanticToolReceipts: {
@@ -52,11 +52,11 @@ function fixture() {
     attachments: [{ id: attachmentId, companyId: "company", issueId: "issue", originatingRunId: "run", createdByAgentId: "agent",
       originalFilename: c.filename, contentType: "text/plain", byteSize: c.byteSize, sha256: c.sha256 }],
     activity: [{ action: "issue.attachment_added", companyId: "company", runId: "run", actorId: "agent", entityId: "issue",
-      details: { attachmentId, source: "paperclip_runner_protocol" } }],
+      details: { attachmentId, source: "outpost_runner_protocol" } }],
   };
 }
 function changeOutput(f: ReturnType<typeof fixture>, change: (output: any) => void) {
-  const p = f.events[5]!.payload.prpEvent.payload, output = JSON.parse(p.output as string);
+  const p = f.events[5]!.payload.orpEvent.payload, output = JSON.parse(p.output as string);
   change(output); p.output = JSON.stringify(output);
 }
 describe("Pi edit, validation and public artifact oracle", () => {
@@ -66,8 +66,8 @@ describe("Pi edit, validation and public artifact oracle", () => {
     expect(retained.events).toHaveLength(44);
     f.events = retained.events.map((x: any) => ({ companyId: "company", runId: "run", seq: x.seq,
       protocolSchemaVersion: 1, eventType: x.eventType, sourceInstanceId: "runner", sourceSeq: x.sourceSeq,
-      sourceEventId: `runner:run:${x.sourceSeq}`, payload: { prpEvent: {
-        schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "runner",
+      sourceEventId: `runner:run:${x.sourceSeq}`, payload: { orpEvent: {
+        schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "runner",
         sourceSeq: x.sourceSeq, sourceEventId: `runner:run:${x.sourceSeq}`, runId: "run", turnId: "turn",
         normalizedSessionId: "session", eventType: x.eventType, payload: x.payload,
       } } }));
@@ -82,51 +82,51 @@ describe("Pi edit, validation and public artifact oracle", () => {
     expect(result.verification.command).toBe(piFileContract("fixture").validationCommand);
     expect(result.verification).toMatchObject({ commandEvidence: "correlated_native_progress",
       exitEvidence: "native_structured_output_receipt", nativeStructuredExitCode: 0, typedExitCode: null });
-    expect(fixture().events.map(e => e.payload.prpEvent.payload.target)).toEqual([null, "extended-fixture.txt", "extended-fixture.txt", null, null, null]);
+    expect(fixture().events.map(e => e.payload.orpEvent.payload.target)).toEqual([null, "extended-fixture.txt", "extended-fixture.txt", null, null, null]);
     // The runner keeps the latest concrete ACP title (#19265): bash, then the exact command.
-    expect(fixture().events.slice(3).map(e => e.payload.prpEvent.payload.name)).toEqual(["bash",
+    expect(fixture().events.slice(3).map(e => e.payload.orpEvent.payload.name)).toEqual(["bash",
       piFileContract("fixture").validationCommand, piFileContract("fixture").validationCommand]);
     expect(result.verification.nativeFileAttribution).toBe("workspace_relative_display_target");
   });
   it.each(["before", "after"])("rejects an extra metadata bash call %s validation despite correct file and download bytes", placement => {
     const f = fixture();
     const metadata = structuredClone(f.events.slice(3));
-    for (const row of metadata) row.payload.prpEvent.payload.executionId = "metadata";
-    metadata[1]!.payload.prpEvent.payload.progress = "wc -c extended-fixture.txt (in_progress): wc -c extended-fixture.txt";
+    for (const row of metadata) row.payload.orpEvent.payload.executionId = "metadata";
+    metadata[1]!.payload.orpEvent.payload.progress = "wc -c extended-fixture.txt (in_progress): wc -c extended-fixture.txt";
     // A refined title names the extra call by its own command; it still counts.
-    metadata[1]!.payload.prpEvent.payload.name = metadata[2]!.payload.prpEvent.payload.name = "wc -c extended-fixture.txt";
-    metadata[2]!.payload.prpEvent.payload.output = JSON.stringify({
+    metadata[1]!.payload.orpEvent.payload.name = metadata[2]!.payload.orpEvent.payload.name = "wc -c extended-fixture.txt";
+    metadata[2]!.payload.orpEvent.payload.output = JSON.stringify({
       content: [{ type: "text", text: "17 extended-fixture.txt\n" }],
       structuredContent: { output: "17 extended-fixture.txt\n", truncated: false, exit_code: 0 },
     });
     if (placement === "before") f.events.splice(3, 0, ...metadata);
     else f.events.push(...metadata);
     for (const [index, row] of f.events.entries()) {
-      row.seq = row.sourceSeq = row.payload.prpEvent.sourceSeq = index + 1;
-      row.sourceEventId = row.payload.prpEvent.sourceEventId = `runner:run:${index + 1}`;
+      row.seq = row.sourceSeq = row.payload.orpEvent.sourceSeq = index + 1;
+      row.sourceEventId = row.payload.orpEvent.sourceEventId = `runner:run:${index + 1}`;
     }
     expect(() => gradePiFileEvidence(f)).toThrow("one observed provider validation execution");
   });
   const mutations: Array<[string, (f: ReturnType<typeof fixture>) => void]> = [
     ["absent seed", f => { f.seed = {} as any; }],
     ["wrong final bytes", f => { f.workspaceBytes = Buffer.from("wrong\n"); }],
-    ["final-only write", f => { f.events[0]!.payload.prpEvent.payload.name = "write"; f.events[2]!.payload.prpEvent.payload.name = "write"; }],
+    ["final-only write", f => { f.events[0]!.payload.orpEvent.payload.name = "write"; f.events[2]!.payload.orpEvent.payload.name = "write"; }],
     ["missing edit", f => { f.events = f.events.slice(3); }],
     ["missing validation", f => { f.events = f.events.slice(0, 3); }],
-    ["echo-only validation", f => { f.events[3]!.payload.prpEvent.payload.name = `echo ${piFileContract("fixture").validationMarker}`; f.events[5]!.payload.prpEvent.payload.name = f.events[3]!.payload.prpEvent.payload.name; }],
-    ["validation name regresses to bash", f => { f.events[5]!.payload.prpEvent.payload.name = "bash"; }],
-    ["validation renamed to another command", f => { f.events[4]!.payload.prpEvent.payload.name = f.events[5]!.payload.prpEvent.payload.name = "node -e 'console.log(1)'"; }],
-    ["failed validation", f => { f.events[5]!.payload.prpEvent.payload.status = "failed"; }],
+    ["echo-only validation", f => { f.events[3]!.payload.orpEvent.payload.name = `echo ${piFileContract("fixture").validationMarker}`; f.events[5]!.payload.orpEvent.payload.name = f.events[3]!.payload.orpEvent.payload.name; }],
+    ["validation name regresses to bash", f => { f.events[5]!.payload.orpEvent.payload.name = "bash"; }],
+    ["validation renamed to another command", f => { f.events[4]!.payload.orpEvent.payload.name = f.events[5]!.payload.orpEvent.payload.name = "node -e 'console.log(1)'"; }],
+    ["failed validation", f => { f.events[5]!.payload.orpEvent.payload.status = "failed"; }],
     ["unfinished validation", f => { f.events.pop(); }],
-    ["unrelated validation turn", f => { f.events[3]!.payload.prpEvent.turnId = "other"; f.events[5]!.payload.prpEvent.turnId = "other"; }],
+    ["unrelated validation turn", f => { f.events[3]!.payload.orpEvent.turnId = "other"; f.events[5]!.payload.orpEvent.turnId = "other"; }],
     ["foreign native session", f => { f.run.nativeSessionId = "other"; }],
     ["foreign native producer", f => { f.run.runnerInstanceId = "other"; }],
-    ["foreign event run", f => { f.events[2]!.payload.prpEvent.runId = "other"; }],
+    ["foreign event run", f => { f.events[2]!.payload.orpEvent.runId = "other"; }],
     ["duplicate event", f => { f.events.push(structuredClone(f.events[5]!)); }],
     ["missing tool start", f => { f.events.splice(3, 1); }],
-    ["truncated validation output", f => { f.events[5]!.payload.prpEvent.payload.outputTruncated = true; }],
-    ["missing native target", f => { f.events[0]!.payload.prpEvent.payload.target = null; f.events[2]!.payload.prpEvent.payload.target = null; }],
-    ["wrong target", f => { f.events[2]!.payload.prpEvent.payload.target = "other.txt"; }],
+    ["truncated validation output", f => { f.events[5]!.payload.orpEvent.payload.outputTruncated = true; }],
+    ["missing native target", f => { f.events[0]!.payload.orpEvent.payload.target = null; f.events[2]!.payload.orpEvent.payload.target = null; }],
+    ["wrong target", f => { f.events[2]!.payload.orpEvent.payload.target = "other.txt"; }],
     ["missing registration", f => { f.run.resultJson.semanticToolReceipts = {} as any; }],
     ["rejected registration", f => { f.run.resultJson.semanticToolReceipts.publish.result.disposition = "denied"; }],
     ["wrong registered hash", f => { f.run.resultJson.semanticToolReceipts.publish.input.sha256 = "wrong"; }],
@@ -137,33 +137,33 @@ describe("Pi edit, validation and public artifact oracle", () => {
     ["wrong download bytes", f => { f.downloadedBytes = Buffer.from("wrong\n"); }],
     ["missing publication activity", f => { f.activity = []; }],
     ["foreign publication run", f => { f.activity[0]!.runId = "other"; }],
-    ["conflicting resolved target", f => { f.events[1]!.payload.prpEvent.payload.target = "other.txt"; }],
-    ["target regresses after resolution", f => { f.events[0]!.payload.prpEvent.payload.target = piFileContract("fixture").filename; f.events[1]!.payload.prpEvent.payload.target = null; }],
-    ["missing terminal target", f => { f.events[2]!.payload.prpEvent.payload.target = null; }],
-    ["absent command proof", f => { f.events[4]!.payload.prpEvent.payload.progress = null; }],
-    ["echo-only command proof", f => { f.events[4]!.payload.prpEvent.payload.progress = "echo PI-VALIDATED-fixture (in_progress): echo PI-VALIDATED-fixture"; }],
-    ["conflicting command before exact proof", f => { f.events[3]!.payload.prpEvent.payload.progress = "node other.js (pending): node other.js"; }],
-    ["late command proof", f => { f.events[5]!.payload.prpEvent.payload.progress = f.events[4]!.payload.prpEvent.payload.progress; f.events[4]!.payload.prpEvent.payload.progress = null; }],
-    ["plain echoed marker output", f => { f.events[5]!.payload.prpEvent.payload.output = piFileContract("fixture").validationMarker; }],
+    ["conflicting resolved target", f => { f.events[1]!.payload.orpEvent.payload.target = "other.txt"; }],
+    ["target regresses after resolution", f => { f.events[0]!.payload.orpEvent.payload.target = piFileContract("fixture").filename; f.events[1]!.payload.orpEvent.payload.target = null; }],
+    ["missing terminal target", f => { f.events[2]!.payload.orpEvent.payload.target = null; }],
+    ["absent command proof", f => { f.events[4]!.payload.orpEvent.payload.progress = null; }],
+    ["echo-only command proof", f => { f.events[4]!.payload.orpEvent.payload.progress = "echo PI-VALIDATED-fixture (in_progress): echo PI-VALIDATED-fixture"; }],
+    ["conflicting command before exact proof", f => { f.events[3]!.payload.orpEvent.payload.progress = "node other.js (pending): node other.js"; }],
+    ["late command proof", f => { f.events[5]!.payload.orpEvent.payload.progress = f.events[4]!.payload.orpEvent.payload.progress; f.events[4]!.payload.orpEvent.payload.progress = null; }],
+    ["plain echoed marker output", f => { f.events[5]!.payload.orpEvent.payload.output = piFileContract("fixture").validationMarker; }],
     ["nonzero native exit", f => { changeOutput(f, o => { o.structuredContent.exit_code = 1; }); }],
     ["missing native exit", f => { changeOutput(f, o => { delete o.structuredContent.exit_code; }); }],
     ["truncated native output", f => { changeOutput(f, o => { o.structuredContent.truncated = true; }); }],
     ["false marker substring", f => { changeOutput(f, o => { o.structuredContent.output = "failed before PI-VALIDATED-fixture\n"; }); }],
     ["contradictory content", f => { changeOutput(f, o => { o.content[0].text = "failed"; }); }],
-    ["contradictory typed exit", f => { f.events[5]!.payload.prpEvent.payload.exitCode = 1; }],
-    ["foreign command proof execution", f => { f.events[4]!.payload.prpEvent.payload.executionId = "foreign"; }],
-    ["foreign command proof turn", f => { f.events[4]!.payload.prpEvent.turnId = "foreign"; }],
-    ["foreign command proof session", f => { f.events[4]!.payload.prpEvent.normalizedSessionId = "foreign"; }],
+    ["contradictory typed exit", f => { f.events[5]!.payload.orpEvent.payload.exitCode = 1; }],
+    ["foreign command proof execution", f => { f.events[4]!.payload.orpEvent.payload.executionId = "foreign"; }],
+    ["foreign command proof turn", f => { f.events[4]!.payload.orpEvent.turnId = "foreign"; }],
+    ["foreign command proof session", f => { f.events[4]!.payload.orpEvent.normalizedSessionId = "foreign"; }],
     ["foreign command proof producer", f => {
-      const row = f.events[4]!, e = row.payload.prpEvent;
+      const row = f.events[4]!, e = row.payload.orpEvent;
       e.sourceInstanceId = row.sourceInstanceId = "foreign"; e.sourceEventId = row.sourceEventId = `foreign:run:${e.sourceSeq}`;
     }],
     ["durable source differs from envelope", f => { f.events[4]!.sourceInstanceId = "foreign"; }],
     ["durable event identity differs from envelope", f => { f.events[4]!.sourceEventId = "runner:run:999"; }],
     ["durable source sequence differs from envelope", f => { f.events[4]!.sourceSeq = 999; }],
     ["command proof after terminal", f => {
-      const e = f.events[4]!; f.events.splice(4, 1); e.seq = 7; e.payload.prpEvent.sourceSeq = 7;
-      e.sourceSeq = 7; e.sourceEventId = e.payload.prpEvent.sourceEventId = "runner:run:7"; f.events.push(e);
+      const e = f.events[4]!; f.events.splice(4, 1); e.seq = 7; e.payload.orpEvent.sourceSeq = 7;
+      e.sourceSeq = 7; e.sourceEventId = e.payload.orpEvent.sourceEventId = "runner:run:7"; f.events.push(e);
     }],
   ];
   it.each(mutations)("rejects %s even when the model claims completion", (_name, change) => {
@@ -174,7 +174,7 @@ describe("Pi edit, validation and public artifact oracle", () => {
     const c = piFileContract("0123456789ab-1");
     expect([...c.validationCommand].length).toBeLessThanOrEqual(240);
     expect(safeAcpxLocations([{ path: `/workspace/${c.filename}` }], "/workspace", "edit", "edit")[0]).toMatchObject({
-      path: c.filename, pathBoundary: "paperclip.workspace_relative_display.v2",
+      path: c.filename, pathBoundary: "outpost.workspace_relative_display.v2",
     });
     expect(() => piFileContract("a".repeat(100))).toThrow("native Rust tool-name bound");
   });
@@ -249,10 +249,10 @@ describe("Pi edit, validation and public artifact oracle", () => {
 
 function copyback() {
   const f = fixture();
-  const reference = { schema: "paperclip.native-workspace-sync/v2", state: "finalized", baselineSha256: "a".repeat(64),
+  const reference = { schema: "outpost.native-workspace-sync/v2", state: "finalized", baselineSha256: "a".repeat(64),
     descriptorSha256: "b".repeat(64), finalHostSha256: "c".repeat(64), workspaceId: "workspace", leaseId: "lease",
     providerLeaseId: "sandbox", remoteCwd: "/workspace" };
-  const run = { ...f.run, contextSnapshot: { executionWorkspaceId: "workspace", paperclipEnvironment: { id: "environment", driver: "sandbox", leaseId: "lease" } },
+  const run = { ...f.run, contextSnapshot: { executionWorkspaceId: "workspace", outpostEnvironment: { id: "environment", driver: "sandbox", leaseId: "lease" } },
     runnerProfileJson: { nativeWorkspaceSync: reference, nativeExecutionInput: { binding: { executionWorkspaceId: "workspace" } } } };
   const lease = { id: "lease", companyId: "company", environmentId: "environment", heartbeatRunId: "run", provider: "daytona", providerLeaseId: "sandbox", metadata: { remoteCwd: "/workspace" } };
   return { ...f, run, lease, environment: "daytona" as const };

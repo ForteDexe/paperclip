@@ -12,9 +12,9 @@ import { notifySkillVersionPinChange } from "./skill-version-retention-notificat
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyExternalConversationSettlement } from "./external-conversation-settlement-notifications.js";
 import { and, eq } from "drizzle-orm";
-import { agents, assets, agentConfigRevisions, agentTaskSessions, agentRuntimeState, type Db } from "@paperclipai/db";
-import { normalizeAgentUrlKey, extractAgentMentionIds } from "@paperclipai/shared";
-import { normalizePaperclipRunnerAdapterConfig } from "@paperclipai/adapter-utils/server-utils";
+import { agents, assets, agentConfigRevisions, agentTaskSessions, agentRuntimeState, type Db } from "@outpost/db";
+import { normalizeAgentUrlKey, extractAgentMentionIds } from "@outpost/shared";
+import { normalizePaperclipRunnerAdapterConfig } from "@outpost/adapter-utils/server-utils";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { agentRecordQueries, type UpdateAgentOptions, type AgentConfigurationPatch, type AgentConfigurationRecord, isPlainRecord, buildConfigSnapshot,
   hasConfigPatchFields, changedPendingApprovalConfigFields, diffConfigSnapshot, jsonEqual } from "../lib/agent-records.js";
@@ -144,7 +144,7 @@ export async function completeAgentConfiguration(txDb: Db, existing: AgentConfig
   const priorAdapterConfig = isPlainRecord(existing.adapterConfig) ? existing.adapterConfig : {};
   const afterConfig = isPlainRecord(updated.adapterConfig) ? updated.adapterConfig : {};
   const changedExecution = updated.adapterType !== existing.adapterType
-    || (updated.adapterType === "paperclip_runner" && ["provider", "acpxAgent", "model"].some(
+    || (updated.adapterType === "outpost_runner" && ["provider", "acpxAgent", "model"].some(
       (key) => priorAdapterConfig[key] !== afterConfig[key],
     ));
   if (changedExecution) {

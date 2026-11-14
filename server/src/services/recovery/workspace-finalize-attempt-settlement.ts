@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { heartbeatRuns, issueRecoveryActions, workspaceOperations, type Db } from "@paperclipai/db";
+import { heartbeatRuns, issueRecoveryActions, workspaceOperations, type Db } from "@outpost/db";
 import { persistActivity, publishActivity, type ActivityPublication } from "../activity-log.js";
 import type { OwnerProof } from "../owner-proof.js";
 import { currentControllerBootId } from "../controller-process-identity.js";
@@ -33,14 +33,14 @@ const TERMINAL_RUN_STATUSES = ["succeeded", "failed", "cancelled", "timed_out", 
  */
 export const settleAbandonedWorkspaceFinalizeAttempt = abandonedWorkspaceOperationSettle({
   phases: ["workspace_finalize"], statuses: ["running", "pending"], ownerKey: "finalizeOwner",
-  provenanceKey: "abandonedFinalization", schema: "paperclip.workspace-finalize-abandonment.v1",
+  provenanceKey: "abandonedFinalization", schema: "outpost.workspace-finalize-abandonment.v1",
   reason: ABANDONED_WORKSPACE_FINALIZE_REASON,
   message: "Workspace finalization was interrupted before it finished; the process that ran it is gone.\n",
 });
 
 export const settleAbandonedWorkspaceCommandOperation = abandonedWorkspaceOperationSettle({
   phases: LOCAL_WORKSPACE_COMMAND_PHASES, statuses: ["running"], ownerKey: "commandOwner",
-  provenanceKey: "abandonedCommand", schema: "paperclip.workspace-command-abandonment.v1",
+  provenanceKey: "abandonedCommand", schema: "outpost.workspace-command-abandonment.v1",
   reason: ABANDONED_WORKSPACE_COMMAND_REASON,
   message: "The workspace command was interrupted before it finished; the process that ran it is gone.\n",
 });
@@ -146,7 +146,7 @@ export async function settleAbandonedRemoteSnapshotSave(db: Db, record: InProgre
     }
     const now = context.now;
     const provenance = {
-      schema: "paperclip.remote-snapshot-save-abandonment.v1",
+      schema: "outpost.remote-snapshot-save-abandonment.v1",
       reason: ABANDONED_REMOTE_SNAPSHOT_SAVE_REASON,
       proof: context.proof.reason,
       previousStatus: operation.status,

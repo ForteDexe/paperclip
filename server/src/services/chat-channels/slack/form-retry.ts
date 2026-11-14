@@ -2,7 +2,7 @@ import { parseSlackFormRetirementReceipt } from "./ack-retirement-receipt.js";
 import { assertSlackFormRetirementWorkAuthority, assertSlackRetirementGCWork } from "./form-retirement-work.js";
 import { slackFormRetirementHistoryReceipt } from "./ack-retirement-receipt.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { chatActions, chatEndpoints, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, type Db } from "@outpost/db";
 import type { ConnectionManagementContext } from "../../connection-management.js";
 import { logActivity } from "../../activity-log.js";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "../../delivery-work-notifications.js";

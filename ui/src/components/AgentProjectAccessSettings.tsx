@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { isUuidLike } from "@paperclipai/shared";
+import { isUuidLike } from "@outpost/shared";
 import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
 import { Link, useSearchParams } from "../lib/router";

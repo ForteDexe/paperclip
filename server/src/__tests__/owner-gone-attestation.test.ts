@@ -4,8 +4,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   activityLog, agents, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, heartbeatRuns,
   issueRecoveryActions, issues,
-} from "@paperclipai/db";
-import { subscribeDatabaseWork } from "@paperclipai/db/work-signals";
+} from "@outpost/db";
+import { subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { ENVIRONMENT_LEASE_CONTROLLER_KEY } from "../services/environment-lease-controller.js";
@@ -30,7 +30,7 @@ describe("board confirmation that an unrecorded owner stopped", () => {
 
   /** A run lease saved before holders were stamped, on an ephemeral server, after its run finished. */
   async function seed(holder: Record<string, unknown> | null = null) {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Owner", issuePrefix: `O${companyId.slice(0, 6)}` });
     await db.insert(agents).values({ id: agentId, companyId, name: "Agent", adapterType: "codex_local", status: "idle" });

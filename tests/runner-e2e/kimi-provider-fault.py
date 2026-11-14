@@ -9,7 +9,7 @@ import signal
 import stat
 import sys
 
-PACK = '/opt/paperclip-runner/provider-pack'
+PACK = '/opt/outpost-runner/provider-pack'
 ENTRY = 'node_modules/@moonshot-ai/kimi-code/dist/main.mjs'
 NODE = 'node/bin/node'
 GUARD = '.paperclip-native-module-guard.cjs'
@@ -150,8 +150,8 @@ def inspect(config):
     require(re.fullmatch(r'[a-f0-9-]{36}', boot) and boot == expected['bootId'], 'boot_changed')
     root = proc(expected['pid'], boot)
     require(root == expected and os.getpgid(root['pid']) == root['pid'], 'root_changed')
-    runtime = binding['remoteCwd'] + '/.paperclip-runtime/paperclip-runner'
-    runner = runtime + '/bin/paperclip-runnerd'
+    runtime = binding['remoteCwd'] + '/.paperclip-runtime/outpost-runner'
+    runner = runtime + '/bin/outpost-runnerd'
     root_args = argv(root['pid'])
     require(root_args[0] == runner and flag(root_args, '--run-id') == binding['runId']
             and flag(root_args, '--environment-lease-id') == config['runtimeEnvironmentLeaseId']
@@ -255,7 +255,7 @@ def terminate(config):
         fields = dict(line.split(':', 1) for line in Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines() if ':' in line)
         require(int(fields.get('Pid', '-1').strip()) == pid, 'pidfd_retired')
         signal.pidfd_send_signal(fd, signal.SIGKILL, None, 0)
-        return {'schema': 'paperclip.e2e.kimi-provider-death.v1', 'binding': config['binding'], 'runtimeEnvironmentLeaseId': config['runtimeEnvironmentLeaseId'],
+        return {'schema': 'outpost.e2e.kimi-provider-death.v1', 'binding': config['binding'], 'runtimeEnvironmentLeaseId': config['runtimeEnvironmentLeaseId'],
                 **before, 'signalled': True, 'signal': 'SIGKILL', 'targetKind': 'kimi_native_child', 'workerSignalled': False}
     finally:
         os.close(fd)

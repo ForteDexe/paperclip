@@ -21,7 +21,7 @@ export function readTaskState(events: readonly Record<string, unknown>[], task: 
     { operationId: "GET /api/companies/{companyId}/issues", pathParams: [...recordParams("companyId", task.companyId), undefined], paged: true },
   ])) return true;
   return events.some(row => {
-    const envelope = record(record(row.payload).prpEvent), payload = record(envelope.payload), output = typeof payload.output === "string" ? payload.output : "";
+    const envelope = record(record(row.payload).orpEvent), payload = record(envelope.payload), output = typeof payload.output === "string" ? payload.output : "";
     return row.eventType === "tool.execution.completed" && envelope.sourceKind === "runner" && payload.status === "completed"
       && ["paperclip_get_task", "paperclip_search_tasks"].includes(String(payload.name))
       && [task.id, task.identifier].some(id => !!id && output.includes(id));
@@ -70,7 +70,7 @@ export const runtimeDependencyCases = [runtimeDefinition("task-coordination.bloc
     description: `Implement the approved Design as a small website plan. Once eligible, read the actual Design task and save a task document with the exact reference ${marker}, accessible labels and a clear primary action, then finish normally. Do not deploy, create other tasks or invent approval.` });
   return { worker, task, design, marker };
 }, gradeDesignDependency, {
-  expectedHumanMessageCount: 2, expectedRunCount: 4, minimumRunCount: 3, attemptTimeoutMs: 720_000, oracleVersion: "paperclip.chat-catalog.runtime.block-on-design.v9",
+  expectedHumanMessageCount: 2, expectedRunCount: 4, minimumRunCount: 3, attemptTimeoutMs: 720_000, oracleVersion: "outpost.chat-catalog.runtime.block-on-design.v9",
   sourceFiles: ["chat-catalog-domains/runtime-dependency.ts", "chat-catalog-domains/api-read-receipts.ts", "chat-catalog-domains/runtime-support.ts", "run-observations.ts", "chat-scenarios/task-coordination.yaml"],
   async act(ctx, state) {
     const workerId = (state.worker as Entity | undefined)?.id ?? "", websiteTask = state.task as Entity, gate = state.design as Entity;

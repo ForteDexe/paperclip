@@ -1,12 +1,12 @@
-# `@paperclipai/plugin-sdk`
+# `@outpost/plugin-sdk`
 
 Official TypeScript SDK for Outpost plugin authors.
 
-- **Worker SDK:** `@paperclipai/plugin-sdk` — `definePlugin`, context, lifecycle
-- **UI SDK:** `@paperclipai/plugin-sdk/ui` — React hooks and slot props
-- **Testing:** `@paperclipai/plugin-sdk/testing` — in-memory host harness
-- **Bundlers:** `@paperclipai/plugin-sdk/bundlers` — esbuild/rollup presets
-- **Dev server:** `@paperclipai/plugin-sdk/dev-server` — static UI server + SSE reload
+- **Worker SDK:** `@outpost/plugin-sdk` — `definePlugin`, context, lifecycle
+- **UI SDK:** `@outpost/plugin-sdk/ui` — React hooks and slot props
+- **Testing:** `@outpost/plugin-sdk/testing` — in-memory host harness
+- **Bundlers:** `@outpost/plugin-sdk/bundlers` — esbuild/rollup presets
+- **Dev server:** `@outpost/plugin-sdk/dev-server` — static UI server + SSE reload
 
 Reference: `doc/plugins/PLUGIN_SPEC.md`
 
@@ -14,15 +14,15 @@ Reference: `doc/plugins/PLUGIN_SPEC.md`
 
 | Import | Purpose |
 |--------|--------|
-| `@paperclipai/plugin-sdk` | Worker entry: `definePlugin`, `runWorker`, context types, protocol helpers |
-| `@paperclipai/plugin-sdk/ui` | UI entry: hooks, host navigation, HTTP-safe clipboard copy, shared components, and slot prop types |
-| `@paperclipai/plugin-sdk/ui/hooks` | Hooks only |
-| `@paperclipai/plugin-sdk/ui/types` | UI types and slot prop interfaces |
-| `@paperclipai/plugin-sdk/testing` | `createTestHarness` for unit/integration tests |
-| `@paperclipai/plugin-sdk/bundlers` | `createPluginBundlerPresets` for worker/manifest/ui builds |
-| `@paperclipai/plugin-sdk/dev-server` | `startPluginDevServer`, `getUiBuildSnapshot` |
-| `@paperclipai/plugin-sdk/protocol` | JSON-RPC protocol types and helpers (advanced) |
-| `@paperclipai/plugin-sdk/types` | Worker context and API types (advanced) |
+| `@outpost/plugin-sdk` | Worker entry: `definePlugin`, `runWorker`, context types, protocol helpers |
+| `@outpost/plugin-sdk/ui` | UI entry: hooks, host navigation, HTTP-safe clipboard copy, shared components, and slot prop types |
+| `@outpost/plugin-sdk/ui/hooks` | Hooks only |
+| `@outpost/plugin-sdk/ui/types` | UI types and slot prop interfaces |
+| `@outpost/plugin-sdk/testing` | `createTestHarness` for unit/integration tests |
+| `@outpost/plugin-sdk/bundlers` | `createPluginBundlerPresets` for worker/manifest/ui builds |
+| `@outpost/plugin-sdk/dev-server` | `startPluginDevServer`, `getUiBuildSnapshot` |
+| `@outpost/plugin-sdk/protocol` | JSON-RPC protocol types and helpers (advanced) |
+| `@outpost/plugin-sdk/types` | Worker context and API types (advanced) |
 
 ## Manifest entrypoints
 
@@ -34,7 +34,7 @@ In your plugin manifest you declare:
 ## Install
 
 ```bash
-pnpm add @paperclipai/plugin-sdk
+pnpm add @outpost/plugin-sdk
 ```
 
 ## Current deployment caveats
@@ -47,7 +47,7 @@ The SDK is stable enough for local development and first-party examples, but the
 - For deployed plugins, publish an npm package and install that package into the Outpost instance at runtime.
 - The current host runtime expects a writable filesystem, `npm` available at runtime, and network access to the package registry used for plugin installation.
 - Dynamic plugin install is currently best suited to single-node persistent deployments. Multi-instance cloud deployments still need a shared artifact/distribution model before runtime installs are reliable across nodes.
-- The host ships a small shared React component kit through `@paperclipai/plugin-sdk/ui`. Use it for native Outpost controls; custom React and CSS are still supported.
+- The host ships a small shared React component kit through `@outpost/plugin-sdk/ui`. Use it for native Outpost controls; custom React and CSS are still supported.
 - `ctx.assets` is not part of the supported runtime in this build. Do not depend on asset upload/read APIs yet.
 
 If you are authoring a plugin for others to deploy, treat npm-packaged installation as the supported path and treat repo-local example installs as a development convenience.
@@ -85,7 +85,7 @@ normal retry behavior.
 ## Worker quick start
 
 ```ts
-import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
+import { definePlugin, runWorker } from "@outpost/plugin-sdk";
 
 const plugin = definePlugin({
   async setup(ctx) {
@@ -255,7 +255,7 @@ Slot types describe where a component mounts. Most values also exist as launcher
 
 **Scope** describes whether the slot requires an entity to render. **Global** slots render without a specific entity but still receive the active `companyId` through `PluginHostContext` — use it to scope data fetches to the current company. **Entity** slots additionally require `entityId` and `entityType` (e.g. a detail tab on a specific issue).
 
-**Entity types** (for `entityTypes` on slots): `project` \| `issue` \| `agent` \| `goal` \| `run` \| `comment`. Full list: import `PLUGIN_UI_SLOT_TYPES` and `PLUGIN_UI_SLOT_ENTITY_TYPES` from `@paperclipai/plugin-sdk`.
+**Entity types** (for `entityTypes` on slots): `project` \| `issue` \| `agent` \| `goal` \| `run` \| `comment`. Full list: import `PLUGIN_UI_SLOT_TYPES` and `PLUGIN_UI_SLOT_ENTITY_TYPES` from `@outpost/plugin-sdk`.
 
 ### Slot component descriptions
 
@@ -313,14 +313,14 @@ A runtime client captures Runner's opaque activity context before an eligible
 operation, then sends a structured notification after successful use:
 
 ```sh
-context=$("$PAPERCLIP_RUNTIME_NOTIFICATION_HELPER" notification-context)
+context=$("$OUTPOST_RUNTIME_NOTIFICATION_HELPER" notification-context)
 # Perform the operation; notify only on success.
-"$PAPERCLIP_RUNTIME_NOTIFICATION_HELPER" record-activity "$context" example.runtime desktop.used
+"$OUTPOST_RUNTIME_NOTIFICATION_HELPER" record-activity "$context" example.runtime desktop.used
 ```
 
 Runner supplies the matching absolute executable as
-`PAPERCLIP_RUNTIME_NOTIFICATION_HELPER` and an atomic endpoint descriptor as
-`PAPERCLIP_RUNTIME_NOTIFICATION_CONTEXT`. Configured task environment cannot
+`OUTPOST_RUNTIME_NOTIFICATION_HELPER` and an atomic endpoint descriptor as
+`OUTPOST_RUNTIME_NOTIFICATION_CONTEXT`. Configured task environment cannot
 override them. Provider launch boundaries preserve both values. Codex receives
 read access to the helper, descriptor and publisher lock, plus write access to
 one named pipe. The pipe and lock live in a private temporary directory, outside
@@ -477,7 +477,7 @@ Declare in `manifest.capabilities`. Grouped by scope:
 | | `ui.commentAnnotation.register` |
 | | `ui.action.register` |
 
-Full list in code: import `PLUGIN_CAPABILITIES` from `@paperclipai/plugin-sdk`.
+Full list in code: import `PLUGIN_CAPABILITIES` from `@outpost/plugin-sdk`.
 
 ### External Object Reference Providers
 
@@ -607,7 +607,7 @@ const child = await ctx.issues.create({
   status: "todo",
   assigneeAgentId: workerAgentId,
   billingCode: "mission:alpha",
-  originKind: "plugin:paperclip.missions:feature",
+  originKind: "plugin:outpost.missions:feature",
   originId: "mission-alpha:feature-1",
   blockedByIssueIds: [planningIssueId],
 });
@@ -711,7 +711,7 @@ Plugin-originated mutations are logged with `actorType: "plugin"` and details fi
 ## UI quick start
 
 ```tsx
-import { usePluginData, usePluginAction } from "@paperclipai/plugin-sdk/ui";
+import { usePluginData, usePluginAction } from "@outpost/plugin-sdk/ui";
 
 export function DashboardWidget() {
   const { data } = usePluginData<{ status: string }>("health");
@@ -733,7 +733,7 @@ export function DashboardWidget() {
 Fetches data from the worker's registered `getData` handler. Re-fetches when `params` changes. Returns `{ data, loading, error, refresh }`.
 
 ```tsx
-import { usePluginData } from "@paperclipai/plugin-sdk/ui";
+import { usePluginData } from "@outpost/plugin-sdk/ui";
 
 interface SyncStatus {
   lastSyncAt: string;
@@ -766,7 +766,7 @@ Returns an async function that calls the worker's `performAction` handler. Throw
 
 ```tsx
 import { useState } from "react";
-import { usePluginAction, type PluginBridgeError } from "@paperclipai/plugin-sdk/ui";
+import { usePluginAction, type PluginBridgeError } from "@outpost/plugin-sdk/ui";
 
 export function ResyncButton({ context }: PluginWidgetProps) {
   const resync = usePluginAction("resync");
@@ -801,8 +801,8 @@ export function ResyncButton({ context }: PluginWidgetProps) {
 Reads the active company, project, entity, and user context. Use this to scope data fetches and actions.
 
 ```tsx
-import { useHostContext, usePluginData } from "@paperclipai/plugin-sdk/ui";
-import type { PluginDetailTabProps } from "@paperclipai/plugin-sdk/ui";
+import { useHostContext, usePluginData } from "@outpost/plugin-sdk/ui";
+import type { PluginDetailTabProps } from "@outpost/plugin-sdk/ui";
 
 export function IssueLinearLink({ context }: PluginDetailTabProps) {
   const { companyId, entityId, entityType } = context;
@@ -821,7 +821,7 @@ export function IssueLinearLink({ context }: PluginDetailTabProps) {
 Routes Outpost-internal plugin links through the host router without a full document reload. Use `linkProps()` for anchors so the browser still gets a real `href` for copy-link, modifier-click, middle-click, and open-in-new-tab behavior.
 
 ```tsx
-import { useHostNavigation } from "@paperclipai/plugin-sdk/ui";
+import { useHostNavigation } from "@outpost/plugin-sdk/ui";
 
 export function WikiSidebarLink() {
   const hostNavigation = useHostNavigation();
@@ -838,7 +838,7 @@ Avoid raw same-origin `href`s or `window.location.assign()` for Outpost-internal
 Subscribes to a real-time event stream pushed from the plugin worker via SSE. The worker pushes events using `ctx.streams.emit(channel, event)` and the hook receives them as they arrive. Returns `{ events, lastEvent, connecting, connected, error, close }`.
 
 ```tsx
-import { usePluginStream } from "@paperclipai/plugin-sdk/ui";
+import { usePluginStream } from "@outpost/plugin-sdk/ui";
 
 interface ChatToken {
   text: string;
@@ -863,7 +863,7 @@ The SSE connection targets `GET /api/plugins/:pluginId/bridge/stream/:channel?co
 
 ### UI authoring note
 
-The host provides selected shared UI components through `@paperclipai/plugin-sdk/ui`.
+The host provides selected shared UI components through `@outpost/plugin-sdk/ui`.
 Plugins can also use normal React components, their own CSS, or small design
 primitives inside the plugin package.
 
@@ -872,7 +872,7 @@ modern Clipboard API in secure contexts and a compatible fallback in plain-HTTP
 deployments.
 
 ```tsx
-import { copyTextToClipboard } from "@paperclipai/plugin-sdk/ui";
+import { copyTextToClipboard } from "@outpost/plugin-sdk/ui";
 
 await copyTextToClipboard("text to copy");
 ```
@@ -896,7 +896,7 @@ Plugin UI can render markdown and edit markdown using the same host components
 used by Outpost issue comments and documents:
 
 ```tsx
-import { MarkdownBlock, MarkdownEditor } from "@paperclipai/plugin-sdk/ui";
+import { MarkdownBlock, MarkdownEditor } from "@outpost/plugin-sdk/ui";
 
 export function WikiPageEditor() {
   const [body, setBody] = useState("# Wiki page");
@@ -926,7 +926,7 @@ target URL shape:
 Plugin UI can render the host file tree without importing host internals:
 
 ```tsx
-import { FileTree, type FileTreeNode } from "@paperclipai/plugin-sdk/ui";
+import { FileTree, type FileTreeNode } from "@outpost/plugin-sdk/ui";
 
 const nodes: FileTreeNode[] = [
   { name: "AGENTS.md", path: "AGENTS.md", kind: "file", children: [] },
@@ -960,7 +960,7 @@ or configure work against Outpost entities. Both are controlled components and
 load their options from the host for the provided company.
 
 ```tsx
-import { AssigneePicker, ProjectPicker } from "@paperclipai/plugin-sdk/ui";
+import { AssigneePicker, ProjectPicker } from "@outpost/plugin-sdk/ui";
 
 export function AssignmentControls({ companyId }: { companyId: string }) {
   const [assignee, setAssignee] = useState("");
@@ -988,7 +988,7 @@ export function AssignmentControls({ companyId }: { companyId: string }) {
 
 ### Slot component props
 
-Each slot type receives a typed props object with `context: PluginHostContext`. Import from `@paperclipai/plugin-sdk/ui`.
+Each slot type receives a typed props object with `context: PluginHostContext`. Import from `@outpost/plugin-sdk/ui`.
 
 | Slot type | Props interface | `context` extras |
 |-----------|----------------|------------------|
@@ -1007,8 +1007,8 @@ Each slot type receives a typed props object with `context: PluginHostContext`. 
 Example detail tab with entity context:
 
 ```tsx
-import type { PluginDetailTabProps } from "@paperclipai/plugin-sdk/ui";
-import { usePluginData } from "@paperclipai/plugin-sdk/ui";
+import type { PluginDetailTabProps } from "@outpost/plugin-sdk/ui";
+import { usePluginData } from "@outpost/plugin-sdk/ui";
 
 export function AgentMetricsTab({ context }: PluginDetailTabProps) {
   const { data, loading } = usePluginData<Record<string, string>>("agent-metrics", {
@@ -1100,7 +1100,7 @@ Minimal React component that links to the project’s plugin tab (see project de
 import {
   useHostNavigation,
   type PluginProjectSidebarItemProps,
-} from "@paperclipai/plugin-sdk/ui";
+} from "@outpost/plugin-sdk/ui";
 
 export function FilesLink({ context }: PluginProjectSidebarItemProps) {
   const hostNavigation = useHostNavigation();
@@ -1149,7 +1149,7 @@ import { useState } from "react";
 import {
   useHostContext,
   usePluginAction,
-} from "@paperclipai/plugin-sdk/ui";
+} from "@outpost/plugin-sdk/ui";
 
 export function SyncToolbarButton() {
   const context = useHostContext();
@@ -1306,7 +1306,7 @@ ctx.actions.register("ask-agent", async (params) => {
 
 ```tsx
 import { useState } from "react";
-import { usePluginAction, usePluginStream } from "@paperclipai/plugin-sdk/ui";
+import { usePluginAction, usePluginStream } from "@outpost/plugin-sdk/ui";
 
 interface AgentEvent {
   type: "chunk" | "done" | "error";
@@ -1365,7 +1365,7 @@ Exported types: `AgentSession`, `AgentSessionEvent`, `AgentSessionSendResult`, `
 ## Testing utilities
 
 ```ts
-import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
+import { createTestHarness } from "@outpost/plugin-sdk/testing";
 import plugin from "../src/worker.js";
 import manifest from "../src/manifest.js";
 
@@ -1377,7 +1377,7 @@ await harness.emit("issue.created", { issueId: "iss_1" }, { entityId: "iss_1", e
 ## Bundler presets
 
 ```ts
-import { createPluginBundlerPresets } from "@paperclipai/plugin-sdk/bundlers";
+import { createPluginBundlerPresets } from "@outpost/plugin-sdk/bundlers";
 
 const presets = createPluginBundlerPresets({ uiEntry: "src/ui/index.tsx" });
 // presets.esbuild.worker / presets.esbuild.manifest / presets.esbuild.ui
@@ -1393,7 +1393,7 @@ paperclip-plugin-dev-server --root . --ui-dir dist/ui --port 4177
 Or programmatically:
 
 ```ts
-import { startPluginDevServer } from "@paperclipai/plugin-sdk/dev-server";
+import { startPluginDevServer } from "@outpost/plugin-sdk/dev-server";
 const server = await startPluginDevServer({ rootDir: process.cwd() });
 ```
 
@@ -1509,7 +1509,7 @@ Pending deletion is replayed before inspection, including after a lost removal
 result. File browsing and
 other Core-host filesystem operations are unavailable for managed storage.
 
-Use `createWorkspaceProviderHarness` from `@paperclipai/plugin-sdk/testing` to
+Use `createWorkspaceProviderHarness` from `@outpost/plugin-sdk/testing` to
 validate hook inputs and outputs without allocating an execution environment.
 
 

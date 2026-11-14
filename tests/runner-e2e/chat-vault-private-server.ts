@@ -90,7 +90,7 @@ export function validVaultBinding(
     new Set(names).size === names.length &&
     names.every(
       (name) =>
-        /^PAPERCLIP_CHAT_EVAL_[A-Z0-9_]+$/.test(name) &&
+        /^OUTPOST_CHAT_EVAL_[A-Z0-9_]+$/.test(name) &&
         binding.credentialEnv.includes(name),
     ) &&
     binding.credentialEnv.every((name) => names.includes(name))
@@ -247,8 +247,8 @@ export async function readSelectedVaultServerEnvironment(input: {
     AWS_EC2_METADATA_DISABLED: "true",
     AWS_CONFIG_FILE: awsConfig,
     AWS_SHARED_CREDENTIALS_FILE: awsConfig,
-    PAPERCLIP_SECRETS_AWS_REGION: p.region,
-    PAPERCLIP_SECRETS_AWS_DEPLOYMENT_ID: p.deploymentId,
-    PAPERCLIP_SECRETS_AWS_KMS_KEY_ID: p.kmsKeyId,
+    OUTPOST_SECRETS_AWS_REGION: p.region,
+    OUTPOST_SECRETS_AWS_DEPLOYMENT_ID: p.deploymentId,
+    OUTPOST_SECRETS_AWS_KMS_KEY_ID: p.kmsKeyId,
   };
 }

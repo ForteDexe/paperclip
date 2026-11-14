@@ -4,11 +4,11 @@
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
-  <a href="https://docs.paperclip.ing"><strong>Docs</strong></a> &middot;
+  <a href="https://docs.outpost.ing"><strong>Docs</strong></a> &middot;
   <a href="https://github.com/paperclipai/paperclip"><strong>GitHub</strong></a> &middot;
   <a href="https://discord.gg/paperclipai"><strong>Discord</strong></a> &middot;
   <a href="https://x.com/papercliping"><strong>Twitter</strong></a> &middot;
-  <a href="https://paperclip.ing"><strong>Website</strong></a>
+  <a href="https://outpost.ing"><strong>Website</strong></a>
 </p>
 
 <p align="center">
@@ -73,7 +73,7 @@ The fork keeps Outpost's internal package names, API fields, database schema, en
 
 </div>
 
-Custom processes, HTTP endpoints, and external adapter packages extend the roster. See the [adapter overview](https://docs.paperclip.ing/reference/adapters/overview/) for setup and capabilities.
+Custom processes, HTTP endpoints, and external adapter packages extend the roster. See the [adapter overview](https://docs.outpost.ing/reference/adapters/overview/) for setup and capabilities.
 
 <br/>
 
@@ -141,7 +141,7 @@ Keep conversations, plans, blockers, files, and run history attached to the work
 <tr>
 <td align="center">
 <h3>🛡️ Governance</h3>
-Configure <a href="https://docs.paperclip.ing/guides/day-to-day/approvals/">review and approval stages</a>, approve hires, and pause, reassign, or stop work when needed.
+Configure <a href="https://docs.outpost.ing/guides/day-to-day/approvals/">review and approval stages</a>, approve hires, and pause, reassign, or stop work when needed.
 </td>
 <td align="center">
 <h3>📊 Crew Map</h3>
@@ -155,29 +155,29 @@ Monitor and coordinate agent work from anywhere.
 <tr>
 <td align="center">
 <h3>🔗 Apps & Connections</h3>
-<a href="https://docs.paperclip.ing/connectors/">Connect services</a> such as GitHub, Notion, and Railway, or your own MCP server. Set gateway actions to Allowed, Ask first, or Off.
+<a href="https://docs.outpost.ing/connectors/">Connect services</a> such as GitHub, Notion, and Railway, or your own MCP server. Set gateway actions to Allowed, Ask first, or Off.
 </td>
 <td align="center">
 <h3>👥 Shared Agents, Personal Accounts</h3>
-Choose <a href="https://docs.paperclip.ing/connectors/access-model/">who can use a connection and which agents can access it</a>. Managed GitHub operations can use the account of the person directing the work.
+Choose <a href="https://docs.outpost.ing/connectors/access-model/">who can use a connection and which agents can access it</a>. Managed GitHub operations can use the account of the person directing the work.
 </td>
 <td align="center">
 <h3>🧠 Skills & Skill Studio</h3>
-Install or write <a href="https://docs.paperclip.ing/guides/org/skills/">shared skills</a>, test them with saved inputs, inspect results, and restore earlier versions.
+Install or write <a href="https://docs.outpost.ing/guides/org/skills/">shared skills</a>, test them with saved inputs, inspect results, and restore earlier versions.
 </td>
 </tr>
 <tr>
 <td align="center">
 <h3>📅 Scheduled Routines</h3>
-Run <a href="https://docs.paperclip.ing/guides/projects-workflow/routines/">recurring work</a> on a schedule or trigger it through an API or webhook. Each run has a task, an owner, and a history.
+Run <a href="https://docs.outpost.ing/guides/projects-workflow/routines/">recurring work</a> on a schedule or trigger it through an API or webhook. Each run has a task, an owner, and a history.
 </td>
 <td align="center">
 <h3>📎 Artifacts & Feedback</h3>
-Find the <a href="https://docs.paperclip.ing/guides/day-to-day/artifacts/">files and documents agents produce</a>. Preview supported formats and leave comments on specific passages in documents.
+Find the <a href="https://docs.outpost.ing/guides/day-to-day/artifacts/">files and documents agents produce</a>. Preview supported formats and leave comments on specific passages in documents.
 </td>
 <td align="center">
 <h3>📦 Ready-Made Teams</h3>
-Preview and install <a href="https://docs.paperclip.ing/guides/org/team-catalog/">teams</a> with roles, skills, projects, and routines. Choose their runtimes and make the setup your own.
+Preview and install <a href="https://docs.outpost.ing/guides/org/team-catalog/">teams</a> with roles, skills, projects, and routines. Choose their runtimes and make the setup your own.
 </td>
 </tr>
 </table>
@@ -298,7 +298,7 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 <tr>
 <td>
 
-**[Plugins](https://docs.paperclip.ing/administration/plugins/)** — Instance-wide plugin system with out-of-process workers, capability-gated host services, job scheduling, tool exposure, and UI contributions. Extend Outpost without forking it.
+**[Plugins](https://docs.outpost.ing/administration/plugins/)** — Instance-wide plugin system with out-of-process workers, capability-gated host services, job scheduling, tool exposure, and UI contributions. Extend Outpost without forking it.
 
 </td>
 <td>
@@ -315,7 +315,7 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 </td>
 <td>
 
-**[Outpost Portability](https://docs.paperclip.ing/guides/power/export-import/)** — Preview, export, and import outpost packages with agents, skills, and optional projects, routines, tasks, and attachments. Referenced secret values are omitted; review packages before sharing because plain environment values and local paths can remain. Packages share an operating setup; full-instance recovery uses backups.
+**[Outpost Portability](https://docs.outpost.ing/guides/power/export-import/)** — Preview, export, and import outpost packages with agents, skills, and optional projects, routines, tasks, and attachments. Referenced secret values are omitted; review packages before sharing because plain environment values and local paths can remain. Packages share an operating setup; full-instance recovery uses backups.
 
 </td>
 </tr>
@@ -338,11 +338,11 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 
 ## Quickstart
 
-Open source. Self-hosted. No Outpost account required. Follow the [guided quickstart](https://docs.paperclip.ing/guides/getting-started/five-minute-path/) to set up your first agent.
+Open source. Self-hosted. No Outpost account required. Follow the [guided quickstart](https://docs.outpost.ing/guides/getting-started/five-minute-path/) to set up your first agent.
 
 ### Just ask your agent to install Outpost
 
-Share the [installation guide](https://docs.paperclip.ing/reference/cli/installation/) with your agent.
+Share the [installation guide](https://docs.outpost.ing/reference/cli/installation/) with your agent.
 
 ### Or install it yourself
 
@@ -354,7 +354,7 @@ npx paperclipai@latest onboard --yes
 
 The CLI runs from npm's cache; your instance configuration and data persist locally.
 
-See the [installation guide](https://docs.paperclip.ing/reference/cli/installation/) for managed installs, pinned versions, canary and git-ref installs, updates, rollback, service management, and uninstalling.
+See the [installation guide](https://docs.outpost.ing/reference/cli/installation/) for managed installs, pinned versions, canary and git-ref installs, updates, rollback, service management, and uninstalling.
 
 For an isolated manual test instance that is already initialized with an Outpost Lead
 agent, use `test-drive`. It stays in the foreground, never installs a service
@@ -372,7 +372,7 @@ Each run without `--data-dir` gets a unique, retained temporary directory; its
 absolute path is printed at startup. Pass `--data-dir` to reuse one, or
 `--no-browser` to leave the initialized instance unopened. When invoked from a
 linked Git worktree, `test-drive` also enables task execution in that worktree.
-See the [test-drive guide](https://docs.paperclip.ing/reference/cli/test-drive/) for credential and
+See the [test-drive guide](https://docs.outpost.ing/reference/cli/test-drive/) for credential and
 reuse behavior.
 
 > **Troubleshooting: private npm registry `.npmrc`**
@@ -404,7 +404,7 @@ If you already have Outpost configured, rerunning `onboard` keeps the existing c
 Or manually:
 
 ```bash
-git clone https://github.com/paperclipai/paperclip.git
+git clone https://github.com/paperclipai/outpost.git
 cd paperclip
 pnpm install
 pnpm dev
@@ -417,7 +417,7 @@ This starts the UI and API at `http://localhost:3100`. An embedded PostgreSQL da
 Local Claude and Codex subscription sign-in also needs Python 3 and the
 corresponding provider CLI on the Outpost host. The Docker image includes them.
 
-Source development also builds the native Outpost Runner when enabled (the self-hosted default). Install a Rust toolchain, or set `PAPERCLIP_RUNNER_BINARY` to a compatible prebuilt runner.
+Source development also builds the native Outpost Runner when enabled (the self-hosted default). Install a Rust toolchain, or set `OUTPOST_RUNNER_BINARY` to a compatible prebuilt runner.
 
 <br/>
 
@@ -425,7 +425,7 @@ Source development also builds the native Outpost Runner when enabled (the self-
 
 **Q: Is this project maintained or just slop?**
 
-**A:** Outpost is maintained by the [Outpost team](https://paperclip.ing). We've merged [over 2,700 pull requests](https://github.com/paperclipai/paperclip/pulls?q=is%3Apr+is%3Amerged).
+**A:** Outpost is maintained by the [Outpost team](https://outpost.ing). We've merged [over 2,700 pull requests](https://github.com/paperclipai/paperclip/pulls?q=is%3Apr+is%3Amerged).
 
 <br/>
 
@@ -433,7 +433,7 @@ Source development also builds the native Outpost Runner when enabled (the self-
 
 **A:** Locally, a single Node.js process manages an embedded Postgres and local file storage. For production, point it at your own Postgres and deploy however you like. Configure projects, agents, and North Stars — the agents take care of the rest.
 
-For remote access, use authenticated mode with a private-network bind such as Tailscale, or deploy the persistent server with Docker. See [deployment modes](https://docs.paperclip.ing/reference/deploy/deployment-modes/) and the [Docker guide](https://docs.paperclip.ing/reference/deploy/docker/).
+For remote access, use authenticated mode with a private-network bind such as Tailscale, or deploy the persistent server with Docker. See [deployment modes](https://docs.outpost.ing/reference/deploy/deployment-modes/) and the [Docker guide](https://docs.outpost.ing/reference/deploy/docker/).
 
 <br/>
 
@@ -538,7 +538,7 @@ Outpost keeps local logs, audit activity, and functional run events. Hosted Open
 
 We welcome contributions. See the [contributing guide](CONTRIBUTING.md) for details.
 
-**[We're hiring](https://paperclip.ing/about/#careers)**
+**[We're hiring](https://outpost.ing/about/#careers)**
 
 <br/>
 
@@ -553,7 +553,7 @@ We welcome contributions. See the [contributing guide](CONTRIBUTING.md) for deta
 
 ## License
 
-MIT &copy; 2026 [Outpost Labs, Inc](https://paperclip.ing)
+MIT &copy; 2026 [Outpost Labs, Inc](https://outpost.ing)
 
 ## Star History
 

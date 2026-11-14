@@ -3,18 +3,18 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { eq } from "drizzle-orm";
-import { agentWakeupRequests, authUsers, companyMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues } from "@paperclipai/db";
-import { createIssueThreadInteractionSchema } from "@paperclipai/shared";
+import { agentWakeupRequests, authUsers, companyMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues } from "@outpost/db";
+import { createIssueThreadInteractionSchema } from "@outpost/shared";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
 import { documentService } from "../services/documents.js";
 import { resolveConfirmationFromComment } from "../services/confirmation-comment-resolution.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
 import { issueService } from "../services/issues.js";
 import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
-import { CAPABILITY_SEMANTIC_TOOL_CATALOG } from "../vendor/paperclip-runner/index.js";
+import { CAPABILITY_SEMANTIC_TOOL_CATALOG } from "../vendor/outpost-runner/index.js";
 
 async function nativeProposalRecipe(kind: "confirmation" | "checkbox", planRevisionId: string = randomUUID()) {
   const skill = await readFile(new URL("../onboarding-assets/first-task/skills/first-task/SKILL.md", import.meta.url), "utf8");
@@ -42,15 +42,15 @@ it.each(["confirmation", "checkbox"] as const)("ships a native %s recipe accepte
 if (!support.supported) console.warn(`Skipping first-task admission database tests: ${support.reason}`);
 describe.skipIf(!support.supported)("onboarding first-task execution admission", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
-  const originalSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const originalSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   beforeAll(async () => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer({ humanSessions: true });
   }, 60_000);
   afterAll(async () => {
     await server?.close();
-    if (originalSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    else process.env.PAPERCLIP_AGENT_JWT_SECRET = originalSecret;
+    if (originalSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+    else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret;
   });
 
   const fixture = async () => {
@@ -79,7 +79,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
   it.each(["root", "child"])("rejects generic %s creation including explicit standalone parent before acceptance", async path => {
     const f = await fixture();
     const before = await f.snapshot();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId)!;
     const route = path === "root" ? `/api/companies/${f.companyId}/issues` : `/api/issues/${f.issueId}/children`;
     const response = await fetch(`${server.apiUrl}${route}`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -149,7 +149,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const f = await fixture();
     await accept(f, await proposal(f));
     const before = await f.snapshot();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const route = path === "root" ? `/api/companies/${f.companyId}/issues` : `/api/issues/${f.issueId}/children`;
     const response = await fetch(`${server.apiUrl}${route}`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -257,7 +257,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     } }) as { task: { id: string } };
     const before = await f.snapshot();
     const beforeWakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${created.task.id}`, {
       method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "blocked", blockedByIssueIds: [f.issueId.toUpperCase()] }),
@@ -296,7 +296,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       responsibleUserId: f.responsibleUserId, cause: "instruction" });
     const childAuthority = new PaperclipRunnerToolAuthority(server.db, { ...f, issueId: created.task.id, runId: childRunId });
     await issueService(server.db).checkout(created.task.id, f.agentId, ["in_progress"], childRunId);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", childRunId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", childRunId, f.responsibleUserId)!;
     return { f, childId: created.task.id, childRunId, childAuthority, token };
   };
 
@@ -376,7 +376,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       title: "Existing approved child", idempotencyKey: "approved-before-new-proposal", status: "todo",
     } }) as { task: { id: string } };
     await proposal(f);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
     for (const blockedByIssueIds of [[f.blockerId], []]) {
       const response = await fetch(`${server.apiUrl}/api/issues/${created.task.id}`, {
         method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -397,7 +397,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const created = await f.authority.execute({ tool: "create_task", callId: randomUUID(), arguments: {
       title: "Ordinary child", idempotencyKey: "ordinary-child", status: "todo",
     } }) as { task: { id: string } };
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${created.task.id}`, {
       method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "blocked", blockedByIssueIds: [f.issueId] }),
@@ -414,7 +414,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const { interaction } = await f.authority.execute({ tool: "request_human_input", callId: randomUUID(), arguments: {
       idempotencyKey: "first-task-proposal-1", interactionKind: "questions", title: "Approve child task",
       prompt: "I propose exactly one child task and will wait for approval.", continuationPolicy: "wake_assignee",
-      payload: { questionSet: { schema: "paperclip.question_set.v1", questions: [{ id: "approve_child_task",
+      payload: { questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "approve_child_task",
         prompt: 'Approve exactly one child task named "Approved child"?', required: true, answerMode: "single_select",
         options: [{ id: "approve", label: "Approve" }, { id: "revise", label: "Revise" }] }] } },
     } }) as { interaction: { id: string; kind: string } };
@@ -653,7 +653,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const f = await fixture();
     const p = await proposal(f, true);
     await accept(f, p);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${f.issueId}/accepted-plan-decompositions`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ acceptedPlanRevisionId: p.plan!.latestRevisionId,
@@ -769,7 +769,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
   it("replays an owned generic creation after a newer pending proposal", async () => {
     const f = await fixture();
     await accept(f, await proposal(f));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const route = `${server.apiUrl}/api/companies/${f.companyId}/issues`;
     const body = { title: "Approved child", parentId: f.issueId, idempotencyKey: "owned-rest", assigneeAgentId: f.agentId, status: "backlog" };
     const post = async (input = body) => {

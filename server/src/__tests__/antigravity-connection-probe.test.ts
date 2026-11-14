@@ -1,11 +1,11 @@
 import { access, mkdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterEnvironmentTestContext } from "@paperclipai/adapter-utils";
+import type { AdapterEnvironmentTestContext } from "@outpost/adapter-utils";
 
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), admission: vi.fn(), credentials: vi.fn(), copyBack: vi.fn(), remove: vi.fn(), turn: vi.fn(), warn: vi.fn() }));
 vi.mock("../middleware/logger.js", () => ({ logger: { warn: mocks.warn } }));
-vi.mock("../vendor/paperclip-runner/index.js", async original => ({
+vi.mock("../vendor/outpost-runner/index.js", async original => ({
   ...await original<object>(), probeNativeRunnerEnvironment: mocks.probe,
 }));
 vi.mock("../services/native-runtime/acpx-qualification.js", () => ({ resolveAntigravityCandidateAdmission: mocks.admission }));
@@ -17,12 +17,12 @@ vi.mock("../services/native-runtime/native-codex-runner.js", () => ({
   resolvePaperclipRunnerBinaryAsync: async () => "/owned/runnerd",
 }));
 import { antigravityConnectionProbeFailure, testAntigravityConnection } from "../services/antigravity-connection-probe.js";
-import { NativeEnvironmentProbeCleanupError, resolveAcpxRuntimeRoot } from "../vendor/paperclip-runner/index.js";
+import { NativeEnvironmentProbeCleanupError, resolveAcpxRuntimeRoot } from "../vendor/outpost-runner/index.js";
 
 const model = "exact-google-model";
 const admission = { agent: "antigravity", model, companyId: "company-1" };
 const roots: string[] = [];
-const context: AdapterEnvironmentTestContext = { companyId: "company-1", adapterType: "paperclip_runner",
+const context: AdapterEnvironmentTestContext = { companyId: "company-1", adapterType: "outpost_runner",
   config: { provider: "acpx", acpxAgent: "antigravity", model, env: { GEMINI_HOME: "/selected/provider", PATH: "/selected/bin" } },
   managedAiCredentialHome: "/selected/provider", executionTarget: null,
 };
@@ -31,7 +31,7 @@ const receipt = { provider: "acpx", providerDriver: "acpx_runtime", effectiveMod
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.admission.mockReturnValue(admission);
-  mocks.credentials.mockImplementation(async input => ({ environment: { ...input.environment, PAPERCLIP_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET: "fixture-managed-credential" }, home: "/selected/provider", credential: "fixture-managed-credential" }));
+  mocks.credentials.mockImplementation(async input => ({ environment: { ...input.environment, OUTPOST_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET: "fixture-managed-credential" }, home: "/selected/provider", credential: "fixture-managed-credential" }));
   mocks.turn.mockImplementation(() => ({ copyBack: mocks.copyBack, remove: mocks.remove }));
   mocks.probe.mockImplementation(async options => {
     roots.push(options.runtimeDirectory);
@@ -65,7 +65,7 @@ describe("Google Antigravity setup admission", () => {
     for (const native of [{ code: privateValue, message: privateValue }, { code: "command_execution_failed",
       message: "failed to start ACPX provider: ACPX sidecar command session.open was rejected (retryable=false, classification=admission_installation)" + privateValue }]) {
       const nativeMessage = native.message;
-      const error = new Error(`PRP command session.open failed: ${nativeMessage}`);
+      const error = new Error(`ORP command session.open failed: ${nativeMessage}`);
       error.name = privateValue;
       Object.defineProperty(error, "runnerCommandResult", { value: { commandType: "session.open", status: "failed",
         result: native } });
@@ -73,7 +73,7 @@ describe("Google Antigravity setup admission", () => {
       expect(result.checks[0].code).toBe("antigravity_admission_failed");
       expect(JSON.stringify([result, mocks.warn.mock.calls])).not.toMatch(/fixture-private-token|\/private\/selected-google-home/);
     }
-    const rawOnly = new Error('PRP command session.open failed: {"code":"command_execution_failed","classification":"admission_installation"}');
+    const rawOnly = new Error('ORP command session.open failed: {"code":"command_execution_failed","classification":"admission_installation"}');
     expect(antigravityConnectionProbeFailure("company-1", rawOnly).checks[0].code).toBe("antigravity_admission_failed");
   });
 
@@ -97,12 +97,12 @@ describe("Google Antigravity setup admission", () => {
       expect((await stat(root)).mode & 0o777).toBe(0o700);
       expect((await stat(options.transportOptions.acpxRuntimeDirectory)).mode & 0o777).toBe(0o700);
       expect(options).toMatchObject({ provider: "acpx", model, admissionOnly: true,
-        environment: { PATH: "/selected/bin", PAPERCLIP_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET: "fixture-managed-credential" },
+        environment: { PATH: "/selected/bin", OUTPOST_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET: "fixture-managed-credential" },
         transportOptions: { runnerBinary: "/owned/runnerd", acpxAgent: "antigravity", acpxCandidateAdmission: admission,
           acpxPermissionMode: "approve-reads", acpxPermissionModePinned: true } });
       expect(options.environment.GEMINI_API_KEY).toBeUndefined();
       expect(options.environment.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
-      const identity = options.transportOptions.prpIdentity;
+      const identity = options.transportOptions.orpIdentity;
       const nativeHome = join(await resolveAcpxRuntimeRoot(options.transportOptions.acpxRuntimeDirectory, identity.normalizedSessionId), "antigravity-home");
       expect(mocks.turn).toHaveBeenCalledWith({ managedHome: "/selected/provider", runtimeHome: nativeHome, credential: "fixture-managed-credential" });
       await mkdir(nativeHome, { recursive: true });

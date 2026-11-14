@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import type { LiveEvent } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import type { LiveEvent } from "@outpost/shared";
 import { redactCurrentUserValue } from "../log-redaction.js";
 import { redactEventPayload } from "../redaction.js";
 import { instanceSettingsService } from "./instance-settings.js";

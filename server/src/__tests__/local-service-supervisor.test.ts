@@ -26,10 +26,10 @@ describe("local service supervision", () => {
   it("keeps request-logging runtime stdio usable after the supervisor side closes", async () => {
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-service-stdio-"));
     const paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-service-home-"));
-    const previousPaperclipHome = process.env.PAPERCLIP_HOME;
-    const previousInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = `service-stdio-${randomUUID()}`;
+    const previousPaperclipHome = process.env.OUTPOST_HOME;
+    const previousInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = `service-stdio-${randomUUID()}`;
 
     // The managed service uses a login shell, whose PATH can select a different
     // Node installation from the one CI configured for this test process.
@@ -98,10 +98,10 @@ describe("local service supervision", () => {
       registryRecord = null;
     } finally {
       if (registryRecord) await terminateLocalService(registryRecord).catch(() => undefined);
-      if (previousPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-      else process.env.PAPERCLIP_HOME = previousPaperclipHome;
-      if (previousInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-      else process.env.PAPERCLIP_INSTANCE_ID = previousInstanceId;
+      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousInstanceId;
       await fs.rm(paperclipHome, { recursive: true, force: true });
       await fs.rm(workspaceRoot, { recursive: true, force: true });
     }

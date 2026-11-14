@@ -1,12 +1,12 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentWakeupRequests, agents, heartbeatRuns, issues } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { agentWakeupRequests, agents, heartbeatRuns, issues } from "@outpost/db";
 import {
   isUuidLike,
   type IssueCommentMetadata,
   type IssueCommentPresentation,
   type RunLivenessState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { withRecoveryContext } from "./status-only-context.js";
 import {
   agentLinkRow,

@@ -47,5 +47,5 @@ export async function prepareDaytonaController(input: { image: string; repositor
   input.timeline.add("daytona_image_matched", { image: input.image, contentId: artifacts.contentId, localContentId, sourceRevision: artifacts.sourceRevision,
     runnerdSha256: artifacts.runnerdSha256, providerPackDigest: artifacts.providerPackDigest, platformManifestDigest: artifacts.platformManifestDigest });
   ensureDaytonaPlugin(input.repositoryRoot, input.timeline);
-  return { PAPERCLIP_RUNNER_REMOTE_BINARY_PATH: artifacts.runnerdPath, PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH: artifacts.providerPackPath };
+  return { OUTPOST_RUNNER_REMOTE_BINARY_PATH: artifacts.runnerdPath, OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH: artifacts.providerPackPath };
 }

@@ -8,7 +8,7 @@ import type {
   McpJsonImportPreview,
   ToolAppConnectionActionSummary,
   ToolOAuthStartResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { QueryErrorState } from "@/components/QueryView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

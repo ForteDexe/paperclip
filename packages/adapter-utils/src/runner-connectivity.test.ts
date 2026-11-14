@@ -31,7 +31,7 @@ function ingress(): RunnerIngressEndpoint {
   return endpoint;
 }
 
-describe("paperclip runner transport routing", () => {
+describe("outpost runner transport routing", () => {
   it("keeps same-host runnerd on plaintext loopback", async () => {
     const result = await resolvePaperclipRunnerTransport({
       target: { kind: "local" },
@@ -58,7 +58,7 @@ describe("paperclip runner transport routing", () => {
       target,
       runId: "00000000-0000-4000-8000-000000000001",
       localConnectUrl: "ws://127.0.0.1/unused",
-      runnerPublicUrl: "wss://paperclip.example.test",
+      runnerPublicUrl: "wss://outpost.example.test",
       runnerIngressAuthorized: true,
     });
     expect(result.mode).toBe("provider_ingress");
@@ -102,7 +102,7 @@ describe("paperclip runner transport routing", () => {
         target,
         runId: "00000000-0000-4000-8000-000000000001",
         localConnectUrl: "ws://127.0.0.1/unused",
-        runnerPublicUrl: "wss://paperclip.example.test",
+        runnerPublicUrl: "wss://outpost.example.test",
         runnerIngressAuthorized: false,
         enableRunnerPreviewIngress: true,
       }),
@@ -138,14 +138,14 @@ describe("paperclip runner transport routing", () => {
       target,
       runId: "00000000-0000-4000-8000-000000000001",
       localConnectUrl: "ws://127.0.0.1/unused",
-      runnerPublicUrl: "wss://paperclip.example.test/runner-base/",
+      runnerPublicUrl: "wss://outpost.example.test/runner-base/",
       runnerCaBundlePath: "/etc/paperclip/runner-ca.pem",
       runnerIngressAuthorized: false,
     });
     expect(result).toEqual({
       mode: "direct_outbound",
       connectUrl:
-        "wss://paperclip.example.test/runner-base/api/runner/v1/connect/00000000-0000-4000-8000-000000000001",
+        "wss://outpost.example.test/runner-base/api/runner/v1/connect/00000000-0000-4000-8000-000000000001",
       caBundlePath: "/etc/paperclip/runner-ca.pem",
     });
   });
@@ -167,7 +167,7 @@ describe("paperclip runner transport routing", () => {
         target,
         runId: "00000000-0000-4000-8000-000000000001",
         localConnectUrl: "ws://127.0.0.1/unused",
-        runnerPublicUrl: "wss://paperclip.example.test",
+        runnerPublicUrl: "wss://outpost.example.test",
         runnerIngressAuthorized: true,
       }),
     ).rejects.toThrow("preview unavailable");
@@ -190,17 +190,17 @@ describe("paperclip runner transport routing", () => {
         target,
         runId: "00000000-0000-4000-8000-000000000001",
         localConnectUrl: "ws://127.0.0.1/unused",
-        runnerPublicUrl: "wss://paperclip.example.test",
+        runnerPublicUrl: "wss://outpost.example.test",
         runnerIngressAuthorized: true,
       }),
     ).rejects.toMatchObject({ code: "runner_ingress_unavailable" });
   });
 
   it.each([
-    "ws://paperclip.example.test",
-    "wss://user@paperclip.example.test",
-    "wss://paperclip.example.test?token=secret",
-    "wss://paperclip.example.test#fragment",
+    "ws://outpost.example.test",
+    "wss://user@outpost.example.test",
+    "wss://outpost.example.test?token=secret",
+    "wss://outpost.example.test#fragment",
   ])("rejects unsafe direct runner URL %s", (runnerPublicUrl) => {
     expect(() =>
       buildDirectRunnerConnectUrl({

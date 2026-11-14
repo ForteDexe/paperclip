@@ -67,7 +67,7 @@ export const integratorRoutinePauseCases = [integratorDefinition("routines", "ro
 }, observePause, gradeIntegratorRoutinePause, async (ctx, state) => {
   const routine = state.routine as RoutineDetail; await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/routines/${routine.id}/history`, routine.title);
 }, { sourceFiles: ["chat-catalog-domains/integrator-routine-pause.ts", "chat-catalog-domains/internal-run-brief.ts", "chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-support.ts", "chat-scenarios/routines.yaml"],
-  oracleVersion: "paperclip.chat-catalog.routine-pause.structural.v2", expectedRunCount: 3, attemptTimeoutMs: 720_000,
+  oracleVersion: "outpost.chat-catalog.routine-pause.structural.v2", expectedRunCount: 3, attemptTimeoutMs: 720_000,
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "owned-routine-real-active-task"] },
   async verifySetup(ctx, state) {
     const c = checks(); const lead = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`);

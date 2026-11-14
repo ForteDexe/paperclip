@@ -16,7 +16,7 @@ const baselineRevision = execFileSync("git", ["rev-parse", "--verify", `${baseli
 const sourcePath = "server/src/services/native-runtime/native-session-resume.ts";
 const treatmentRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 const treatmentDiff = execFileSync("git", ["diff", "HEAD", "--", sourcePath], { cwd: root, encoding: "utf8" });
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_SESSION_RESUME_BENCHMARK_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_SESSION_RESUME_BENCHMARK_DATABASE_URL");
 const database = externalUrl ? { connectionString: externalUrl, cleanup: async () => {} } : await startEmbeddedPostgresTestDatabase("native-session-resume-benchmark-");
 const db = createDb(database.connectionString);
 const baselineDir = await fs.mkdtemp(path.join(root, "server/scripts/.session-resume-baseline-"));
@@ -54,7 +54,7 @@ try {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), normalizedSessionId = randomUUID();
     companyIds.push(companyId);
     await db.insert(companies).values({ id: companyId, name: "Synthetic resume benchmark", issuePrefix: `B${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Synthetic runner", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Synthetic runner", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Retain canonical task" });
     const runCount = scenario === "small_selected" ? 1 : 15;
     const prompt = randomBytes(scenario === "small_selected" ? 16 : 144 * 1024).toString("base64");

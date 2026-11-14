@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
-import { executionWorkspaces, heartbeatRuns, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { executionWorkspaces, heartbeatRuns, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { REMOTE_WORKSPACE_ABANDONED_EPOCH_SCHEMA } from "./remote-workspace-epoch-abandonment.js";
 
 type Run = Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "runnerProfileJson">;

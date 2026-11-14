@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { listPaperclipSkillEntries } from "@paperclipai/adapter-utils/server-utils";
+import { listPaperclipSkillEntries } from "@outpost/adapter-utils/server-utils";
 import {
   checkoutIssueSchema,
   createGoalSchema,
@@ -10,7 +10,7 @@ import {
   createIssueThreadInteractionSchema,
   updateIssueSchema,
   upsertIssueDocumentSchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   createCaseSchema,
   createIssueLinkSchema,

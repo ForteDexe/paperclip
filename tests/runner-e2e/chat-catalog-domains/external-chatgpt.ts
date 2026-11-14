@@ -27,7 +27,7 @@ interface Custody {
 const owned = new WeakMap<ChatCatalogContext, Custody>();
 export async function chatgptPublicOrigin(ctx: ChatCatalogContext) {
   const receiptPath = process.env[PUBLIC_ORIGIN_RECEIPT_ENV],
-    attemptId = process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID;
+    attemptId = process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID;
   if (!receiptPath || !attemptId)
     throw new Error(
       "Setup blocker: actual named ChatGPT setup requires its selected owned HTTPS-origin receipt",
@@ -73,7 +73,7 @@ async function inputFor(
   for (const c of publicSession.cookies) secrets.push(c.value);
   for (const o of publicSession.origins)
     for (const item of o.localStorage) secrets.push(item.value);
-  const channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL;
+  const channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
   const input: ChatgptInput = {
     operation,
     executionId: ctx.input.execution.id,
@@ -90,7 +90,7 @@ async function inputFor(
     publicSession,
     control,
     executablePath:
-      process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
+      process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
       (channel ? undefined : chromium.executablePath()),
     channel,
   };

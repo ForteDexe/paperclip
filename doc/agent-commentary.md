@@ -10,8 +10,8 @@ Skill-capable legacy adapters automatically receive `complain` and
 `suggestion-box` alongside the `paperclip` operational skill, including existing
 agents with empty optional-skill selections. The shared helper lives in that
 operational skill at `scripts/submit-agent-commentary.mjs`. It reads the body
-from stdin and uses the existing `PAPERCLIP_API_URL`, `PAPERCLIP_API_KEY`,
-`PAPERCLIP_COMPANY_ID`, and `PAPERCLIP_RUN_ID`. The helper uses the existing
+from stdin and uses the existing `OUTPOST_API_URL`, `OUTPOST_API_KEY`,
+`OUTPOST_COMPANY_ID`, and `OUTPOST_RUN_ID`. The helper uses the existing
 Node.js runtime with no additional dependencies; custom runtimes can call HTTP
 directly. Sandboxed runs use the callback bridge.
 
@@ -126,15 +126,15 @@ and specify a Linux amd64 runner built from this checkout:
 
 ```sh
 pnpm --dir packages/plugins/sandbox-providers/daytona install --frozen-lockfile
-PAPERCLIP_LIVE_ENVIRONMENT=daytona \
-PAPERCLIP_LIVE_DAYTONA_ENV_FILE=/path/to/private.env \
-PAPERCLIP_LIVE_LINUX_RUNNER=/path/to/linux-amd64/paperclip-runnerd \
-PAPERCLIP_LIVE_EVIDENCE_PATH=/tmp/commentary-evidence.json \
+OUTPOST_LIVE_ENVIRONMENT=daytona \
+OUTPOST_LIVE_DAYTONA_ENV_FILE=/path/to/private.env \
+OUTPOST_LIVE_LINUX_RUNNER=/path/to/linux-amd64/outpost-runnerd \
+OUTPOST_LIVE_EVIDENCE_PATH=/tmp/commentary-evidence.json \
 node cli/node_modules/tsx/dist/cli.mjs server/scripts/verify-agent-commentary-live.ts
 ```
 
 The private env file needs only `DAYTONA_API_KEY` and
-`PAPERCLIP_E2E_DAYTONA_IMAGE` (`...@sha256:...`). Alternatively, export those
+`OUTPOST_E2E_DAYTONA_IMAGE` (`...@sha256:...`). Alternatively, export those
 variables directly. A positional `legacy` or `native` argument selects one path.
 For a current Linux runner, add an export stage to a temporary copy of the root
 Dockerfile and build it with `--platform linux/amd64 --target commentary-runner-export
@@ -142,7 +142,7 @@ Dockerfile and build it with `--platform linux/amd64 --target commentary-runner-
 
 ```dockerfile
 FROM scratch AS commentary-runner-export
-COPY --from=runner-build /app/packages/paperclip-runner/runner/target/release/paperclip-runnerd /paperclip-runnerd
+COPY --from=runner-build /app/packages/outpost-runner/runner/target/release/outpost-runnerd /outpost-runnerd
 ```
 
 The smoke calls the production Daytona provider hooks for creation, execution,

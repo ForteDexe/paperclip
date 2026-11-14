@@ -5,9 +5,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyPendingMigrations, closeRegisteredClients, createDb, instanceSettings, type Db } from "@paperclipai/db";
+import { applyPendingMigrations, closeRegisteredClients, createDb, instanceSettings, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
-import { paperclipConfigSchema } from "@paperclipai/shared";
+import { paperclipConfigSchema } from "@outpost/shared";
 import { loadCloudBootstrapConfig, loadConfig } from "../config.js";
 import { readConfigFile } from "../config-file.js";
 import {
@@ -23,7 +23,7 @@ import {
 } from "../services/cloud-runtime-config-snapshot.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
-const externalDatabaseUrl = process.env.PAPERCLIP_RUNTIME_CONFIG_TEST_DATABASE_URL;
+const externalDatabaseUrl = process.env.OUTPOST_RUNTIME_CONFIG_TEST_DATABASE_URL;
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describePostgres = support.supported ? describe : describe.skip;
 let home: string;
@@ -52,23 +52,23 @@ function legacyConfig() {
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-runtime-config-"));
   configPath = path.join(home, "config.json");
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_CONFIG", configPath);
-  vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "test-token");
-  vi.stubEnv("PAPERCLIP_MANAGED_CONFIG", undefined);
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_CONFIG", configPath);
+  vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-token");
+  vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
   vi.stubEnv("DATABASE_MIGRATION_URL", undefined);
-  vi.stubEnv("PAPERCLIP_DEPLOYMENT_MODE", undefined);
-  vi.stubEnv("PAPERCLIP_AUTH_PUBLIC_BASE_URL", undefined);
-  vi.stubEnv("PAPERCLIP_AUTH_BASE_URL_MODE", undefined);
-  vi.stubEnv("PAPERCLIP_PUBLIC_URL", undefined);
+  vi.stubEnv("OUTPOST_DEPLOYMENT_MODE", undefined);
+  vi.stubEnv("OUTPOST_AUTH_PUBLIC_BASE_URL", undefined);
+  vi.stubEnv("OUTPOST_AUTH_BASE_URL_MODE", undefined);
+  vi.stubEnv("OUTPOST_PUBLIC_URL", undefined);
   vi.stubEnv("BETTER_AUTH_URL", undefined);
   vi.stubEnv("BETTER_AUTH_BASE_URL", undefined);
-  vi.stubEnv("PAPERCLIP_ALLOWED_HOSTNAMES", undefined);
-  vi.stubEnv("PAPERCLIP_TAILNET_BIND_HOST", "100.100.0.1");
+  vi.stubEnv("OUTPOST_ALLOWED_HOSTNAMES", undefined);
+  vi.stubEnv("OUTPOST_TAILNET_BIND_HOST", "100.100.0.1");
   vi.stubEnv("OPENAI_API_KEY", "environment-api-secret");
-  vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "12345678901234567890123456789012");
-  vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", undefined);
-  vi.stubEnv("PAPERCLIP_STORAGE_S3_BUCKET", undefined);
+  vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "12345678901234567890123456789012");
+  vi.stubEnv("OUTPOST_STORAGE_PROVIDER", undefined);
+  vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", undefined);
   setCloudRuntimeConfigSnapshot(null);
 });
 
@@ -134,7 +134,7 @@ describe("Cloud configuration file boundary", () => {
   });
 
   it("preserves local config file behavior without managed signals", () => {
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", undefined);
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
     fs.writeFileSync(configPath, JSON.stringify(legacyConfig()));
     expect(readConfigFile()?.llm?.apiKey).toBe("legacy-openai-secret");
     expect(loadConfig()).toMatchObject({ port: 3210, telemetryEnabled: false, storageS3Bucket: "saved-bucket" });
@@ -164,26 +164,26 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
 
   afterAll(async () => { await database?.cleanup(); });
 
-  it.each(["PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "PAPERCLIP_MANAGED_CONFIG"])("seeds a fresh database with %s", async (signal) => {
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", undefined);
-    vi.stubEnv(signal, signal === "PAPERCLIP_MANAGED_CONFIG" ? "" : "test-token");
+  it.each(["OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "OUTPOST_MANAGED_CONFIG"])("seeds a fresh database with %s", async (signal) => {
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
+    vi.stubEnv(signal, signal === "OUTPOST_MANAGED_CONFIG" ? "" : "test-token");
     const result = await initializeCloudRuntimeConfig(first);
     expect(result).toMatchObject({ seeded: true, current: { version: 1, revision: 0, config: null } });
     expect(await cloudRuntimeConfigService(second).inspectStored()).toEqual(result?.current);
     expect(fs.existsSync(configPath)).toBe(false);
-    vi.stubEnv("PAPERCLIP_DEPLOYMENT_MODE", "authenticated");
-    vi.stubEnv("PAPERCLIP_PUBLIC_URL", "https://environment.example.test");
-    vi.stubEnv("PAPERCLIP_MANAGED_CONFIG", undefined);
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "test-token");
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "s3");
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_BUCKET", "environment-bucket");
+    vi.stubEnv("OUTPOST_DEPLOYMENT_MODE", "authenticated");
+    vi.stubEnv("OUTPOST_PUBLIC_URL", "https://environment.example.test");
+    vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-token");
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "s3");
+    vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", "environment-bucket");
     expect(loadConfig()).toMatchObject({ databaseMode: "postgres", authBaseUrlMode: "explicit", secretsStrictMode: true, telemetryEnabled: true });
   });
 
   it("loads the saved authenticated mode before validating an environment host bind", async () => {
     fs.writeFileSync(configPath, JSON.stringify(legacyConfig()));
     vi.stubEnv("HOST", "0.0.0.0");
-    vi.stubEnv("PAPERCLIP_DEPLOYMENT_MODE", undefined);
+    vi.stubEnv("OUTPOST_DEPLOYMENT_MODE", undefined);
     expect(loadCloudBootstrapConfig()).toEqual({
       databaseMode: "postgres",
       databaseUrl: database.connectionString,
@@ -206,10 +206,10 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     const replacementConfigDir = path.join(replacementHome, ".paperclip");
     fs.mkdirSync(replacementConfigDir);
     const envPath = path.join(replacementConfigDir, ".env");
-    const envContents = "PORT=9999\nPAPERCLIP_RUNTIME_CONFIG_ENV_SENTINEL=should-not-load\n";
+    const envContents = "PORT=9999\nOUTPOST_RUNTIME_CONFIG_ENV_SENTINEL=should-not-load\n";
     fs.writeFileSync(envPath, envContents);
-    vi.stubEnv("PAPERCLIP_HOME", replacementHome);
-    vi.stubEnv("PAPERCLIP_CONFIG", path.join(replacementConfigDir, "config.json"));
+    vi.stubEnv("OUTPOST_HOME", replacementHome);
+    vi.stubEnv("OUTPOST_CONFIG", path.join(replacementConfigDir, "config.json"));
     setCloudRuntimeConfigSnapshot(null);
     const files = vi.spyOn(fs, "readFileSync");
     expect(await initializeCloudRuntimeConfig(second)).toEqual({ seeded: false, current: initial?.current });
@@ -226,7 +226,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
       await initializeCloudRuntimeConfig(db);
       const config = loadConfig();
       console.log(JSON.stringify({ port: config.port, telemetryEnabled: config.telemetryEnabled, storageS3Bucket: config.storageS3Bucket,
-        envSentinel: process.env.PAPERCLIP_RUNTIME_CONFIG_ENV_SENTINEL ?? null }));
+        envSentinel: process.env.OUTPOST_RUNTIME_CONFIG_ENV_SENTINEL ?? null }));
       await db.$client.end({ timeout: 1 });
     `);
     const child = await promisify(execFile)(process.execPath, [path.join(root, "server/node_modules/tsx/dist/cli.mjs"), childScript], {
@@ -242,8 +242,8 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     fs.writeFileSync(configPath, JSON.stringify(legacyConfig()));
     await initializeCloudRuntimeConfig(first);
     vi.stubEnv("PORT", "4567");
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_BUCKET", "operator-bucket");
-    vi.stubEnv("PAPERCLIP_AUTH_DISABLE_SIGN_UP", "false");
+    vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", "operator-bucket");
+    vi.stubEnv("OUTPOST_AUTH_DISABLE_SIGN_UP", "false");
     fs.writeFileSync(configPath, "malformed legacy contents");
     await initializeCloudRuntimeConfig(second);
     expect(loadConfig()).toMatchObject({ port: 4567, storageS3Bucket: "operator-bucket", authDisableSignUp: false, telemetryEnabled: false });

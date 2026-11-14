@@ -1,5 +1,5 @@
 import { inArray } from "drizzle-orm";
-import { environmentLeases, type Db } from "@paperclipai/db";
+import { environmentLeases, type Db } from "@outpost/db";
 import { hasRemoteTerminationReceipt } from "../remote-execution-termination.js";
 import { hasConfirmedSandboxStopAndRetain } from "../sandbox-stop-and-retain.js";
 import type { InProgressRecord, RecordOwner, SettleOutcome } from "./ownership-registry.js";

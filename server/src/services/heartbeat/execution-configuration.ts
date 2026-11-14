@@ -1,10 +1,10 @@
 import { withSkillActor } from "../skill-access.js";
 import type { AuthorizationActor } from "../authorization.js";
 import { eq, sql } from "drizzle-orm";
-import { heartbeatRuns, type Db, type agents, type projects } from "@paperclipai/db";
-import type { AiConnectionBinding } from "@paperclipai/shared";
+import { heartbeatRuns, type Db, type agents, type projects } from "@outpost/db";
+import type { AiConnectionBinding } from "@outpost/shared";
 import { readPaperclipSkillSyncPreference, resolveNativeOutpostDesiredSkillNames, resolveLegacyPaperclipDesiredSkillNames,
-  writePaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
+  writePaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { parseObject } from "../../adapters/utils.js";
 import { logger } from "../../middleware/logger.js";
 import { AI_CONNECTION_BUSY_RETRY_REASON, extractWakeCommentIds, isNonAssigneeWorkspaceBusyRetry } from "../../modules/run-dispatch/index.js";
@@ -90,11 +90,11 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   const time = createHeartbeatPreparationTiming(run.id);
   const { issueId, context, responsibleUserId, taskProjectContext, routineEnvContext, pinnedSkillTest } = input.task;
   const { selectedEnvironmentId, selectedEnvironmentForConfig, resolvedInstanceSettings, persistedNativeExecutionInput } = input.environment;
-  const sourceWorkspaceConfig = agent.adapterType === "paperclip_runner"
+  const sourceWorkspaceConfig = agent.adapterType === "outpost_runner"
     ? { ...input.config.sourceWorkspaceConfig,
         homeMode: bindHeartbeatRunnerHomeMode(parseObject(agent.adapterConfig), persistedNativeExecutionInput).homeMode }
     : input.config.sourceWorkspaceConfig;
-  const preconfiguredHome = agent.adapterType === "paperclip_runner" && sourceWorkspaceConfig.homeMode === "preconfigured";
+  const preconfiguredHome = agent.adapterType === "outpost_runner" && sourceWorkspaceConfig.homeMode === "preconfigured";
   if (preconfiguredHome && pinnedSkillTest) {
     throw new ConfigurationIncompleteFailure("Skill tests require an isolated Runner home to deliver the saved version.", {
       configurationIncomplete: { reason: "skill_unavailable", actionUrl: `/agents/${agent.id}/runtime` },
@@ -103,7 +103,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   // A plugin Runner-task environment runs only managed AI connections. Refuse a new
   // admission before secrets, leases, or provider calls. Resumed native input keeps
   // the contract it was admitted under.
-  if (agent.adapterType === "paperclip_runner" && (preconfiguredHome || !input.config.aiBinding) && !persistedNativeExecutionInput
+  if (agent.adapterType === "outpost_runner" && (preconfiguredHome || !input.config.aiBinding) && !persistedNativeExecutionInput
     && selectedEnvironmentForConfig && await pluginEnvironmentRunnerTaskDriver(db, selectedEnvironmentForConfig)) {
     throw new ConfigurationIncompleteFailure(pluginRunnerAiConnectionRequiredMessage(preconfiguredHome), {
       configurationIncomplete: { reason: PLUGIN_RUNNER_AI_CONNECTION_REQUIRED, actionUrl: `/agents/${agent.id}/runtime`,
@@ -283,7 +283,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
         versionSelections, snapshotLatest: true,
         ...(hasStoredVersions
           ? { onlyKeys: new Set(Object.keys(storedVersions)) }
-          : { selectionConfig: effectiveResolvedConfig, includeLegacy: agent.adapterType !== "paperclip_runner" }),
+          : { selectionConfig: effectiveResolvedConfig, includeLegacy: agent.adapterType !== "outpost_runner" }),
         selectVersions: async entries => {
           const available = hasStoredVersions ? entries.filter(entry => Object.prototype.hasOwnProperty.call(storedVersions, entry.key)) : entries;
           const availableKeys = new Set(available.map(entry => entry.key));
@@ -300,7 +300,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
           }
           const desiredKeys = hasStoredVersions
             ? Object.keys(storedVersions)
-            : agent.adapterType === "paperclip_runner"
+            : agent.adapterType === "outpost_runner"
               ? resolveNativeOutpostDesiredSkillNames(effectiveResolvedConfig, available)
               : resolveLegacyPaperclipDesiredSkillNames(effectiveResolvedConfig, available);
           const selectedKeys = new Set(desiredKeys.filter(key => availableKeys.has(key)));
@@ -327,7 +327,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
         return entries;
       }));
     } catch (error) {
-      if (agent.adapterType === "paperclip_runner") {
+      if (agent.adapterType === "outpost_runner") {
         await recordFailedSkillPreparation({
           runId: run.id,
           startedAtMs: skillsPrepareStartedAtMs,
@@ -366,7 +366,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   context.paperclipWake = { ...parseObject(context.paperclipWake), connectorSkillInstructions: connectorDelivery.instructions };
   let runtimeConfig = await prepareConnectionInstructionDelivery({
     resolve: async () => preparedInstructions.value,
-    context, config: connectorDelivery.config, native: agent.adapterType === "paperclip_runner",
+    context, config: connectorDelivery.config, native: agent.adapterType === "outpost_runner",
   });
   const agentIdentity = supportsManagedAgentIdentity(agent.adapterType, agent.adapterConfig, run.runtimeMode === "native" ? run.driverKind : undefined)
     ? await time("configuration_agent_identity", () => agentIdentityService(db).ensureAgentIdentity(agent.companyId, agent.id))
@@ -374,7 +374,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   identityRedactor.values.push(...createAgentIdentityRedactor(agentIdentity?.privateKeyPem).values);
   identityRedactor.values.sort((a, b) => b.length - a.length);
   onIdentityRedactorPrepared(identityRedactor);
-  if (agentIdentity) secretKeys.add("PAPERCLIP_AGENT_PRIVATE_KEY");
+  if (agentIdentity) secretKeys.add("OUTPOST_AGENT_PRIVATE_KEY");
   return {
     prepared: true as const,
     mergedConfig, configSnapshot, runScopedMentionedSkillKeys, githubSelection, useHostGitHub,

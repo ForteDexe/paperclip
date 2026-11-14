@@ -377,13 +377,13 @@ describe("adapter management route authorization", () => {
     afterEach(() => vi.unstubAllEnvs());
 
     it.each(
-      ["PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "PAPERCLIP_MANAGED_CONFIG"].flatMap((signal) =>
+      ["OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "OUTPOST_MANAGED_CONFIG"].flatMap((signal) =>
         ["install", "reinstall", "reload", "override", "delete"].map((routeName) => [signal, routeName]),
       ),
     )("blocks %s adapter %s before package or registration access", async (signal, routeName) => {
       seedInstalledExternalAdapter();
       vi.clearAllMocks();
-      vi.stubEnv(signal, signal === "PAPERCLIP_MANAGED_CONFIG" ? "" : "test-server-token");
+      vi.stubEnv(signal, signal === "OUTPOST_MANAGED_CONFIG" ? "" : "test-server-token");
       const app = createApp(instanceAdmin);
 
       const res = await sendMutatingRequest(app, routeName);
@@ -402,10 +402,10 @@ describe("adapter management route authorization", () => {
 
   describe("operator-hidden adapter management floor", () => {
     beforeEach(() => {
-      process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.adapters";
+      process.env.OUTPOST_HIDDEN_SETTINGS = "instance.adapters";
     });
     afterEach(() => {
-      delete process.env.PAPERCLIP_HIDDEN_SETTINGS;
+      delete process.env.OUTPOST_HIDDEN_SETTINGS;
     });
 
     it.each([

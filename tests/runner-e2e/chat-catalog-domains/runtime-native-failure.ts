@@ -8,14 +8,14 @@ interface NativeFailureRun extends ChatRun {
   nativeIssueId?: string | null;
   runnerProfileJson?: { nativeExecutionInput?: { provider?: { kind?: string; model?: string | null } } };
 }
-interface NativeEvent { seq?: number; eventType?: string; payload?: { prpEvent?: { eventType?: string } } }
+interface NativeEvent { seq?: number; eventType?: string; payload?: { orpEvent?: { eventType?: string } } }
 export function admittedModelFailure(input: { run?: NativeFailureRun; events: NativeEvent[]; companyId: string; agentId: string; issueId: string; model: string; provider?: "codex" | "opencode" }) {
   const r = input.run, provider = r?.runnerProfileJson?.nativeExecutionInput?.provider;
   return !!r && r.runtimeMode === "native" && r.status === "failed" && !!r.startedAt && !!r.errorCode && !!r.error
     && r.companyId === input.companyId && r.agentId === input.agentId
     && [r.nativeIssueId, r.contextSnapshot?.issueId, r.contextSnapshot?.taskId].includes(input.issueId)
     && provider?.kind === (input.provider ?? "codex") && provider.model === input.model
-    && input.events.some(event => [event.eventType, event.payload?.prpEvent?.eventType].some(type => type === "run.terminal" || type === "turn.failed"));
+    && input.events.some(event => [event.eventType, event.payload?.orpEvent?.eventType].some(type => type === "run.terminal" || type === "turn.failed"));
 }
 /** A real public configuration/invocation fixture, never a synthetic failure.
  * The caller supplies exactly one ordinary task/routine invocation and retains
@@ -28,7 +28,7 @@ export async function unavailableNativeModelFailure(ctx: ChatCatalogContext, wor
   const endpoint = `/api/agents/${worker.id}`;
   const original = await ctx.input.api.get<RuntimeAgent>(endpoint);
   if (original.lifecycleState !== "ready" || !["active", "idle"].includes(original.status ?? "")
-    || original.adapterType !== "paperclip_runner" || !["codex", "opencode"].includes(String(original.adapterConfig?.provider)))
+    || original.adapterType !== "outpost_runner" || !["codex", "opencode"].includes(String(original.adapterConfig?.provider)))
     throw new Error("Native failure prerequisite requires an actually ready selected native Codex or OpenCode worker");
   const provider = original.adapterConfig!.provider as "codex" | "opencode";
   const before = await ctx.allRuns(); const model = unavailableNativeModel(provider, ctx.input.nonce);

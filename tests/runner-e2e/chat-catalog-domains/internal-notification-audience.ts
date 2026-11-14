@@ -143,7 +143,7 @@ function notificationAudience(): ChatCatalogCase {
     const o = await observeInternal(ctx, state); const { alex, riley } = await observeAudienceProbes();
     return { ...o, alex, riley, observedAt: Date.now() };
   };
-  return { ...base, oracleVersion: "paperclip.chat-catalog.internal.notification-audience.v2", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 480000,
+  return { ...base, oracleVersion: "outpost.chat-catalog.internal.notification-audience.v2", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 480000,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-notification-audience.ts", "chat-catalog-domains/internal-notification-events.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts", "../../packages/shared/src/project-mentions.ts"], observe,
     async act(ctx, state) {
       const first = await pollUntil({ label: "Normal participant-only actual browser notification", deadlineAt: Date.now() + 180000,

@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { companies, type Db } from "@paperclipai/db";
+import { companies, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import type {
   CatalogManifest,
@@ -21,9 +21,9 @@ import type {
   CompanyPortabilityPreview,
   CompanyPortabilityPreviewResult,
   CompanyPortabilitySource,
-} from "@paperclipai/shared";
-import { normalizeAgentUrlKey } from "@paperclipai/shared";
-import { parseFrontmatterMarkdown } from "@paperclipai/shared/frontmatter";
+} from "@outpost/shared";
+import { normalizeAgentUrlKey } from "@outpost/shared";
+import { parseFrontmatterMarkdown } from "@outpost/shared/frontmatter";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
 import { companyPortabilityService } from "./company-portability.js";
@@ -145,7 +145,7 @@ let cachedCatalogManifest: {
 } | null = null;
 
 function buildCatalogPackageRootCandidates() {
-  const configuredRoot = process.env.PAPERCLIP_TEAMS_CATALOG_DIR?.trim();
+  const configuredRoot = process.env.OUTPOST_TEAMS_CATALOG_DIR?.trim();
   const candidates = [
     ...(configuredRoot ? [path.resolve(configuredRoot)] : []),
     path.resolve(process.cwd(), "packages/teams-catalog"),
@@ -167,7 +167,7 @@ async function statCatalogManifest() {
     }
   }
   throw new Error(
-    `Teams catalog manifest not found. Checked: ${catalogPackageRootCandidates.map((root) => path.join(root, "generated/catalog.json")).join(", ")}. Run pnpm --filter @paperclipai/teams-catalog build:manifest.`,
+    `Teams catalog manifest not found. Checked: ${catalogPackageRootCandidates.map((root) => path.join(root, "generated/catalog.json")).join(", ")}. Run pnpm --filter @outpost/teams-catalog build:manifest.`,
   );
 }
 
@@ -241,7 +241,7 @@ interface CatalogTeamProvenance {
 }
 
 /**
- * Extract `metadata.paperclip.catalogTeam` provenance written by the team
+ * Extract `metadata.outpost.catalogTeam` provenance written by the team
  * importer (see `renderCatalogProvenanceYaml`). Returns null when the agent was
  * not installed from a catalog team.
  */
@@ -250,7 +250,7 @@ export function readCatalogTeamProvenance(
 ): CatalogTeamProvenance | null {
   if (!isPlainRecord(metadata)) return null;
   const paperclip = isPlainRecord(metadata.paperclip) ? metadata.paperclip : null;
-  const catalogTeam = paperclip && isPlainRecord(paperclip.catalogTeam) ? paperclip.catalogTeam : null;
+  const catalogTeam = paperclip && isPlainRecord(outpost.catalogTeam) ? outpost.catalogTeam : null;
   if (!catalogTeam) return null;
   const catalogId = readNonEmptyString(catalogTeam.catalogId);
   if (!catalogId) return null;
@@ -687,7 +687,7 @@ async function readCatalogTeamSourceFiles(team: CatalogTeam): Promise<Record<str
 const FALLBACK_SAFE_CATALOG_ADAPTER_TYPE = "claude_local";
 
 function defaultSafeCatalogAdapterType() {
-  return process.env.PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE?.trim() || FALLBACK_SAFE_CATALOG_ADAPTER_TYPE;
+  return process.env.OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE?.trim() || FALLBACK_SAFE_CATALOG_ADAPTER_TYPE;
 }
 
 /**
@@ -795,11 +795,11 @@ export function teamsCatalogService(db: Db) {
     const targetManager = await resolveTargetManagerReference(companyId, options);
     const files = await readCatalogTeamSourceFiles(team);
     const existingExtension =
-      typeof files[".paperclip.yaml"] === "string"
-        ? parseYamlDocument(files[".paperclip.yaml"])
+      typeof files[".outpost.yaml"] === "string"
+        ? parseYamlDocument(files[".outpost.yaml"])
         : {};
     const generatedExtension = parseYamlDocument(await renderCatalogProvenanceYaml(team, targetManager));
-    files[".paperclip.yaml"] = renderYamlFile(mergePlainRecords(existingExtension, generatedExtension));
+    files[".outpost.yaml"] = renderYamlFile(mergePlainRecords(existingExtension, generatedExtension));
     rewriteAgentCatalogSkillRefs(team, files);
 
     return {
@@ -939,7 +939,7 @@ export function teamsCatalogService(db: Db) {
       ...importPreview.warnings,
       ...(defaultedAdapterSlugs.length > 0
         ? [
-            `Catalog agents without explicit overrides (${defaultedAdapterSlugs.join(", ")}) default to ${defaultAdapterType}. Pass adapterOverrides or PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE to use a different supported adapter.`,
+            `Catalog agents without explicit overrides (${defaultedAdapterSlugs.join(", ")}) default to ${defaultAdapterType}. Pass adapterOverrides or OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE to use a different supported adapter.`,
           ]
         : []),
     ];

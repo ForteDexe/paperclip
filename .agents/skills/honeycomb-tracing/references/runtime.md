@@ -53,7 +53,7 @@ Classic. Confirm current provider requirements when changing setup.
 Paperclip resolves `service.version` from the build stamp
 (`dist/build-info.json`), then runtime Git, then `OTEL_SERVICE_VERSION`, then
 `unknown`. The build stamp wins over a stale environment variable. Docker builds
-without `.git` use `PAPERCLIP_BUILD_COMMIT` to populate the stamp.
+without `.git` use `OUTPOST_BUILD_COMMIT` to populate the stamp.
 
 Match the trace's version with actual runtime/deployment evidence. Record source
 revision and observation time; an opaque desired release or current local HEAD

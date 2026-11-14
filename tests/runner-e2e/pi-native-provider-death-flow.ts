@@ -23,10 +23,10 @@ export function gradePiProviderDeath(state: State, events: readonly Row[], pendi
     && run.status === "failed" && run.resultJson?.nativeCancellation == null && run.resultJson?.startupCancellation == null,
   "original provider did not fail independently of Stop");
   demand(Array.isArray(events) && events.length > 0 && events.length <= 20_000, "missing event history");
-  const rows = events.filter(row => row.payload?.prpEvent).sort((a, b) => a.seq - b.seq);
+  const rows = events.filter(row => row.payload?.orpEvent).sort((a, b) => a.seq - b.seq);
   const ids = new Set<string>(), seqs = new Set<number>(), cursors = new Map<string, number>();
   for (const row of rows) {
-    const e = row.payload.prpEvent;
+    const e = row.payload.orpEvent;
     demand(row.companyId === pending.companyId && row.runId === pending.runId && row.eventType === e.eventType
       && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq) && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
       && e.runId === pending.runId && e.normalizedSessionId === pending.nativeSessionId
@@ -42,17 +42,17 @@ export function gradePiProviderDeath(state: State, events: readonly Row[], pendi
   demand(created.length === 1 && hash(created[0]) === pending.createdRowSha256, "original request changed or replayed");
   const closures = rows.filter(row => ["runtime_request.expired", "runtime_request.resolved", "runtime_request.cancelled"].includes(row.eventType));
   demand(closures.length === 1 && closures[0]!.eventType === "runtime_request.expired", "missing unique production expiry");
-  const expired = closures[0]!.payload.prpEvent, p = expired.payload;
+  const expired = closures[0]!.payload.orpEvent, p = expired.payload;
   demand(expired.sourceKind === "runner" && expired.sourceSeq > pending.createdSourceSeq && expired.turnId === pending.turnId
     && p.requestId === pending.requestId && p.requestKind === "runtime" && p.requestType === "input" && p.turnId === pending.turnId && p.itemId === pending.itemId
-    && p.reason === "provider_process_lost" && p.replayAllowed === false && hash(p.request) === hash(created[0]!.payload.prpEvent.payload.request), "expiry is not the original lost Pi callback");
+    && p.reason === "provider_process_lost" && p.replayAllowed === false && hash(p.request) === hash(created[0]!.payload.orpEvent.payload.request), "expiry is not the original lost Pi callback");
   const failed = of("turn.failed");
-  demand(failed.length === 1 && failed[0]!.seq > closures[0]!.seq && failed[0]!.payload.prpEvent.sourceKind === "runner"
-    && failed[0]!.payload.prpEvent.turnId === pending.turnId && !of("turn.completed").length && !of("turn.cancelled").length
+  demand(failed.length === 1 && failed[0]!.seq > closures[0]!.seq && failed[0]!.payload.orpEvent.sourceKind === "runner"
+    && failed[0]!.payload.orpEvent.turnId === pending.turnId && !of("turn.completed").length && !of("turn.cancelled").length
     && of("turn.started").length === 1 && !of("run.result.proposed").length, "wrong terminal or replacement turn");
   const card = state.interactions.find(card => card.id === pending.interactionId);
   demand(card?.companyId === pending.companyId && card.issueId === pending.issueId && card.sourceRunId === pending.runId
-    && card.idempotencyKey === `paperclip-runner-question:${pending.runId}:${pending.requestId}` && card.continuationPolicy === "none"
+    && card.idempotencyKey === `outpost-runner-question:${pending.runId}:${pending.requestId}` && card.continuationPolicy === "none"
     && card.status === "expired" && card.result?.version === 1 && Array.isArray(card.result.answers) && card.result.answers.length === 0
     && card.kind === "ask_user_questions" && card.resolverPolicy === "human_only" && card.payload?.runtimeRequestId === pending.requestId && hash(card.payload.questionSet) === hash(originalQuestion), "original durable card did not expire");
   const fallback = state.interactions.filter(card => card.id !== pending.interactionId);
@@ -88,12 +88,12 @@ export async function runPiPendingProviderDeath(input: {
     const run = before.state.runs[0]!, question = before.state.interactions[0]!.payload.questionSet;
     demand(input.fixture.binding.runId === pending.runId && input.fixture.binding.companyId === pending.companyId && input.fixture.terminatePiProvider,
       "missing exact owned Daytona fault capability");
-    // createRunnerdBackend's default PRP lease is the execution workspace ID;
+    // createRunnerdBackend's default ORP lease is the execution workspace ID;
     // reject alternate/recovered authority instead of guessing that identity.
     const workspaceId = run.contextSnapshot?.executionWorkspaceId;
     demand(typeof workspaceId === "string" && workspaceId.length > 0
       && run.runnerProfileJson?.nativeExecutionInput?.binding?.executionWorkspaceId === workspaceId
-      && run.contextSnapshot?.paperclipEnvironment?.leaseId === input.fixture.binding.leaseId
+      && run.contextSnapshot?.outpostEnvironment?.leaseId === input.fixture.binding.leaseId
       && input.fixture.baseline.scope.observedPrpEnvironmentLeaseId === workspaceId, "native run/lease/workspace binding unavailable");
     await expect(input.page.getByTestId("question-text-answer-composer").filter({ visible: true })).toHaveCount(1);
     await input.capture("pi-provider-death-pending", "Unanswered native Pi input before provider loss", "pi-provider-death-pending.png");
@@ -124,7 +124,7 @@ export async function runPiPendingProviderDeath(input: {
     const original = await input.api.request.post(`/api/issues/${pending.issueId}/interactions/${pending.interactionId}/respond`,
       { data: { answers: [{ questionId: pending.questionId, optionIds: [], otherText: answer }] } });
     const runtime = await input.api.request.post(`/api/heartbeat-runs/${pending.runId}/runtime-requests/${encodeURIComponent(pending.requestId)}/resolve`,
-      { data: { resolution: { action: "submit", response: { schema: "paperclip.question_response.v1", answers: { [pending.questionId]: { text: answer } } } } } });
+      { data: { resolution: { action: "submit", response: { schema: "outpost.question_response.v1", answers: { [pending.questionId]: { text: answer } } } } } });
     check("death-stale-original-responses-rejected", original.status() === 409 && runtime.status() === 409, "Both original durable-card and native-runtime response APIs reject the stale answer");
     const after = await snapshot("pi-provider-death-after-stale.json");
     check("death-expiry-not-restoration", hash(gradePiProviderDeath(after.state, after.events, pending, question)) === hash(result)

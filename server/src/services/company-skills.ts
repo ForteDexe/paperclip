@@ -6,7 +6,7 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notificatio
 import { verifyFileManifest } from "./file-manifest-cache.js";
 import { skillPackageStorageEnabled, skillPackageStore, skillVersionFileMap, skillVersionUsesWholePackage, skillVersionMetadataColumns, withSkillPackageReadScope, type StoredSkillVersion } from "./skill-package-store.js";
 import { skillPackageRuntime } from "./skill-package-runtime.js";
-import type { SkillPackageFileMapping } from "@paperclipai/db";
+import type { SkillPackageFileMapping } from "@outpost/db";
 import { ensureSkillCacheDirectory, protectedVersions, withSkillVersionCacheLock } from "./skill-version-cache.js";
 import { measureRunPhase } from "./execution-preparation-timing.js";
 import { verifyExistingBundledSkillRelease } from "./bundled-skill-release-validation.js";
@@ -23,7 +23,7 @@ import os from "node:os";
 import { skillFileBytes, snapshotFile, assertSkillSnapshotPath, skillSnapshotHash, MAX_SKILL_SNAPSHOT_BYTES, MAX_SKILL_SNAPSHOT_FILES } from "./skill-snapshot.js";
 import { fileURLToPath } from "node:url";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, lt, ne, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents as agentsTable,
   assets,
@@ -44,11 +44,11 @@ import {
   issues,
   issueThreadInteractions,
   issueWorkProducts,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { readPaperclipSkillSyncPreference, writePaperclipSkillSyncPreference, resolvePaperclipDesiredSkillNames,
-  resolveLegacyPaperclipDesiredSkillNames } from "@paperclipai/adapter-utils/server-utils";
+  resolveLegacyPaperclipDesiredSkillNames } from "@outpost/adapter-utils/server-utils";
 import { REPOSITORY_CONTENT_DIR, repositorySkillProjection } from "./skill-repository-package.js";
-import type { PaperclipDesiredSkillEntry, PaperclipSkillEntry } from "@paperclipai/adapter-utils/server-utils";
+import type { PaperclipDesiredSkillEntry, PaperclipSkillEntry } from "@outpost/adapter-utils/server-utils";
 import type {
   AgentDesiredSkillEntry,
   CatalogSkill,
@@ -115,7 +115,7 @@ import type {
   CompanySkillVersionFileInventoryEntry,
   IssueAttachment,
   IssueDocument,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   isUuidLike,
   joinFrontmatterBlock,
@@ -123,7 +123,7 @@ import {
   parseFrontmatterMarkdown,
   splitFrontmatterBlock,
   stringifyFrontmatter,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { ghFetch, gitHubApiBase, resolveRawGitHubUrl } from "./github-fetch.js";
@@ -669,7 +669,7 @@ function readCanonicalSkillKey(frontmatter: Record<string, unknown>, metadata: R
 }
 
 /** Focused bundled skills used by Outpost agents. */
-export const PAPERCLIP_CORE_SKILL_KEYS = [
+export const OUTPOST_CORE_SKILL_KEYS = [
   "paperclipai/paperclip/outpost-task",
   "paperclipai/paperclip/outpost-decision",
   "paperclipai/paperclip/outpost-artifact",
@@ -3067,7 +3067,7 @@ export function companySkillService(db: Db, options: { actor?: AuthorizationActo
           },
         })))
         .then((skills) => skills.filter((skill) =>
-          PAPERCLIP_CORE_SKILL_KEYS.includes(skill.key as typeof PAPERCLIP_CORE_SKILL_KEYS[number])))
+          OUTPOST_CORE_SKILL_KEYS.includes(skill.key as typeof OUTPOST_CORE_SKILL_KEYS[number])))
         .catch(() => [] as ImportedSkill[]);
       if (bundledSkills.length === 0) continue;
       return upsertImportedSkills(companyId, bundledSkills, db, { includeFolderPath: false });

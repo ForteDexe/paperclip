@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext } from "@outpost/adapter-utils";
 
 import { execute } from "./execute.js";
 import { sessionCodec } from "./index.js";
@@ -34,7 +34,7 @@ const args = process.argv.slice(2);
 fs.appendFileSync(process.env.CAPTURE_PATH, JSON.stringify({
   args,
   systemPrompt: process.env.HERMES_EPHEMERAL_SYSTEM_PROMPT ?? null,
-  runId: process.env.PAPERCLIP_RUN_ID,
+  runId: process.env.OUTPOST_RUN_ID,
 }) + "\\n");
 if (process.env.FIXTURE_STDOUT) console.log(process.env.FIXTURE_STDOUT);
 if (args.includes("missing-session")) {
@@ -109,11 +109,11 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
       expect(query(invocation)).toContain("Fresh human direction.");
       expect(query(invocation)).toContain(invocation.runId);
       expect(query(invocation)).toContain("company-synthetic");
-      expect(invocation.systemPrompt).toContain("$PAPERCLIP_API_KEY");
-      expect(invocation.systemPrompt).toContain('-H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID"');
+      expect(invocation.systemPrompt).toContain("$OUTPOST_API_KEY");
+      expect(invocation.systemPrompt).toContain('-H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID"');
       expect(invocation.systemPrompt).toContain("body=$(cat <<'MD'");
       expect(invocation.systemPrompt).toContain("--data-binary @-");
-      expect(invocation.systemPrompt).toContain('$api/issues/$PAPERCLIP_TASK_ID');
+      expect(invocation.systemPrompt).toContain('$api/issues/$OUTPOST_TASK_ID');
       expect(invocation.systemPrompt).not.toContain(invocation.runId);
     }
   });

@@ -19,7 +19,7 @@ it("commits every audited actual semantic expectation while excluding credential
   expect(() => verifyRetainedPrivateOracle(original, "notion", fields, values, f.env)).not.toThrow();
 });
 it("commits the actual AgentMail recipient without retaining its address or a low-entropy digest",()=>{
- const f=fixture(),recipient="synthetic-owner@agentmail.to",identity=privateOracleIdentity("agentmail",["recipient","inboxId","apiTokenEnv"],{recipient,inboxId:recipient,apiTokenEnv:"PAPERCLIP_CHAT_EVAL_AGENTMAIL"},f.env)!;
+ const f=fixture(),recipient="synthetic-owner@agentmail.to",identity=privateOracleIdentity("agentmail",["recipient","inboxId","apiTokenEnv"],{recipient,inboxId:recipient,apiTokenEnv:"OUTPOST_CHAT_EVAL_AGENTMAIL"},f.env)!;
  expect(identity.fields).toEqual(["recipient"]);expect(privateOracleIdentity("agentmail",["recipient"],{recipient:"different@agentmail.to"},f.env)?.commitment).not.toBe(identity.commitment);
  const publicValue=JSON.stringify(identity);expect(publicValue).not.toContain(recipient);expect(publicValue).not.toContain(createHash("sha256").update(recipient).digest("hex"));
  expect(()=>verifyRetainedPrivateOracle(identity,"agentmail",["recipient"],{recipient:"different@agentmail.to"},f.env)).toThrow("mismatch");
@@ -33,10 +33,10 @@ it("refuses lost, replaced or absent campaign keys and changed retained expectat
 });
 it("retains only opaque names/commitments across envelope cleanup and requalifies with actual host expectations/key", () => {
   const f = fixture(); const config = path.join(f.root, "external.json"); const keyBytes = readFileSync(f.key).toString("hex");
-  writeFileSync(config, JSON.stringify({ schemaVersion: 1, providers: { notion: { disposable: true, resourceIds: ["disposable"], credentialEnv: ["PAPERCLIP_CHAT_EVAL_NOTION_AUTH"], prerequisites: values } } }), { mode: 0o600 });
+  writeFileSync(config, JSON.stringify({ schemaVersion: 1, providers: { notion: { disposable: true, resourceIds: ["disposable"], credentialEnv: ["OUTPOST_CHAT_EVAL_NOTION_AUTH"], prerequisites: values } } }), { mode: 0o600 });
   const descriptor = { externalInput: { provider: "notion" as const, fields } }; const execution = { id: "selected" } as MatrixExecution;
-  const env = { ...f.env, PAPERCLIP_CHAT_CATALOG_EXTERNAL_CONFIG: config, PAPERCLIP_CHAT_EVAL_NOTION_AUTH: "never-committed-credential" };
-  const staged = stageChatPrivateInputs({ execution, descriptor, privateDir: f.root, secrets: [], env }); const retained = chatPrivateInputNameIdentity("selected", { [CHAT_PRIVATE_INPUTS_ENV]: staged.filename, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: f.root });
+  const env = { ...f.env, OUTPOST_CHAT_CATALOG_EXTERNAL_CONFIG: config, OUTPOST_CHAT_EVAL_NOTION_AUTH: "never-committed-credential" };
+  const staged = stageChatPrivateInputs({ execution, descriptor, privateDir: f.root, secrets: [], env }); const retained = chatPrivateInputNameIdentity("selected", { [CHAT_PRIVATE_INPUTS_ENV]: staged.filename, OUTPOST_RUNNER_E2E_TEMP_ROOT: f.root });
   rmSync(staged.filename); expect(() => verifyRetainedChatOracleIdentity(retained, descriptor, env)).not.toThrow();
   expect(JSON.stringify(retained)).not.toContain(keyBytes); expect(JSON.stringify(retained)).not.toContain("never-committed-credential");
   const publicEnv = scrubChatPrivateEnvironment({ ...env }, []); expect(publicEnv[CHAT_ORACLE_KEY_ENV]).toBeUndefined();

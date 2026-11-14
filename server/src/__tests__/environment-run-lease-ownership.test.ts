@@ -13,7 +13,7 @@ import {
   issues,
   nativeRunFinalizations,
   nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import {
   currentControllerBootId,
@@ -167,7 +167,7 @@ suite("environment_run_lease_active on the shared ownership path", () => {
     await db.insert(issues).values({ id: issueId, companyId, title: "Native settlement" });
     const contractId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "result-worker-v1", objective: "Finish", criteria: [] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
@@ -287,7 +287,7 @@ suite("environment_run_lease_active on the shared ownership path", () => {
     });
 
     it("names no owner on an ephemeral server, where the host cannot be known", async () => {
-      vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+      vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
       const runId = await run("failed");
       const leaseId = await lease(runId, null);
       const report = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState() });

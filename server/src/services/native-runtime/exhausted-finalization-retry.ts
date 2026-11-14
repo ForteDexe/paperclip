@@ -1,5 +1,5 @@
 import { and, eq, sql, type SQL } from "drizzle-orm";
-import { heartbeatRuns, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@paperclipai/db";
+import { heartbeatRuns, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@outpost/db";
 import { notifyNativeFinalizationWork } from "../native-finalization-notifications.js";
 import { nativeSha256 } from "./canonical.js";
 

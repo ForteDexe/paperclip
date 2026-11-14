@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { activityLog, heartbeatRuns, issues } from "@paperclipai/db";
-import { isUuidLike } from "@paperclipai/shared";
+import { activityLog, heartbeatRuns, issues } from "@outpost/db";
+import { isUuidLike } from "@outpost/shared";
 import { unprocessable } from "../errors.js";
 
 // The canonical text of a UUID. Only this form can equal `issues.id::text`.

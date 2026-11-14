@@ -5,7 +5,7 @@ import type { AuthorizationActor } from "../authorization.js";
 import { spekoToolsForSession } from "../voice/speko-agent-tools.js";
 import { githubConfiguredInstructionSources } from "../chat-github-review-policy.js";
 import { resolveGitHubReviewInstructions } from "../chat-channels/github/review-instructions.js";
-import { CONFIGURED_ENVIRONMENT_KEYS } from "../../vendor/paperclip-runner/index.js";
+import { CONFIGURED_ENVIRONMENT_KEYS } from "../../vendor/outpost-runner/index.js";
 import { ASSIGNED_MCP_SERVER_NAME } from "../mcp-tool-names.js";
 import { externalConversationStateSql } from "../slack-conversation-state.js";
 import { githubBotConnectionIdsForRun } from "../chat-github-tools.js";
@@ -26,7 +26,7 @@ import {
   isNull,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   CHAT_PROVIDERS,
   CONNECTION_INTENT_AGENT_GUIDANCE,
@@ -36,7 +36,7 @@ import {
   type ChatProvider,
   type RoutineRevisionSnapshotV1,
   type SourceTrustMetadata,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   agents,
   assets,
@@ -67,7 +67,7 @@ import {
   toolConnections,
   toolProfileEntries,
   toolProfiles,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { HttpError } from "../../errors.js";
 import { isAiConnectionIncompatible } from "../ai-connection-runtime.js";
 import { ReviewedChatBindingNotReadyError, type ReviewedChatBindingDenialReason } from "../reviewed-chat-binding-diagnostics.js";
@@ -116,23 +116,23 @@ import { createRunSecretRedactionRegistry } from "../run-secret-redaction.js";
 import {
   readPaperclipSkillSyncPreference,
   writePaperclipSkillSyncPreference,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import {
   extractSkillMentionIds,
   isUuidLike,
-} from "@paperclipai/shared";
-import { evaluateCodexCredentialReadiness } from "@paperclipai/adapter-codex-local/server";
+} from "@outpost/shared";
+import { evaluateCodexCredentialReadiness } from "@outpost/adapter-codex-local/server";
 import type { TrustPresetResolution } from "../trust-preset-resolver.js";
 
 const EXTERNAL_ATTACHMENT_OMISSIONS_KEY = "externalAttachmentOmissions";
 
-export const PAPERCLIP_WAKE_PAYLOAD_KEY = "paperclipWake";
+export const OUTPOST_WAKE_PAYLOAD_KEY = "paperclipWake";
 
-const PAPERCLIP_AGENT_MESSAGE_KEY = "paperclipAgentMessage";
+const OUTPOST_AGENT_MESSAGE_KEY = "paperclipAgentMessage";
 
-export const PAPERCLIP_HARNESS_CHECKOUT_KEY = "paperclipHarnessCheckedOut";
+export const OUTPOST_HARNESS_CHECKOUT_KEY = "paperclipHarnessCheckedOut";
 
-export const PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY =
+export const OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY =
   "paperclipExternalChatExecutionBound";
 
 const MAX_INLINE_WAKE_COMMENTS = 8;
@@ -228,29 +228,29 @@ function isConfiguredEnvBindingValue(binding: unknown) {
 const LOW_TRUST_SENSITIVE_ENV_KEY_RE =
   /(api[-_]?key|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
 
-// PAPERCLIP_* env binding policy:
-// 1. PAPERCLIP_API_KEY is never accepted from user/adapter/project/routine
+// OUTPOST_* env binding policy:
+// 1. OUTPOST_API_KEY is never accepted from user/adapter/project/routine
 //    config — the harness-minted run token is the only source.
-// 2. A PAPERCLIP_* runtime var the harness assigns for the run (RUN_ID,
+// 2. A OUTPOST_* runtime var the harness assigns for the run (RUN_ID,
 //    AGENT_ID, wake/workspace vars, ...) always wins over a same-named
 //    binding; adapters enforce this at env-merge time.
-// 3. Any other PAPERCLIP_*-named binding is user data and flows through to
+// 3. Any other OUTPOST_*-named binding is user data and flows through to
 //    the run env like any non-prefixed binding.
 const FORBIDDEN_ENV_BINDING_KEYS = new Set([
   "BASH_ENV", "ZDOTDIR", "GH_CONFIG_DIR",
   CONFIGURED_ENVIRONMENT_KEYS,
-  "PAPERCLIP_AGENT_KEY_ID", "PAPERCLIP_AGENT_PUBLIC_KEY", "PAPERCLIP_AGENT_PRIVATE_KEY",
-  "PAPERCLIP_RUNNER_NETWORK_ACCESS",
-  "PAPERCLIP_RUNNER_NETWORK_ROOTS",
-  "PAPERCLIP_RUNNER_PREPARED_HARNESS_HOME",
-  "PAPERCLIP_API_KEY",
-  "PAPERCLIP_GITHUB_AUTH_MODE",
-  "PAPERCLIP_GITHUB_HOST_HOME",
-  "PAPERCLIP_GIT_METADATA_ROOTS",
-  "PAPERCLIP_GITHUB_BROKER_TOKEN",
-  "PAPERCLIP_GITHUB_BROKER_URL",
-  "PAPERCLIP_GITHUB_BRIDGE_TOKEN",
-  "PAPERCLIP_GITHUB_LAUNCHER_DIR",
+  "OUTPOST_AGENT_KEY_ID", "OUTPOST_AGENT_PUBLIC_KEY", "OUTPOST_AGENT_PRIVATE_KEY",
+  "OUTPOST_RUNNER_NETWORK_ACCESS",
+  "OUTPOST_RUNNER_NETWORK_ROOTS",
+  "OUTPOST_RUNNER_PREPARED_HARNESS_HOME",
+  "OUTPOST_API_KEY",
+  "OUTPOST_GITHUB_AUTH_MODE",
+  "OUTPOST_GITHUB_HOST_HOME",
+  "OUTPOST_GIT_METADATA_ROOTS",
+  "OUTPOST_GITHUB_BROKER_TOKEN",
+  "OUTPOST_GITHUB_BROKER_URL",
+  "OUTPOST_GITHUB_BRIDGE_TOKEN",
+  "OUTPOST_GITHUB_LAUNCHER_DIR",
 ]);
 
 export const MANAGED_GITHUB_TOKEN_KEYS = new Set([
@@ -258,7 +258,7 @@ export const MANAGED_GITHUB_TOKEN_KEYS = new Set([
   "GITHUB_TOKEN",
   "GH_ENTERPRISE_TOKEN",
   "GITHUB_ENTERPRISE_TOKEN",
-  "PAPERCLIP_GIT_TOKEN",
+  "OUTPOST_GIT_TOKEN",
 ]);
 
 function stripForbiddenEnvBindings(
@@ -866,7 +866,7 @@ type ManagedMcpGatewayRunConfig = {
 };
 
 export function configuredPaperclipApiBaseUrl(): string | null {
-  const configured = readNonEmptyString(process.env.PAPERCLIP_API_URL);
+  const configured = readNonEmptyString(process.env.OUTPOST_API_URL);
   return configured
     ? configured.replace(/\/+$/, "").replace(/\/api$/, "")
     : null;
@@ -876,7 +876,7 @@ export function paperclipApiBaseUrl(): string {
   const configured = configuredPaperclipApiBaseUrl();
   if (!configured) {
     throw new Error(
-      "PAPERCLIP_API_URL is required to deliver managed runtime MCP servers",
+      "OUTPOST_API_URL is required to deliver managed runtime MCP servers",
     );
   }
   return configured;
@@ -1081,7 +1081,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
         status: "active",
         defaultAction: "deny",
         metadata: {
-          source: "paperclip_runner",
+          source: "outpost_runner",
           agentId: input.agent.id,
           assignmentDigest,
         },
@@ -1107,7 +1107,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     }
   }
 
-  if (profile!.metadata?.source !== "paperclip_runner" || profile!.metadata?.agentId !== input.agent.id ||
+  if (profile!.metadata?.source !== "outpost_runner" || profile!.metadata?.agentId !== input.agent.id ||
       profile!.metadata?.assignmentDigest !== assignmentDigest) {
     throw new Error("Invalid native runtime profile provenance");
   }
@@ -1247,7 +1247,7 @@ export function createAdapterRuntimeToolAccess(input: {
     responsibleUserId: input.responsibleUserId,
   });
   if (!minted) return undefined;
-  // The normal server bootstrap always exports PAPERCLIP_API_URL. Some service
+  // The normal server bootstrap always exports OUTPOST_API_URL. Some service
   // tests invoke heartbeat execution without booting an HTTP server, however;
   // in that context there is no reachable endpoint to advertise and runtime
   // tools should simply remain unavailable instead of failing the run.
@@ -1413,7 +1413,7 @@ export async function createManagedMcpRunConfig(input: {
           where ${toolProfiles.id} = ${toolMcpGateways.profileId}
             and ${toolProfiles.companyId} = ${toolMcpGateways.companyId}
             and (${toolProfiles.profileKey} like 'native:%'
-              or ${toolProfiles.metadata}->>'source' = 'paperclip_runner')
+              or ${toolProfiles.metadata}->>'source' = 'outpost_runner')
         )`,
       ),
     )
@@ -1707,7 +1707,7 @@ export function enrichWakeContextSnapshot(input: {
     contextSnapshot.wakeCommentId = latestCommentId;
     // Once comment ids are normalized into the snapshot, rebuild the structured
     // wake payload from those ids later instead of carrying forward stale data.
-    delete contextSnapshot[PAPERCLIP_WAKE_PAYLOAD_KEY];
+    delete contextSnapshot[OUTPOST_WAKE_PAYLOAD_KEY];
   } else if (
     !readNonEmptyString(contextSnapshot["wakeCommentId"]) &&
     wakeCommentId
@@ -1860,7 +1860,7 @@ export function mergeCoalescedContextSnapshot(
   };
   // Only executeRun can mint this proof. Coalescence may retain an unchanged
   // admitted proof, but must never accept a new marker from an incoming wake.
-  delete merged[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY];
+  delete merged[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY];
   delete merged[EXTERNAL_CHAT_QUESTION_RESPONSE_KEY];
   const mergedAttachmentOmissions = mergeExternalAttachmentOmissions(
     existing,
@@ -1895,9 +1895,9 @@ export function mergeCoalescedContextSnapshot(
     merged.wakeCommentId = latestCommentId;
     // The merged context should carry canonical comment ids; the next wake will
     // regenerate any structured payload from those ids.
-    delete merged[PAPERCLIP_WAKE_PAYLOAD_KEY];
+    delete merged[OUTPOST_WAKE_PAYLOAD_KEY];
   }
-  const existingWake = parseObject(existing[PAPERCLIP_WAKE_PAYLOAD_KEY]);
+  const existingWake = parseObject(existing[OUTPOST_WAKE_PAYLOAD_KEY]);
   const existingCommentIds = extractWakeCommentIds(existing);
   const payloadCommentIds = Array.isArray(existingWake.commentIds)
     ? existingWake.commentIds
@@ -1916,15 +1916,15 @@ export function mergeCoalescedContextSnapshot(
     mergedCommentIds.every((id, index) => id === existingCommentIds[index]) &&
     payloadCommentIds.length === existingCommentIds.length &&
     payloadCommentIds.every((id, index) => id === existingCommentIds[index]) &&
-    ((existing[PAPERCLIP_HARNESS_CHECKOUT_KEY] === true &&
+    ((existing[OUTPOST_HARNESS_CHECKOUT_KEY] === true &&
       existingWake.checkedOutByHarness === true) ||
-      (existing[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] === true &&
+      (existing[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] === true &&
         existingWake.externalChatExecutionBound === true));
   if (preservesAdmittedWake) {
-    merged[PAPERCLIP_WAKE_PAYLOAD_KEY] = existingWake;
+    merged[OUTPOST_WAKE_PAYLOAD_KEY] = existingWake;
     merged.wakeReason = existing.wakeReason;
-    if (existing[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] === true) {
-      merged[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] = true;
+    if (existing[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] === true) {
+      merged[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] = true;
     }
   }
   if (
@@ -1975,8 +1975,8 @@ export async function resolveExternalChatWakeProvider(input: {
     !input.agentId ||
     !input.issueId ||
     commentIds.length === 0 ||
-    (input.contextSnapshot[PAPERCLIP_HARNESS_CHECKOUT_KEY] !== true &&
-      input.contextSnapshot[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] !==
+    (input.contextSnapshot[OUTPOST_HARNESS_CHECKOUT_KEY] !== true &&
+      input.contextSnapshot[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] !==
         true)
   ) {
     return null;
@@ -2027,9 +2027,9 @@ const CHAT_ATTACHMENT_DENIAL_REASONS: ReadonlyMap<
   string,
   ReviewedChatBindingDenialReason
 > = new Map<string, ReviewedChatBindingDenialReason>([
-  ["paperclip_runner_chat_attachment_binding_denied", "binding_denied"],
-  ["paperclip_runner_chat_attachment_destination_denied", "destination_denied"],
-  ["paperclip_runner_chat_attachment_principal_denied", "principal_denied"],
+  ["outpost_runner_chat_attachment_binding_denied", "binding_denied"],
+  ["outpost_runner_chat_attachment_destination_denied", "destination_denied"],
+  ["outpost_runner_chat_attachment_principal_denied", "principal_denied"],
 ]);
 
 export async function attestReviewedExternalChatRun(input: {
@@ -2143,8 +2143,8 @@ export async function attestReviewedExternalChatRun(input: {
             input,
             {
               ...(answer?.authorizationContext ?? admittedContext),
-              [PAPERCLIP_HARNESS_CHECKOUT_KEY]: false,
-              [PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY]: true,
+              [OUTPOST_HARNESS_CHECKOUT_KEY]: false,
+              [OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY]: true,
             },
             "nonblocking",
           );
@@ -2159,7 +2159,7 @@ export async function attestReviewedExternalChatRun(input: {
           let authorizationError = error;
           if (
             error instanceof Error &&
-            error.message === "paperclip_runner_chat_attachment_binding_denied"
+            error.message === "outpost_runner_chat_attachment_binding_denied"
           ) {
             // Inbound processing commits the message/link before dispatching its
             // wake, but completes subscription and marks delivery processed after
@@ -2321,7 +2321,7 @@ export async function buildPaperclipWakePayload(input: {
   const conversationMode = input.contextSnapshot.conversationMode === true;
   const continuationSummary = conversationMode ? null : input.continuationSummary ?? null;
   const agentMessage = parseObject(
-    input.contextSnapshot[PAPERCLIP_AGENT_MESSAGE_KEY],
+    input.contextSnapshot[OUTPOST_AGENT_MESSAGE_KEY],
   );
   const agentMessageText = sanitizeAgentSessionMessageText(agentMessage.text);
   const issueSummary =
@@ -2800,9 +2800,9 @@ export async function buildPaperclipWakePayload(input: {
     checkboxSelection:
       Object.keys(checkboxSelection).length > 0 ? checkboxSelection : null,
     checkedOutByHarness:
-      input.contextSnapshot[PAPERCLIP_HARNESS_CHECKOUT_KEY] === true,
+      input.contextSnapshot[OUTPOST_HARNESS_CHECKOUT_KEY] === true,
     externalChatExecutionBound:
-      input.contextSnapshot[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] ===
+      input.contextSnapshot[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] ===
       true,
     simplifiedEnglishInteractions: input.simplifiedEnglishInteractions === true,
     dependencyBlockedInteraction:

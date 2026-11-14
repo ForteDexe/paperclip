@@ -119,8 +119,8 @@ describe("sandbox callback bridge", () => {
           (args[0] === "-c" || args[0] === "-lc") &&
           typeof args[1] === "string"
         ) {
-          env.PAPERCLIP_TEST_STDIN = input.stdin;
-          args[1] = `printf '%s' \"$PAPERCLIP_TEST_STDIN\" | (${args[1]})`;
+          env.OUTPOST_TEST_STDIN = input.stdin;
+          args[1] = `printf '%s' \"$OUTPOST_TEST_STDIN\" | (${args[1]})`;
         }
         try {
           const result = await execFile(command, args, {
@@ -772,7 +772,7 @@ describe("sandbox callback bridge", () => {
   });
 
   it("keeps the queue-directory setup on the startup step but resets the poll loop store", async () => {
-    // The worker starts inside the measured `bridge.paperclip` step. Its awaited
+    // The worker starts inside the measured `bridge.outpost` step. Its awaited
     // queue-directory setup is startup work, so a `makeDir` `sandbox.exec` span
     // must keep the active step and its `criticalPath` flag. The long-lived poll
     // loop runs run-time execs for the whole run, so a loop `sandbox.exec` span
@@ -792,7 +792,7 @@ describe("sandbox callback bridge", () => {
     const worker = await measureStartupStep(
       {},
       () => 0,
-      "bridge.paperclip",
+      "bridge.outpost",
       () =>
         startSandboxCallbackBridgeWorker({
           client: {
@@ -839,7 +839,7 @@ describe("sandbox callback bridge", () => {
   });
 
   it("test_paperclip_loop_exec_parents_to_run_context", async () => {
-    // The worker starts inside the measured `bridge.paperclip` step. Its awaited
+    // The worker starts inside the measured `bridge.outpost` step. Its awaited
     // queue-directory setup is startup work and keeps the active step. The poll
     // loop shell stays outside that store. But a per-request unit of work is
     // run-time work, so the worker runs each request under the current-run
@@ -863,7 +863,7 @@ describe("sandbox callback bridge", () => {
     const worker = await measureStartupStep(
       {},
       () => 0,
-      "bridge.paperclip",
+      "bridge.outpost",
       () =>
         startSandboxCallbackBridgeWorker({
           client: {
@@ -976,7 +976,7 @@ describe("sandbox callback bridge", () => {
     const worker = await measureStartupStep(
       {},
       () => 0,
-      "bridge.paperclip",
+      "bridge.outpost",
       () =>
         startSandboxCallbackBridgeWorker({
           client: {
@@ -1575,7 +1575,7 @@ describe("sandbox callback bridge", () => {
       { method: "GET", path: "/api/companies/co-1/email/tasks/issue-1" },
       { method: "GET", path: "/api/companies/co-1/email/deliveries/send-1" },
       { method: "POST", path: "/api/companies/co-1/email/send" },
-      // Hire skill (paperclip-create-agent): discovery + submit + issue linking
+      // Agent creation: discovery + submit + task linking
       { method: "GET", path: "/llms/agent-configuration.txt" },
       { method: "GET", path: "/llms/agent-configuration/claude_local.txt" },
       { method: "GET", path: "/llms/agent-icons.txt" },
@@ -1806,8 +1806,8 @@ describe("sandbox callback bridge", () => {
       expect(error).toEqual(new Error("Sandbox bridge control command timed out after 30000ms."));
       await operation;
       expect(runner.execute.mock.calls[0]?.[0].env).toMatchObject({
-        PAPERCLIP_BRIDGE_TOKEN: "private-bridge-token",
-        PAPERCLIP_SANDBOX_EXEC_CHANNEL: "bridge",
+        OUTPOST_BRIDGE_TOKEN: "private-bridge-token",
+        OUTPOST_SANDBOX_EXEC_CHANNEL: "bridge",
       });
       expect(runner.execute).toHaveBeenLastCalledWith(expect.objectContaining({ timeoutMs: 30_000 }));
       expect(vi.getTimerCount()).toBe(0);
@@ -1839,7 +1839,7 @@ describe("sandbox callback bridge", () => {
 
     expect(runner.execute).toHaveBeenCalledWith(expect.objectContaining({
       env: {
-        PAPERCLIP_SANDBOX_EXEC_CHANNEL: "bridge",
+        OUTPOST_SANDBOX_EXEC_CHANNEL: "bridge",
       },
     }));
   });
@@ -3120,9 +3120,9 @@ describe("sandbox callback bridge", () => {
     const child = spawn(process.execPath, [entrypoint], {
       env: {
         ...process.env,
-        PAPERCLIP_BRIDGE_QUEUE_DIR: queueDir,
-        PAPERCLIP_BRIDGE_TOKEN: "test-token",
-        PAPERCLIP_BRIDGE_PORT: String(blockedPort),
+        OUTPOST_BRIDGE_QUEUE_DIR: queueDir,
+        OUTPOST_BRIDGE_TOKEN: "test-token",
+        OUTPOST_BRIDGE_PORT: String(blockedPort),
       },
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -3153,10 +3153,10 @@ describe("sandbox callback bridge", () => {
     const child = spawn(process.execPath, [entrypoint], {
       env: {
         ...process.env,
-        PAPERCLIP_API_BRIDGE_MODE: "duplex_v1",
-        PAPERCLIP_BRIDGE_QUEUE_DIR: queueDir,
-        PAPERCLIP_BRIDGE_TOKEN: "test-token",
-        PAPERCLIP_BRIDGE_PORT: "0",
+        OUTPOST_API_BRIDGE_MODE: "duplex_v1",
+        OUTPOST_BRIDGE_QUEUE_DIR: queueDir,
+        OUTPOST_BRIDGE_TOKEN: "test-token",
+        OUTPOST_BRIDGE_PORT: "0",
       },
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -3169,7 +3169,7 @@ describe("sandbox callback bridge", () => {
     });
 
     expect(exitCode).not.toBe(0);
-    expect(stderr).toContain("Unsupported PAPERCLIP_API_BRIDGE_MODE: duplex_v1");
+    expect(stderr).toContain("Unsupported OUTPOST_API_BRIDGE_MODE: duplex_v1");
   }, 15_000);
 
   it("exits nonzero for an unknown bridge mode instead of starting the queue gateway", async () => {
@@ -3185,10 +3185,10 @@ describe("sandbox callback bridge", () => {
     const child = spawn(process.execPath, [entrypoint], {
       env: {
         ...process.env,
-        PAPERCLIP_API_BRIDGE_MODE: "totally_unknown_mode",
-        PAPERCLIP_BRIDGE_QUEUE_DIR: queueDir,
-        PAPERCLIP_BRIDGE_TOKEN: "test-token",
-        PAPERCLIP_BRIDGE_PORT: "0",
+        OUTPOST_API_BRIDGE_MODE: "totally_unknown_mode",
+        OUTPOST_BRIDGE_QUEUE_DIR: queueDir,
+        OUTPOST_BRIDGE_TOKEN: "test-token",
+        OUTPOST_BRIDGE_PORT: "0",
       },
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -3201,7 +3201,7 @@ describe("sandbox callback bridge", () => {
     });
 
     expect(exitCode).not.toBe(0);
-    expect(stderr).toContain("Unsupported PAPERCLIP_API_BRIDGE_MODE: totally_unknown_mode");
+    expect(stderr).toContain("Unsupported OUTPOST_API_BRIDGE_MODE: totally_unknown_mode");
   }, 15_000);
 
   it("test_http2_gateway_writes_no_frame_between_ready_and_the_preface", async () => {
@@ -3233,10 +3233,10 @@ describe("sandbox callback bridge", () => {
     const child = spawn(process.execPath, [entrypoint], {
       env: {
         ...process.env,
-        PAPERCLIP_API_BRIDGE_MODE: "http2_v1",
-        PAPERCLIP_BRIDGE_TOKEN: "test-token",
-        PAPERCLIP_BRIDGE_PORT: String(assignedPort),
-        PAPERCLIP_BRIDGE_NONCE: nonce,
+        OUTPOST_API_BRIDGE_MODE: "http2_v1",
+        OUTPOST_BRIDGE_TOKEN: "test-token",
+        OUTPOST_BRIDGE_PORT: String(assignedPort),
+        OUTPOST_BRIDGE_NONCE: nonce,
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -3326,12 +3326,12 @@ describe("sandbox callback bridge", () => {
     const child = spawn(process.execPath, [entrypoint], {
       env: {
         ...process.env,
-        PAPERCLIP_API_BRIDGE_MODE: "http2_v1",
-        PAPERCLIP_BRIDGE_TOKEN: options.bridgeToken,
-        PAPERCLIP_BRIDGE_PORT: String(assignedPort),
-        PAPERCLIP_BRIDGE_NONCE: "test-nonce",
+        OUTPOST_API_BRIDGE_MODE: "http2_v1",
+        OUTPOST_BRIDGE_TOKEN: options.bridgeToken,
+        OUTPOST_BRIDGE_PORT: String(assignedPort),
+        OUTPOST_BRIDGE_NONCE: "test-nonce",
         ...(options.maxBodyBytes != null
-          ? { PAPERCLIP_BRIDGE_MAX_BODY_BYTES: String(options.maxBodyBytes) }
+          ? { OUTPOST_BRIDGE_MAX_BODY_BYTES: String(options.maxBodyBytes) }
           : {}),
       },
       stdio: ["pipe", "pipe", "pipe"],
@@ -3864,7 +3864,7 @@ describe("sandbox callback bridge", () => {
       bridgeToken: "",
       holdProbeOpen: () => { attempts++; return false; },
       forwardRequest: async () => { throw new Error("Unexpected request to an unstarted gateway"); },
-    })).rejects.toThrow("PAPERCLIP_BRIDGE_TOKEN");
+    })).rejects.toThrow("OUTPOST_BRIDGE_TOKEN");
     expect(attempts).toBe(1);
   });
 

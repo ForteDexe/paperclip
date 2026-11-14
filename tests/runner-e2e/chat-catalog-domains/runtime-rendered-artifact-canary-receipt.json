@@ -8,7 +8,7 @@
   "javascriptEnabled": false,
   "networkRequests": "aborted",
   "authenticatedStorage": false,
-  "command": "PAPERCLIP_CHAT_EVAL_RENDERED_ARTIFACT_CANARY=1 node node_modules/vitest/vitest.mjs run --config tests/runner-e2e/vitest.config.ts tests/runner-e2e/chat-catalog-domains/runtime-rendered-artifact.test.ts",
+  "command": "OUTPOST_CHAT_EVAL_RENDERED_ARTIFACT_CANARY=1 node node_modules/vitest/vitest.mjs run --config tests/runner-e2e/vitest.config.ts tests/runner-e2e/chat-catalog-domains/runtime-rendered-artifact.test.ts",
   "observedAt": "2026-10-26T22:35:01-05:00",
   "testsPassed": 9,
   "renderedCases": 8,

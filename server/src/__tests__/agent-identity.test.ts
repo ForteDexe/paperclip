@@ -7,7 +7,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agentIdentityKeys, agents, companies, createDb, closeRegisteredClients, ensurePostgresDatabase, runDatabaseBackup, runDatabaseRestore, type Db } from "@paperclipai/db";
+import { agentIdentityKeys, agents, companies, createDb, closeRegisteredClients, ensurePostgresDatabase, runDatabaseBackup, runDatabaseRestore, type Db } from "@outpost/db";
 import { resolveWorktreeSeedPlan } from "../../../cli/src/commands/worktree-lib.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -22,7 +22,7 @@ import { actorMiddleware } from "../middleware/auth.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { drainHeartbeatRunsToQuiescence } from "./helpers/drain-heartbeat-runs.js";
 
-const externalIdentityDatabase = resolveExternalTestDatabaseUrl("PAPERCLIP_AGENT_IDENTITY_TEST_DATABASE_URL");
+const externalIdentityDatabase = resolveExternalTestDatabaseUrl("OUTPOST_AGENT_IDENTITY_TEST_DATABASE_URL");
 describe("agent cryptographic identity", () => {
   let db: Db;
   let database: Pick<Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>, "connectionString" | "cleanup">;
@@ -31,9 +31,9 @@ describe("agent cryptographic identity", () => {
 
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), "paperclip-identity-"));
-    vi.stubEnv("PAPERCLIP_HOME", directory);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", join(directory, "master.key"));
+    vi.stubEnv("OUTPOST_HOME", directory);
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", join(directory, "master.key"));
     database = externalIdentityDatabase ? { connectionString: externalIdentityDatabase,
       cleanup: () => closeRegisteredClients(externalIdentityDatabase) }
       : await startEmbeddedPostgresTestDatabase("paperclip-identity-");
@@ -58,9 +58,9 @@ describe("agent cryptographic identity", () => {
     expect((await agentIdentityService(db).createExistingLogRedactor(companyId, agent.id)).values).toEqual([]);
     expect(await db.select().from(agentIdentityKeys).where(eq(agentIdentityKeys.agentId, agent.id))).toHaveLength(0);
     for (const type of ["http", "openclaw_gateway", "hermes_gateway"]) expect(supportsManagedAgentIdentity(type)).toBe(false);
-    for (const provider of ["claude_managed", "aws_agentcore"]) expect(supportsManagedAgentIdentity("paperclip_runner", { provider })).toBe(false);
-    expect(supportsManagedAgentIdentity("paperclip_runner", { provider: "codex" }, "claude_managed_agents_api")).toBe(false);
-    expect(supportsManagedAgentIdentity("paperclip_runner", { provider: "claude_managed" }, "codex_app_server")).toBe(true);
+    for (const provider of ["claude_managed", "aws_agentcore"]) expect(supportsManagedAgentIdentity("outpost_runner", { provider })).toBe(false);
+    expect(supportsManagedAgentIdentity("outpost_runner", { provider: "codex" }, "claude_managed_agents_api")).toBe(false);
+    expect(supportsManagedAgentIdentity("outpost_runner", { provider: "claude_managed" }, "codex_app_server")).toBe(true);
   });
 
   it("concurrent first runs converge, restart/model/name changes preserve keys, and ownership is enforced", async () => {
@@ -101,10 +101,10 @@ describe("agent cryptographic identity", () => {
     const identity = await agentIdentityService(db).ensureAgentIdentity(companyId, agent.id);
     const [stored] = await db.select().from(agentIdentityKeys).where(eq(agentIdentityKeys.agentId, agent.id));
     expect(JSON.stringify(stored)).not.toContain(identity.privateKeyPem.split("\n")[1]);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     await expect(agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)).rejects.toThrow("decryption failed");
     expect(await agentIdentityService(db).getPublicIdentity(companyId, agent.id)).toMatchObject({ keyId: identity.keyId });
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
     await db.update(agentIdentityKeys).set({ privateKeyMaterial: { ...stored.privateKeyMaterial, ciphertext: "AAAA" } }).where(eq(agentIdentityKeys.agentId, agent.id));
     await expect(agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)).rejects.toThrow();
     const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString();
@@ -123,12 +123,12 @@ describe("agent cryptographic identity", () => {
       const publicIdentity = await restarted.getPublicIdentity(companyId, agent.id);
       if (restart) expect(publicIdentity!.publicKeyPem).toBe(publicPem);
       publicPem = publicIdentity!.publicKeyPem;
-      vi.stubEnv("PAPERCLIP_AGENT_PRIVATE_KEY", "inherited override");
+      vi.stubEnv("OUTPOST_AGENT_PRIVATE_KEY", "inherited override");
       const logs: string[] = [];
       const metas: unknown[] = [];
       await execute({
         runId: randomUUID(), agent, agentIdentity: identity,
-        config: { command: process.execPath, cwd: directory, args: ["-e", `const {sign}=require('node:crypto'); process.stdout.write(sign(null,Buffer.from(process.env.CHALLENGE,'base64'),process.env.PAPERCLIP_AGENT_PRIVATE_KEY).toString('base64'));`], env: { CHALLENGE: challenge, PAPERCLIP_AGENT_PRIVATE_KEY: "configured override" } },
+        config: { command: process.execPath, cwd: directory, args: ["-e", `const {sign}=require('node:crypto'); process.stdout.write(sign(null,Buffer.from(process.env.CHALLENGE,'base64'),process.env.OUTPOST_AGENT_PRIVATE_KEY).toString('base64'));`], env: { CHALLENGE: challenge, OUTPOST_AGENT_PRIVATE_KEY: "configured override" } },
         context: {}, runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         onLog: async (_stream, chunk) => { logs.push(chunk); }, onMeta: async meta => { metas.push(meta); },
       });
@@ -149,8 +149,8 @@ describe("agent cryptographic identity", () => {
     const challenge = randomBytes(32).toString("base64");
     await db.update(agents).set({ adapterType: "process", adapterConfig: {
       command: process.execPath, cwd: directory,
-      args: ["-e", `const {sign}=require('node:crypto'); const k=process.env.PAPERCLIP_AGENT_PRIVATE_KEY; console.log('SIGNATURE:'+sign(null,Buffer.from(process.env.CHALLENGE,'base64'),k).toString('base64')); process.stdout.write(k.slice(0,40)); setTimeout(()=>process.stdout.write(k.slice(40)),30);`],
-      env: { CHALLENGE: challenge, PAPERCLIP_AGENT_PRIVATE_KEY: "ignored override" },
+      args: ["-e", `const {sign}=require('node:crypto'); const k=process.env.OUTPOST_AGENT_PRIVATE_KEY; console.log('SIGNATURE:'+sign(null,Buffer.from(process.env.CHALLENGE,'base64'),k).toString('base64')); process.stdout.write(k.slice(0,40)); setTimeout(()=>process.stdout.write(k.slice(40)),30);`],
+      env: { CHALLENGE: challenge, OUTPOST_AGENT_PRIVATE_KEY: "ignored override" },
     } }).where(eq(agents.id, agent.id));
     let previousKeyId = "";
     for (let restart = 0; restart < 2; restart++) {

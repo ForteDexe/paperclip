@@ -23,7 +23,7 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog, agentWakeupRequests, agents, companies, completionContracts, createDb, heartbeatRuns,
   issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 // RC-47: a control-plane restart kills the controller mid-copyback, before the
 // completed-copyback barrier exists. The dead controller can never confirm its
@@ -41,11 +41,11 @@ describe("native workspace owner recovery after a restart", () => {
     workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-native-owner-restart-"));
     priorLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = path.join(workspaceRoot, "operation-logs");
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-owner-restart-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
     await db.insert(companies).values({ id: companyId, name: "Native owner restart", issuePrefix: "NOR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native owner agent", adapterType: "paperclip_runner", status: "running" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Native owner agent", adapterType: "outpost_runner", status: "running" });
   }, 30_000);
 
   afterAll(async () => {
@@ -62,7 +62,7 @@ describe("native workspace owner recovery after a restart", () => {
     await db.insert(issues).values({ id: issueId, companyId, title: "Accepted yield, abandoned copyback",
       status: "in_progress", workMode: "standard", assigneeAgentId: agentId });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "native-owner-restart-test-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "native-owner-restart-test-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { objective: "copyback" }, canonicalSha256: `contract-${contractId}`,
       createdByActorType: "system", createdByActorId: "test" });

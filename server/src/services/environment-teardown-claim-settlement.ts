@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { environmentLeases, type Db } from "@paperclipai/db";
+import { environmentLeases, type Db } from "@outpost/db";
 import {
   PENDING_CLEANUP_ATTEMPTS_METADATA_KEY,
   pendingCleanupAttemptsSql,

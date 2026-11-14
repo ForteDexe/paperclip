@@ -57,7 +57,7 @@ export const companyLifecycleIdentityCases: readonly ChatCatalogCase[] = [
     return { otherCompany: other, foreignProject: p, foreignTask: work, foreignMarker, foreignPrefix: other.issuePrefix,
       humanOwnsBoth: members.every(result => result.members.some(member => member.principalId === session.user.id)), agentForeignReadStatus: denied.status };
   }, gradeCompanyLifecycle, {
-    oracleVersion: "paperclip.chat-catalog.identity.switch-company.v2", authentication: "human-session", sourceFiles: sources,
+    oracleVersion: "outpost.chat-catalog.identity.switch-company.v2", authentication: "human-session", sourceFiles: sources,
     async act(ctx, state) {
       const remaining = () => remainingIdentityObservationBudget(ctx);
       remaining();

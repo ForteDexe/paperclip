@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import express, { Router } from "express";
 import { and, asc, eq, gt, isNull, lt, sql } from "drizzle-orm";
-import { type Db, mcpAttachmentUploads, mcpFileTickets, mcpOauthGrants, issues } from "@paperclipai/db";
+import { type Db, mcpAttachmentUploads, mcpFileTickets, mcpOauthGrants, issues } from "@outpost/db";
 import { z } from "zod";
 import { MAX_ATTACHMENT_BYTES, isAllowedContentType } from "../../attachment-types.js";
 import { logger } from "../../middleware/logger.js";

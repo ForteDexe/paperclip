@@ -4,15 +4,15 @@ import { promisify } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-export const DATABASE_LANE_ENV = "PAPERCLIP_RUNNER_E2E_DATABASE_LANE";
-export const DOCKER_DATABASE_ENV = "PAPERCLIP_RUNNER_E2E_DOCKER_DATABASE_RECEIPT";
+export const DATABASE_LANE_ENV = "OUTPOST_RUNNER_E2E_DATABASE_LANE";
+export const DOCKER_DATABASE_ENV = "OUTPOST_RUNNER_E2E_DOCKER_DATABASE_RECEIPT";
 export const POSTGRES_IMAGE = "postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336";
 export const POSTGRES_IMAGE_ID = "sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336";
 export const POSTGRES_VERSION = "18.6-1.pgdg13+2";
 // Separate official Linux/amd64 artifact for GitHub AWS execution. Historical
 // arm64 defaults/receipts keep their exact bytes and identities.
-export const POSTGRES_ARTIFACT_ENV = "PAPERCLIP_RUNNER_E2E_POSTGRES_ARTIFACT";
-export const POSTGRES_IMAGE_ID_ENV = "PAPERCLIP_RUNNER_E2E_POSTGRES_IMAGE_ID";
+export const POSTGRES_ARTIFACT_ENV = "OUTPOST_RUNNER_E2E_POSTGRES_ARTIFACT";
+export const POSTGRES_IMAGE_ID_ENV = "OUTPOST_RUNNER_E2E_POSTGRES_IMAGE_ID";
 export const POSTGRES_AMD64_IMAGE = "postgres@sha256:9770878138a2e83abcb10856d30cc3f24dae0d317bb956db6ab9159de6c3c80d";
 export const POSTGRES_AMD64_IMAGE_IDS = ["sha256:79061104669bb30919d015b549c764e2d8021a18ee39cb175581a2588fe90dbe", "sha256:9770878138a2e83abcb10856d30cc3f24dae0d317bb956db6ab9159de6c3c80d"] as const;
 type PostgresImage = typeof POSTGRES_IMAGE | typeof POSTGRES_AMD64_IMAGE;
@@ -36,7 +36,7 @@ export type DockerRun = (args: string[], timeout?: number) => Promise<string>;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const fullId = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const uuidHex = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{32}$/.test(value);
-const labelPrefix = "ai.paperclip.runner-e2e";
+const labelPrefix = "ai.outpost.runner-e2e";
 export interface DockerEngineIdentity { context: string; endpoint: string; engineId: string; operatingSystem: string }
 export interface DockerDatabaseReceipt {
   schemaVersion: 1; lane: "owned-docker-postgres"; temporaryRoot: string; nonce: string;
@@ -145,7 +145,7 @@ export function assertOwnedContainer(value: any, receipt: DockerDatabaseReceipt,
 }
 async function privateRoot(root: string) {
   const s = await lstat(root);
-  if (!path.basename(root).startsWith("paperclip-runner-e2e-") || await realpath(root) !== root || !s.isDirectory() || s.mode & 0o077 || s.uid !== process.getuid?.()) throw new Error("Docker database requires the exact owned private attempt root");
+  if (!path.basename(root).startsWith("outpost-runner-e2e-") || await realpath(root) !== root || !s.isDirectory() || s.mode & 0o077 || s.uid !== process.getuid?.()) throw new Error("Docker database requires the exact owned private attempt root");
 }
 function assertReceipt(value: DockerDatabaseReceipt, root: string) {
   if (value?.schemaVersion !== 1 || value.lane !== "owned-docker-postgres" || value.temporaryRoot !== root || !uuidHex(value.nonce) || value.containerName !== `paperclip-e2e-pg-${value.nonce}` || value.volumeName !== `paperclip-e2e-pg-data-${value.nonce}`

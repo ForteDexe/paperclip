@@ -48,7 +48,7 @@ diff --git a/skills/paperclip-create-agent/SKILL.md b/skills/paperclip-create-ag
 index 6b2a0da0e..fa9e7b358 100644
 --- a/skills/paperclip-create-agent/SKILL.md
 +++ b/skills/paperclip-create-agent/SKILL.md
-@@ -72,21 +72,24 @@ curl -sS "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-configura
+@@ -72,21 +72,24 @@ curl -sS "$OUTPOST_API_URL/api/companies/$OUTPOST_COMPANY_ID/agent-configura
 
  Note naming, icon, reporting-line, and adapter conventions the company already follows.
 
@@ -85,7 +85,7 @@ index 6b2a0da0e..fa9e7b358 100644
 
  ### 5. Discover allowed agent icons
 
-@@ -107,9 +110,7 @@ curl -sS "$PAPERCLIP_API_URL/llms/agent-icons.txt" \
+@@ -107,9 +110,7 @@ curl -sS "$OUTPOST_API_URL/llms/agent-icons.txt" \
  - leave timer heartbeats off by default; only set `runtimeConfig.heartbeat.enabled=true` with an `intervalSec` when the role genuinely needs scheduled recurring work or the user explicitly asked for it
  - if the role may handle private advisories or sensitive disclosures, confirm a confidential workflow exists first (dedicated skill or documented manual process)
  - capabilities

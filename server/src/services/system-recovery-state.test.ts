@@ -54,7 +54,7 @@ describe("durable system recovery budget", () => {
       expect(exhaustedSystemRecoveryAction(state)).not.toMatch(manual);
     const runId = exhausted.sourceRunId;
     const display = workspaceRecoveryDisplay({ runId, systemRecovery: exhausted, workspaceRecovery: {
-      schema: "paperclip.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop", attempt: 1,
+      schema: "outpost.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop", attempt: 1,
       attemptLimit: 6, requestIds: [], retryable: true,
       message: "Automatic recovery of saved work stopped after 1 attempts (last failure: allocation_ownership_ambiguous). "
         + "Retry recovery to export and merge from the retained sandbox again; no provider turn is submitted. "
@@ -88,7 +88,7 @@ describe("durable system recovery budget", () => {
   it("promises an automatic retry for an unproven stop only while a re-arm remains", () => {
     const stop = { ...failSystemRecovery(reserveSystemRecoveryAttempt(createSystemRecovery(randomUUID()), 0)!,
       new SystemRecoveryFailure("agent_stop_unconfirmed", "recheck_evidence"), { now: 0 }), state: "exhausted" as const };
-    const marker = (rearms: number) => ({ stopProofRecovery: { schema: "paperclip.stop-proof-recovery.v1", rearms, nextRearmAt: null } });
+    const marker = (rearms: number) => ({ stopProofRecovery: { schema: "outpost.stop-proof-recovery.v1", rearms, nextRearmAt: null } });
     expect(exhaustedSystemRecoveryAction(stop, {})).toMatch(/tries again automatically/);
     expect(exhaustedSystemRecoveryAction(stop, marker(3))).toMatch(/tries again automatically/);
     // Spent re-arms, or no evidence to judge them, keep the Retry text.

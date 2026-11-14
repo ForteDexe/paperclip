@@ -2,9 +2,9 @@ import { notifyNativeStatusReassessment } from "./native-status-reassessment-not
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { notifyApprovalQueueWork } from "./approval-work-notifications.js";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { executionWorkspaces, heartbeatRunEvents, issueWorkProducts, workspaceRuntimeServices } from "@paperclipai/db";
-import type { IssueWorkProduct } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { executionWorkspaces, heartbeatRunEvents, issueWorkProducts, workspaceRuntimeServices } from "@outpost/db";
+import type { IssueWorkProduct } from "@outpost/shared";
 import { unprocessable } from "../errors.js";
 import { insertRowsInChunks } from "./batch-insert.js";
 import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
@@ -59,10 +59,10 @@ function nonNegativeInteger(value: unknown): number | null {
 export function workProductDiffSummaryFromEventPayload(payload: unknown): WorkProductDiffSummary | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   const outer = payload as Record<string, unknown>;
-  const wrappedEvent = outer.prpEvent && typeof outer.prpEvent === "object" && !Array.isArray(outer.prpEvent)
-    ? outer.prpEvent as Record<string, unknown>
+  const wrappedEvent = outer.orpEvent && typeof outer.orpEvent === "object" && !Array.isArray(outer.orpEvent)
+    ? outer.orpEvent as Record<string, unknown>
     : null;
-  const eventPayload = wrappedEvent?.payload ?? (outer.schema === "paperclip.prp.event.v1" ? outer.payload : outer);
+  const eventPayload = wrappedEvent?.payload ?? (outer.schema === "outpost.orp.event.v1" ? outer.payload : outer);
   if (!eventPayload || typeof eventPayload !== "object" || Array.isArray(eventPayload)) return null;
   const totals = (eventPayload as Record<string, unknown>).totals;
   if (!totals || typeof totals !== "object" || Array.isArray(totals)) return null;

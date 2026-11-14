@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SandboxManagedRuntimeAsset } from "@paperclipai/adapter-utils/sandbox-managed-runtime";
+import type { SandboxManagedRuntimeAsset } from "@outpost/adapter-utils/sandbox-managed-runtime";
 
 // Captured Codex `home` asset descriptor + the sandbox `auth.json` fixture the
 // mocked runtime hands back during teardown. Mutated per-test so a single
@@ -34,9 +34,9 @@ const {
   startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => null),
 }));
 
-vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/server-utils")>(
-    "@paperclipai/adapter-utils/server-utils",
+vi.mock("@outpost/adapter-utils/server-utils", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/server-utils")>(
+    "@outpost/adapter-utils/server-utils",
   );
   return {
     ...actual,
@@ -46,9 +46,9 @@ vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@outpost/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/execution-target")>(
+    "@outpost/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -200,7 +200,7 @@ describe("codex execute — outbound auth copy-back restore contribution", () =>
     const keys = policy ? JSON.parse(policy.slice(policy.indexOf("=") + 1)) : [];
     expect(keys).toContain("SLACK_BOT_TOKEN");
     if (withIdentity) expect(keys).toEqual(expect.arrayContaining([
-      "PAPERCLIP_API_KEY", "PAPERCLIP_AGENT_PRIVATE_KEY",
+      "OUTPOST_API_KEY", "OUTPOST_AGENT_PRIVATE_KEY",
     ]));
     expect(keys).not.toContain("OPENAI_API_KEY");
     expect(keys).not.toContain("DATABASE_URL");

@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.project-skills-acceptance.v1",
+  "schema": "outpost.project-skills-acceptance.v1",
   "scope": "Disposable integration data only; source and execution receipts are separate from Storybook fixtures.",
   "repository": "https://github.com/cryppadotta/paperclip-project-skills-20261012-5abf7178",
   "initialCommit": "d7e95f01903678531981ce684e721191ecb0a7da",

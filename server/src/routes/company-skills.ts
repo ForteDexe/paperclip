@@ -8,18 +8,18 @@ import { skillSourceService, type SkillSourceContext } from "../services/skill-s
 import { skillSourceGitHubReader } from "../services/skill-source-github-access.js";
 import { diffGitHubSkillUpdate } from "../services/skill-update-diff.js";
 import { toolAccessService } from "../services/tool-access.js";
-import { skillSourceCreateSchema, skillSourceDiscoverySchema, skillSourcePreviewSchema, skillSourceSelectionSchema, skillSourceSettingsSchema, skillSourceBranchesQuerySchema, projectSkillSourceAdoptSchema, skillSourceDisconnectSchema } from "@paperclipai/shared";
+import { skillSourceCreateSchema, skillSourceDiscoverySchema, skillSourcePreviewSchema, skillSourceSelectionSchema, skillSourceSettingsSchema, skillSourceBranchesQuerySchema, projectSkillSourceAdoptSchema, skillSourceDisconnectSchema } from "@outpost/shared";
 import type { ActivityPublication } from "../services/activity-log.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { once } from "node:events";
-import type { SkillSourceDiscoveryEvent, SkillSourceUpdateDiff } from "@paperclipai/shared";
+import type { SkillSourceDiscoveryEvent, SkillSourceUpdateDiff } from "@outpost/shared";
 import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, companySkills, companySkillMutationReceipts } from "@paperclipai/db";
+import { activityLog, companySkills, companySkillMutationReceipts } from "@outpost/db";
 import { persistActivity, publishActivity } from "../services/activity-log.js";
 import { projectToolContext } from "../services/project-tool-context.js";
 import { Router, type Request } from "express";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   catalogSkillListQuerySchema,
   companySkillCommentCreateSchema,
@@ -44,8 +44,8 @@ import {
   companySkillTestRunListQuerySchema,
   companySkillUpdateSchema,
   companySkillVersionCreateSchema,
-} from "@paperclipai/shared";
-import { trackSkillImported } from "@paperclipai/shared/telemetry";
+} from "@outpost/shared";
+import { trackSkillImported } from "@outpost/shared/telemetry";
 import { validate } from "../middleware/validate.js";
 import {
   accessService,
@@ -74,7 +74,7 @@ import {
   type SkillPolicyAction,
   type SkillPolicyDecision,
   type SkillPolicyEvaluationResource,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 type SkillTelemetryInput = {
   key: string;

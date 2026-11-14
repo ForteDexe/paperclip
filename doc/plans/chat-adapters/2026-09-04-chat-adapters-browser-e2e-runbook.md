@@ -40,7 +40,7 @@ Slack/Telegram credentials have been supplied. Webhook providers use the stable
 Tailscale Funnel origin on port 8443; Discord uses its outbound Gateway.
 The public proxy exposes verified webhook routes, not the private Board or files.
 
-Maya E2E uses native Paperclip Runner with Codex `gpt-5.6-luna`; actual native
+Maya E2E uses native Outpost Runner with Codex `gpt-5.6-luna`; actual native
 turn records confirm the model, with no Terra substitution. The
 [current qualification ledger](./2026-09-08-chat-queue-and-webhook-repair.md)
 records resumed model capacity, successful text replies on all four connected
@@ -200,9 +200,9 @@ Agent: Maya E2E
 ```
 
 `Maya E2E` is a dedicated test agent assigned to no production work. For live
-qualification it must use the new Paperclip Runner with Codex, initially
+qualification it must use the new Outpost Runner with Codex, initially
 `gpt-5.6-luna`. Verify actual admitted run records show `adapterType:
-paperclip_runner`, `runtimeMode: native`, `driverKind: codex_app_server`, and
+outpost_runner`, `runtimeMode: native`, `driverKind: codex_app_server`, and
 the explicit model; the agent's display name or saved configuration alone is
 insufficient. Terra is an allowed fallback only when necessary; record the
 reason and exact model, and do not present it as Luna evidence. Preserve the
@@ -298,7 +298,7 @@ Before starting a provider run:
    Paperclip task through that runner before sending a provider test message.
 3. Confirm the provider installer, Ari, and Jules browser sessions are signed into the intended sandbox accounts.
 4. Confirm the provider test resources contain no production data and that prior run messages/issues can be distinguished by run ID.
-5. Confirm the verified webhook ingress is publicly reachable when qualifying Slack, GitHub, Teams, or Telegram. For a private board, set `PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL` to the HTTPS webhook-only origin and keep `PAPERCLIP_PUBLIC_URL` at the real board origin. Public `POST /api/chat-webhooks/*` may be forwarded; the private board/API must not be. Verify external task links use the board, never the webhook-only host; local/private links should be omitted with neutral instructions. For Discord, confirm outbound HTTPS/WebSocket access to Discord instead. Relay qualification is a separate deployment run described in section 10.
+5. Confirm the verified webhook ingress is publicly reachable when qualifying Slack, GitHub, Teams, or Telegram. For a private board, set `OUTPOST_CHAT_WEBHOOK_PUBLIC_URL` to the HTTPS webhook-only origin and keep `OUTPOST_PUBLIC_URL` at the real board origin. Public `POST /api/chat-webhooks/*` may be forwarded; the private board/API must not be. Verify external task links use the board, never the webhook-only host; local/private links should be omitted with neutral instructions. For Discord, confirm outbound HTTPS/WebSocket access to Discord instead. Relay qualification is a separate deployment run described in section 10.
 6. For first-time setup, use a new dedicated bot identity and disposable endpoint.
    For follow-up qualification, reuse the intended existing endpoint and record
    its current state. Never remove a live qualification endpoint simply to
@@ -1106,7 +1106,7 @@ Never “fix” a failing run by manually editing a task, changing the assigned 
 A provider is release-ready only when all are true:
 
 - [ ] Default-off experimental visibility passed without breaking GitHub tool setup; enabling it reveals the chat surfaces.
-- [ ] Actual live runs use the new Paperclip Runner with the recorded Codex model and binary SHA; deterministic model fixtures are not counted as live proof.
+- [ ] Actual live runs use the new Outpost Runner with the recorded Codex model and binary SHA; deterministic model fixtures are not counted as live proof.
 - [ ] Normal first-time setup passed through the real provider UI.
 - [ ] Every setup mode actually shipped and promised for that provider passed; conditional unshipped modes are recorded as non-blocking.
 - [ ] Requested provider permissions matched the pinned least-privilege contract.

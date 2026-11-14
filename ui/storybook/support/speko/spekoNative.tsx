@@ -10,7 +10,7 @@ export const spekoEndpoint: ChatEndpoint = {
   id: "voice-endpoint-fixture", companyId: spekoCompanyId, provider: "speko", status: "active",
   assignedAgentId: spekoAgent.id, assignedAgentName: spekoAgent.name,
   botLabel: "Company reception", providerAccountLabel: "Speko workspace", allowUnlinkedPeople: false,
-  setup: { step: "complete", webhookUrl: "https://paperclip.example/api/voice-webhooks/fixture/tools" },
+  setup: { step: "complete", webhookUrl: "https://outpost.example/api/voice-webhooks/fixture/tools" },
   conversations: [], activity: [], resources: [], identityLinks: [],
 };
 export function SpekoQueryFixture({ children, endpoints = [spekoEndpoint], enabled = true }: { children: ReactNode; endpoints?: ChatEndpoint[]; enabled?: boolean }) {

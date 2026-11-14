@@ -28,7 +28,7 @@ export function externalObservation(value: unknown): ExternalObservation | undef
 }
 export function definition(id: string, setup: ChatCatalogCase["setup"], grade: ChatCatalogCase["grade"], extra: Partial<ChatCatalogCase> = {}): ChatCatalogCase {
   const result: ChatCatalogCase = { scenarioId: id, setup, grade, observe: observeExternal,
-    oracleVersion: "paperclip.chat-catalog.external.v1", expectedRunCount: 1, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000,
+    oracleVersion: "outpost.chat-catalog.external.v1", expectedRunCount: 1, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000,
     sourceFiles: ["chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", `chat-catalog-domains/external-${id.split(".")[0]}.ts`, `chat-scenarios/${id.split(".")[0]}.yaml`],
     async verifyResult(ctx, state, value) {
       const o = externalObservation(value); if (!o) throw new Error("Complete external result evidence required");

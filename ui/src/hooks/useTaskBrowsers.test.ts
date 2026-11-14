@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { TaskBrowser } from "@paperclipai/shared";
+import type { TaskBrowser } from "@outpost/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { browserUseApi } from "@/api/browser-use";
 import { TASK_BROWSERS_REFETCH_MS, taskBrowsersRefetchInterval, useBrowserArrivals, useTaskBrowsers } from "./useTaskBrowsers";

@@ -20,7 +20,7 @@ import {
   issueWatchdogs,
   issues,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

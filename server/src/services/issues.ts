@@ -1,7 +1,7 @@
 import { recordMcpAttachmentCleanup, type McpAttachmentCleanup } from "./public-mcp/upload-cleanup.js";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
-import type { IssueDisplayStatus } from "@paperclipai/shared";
+import type { IssueDisplayStatus } from "@outpost/shared";
 import { issueDisplayStatusSql } from "./issue-display-status.js";
 import { notifyStrandedAgentStatus, notifyActiveRunSilence } from "./live-run-recovery-notifications.js";
 import { finishedIdleWake } from "./idle-work-proof.js";
@@ -39,7 +39,7 @@ import { automaticReadRecoveryCleanupCondition, directHumanCommentCondition, hum
 import { resolveProjectDefaultWorkspaceId } from "./project-default-workspace.js";
 import { type AuthorizationActor, executionWorkspaceReadSqlCondition, projectReadSqlCondition } from "./authorization.js";
 import { assertExecutionWorkspaceRecordAccess, assertTaskWorkspaceSourceProjectAccess } from "./task-workspace-access.js";
-import { type TaskWorkspaceSelection, type TaskWorkspaceIntent } from "@paperclipai/shared";
+import { type TaskWorkspaceSelection, type TaskWorkspaceIntent } from "@outpost/shared";
 import { executionWorkspaceService } from "./execution-workspaces.js";
 import { notifyChatPublicationWork } from "./chat-work-notifications.js";
 import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
@@ -56,8 +56,8 @@ import { parseTaskSearch, taskSearchCtes, taskSearchScore } from "./task-search.
 import { createdFromIssueCondition } from "./issue-creation-origin.js";
 import { loadRunBoundIssue } from "./issue-creation-source.js";
 import { executionProjectionsForRuns } from "./execution-projection.js";
-import type { ExecutionProjection } from "@paperclipai/shared";
-import type { IssueParentAdjustment } from "@paperclipai/shared";
+import type { ExecutionProjection } from "@outpost/shared";
+import type { IssueParentAdjustment } from "@outpost/shared";
 import {
   confirmPlacement,
   planIssueParentChange,
@@ -94,7 +94,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   activityLog,
   chatActions,
@@ -142,7 +142,7 @@ import {
   projects,
   toolConnections,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   AcceptedPlanDecomposition,
   IssueComment,
@@ -159,7 +159,7 @@ import type {
   IssueWatchdogSummary,
   LowTrustBoundary,
   SuccessfulRunHandoffState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   clampIssueRequestDepth,
   extractAgentMentionIds,
@@ -170,7 +170,7 @@ import {
   isAgentCreatedIssue,
   isUuidLike,
   normalizeIssueIdentifier as normalizeIssueReferenceIdentifier,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { isForeignKeyViolation } from "../db-errors.js";
 import { logger } from "../middleware/logger.js";
@@ -1131,7 +1131,7 @@ async function freshChatSourceAfterPublishedControl(
   } catch (error) {
     if (
       error instanceof Error &&
-      /^paperclip_runner_chat_attachment_(binding|destination|principal)_denied$/.test(
+      /^outpost_runner_chat_attachment_(binding|destination|principal)_denied$/.test(
         error.message,
       )
     )
@@ -1692,7 +1692,7 @@ export function isExplicitExternalAgentComment(
   metadata: IssueCommentMetadata | null | undefined,
 ): boolean {
   const reason = metadata?.authorizationReason?.trim() ?? "";
-  return reason === "paperclip_runner_protocol" || reason.startsWith("allow_");
+  return reason === "outpost_runner_protocol" || reason.startsWith("allow_");
 }
 
 type SelectedChatPresentationAttachment = {
@@ -1738,7 +1738,7 @@ async function listSelectedChatPresentationAttachments(
         eq(issueComments.authorAgentId, input.agentId),
         isNull(issueComments.deletedAt),
         sql<boolean>`(
-          coalesce(${issueComments.metadata}->>'authorizationReason', '') = 'paperclip_runner_protocol'
+          coalesce(${issueComments.metadata}->>'authorizationReason', '') = 'outpost_runner_protocol'
           or left(coalesce(${issueComments.metadata}->>'authorizationReason', ''), 6) = 'allow_'
         )`,
       ),

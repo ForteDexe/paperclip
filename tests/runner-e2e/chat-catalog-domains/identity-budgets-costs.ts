@@ -31,7 +31,7 @@ export const budgetIdentityCases = [identityDefinition("budgets-costs.set-budget
   const workerConfig = await employeeConfiguration(ctx, worker.id);
   return { worker, other, workerConfig };
 }, gradeBudget, {
-  oracleVersion: "paperclip.chat-catalog.identity.set-budget.v2",
+  oracleVersion: "outpost.chat-catalog.identity.set-budget.v2",
   sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-budgets-costs.ts", "chat-catalog-domains/internal-comment-reference.ts", "chat-scenarios/budgets-costs.yaml"],
   async act(ctx, state) {
     await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx));

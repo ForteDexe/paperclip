@@ -8,7 +8,7 @@ const execute = promisify(execFile);
 const privateActors = new WeakMap<ChatCatalogContext, { id: string; token: string; directory: string }>();
 export async function prepareOwnedCli(ctx: ChatCatalogContext) {
   if (ctx.input.execution.environment.id !== "local") throw new Error("CLI companion journey requires the owned local attempt");
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root) throw new Error("CLI companion requires an owned attempt directory");
   const directory = await mkdtemp(path.join(await realpath(root), "operator-cli-"));
   await mkdir(path.join(directory, "home"));
@@ -25,8 +25,8 @@ export async function runOwnedCli(ctx: ChatCatalogContext, args: string[]) {
   // A fresh minimal environment cannot pick up another operator's context,
   // stored auth, run ID, provider credentials or default company.
   const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: path.join(actor.directory, "home"),
-    PAPERCLIP_HOME: path.join(actor.directory, "home"), PAPERCLIP_CONTEXT: path.join(actor.directory, "context.json"), PAPERCLIP_API_KEY: actor.token,
-    PAPERCLIP_API_URL: ctx.input.api.baseURL, PAPERCLIP_TELEMETRY_DISABLED: "1", NO_COLOR: "1" };
+    OUTPOST_HOME: path.join(actor.directory, "home"), OUTPOST_CONTEXT: path.join(actor.directory, "context.json"), OUTPOST_API_KEY: actor.token,
+    OUTPOST_API_URL: ctx.input.api.baseURL, OUTPOST_TELEMETRY_DISABLED: "1", NO_COLOR: "1" };
   const loader = fileURLToPath(new URL("../../../cli/node_modules/tsx/dist/loader.mjs", import.meta.url));
   const entry = fileURLToPath(new URL("../../../cli/src/index.ts", import.meta.url));
   try {
@@ -39,7 +39,7 @@ export async function cleanupOwnedCli(ctx: ChatCatalogContext) {
   const actor = privateActors.get(ctx); if (!actor) return;
   await ctx.input.api.delete(`/api/board-api-keys/${actor.id}`);
   privateActors.delete(ctx);
-  const root = await realpath(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!);
+  const root = await realpath(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!);
   const owned = await realpath(actor.directory);
   if (!owned.startsWith(root + path.sep) || !path.basename(owned).startsWith("operator-cli-")) throw new Error("Refusing CLI cleanup outside its owned directory");
   await rm(owned, { recursive: true });

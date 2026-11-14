@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { HeartbeatRunEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent } from "@outpost/shared";
 import { nativeRunEventsToTranscript } from "@/components/transcript/native-run-events";
 import { TaskChatRunnerTurn } from "@/components/task-chat/TaskChatRunnerTurn";
 import { TaskChatThreadView } from "@/components/task-chat/TaskChatThreadView";
@@ -40,8 +40,8 @@ function runEvent(
     color: null,
     message: null,
     payload: {
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         sourceEventId: `provider-activity-${seq}`,
         sourceSeq: seq,
         sourceInstanceId: "runner-story",
@@ -66,7 +66,7 @@ function message(itemId: string, text: string, channel: "commentary" | "final" =
 
 function command(executionId: string, name: string, output: string, status: "completed" | "failed" = "completed") {
   const base = {
-    schema: "paperclip.tool.execution.v1",
+    schema: "outpost.tool.execution.v1",
     executionId,
     transport: "process",
     operation: "execute",
@@ -81,7 +81,7 @@ function command(executionId: string, name: string, output: string, status: "com
 }
 
 function webSearch(researchId: string, query: string, sources: Array<{ url: string; title: string; snippet?: string }>) {
-  const base = { schema: "paperclip.research.v1", researchId, action: "search", query, url: null, pattern: null };
+  const base = { schema: "outpost.research.v1", researchId, action: "search", query, url: null, pattern: null };
   return [
     runEvent("research.started", { ...base, status: "running", sources: [] }, { itemId: researchId }),
     runEvent("research.completed", {
@@ -93,7 +93,7 @@ function webSearch(researchId: string, query: string, sources: Array<{ url: stri
 }
 
 function openPage(researchId: string, url: string) {
-  const base = { schema: "paperclip.research.v1", researchId, action: "open_page", query: null, url, pattern: null, sources: [] };
+  const base = { schema: "outpost.research.v1", researchId, action: "open_page", query: null, url, pattern: null, sources: [] };
   return [
     runEvent("research.started", { ...base, status: "running" }, { itemId: researchId }),
     runEvent("research.completed", { ...base, status: "completed" }, { itemId: researchId }),
@@ -122,7 +122,7 @@ function buildRunEvents(startMs: number): HeartbeatRunEvent[] {
     ]),
     ...openPage("ws-2", "https://tc39.es/proposal-temporal/docs/plaindate.html"),
     runEvent("model.route.changed", {
-      schema: "paperclip.model.route_changed.v1",
+      schema: "outpost.model.route_changed.v1",
       routeId: "turn-1",
       provider: "openai",
       requestedModel: "gpt-5.6-sol",
@@ -134,7 +134,7 @@ function buildRunEvents(startMs: number): HeartbeatRunEvent[] {
     ...command("c1", "rg -n parseExportDate server/src", "server/src/export/worker.ts:42:export function parseExportDate("),
     ...command("c2", "node --test server/src/export/worker.test.ts", "✔ parses calendar dates\n✖ parses ISO week dates\n\n5 passed, 1 failed", "failed"),
     runEvent("wait.started", {
-      schema: "paperclip.wait.v1",
+      schema: "outpost.wait.v1",
       waitId: "sleep-1",
       reason: "timer",
       status: "running",
@@ -142,7 +142,7 @@ function buildRunEvents(startMs: number): HeartbeatRunEvent[] {
       elapsedDurationMs: null,
     }, { itemId: "sleep-1" }),
     runEvent("wait.completed", {
-      schema: "paperclip.wait.v1",
+      schema: "outpost.wait.v1",
       waitId: "sleep-1",
       reason: "timer",
       status: "completed",
@@ -151,7 +151,7 @@ function buildRunEvents(startMs: number): HeartbeatRunEvent[] {
     }, { itemId: "sleep-1" }),
     ...command("c3", "node --test server/src/export/worker.test.ts", "✔ parses calendar dates\n✔ parses ISO week dates\n\n6 passed"),
     verification("v1", "passed", "node --test server/src/export/worker.test.ts", "6 tests passed"),
-    verification("v2", "failed", "pnpm --filter @paperclipai/server typecheck", "2 errors in src/export/worker.ts"),
+    verification("v2", "failed", "pnpm --filter @outpost/server typecheck", "2 errors in src/export/worker.ts"),
     verification("v3", "not_run", "pnpm test:e2e", "Browser suite not needed for a parser change"),
     message("final", "Week-date strings like `2026-W45-4` now parse to the matching calendar day. The worker tests pass; typecheck still reports two errors in the worker that predate this change.", "final"),
   ];

@@ -2,9 +2,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { lstat, mkdir, open, readFile, realpath, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolvePaperclipInstanceRootForAdapter } from "@paperclipai/adapter-utils/server-utils";
-import { withDirectoryMergeLock } from "@paperclipai/adapter-utils/workspace-restore-merge";
-import { toAccountHandle } from "@paperclipai/shared";
+import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
+import { withDirectoryMergeLock } from "@outpost/adapter-utils/workspace-restore-merge";
+import { toAccountHandle } from "@outpost/shared";
 import { USE_SOURCE_EXIT, decideCodexAuthMerge } from "./codex-auth-merge-decision.js";
 import { writeCredentialSeedOrNewer } from "./codex-auth-seed-write.js";
 
@@ -28,7 +28,7 @@ const PRIVATE_DIR_MODE = 0o700;
 // One default-on off-switch. When the flag is an explicit falsy value the cache
 // write and the cache vend become no-ops. The host default overwrite is
 // unchanged in both states.
-export const CODEX_AUTH_CACHE_OFF_SWITCH_ENV = "PAPERCLIP_CODEX_AUTH_CACHE";
+export const CODEX_AUTH_CACHE_OFF_SWITCH_ENV = "OUTPOST_CODEX_AUTH_CACHE";
 const FALSY_ENV_RE = /^(0|false|no|off)$/i;
 
 // The cache reuses the same direction-agnostic decision predicate the copy-back
@@ -106,8 +106,8 @@ export function resolveCodexAuthCacheDir(
 ): string {
   const safeCompanyId = toSafePathSegment(companyId, "companyId");
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return path.resolve(instanceRoot, "companies", safeCompanyId, CACHE_DIR_NAME);
@@ -129,8 +129,8 @@ export function isCodexAuthCachePath(
   homePath: string,
 ): boolean {
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   const companiesRoot = path.resolve(instanceRoot, "companies");
@@ -271,8 +271,8 @@ function resolveCodexAuthCacheNamedLockDir(
 ): string {
   const safeCompanyId = toSafePathSegment(companyId, "companyId");
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return path.resolve(instanceRoot, "companies", safeCompanyId, lockName);
@@ -468,9 +468,9 @@ export async function writeCodexAuthCacheEntry(input: {
     destinationPath: input.cacheEntryPath,
     seedIfDestAbsent: true,
     log: input.log,
-    writtenLine: "[paperclip] Codex auth cache: wrote the per-identity cache slot at mode 0600.",
+    writtenLine: "[outpost] Codex auth cache: wrote the per-identity cache slot at mode 0600.",
     keptLine:
-      "[paperclip] Codex auth cache: kept the cache slot (source is not a strictly-newer same-identity subscription credential).",
+      "[outpost] Codex auth cache: kept the cache slot (source is not a strictly-newer same-identity subscription credential).",
     tempPrefix: "auth.json.cache-source",
     errorLabel: "codex auth cache",
     env: input.env,
@@ -534,7 +534,7 @@ export async function selectVendCredential(
       throw error;
     });
     if (!cacheBytes) {
-      await log("[paperclip] Codex auth cache: no cached credential for the host identity; host credential kept.");
+      await log("[outpost] Codex auth cache: no cached credential for the host identity; host credential kept.");
       return "kept-host";
     }
     const stagedTempPath = path.join(
@@ -554,12 +554,12 @@ export async function selectVendCredential(
       if (decision === USE_SOURCE_EXIT) {
         await rename(stagedTempPath, sharedHomeAuthPath);
         await log(
-          "[paperclip] Codex auth cache: refreshed the host credential with a strictly-newer cached copy of the same identity at mode 0600.",
+          "[outpost] Codex auth cache: refreshed the host credential with a strictly-newer cached copy of the same identity at mode 0600.",
         );
         return "vended";
       }
       await log(
-        "[paperclip] Codex auth cache: host credential kept (the cached copy is not strictly newer for the same identity).",
+        "[outpost] Codex auth cache: host credential kept (the cached copy is not strictly newer for the same identity).",
       );
       return "kept-host";
     } finally {

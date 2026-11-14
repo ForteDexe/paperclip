@@ -1,9 +1,9 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { sql } from "drizzle-orm";
-import { createDb } from "@paperclipai/db";
+import { createDb } from "@outpost/db";
 
 // Every workspace-recovery test file that uses
-// PAPERCLIP_WORKSPACE_RECOVERY_TEST_DATABASE_URL truncates that database.
+// OUTPOST_WORKSPACE_RECOVERY_TEST_DATABASE_URL truncates that database.
 // A file holds this session advisory lock from setup to teardown, so the files
 // queue on the database, even across separate test processes. Ending the
 // returned client releases the lock.

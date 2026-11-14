@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { instanceExperimentalSettingsSchema, type Issue } from "@paperclipai/shared";
+import { instanceExperimentalSettingsSchema, type Issue } from "@outpost/shared";
 import { Sidebar } from "@/components/Sidebar";
 import { CoordinatorSidebar } from "@/components/CoordinatorSidebar";
 import { AgentConversationsSidebar } from "@/components/AgentConversationsSidebar";

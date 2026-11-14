@@ -20,15 +20,15 @@ try {
     const url = new URL(server.connectionString);
     url.pathname = "/postgres";
     adminUrl = url.toString();
-    if (env.PAPERCLIP_TEST_POSTGRES_TEMPLATE !== "0") {
+    if (env.OUTPOST_TEST_POSTGRES_TEMPLATE !== "0") {
       const template = `paperclip_test_template_${computeEmbeddedPostgresTemplateKey()}`;
       const admin = createDb(adminUrl, { maxConnections: 1 });
       try { await admin.$client.unsafe(`CREATE DATABASE "${template}" TEMPLATE "paperclip"`); }
       finally { await admin.$client.end({ timeout: 1 }); }
-      env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = template;
+      env.OUTPOST_TEST_POSTGRES_TEMPLATE = template;
     }
   }
-  env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL = adminUrl;
+  env.OUTPOST_TEST_POSTGRES_ADMIN_URL = adminUrl;
   console.log("[test:postgres] Each suite gets a disposable database on one test PostgreSQL server");
   const child = startTestProcessTree(command, args, env);
   const removeShutdownTask = beforeTestPostgresShutdown({

@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
-import { heartbeatRunEvents } from "@paperclipai/db";
-import type { HarnessRuntimeRequestKind } from "../../vendor/paperclip-runner/index.js";
+import type { Db } from "@outpost/db";
+import { heartbeatRunEvents } from "@outpost/db";
+import type { HarnessRuntimeRequestKind } from "../../vendor/outpost-runner/index.js";
 
 const TERMINAL_RUNTIME_REQUEST_EVENTS = [
   "runtime_request.resolved",
@@ -57,12 +57,12 @@ function canonicalPendingRequest(input: {
   requestId: string;
   payload: unknown;
 }): PendingNativeRuntimeRequest | null {
-  const event = record(record(input.payload)?.prpEvent);
+  const event = record(record(input.payload)?.orpEvent);
   const eventPayload = record(event?.payload);
   const request = record(eventPayload?.request);
   if (
     !event
-    || event.schema !== "paperclip.prp.event.v1"
+    || event.schema !== "outpost.orp.event.v1"
     || event.eventType !== "runtime_request.created"
     || event.sourceKind !== "runner"
     || event.runId !== input.runId
@@ -131,8 +131,8 @@ export async function readPendingNativeRuntimeRequest(
       eq(heartbeatRunEvents.runId, input.runId),
       inArray(heartbeatRunEvents.eventType, [...RUNTIME_REQUEST_EVENTS]),
       sql`coalesce(
-        ${heartbeatRunEvents.payload} #>> '{prpEvent,payload,request,requestId}',
-        ${heartbeatRunEvents.payload} #>> '{prpEvent,payload,requestId}'
+        ${heartbeatRunEvents.payload} #>> '{orpEvent,payload,request,requestId}',
+        ${heartbeatRunEvents.payload} #>> '{orpEvent,payload,requestId}'
       ) = ${input.requestId}`,
     ))
     .orderBy(desc(heartbeatRunEvents.seq))

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CompanySkillVersionFileInventoryEntry, SkillRepositoryPackage } from '@paperclipai/shared';
+import type { CompanySkillVersionFileInventoryEntry, SkillRepositoryPackage } from '@outpost/shared';
 import { z } from 'zod';
 import { assertSkillSnapshotPath, skillFileBytes } from './skill-snapshot.js';
 
@@ -17,7 +17,7 @@ const manifestSchema = z.object({
 
 /** Declarative metadata only: importing never invokes a repository's installer. */
 export function inspectRepositoryManifest(files: CompanySkillVersionFileInventoryEntry[], skillPaths: string[]) {
-  const file = files.find(file => file.path === 'paperclip.skills.json');
+  const file = files.find(file => file.path === 'outpost.skills.json');
   if (!file) return {};
   const manifest = manifestSchema.parse(JSON.parse(skillFileBytes(file).toString('utf8')));
   const declared = [...new Set(manifest.skills.map(assertSkillSnapshotPath))];
@@ -28,7 +28,7 @@ export function inspectRepositoryManifest(files: CompanySkillVersionFileInventor
 export function repositoryPackageInspection(files: CompanySkillVersionFileInventoryEntry[], skillPaths: string[], warnings: string[], error: string | null): SkillRepositoryPackage {
   let manifest: ReturnType<typeof inspectRepositoryManifest> = {};
   try { manifest = inspectRepositoryManifest(files, skillPaths); }
-  catch { warnings = [...warnings, 'paperclip.skills.json — Invalid manifest; skills were discovered automatically.']; }
+  catch { warnings = [...warnings, 'outpost.skills.json — Invalid manifest; skills were discovered automatically.']; }
   return { files: files.map(file => ({ path: file.path, kind: file.kind, sizeBytes: skillFileBytes(file).length,
     encoding: file.encoding ?? 'utf8', executable: file.executable ?? false })), requirements: null, ...manifest, error, warnings };
 }

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
-import { heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import type { HarnessRuntimeRequestResolution } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
+import type { HarnessRuntimeRequestResolution } from "../../vendor/outpost-runner/index.js";
 import { accessService } from "../access.js";
 import { loadConfig } from "../../config.js";
 import { conflict } from "../../errors.js";
@@ -114,7 +114,7 @@ export function registerNativeRuntimeResponseDelivery(db: Db, coordinator: Retur
             if (!(error instanceof NativeRuntimeRequestResolutionError)
               || !["native_session_not_active", "runtime_request_resolution_unsupported"].includes(error.code)) throw error;
             const { pending, actor } = await authorize(db, command);
-            const { queueRunnerPrpRuntimeRequestResolution } = await import("../../realtime/runner-prp-ws.js");
+            const { queueRunnerPrpRuntimeRequestResolution } = await import("../../realtime/runner-orp-ws.js");
             queueRunnerPrpRuntimeRequestResolution({ companyId: pending.companyId, runId: row.id,
               pendingRequest: pending, actor, resolution: command.resolution, commandId: command.commandId });
           }

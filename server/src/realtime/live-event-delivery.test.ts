@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { LiveEvent } from "@paperclipai/shared";
+import type { LiveEvent } from "@outpost/shared";
 import { createLiveEventDelivery, LIVE_DELIVERY_MAX_BYTES, LIVE_DELIVERY_MAX_ITEMS, sharedDeliveryRead, type LiveDeliveryReads } from "./live-event-delivery.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 

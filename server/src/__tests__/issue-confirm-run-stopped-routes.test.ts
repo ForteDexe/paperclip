@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog, agents, agentWakeupRequests, applyPendingMigrations, companies, companyMemberships, createDb,
   environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, subscribeDatabaseWork,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { errorHandler } from "../middleware/index.js";
@@ -21,7 +21,7 @@ import { hasNativeLocalProcessStop, PROCESS_START_REQUESTED } from "../services/
 const LOCAL_PROCESS_STOPPED = "native.local_process_stopped";
 import { taskInterruptionPresentations } from "../services/task-interruption-presentation.js";
 
-const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_CONFIRM_RUN_STOPPED_TEST_DATABASE_URL");
+const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_CONFIRM_RUN_STOPPED_TEST_DATABASE_URL");
 const support = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 describe.skipIf(!support.supported)("confirming that an unidentified local run stopped", () => {
@@ -73,7 +73,7 @@ describe.skipIf(!support.supported)("confirming that an unidentified local run s
     const wakeId = randomUUID();
     const [wake] = await db.insert(agentWakeupRequests).values({ id: wakeId, companyId, agentId, source: "on_demand", triggerDetail: "manual",
       reason: "task_retry", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "board-user",
-      payload: { issueId, taskRetry: { schema: "paperclip.task-retry.v1", generationId: wakeId, actorId: "board-user", sourceRunId: runId, strategy: "continue" },
+      payload: { issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: wakeId, actorId: "board-user", sourceRunId: runId, strategy: "continue" },
         executionWait: { reason: "process_identity_missing", message: "The previous run has no verified stop record." } },
     }).returning();
     return { companyId, agentId, issueId, runId, wakeId: wake!.id };

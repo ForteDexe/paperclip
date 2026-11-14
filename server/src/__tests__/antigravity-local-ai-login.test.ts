@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AiConnectionLoginIntent } from "@paperclipai/shared";
+import type { AiConnectionLoginIntent } from "@outpost/shared";
 import type { LocalBrowserLoginState } from "../services/local-ai-browser-login.js";
 import { PgDialect } from "drizzle-orm/pg-core";
 

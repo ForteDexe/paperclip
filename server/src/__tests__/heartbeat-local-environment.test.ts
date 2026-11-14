@@ -10,7 +10,7 @@ import {
   createDb,
   environmentLeases,
   environments,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -67,8 +67,8 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
   let previousAgentJwtSecret: string | undefined;
 
   beforeAll(async () => {
-    previousAgentJwtSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = "heartbeat-local-environment-test-secret";
+    previousAgentJwtSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
+    process.env.OUTPOST_AGENT_JWT_SECRET = "heartbeat-local-environment-test-secret";
     tempDb = await startEmbeddedPostgresTestDatabase("heartbeat-local-environment-");
     db = createDb(tempDb.connectionString);
     heartbeat = heartbeatService(db);
@@ -104,9 +104,9 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
     await heartbeat.drainActiveRunExecutions();
     await tempDb?.cleanup();
     if (previousAgentJwtSecret === undefined) {
-      delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
+      delete process.env.OUTPOST_AGENT_JWT_SECRET;
     } else {
-      process.env.PAPERCLIP_AGENT_JWT_SECRET = previousAgentJwtSecret;
+      process.env.OUTPOST_AGENT_JWT_SECRET = previousAgentJwtSecret;
     }
   });
 
@@ -159,7 +159,7 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
     expect(leases[0]?.releasedAt).not.toBeNull();
 
     const context = finished?.contextSnapshot as Record<string, unknown>;
-    expect(context.paperclipEnvironment).toMatchObject({
+    expect(context.outpostEnvironment).toMatchObject({
       id: localRows[0]?.id,
       name: "Local",
       driver: "local",
@@ -167,7 +167,7 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
     });
   });
 
-  it("injects run-scoped Paperclip env into process agents", async () => {
+  it("injects run-scoped Outpost env into process agents", async () => {
     const companyId = randomUUID();
     const agentId = randomUUID();
     const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
@@ -196,11 +196,11 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
           [
             "const fs = require('node:fs');",
             `fs.writeFileSync(${JSON.stringify(envPath)}, JSON.stringify({`,
-            "agentId: process.env.PAPERCLIP_AGENT_ID ?? null,",
-            "companyId: process.env.PAPERCLIP_COMPANY_ID ?? null,",
-            "apiUrl: process.env.PAPERCLIP_API_URL ?? null,",
-            "runId: process.env.PAPERCLIP_RUN_ID ?? null,",
-            "apiKeyPresent: Boolean(process.env.PAPERCLIP_API_KEY),",
+            "agentId: process.env.OUTPOST_AGENT_ID ?? null,",
+            "companyId: process.env.OUTPOST_COMPANY_ID ?? null,",
+            "apiUrl: process.env.OUTPOST_API_URL ?? null,",
+            "runId: process.env.OUTPOST_RUN_ID ?? null,",
+            "apiKeyPresent: Boolean(process.env.OUTPOST_API_KEY),",
             "}));",
           ].join(" "),
         ],

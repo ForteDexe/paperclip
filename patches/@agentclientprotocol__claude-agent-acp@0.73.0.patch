@@ -69,7 +69,7 @@ index 0214a50..73f0c16 100644
 +                                // subagent sessions are off. Attach it to the spawning
 +                                // Agent/Task tool call so the client can show it there.
 +                                const progressTask = session.liveBackgroundTasks.get(message.task_id);
-+                                if (process.env.PAPERCLIP_ACPX_ISOLATED_CONTEXT === "1" &&
++                                if (process.env.OUTPOST_ACPX_ISOLATED_CONTEXT === "1" &&
 +                                    progressTask?.isSubagent &&
 +                                    progressTask.parentToolUseId &&
 +                                    (message.summary || message.description)) {
@@ -151,7 +151,7 @@ index 0214a50..73f0c16 100644
 +     * client can settle its subagent card. Sent once per task.
 +     */
 +    async paperclipForwardSubagentState(session, sessionId, taskId, toolUseId, status, summary, sendUpdate) {
-+        if (process.env.PAPERCLIP_ACPX_ISOLATED_CONTEXT !== "1")
++        if (process.env.OUTPOST_ACPX_ISOLATED_CONTEXT !== "1")
 +            return;
 +        // The terminal task_updated branch drops the live registry entry
 +        // before task_notification arrives, so remember subagent parents here.
@@ -193,12 +193,12 @@ index 0214a50..73f0c16 100644
              settingSources: ["user", "project", "local"],
              ...(thinking !== undefined && { thinking }),
              ...userProvidedOptions,
-+            // Paperclip Runner owns the complete session context. Its isolated
++            // Outpost Runner owns the complete session context. Its isolated
 +            // user root contains only assigned skills; project/local settings
 +            // would reintroduce host prompts, plugins, skills, and MCP servers.
-+            ...(process.env.PAPERCLIP_ACPX_ISOLATED_CONTEXT === "1" && { settingSources: ["user"] }),
++            ...(process.env.OUTPOST_ACPX_ISOLATED_CONTEXT === "1" && { settingSources: ["user"] }),
 +            // Subagent progress summaries (~30s) feed the task chat's subagent card.
-+            ...(process.env.PAPERCLIP_ACPX_ISOLATED_CONTEXT === "1" && { agentProgressSummaries: true }),
++            ...(process.env.OUTPOST_ACPX_ISOLATED_CONTEXT === "1" && { agentProgressSummaries: true }),
              ...(settings && { settings }),
              env,
              // Override certain fields that must be controlled by ACP
@@ -209,7 +209,7 @@ index 0214a50..73f0c16 100644
              forwardSubagentText,
              mcpServers: {
 -                ...(userProvidedOptions?.mcpServers || {}),
-+                ...(process.env.PAPERCLIP_ACPX_ISOLATED_CONTEXT === "1"
++                ...(process.env.OUTPOST_ACPX_ISOLATED_CONTEXT === "1"
 +                    ? {}
 +                    : (userProvidedOptions?.mcpServers || {})),
                  ...mcpServers,
@@ -222,9 +222,9 @@ index 0214a50..73f0c16 100644
 +            // The runner pins this actual MCP endpoint before provider launch.
 +            // Exempt only task delivery/control tools at the SDK dispatch boundary,
 +            // not arbitrary provider permission metadata or MCP name prefixes.
-+            ...(process.env.PAPERCLIP_ACPX_ISOLATED_CONTEXT === "1" && {
++            ...(process.env.OUTPOST_ACPX_ISOLATED_CONTEXT === "1" && {
 +                allowedTools: mcpServers.paperclip?.type === "http"
-+                    && mcpServers.paperclip.url === process.env.PAPERCLIP_ACPX_TASK_TOOL_BRIDGE_URL
++                    && mcpServers.outpost.url === process.env.OUTPOST_ACPX_TASK_TOOL_BRIDGE_URL
 +                    ? ["paperclip_finish", "paperclip_block", "read_current_wake_comments", "request_human_input"]
 +                        .map((tool) => `mcp__paperclip__${tool}`)
 +                    : [],

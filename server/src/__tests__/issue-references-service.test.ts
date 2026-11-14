@@ -9,7 +9,7 @@ import {
   issueDocuments,
   issueReferenceMentions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -136,7 +136,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
       id: commentId,
       companyId,
       issueId: sourceIssueId,
-      body: "Follow up in https://paperclip.test/issues/pap-2 after the document lands.",
+      body: "Follow up in https://outpost.test/issues/pap-2 after the document lands.",
     });
     await refs.syncComment(commentId);
 

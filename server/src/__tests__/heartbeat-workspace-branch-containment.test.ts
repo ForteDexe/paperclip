@@ -1,6 +1,6 @@
-import { subscribeDatabaseWork } from "@paperclipai/db";
+import { subscribeDatabaseWork } from "@outpost/db";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
-import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -38,7 +38,7 @@ import {
   projects,
   projectWorkspaces,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -125,7 +125,7 @@ vi.mock("../adapters/index.js", () => ({
   runningProcesses: new Map(),
 }));
 
-const externalTestDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL?.trim();
+const externalTestDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL?.trim();
 const embeddedPostgresSupport = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -957,7 +957,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
   async function seedRetainedSourceRun(kind: "deleted" | "explicit_conflict" | "foreign_project" | "foreign_company" | "unproven") {
     const home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-retained-source-home-")));
     tempRoots.push(home);
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     const original = await createGitRepo();
     const replacement = await createGitRepo();
     tempRoots.push(original, replacement);
@@ -1078,7 +1078,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
   );
 
   it.each(["git_worktree", "project_primary"] as const)("reuses a %s workspace when a private historical task worktree shares its Git root", async (strategyType) => {
-    vi.stubEnv("PAPERCLIP_SENTRY_RUN_FAILURES", "unexpected");
+    vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "unexpected");
     const seeded = await seedRetainedSourceRun("deleted");
     if (strategyType === "project_primary") {
       await db.update(projectWorkspaces).set({ cwd: seeded.owner, repoUrl: seeded.repoUrl }).where(eq(projectWorkspaces.id, seeded.newWorkspaceId));

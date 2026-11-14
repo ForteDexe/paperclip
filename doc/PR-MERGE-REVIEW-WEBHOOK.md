@@ -11,8 +11,8 @@ deployment branch policy to the `master` branch only, with no tag policy.
 Keep these two values in **environment secrets**, not repository variables,
 repository secrets, committed files, task comments, or workflow outputs:
 
-- `PAPERCLIP_PR_REVIEW_WEBHOOK_URL`: a Paperclip routine webhook URL.
-- `PAPERCLIP_PR_REVIEW_WEBHOOK_TOKEN`: its separate bearer signing secret.
+- `OUTPOST_PR_REVIEW_WEBHOOK_URL`: a Paperclip routine webhook URL.
+- `OUTPOST_PR_REVIEW_WEBHOOK_TOKEN`: its separate bearer signing secret.
 
 Use a webhook trigger with `signingMode: bearer`. The routine should use
 `always_enqueue` concurrency so separate PRs cannot be coalesced into one task.

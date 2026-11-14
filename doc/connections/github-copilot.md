@@ -26,7 +26,7 @@ sends no model prompt. Authentication, entitlement/policy, installation, and
 unavailable-model errors are reported separately. Remote verification releases
 its owned login lease and does not fall back to the controller host.
 
-In an agent's **Harness / Runtime** settings, select **Paperclip Runner**,
+In an agent's **Harness / Runtime** settings, select **Outpost Runner**,
 **ACP agents**, **GitHub Copilot**, and a model from authenticated discovery.
 Saving and reopening retain `provider: acpx`, `acpxAgent: copilot`, and that exact
 model. Auto/default and unavailable models are rejected. The qualification

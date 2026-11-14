@@ -622,7 +622,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
             collapsed={designSandbox || replacesPrimarySidebar ? false : collapsed}
             peeking={designSandbox || replacesPrimarySidebar ? false : peeking}
             resizable
-            storageKey={designSandbox ? "paperclip.design-proposals.sandbox.sidebar-width" : coordinatorWorkspaceEnabled ? "paperclip.coordinator.sidebar-width" : undefined}
+            storageKey={designSandbox ? "outpost.design-proposals.sandbox.sidebar-width" : coordinatorWorkspaceEnabled ? "outpost.coordinator.sidebar-width" : undefined}
             onPanelMouseEnter={replacesPrimarySidebar ? undefined : handlePanelPointerEnter}
             onPanelMouseLeave={replacesPrimarySidebar ? undefined : handlePanelPointerLeave}
             onPanelFocusCapture={!replacesPrimarySidebar && collapsed ? handlePanelFocus : undefined}

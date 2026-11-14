@@ -2,14 +2,14 @@ import path from "node:path";
 import fs from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { isCloudManagedInstance } from "./cloud-instance.js";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import { assertDistributionManifestCapabilities, readDistributionPluginCatalog, type DistributionPlugin } from "./distribution-plugin-catalog.js";
 
 /**
  * Bundled plugin auto-provisioning.
  *
  * Managed-cloud instances receive a `plugins.autoInstall` key list through
- * `PAPERCLIP_MANAGED_CONFIG` (parsed fail-closed at startup — see
+ * `OUTPOST_MANAGED_CONFIG` (parsed fail-closed at startup — see
  * `managed-config.ts`). Each key maps to a plugin bundled into
  * the release image under the bundled catalog root. Nobody "installs" on a
  * managed instance: the control plane provisions, tenants use.
@@ -41,7 +41,7 @@ export const DEFAULT_BUNDLED_CATALOG_ROOT = "/app/packages/plugins";
 /**
  * Env var that relocates the bundled catalog root (dev images, tests).
  */
-export const BUNDLED_CATALOG_ROOT_ENV_VAR = "PAPERCLIP_BUNDLED_PLUGIN_ROOT";
+export const BUNDLED_CATALOG_ROOT_ENV_VAR = "OUTPOST_BUNDLED_PLUGIN_ROOT";
 
 export interface BundledPluginCatalogEntry {
   /** Key the managed config's `plugins.autoInstall` list uses. */
@@ -66,48 +66,48 @@ export interface BundledPluginCatalogEntry {
 export const BUNDLED_PLUGIN_CATALOG: readonly BundledPluginCatalogEntry[] = [
   {
     key: "boxd",
-    pluginKey: "paperclip.boxd-sandbox-provider",
+    pluginKey: "outpost.boxd-sandbox-provider",
     relativePath: "sandbox-providers/boxd",
   },
   {
     key: "createos",
-    pluginKey: "paperclip.createos-sandbox-provider",
+    pluginKey: "outpost.createos-sandbox-provider",
     relativePath: "sandbox-providers/createos",
   },
   {
     key: "cloudflare",
-    pluginKey: "paperclip.cloudflare-sandbox-provider",
+    pluginKey: "outpost.cloudflare-sandbox-provider",
     relativePath: "sandbox-providers/cloudflare",
   },
   {
     key: "daytona",
-    pluginKey: "paperclip.daytona-sandbox-provider",
+    pluginKey: "outpost.daytona-sandbox-provider",
     relativePath: "sandbox-providers/daytona",
   },
   {
     key: "e2b",
-    pluginKey: "paperclip.e2b-sandbox-provider",
+    pluginKey: "outpost.e2b-sandbox-provider",
     relativePath: "sandbox-providers/e2b",
   },
   {
     key: "exe-dev",
-    pluginKey: "paperclip.exe-dev-sandbox-provider",
+    pluginKey: "outpost.exe-dev-sandbox-provider",
     relativePath: "sandbox-providers/exe-dev",
   },
   {
     key: "kubernetes",
-    pluginKey: "paperclip.kubernetes-sandbox-provider",
+    pluginKey: "outpost.kubernetes-sandbox-provider",
     relativePath: "sandbox-providers/kubernetes",
-    pathOverrideEnvVar: "PAPERCLIP_KUBERNETES_PLUGIN_PATH",
+    pathOverrideEnvVar: "OUTPOST_KUBERNETES_PLUGIN_PATH",
   },
   {
     key: "modal",
-    pluginKey: "paperclip.modal-sandbox-provider",
+    pluginKey: "outpost.modal-sandbox-provider",
     relativePath: "sandbox-providers/modal",
   },
   {
     key: "novita",
-    pluginKey: "paperclip.novita-sandbox-provider",
+    pluginKey: "outpost.novita-sandbox-provider",
     relativePath: "sandbox-providers/novita",
   },
 ];

@@ -1,8 +1,8 @@
-import { readPaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
+import { readPaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { promises as fs } from "node:fs";
 import { and, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { companySkillRepositorySnapshots as snapshots, companySkillVersions as versions,
-  skillPackageDeletions, agents, type Db } from "@paperclipai/db";
+  skillPackageDeletions, agents, type Db } from "@outpost/db";
 import { getStorageService, type StorageService } from "../storage/index.js";
 import { storageFailureDiagnosticsFor } from "../storage/failure-diagnostics.js";
 import { logger } from "../middleware/logger.js";

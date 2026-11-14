@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, companySkills, createDb, projects, projectWorkspaces } from "@paperclipai/db";
+import { companies, companySkills, createDb, projects, projectWorkspaces } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { companySkillService } from "../services/company-skills.js";
 import { resolveManagedProjectWorkspaceDir } from "../home-paths.js";
@@ -94,8 +94,8 @@ describeEmbeddedPostgres("company skill local import boundary", () => {
     // Redirect the instance root at temp so the server-derived managedFolder is under our control.
     const home = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-home-"));
     cleanupDirs.add(home);
-    const previousHome = process.env.PAPERCLIP_HOME;
-    process.env.PAPERCLIP_HOME = home;
+    const previousHome = process.env.OUTPOST_HOME;
+    process.env.OUTPOST_HOME = home;
     try {
       await db.insert(companies).values({
         id: companyId,
@@ -137,9 +137,9 @@ describeEmbeddedPostgres("company skill local import boundary", () => {
       });
     } finally {
       if (previousHome === undefined) {
-        delete process.env.PAPERCLIP_HOME;
+        delete process.env.OUTPOST_HOME;
       } else {
-        process.env.PAPERCLIP_HOME = previousHome;
+        process.env.OUTPOST_HOME = previousHome;
       }
     }
   });

@@ -116,7 +116,7 @@ test("mixed runner loss and a real test failure: no re-run", async () => {
   assert.equal(decision.rerun, false);
   assert.equal(decision.jobs.length, 8);
   assert.deepEqual(decision.jobs.filter((job) => !job.lost).map((job) => job.name), ["ci / General tests (workspaces-a (1/2))"]);
-  assert.equal(decision.jobs.find((job) => job.name === "ci / Verify Paperclip Runner (vitest package)").lost, true);
+  assert.equal(decision.jobs.find((job) => job.name === "ci / Verify Outpost Runner (vitest package)").lost, true);
   assert.equal(posted(calls).length, 0);
   assert.match(decision.reason, /1 of 8 failed jobs did not lose their runner/);
   assert.match(summary, /\*\*No automatic re-run\*\*/);

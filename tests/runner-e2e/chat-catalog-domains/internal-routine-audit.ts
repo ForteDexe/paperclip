@@ -63,8 +63,8 @@ export function routineExecutionReads(companyId: string, routineId: string, proj
   ].map(callApiInputDigest));
   readCache.set(key, reads); return reads;
 }
-function prp(row: RunEvent) {
-  const envelope = (row.payload?.prpEvent ?? {}) as Record<string, unknown>;
+function orp(row: RunEvent) {
+  const envelope = (row.payload?.orpEvent ?? {}) as Record<string, unknown>;
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
   return { envelope, payload, item: (payload.item ?? {}) as Record<string, unknown> };
 }
@@ -77,10 +77,10 @@ function prp(row: RunEvent) {
  */
 export function readFailedExecution(events: readonly RunEvent[], failedRunId: string, expectedReads: ReadonlySet<string>) {
   if (!failedRunId) return false;
-  const uses = new Set(events.map(prp).filter(({ item }) => item.type === "tool_use" && item.name === "call_api"
+  const uses = new Set(events.map(orp).filter(({ item }) => item.type === "tool_use" && item.name === "call_api"
     && expectedReads.has(String((item.input as Record<string, unknown> | undefined)?.apiPayloadSha256))).map(({ item }) => String(item.id)));
   return events.some(row => {
-    const { envelope, payload, item } = prp(row); const result = (item.result ?? {}) as Record<string, unknown>;
+    const { envelope, payload, item } = orp(row); const result = (item.result ?? {}) as Record<string, unknown>;
     if (item.type === "tool_result" && uses.has(String(item.tool_use_id)) && result.ok === true && result.status === 200) return true;
     return row.eventType === "tool.execution.completed" && envelope.sourceKind === "runner" && payload.status === "completed"
       && typeof payload.output === "string" && payload.output.includes(failedRunId);
@@ -154,7 +154,7 @@ function routineAudit(): ChatCatalogCase {
     await ctx.input.evidence("chat-catalog-routine-audit-setup.json", { companyId: ctx.input.fixtures.company.id, timezone, trigger, edit, runs: outcome.runs, task: outcome.task, now });
     return { project: p, worker: { id: worker.id }, routine: saved, timezone, editEventId: edit.id, failedRunId: failed.id, executionTaskId: failed.linkedIssueId, routineRunCount: outcome.runs.length, now };
   }, gradeRoutineAudit);
-  return { ...base, oracleVersion: "paperclip.chat-catalog.internal.routine-audit.v6", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, attemptTimeoutMs: 720_000,
+  return { ...base, oracleVersion: "outpost.chat-catalog.internal.routine-audit.v6", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, attemptTimeoutMs: 720_000,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-routine-audit.ts", "run-observations.ts"],
     async observe(ctx, state): Promise<RoutineAudit> {
       const id = entity(state, "routine").id; const o = await observeInternal(ctx, state); const leadEvents: RunEvent[] = [];

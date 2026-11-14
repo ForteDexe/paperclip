@@ -160,8 +160,8 @@ export async function notify(event, { read = api, list = pages, view = snapshot,
 
 async function main() {
   try {
-    const url = process.env.PAPERCLIP_PR_REVIEW_WEBHOOK_URL;
-    const token = process.env.PAPERCLIP_PR_REVIEW_WEBHOOK_TOKEN;
+    const url = process.env.OUTPOST_PR_REVIEW_WEBHOOK_URL;
+    const token = process.env.OUTPOST_PR_REVIEW_WEBHOOK_TOKEN;
     if (!url || !token) {
       console.log("PR review notification is not configured; skipped.");
       return;

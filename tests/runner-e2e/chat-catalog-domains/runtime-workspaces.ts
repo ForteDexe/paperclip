@@ -75,7 +75,7 @@ export const runtimeWorkspacesCases = [runtimeDefinition("workspaces.locate-file
   return { ...await savedTaskWorkspace(ctx), companyPrefix: ctx.input.fixtures.company.issuePrefix };
 }, gradeLocateFiles, {
   sourceFiles: ["chat-catalog-domains/runtime-workspaces.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/workspaces.yaml", "../../ui/src/components/IsolatedWorkspacesRouteGate.tsx", "../../ui/src/pages/ExecutionWorkspaceDetail.tsx"],
-  expectedRunCount: 2, attemptTimeoutMs: 540_000, oracleVersion: "paperclip.chat-catalog.runtime.locate-files.v3",
+  expectedRunCount: 2, attemptTimeoutMs: 540_000, oracleVersion: "outpost.chat-catalog.runtime.locate-files.v3",
   async observe(ctx, state) {
     const id = (state.task as Entity).id;
     state.workspaceAfter = await ctx.input.api.get<WorkspaceView>(`/api/issues/${id}/workspace`);

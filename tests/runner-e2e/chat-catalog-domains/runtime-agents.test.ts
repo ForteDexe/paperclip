@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import type { RuntimeObservation } from "./runtime-support.js";
 
 function valid(id: string): RuntimeObservation {
-  const worker = { id: "morgan", name: "Morgan", companyId: "company", reportsTo: "ceo", adapterType: "paperclip_runner", permissions: {} };
+  const worker = { id: "morgan", name: "Morgan", companyId: "company", reportsTo: "ceo", adapterType: "outpost_runner", permissions: {} };
   const o: RuntimeObservation = { scenarioId: id, origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", state: { worker },
     agents: [{ id: "ceo", companyId: "company", reportsTo: null }, worker], tasks: [], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [],
     reply: "Restored Morgan's previous instructions.", links: ["/ACORN/agents/morgan"], humanQueries: [],

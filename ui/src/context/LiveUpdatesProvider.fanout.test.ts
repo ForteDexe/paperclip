@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryObserver, type QueryObserverOptions } from "@tanstack/react-query";
-import type { TaskBrowser } from "@paperclipai/shared";
+import type { TaskBrowser } from "@outpost/shared";
 import { __liveUpdatesTestUtils } from "./LiveUpdatesProvider";
 import { createCoalescingQueryClient } from "../lib/query-invalidation-batcher";
 import { liveRunRefetchInterval } from "../lib/live-runs-cache";

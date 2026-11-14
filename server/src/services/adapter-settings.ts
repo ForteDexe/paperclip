@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import { instanceSettings } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { instanceSettings } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { open } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -123,7 +123,7 @@ export async function initializeAdapterSettings(db: AdapterSettingsDb, options: 
 }
 
 export async function readLegacyAdapterSettings(env: Record<string, string | undefined> = process.env): Promise<{ disabledTypes: string[] } | null> {
-  const filePath = path.join(resolvePaperclipHomeDir(env.PAPERCLIP_HOME), "adapter-settings.json");
+  const filePath = path.join(resolvePaperclipHomeDir(env.OUTPOST_HOME), "adapter-settings.json");
   try {
     const file = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {

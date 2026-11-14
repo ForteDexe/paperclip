@@ -8,10 +8,10 @@
           "seq": 73,
           "eventType": "item.started",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "codex-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "item": {
@@ -45,15 +45,15 @@
           "seq": 74,
           "eventType": "tool.execution.started",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "codex-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "name": "write_document",
                 "output": "fixture",
-                "schema": "paperclip.tool.execution.v1",
+                "schema": "outpost.tool.execution.v1",
                 "status": "running",
                 "target": null,
                 "exitCode": null,
@@ -84,10 +84,10 @@
           "seq": 76,
           "eventType": "item.completed",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "codex-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "item": {
@@ -139,15 +139,15 @@
           "seq": 77,
           "eventType": "tool.execution.completed",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "codex-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "name": "write_document",
                 "output": "fixture",
-                "schema": "paperclip.tool.execution.v1",
+                "schema": "outpost.tool.execution.v1",
                 "status": "completed",
                 "target": null,
                 "exitCode": null,
@@ -183,15 +183,15 @@
           "seq": 45,
           "eventType": "tool.execution.started",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "claude-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "name": "write_document",
                 "output": "fixture",
-                "schema": "paperclip.tool.execution.v1",
+                "schema": "outpost.tool.execution.v1",
                 "status": "running",
                 "target": null,
                 "exitCode": null,
@@ -223,10 +223,10 @@
           "seq": 54,
           "eventType": "item.started",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "claude-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "item": {
@@ -259,10 +259,10 @@
           "seq": 58,
           "eventType": "item.completed",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "claude-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "item": {
@@ -314,15 +314,15 @@
           "seq": 60,
           "eventType": "tool.execution.completed",
           "payload": {
-            "prpEvent": {
+            "orpEvent": {
               "runId": "fixture",
               "itemId": "claude-write-plan",
-              "schema": "paperclip.prp.event.v1",
+              "schema": "outpost.orp.event.v1",
               "turnId": "fixture",
               "payload": {
                 "name": "write_document",
                 "output": "fixture",
-                "schema": "paperclip.tool.execution.v1",
+                "schema": "outpost.tool.execution.v1",
                 "status": "completed",
                 "target": null,
                 "exitCode": null,

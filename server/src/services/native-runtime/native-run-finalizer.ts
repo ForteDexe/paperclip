@@ -42,7 +42,7 @@ import { COMPLETION_REVIEW_STAGE_REASON, completionReviewStageEntry } from "../i
 import { randomUUID } from "node:crypto";
 import { preserveNativeWorkspaceExportLease } from "./native-workspace-export-resume.js";
 import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agentWakeupRequests,
   completionContracts,
@@ -58,9 +58,9 @@ import {
   statusDecisionEffects,
   workAssessments,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { classifyNativeEvidence } from "./evidence-classifier.js";
-import type { PrpIgnoredAttentionRequest, PrpTerminalState } from "@paperclipai/paperclip-runner";
+import type { PrpIgnoredAttentionRequest, PrpTerminalState } from "@outpost/outpost-runner";
 import {
   arbitrateNativeStatus,
   NATIVE_STATUS_ARBITER_POLICY_VERSION,
@@ -115,7 +115,7 @@ import {
 import {
   isNativeRunnerOwnershipHeld,
 } from "./native-runner-ownership.js";
-import { crashPoint } from "@paperclipai/shared/crash-points";
+import { crashPoint } from "@outpost/shared/crash-points";
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -381,7 +381,7 @@ async function recordRetryableFailure(input: {
   const failureCause = readWorkspaceFailureCause(input.failureCause);
   const acceptedRunTerminalState = record(
     input.run.resultJson,
-  ).prpRunTerminalState;
+  ).orpRunTerminalState;
   const exhaustedRunStatus =
     acceptedRunTerminalState === "succeeded"
       ? ("succeeded" as const)
@@ -663,7 +663,7 @@ async function recordRetryableFailure(input: {
             eq(nativeRunResults.id, input.coordinator.resultId), eq(nativeRunResults.schemaStatus, "accepted"),
             eq(nativeRunResults.completionContractId, input.run.completionContractId))).limit(1);
         if (accepted) workspaceFinalizationBlock = {
-          schema: "paperclip.native-workspace-finalization-block.v1",
+          schema: "outpost.native-workspace-finalization-block.v1",
           companyId: input.run.companyId, issueId: input.coordinator.issueId,
           runId: input.run.id, agentId: input.run.agentId, resultId: accepted.id, resultSha256: accepted.sha256,
           contractId: input.run.completionContractId, contractSha256: input.run.completionContractSha256,
@@ -870,7 +870,7 @@ async function acceptedResponseDigestMatches(
       and(
         eq(heartbeatRunEvents.companyId, run.companyId),
         eq(heartbeatRunEvents.runId, run.id),
-        sql`${heartbeatRunEvents.payload}->'prpEvent'->>'sourceKind' = 'control_plane'`,
+        sql`${heartbeatRunEvents.payload}->'orpEvent'->>'sourceKind' = 'control_plane'`,
       ),
     )
     .limit(17);
@@ -1064,7 +1064,7 @@ async function recoverCommittedNativeChatResponseInScope(
       if (
         !accepted ||
         !decision ||
-        result.schema !== "paperclip.run_result.v1" ||
+        result.schema !== "outpost.run_result.v1" ||
         !(await acceptedResponseDigestMatches(tx, run, accepted))
       )
         return false;
@@ -1126,13 +1126,13 @@ async function recoverCommittedNativeChatResponseInScope(
             eq(heartbeatRunEvents.runId, run.id),
             eq(heartbeatRunEvents.eventType, "item.completed"),
             conversation ? and(eq(heartbeatRunEvents.agentId, run.agentId),
-              sql`${heartbeatRunEvents.payload}->'prpEvent'->>'runId' = ${run.id}`,
-              sql`${heartbeatRunEvents.payload}->'prpEvent'->>'normalizedSessionId' = ${run.nativeSessionId}`) : undefined,
-            sql`${heartbeatRunEvents.payload}->'prpEvent'->>'turnId' = ${accepted.turnId}`,
-            sql`${heartbeatRunEvents.payload} #>> '{prpEvent,payload,kind}' = 'agentMessage'`,
+              sql`${heartbeatRunEvents.payload}->'orpEvent'->>'runId' = ${run.id}`,
+              sql`${heartbeatRunEvents.payload}->'orpEvent'->>'normalizedSessionId' = ${run.nativeSessionId}`) : undefined,
+            sql`${heartbeatRunEvents.payload}->'orpEvent'->>'turnId' = ${accepted.turnId}`,
+            sql`${heartbeatRunEvents.payload} #>> '{orpEvent,payload,kind}' = 'agentMessage'`,
             currentConversation
-              ? inArray(sql`${heartbeatRunEvents.payload} #>> '{prpEvent,payload,channel}'`, ["final", "unknown"])
-              : sql`${heartbeatRunEvents.payload} #>> '{prpEvent,payload,channel}' = 'final'`,
+              ? inArray(sql`${heartbeatRunEvents.payload} #>> '{orpEvent,payload,channel}'`, ["final", "unknown"])
+              : sql`${heartbeatRunEvents.payload} #>> '{orpEvent,payload,channel}' = 'final'`,
           )).orderBy(desc(heartbeatRunEvents.seq)).limit(200);
         const proposedItemIds = completedPlanProposalIds(await tx.select({ payload: heartbeatRunEvents.payload })
           .from(heartbeatRunEvents).where(and(
@@ -1142,7 +1142,7 @@ async function recoverCommittedNativeChatResponseInScope(
           )).limit(200));
         const finalAgentMessage = selectHeartbeatRunFinalAgentMessage({
           candidates: rows.flatMap((row) => {
-            const candidate = readCompletedAssistantMessageCandidate({ seq: row.seq, prpEvent: record(row.payload).prpEvent, proposedItemIds });
+            const candidate = readCompletedAssistantMessageCandidate({ seq: row.seq, orpEvent: record(row.payload).orpEvent, proposedItemIds });
             return candidate ? [candidate] : [];
           }),
         });
@@ -1257,7 +1257,7 @@ async function recoverCommittedNativeChatResponseInScope(
             {
               presentationDecision,
               nativeCommittedChatResponse: {
-                schema: "paperclip.native_committed_chat_response.v1",
+                schema: "outpost.native_committed_chat_response.v1",
                 resultId: accepted.id,
                 canonicalSha256: accepted.canonicalSha256,
                 decisionId: decision.id,

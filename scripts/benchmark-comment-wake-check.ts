@@ -7,7 +7,7 @@
  * that the complete service result and the complete positional SQL rows are
  * equal before timing anything.
  *
- *   pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-comment-wake-check.ts --baseline-ref=<commit>
+ *   pnpm --filter @outpost/server exec tsx ../scripts/benchmark-comment-wake-check.ts --baseline-ref=<commit>
  *
  * Options: --fixture=<name> (repeatable), --samples=<n>.
  */
@@ -105,7 +105,7 @@ async function seed(db: Db, fixture: typeof fixtures[number], now: Date) {
       [company, now.toISOString(), runCount, issueCount]);
     await run(`insert into heartbeat_run_events (company_id, run_id, agent_id, seq, event_type, created_at, payload)
       select r.company_id, r.id, r.agent_id, e, (array['item.started','item.completed','item.started','log','item.completed'])[1 + e % 5],
-        r.started_at + e * interval '1 second', jsonb_build_object('prpEvent', jsonb_build_object('itemId', 'item-' || e, 'text', ${filler(fixture.payloadBytes, "r.id::text || e")}))
+        r.started_at + e * interval '1 second', jsonb_build_object('orpEvent', jsonb_build_object('itemId', 'item-' || e, 'text', ${filler(fixture.payloadBytes, "r.id::text || e")}))
       from heartbeat_runs r cross join generate_series(1, $2::int) e where r.company_id = $1::uuid`, [company, fixture.eventsPerRun]);
     // Hot issues: one recent run each, then user comments in the last hour. Shape by issue n % 6:
     // 0,1 normal (a wake carries each comment, a later run reads it); 2 steered (the run that
@@ -145,7 +145,7 @@ async function seed(db: Db, fixture: typeof fixtures[number], now: Date) {
     await run(`insert into heartbeat_run_events (company_id, run_id, agent_id, seq, event_type, created_at, payload)
       select r.company_id, r.id, r.agent_id, 1000 + e, (array['item.started','item.completed'])[1 + e % 2],
         r.started_at + interval '2 minutes' + e * (interval '55 minutes' / $2::int),
-        jsonb_build_object('prpEvent', jsonb_build_object('itemId', 'item-' || e, 'text', ${filler(fixture.payloadBytes, "r.id::text || e")}))
+        jsonb_build_object('orpEvent', jsonb_build_object('itemId', 'item-' || e, 'text', ${filler(fixture.payloadBytes, "r.id::text || e")}))
       from heartbeat_runs r join bench_issues i on i.company_id = r.company_id
         and (r.native_issue_id = i.id or r.context_snapshot->>'issueId' = i.id::text)
       cross join generate_series(1, $2::int) e
@@ -153,7 +153,7 @@ async function seed(db: Db, fixture: typeof fixtures[number], now: Date) {
       [company, fixture.steerEvents, hot, now.toISOString()]);
     await run(`insert into heartbeat_run_events (company_id, run_id, agent_id, seq, event_type, created_at, payload)
       select c.company_id, r.id, r.agent_id, 100000 + row_number() over (partition by r.id order by c.created_at), 'item.completed', c.created_at + interval '3 seconds',
-        jsonb_build_object('prpEvent', jsonb_build_object('itemId', 'provider:steer:' || c.id::text, 'payload', jsonb_build_object('kind', 'steering_acknowledgement')))
+        jsonb_build_object('orpEvent', jsonb_build_object('itemId', 'provider:steer:' || c.id::text, 'payload', jsonb_build_object('kind', 'steering_acknowledgement')))
       from issue_comments c join bench_issues i on i.id = c.issue_id
       join heartbeat_runs r on r.company_id = c.company_id and r.native_issue_id = c.issue_id and r.started_at < c.created_at and r.finished_at >= c.created_at
       where c.company_id = $1::uuid and i.n % 6 = 2 and c.created_at >= $2::timestamptz - interval '1 hour'`, [company, now.toISOString()]);

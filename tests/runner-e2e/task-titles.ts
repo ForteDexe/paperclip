@@ -62,7 +62,7 @@ export function gradeTaskTitle(input: TaskTitleEvidenceInput) {
   const completions = new Map<string, number>();
   let position = 0;
   input.events.forEach((event, index) => {
-    const payload = record(record(record(event.payload).prpEvent).payload);
+    const payload = record(record(record(event.payload).orpEvent).payload);
     const item = record(payload.item);
     if (event.eventType === "tool.execution.started" && typeof payload.executionId === "string" && !starts.has(payload.executionId)) {
       starts.set(payload.executionId, { name: String(payload.name ?? ""), input: {}, position: ++position, index });
@@ -118,7 +118,7 @@ export function gradeTaskTitle(input: TaskTitleEvidenceInput) {
       && record(record(titleWrites[0]?.details).previous).title === provisional, "The same assigned agent and initial run must own the single persisted title mutation.");
   }
   return {
-    schema: "paperclip.task-title-eval.v1", passed: checks.every(entry => entry.passed), checks,
+    schema: "outpost.task-title-eval.v1", passed: checks.every(entry => entry.passed), checks,
     initialTitle: initial.title, finalTitle: final.title,
     titleCalls: calls.map(([id, call]) => ({ id, position: call.position, completed: completions.has(id), result: results.get(id) ?? null })),
     titleWrites,

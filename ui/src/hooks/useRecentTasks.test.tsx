@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ISSUE_SUMMARIES_MAX_IDS } from "@paperclipai/shared";
+import { ISSUE_SUMMARIES_MAX_IDS } from "@outpost/shared";
 import { ApiError } from "@/api/client";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -132,7 +132,7 @@ describe("recent task synchronization", () => {
   });
 
   it("ignores writes from the old application after migration", async () => {
-    const legacyKey = "paperclip.recentTasks:company-1:user-1";
+    const legacyKey = "outpost.recentTasks:company-1:user-1";
     localStorage.setItem(legacyKey, JSON.stringify([{ ...task(10, "Legacy"), recordedAt: 100 }]));
     await act(async () => root.render(
       <QueryClientProvider client={client(task(20, "Current", "done"))}><RecentTasks name="current" /></QueryClientProvider>,

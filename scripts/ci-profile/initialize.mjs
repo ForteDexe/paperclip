@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 recorder("profile")({ kind: "job", start: Date.now() });
 
-if (process.env.PAPERCLIP_CI_PROFILE_JOB === "policy" && process.env.GITHUB_STEP_SUMMARY) {
+if (process.env.OUTPOST_CI_PROFILE_JOB === "policy" && process.env.GITHUB_STEP_SUMMARY) {
   const key = `${process.env.GITHUB_REPOSITORY}:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT}`;
   const traceId = createHash("sha256").update(key).digest("hex").slice(0, 32);
   // This job does not know when the last parallel lane will finish. A bounded

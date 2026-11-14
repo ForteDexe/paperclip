@@ -16,18 +16,18 @@ import {
   nativeRunFinalizations,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ControlPlanePort,
   NativeExecutionInputV1,
   PrpEvent,
-} from "@paperclipai/paperclip-runner";
+} from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
 const provider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async (importOriginal) => ({
+vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   ...(await importOriginal<
-    typeof import("../../vendor/paperclip-runner/index.js")
+    typeof import("../../vendor/outpost-runner/index.js")
   >()),
   executeNativeSession: provider.execute,
 }));
@@ -60,7 +60,7 @@ describe("native provider capacity failure persistence", () => {
       companyId,
       name: "Native capacity agent",
       status: "active",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
     });
   });
@@ -142,7 +142,7 @@ describe("native provider capacity failure persistence", () => {
       .where(eq(heartbeatRuns.id, runId));
 
     const execution: NativeExecutionInputV1 = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: {
         companyId,
         runId,
@@ -173,14 +173,14 @@ describe("native provider capacity failure persistence", () => {
       completionContract: {
         id: contract.id,
         sha256: contract.canonicalSha256,
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         contract: completionInput,
       },
       interactionResponses: [],
       credentialBindings: [],
     };
     const event: PrpEvent = {
-      schema: "paperclip.prp.event.v1",
+      schema: "outpost.orp.event.v1",
       runId,
       normalizedSessionId: native.normalizedSessionId,
       turnId: native.turnId,
@@ -338,7 +338,7 @@ describe("native provider capacity failure persistence", () => {
         code: "RUNTIME",
         message: "ACP agent reported a terminal limit failure.",
         providerFailure: {
-          schema: "paperclip.provider-failure.v1",
+          schema: "outpost.provider-failure.v1",
           provider: "anthropic",
           phase: "turn",
           category: "quota_exhausted",

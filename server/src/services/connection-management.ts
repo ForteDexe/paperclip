@@ -1,7 +1,7 @@
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { and, eq, inArray, or } from "drizzle-orm";
-import { isUuidLike } from "@paperclipai/shared";
-import { agents, agentApiKeys, heartbeatRuns, runIdentityContexts, issues, projects, toolApplications, toolCatalogEntries, toolConnections, toolConnectionInstalls, toolProfiles, toolProfileEntries, toolProfileBindings, toolMcpGateways, aiConnectionPools, connectionGrants, routines, type Db } from "@paperclipai/db";
+import { isUuidLike } from "@outpost/shared";
+import { agents, agentApiKeys, heartbeatRuns, runIdentityContexts, issues, projects, toolApplications, toolCatalogEntries, toolConnections, toolConnectionInstalls, toolProfiles, toolProfileEntries, toolProfileBindings, toolMcpGateways, aiConnectionPools, connectionGrants, routines, type Db } from "@outpost/db";
 import { forbidden } from "../errors.js";
 import { authorizationService, authorizationDeniedDetails, canActorReadIssuePrivacy, canActorReadProjectPrivacy, type AuthorizationActor, type AuthorizationDecision } from "./authorization.js";
 import { captureRunIdentity, runIdentityTaskFields, type RunIdentityCapture } from "./run-identity.js";

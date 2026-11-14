@@ -24,13 +24,13 @@ type SupertestTestConstructor = {
 };
 
 // Keep the original home available only for read-only host port-lease checks.
-process.env.PAPERCLIP_TEST_HOST_HOME ??= process.env.PAPERCLIP_HOME?.trim() || path.join(os.homedir(), ".paperclip");
+process.env.OUTPOST_TEST_HOST_HOME ??= process.env.OUTPOST_HOME?.trim() || path.join(os.homedir(), ".paperclip");
 
 // Receipt-spool recovery must never scan a developer's instance during tests.
 const { home: paperclipTestHome, cleanup: cleanupPaperclipTestHome } = createIsolatedTestHome();
-process.env.PAPERCLIP_HOME = paperclipTestHome;
-process.env.PAPERCLIP_CONFIG = path.join(paperclipTestHome, "config.json");
-process.env.PAPERCLIP_INSTANCE_ID = `vt-${process.pid}`;
+process.env.OUTPOST_HOME = paperclipTestHome;
+process.env.OUTPOST_CONFIG = path.join(paperclipTestHome, "config.json");
+process.env.OUTPOST_INSTANCE_ID = `vt-${process.pid}`;
 // Setup-file afterAll hooks run before suites drain asynchronous heartbeats.
 // Cleanup at worker exit, after all suite teardown, avoids deleting live state.
 process.once("exit", cleanupPaperclipTestHome);
@@ -48,8 +48,8 @@ if (!process.env.CODEX_HOME) {
 // broker socket, so leaving it enabled would make every test that starts a
 // service named `paperclip-dev` behave differently on a broker-capable host
 // than on CI. Tests that exercise the default opt in explicitly.
-if (!process.env.PAPERCLIP_MANAGED_RUNTIME_HTTPS) {
-  process.env.PAPERCLIP_MANAGED_RUNTIME_HTTPS = "off";
+if (!process.env.OUTPOST_MANAGED_RUNTIME_HTTPS) {
+  process.env.OUTPOST_MANAGED_RUNTIME_HTTPS = "off";
 }
 
 if (!SupertestTest.prototype.__paperclipLoopbackPatched) {

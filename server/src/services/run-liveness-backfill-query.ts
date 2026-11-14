@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { activityLog, heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { activityLog, heartbeatRuns } from "@outpost/db";
 
 /**
  * Finished runs of one issue that have no liveness classification yet.

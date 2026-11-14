@@ -34,7 +34,7 @@ export async function runFollowupStopResumeFlow(input: {
   const observation: FollowupStopObservation = { binding: { companyId: fixtures.company.id, agentId: fixtures.agent.id, issueId: "" },
     initial: null, followup: null, stop: null, final: null };
   const runEvents = (id: string) => collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-  const prpEvents = (rows: Row[], runId: string) => rows.flatMap(row => row.payload?.prpEvent?.runId === runId ? [row.payload.prpEvent] : []);
+  const orpEvents = (rows: Row[], runId: string) => rows.flatMap(row => row.payload?.orpEvent?.runId === runId ? [row.payload.orpEvent] : []);
   async function refresh() {
     if (!issue) return;
     const [current, listed] = await Promise.all([api.get<Row>(`/api/issues/${issue.id}`),
@@ -85,7 +85,7 @@ export async function runFollowupStopResumeFlow(input: {
         await refresh();
         const run = runs[0];
         if (runs.length !== 1 || !run || run.status !== "running" || run.runtimeMode !== "native" || run.nativeIssueId !== issue!.id) return false;
-        const events = prpEvents(await runEvents(run.id), run.id);
+        const events = orpEvents(await runEvents(run.id), run.id);
         if (!isActiveStopCheckpointRun(run, events)) return false;
         const checkpoint = await readRegisteredArtifacts(api, issue!.id, run.id, [files.checkpoint])
           .then(([artifact]) => artifact).catch(error => {
@@ -105,7 +105,7 @@ export async function runFollowupStopResumeFlow(input: {
     const followup = await submit(`Use ${files.finalLabel} as the label in the final result instead of the initial label. Keep the saved context file and finish the ongoing work.`);
     await refresh();
     const active = runs.find(run => run.id === observation.initial!.runId)!;
-    const activeEvents = prpEvents(await runEvents(active.id), active.id);
+    const activeEvents = orpEvents(await runEvents(active.id), active.id);
     observation.followup = { commentIds: followup.commentIds, runId: active.id, runStatus: active.status,
       acceptedResults: activeEvents.filter(event => event.eventType === "run.result.accepted").length,
       providerStarted: activeEvents.some(event => event.eventType === "turn.started"), observedAt: new Date().toISOString() };
@@ -119,7 +119,7 @@ export async function runFollowupStopResumeFlow(input: {
       accept: run => run?.status === "cancelled" && !automaticPath(),
       reject: run => runs.length !== 1 ? "Stop admitted another run" : run && ["succeeded", "failed", "timed_out"].includes(run.status) ? "Stop did not cancel the original active work" : undefined });
     const stopped = runs[0]!, stop = stopped.resultJson?.nativeCancellation;
-    const acknowledged = stop?.schema === "paperclip.native-cancellation.v1" && stop.companyId === fixtures.company.id &&
+    const acknowledged = stop?.schema === "outpost.native-cancellation.v1" && stop.companyId === fixtures.company.id &&
       stop.issueId === issue.id && stop.runId === stopped.id && stop.scope === "run" && stop.dispatched === true &&
       stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only" && typeof stop.intentId === "string" &&
       typeof stop.intentAuditId === "string" && typeof stop.acknowledgementAuditId === "string" && stop.intentAuditId !== stop.acknowledgementAuditId;

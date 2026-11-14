@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { Db } from "@paperclipai/db";
-import { activityLog, agents, agentWakeupRequests, caseEvents, caseHandoffs, cases, companies, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueComments, issues, nativeRunFinalizations } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, caseEvents, caseHandoffs, cases, companies, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueComments, issues, nativeRunFinalizations } from "@outpost/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runningProcesses } from "../../adapters/index.js";
@@ -622,14 +622,14 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
       nativeIssueId: issue.id, runtimeMode: "native", status: proof === "still_running" ? "running" : "cancelled", finishedAt: proof === "still_running" ? null : new Date(),
       resultJson: { executionCancellation: { state: "requested", requestedAt: new Date().toISOString() },
         cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-          schema: "paperclip.native-cancellation.v1", runId: proof === "wrong_intent" ? randomUUID() : runId, companyId: company.id, issueId: issue.id,
+          schema: "outpost.native-cancellation.v1", runId: proof === "wrong_intent" ? randomUUID() : runId, companyId: company.id, issueId: issue.id,
           scope: "run", reasonCode: "cancellation_run_only", dispatchState: proof === "unacknowledged" ? "pending" : "acknowledged", dispatched: true,
           intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
         }, workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-          schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId],
+          schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId],
         } },
     }).returning();
-    const receipt = { schema: "paperclip.remote-termination.v1", companyId: company.id, runId, leaseId,
+    const receipt = { schema: "outpost.remote-termination.v1", companyId: company.id, runId, leaseId,
       provider: "daytona", providerLeaseId: proof === "wrong_allocation" ? randomUUID() : providerLeaseId,
       state: "stopped", confirmedAt: new Date().toISOString() };
     await db.insert(environmentLeases).values({ id: leaseId, companyId: company.id, issueId: issue.id, heartbeatRunId: runId,
@@ -667,11 +667,11 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
     const recordedAt = new Date(Date.now() - 1_000).toISOString();
     const nativeExecutionInput = buildNativeExecutionInput({ companyId: company.id, agentId: agent.id,
       runId: proof === "foreign_binding" ? randomUUID() : runId, provider: "cursor_cloud", model: "explicit-model",
-      cursorCloud: { schema: "paperclip.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/qualification" }] },
+      cursorCloud: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/qualification" }] },
       issue: { id: issue.id, identifier: "RC-1", title: issue.title, description: null, workMode: "standard" },
       taskPrompt: "Stop the foreground command", normalizedSessionId: sessionId,
       workspace: { id: randomUUID(), cwd: "/private/controller", repoUrl: null, repoRef: null, branchName: null },
-      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
         contract: { revision: "1", objective: "Stop the foreground command", criteria: [{ id: "objective", requirement: "Stop the foreground command" }] } },
       runtimeContext: nativeRuntimeContextFixture(),
     });
@@ -683,7 +683,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
       status: "cancelled", finishedAt: new Date(), processPid: proof === "running_pid" ? process.pid : null,
       resultJson: { executionCancellation: { state: "requested", requestedAt: recordedAt },
         cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-          schema: "paperclip.native-cancellation.v1", runId: proof === "wrong_intent" ? randomUUID() : runId,
+          schema: "outpost.native-cancellation.v1", runId: proof === "wrong_intent" ? randomUUID() : runId,
           companyId: company.id, issueId: issue.id, scope: "run", reasonCode: "cancellation_run_only",
           dispatchState: proof === "pending_ack" ? "pending" : "acknowledged", dispatched: true,
           effects: ["release_run_resources"], recordedAt, acknowledgedAt: new Date().toISOString(),
@@ -704,7 +704,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
       const terminalError = terminalProof === "natural_error" ? { code: "cursor_cloud_error", message: "Cursor Cloud run failed" }
         : terminalProof === "natural_expired" ? { code: "cursor_cloud_expired", message: "Cursor Cloud run expired" }
         : terminalProof === "local_failure" ? { code: "process_lost", message: "Synthetic local process loss" } : null;
-      const event = { schema: "paperclip.prp.event.v1", schemaVersion: 1, eventType: terminalType,
+      const event = { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: terminalType,
         sourceKind: "runner", sourceInstanceId: runnerId, sourceEventId: `${runnerId}:${runId}:1`, sourceSeq: 1,
         runId, turnId: "api-stop-turn", normalizedSessionId: proof === "foreign_terminal" ? randomUUID() : sessionId,
         emittedAt: terminalAt.toISOString(), priority: 1,
@@ -713,7 +713,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
           ...(terminalProof === "unproven_cancelled" ? { providerTerminalState: "unknown", reason: "operator_cancel_requested" } : {}),
           ...(proof === "unproven_terminal" || proof === "pre_stop_unproven" ? { providerTerminalObserved: false } : {}) } };
       await appendHeartbeatRunEvent(db, { companyId: company.id, agentId: agent.id, runId,
-        eventType: event.eventType, payload: { prpEvent: event }, nativeSource: {
+        eventType: event.eventType, payload: { orpEvent: event }, nativeSource: {
           sourceInstanceId: runnerId, sourceEventId: event.sourceEventId, sourceSeq: 1,
           protocolSchemaVersion: 1, canonicalPayload: event,
         } });
@@ -722,7 +722,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
         const later = { ...event, eventType: "turn.started", sourceEventId: `${runnerId}:${runId}:2`, sourceSeq: 2,
           turnId: "later-api-turn", emittedAt: new Date().toISOString(), payload: { status: "running" } };
         await appendHeartbeatRunEvent(db, { companyId: company.id, agentId: agent.id, runId,
-          eventType: later.eventType, payload: { prpEvent: later }, nativeSource: {
+          eventType: later.eventType, payload: { orpEvent: later }, nativeSource: {
             sourceInstanceId: runnerId, sourceEventId: later.sourceEventId, sourceSeq: 2,
             protocolSchemaVersion: 1, canonicalPayload: later,
           } });
@@ -731,7 +731,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
         const malformed = { ...event, priority: undefined };
         await db.update(heartbeatRunEvents).set({
           sourcePayloadSha256: proof === "missing_hash" ? null : proof === "wrong_hash" ? "0".repeat(64) : nativeSha256(malformed),
-          ...(proof === "malformed_terminal" ? { payload: { prpEvent: malformed } } : {}),
+          ...(proof === "malformed_terminal" ? { payload: { orpEvent: malformed } } : {}),
         }).where(eq(heartbeatRunEvents.runId, runId));
       }
     }
@@ -798,7 +798,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
     const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId: company.id, agentId: agent.id,
       nativeIssueId: issue.id, runtimeMode: "native", status: "cancelled", finishedAt: stoppedAt, processPid: 2_000_000_000,
       resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-        schema: "paperclip.native-cancellation.v1", runId, companyId: company.id, issueId: issue.id,
+        schema: "outpost.native-cancellation.v1", runId, companyId: company.id, issueId: issue.id,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       } },
@@ -834,11 +834,11 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
     const runId = randomUUID(), leaseId = randomUUID(), providerLeaseId = randomUUID();
     await db.insert(heartbeatRuns).values({ id: runId, companyId: company.id, agentId: agent.id,
       issueId: issue.id, nativeIssueId: issue.id, runtimeMode: "native", status: "cancelled", finishedAt: new Date(),
-      runnerProfileJson: { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+      runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId: randomUUID(), leaseId, providerLeaseId, remoteCwd: "/work", resourceDisposition: "destroy" } },
       resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-        schema: "paperclip.native-cancellation.v1", runId, companyId: company.id, issueId: issue.id,
+        schema: "outpost.native-cancellation.v1", runId, companyId: company.id, issueId: issue.id,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       } },

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { activityLog, agents, authUsers, companyMemberships, createDb, environmentLeases, environments, heartbeatRuns, issueComments,
-  issueRecoveryActions, issues } from "@paperclipai/db";
+  issueRecoveryActions, issues } from "@outpost/db";
 import { NativePredecessorRetirementUnprovenError } from "../services/native-runtime/predecessor-retirement.js";
-import type { NativeRunIdentity, NativeSession, NativeSessionBackend, PrpEvent } from "@paperclipai/paperclip-runner";
+import type { NativeRunIdentity, NativeSession, NativeSessionBackend, PrpEvent } from "@outpost/outpost-runner";
 import { describe, expect, it, vi } from "vitest";
 import { heartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -53,7 +53,7 @@ function nativeBackend(db: ReturnType<typeof createDb>, options: { failDescripto
       async *events() {
         const turnId = await turn.promise;
         const event = (sourceSeq: number, eventType: PrpEvent["eventType"], payload: Record<string, unknown>): PrpEvent => ({
-          schema: "paperclip.prp.event.v1", sourceKind: "runner", sourceInstanceId,
+          schema: "outpost.orp.event.v1", sourceKind: "runner", sourceInstanceId,
           sourceEventId: `${sourceInstanceId}:${identity.runId}:${sourceSeq}`, sourceSeq,
           runId: identity.runId, normalizedSessionId: identity.sessionId, turnId,
           schemaVersion: 1, priority: 0, emittedAt: new Date().toISOString(), eventType, payload,
@@ -180,7 +180,7 @@ describe.skipIf(!support.supported)("heartbeat native pre-dispatch failure retry
       // The reused sandbox is replaced at the next acquisition, not resumed.
       const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.heartbeatRunId, runId),
         eq(environmentLeases.providerLeaseId, "sandbox-reused")));
-      expect(lease?.metadata).toMatchObject({ replaceBeforeReuse: { schema: "paperclip.replace-before-reuse.v1", runId,
+      expect(lease?.metadata).toMatchObject({ replaceBeforeReuse: { schema: "outpost.replace-before-reuse.v1", runId,
         predecessorRunId: "previous-run" } });
       expect(await db.select().from(activityLog).where(and(eq(activityLog.runId, runId),
         eq(activityLog.action, "environment.lease_replacement_requested")))).toHaveLength(1);

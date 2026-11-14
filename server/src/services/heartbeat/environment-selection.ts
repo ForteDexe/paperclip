@@ -1,12 +1,12 @@
 import { assertProviderApiPlacementPolicy, resolveProviderApiPlacement } from "../native-runtime/provider-api-placement.js";
 import { heartbeatExternalProvider, nativeExecutionUsesTaskWorkspace } from "./external-provider.js";
-import { heartbeatRuns, issues, type Db, type agents } from "@paperclipai/db";
+import { heartbeatRuns, issues, type Db, type agents } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { readGitCacheExpiration } from "../git-workspace-restoration.js";
-import type { ExecutionWorkspace, IssueExecutionWorkspaceSettings, ProjectExecutionWorkspacePolicy } from "@paperclipai/shared";
+import type { ExecutionWorkspace, IssueExecutionWorkspaceSettings, ProjectExecutionWorkspacePolicy } from "@outpost/shared";
 import { parseObject } from "../../adapters/utils.js";
 import { logger } from "../../middleware/logger.js";
-import { parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import { parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { isExecutionForcedToKubernetes } from "../execution-allowlist.js";
 import { parseExecutionPolicyBootstrapEnv } from "../execution-policy-bootstrap.js";
 import {
@@ -203,7 +203,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
   const managedSandboxEnvironment = managedSandboxOnly && !providerApiPlacement
     ? await environmentsSvc.findManagedSandboxEnvironment(agent.companyId)
     : null;
-  const savedEnvironment = parseObject(parseObject(run.contextSnapshot).paperclipEnvironment);
+  const savedEnvironment = parseObject(parseObject(run.contextSnapshot).outpostEnvironment);
   const admittedLeaseId = persistedNativeExecutionInput && !controllerOnly
     ? readNonEmptyString(savedEnvironment.leaseId) ?? readNativeWorkspaceSyncReference(persistedRunnerProfile.nativeWorkspaceSync)?.leaseId
     : null;
@@ -263,10 +263,10 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
         bootstrap = parseExecutionPolicyBootstrapEnv(process.env);
         if (!bootstrap) {
           bootstrapSkipReason =
-            'PAPERCLIP_EXECUTION_MODE bootstrap env is not kubernetes-forced (absent or "any")';
+            'OUTPOST_EXECUTION_MODE bootstrap env is not kubernetes-forced (absent or "any")';
         }
       } catch (err) {
-        bootstrapSkipReason = `PAPERCLIP_EXECUTION_MODE bootstrap env failed to parse: ${
+        bootstrapSkipReason = `OUTPOST_EXECUTION_MODE bootstrap env failed to parse: ${
           err instanceof Error ? err.message : String(err)
         }`;
       }
@@ -293,7 +293,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
       throw new Error(
         "Instance execution policy requires the Kubernetes sandbox provider " +
           "(executionMode=kubernetes) but no managed Kubernetes environment is " +
-          "configured for this company. Configure one (PAPERCLIP_K8S_* env on the " +
+          "configured for this company. Configure one (OUTPOST_K8S_* env on the " +
           "cloud instance) before running agents; refusing to fall back to local execution.",
       );
     }
@@ -519,7 +519,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     (taskWorkspaceIntent?.selection.kind !== "existing" || taskWorkspaceIntent.selection.workspaceId === issueRef.executionWorkspaceId) &&
     (await isBoundIsolatedTaskDirectory({ companyId: agent.companyId, issueId,
       workspaceId: issueRef.executionWorkspaceId, workspace: reusableExistingExecutionWorkspace }) ||
-      (selectedEnvironmentForConfig?.driver === "plugin" && agent.adapterType === "paperclip_runner" &&
+      (selectedEnvironmentForConfig?.driver === "plugin" && agent.adapterType === "outpost_runner" &&
         isBoundFreshPluginTaskDirectory({ companyId: agent.companyId, issueId,
           workspaceId: issueRef.executionWorkspaceId, workspace: reusableExistingExecutionWorkspace,
           owner: { agentId: agent.id, environmentId: selectedEnvironmentForConfig.id,

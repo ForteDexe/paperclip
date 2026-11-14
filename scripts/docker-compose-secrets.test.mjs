@@ -26,13 +26,13 @@ for (const [file, service] of [
     try {
       for (const signingSecret of ["test-tool-signing-secret", undefined]) {
         const env = { ...baseEnv, BETTER_AUTH_SECRET: "test-session-secret" };
-        if (signingSecret !== undefined) env.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET = signingSecret;
+        if (signingSecret !== undefined) env.OUTPOST_TOOL_ACTION_SIGNING_SECRET = signingSecret;
         const result = spawnSync("docker", [
           "compose", "--env-file", envFile, "-f", file, "config", "--format", "json",
         ], { cwd: repoRoot, env, encoding: "utf8" });
         assert.equal(result.status, 0, result.stderr);
         const containerEnv = JSON.parse(result.stdout).services[service].environment;
-        assert.equal(containerEnv.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET, signingSecret ?? "");
+        assert.equal(containerEnv.OUTPOST_TOOL_ACTION_SIGNING_SECRET, signingSecret ?? "");
         assert.equal(containerEnv.BETTER_AUTH_SECRET, "test-session-secret");
       }
     } finally {

@@ -6,7 +6,7 @@
  *
  * Arming (test mode only; ignored when NODE_ENV=production):
  *
- *   PAPERCLIP_CHAOS_LEASE_FAULT_CONTROL=<file>
+ *   OUTPOST_CHAOS_LEASE_FAULT_CONTROL=<file>
  *
  * Each acquisition reads the file. Missing, empty or malformed means disarmed.
  * Content: {"token":"<id>","kind":"timeout"|"database","failures":<n>|null}.
@@ -18,10 +18,10 @@
  * (rules/data-paths.mdc): nothing is recorded or sent anywhere.
  */
 import { readFileSync } from "node:fs";
-import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES, readEnvironmentAcquisitionDiagnostic } from "@paperclipai/plugin-sdk";
+import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES, readEnvironmentAcquisitionDiagnostic } from "@outpost/plugin-sdk";
 import { captureEnvironmentAcquisitionDiagnostic } from "./environment-acquisition-diagnostics.js";
 
-export const LEASE_FAULT_CONTROL_ENV = "PAPERCLIP_CHAOS_LEASE_FAULT_CONTROL";
+export const LEASE_FAULT_CONTROL_ENV = "OUTPOST_CHAOS_LEASE_FAULT_CONTROL";
 
 export type LeaseFaultControl = { token: string; kind: "timeout" | "database"; failures: number | null };
 

@@ -20,7 +20,7 @@ import {
   agentWakeupRequests,
   workspaceOperations,
   activityLog,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -28,7 +28,7 @@ import {
 import {
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
-} from "../../vendor/paperclip-runner/testing.js";
+} from "../../vendor/outpost-runner/testing.js";
 
 const mockTelemetryClient = vi.hoisted(() => ({
   track: vi.fn(),
@@ -73,7 +73,7 @@ import { commitNativeStatusDecision } from "./status-decision-committer.js";
 import { NATIVE_STATUS_ARBITER_POLICY_VERSION, type NativeStatusDecision } from "./status-arbiter.js";
 import { DELIVERY_QUEUES, subscribeDeliveryWork } from "../delivery-work-notifications.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_FINALIZER_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZER_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -131,7 +131,7 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "telemetry-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -328,7 +328,7 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
       runnerProfileJson: { sessionCheckpoint: { retainedEvidence: "keep" } },
       resultJson: {
         recoveredExecutionFailure: {
-          schema: "paperclip.recovered_execution_failure.v1",
+          schema: "outpost.recovered_execution_failure.v1",
           errorCode: "adapter_failed",
           error: "provider_transport_failed: retained cleanup evidence",
         },
@@ -875,7 +875,7 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
 
   it("keeps a provider-succeeded run's first finalization failure retryable after three provider attempts", async () => {
     const fixture = await seedNativeRun();
-    await db.update(heartbeatRuns).set({ resultJson: { prpRunTerminalState: "succeeded" } })
+    await db.update(heartbeatRuns).set({ resultJson: { orpRunTerminalState: "succeeded" } })
       .where(eq(heartbeatRuns.id, fixture.runId));
     await db.insert(nativeRunFinalizations).values({
       runId: fixture.runId, companyId, issueId: fixture.issueId, phase: "observed", attempt: 3,
@@ -892,7 +892,7 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
     // copy-back failed three times. Workspace scope fails the run regardless
     // of the provider outcome, so the run must name the cause.
     const fixture = await seedNativeRun();
-    await db.update(heartbeatRuns).set({ resultJson: { prpRunTerminalState: "succeeded" } })
+    await db.update(heartbeatRuns).set({ resultJson: { orpRunTerminalState: "succeeded" } })
       .where(eq(heartbeatRuns.id, fixture.runId));
     await db.insert(nativeRunFinalizations).values({
       runId: fixture.runId, companyId, issueId: fixture.issueId, phase: "observed", attempt: 1,
@@ -951,7 +951,7 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
 
   it("does not attach a finalization error to a provider-succeeded run when provider retries are exhausted", async () => {
     const fixture = await seedNativeRun();
-    await db.update(heartbeatRuns).set({ resultJson: { prpRunTerminalState: "succeeded", finalizationFailureCount: 2 } })
+    await db.update(heartbeatRuns).set({ resultJson: { orpRunTerminalState: "succeeded", finalizationFailureCount: 2 } })
       .where(eq(heartbeatRuns.id, fixture.runId));
     await db.insert(nativeRunFinalizations).values({
       runId: fixture.runId, companyId, issueId: fixture.issueId, phase: "observed", attempt: 3,
@@ -1054,7 +1054,7 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
     const originalResults = await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, fixture.runId));
     await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", failureCode: "native_workspace_sync_out_unsafe_archive" }).where(eq(nativeRunFinalizations.runId, fixture.runId));
     await db.update(heartbeatRuns).set({ status: "failed", nativePhase: "terminal_failure", errorCode: "native_workspace_sync_out_unsafe_archive",
-      runnerProfileJson: { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v1", state: "prepared",
+      runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v1", state: "prepared",
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId: randomUUID(), leaseId: randomUUID(), providerLeaseId: "missing-old-sandbox", remoteCwd: "/work", resourceDisposition: "destroy" } },
     }).where(eq(heartbeatRuns.id, fixture.runId));

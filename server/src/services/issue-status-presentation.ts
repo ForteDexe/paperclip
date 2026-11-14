@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { issues, type Db } from "@paperclipai/db";
-import type { IssueBlockerAttention } from "@paperclipai/shared";
+import { issues, type Db } from "@outpost/db";
+import type { IssueBlockerAttention } from "@outpost/shared";
 import { issueService } from "./issues.js";
 
 /**

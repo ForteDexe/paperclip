@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environmentCustomImageSetupSessions, environmentLeases, environments, heartbeatRuns } from "@paperclipai/db";
+import { agents, companies, createDb, environmentCustomImageSetupSessions, environmentLeases, environments, heartbeatRuns } from "@outpost/db";
 import { historicalCleanupVerificationService } from "../services/historical-cleanup-verification.js";
 import { classifyEnvironmentCapabilities, environmentRuntimeService } from "../services/environment-runtime.js";
 import { withoutCleanupVerification } from "../services/cleanup-verification-proof.js";
@@ -41,10 +41,10 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
   it.each([false, true])("reconciles a legacy Cloud lease through signed absence and permits idle sleep (ad-hoc %s)", async adHoc => {
     const f = await seed(adHoc);
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-    for (const [key, value] of Object.entries({ PAPERCLIP_CLOUD_STACK_ID: "fixture-stack",
-      PAPERCLIP_CLOUD_API_ORIGIN: "https://cloud.example.test", PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "fleet-fixture",
-      PAPERCLIP_PRIMARY_HOST: "fixture.paperclip.test", PAPERCLIP_AUTH_SECRET: "fixture-secret",
-      PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "fixture", alg: "EdDSA", use: "sig" }] }) })) vi.stubEnv(key, value);
+    for (const [key, value] of Object.entries({ OUTPOST_CLOUD_STACK_ID: "fixture-stack",
+      OUTPOST_CLOUD_API_ORIGIN: "https://cloud.example.test", OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fleet-fixture",
+      OUTPOST_PRIMARY_HOST: "fixture.outpost.test", OUTPOST_AUTH_SECRET: "fixture-secret",
+      OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "fixture", alg: "EdDSA", use: "sig" }] }) })) vi.stubEnv(key, value);
     let absent = false;
     const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
       if (!absent) return Response.json({ absent: false });
@@ -75,9 +75,9 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
   });
   it.each(["active", "stopped", "unknown"] as const)("does not replace an explicit %s provider observation with a Cloud read", async providerState => {
     await seed(true);
-    for (const [key, value] of Object.entries({ PAPERCLIP_CLOUD_STACK_ID: "fixture-stack",
-      PAPERCLIP_CLOUD_API_ORIGIN: "https://cloud.example.test", PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "fleet-fixture",
-      PAPERCLIP_PRIMARY_HOST: "fixture.paperclip.test", PAPERCLIP_AUTH_SECRET: "fixture-secret" })) vi.stubEnv(key, value);
+    for (const [key, value] of Object.entries({ OUTPOST_CLOUD_STACK_ID: "fixture-stack",
+      OUTPOST_CLOUD_API_ORIGIN: "https://cloud.example.test", OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fleet-fixture",
+      OUTPOST_PRIMARY_HOST: "fixture.outpost.test", OUTPOST_AUTH_SECRET: "fixture-secret" })) vi.stubEnv(key, value);
     const fetchImpl = vi.fn(); vi.stubGlobal("fetch", fetchImpl);
     const runtime = environmentRuntimeService(db, { drivers: [{ driver: "sandbox",
       resolveCapabilities: async () => classifyEnvironmentCapabilities({}),

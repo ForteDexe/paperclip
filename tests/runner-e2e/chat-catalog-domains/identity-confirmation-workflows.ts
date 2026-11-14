@@ -128,7 +128,7 @@ export const confirmationWorkflowIdentityCases: readonly ChatCatalogCase[] = [
     }));
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); return { original, taskTitle };
   }, gradeConfirmationWorkflow, {
-    authentication: "human-session", sourceFiles: sources, oracleVersion: "paperclip.chat-catalog.accept-one-proposal.v2", expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 420_000,
+    authentication: "human-session", sourceFiles: sources, oracleVersion: "outpost.chat-catalog.accept-one-proposal.v2", expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 420_000,
     observe: observeWorkflow,
     async act(ctx, state) {
       const remaining = () => remainingIdentityObservationBudget(ctx);
@@ -158,14 +158,14 @@ export const confirmationWorkflowIdentityCases: readonly ChatCatalogCase[] = [
     const worker = await identityWorker(ctx);
     await ctx.input.api.patch(`/api/issues/${source.id}`, { description: "A small local product introduction draft is waiting only for its product name. The person must submit the pending human-only question; an ordinary comment does not resolve that protected form. After its actual submission, produce one ordinary draft task with one short saved introduction document using the answer, delegating its execution to Morgan if necessary, and return its review link. Do not publish externally." });
     const original = await ctx.input.api.post<Interaction>(`/api/issues/${source.id}/interactions`, createIssueThreadInteractionSchema.parse({ kind: "ask_user_questions", title: "Product name for the introduction draft", resolverPolicy: "human_only", continuationPolicy: "wake_assignee",
-      payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "paperclip.question_set.v1", title: "Product name for the introduction draft", submitLabel: "Submit answers",
+      payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "outpost.question_set.v1", title: "Product name for the introduction draft", submitLabel: "Submit answers",
         questions: [{ id: "product", prompt: "What is the product name for the local introduction draft?", answerMode: "text", required: true }] } } }));
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     const other = await ctx.input.page.context().newPage(); tabs.set(ctx, other); await other.goto(ctx.input.page.url(), { waitUntil: "domcontentloaded" });
     await expect(other.getByTestId("task-chat-composer-takeover")).toBeVisible();
     return { original, humanId: session.user.id, worker };
   }, gradeConfirmationWorkflow, {
-    authentication: "human-session", sourceFiles: sources, oracleVersion: "paperclip.chat-catalog.answer-delivery.v2", expectedRunCount: 4, minimumRunCount: 2, runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1 }, attemptTimeoutMs: 600_000,
+    authentication: "human-session", sourceFiles: sources, oracleVersion: "outpost.chat-catalog.answer-delivery.v2", expectedRunCount: 4, minimumRunCount: 2, runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1 }, attemptTimeoutMs: 600_000,
     observe: observeWorkflow,
     async act(ctx, state) {
       const other = tabs.get(ctx); if (!other) throw new Error("The second real browser tab is missing");

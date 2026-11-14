@@ -1,4 +1,4 @@
-import type { ExecutionProjection } from "@paperclipai/shared";
+import type { ExecutionProjection } from "@outpost/shared";
 import type {
   ReasoningMessagePart,
   TextMessagePart,
@@ -8,7 +8,7 @@ import type {
   ThreadSystemMessage,
   ThreadUserMessage,
 } from "@assistant-ui/react";
-import type { Agent, IssueComment } from "@paperclipai/shared";
+import type { Agent, IssueComment } from "@outpost/shared";
 import type { ActiveRunForIssue, LiveRunForIssue } from "../api/heartbeats";
 import { formatAssigneeUserLabel } from "./assignees";
 import { isOperatorInterruptedRun } from "./interrupt-handoff";
@@ -40,7 +40,7 @@ export interface IssueChatComment extends IssueComment {
   followUpRequested?: boolean;
   /** Causal conversation slot: the run that actually consumed this input. */
   consumedByRunId?: string | null;
-  /** Same-turn PRP steering acknowledgement for this human input. */
+  /** Same-turn ORP steering acknowledgement for this human input. */
   steeredIntoRunId?: string | null;
   conversationAnchorAt?: Date | string | null;
   conversationAnchorSequence?: number;
@@ -451,7 +451,7 @@ function isIssueChatRenderableTranscriptEntry(entry: IssueChatTranscriptEntry) {
     && entry.kind !== "stdout"
     && entry.kind !== "system"
     // The classic task interface intentionally remains unchanged. Structured
-    // PRP surfaces are rendered by TaskChatThread and remain available in run
+    // ORP surfaces are rendered by TaskChatThread and remain available in run
     // details when the classic interface is enabled.
     && entry.kind !== "workspace_change"
     && entry.kind !== "workspace_file_reference"

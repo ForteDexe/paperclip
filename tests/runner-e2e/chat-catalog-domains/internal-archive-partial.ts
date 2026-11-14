@@ -7,7 +7,7 @@ import { makeDefinition } from "./internal-definition.js";
 import { checks, entity, hasLink, observation, observeInternal, project, sameTask, task, type Entity, type InternalObservation } from "./internal-support.js";
 interface Item extends Entity { archivedByActorType?: string; archivedByAgentId?: string; archivedByRunId?: string }
 interface PartialArchive extends InternalObservation { ownerItems: Item[]; phaseReply: string }
-const ORACLE = "paperclip.chat-catalog.inbox.archive-partial-failure.v3";
+const ORACLE = "outpost.chat-catalog.inbox.archive-partial-failure.v3";
 /** Handles live outside case state: state is cloned into evidence. */
 const faults = new Map<string, ArchiveStorageFault>();
 

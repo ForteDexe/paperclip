@@ -1,4 +1,4 @@
-import { TelemetryClient } from "@paperclipai/shared/telemetry";
+import { TelemetryClient } from "@outpost/shared/telemetry";
 
 export function initTelemetry(_fileConfig?: { enabled?: boolean }): TelemetryClient | null {
   return null;

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, heartbeatRunEvents, issues, principalPermissionGrants } from "@paperclipai/db";
+import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, heartbeatRunEvents, issues, principalPermissionGrants } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
@@ -36,7 +36,7 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
   const adapterType = "instruction_working_copy_test";
   const entryFile = "policy/INSTRUCTIONS.txt";
   const initial = "\uFEFF# Original\r\n☃\n", edited = "\uFEFF# Saved\r\nKeep across runs. ☃\n";
-  const previousHome = process.env.PAPERCLIP_HOME;
+  const previousHome = process.env.OUTPOST_HOME;
   let home: string;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
@@ -46,7 +46,7 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
 
   beforeAll(async () => {
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "heartbeat-instruction-copies-")));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     temporary = await startEmbeddedPostgresTestDatabase("heartbeat-instruction-copies-db-");
     db = createDb(temporary.connectionString);
     heartbeat = heartbeatService(db);
@@ -70,7 +70,7 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
     unregisterServerAdapter(adapterType);
     await db?.$client.end({ timeout: 0 });
     await temporary?.cleanup();
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
     if (home) {
       const makeRemovable = async (directory: string): Promise<void> => {
         await fs.chmod(directory, 0o700);

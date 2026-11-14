@@ -14,7 +14,7 @@ import {
   issueDocuments,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -30,7 +30,7 @@ vi.mock("../telemetry.js", () => ({
   getTelemetryClient: telemetryMocks.getTelemetryClient,
 }));
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_INTERACTION_TELEMETRY_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_INTERACTION_TELEMETRY_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 

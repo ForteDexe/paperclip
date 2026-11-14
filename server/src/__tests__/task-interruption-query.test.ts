@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, agentWakeupRequests, chatActions, chatEndpoints, companies, createDb, applyPendingMigrations, environmentLeases, heartbeatRuns, issueRecoveryActions,
   issueRelations, issues,
   toolApplications, toolConnections,
-  nativeRunFinalizations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+  nativeRunFinalizations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { createSystemRecovery } from "../services/system-recovery-state.js";
 import { taskInterruptionPresentation, taskInterruptionPresentations } from "../services/task-interruption-presentation.js";
 import { readNativeSessionResumptionAgent } from "../services/native-runtime/native-session-resumption-admission.js";
@@ -13,7 +13,7 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { captureInterruptionQuery, seedInterruptionFixture } from "./helpers/task-interruption-fixture.js";
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_TASK_INTERRUPTION_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_TASK_INTERRUPTION_TEST_DATABASE_URL");
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const captureTaskInterruptionFailure = vi.hoisted(() => vi.fn());
 vi.mock("../sentry.js", () => ({ captureTaskInterruptionFailure }));
@@ -35,7 +35,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("shows a pending native same-run resume instead of a competing Retry", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Resuming task", issuePrefix: `R${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Resuming agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Resuming agent", adapterType: "outpost_runner" });
     const [issue] = await db.insert(issues).values({ companyId, title: "Resume after attach failure",
       status: "in_progress", assigneeAgentId: agentId }).returning();
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issue.id, scopeKind: "issue",
@@ -50,7 +50,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
     // The coordinator also pushes nextAttemptAt while it defers an ineligible
     // candidate. Those deferrals, or one far past the failure, never hide Retry.
     const otherAgentId = randomUUID();
-    await db.insert(agents).values({ id: otherAgentId, companyId, name: "Other agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: otherAgentId, companyId, name: "Other agent", adapterType: "outpost_runner" });
     const admission = async () => {
       const [currentIssue] = await db.select().from(issues).where(eq(issues.id, issue.id));
       const [currentRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
@@ -63,7 +63,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
       finishedAt: new Date(Date.now() - 60_000), createdAt: new Date(Date.now() - 60 * 60_000) });
     const terminatedManagerId = randomUUID();
     await db.insert(agents).values({ id: terminatedManagerId, companyId, name: "Former manager",
-      adapterType: "paperclip_runner", status: "terminated" });
+      adapterType: "outpost_runner", status: "terminated" });
     for (const [table, change, restore] of [
       ["issue", { assigneeAgentId: otherAgentId }, { assigneeAgentId: agentId }],
       ["issue", { status: "blocked" }, { status: "in_progress" }],
@@ -100,7 +100,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("explains a saved Retry held by unfinished blockers instead of offering Retry again (restart chaos t05)", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Waiting parent", issuePrefix: `W${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Parent agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Parent agent", adapterType: "outpost_runner" });
     const [parent] = await db.insert(issues).values({ companyId, title: "Write the brief", identifier: "CHA-5",
       status: "blocked", assigneeAgentId: agentId }).returning();
     const [child] = await db.insert(issues).values({ companyId, title: "Part 2", identifier: "CHA-10", parentId: parent.id,
@@ -127,7 +127,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("does not report a superseded Retry as failure after a newer conversation succeeds", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), oldRunId = randomUUID(), newRunId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Continued conversation", issuePrefix: `C${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", adapterType: "outpost_runner" });
     const [task] = await db.insert(issues).values({ companyId, title: "Continue setup", status: "in_review",
       assigneeAgentId: agentId }).returning();
     await db.insert(heartbeatRuns).values([
@@ -163,7 +163,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("labels a Retry held by unpriced usage as accounting, not budget", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Unpriced", issuePrefix: `U${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", adapterType: "outpost_runner" });
     const [task] = await db.insert(issues).values({ companyId, title: "Task", identifier: "CHA-2",
       status: "blocked", assigneeAgentId: agentId }).returning();
     const [todo] = await db.insert(issues).values({ companyId, title: "Not started", identifier: "CHA-3",
@@ -194,7 +194,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("reads a quarantine saved after a completed turn as settled work, not a failed attempt", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), otherRunId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Completed turn", issuePrefix: `K${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "outpost_runner" });
     const [task] = await db.insert(issues).values({ companyId, title: "Set up Storie", identifier: "CMP-7",
       status: "blocked", assigneeAgentId: agentId }).returning();
     const staged = (id: string, turnTerminalState: string) => ({ id, companyId, agentId, nativeIssueId: task.id, scopeKind: "issue",
@@ -205,7 +205,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
       runnerProfileJson: { mode: "native", backend: "codex_app_server", sessionCheckpoint: {
         cursor: "818", activeTurnId: null, semanticResult: null, driverKind: "codex_app_server", backendKind: "runner",
         identity: { runId: id, agentId, issueId: task.id, companyId, sessionId: randomUUID() },
-        terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState,
+        terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState,
           reportedWorkDisposition: "yielded" },
         terminalTurns: [{ turnId: randomUUID(), fingerprint: "{}" }],
       } } }) as typeof heartbeatRuns.$inferInsert;
@@ -238,7 +238,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("shows a queued-message Interrupt as handing off, not as a failed attempt", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), userId = "board-user";
     await db.insert(companies).values({ id: companyId, name: "Interrupted task", issuePrefix: `Q${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Researcher", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Researcher", adapterType: "outpost_runner" });
     const [issue] = await db.insert(issues).values({ companyId, title: "Creative brief",
       status: "todo", assigneeAgentId: agentId }).returning();
     // The message was queued well before the user clicked Interrupt.
@@ -285,8 +285,8 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("decides several pending native resumes in one list read", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Resuming list", issuePrefix: `L${companyId.slice(0, 7)}` });
-    await db.insert(agents).values([{ id: agentId, companyId, name: "Resuming agent", adapterType: "paperclip_runner" },
-      { id: otherAgentId, companyId, name: "Other agent", adapterType: "paperclip_runner" }]);
+    await db.insert(agents).values([{ id: agentId, companyId, name: "Resuming agent", adapterType: "outpost_runner" },
+      { id: otherAgentId, companyId, name: "Other agent", adapterType: "outpost_runner" }]);
     const resumeAt = new Date(Date.now() + 30_000);
     const list = [];
     for (let index = 0; index < 6; index++) {
@@ -306,7 +306,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   });
 
   it("redacts workspace preparation errors on task detail and list reads", async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "a".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     try {
       const f = await seedInterruptionFixture(db, { selected: 1, history: 1, unrelated: 0, payloadBytes: 0 });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
@@ -321,7 +321,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
         expect(presentation?.workspaceFailure?.message).toContain("REDACTED");
         expect(JSON.stringify(presentation)).not.toContain(secret);
       }
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "b".repeat(64));
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "b".repeat(64));
       expect(await taskInterruptionPresentation(db, f.input[0]!)).not.toHaveProperty("workspaceFailure");
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id)))[0]?.error).toBe(error);
     } finally { vi.unstubAllEnvs(); }
@@ -330,10 +330,10 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it.each(["valid", "numeric_user", "numeric_audit"] as const)("retains bounded typed Stop evidence in the real batched projection (%s)", async variant => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Stopped task", issuePrefix: `S${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Stopped agent", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Stopped agent", adapterType: "outpost_runner" });
     const [issue] = await db.insert(issues).values({ companyId, title: "Keep this task in progress",
       status: "in_progress", assigneeAgentId: agentId }).returning();
-    const nativeCancellation = { schema: "paperclip.native-cancellation.v1", companyId, runId, issueId: issue.id,
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", companyId, runId, issueId: issue.id,
       scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
       intentAuditId: variant === "numeric_audit" ? 123 : randomUUID(), acknowledgementAuditId: randomUUID() };
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issue.id,
@@ -354,12 +354,12 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   });
 
   it("redacts registered run secrets from both task detail and list provider explanations", async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "a".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     try {
       const f = await seedInterruptionFixture(db, { selected: 1, history: 1, unrelated: 0, payloadBytes: 0 });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
       const secret = `private-runtime-value-${randomUUID()}`;
-      const providerFailure = { schema: "paperclip.provider-failure.v1", provider: "anthropic", phase: "startup",
+      const providerFailure = { schema: "outpost.provider-failure.v1", provider: "anthropic", phase: "startup",
         category: "unknown", message: `Provider rejected runtime value ${secret}.`, retryability: "unknown" };
       await db.update(heartbeatRuns).set({ resultJson: { providerFailure } }).where(eq(heartbeatRuns.id, run!.id));
       await createRunSecretRedactionRegistry(db).register(f.companyId, run!.id, secret);
@@ -374,13 +374,13 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   });
 
   it("redacts a scheduled retry's predecessor provider explanation with the predecessor's registry", async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "a".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     try {
       const f = await seedInterruptionFixture(db, { selected: 1, history: 1, unrelated: 0, payloadBytes: 0 });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
       const predecessorId = randomUUID();
       const secret = `private-predecessor-value-${randomUUID()}`;
-      const providerFailure = { schema: "paperclip.provider-failure.v1", provider: "daytona", phase: "startup",
+      const providerFailure = { schema: "outpost.provider-failure.v1", provider: "daytona", phase: "startup",
         category: "overloaded", message: `Sandbox refused lease for ${secret}.`, httpStatus: 502, retryability: "transient" };
       await db.insert(heartbeatRuns).values({ id: predecessorId, companyId: f.companyId, agentId: run!.agentId,
         status: "failed", errorCode: "environment_provider_unavailable", resultJson: { providerFailure },
@@ -401,7 +401,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   });
 
   it("names a failed setup command on task detail and list reads, redacted with the run's registry (CF1)", async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "a".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     try {
       const f = await seedInterruptionFixture(db, { selected: 1, history: 1, unrelated: 0, payloadBytes: 0 });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
@@ -466,16 +466,16 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   });
 
   it.each(["decryption failure", "expanded message"])("keeps task reads available after provider display %s", async scenario => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "a".repeat(64));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     try {
       const f = await seedInterruptionFixture(db, { selected: 1, history: 1, unrelated: 0, payloadBytes: 0 });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
       const secret = "pw-short";
-      const providerFailure = { schema: "paperclip.provider-failure.v1", provider: "anthropic", phase: "startup",
+      const providerFailure = { schema: "outpost.provider-failure.v1", provider: "anthropic", phase: "startup",
         category: "unknown", message: secret + "🚀".repeat(4000 - secret.length), retryability: "unknown" };
       await db.update(heartbeatRuns).set({ resultJson: { providerFailure } }).where(eq(heartbeatRuns.id, run!.id));
       await createRunSecretRedactionRegistry(db).register(f.companyId, run!.id, secret);
-      if (scenario === "decryption failure") vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "b".repeat(64));
+      if (scenario === "decryption failure") vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "b".repeat(64));
       const presentation = await taskInterruptionPresentation(db, f.input[0]!);
       expect(presentation).toMatchObject({ state: "failed", canRetry: true });
       if (scenario === "decryption failure") expect(presentation).not.toHaveProperty("providerFailure");
@@ -645,7 +645,7 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
   it("reports a native resume that is newly exhausted on an old run once, then treats it as retained", async () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Old native run", issuePrefix: `N${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native worker", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Native worker", adapterType: "outpost_runner" });
     const [issue] = await db.insert(issues).values({ companyId, title: "Native resume", status: "in_progress",
       assigneeAgentId: agentId }).returning();
     const old = new Date(Date.now() - 22 * 60 * 60_000);

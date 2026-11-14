@@ -7,7 +7,7 @@ const finite = value => typeof value === 'number' && Number.isFinite(value) && v
 const stamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const layers = ['workerQuiet', 'eligibility', 'databaseSuspension', 'hostSuspension', 'backupPersistence', 'inboundWake', 'timedWake', 'returnToIdle'];
 const result = (verdict, reason) => ({ verdict, reason });
-const announcementFeed = 'https://pages.paperclip.ing/announcements/v1/current.json';
+const announcementFeed = 'https://pages.outpost.ing/announcements/v1/current.json';
 const observedAnnouncement = announcement => announcement?.intercepted === true
   && Array.isArray(announcement.requests) && announcement.requests.length > 0
   && announcement.requests.every(url => url === announcementFeed)

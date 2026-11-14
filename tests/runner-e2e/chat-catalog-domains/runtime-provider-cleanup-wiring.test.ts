@@ -21,8 +21,8 @@ function fixture() {
   const run = { id: "run", companyId: "company", nativeIssueId: "source", agentId: "lead", runnerInstanceId: "runner", nativeSessionId: "session", startedAt: "2026-10-26T12:00:00Z",
     runnerProfileJson: { sessionCheckpoint: { process: { providerPid: pid, providerProcessStartedAt: start } }, nativeExecutionInput: { provider: { kind: "opencode" } } } };
   mocks.verify.mockResolvedValue({ run, identity: { pid: 987653, uid: 501 } });
-  mocks.events.mockResolvedValue([{ payload: { prpEvent: { runId: "run", normalizedSessionId: "session", sourceKind: "runner", sourceInstanceId: "runner", eventType: "session.started", payload: { processId: pid, providerSessionId: "provider-session" } } } }]);
-  const script = new URL("../../../packages/paperclip-runner/dist/cli/opencode-app-server-proxy.cjs", import.meta.url).pathname;
+  mocks.events.mockResolvedValue([{ payload: { orpEvent: { runId: "run", normalizedSessionId: "session", sourceKind: "runner", sourceInstanceId: "runner", eventType: "session.started", payload: { processId: pid, providerSessionId: "provider-session" } } } }]);
+  const script = new URL("../../../packages/outpost-runner/dist/cli/opencode-app-server-proxy.cjs", import.meta.url).pathname;
   mocks.command = `${process.execPath} ${script}`;
   const evidence = vi.fn(async () => {}), kill = vi.spyOn(process, "kill").mockReturnValue(true);
   const ctx = { scenario: { id: "recovery.post-stop-message" }, input: { evidence } } as unknown as ChatCatalogContext;

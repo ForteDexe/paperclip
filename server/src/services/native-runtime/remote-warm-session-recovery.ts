@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { agents, companies, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { parseNativeExecutionInput, type NativeExecutionInput, type PersistedNativeSession, type DurableRecoveryIdentity } from "../../vendor/paperclip-runner/index.js";
+import { agents, companies, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { parseNativeExecutionInput, type NativeExecutionInput, type PersistedNativeSession, type DurableRecoveryIdentity } from "../../vendor/outpost-runner/index.js";
 import { currentNativeControllerIdentity, evaluateNativeControllerTakeover, recordLegacyHostFallbackProof } from "./native-restart-recovery.js";
 import { NativeControllerRecoveryWaitingError, readNativeControllerRecovery } from "./native-controller-recovery.js";
 
@@ -76,7 +76,7 @@ export function isSettledRemoteWarmControlState(control: Record<string, unknown>
         (payload.workingNow !== false || record(payload.goal).status === "active"));
     return !live && matchesSession(event) &&
       Object.entries(identity).every(([key, value]) => envelope[key] === value) &&
-      (notification.schema === "paperclip.prp.event.v1" || notification.schema === "paperclip.prp.event.v2") &&
+      (notification.schema === "outpost.orp.event.v1" || notification.schema === "outpost.orp.event.v2") &&
       notification.eventType === eventType &&
       notification.sourceInstanceId === identity.runnerInstanceId && notification.sourceKind === "runner" &&
       notification.runId === identity.runId && notification.normalizedSessionId === identity.normalizedSessionId;

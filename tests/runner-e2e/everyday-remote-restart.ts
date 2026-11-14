@@ -64,8 +64,8 @@ export function projectRemoteRestartEvents(run: StoryRun, rows: readonly Row[]):
   const seen = new Set<string>();
   const cursors = new Map<string, number>();
   let lastSeq = 0;
-  return rows.filter(row => record(row.payload).prpEvent !== undefined).map(row => {
-    const event = record(record(row.payload).prpEvent);
+  return rows.filter(row => record(row.payload).orpEvent !== undefined).map(row => {
+    const event = record(record(row.payload).orpEvent);
     const source = event.sourceInstanceId;
     const runnerSource = event.sourceKind === "runner" && source === run.runnerInstanceId;
     const controllerSource = event.sourceKind === "control_plane" && source === `${run.runnerInstanceId}:control`

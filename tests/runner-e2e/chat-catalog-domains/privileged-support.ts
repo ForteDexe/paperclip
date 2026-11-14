@@ -6,7 +6,7 @@ import { turnResponseCards } from "./turn-response-card.js";
 
 /** These cases exercise only the launcher-owned instance or a rendered developer fixture. */
 export function privilegedDefinition(scenarioId: string, module: string, extra: Pick<ChatCatalogCase, "setup" | "grade" | "act" | "verifyResult">): ChatCatalogCase {
-  return { scenarioId, oracleVersion: "paperclip.chat-catalog.privileged.v1", coverageGaps: [],
+  return { scenarioId, oracleVersion: "outpost.chat-catalog.privileged.v1", coverageGaps: [],
     authentication: "human-session", expectedRunCount: 1, turnTimeoutMs: 120_000, attemptTimeoutMs: 420_000,
     sourceFiles: ["chat-catalog-domains/privileged-support.ts", "chat-catalog-domains/turn-response-card.ts", `chat-catalog-domains/${module}.ts`, `chat-scenarios/${scenarioId.split(".")[0]}.yaml`],
     observe: observeInternal, ...extra };

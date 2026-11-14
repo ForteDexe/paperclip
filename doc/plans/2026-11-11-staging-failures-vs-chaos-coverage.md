@@ -1,6 +1,6 @@
 # Staging failures vs chaos-harness coverage (2026-11-09 00:00Z to 2026-11-11 00:05Z)
 
-Question from Dotta: what failed on `paperclip.staging.paperclip.app` in the last 48 hours, why
+Question from Dotta: what failed on `outpost.staging.outpost.app` in the last 48 hours, why
 did the restart-chaos harness (`tests/restart-chaos/`) not find it first, and what must the harness
 add so it would.
 
@@ -76,7 +76,7 @@ blocked at census time.
 | F: finalization and workspace save-back | 24 | 9% | 15 | 8 | A saved result cannot be copied back or restored. Causes: sandbox disk full (ENOSPC in 2 runs), unsafe symlink in the archive, `recovery_receipt_invalid` (7), a stuck "Recovering saved work…" phase (8) and an exhausted finalization budget (3). | **Partly fixed:** #20666 (receipt), #20578 (re-finalize). Nothing for disk full or symlinks. | Workloads write small files. They never fill the sandbox disk and never create symlinks. ST faults hit S3, not the sandbox disk. | **F1 symlink** workload (built; passes on master). **DF1 sandbox disk full** (proposed). |
 | E: Daytona capacity outage | 18 | 7% | 13 | 4 | Daytona returned HTTP 502 and the worker hit SIGKILL from 16:36 to 17:02Z on Nov 10. Reusable sandbox resume failed, plus a git clone network failure. | **Mostly recovers:** 8 tasks recovered automatically and bounded retry works. 4 tasks still blocked. | The harness has no environment-provider fault. All faults hit the control plane or S3. | **EP1 environment provider 5xx window** (proposed, not built). |
 | U: provider usage limit | 17 | 6% | 12 | 8 | `provider_limit_wait` waits as designed. The ACPX "terminal limit failure" (7) fails the run, where it should wait. | **Open:** ACPX limit classification. | Not a restart class. Provider shims have no usage-limit message. | Add a usage-limit message to PV faults (proposed). |
-| P: provider session resume after a deploy | 16 | 6% | 16 | **11** | The runner or provider cannot resume its session after the controller moved. Codes: `PRP provider resume state is unavailable` (5), `runner_harness_state_mismatch` (8) with sub-codes `provider_identity_incomplete`, `resumed_unavailable` and `backup_without_reusable_lease`, plus `ingress_auth_failed` and `run.attach provider_side_effect_pending`. 8 of the 16 are ACPX and 5 are OpenCode. | **Partly fixed:** #20627 (warm backup). `resume state unavailable` is open. | Same as R: same process space, no OpenCode, no reusable warm sandboxes across deploys. | K15 with `--daytona-warm` and `--adapters claude,opencode`. |
+| P: provider session resume after a deploy | 16 | 6% | 16 | **11** | The runner or provider cannot resume its session after the controller moved. Codes: `ORP provider resume state is unavailable` (5), `runner_harness_state_mismatch` (8) with sub-codes `provider_identity_incomplete`, `resumed_unavailable` and `backup_without_reusable_lease`, plus `ingress_auth_failed` and `run.attach provider_side_effect_pending`. 8 of the 16 are ACPX and 5 are OpenCode. | **Partly fixed:** #20627 (warm backup). `resume state unavailable` is open. | Same as R: same process space, no OpenCode, no reusable warm sandboxes across deploys. | K15 with `--daytona-warm` and `--adapters claude,opencode`. |
 | O: other or unclassified native failures | 13 | 5% | 13 | 5 | `native_run_failed` with no classified error (3), ACPX `session.open` rejected (2), `local_runtime_api_listener_unavailable` (2), `tool.resolve provider_tool_call_retired`, a DB query error, and `Object not found`. | **Open:** classification. | Not deploy-correlated (0 of 13 within 10 min). | None. These are product triage items. |
 | B: authorization or binding readiness | 13 | 5% | 9 | 3 | `reviewed_chat_execution_binding_not_authorized` (7) and `not_ready` (2), a credential not shared with the responsible user (2), and a skill package still uploading (2). | **Open** | The harness uses one operator. There are no chat bindings, no shared credentials and no skill uploads. | Out of scope for restart chaos. Route to product. |
 | L: legacy runtime lost across a deploy | 12 | 4% | 12 | 5 | Legacy (non-native) runs: `process_lost` (5), `Legacy controller lease lost` (4), graceful SIGTERM (1) and `lease_released_before_terminal` (2). | **Recovers in most cases:** 7 of 12 tasks recovered. | The matrix runs native adapters only. | K15 with a legacy adapter cell (proposed). |
@@ -220,7 +220,7 @@ working hours is about 40 minutes. Every native run longer than about 40 minutes
 ### P: provider session resume after a deploy (16 runs, 11 tasks blocked)
 
 - Examples:
-  - T33, T34, T35 and T25 (`PRP provider resume state is unavailable`);
+  - T33, T34, T35 and T25 (`ORP provider resume state is unavailable`);
   - T36, T37, T38 and T39 (`runner_harness_state_mismatch …`);
   - T40 (`run.attach provider_side_effect_pending`).
 - Last occurrence: 2026-11-10T21:06Z.

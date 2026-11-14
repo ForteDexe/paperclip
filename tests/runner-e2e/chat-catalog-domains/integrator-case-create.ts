@@ -109,7 +109,7 @@ export const integratorCaseCreationCases = [integratorDefinition("cases", "cases
   const taskHref = o.links.find(link => hasLink({ ...o, links: [link] }, "issues", primary)); if (!taskHref) throw new Error("Missing primary task link");
   await inspectResult(ctx, new URL(taskHref, o.origin).pathname, primary.title!, taskHref);
 }, { authentication: "human-session", queryAttachments: factualContextQueryAttachment("customer-bug-brief.md"), sourceFiles: ["chat-catalog-domains/integrator-case-create.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-scenarios/cases.yaml"],
-  oracleVersion: "paperclip.chat-catalog.integrator.case-create.v2",
+  oracleVersion: "outpost.chat-catalog.integrator.case-create.v2",
   expectedRunCount: 3, minimumRunCount: 2, runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1, maximumLeadCaseHandbackRuns: 1 }, attemptTimeoutMs: 420_000,
   async cleanup(ctx) { const value = previous.get(ctx); if (value !== undefined) { await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: value }); previous.delete(ctx); } },
 })];

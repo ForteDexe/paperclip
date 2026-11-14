@@ -1,11 +1,11 @@
 import type { ConnectionManagementContext } from "./connection-management.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, companySecrets, connectionGrants, instanceSettings, plugins, toolApplications, toolConnections, toolConnectionInstalls, type Db } from "@paperclipai/db";
-import { aiConnectionRouterAppDefinition, aiConnectionRouterSlug, aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@paperclipai/shared";
-import { isCodexLocalKnownModel, codexLocalReasoningEffortsForModel } from "@paperclipai/adapter-codex-local";
-import { models as claudeModels, claudeLocalReasoningEffortsForModel } from "@paperclipai/adapter-claude-local";
-import { models as grokModels, grokLocalReasoningEffortsForModel } from "@paperclipai/adapter-grok-local";
+import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, companySecrets, connectionGrants, instanceSettings, plugins, toolApplications, toolConnections, toolConnectionInstalls, type Db } from "@outpost/db";
+import { aiConnectionRouterAppDefinition, aiConnectionRouterSlug, aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@outpost/shared";
+import { isCodexLocalKnownModel, codexLocalReasoningEffortsForModel } from "@outpost/adapter-codex-local";
+import { models as claudeModels, claudeLocalReasoningEffortsForModel } from "@outpost/adapter-claude-local";
+import { models as grokModels, grokLocalReasoningEffortsForModel } from "@outpost/adapter-grok-local";
 import { aiConnectionService } from "./ai-connections.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { logActivity } from "./activity-log.js";
@@ -40,7 +40,7 @@ export function poolMemberRuntimeConfig(member: AiConnectionPoolMember, adapterT
   const config: Record<string, unknown> = { provider: profile.provider, ...(profile.acpxAgent ? { acpxAgent: profile.acpxAgent } : {}), model: profile.model };
   const validate = () => {
     if (!isAiConnectionCompatible(member.binding, adapterType, config.model, config.provider, config.acpxAgent)) throw unprocessable("Pool member is incompatible with this harness");
-    if (adapterType === "paperclip_runner") {
+    if (adapterType === "outpost_runner") {
       const resolved = resolvePaperclipRunnerProviderProfile(config);
       resolvePaperclipRunnerNativeProviderInput({ backend: resolved.backend, adapterConfig: config });
     }
@@ -56,7 +56,7 @@ export function poolMemberRuntimeConfig(member: AiConnectionPoolMember, adapterT
   const efforts = provider === "openai" ? codexLocalReasoningEffortsForModel(model)
     : provider === "anthropic" ? claudeLocalReasoningEffortsForModel(model)
     : provider === "xai" ? grokLocalReasoningEffortsForModel(model) : [];
-  const effortKey = adapterType === "paperclip_runner" ? profile.provider === "codex" || (profile.provider === "acpx" && profile.acpxAgent === "claude") ? "modelReasoningEffort" : null
+  const effortKey = adapterType === "outpost_runner" ? profile.provider === "codex" || (profile.provider === "acpx" && profile.acpxAgent === "claude") ? "modelReasoningEffort" : null
     : provider === "anthropic" ? "effort" : provider === "xai" ? "reasoningEffort" : provider === "openai" ? "modelReasoningEffort" : "variant";
   const requested = overrides.modelReasoningEffort ?? overrides.reasoningEffort ?? overrides.effort ?? overrides.variant;
   const effort = typeof requested === "string" && efforts.includes(requested) && effortKey ? requested
@@ -125,7 +125,7 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     const visible = await aiConnectionService(db).list(input.companyId, userId);
     for (const member of config.members) {
       if (!visible.some((v) => v.id === member.binding.connectionId && v.grantId === member.binding.grantId)) throw forbidden("Choose an account you may use in this company");
-      poolMemberRuntimeConfig(member, "paperclip_runner");
+      poolMemberRuntimeConfig(member, "outpost_runner");
     }
     const id = input.id ?? randomUUID();
     await managementContext?.reauthorize();

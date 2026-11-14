@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { eq } from "drizzle-orm";
-import { agents, type Db } from "@paperclipai/db";
-import { isUuidLike, updateAgentInteractionPermissionsSchema } from "@paperclipai/shared";
+import { agents, type Db } from "@outpost/db";
+import { isUuidLike, updateAgentInteractionPermissionsSchema } from "@outpost/shared";
 import { badRequest, notFound } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { readAgentInteractionPermissions, updateAgentInteractionPermissions } from "../services/agent-interaction-permissions.js";

@@ -10,7 +10,7 @@ scripts/paperclip-upload-artifact.sh path/to/output.webm \
   --summary "Rendered walkthrough for review"
 ```
 
-The helper uses `PAPERCLIP_API_URL`, `PAPERCLIP_API_KEY`, `PAPERCLIP_COMPANY_ID`, `PAPERCLIP_TASK_ID`, and `PAPERCLIP_RUN_ID`. It uploads the file as an issue attachment, creates an attachment-backed artifact work product by default, and prints issue-safe markdown links for your final comment.
+The helper uses `OUTPOST_API_URL`, `OUTPOST_API_KEY`, `OUTPOST_COMPANY_ID`, `OUTPOST_TASK_ID`, and `OUTPOST_RUN_ID`. It uploads the file as an issue attachment, creates an attachment-backed artifact work product by default, and prints issue-safe markdown links for your final comment.
 
 ## Workspace-Only File References
 
@@ -53,9 +53,9 @@ Create the work product with:
 
 ```bash
 curl -sS -X POST \
-  "$PAPERCLIP_API_URL/api/issues/$PAPERCLIP_TASK_ID/work-products" \
-  -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
-  -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" \
+  "$OUTPOST_API_URL/api/issues/$OUTPOST_TASK_ID/work-products" \
+  -H "Authorization: Bearer $OUTPOST_API_KEY" \
+  -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
   -H "Content-Type: application/json" \
   --data-binary @workspace-file-work-product.json
 ```
@@ -64,9 +64,9 @@ If the helper is unavailable, use the Paperclip API directly:
 
 ```bash
 curl -sS -X POST \
-  "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/issues/$PAPERCLIP_TASK_ID/attachments" \
-  -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
-  -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" \
+  "$OUTPOST_API_URL/api/companies/$OUTPOST_COMPANY_ID/issues/$OUTPOST_TASK_ID/attachments" \
+  -H "Authorization: Bearer $OUTPOST_API_KEY" \
+  -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
   -F 'file=@"path/to/output.webm";type=video/webm'
 ```
 
@@ -74,9 +74,9 @@ Then create a work product when the file is the deliverable. The server canonica
 
 ```bash
 curl -sS -X POST \
-  "$PAPERCLIP_API_URL/api/issues/$PAPERCLIP_TASK_ID/work-products" \
-  -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
-  -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" \
+  "$OUTPOST_API_URL/api/issues/$OUTPOST_TASK_ID/work-products" \
+  -H "Authorization: Bearer $OUTPOST_API_KEY" \
+  -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
   -H "Content-Type: application/json" \
   --data-binary '{
     "type": "artifact",

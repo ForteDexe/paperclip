@@ -74,11 +74,11 @@ export function createSlackCloudConnectorFixture(instanceId: string, companyId: 
     }
   });
   function install() {
-    vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_BASE_URL", config.baseUrl);
-    vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID", instanceId);
-    vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT", "test");
-    vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY", config.signPrivateKey);
-    vi.stubEnv("PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY", config.sealPrivateKey);
+    vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", config.baseUrl);
+    vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID", instanceId);
+    vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT", "test");
+    vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY", config.signPrivateKey);
+    vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY", config.sealPrivateKey);
   }
   function enqueue(identity: Record<string, unknown>, signingSecret: string, eventId: string) {
     const acceptedAt = new Date().toISOString(), timestamp = String(Math.floor(Date.now() / 1000));

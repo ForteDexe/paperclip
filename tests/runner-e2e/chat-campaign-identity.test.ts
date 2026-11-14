@@ -12,7 +12,7 @@ it("reproduces the actual selected-case fingerprint after its raw private envelo
     const descriptor = findChatCatalogCase("companies.configure-decision-model")!;
     const execution = runnerMatrix.find(e => e.suite.id === "chat-features" && e.task.id === descriptor.scenarioId)!;
     const staged = stageChatPrivateInputs({ execution, descriptor, privateDir: root, env: { OPENROUTER_API_KEY: "synthetic-offline-only" }, secrets: [] });
-    vi.stubEnv(CHAT_PRIVATE_INPUTS_ENV, staged.filename); vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root);
+    vi.stubEnv(CHAT_PRIVATE_INPUTS_ENV, staged.filename); vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
     const names = chatPrivateInputNameIdentity(execution.id)!;
     const selected = normalizedChatCatalogExecution(execution), before = chatCatalogCaseFingerprint(descriptor, selected).digest;
     expect(JSON.stringify(names)).not.toContain("synthetic-offline-only");

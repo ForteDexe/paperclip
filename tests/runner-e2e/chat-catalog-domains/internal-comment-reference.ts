@@ -69,7 +69,7 @@ export async function waitForRenderedReply(ctx: Pick<ChatCatalogContext, "issue"
   }
 }
 export function withRenderedCommentReference(base: ChatCatalogCase): ChatCatalogCase {
-  return { ...base, oracleVersion: "paperclip.chat-catalog.internal.comment-with-reference.v2",
+  return { ...base, oracleVersion: "outpost.chat-catalog.internal.comment-with-reference.v2",
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-comment-reference.ts", "../../ui/src/lib/issue-reference.ts", "../../ui/src/components/MarkdownBody.tsx"],
     async act(ctx, state) {
       await pollUntil({ label: "Saved comment source turn", deadlineAt: Date.now() + 150000,

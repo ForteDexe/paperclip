@@ -73,7 +73,7 @@ function externalizeThirdParty(isBundled, runtimeDir) {
 
 /** @param {{ entry: string, outdir: string, maintenanceEntry?: string, ephemeralMigrationEntry?: string,
  * nativeHarnessPrestageEntry?: string, onlineWorkspaceMigrationEntry?: string, isBundled?: (specifier: string) => boolean }} options */
-export async function bundleRuntime({ entry, outdir, maintenanceEntry, ephemeralMigrationEntry, nativeHarnessPrestageEntry, onlineWorkspaceMigrationEntry, isBundled = (specifier) => specifier.startsWith("@paperclipai/") }) {
+export async function bundleRuntime({ entry, outdir, maintenanceEntry, ephemeralMigrationEntry, nativeHarnessPrestageEntry, onlineWorkspaceMigrationEntry, isBundled = (specifier) => specifier.startsWith("@outpost/") }) {
   await rm(outdir, { recursive: true, force: true });
   const result = await build({
     entryPoints: { index: "paperclip-runtime-entry", server: entry, ...(maintenanceEntry ? { "agent-files": maintenanceEntry } : {}),

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { searchRunnerApi } from "../services/native-runtime/runner-api-catalog.js";
-import { startOpenCodeMcpBridge } from "../../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.js";
-import { searchApiAction } from "../../../packages/paperclip-runner/src/protocol-actions/search-api.js";
+import { startOpenCodeMcpBridge } from "../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.js";
+import { searchApiAction } from "../../../packages/outpost-runner/src/protocol-actions/search-api.js";
 
 it("discovers the existing secure human entry surface through native API search", async () => {
   const descriptor = searchApiAction.live.descriptor;

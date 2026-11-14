@@ -27,8 +27,8 @@ export function braintrustTraceIndexQuery(projectId: string, result: RunnerE2ERe
     ? `metadata."event.name" = 'codex.tool_result' AND metadata.tool_name = '${name}' AND metadata.success = 'true'`
     : `span_attributes.type = 'tool' AND span_attributes.name = 'mcp__paperclip__${name}'`;
   return `SELECT COUNT(*) AS records,
-    SUM(CASE WHEN span_id = '${trace.spanId}' AND span_attributes.name = 'paperclip.eval.attempt' THEN 1 ELSE 0 END) AS roots,
-    SUM(CASE WHEN span_id = '${trace.finalization!.spanId}' AND span_attributes.name = 'paperclip.eval.finalization' THEN 1 ELSE 0 END) AS finalizations,
+    SUM(CASE WHEN span_id = '${trace.spanId}' AND span_attributes.name = 'outpost.eval.attempt' THEN 1 ELSE 0 END) AS roots,
+    SUM(CASE WHEN span_id = '${trace.finalization!.spanId}' AND span_attributes.name = 'outpost.eval.finalization' THEN 1 ELSE 0 END) AS finalizations,
     SUM(CASE WHEN ${nativeRequest} THEN 1 ELSE 0 END) AS native_api_records,
     SUM(CASE WHEN ${tool("submit_complaint")} THEN 1 ELSE 0 END) AS complaints,
     SUM(CASE WHEN ${tool("submit_suggestion")} THEN 1 ELSE 0 END) AS suggestions

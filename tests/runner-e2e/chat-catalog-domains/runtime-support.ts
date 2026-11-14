@@ -100,7 +100,7 @@ export async function clickInteractionAction(page: Page, interaction: { id: stri
 }
 export function runtimeDefinition(scenarioId: string, setup: ChatCatalogCase["setup"], grade: ChatCatalogCase["grade"], extra: Partial<ChatCatalogCase> = {}): ChatCatalogCase {
   return { scenarioId, setup, grade, observe: observeRuntime, verifyResult: verifyRuntimeResult,
-    oracleVersion: "paperclip.chat-catalog.runtime.v2", coverageGaps: [], expectedRunCount: 1,
+    oracleVersion: "outpost.chat-catalog.runtime.v2", coverageGaps: [], expectedRunCount: 1,
     turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000,
     sourceFiles: ["chat-catalog-domains/runtime-support.ts", `chat-catalog-domains/runtime-${scenarioId.split(".")[0]}.ts`, `chat-scenarios/${scenarioId.split(".")[0]}.yaml`], ...extra };
 }

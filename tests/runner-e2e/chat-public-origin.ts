@@ -6,20 +6,20 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 export class PublicOriginCleanupError extends Error {}
-export const PUBLIC_ORIGIN_CONTROL_ENV = "PAPERCLIP_CHAT_EVAL_PUBLIC_ORIGIN_CONTROL_DIR";
-export const PUBLIC_ORIGIN_RECEIPT_ENV = "PAPERCLIP_RUNNER_E2E_OWNED_PUBLIC_ORIGIN_RECEIPT";
+export const PUBLIC_ORIGIN_CONTROL_ENV = "OUTPOST_CHAT_EVAL_PUBLIC_ORIGIN_CONTROL_DIR";
+export const PUBLIC_ORIGIN_RECEIPT_ENV = "OUTPOST_RUNNER_E2E_OWNED_PUBLIC_ORIGIN_RECEIPT";
 export const ownedPublicOriginScenarios = ["agents.existing-grok-bot", "assistant-connections.connect-external-assistant", "connection-setup.notion-missing", "connection-setup.notion-wrong-account", "connection-setup.notion-expired", "connection-setup.return-from-login", "connection-setup.save-and-resume"] as const;
 export interface PublicOriginIdentity { pid: number; uid: number; startedAt: string; executable: string; executableSha256: string; commandSha256: string; workingDirectory: string }
-export interface PublicOriginRequest { schema: "paperclip.chat-public-origin-request.v1"; executionId: string; scenarioId: string; attemptId: string; backendOrigin: string; nonce: string }
-export interface ValidatedPublicOriginReceipt { schema: "paperclip.chat-public-origin.v1"; executionId: string; scenarioId: string; attemptId: string; backendOrigin: string; publicOrigin: string; nonce: string; proxy: PublicOriginIdentity; routeVerifiedAt: string }
+export interface PublicOriginRequest { schema: "outpost.chat-public-origin-request.v1"; executionId: string; scenarioId: string; attemptId: string; backendOrigin: string; nonce: string }
+export interface ValidatedPublicOriginReceipt { schema: "outpost.chat-public-origin.v1"; executionId: string; scenarioId: string; attemptId: string; backendOrigin: string; publicOrigin: string; nonce: string; proxy: PublicOriginIdentity; routeVerifiedAt: string }
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const exactKeys = (value: unknown, keys: readonly string[]) => !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === [...keys].sort().join();
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export function publicHttpsOrigin(value: string) { try { const u = new URL(value); return u.protocol === "https:" && u.origin === value && !u.username && !u.password && !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname) && !u.hostname.endsWith(".localhost"); } catch { return false; } }
-function validRequest(r: PublicOriginRequest) { try { const url = new URL(r.backendOrigin); return exactKeys(r, ["schema", "executionId", "scenarioId", "attemptId", "backendOrigin", "nonce"]) && r.schema === "paperclip.chat-public-origin-request.v1" && ownedPublicOriginScenarios.includes(r.scenarioId as typeof ownedPublicOriginScenarios[number]) && r.executionId.includes(r.scenarioId) && /^[a-f0-9]{32}$/.test(r.attemptId) && /^[a-f0-9]{48}$/.test(r.nonce) && url.protocol === "http:" && url.hostname === "127.0.0.1" && url.origin === r.backendOrigin && Number(url.port) > 1024; } catch { return false; } }
+function validRequest(r: PublicOriginRequest) { try { const url = new URL(r.backendOrigin); return exactKeys(r, ["schema", "executionId", "scenarioId", "attemptId", "backendOrigin", "nonce"]) && r.schema === "outpost.chat-public-origin-request.v1" && ownedPublicOriginScenarios.includes(r.scenarioId as typeof ownedPublicOriginScenarios[number]) && r.executionId.includes(r.scenarioId) && /^[a-f0-9]{32}$/.test(r.attemptId) && /^[a-f0-9]{48}$/.test(r.nonce) && url.protocol === "http:" && url.hostname === "127.0.0.1" && url.origin === r.backendOrigin && Number(url.port) > 1024; } catch { return false; } }
 export function publicOriginReceiptMatches(r: ValidatedPublicOriginReceipt, expected: Pick<PublicOriginRequest, "executionId" | "attemptId" | "backendOrigin"> & Partial<Pick<PublicOriginRequest, "scenarioId" | "nonce">>) {
   const p = r?.proxy;
-  return exactKeys(r, ["schema", "executionId", "scenarioId", "attemptId", "backendOrigin", "publicOrigin", "nonce", "proxy", "routeVerifiedAt"]) && r.schema === "paperclip.chat-public-origin.v1" && validRequest({ schema: "paperclip.chat-public-origin-request.v1", executionId: r.executionId, scenarioId: r.scenarioId, attemptId: r.attemptId, backendOrigin: r.backendOrigin, nonce: r.nonce })
+  return exactKeys(r, ["schema", "executionId", "scenarioId", "attemptId", "backendOrigin", "publicOrigin", "nonce", "proxy", "routeVerifiedAt"]) && r.schema === "outpost.chat-public-origin.v1" && validRequest({ schema: "outpost.chat-public-origin-request.v1", executionId: r.executionId, scenarioId: r.scenarioId, attemptId: r.attemptId, backendOrigin: r.backendOrigin, nonce: r.nonce })
     && r.executionId === expected.executionId && r.attemptId === expected.attemptId && r.backendOrigin === expected.backendOrigin && (!expected.scenarioId || r.scenarioId === expected.scenarioId) && (!expected.nonce || r.nonce === expected.nonce)
     && publicHttpsOrigin(r.publicOrigin) && Number.isFinite(Date.parse(r.routeVerifiedAt)) && exactKeys(p, ["pid", "uid", "startedAt", "executable", "executableSha256", "commandSha256", "workingDirectory"])
     && Number.isSafeInteger(p.pid) && p.pid > 1 && p.pid !== process.pid && p.uid === process.getuid?.() && Number.isFinite(Date.parse(p.startedAt)) && path.isAbsolute(p.executable) && path.isAbsolute(p.workingDirectory) && /^[a-f0-9]{64}$/.test(p.executableSha256) && /^[a-f0-9]{64}$/.test(p.commandSha256);
@@ -70,7 +70,7 @@ export async function publishPublicOriginRelease(input: { controlDirectory: stri
   if (live?.startedAt === route.proxy.startedAt) throw new Error("The actual owned public proxy has not exited");
   const backend = await fetch(`${request.backendOrigin}/api/health`, { signal: AbortSignal.timeout(2000), redirect: "error" }).catch(() => undefined);
   if (backend) { await backend.body?.cancel(); throw new Error("Refusing a public route release receipt before backend shutdown"); }
-  await writeFile(path.join(input.controlDirectory, "released.json"), JSON.stringify({ schema: "paperclip.chat-public-origin-release.v1", executionId: request.executionId, attemptId: request.attemptId, nonce: request.nonce, publicRouteReleased: true, proxyReleased: true }), { mode: 0o600, flag: "wx" });
+  await writeFile(path.join(input.controlDirectory, "released.json"), JSON.stringify({ schema: "outpost.chat-public-origin-release.v1", executionId: request.executionId, attemptId: request.attemptId, nonce: request.nonce, publicRouteReleased: true, proxyReleased: true }), { mode: 0o600, flag: "wx" });
   return { released: true, executionId: request.executionId, attemptId: request.attemptId };
 }
 export async function readValidatedPublicOriginReceipt(input: { receiptPath: string; executionId: string; attemptId: string; backendOrigin: string }): Promise<ValidatedPublicOriginReceipt> {
@@ -84,7 +84,7 @@ export function publicProxySocketMatches(text: string, remotePort: number, backe
 }
 export function publicOriginReleaseMatches(release: unknown, request: PublicOriginRequest) {
   const r = release as Record<string, unknown> | undefined;
-  return exactKeys(r, ["schema", "executionId", "attemptId", "nonce", "publicRouteReleased", "proxyReleased"]) && r?.schema === "paperclip.chat-public-origin-release.v1" && r.executionId === request.executionId && r.attemptId === request.attemptId && r.nonce === request.nonce && r.publicRouteReleased === true && r.proxyReleased === true;
+  return exactKeys(r, ["schema", "executionId", "attemptId", "nonce", "publicRouteReleased", "proxyReleased"]) && r?.schema === "outpost.chat-public-origin-release.v1" && r.executionId === request.executionId && r.attemptId === request.attemptId && r.nonce === request.nonce && r.publicRouteReleased === true && r.proxyReleased === true;
 }
 async function boundedResponse(response: Response) {
   const reader = response.body?.getReader(); if (!reader) return "";
@@ -99,7 +99,7 @@ async function confirmProxySocket(proxy: PublicOriginIdentity, remotePort: numbe
 export async function prepareOwnedPublicOrigin(input: { controlDirectory?: string; executionId: string; scenarioId: string; attemptId: string; backendOrigin: string; temporaryRoot: string; privateSecrets: string[]; timeoutMs?: number }) {
   if (!input.controlDirectory) return undefined;
   const root = path.resolve(input.controlDirectory); await privateDirectory(root);
-  const request: PublicOriginRequest = { schema: "paperclip.chat-public-origin-request.v1", executionId: input.executionId, scenarioId: input.scenarioId, attemptId: input.attemptId, backendOrigin: input.backendOrigin, nonce: randomBytes(24).toString("hex") };
+  const request: PublicOriginRequest = { schema: "outpost.chat-public-origin-request.v1", executionId: input.executionId, scenarioId: input.scenarioId, attemptId: input.attemptId, backendOrigin: input.backendOrigin, nonce: randomBytes(24).toString("hex") };
   if (!validRequest(request)) throw new Error("Public origin handoff is forbidden outside its finite selected-case execution");
   input.privateSecrets.push(request.nonce);
   await writeFile(path.join(root, "request.json"), JSON.stringify(request), { mode: 0o600, flag: "wx" });
@@ -119,7 +119,7 @@ export async function prepareOwnedPublicOrigin(input: { controlDirectory?: strin
   try {
     const route = await responseFile<PublicOriginRequest & { publicOrigin: string; proxy: PublicOriginIdentity }>(path.join(root, "route.json"), Date.now() + (input.timeoutMs ?? 90000));
     if (!exactKeys(route, ["schema", "executionId", "scenarioId", "attemptId", "backendOrigin", "nonce", "publicOrigin", "proxy"]) || route.schema !== request.schema) throw new Error("Public proxy route receipt exceeds its exact request contract");
-    receipt = { schema: "paperclip.chat-public-origin.v1", executionId: route.executionId, scenarioId: route.scenarioId, attemptId: route.attemptId, backendOrigin: route.backendOrigin, nonce: route.nonce, publicOrigin: route.publicOrigin, proxy: route.proxy, routeVerifiedAt: new Date().toISOString() };
+    receipt = { schema: "outpost.chat-public-origin.v1", executionId: route.executionId, scenarioId: route.scenarioId, attemptId: route.attemptId, backendOrigin: route.backendOrigin, nonce: route.nonce, publicOrigin: route.publicOrigin, proxy: route.proxy, routeVerifiedAt: new Date().toISOString() };
     if (!publicOriginReceiptMatches(receipt, request) || !samePublicProxyIdentity(await readPublicProxyIdentity(receipt.proxy.pid), receipt.proxy) || !(receipt.proxy.workingDirectory === root || receipt.proxy.workingDirectory.startsWith(`${root}${path.sep}`))) throw new Error("Owned public proxy receipt has stale execution, route or process identity");
     input.privateSecrets.push(receipt.publicOrigin);
     const port = Number(new URL(input.backendOrigin).port); let routeObserved = false, requestClaimed = false;
@@ -141,7 +141,7 @@ export async function prepareOwnedPublicOrigin(input: { controlDirectory?: strin
   } catch (error) { try { await close(); } catch { throw new PublicOriginCleanupError("Public-origin preparation failed and owned proxy/route cleanup is unconfirmed; private control state retained"); } throw error; }
 }
 export function publicOriginServerOverrides(receipt: ValidatedPublicOriginReceipt | undefined) {
-  return receipt ? { PAPERCLIP_PUBLIC_URL: receipt.publicOrigin, PAPERCLIP_AUTH_PUBLIC_BASE_URL: receipt.publicOrigin, PAPERCLIP_MANAGED_RUNTIME_PUBLIC_URL: receipt.publicOrigin, PAPERCLIP_ALLOWED_HOSTNAMES: "127.0.0.1" } : {};
+  return receipt ? { OUTPOST_PUBLIC_URL: receipt.publicOrigin, OUTPOST_AUTH_PUBLIC_BASE_URL: receipt.publicOrigin, OUTPOST_MANAGED_RUNTIME_PUBLIC_URL: receipt.publicOrigin, OUTPOST_ALLOWED_HOSTNAMES: "127.0.0.1" } : {};
 }
 export function publicOriginFingerprintIdentity(executionId: string, scenarioId: string, env: NodeJS.ProcessEnv = process.env) {
   return { selected: ownedPublicOriginScenarios.includes(scenarioId as typeof ownedPublicOriginScenarios[number]), configured: !!env[PUBLIC_ORIGIN_RECEIPT_ENV] || !!env[PUBLIC_ORIGIN_CONTROL_ENV], referenceNames: [PUBLIC_ORIGIN_CONTROL_ENV, PUBLIC_ORIGIN_RECEIPT_ENV], executionId, protocol: "private-attempt-request-exact-proxy-route-and-release-v1" };

@@ -15,21 +15,21 @@ const callbackOrigin = process.env.SPEKO_NATIVE_CALLBACK_ORIGIN;
 if (!callbackOrigin || new URL(callbackOrigin).protocol !== "https:") throw new Error("Explicit HTTPS callback origin required");
 // Set isolation before importing anything that reads Paperclip configuration.
 Object.assign(process.env, {
-  NODE_ENV: "test", PAPERCLIP_HOME: home, PAPERCLIP_INSTANCE_ID: "speko-native-acceptance",
-  PAPERCLIP_CONFIG: resolve(home, "config.json"), PAPERCLIP_DISABLE_CWD_ENV_FILE: "true",
-  PAPERCLIP_AGENT_JWT_SECRET: randomBytes(32).toString("hex"),
-  PAPERCLIP_DECISION_SIGNING_SECRET: randomBytes(32).toString("hex"),
-  PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: randomBytes(32).toString("hex"),
-  PAPERCLIP_SECRETS_MASTER_KEY_FILE: resolve(home, "master.key"),
-  PAPERCLIP_API_URL: origin, PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL: callbackOrigin,
-  PAPERCLIP_DEPLOYMENT_MODE: process.env.SPEKO_NATIVE_AUTH === "1" ? "authenticated" : "local_trusted",
-  PAPERCLIP_AUTH_PUBLIC_BASE_URL: origin, PAPERCLIP_AUTH_BASE_URL_MODE: "explicit", PAPERCLIP_DEPLOYMENT_EXPOSURE: "private",
-  PAPERCLIP_VITE_CACHE_DIR: resolve(home, "vite-cache"), PAPERCLIP_OPEN_ON_LISTEN: "false",
-  PAPERCLIP_TELEMETRY_ENABLED: "false",
+  NODE_ENV: "test", OUTPOST_HOME: home, OUTPOST_INSTANCE_ID: "speko-native-acceptance",
+  OUTPOST_CONFIG: resolve(home, "config.json"), OUTPOST_DISABLE_CWD_ENV_FILE: "true",
+  OUTPOST_AGENT_JWT_SECRET: randomBytes(32).toString("hex"),
+  OUTPOST_DECISION_SIGNING_SECRET: randomBytes(32).toString("hex"),
+  OUTPOST_TOOL_ACTION_SIGNING_SECRET: randomBytes(32).toString("hex"),
+  OUTPOST_SECRETS_MASTER_KEY_FILE: resolve(home, "master.key"),
+  OUTPOST_API_URL: origin, OUTPOST_CHAT_WEBHOOK_PUBLIC_URL: callbackOrigin,
+  OUTPOST_DEPLOYMENT_MODE: process.env.SPEKO_NATIVE_AUTH === "1" ? "authenticated" : "local_trusted",
+  OUTPOST_AUTH_PUBLIC_BASE_URL: origin, OUTPOST_AUTH_BASE_URL_MODE: "explicit", OUTPOST_DEPLOYMENT_EXPOSURE: "private",
+  OUTPOST_VITE_CACHE_DIR: resolve(home, "vite-cache"), OUTPOST_OPEN_ON_LISTEN: "false",
+  OUTPOST_TELEMETRY_ENABLED: "false",
 });
 delete process.env.DATABASE_URL;
-delete process.env.PAPERCLIP_IN_WORKTREE;
-delete process.env.PAPERCLIP_MANAGED_CONFIG;
+delete process.env.OUTPOST_IN_WORKTREE;
+delete process.env.OUTPOST_MANAGED_CONFIG;
 await mkdir(resolve(home, "storage"));
 const { startEmbeddedPostgresTestDatabase, applyPendingMigrations } = await import("../../packages/db/src/index.js");
 const database = await startEmbeddedPostgresTestDatabase("paperclip-speko-native-db-");

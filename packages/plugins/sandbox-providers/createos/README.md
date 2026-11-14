@@ -1,4 +1,4 @@
-# `@paperclipai/plugin-createos`
+# `@outpost/plugin-createos`
 
 CreateOS sandbox provider for Outpost. This package lives alongside Daytona
 and E2B, outside the root pnpm workspace, and uses CreateOS's public HTTP API.
@@ -24,7 +24,7 @@ From the Outpost checkout, with your instance running:
 ```sh
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/paperclip/packages/plugins/sandbox-providers/createos
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin list
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin inspect paperclip.createos-sandbox-provider
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin inspect outpost.createos-sandbox-provider
 ```
 
 Rebuild after source changes; local plugin output watching reloads the worker.
@@ -32,8 +32,8 @@ If the running worker still uses the previous build, explicitly reload it when
 no sandbox commands are active:
 
 ```sh
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin disable paperclip.createos-sandbox-provider
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin enable paperclip.createos-sandbox-provider
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin disable outpost.createos-sandbox-provider
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin enable outpost.createos-sandbox-provider
 ```
 
 The plugin uses the same package entrypoints and publish manifest helper as

@@ -4,9 +4,9 @@ import { notifyNativeWorkspaceFinalization } from "./native-workspace-finalizati
 import { notifyNativeStatusReassessment } from "./native-status-reassessment-notifications.js";
 import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
 import { randomUUID } from "node:crypto";
-import type { Db } from "@paperclipai/db";
-import { workspaceOperations } from "@paperclipai/db";
-import type { WorkspaceOperation, WorkspaceOperationPhase, WorkspaceOperationStatus } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { workspaceOperations } from "@outpost/db";
+import type { WorkspaceOperation, WorkspaceOperationPhase, WorkspaceOperationStatus } from "@outpost/shared";
 import { asc, desc, eq, gte, inArray, isNull, lt, or, and } from "drizzle-orm";
 import { conflict, notFound } from "../errors.js";
 import { redactCurrentUserText, redactCurrentUserValue } from "../log-redaction.js";
@@ -15,7 +15,7 @@ import { currentControllerProcessStamp } from "./controller-process-identity.js"
 import { proveOwnerGone, type LocalOwnerStamp, type OwnerProof } from "./owner-proof.js";
 import { getWorkspaceOperationLogStore } from "./workspace-operation-log-store.js";
 import { persistActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
-import { crashPoint } from "@paperclipai/shared/crash-points";
+import { crashPoint } from "@outpost/shared/crash-points";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { retryTransientLockContention } from "./transient-lock-contention.js";
 

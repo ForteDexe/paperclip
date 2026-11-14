@@ -6,7 +6,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { applyPendingMigrations, createDb, companies, authUsers, companyMemberships, instanceSettings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthDeviceRequests, issues, agents, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, heartbeatRuns, mcpEventDeliveries, mcpEventSubscriptions, mcpOauthTokens, mcpFileTickets } from "@paperclipai/db";
+import { applyPendingMigrations, createDb, companies, authUsers, companyMemberships, instanceSettings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthDeviceRequests, issues, agents, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, heartbeatRuns, mcpEventDeliveries, mcpEventSubscriptions, mcpOauthTokens, mcpFileTickets } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createPublicMcpEvents } from "./events.js";
@@ -33,10 +33,10 @@ import { idleWorkSnapshot } from "../task-admission.js";
 
 vi.mock("../cloud-runtime-identity.js", async importOriginal => ({
   ...await importOriginal<typeof import("../cloud-runtime-identity.js")>(),
-  getCloudRuntimeIdentity: () => ({ stackId: "fixture-stack", canonicalOrigin: "https://paperclip.example" }),
+  getCloudRuntimeIdentity: () => ({ stackId: "fixture-stack", canonicalOrigin: "https://outpost.example" }),
 }));
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_MCP_SLEEP_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_MCP_SLEEP_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 describe.skipIf(!support.supported)("MCP event committed work", () => {
@@ -51,7 +51,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
   let failRead: boolean;
   let duringDelivery: (() => Promise<void>) | undefined;
   beforeAll(async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     if (externalUrl) await applyPendingMigrations(externalUrl);
     else temporary = await startEmbeddedPostgresTestDatabase("mcp-sleep-");
     db = createDb(externalUrl ?? temporary.connectionString, { maxConnections: 4 });
@@ -77,11 +77,11 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
 
   async function fixture(dot = false, scope = { companyId, taskId }) {
     const { companyId, taskId } = scope;
-    const config = { origin: "https://paperclip.example", resource: `https://paperclip.example/mcp/${dot ? "runner" : "paperclip"}` };
+    const config = { origin: "https://outpost.example", resource: `https://outpost.example/mcp/${dot ? "runner" : "paperclip"}` };
     const clientId = randomUUID();
     await db.insert(mcpOauthClients).values({ id: clientId, name: "Sleep fixture", redirectUris: ["https://receiver.example/oauth"] });
     const agentId = dot ? randomUUID() : null;
-    if (agentId) await db.insert(agents).values({ id: agentId, companyId, name: "Dot", status: "active", adapterType: "paperclip_runner", adapterConfig: { provider: "openai_dot" } });
+    if (agentId) await db.insert(agents).values({ id: agentId, companyId, name: "Dot", status: "active", adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot" } });
     const [grant] = await db.insert(mcpOauthGrants).values({ companyId, userId, clientId, resource: config.resource, purpose: dot ? "agent" : "personal", agentId, scopes: [dot ? "paperclip:agent" : "paperclip:read"] }).returning();
     const bindingId = dot ? randomUUID() : null;
     if (bindingId && agentId) {
@@ -98,7 +98,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     } });
     const oauth = createPublicMcpOAuth(observed, config);
     const principal = await oauth.authorizeGrant(grant.id);
-    const input = { name: dot ? "paperclip.dot.mailbox_updated" : "paperclip.task.status_changed", arguments: { companyId, ...(dot ? { bindingId } : { taskId }) },
+    const input = { name: dot ? "outpost.dot.mailbox_updated" : "outpost.task.status_changed", arguments: { companyId, ...(dot ? { bindingId } : { taskId }) },
       delivery: { mode: "webhook", url: "https://receiver.example/events", secret: "whsec_" + randomBytes(32).toString("base64") } };
     const makeService = () => createPublicMcpEvents(observed, oauth, async () => ({ id: taskId, companyId }), { enableDotRunner: dot,
       isBackgroundWorkEnabled: () => !draining && !standby,
@@ -198,7 +198,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     await activity(); await delivered(1); await quiet();
     const ingress = await readIdleMcpWakeProof(db, { stackId: "fixture-stack", ownerId: "00000000-0000-4000-8000-000000000001",
       capabilityGeneration: "a".repeat(64), challenge: "c".repeat(64), personalResource: f.principal.grant.resource,
-      dotResource: "https://paperclip.example/mcp/runner", personalEnabled: true, dotEnabled: true, now: Date.now() });
+      dotResource: "https://outpost.example/mcp/runner", personalEnabled: true, dotEnabled: true, now: Date.now() });
     expect(ingress.grantIds).toEqual([f.principal.grant.id]);
     const proof = await readIdleMcpSubscriptionProof(db, { now: Date.now(), ingress,
       personal: service.reconciliationSnapshot(), dot: { revision: "absent", reconciled: false }, inspectDestination: service.inspectIdleDestination });

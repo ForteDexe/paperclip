@@ -9,8 +9,8 @@ import { chmod, copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFil
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { activityLog, agentCommentary, agents, heartbeatRuns, issues, nativeRunFinalizations } from "@paperclipai/db";
-import { execute as executeLegacy } from "@paperclipai/adapter-codex-local/server";
+import { activityLog, agentCommentary, agents, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { execute as executeLegacy } from "@outpost/adapter-codex-local/server";
 import { startRunnerApiTestServer } from "../src/__tests__/helpers/runner-api-server.js";
 import { createLocalAgentJwt } from "../src/agent-auth-jwt.js";
 import { prepareNativeHeartbeatRun } from "../src/services/native-runtime/prepare-native-run.js";
@@ -33,29 +33,29 @@ async function makeRemovable(path: string): Promise<void> {
 }
 try {
   assert.ok(!process.argv[2] || ["legacy", "native"].includes(process.argv[2]), "Choose legacy, native, or omit the argument for both");
-  if (process.env.PAPERCLIP_LIVE_ENVIRONMENT === "daytona" && process.argv[2] !== "legacy") {
-    assert.ok(process.env.PAPERCLIP_LIVE_LINUX_RUNNER, "Build and specify the current Linux runner before the native Daytona smoke");
+  if (process.env.OUTPOST_LIVE_ENVIRONMENT === "daytona" && process.argv[2] !== "legacy") {
+    assert.ok(process.env.OUTPOST_LIVE_LINUX_RUNNER, "Build and specify the current Linux runner before the native Daytona smoke");
   }
-  const authSource = process.env.PAPERCLIP_LIVE_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
+  const authSource = process.env.OUTPOST_LIVE_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
   const codexHome = join(root, "codex");
   await mkdir(codexHome, { mode: 0o700 });
   await copyFile(join(authSource, "auth.json"), join(codexHome, "auth.json"));
   await writeFile(join(codexHome, "config.toml"), 'model_reasoning_effort = "low"\n');
-  process.env.PAPERCLIP_HOME = join(root, "instance");
-  process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
-  process.env.PAPERCLIP_CODEX_AUTH_CACHE = "false";
-  process.env.PAPERCLIP_TELEMETRY_DISABLED = "1";
+  process.env.OUTPOST_HOME = join(root, "instance");
+  process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
+  process.env.OUTPOST_CODEX_AUTH_CACHE = "false";
+  process.env.OUTPOST_TELEMETRY_DISABLED = "1";
   server = await startRunnerApiTestServer();
-  process.env.PAPERCLIP_API_URL = server.apiUrl;
+  process.env.OUTPOST_API_URL = server.apiUrl;
   // Production boot exports this loopback origin for host-side sandbox relays.
   const listenUrl = new URL(server.apiUrl);
-  process.env.PAPERCLIP_LISTEN_HOST = listenUrl.hostname;
-  process.env.PAPERCLIP_LISTEN_PORT = listenUrl.port;
+  process.env.OUTPOST_LISTEN_HOST = listenUrl.hostname;
+  process.env.OUTPOST_LISTEN_PORT = listenUrl.port;
   const evidence: unknown[] = [];
   for (const mode of ["legacy", "native"] as const) {
     if (process.argv[2] && process.argv[2] !== mode) continue;
     const f: Awaited<ReturnType<typeof server.fixture>> = await server.fixture({ disableWakeOnDemand: true });
-    const remote: Awaited<ReturnType<typeof acquireCommentaryDaytonaTarget>> | null = process.env.PAPERCLIP_LIVE_ENVIRONMENT === "daytona" ? await acquireCommentaryDaytonaTarget(server.db, f, mode) : null;
+    const remote: Awaited<ReturnType<typeof acquireCommentaryDaytonaTarget>> | null = process.env.OUTPOST_LIVE_ENVIRONMENT === "daytona" ? await acquireCommentaryDaytonaTarget(server.db, f, mode) : null;
     try {
       const prompt = `This is a bounded integration test in a disposable Paperclip instance. Use the available feedback interface to submit exactly one complaint (body: "Live ${mode} complaint: the fixture made me repeat the same setup. UGH.", key: "live-complaint") and one suggestion (body: "Live ${mode} suggestion: repeated setup wastes time; cache the fixture after initialization.", key: "live-suggestion"). ${mode === "legacy" ? "Read the automatically installed complain and suggestion-box skills and use their operational-skill stdin helper, passing each key as its second argument." : "Use the submit_complaint and submit_suggestion native tools with body and idempotencyKey."} Then continue the primary task by writing continued.txt in the working directory containing exactly continued-after-feedback. End with a brief final response. Do not create task comments or modify task status; the test harness owns disposition. Do not retry submissions. Do not access other workspaces or any external messaging tools.`;
       let log = "";
@@ -96,7 +96,7 @@ try {
           db: server.db, execution, runnerInstanceId: native.runnerInstanceId, turnTimeoutMs: 180_000,
           runnerEnvironment: { ...process.env, CODEX_HOME: codexHome }, useRunnerd: true, onLog,
           runnerExecutionTarget: remote?.target, runnerIngressAuthorized: Boolean(remote),
-          runnerRemoteBinaryPath: remote ? process.env.PAPERCLIP_LIVE_LINUX_RUNNER : undefined,
+          runnerRemoteBinaryPath: remote ? process.env.OUTPOST_LIVE_LINUX_RUNNER : undefined,
           runnerRemoteCodexNpmSpec: remote ? "@openai/codex@0.160.0" : undefined,
           managedAiCredentialHome: codexHome,
         }).catch((error) => { throw new Error(redactSensitiveText(log.slice(-3000)), { cause: error }); });
@@ -132,7 +132,7 @@ try {
     }
   }
   const report = JSON.stringify({ verifiedAt: new Date().toISOString(), evidence }, null, 2);
-  if (process.env.PAPERCLIP_LIVE_EVIDENCE_PATH) await writeFile(process.env.PAPERCLIP_LIVE_EVIDENCE_PATH, report + "\n");
+  if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, report + "\n");
   console.log(report);
 } finally {
   try {

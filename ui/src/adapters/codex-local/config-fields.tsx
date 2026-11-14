@@ -5,8 +5,8 @@ import { GrokBotConnection } from "../../components/GrokBotConnection";
 import { DotRunnerConnection } from "../../components/DotRunnerConnection";
 import { configFieldsForSection } from "../config-sections";
 import type { AdapterConfigFieldsProps } from "../types";
-import type { CreateConfigValues } from "@paperclipai/adapter-utils";
-import { buildCodexLocalConfig } from "@paperclipai/adapter-codex-local/ui";
+import type { CreateConfigValues } from "@outpost/adapter-utils";
+import { buildCodexLocalConfig } from "@outpost/adapter-codex-local/ui";
 import {
   Field,
   ToggleField,
@@ -22,18 +22,18 @@ import {
   isCodexLocalFastModeSupported,
   isCodexLocalManualModel,
   resolveCodexLocalCliPolicy,
-} from "@paperclipai/adapter-codex-local";
+} from "@outpost/adapter-codex-local";
 import {
-  PAPERCLIP_RUNNER_IDLE_TIMEOUT_DEFAULT_MS,
-  PAPERCLIP_RUNNER_IDLE_TIMEOUT_MAX_MS,
-  PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES,
-  PAPERCLIP_RUNNER_ACPX_PROFILES,
+  OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS,
+  OUTPOST_RUNNER_IDLE_TIMEOUT_MAX_MS,
+  OUTPOST_RUNNER_PERMISSION_CAPABILITIES,
+  OUTPOST_RUNNER_ACPX_PROFILES,
   isPaperclipRunnerProvider,
   resolvePaperclipRunnerIdleTimeoutMs,
   resolvePaperclipRunnerPermissionMode,
   type PaperclipRunnerPermissionMode,
   type PaperclipRunnerPermissionCapability,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 
 const inputClass =
   "w-full rounded-md border border-border px-2.5 py-1.5 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40";
@@ -85,11 +85,11 @@ export function CodexLocalConfigFields({
   managedSandboxOnly,
   hideRunnerHarness,
 }: AdapterConfigFieldsProps) {
-  const runnerManaged = adapterType === "paperclip_runner";
+  const runnerManaged = adapterType === "outpost_runner";
   // The execution engine picks which binary runs on the execution host, and the
   // ACP sub-fields below name host paths. The platform-managed environment owns
   // both, so the managed-sandbox-only policy hides them the same way
-  // `runnerManaged` already does for the Paperclip Runner.
+  // `runnerManaged` already does for the Outpost Runner.
   const hideEngineChoice = runnerManaged || managedSandboxOnly === true;
   const configuredRunnerProvider = runnerManaged
     ? isCreate
@@ -99,7 +99,7 @@ export function CodexLocalConfigFields({
   const runnerProvider = String(configuredRunnerProvider ?? "codex");
   const runnerPermissionCapability: PaperclipRunnerPermissionCapability =
     isPaperclipRunnerProvider(runnerProvider)
-      ? PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES[runnerProvider]
+      ? OUTPOST_RUNNER_PERMISSION_CAPABILITIES[runnerProvider]
       : { configurable: false, defaultMode: "provider-managed", options: [], description: "Unknown provider configuration is preserved." };
   const isMuse = runnerProvider === "muse";
   const isCursorCloud = runnerProvider === "cursor_cloud";
@@ -166,7 +166,7 @@ export function CodexLocalConfigFields({
           ? values!.paperclipRunnerIdleTimeoutMs
           : eff("adapterConfig", "idleTimeoutMs", config.idleTimeoutMs),
       )
-    : PAPERCLIP_RUNNER_IDLE_TIMEOUT_DEFAULT_MS;
+    : OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS;
   const rawEngine = runnerManaged
     ? "cli"
     : isCreate
@@ -343,7 +343,7 @@ export function CodexLocalConfigFields({
           <Select
             value={String(isCreate ? values!.adapterSchemaValues?.acpxAgent ?? "claude" : eff("adapterConfig", "acpxAgent", config.acpxAgent ?? "claude"))}
             onValueChange={(value) => {
-              const profile = PAPERCLIP_RUNNER_ACPX_PROFILES.find(entry => entry.value === value);
+              const profile = OUTPOST_RUNNER_ACPX_PROFILES.find(entry => entry.value === value);
               const acpxSessionMode = profile?.value === "cursor" ? "agent" : undefined;
               const piThinkingLevel = profile?.value === "pi" ? "low" : undefined;
               if (!profile?.qualified) return;
@@ -353,7 +353,7 @@ export function CodexLocalConfigFields({
             }}>
             <SelectTrigger className="w-full" aria-label="ACP agent"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {PAPERCLIP_RUNNER_ACPX_PROFILES.map(profile => (
+              {OUTPOST_RUNNER_ACPX_PROFILES.map(profile => (
                 <SelectItem key={profile.value} value={profile.value} disabled={!profile.qualified}>
                   <AdapterMark type={profile.value === "cursor" ? "cursor" : `${profile.value}_local`} className="size-4" />
                   {profile.label}{profile.qualified ? "" : " — qualification pending"}
@@ -583,7 +583,7 @@ export function CodexLocalConfigFields({
             <input
               type="number"
               min={1}
-              max={PAPERCLIP_RUNNER_IDLE_TIMEOUT_MAX_MS}
+              max={OUTPOST_RUNNER_IDLE_TIMEOUT_MAX_MS}
               className={inputClass}
               value={runnerIdleTimeoutMs}
               onChange={(event) =>
@@ -599,7 +599,7 @@ export function CodexLocalConfigFields({
             <DraftNumberInput
               value={runnerIdleTimeoutMs}
               min={1}
-              max={PAPERCLIP_RUNNER_IDLE_TIMEOUT_MAX_MS}
+              max={OUTPOST_RUNNER_IDLE_TIMEOUT_MAX_MS}
               onCommit={(value) =>
                 mark(
                   "adapterConfig",

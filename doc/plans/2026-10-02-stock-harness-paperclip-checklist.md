@@ -68,10 +68,10 @@ configured cells alone do not qualify behavior.
 - [x] Verify Paperclip task context, tools, auth, assigned skills, and completion
   still work. Record applicable regressions and eval results.
 
-Starting points: [Codex backend](../../packages/paperclip-runner/src/backends/codex-native-backend.ts),
-[app-server driver](../../packages/paperclip-runner/src/drivers/codex/codex-app-server-driver-impl.ts),
-[runnerd transport](../../packages/paperclip-runner/src/live/runnerd-codex-transport.ts),
-[Rust provider](../../packages/paperclip-runner/runner/crates/runner-core/src/codex_provider.rs).
+Starting points: [Codex backend](../../packages/outpost-runner/src/backends/codex-native-backend.ts),
+[app-server driver](../../packages/outpost-runner/src/drivers/codex/codex-app-server-driver-impl.ts),
+[runnerd transport](../../packages/outpost-runner/src/live/runnerd-codex-transport.ts),
+[Rust provider](../../packages/outpost-runner/runner/crates/runner-core/src/codex_provider.rs).
 
 Decision: use additive `developerInstructions` on Codex start and resume in the
 TypeScript driver, Runner Lab/eval sessions, and Rust provider. Retain existing
@@ -105,7 +105,7 @@ live campaign was run, and no task-quality improvement is claimed.
 
 Starting points: [default hire instructions](../../server/src/onboarding-assets/default/AGENTS.md),
 [shared adapter utilities](../../packages/adapter-utils/src/server-utils.ts),
-[native runtime contract](../../packages/paperclip-runner/src/contracts/runtime-context.ts),
+[native runtime contract](../../packages/outpost-runner/src/contracts/runtime-context.ts),
 [Paperclip operational skill](../../skills/paperclip/SKILL.md).
 
 Decision: Dotta confirmed the harness already handles skill and tool delivery;
@@ -304,7 +304,7 @@ Verification: 563 distinct focused tests passed across 18 suites:
   fallback execution (113 tests).
 - Native execution input, preserving shared wake compatibility (20 tests).
 
-`@paperclipai/adapter-utils` typecheck and build passed; `git diff --check`
+`@outpost/adapter-utils` typecheck and build passed; `git diff --check`
 passed. Full repository typecheck/build/test and live behavioral evals were not
 run for this local bounded change. These checks prove prompt and runtime
 mechanics, not an improvement in coding-task quality.
@@ -318,7 +318,7 @@ establishes instruction mechanics, not a performance result.
 
 | Layer | Delivery at initial inspection | Disposition |
 | --- | --- | --- |
-| Shared legacy task/chat templates | `DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE` was 661 words and the conversation template was 205, including connection guidance. Used by Claude, Codex, Cursor local/cloud, Gemini, Grok, Kimi, OpenCode, Pi, and Hermes local. | Completed in 2.1: both defaults now 113 words. Repeated procedures removed, connection guidance retained, no replacement skill pointer. |
+| Shared legacy task/chat templates | `DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE` was 661 words and the conversation template was 205, including connection guidance. Used by Claude, Codex, Cursor local/cloud, Gemini, Grok, Kimi, OpenCode, Pi, and Hermes local. | Completed in 2.1: both defaults now 113 words. Repeated procedures removed, connection guidance retained, no replacement skill pointer. |
 | Generic resumed wake contract | `renderPaperclipWakePrompt` added a 172-word execution contract on ordinary resumed turns. OpenClaw requested it on fresh turns too because it has no shared template. | Completed in 2.1: generic contract removed, including legacy opt-ins. Task/event data and conditional runtime contracts retained. |
 | Additional legacy carriers | Hermes local adds a 171-word identity/API/curl wrapper before the shared task template; Hermes gateway supplies its own four-rule execution contract. Pi carries shared defaults in its system extension and suppresses the wake copy when that extension owns policy. | Separate follow-up 2.2; changing the shared constants alone does not remove every wrapper. Preserve transport facts and custom configuration. |
 | Native fixed prompt | The 262-word `paperclip-execution.v5` prompt carries hiring, delegation/dependencies, connection setup, and finalization guidance across native Codex, ACPX, and OpenCode backends. | Keep one short native completion/dependency contract. Relocate uncommon procedures to the relevant tool documentation, improving that documentation where needed before removing instructions. Any change needs prompt revision/digest/session-compatibility verification. |
@@ -448,7 +448,7 @@ fresh rebased CI remains required before readiness.
 
 Claude starting points: [local adapter](../../packages/adapters/claude-local/src/server/execute.ts),
 [ACP patch](../../patches/@agentclientprotocol__claude-agent-acp@0.73.0.patch),
-[runtime sandbox](../../packages/paperclip-runner/src/drivers/acpx/runtime-sandbox.ts).
+[runtime sandbox](../../packages/outpost-runner/src/drivers/acpx/runtime-sandbox.ts).
 
 Decision: repository-context loading mechanism per harness pending. Personal MCP
 isolation is approved and should remain.

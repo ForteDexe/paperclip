@@ -4,10 +4,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { agents, agentTaskSessions, companies, completionContracts, createDb, heartbeatRuns, issues,
-  nativeRunFinalizations, nativeRunResults, type Db } from "@paperclipai/db";
+  nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
 import { CONTROL_PLANE_CONFORMANCE_OPEN, CONTROL_PLANE_CONFORMANCE_RESULT,
-  CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/paperclip-runner/testing.js";
-import type { PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+  CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
+import type { PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { redactRegisteredSecretValues } from "../run-secret-redaction.js";
@@ -17,7 +17,7 @@ import { PaperclipControlPlanePort, type PaperclipControlPlaneBinding } from "./
 import { nativeTaskSessionPublicationHandled, publishNativeTaskSessionInTransaction, NATIVE_TASK_SESSION_PUBLICATION_KEY,
   type NativeTaskSessionPublicationContext } from "./native-task-session-publication.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_PUBLICATION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_PUBLICATION_TEST_DATABASE_URL");
 describe("accepted native task session publication", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>> | null = null;
   let db: Db;
@@ -29,7 +29,7 @@ describe("accepted native task session publication", () => {
     const url = external ?? temporary!.connectionString;
     db = createDb(url, { maxConnections: 2 });
     // Test-only wire observer. Production still uses the existing Db/pools.
-    const postgres = createRequire(import.meta.resolve("@paperclipai/db"))("postgres") as
+    const postgres = createRequire(import.meta.resolve("@outpost/db"))("postgres") as
       (url: string, options: object) => Db["$client"];
     client = postgres(url, { max: 1, prepare: false, connection: { application_name: "native-publication-observer" },
       debug: (_id: number, query: string) => { statements.push(query); } });
@@ -48,7 +48,7 @@ describe("accepted native task session publication", () => {
     await db.insert(agents).values({ id: agentId, companyId, name: "Native pointer", adapterType: "codex_local", status: "running" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Native pointer", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "standalone-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "standalone-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "standalone-v1", objective: "Conformance", criteria: [{ id: "objective", requirement: "Complete" }] },
       canonicalSha256: "publication-contract", createdByActorType: "system", createdByActorId: "test" });

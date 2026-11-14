@@ -8,13 +8,13 @@ type Proof = Parameters<typeof requireNativeFirstAgentProof>[0];
 const companyId = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222";
 function proof(): Proof {
   const binding = { provider: "openrouter", method: "api_key", mode: "delegated", connectionId: "connection", grantId: "grant" };
-  const request = { companyId, agentId, environmentId: "local-target", adapterType: "paperclip_runner", provider: "opencode", model: NEW_COMPANY_NATIVE_MODEL, binding, containsCredential: false };
+  const request = { companyId, agentId, environmentId: "local-target", adapterType: "outpost_runner", provider: "opencode", model: NEW_COMPANY_NATIVE_MODEL, binding, containsCredential: false };
   // Synthetic projections of the actual public DTOs. No API, grant or agent is created.
   return {
     company: { id: companyId, name: "Website business", issuePrefix: "WEB", defaultResponsibleUserId: "human" },
-    agent: { id: agentId, companyId, name: "CEO", role: "ceo", adapterType: "paperclip_runner", adapterConfig: { provider: "opencode", model: NEW_COMPANY_NATIVE_MODEL }, runtimeConfig: { aiConnection: binding, heartbeat: { enabled: false } }, defaultEnvironmentId: "local-target", lifecycleState: "ready", status: "idle" },
+    agent: { id: agentId, companyId, name: "CEO", role: "ceo", adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: NEW_COMPANY_NATIVE_MODEL }, runtimeConfig: { aiConnection: binding, heartbeat: { enabled: false } }, defaultEnvironmentId: "local-target", lifecycleState: "ready", status: "idle" },
     humanId: "human", environment: { id: "local-target", driver: "local" }, savedSetupAgentId: agentId,
-    probes: [{ ...request, sequence: 1, httpStatus: 200, resultAdapterType: "paperclip_runner", status: "pass", checks: [{ code: "opencode_hello_probe_passed", level: "info" }] }],
+    probes: [{ ...request, sequence: 1, httpStatus: 200, resultAdapterType: "outpost_runner", status: "pass", checks: [{ code: "opencode_hello_probe_passed", level: "info" }] }],
     hires: [{ ...request, sequence: 2, httpStatus: 201, resultAgentId: agentId }], connection: { connectionId: "connection", grantId: "grant" },
     accounts: { currentUserId: "human", canManageConnections: true, connections: [{ id: "connection", grantId: "grant", companyId, provider: "openrouter", method: "api_key", name: "My OpenRouter", status: "connected", ownership: "personal", ownerUserId: "human", isDefault: false,
       routing: { kind: "openrouter", protocol: "chat", auth: "bearer", models: [{ id: NEW_COMPANY_PROVIDER_MODEL }] } }] },
@@ -73,9 +73,9 @@ describe("native first-agent public setup custody", () => {
   })) it(`rejects ${name}`, () => { const p = proof(); mutate(p); expect(() => requireNativeFirstAgentProof(p)).toThrow(); });
   it("normalizes the existing public test and hire shapes without exposing raw credentials", () => {
     const p = proof(); const config = { provider: "opencode", model: NEW_COMPANY_NATIVE_MODEL };
-    expect(nativeSetupRequest({ companyId, adapterType: "paperclip_runner", sequence: 1, body: { agentId, environmentId: "local-target", adapterConfig: config, aiConnection: p.agent.runtimeConfig.aiConnection } }, "synthetic-private-key"))
+    expect(nativeSetupRequest({ companyId, adapterType: "outpost_runner", sequence: 1, body: { agentId, environmentId: "local-target", adapterConfig: config, aiConnection: p.agent.runtimeConfig.aiConnection } }, "synthetic-private-key"))
       .toMatchObject({ agentId, environmentId: "local-target", containsCredential: false, binding: p.agent.runtimeConfig.aiConnection });
-    const result = nativeSetupRequest({ companyId, adapterType: "paperclip_runner", sequence: 2, body: { setupAgentId: agentId, defaultEnvironmentId: "local-target", adapterConfig: { ...config, env: { OPENROUTER_API_KEY: "synthetic-private-key" } }, runtimeConfig: p.agent.runtimeConfig } }, "synthetic-private-key");
+    const result = nativeSetupRequest({ companyId, adapterType: "outpost_runner", sequence: 2, body: { setupAgentId: agentId, defaultEnvironmentId: "local-target", adapterConfig: { ...config, env: { OPENROUTER_API_KEY: "synthetic-private-key" } }, runtimeConfig: p.agent.runtimeConfig } }, "synthetic-private-key");
     expect(result).toMatchObject({ agentId, environmentId: "local-target", containsCredential: true }); expect(JSON.stringify(result)).not.toContain("synthetic-private-key");
   });
 });

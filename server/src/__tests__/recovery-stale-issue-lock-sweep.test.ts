@@ -20,7 +20,7 @@ import {
   issues,
   nativeRunFinalizations,
   nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -33,7 +33,7 @@ import { heartbeatService } from "../services/heartbeat.ts";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { recoveryService } from "../services/recovery/service.ts";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_STALE_LOCK_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_STALE_LOCK_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -440,7 +440,7 @@ describeEmbeddedPostgres("recovery sweepStaleIssueLocks", () => {
 
   it.each([[false, true], [true, false]] as const)(
     "judges a pre-upgrade pid with no recorded space only on a single-host server (ephemeral: %s)", async (ephemeral, terminalized) => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", ephemeral ? "true" : "");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", ephemeral ? "true" : "");
     try {
       const { companyId, agentId, runningRunId } = await seed();
       await db.update(heartbeatRuns).set({ processPid: 2_000_000_000, processHostHash: null })
@@ -657,7 +657,7 @@ describeEmbeddedPostgres("recovery sweepStaleIssueLocks", () => {
     });
     await db.insert(completionContracts).values({
       id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "fixture",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture",
       risk: "standard", completionAuthority: "server_arbiter",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
       canonicalSha256: "fixture-contract", createdByActorType: "system", createdByActorId: "test",

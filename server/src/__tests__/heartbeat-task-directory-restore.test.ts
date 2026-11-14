@@ -16,7 +16,7 @@ import {
   executionWorkspaces,
   heartbeatRuns,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { drainHeartbeatRunsToQuiescence } from "./helpers/drain-heartbeat-runs.js";
 import { heartbeatService } from "../services/heartbeat.ts";
@@ -72,9 +72,9 @@ describe.skipIf(!support.supported)("heartbeat resume of a removed task director
 
   it("restores a removed task directory before the run uses it", async () => {
     const mode = "shared_workspace";
-    vi.stubEnv("PAPERCLIP_HOME", path.join(root, randomUUID()));
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+    vi.stubEnv("OUTPOST_HOME", path.join(root, randomUUID()));
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
     const runId = randomUUID(), wakeupId = randomUUID();
     const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;

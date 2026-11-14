@@ -23,7 +23,7 @@ import { expect, it, vi } from "vitest";
 import { activityLog, agentRuntimeState, agentTaskSessions, agentWakeupRequests, agents, applyPendingMigrations, authUsers,
   chatActions, chatConversations, chatEndpoints, chatExternalPrincipals, chatPublications, chatSlackRegistrations,
   closeCheckpointDb, closeFileStorageDb, closeLivenessDb, companies, companyMemberships, companySecrets, companySkills,
-  costEvents, createDb, financeEvents, heartbeatRunEvents, heartbeatRuns, issueComments, issues, toolApplications, toolConnections } from "@paperclipai/db";
+  costEvents, createDb, financeEvents, heartbeatRunEvents, heartbeatRuns, issueComments, issues, toolApplications, toolConnections } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { guardSlackFixtureNetwork } from "./helpers/slack-cloud/transport.js";
 import { ChatRuntime } from "../services/chat-runtime.js";
@@ -58,7 +58,7 @@ type Fixture = {
   instanceId: string; publicId: string; teamId: string; appId: string; botId: string; userId: string; channelId: string; threadTs: string;
   botToken: string; signingSecret: string; controlNonce: string; signPrivate: string; sealPrivate: string; controlJwks: unknown; origin: string; tenantOrigin: string;
 };
-const appUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_SLACK_TEST_DATABASE_URL");
+const appUrl = resolveExternalTestDatabaseUrl("OUTPOST_SLACK_TEST_DATABASE_URL");
 const stateFile = process.env.SLACK_FORM_JOURNEY_STATE_FILE;
 const shortGate = process.env.SLACK_FORM_SHORT_GATE;
 if (appUrl && stateFile && shortGate !== "callback") throw new Error("One closed enabled-quiet callback qualification required");
@@ -106,11 +106,11 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
     expect(reconstruction).toEqual({ reconciled: 0, adopted: 0, stopped: 0, backfilled: 0, restarted: 0, restartFailed: 0, exposureReservationDrift: [] });
     directory = await mkdtemp(path.join(os.tmpdir(), "form-journey-"));
     for (const [key, value] of Object.entries({
-      PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: f.origin, PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: "test", PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID: f.instanceId,
-      PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: f.signPrivate, PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: f.sealPrivate,
-      PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify(f.controlJwks), PAPERCLIP_CLOUD_STACK_ID: f.instanceId,
-      PAPERCLIP_SECRETS_MASTER_KEY_FILE: path.join(directory, "master.key"),
-      PAPERCLIP_AGENT_JWT_SECRET: `${randomUUID()}${randomUUID()}`, PAPERCLIP_API_URL: f.tenantOrigin,
+      OUTPOST_CLOUD_CONNECTOR_BASE_URL: f.origin, OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "test", OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID: f.instanceId,
+      OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: f.signPrivate, OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: f.sealPrivate,
+      OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify(f.controlJwks), OUTPOST_CLOUD_STACK_ID: f.instanceId,
+      OUTPOST_SECRETS_MASTER_KEY_FILE: path.join(directory, "master.key"),
+      OUTPOST_AGENT_JWT_SECRET: `${randomUUID()}${randomUUID()}`, OUTPOST_API_URL: f.tenantOrigin,
     })) vi.stubEnv(key, value);
     const now = new Date();
     await db.insert(companies).values({ id: f.companyId, name: "Form boundary journey", issuePrefix: `F${f.companyId.slice(0, 7)}` });
@@ -244,7 +244,7 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
     };
     type WireSnapshot = { pid: number; observedAt: number; pgConnectAttempts: number; pgConnects: number; pgCloses: number;
       pgWriteCalls: number; outboundRequests: number; nonPgConnectAttempts: number; livePgSockets: number };
-    const wire = Reflect.get(process, Symbol.for("paperclip.slack.fixture.prewire")) as {
+    const wire = Reflect.get(process, Symbol.for("outpost.slack.fixture.prewire")) as {
       pid: number; wireSnapshot(): WireSnapshot; waitForPgSocketsClosed(timeoutMs: number): Promise<void>;
       beginWireWindow(): WireSnapshot; endWireWindow(): { before: WireSnapshot; after: WireSnapshot; peakPgSockets: number;
         pgWriteCalls: number; pgConnectAttempts: number; pgConnects: number; pgCloses: number; outboundRequests: number; nonPgConnectAttempts: number };

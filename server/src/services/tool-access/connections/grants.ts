@@ -7,8 +7,8 @@ import { vercelConnectResourcesFor } from "../vercel-credentials.js";
 import type { ActorInfo } from "../types.js";
 import { oauthConfig } from "../oauth/metadata.js";
 import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agents, connectionGrantMembers, connectionGrantDelegations, connectionGrants, authUsers, companyMemberships, toolAccessAuditEvents, toolConnections } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { agents, connectionGrantMembers, connectionGrantDelegations, connectionGrants, authUsers, companyMemberships, toolAccessAuditEvents, toolConnections } from "@outpost/db";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../../../errors.js";
 import { isPaperclipCloudConnectorStrategy } from "../../paperclip-cloud-connector.js";
 import { vercelTokenRequest, type VercelConnectClient } from "../../vercel-connect.js";
@@ -155,7 +155,7 @@ replaceConnectionGrantMembers: async (
         // Serialize replacements before taking the current audience snapshot.
         // Otherwise a second replacement could read the old rows, wait behind
         // an in-flight replacement, and then miss locking a newly-added member.
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${"paperclip.connection_grant_audience:" + grant.id}, 0))`);
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${"outpost.connection_grant_audience:" + grant.id}, 0))`);
         const existingAudience = await tx
           .select()
           .from(connectionGrantMembers)

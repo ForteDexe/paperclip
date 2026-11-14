@@ -71,7 +71,7 @@ export const SelectOrganization: Story = {
     const card = await c.findByRole("button", { name: /Archived Research/ });
     await userEvent.click(card);
     await waitFor(() =>
-      expect(localStorage.getItem("paperclip.selectedCompanyId")).toBe(
+      expect(localStorage.getItem("outpost.selectedCompanyId")).toBe(
         "archived-gap",
       ),
     );

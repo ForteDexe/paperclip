@@ -11,8 +11,8 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 async function fixture(lifecycle = "spot") {
   const root = await mkdtemp(path.join(os.tmpdir(), "remote-host-offline-")); roots.push(root);
-  const execution = { id: "chat-features.runner-opencode.local.create-backlog", suite: { id: "chat-features" }, profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "paperclip_runner", credential: "OPENROUTER_API_KEY" }, environment: { id: "local" }, task: { automaticRetryPolicy: "single_attempt" } } as unknown as MatrixExecution;
-  const env = { GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "paperclipai/paperclip", GITHUB_REF: "refs/heads/master", GITHUB_WORKFLOW_REF: "paperclipai/paperclip/.github/workflows/runner-full-stack-e2e.yml@refs/heads/master", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", PAPERCLIP_RUNNER_E2E_SOURCE_SHA: "a".repeat(40), OPENROUTER_API_KEY: "synthetic-private-canary" };
+  const execution = { id: "chat-features.runner-opencode.local.create-backlog", suite: { id: "chat-features" }, profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "outpost_runner", credential: "OPENROUTER_API_KEY" }, environment: { id: "local" }, task: { automaticRetryPolicy: "single_attempt" } } as unknown as MatrixExecution;
+  const env = { GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "paperclipai/paperclip", GITHUB_REF: "refs/heads/master", GITHUB_WORKFLOW_REF: "paperclipai/paperclip/.github/workflows/runner-full-stack-e2e.yml@refs/heads/master", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", OUTPOST_RUNNER_E2E_SOURCE_SHA: "a".repeat(40), OPENROUTER_API_KEY: "synthetic-private-canary" };
   const fetch = vi.fn(async (url: string | URL | Request) => {
     const u = String(url);
     if (u.endsWith("/api/token")) return new Response("synthetic-imds-token");
@@ -26,7 +26,7 @@ describe("remote-only chat host qualification without native/provider calls", ()
   it("admits the finite 244-case catalog only through its own trusted TestOps workflow", async () => {
     const f = await fixture();
     f.env.GITHUB_WORKFLOW_REF = "paperclipai/paperclip/.github/workflows/chat-catalog-testops.yml@refs/heads/master";
-    Object.assign(f.env, { PAPERCLIP_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77" });
+    Object.assign(f.env, { OUTPOST_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77" });
     f.executions = chatCatalogScenarios.map(row => {
       const id = row.id === "tasks.create-backlog" ? "create-backlog" : row.id === "tasks.delegate-announcement" ? "delegate-announcement" : row.id;
       return { ...f.executions[0]!, id: `chat-features.runner-opencode.local.${id}`, task: { ...f.executions[0]!.task, id } };
@@ -41,7 +41,7 @@ describe("remote-only chat host qualification without native/provider calls", ()
   it.each(["projects.project-work", "projects.project-defaults", "instance-operations.restart-service"])("admits only the bound TestOps pilot cell %s on the actual AWS host", async scenario => {
     const f = await fixture();
     f.env.GITHUB_WORKFLOW_REF = "paperclipai/paperclip/.github/workflows/chat-completion-testops.yml@refs/heads/master";
-    Object.assign(f.env, { PAPERCLIP_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77", GITHUB_RUN_ATTEMPT: "1" });
+    Object.assign(f.env, { OUTPOST_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77", GITHUB_RUN_ATTEMPT: "1" });
     f.executions[0]!.id = `chat-features.runner-opencode.local.${scenario}`;
     f.executions[0]!.task.id = scenario;
     expect(await prepareChatRemoteHost(f)).toMatchObject({ databaseLane: "embedded-postgres", maxAutomaticRetries: 0 });
@@ -51,12 +51,12 @@ describe("remote-only chat host qualification without native/provider calls", ()
   it.each(["foreign-cell", "wrong-task-id", "missing-admission", "missing-jobrun", "replay", "candidate-workflow"])("rejects TestOps %s before AWS metadata or inference", async kind => {
     const f = await fixture();
     f.env.GITHUB_WORKFLOW_REF = "paperclipai/paperclip/.github/workflows/chat-completion-testops.yml@refs/heads/master";
-    const extra = { PAPERCLIP_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77" };
+    const extra = { OUTPOST_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "77" };
     Object.assign(f.env, extra); f.executions[0]!.id = "chat-features.runner-opencode.local.projects.project-work";
     f.executions[0]!.task.id = "projects.project-work";
     if (kind === "foreign-cell") f.executions[0]!.id = "chat-features.runner-opencode.local.tasks.delete";
     if (kind === "wrong-task-id") f.executions[0]!.task.id = "foreign";
-    if (kind === "missing-admission") Object.assign(f.env, { PAPERCLIP_CHAT_COMPLETION_TESTOPS: undefined });
+    if (kind === "missing-admission") Object.assign(f.env, { OUTPOST_CHAT_COMPLETION_TESTOPS: undefined });
     if (kind === "missing-jobrun") Object.assign(f.env, { ALLURE_JOB_RUN_ID: undefined });
     if (kind === "replay") f.env.GITHUB_RUN_ATTEMPT = "2";
     if (kind === "candidate-workflow") f.env.GITHUB_WORKFLOW_REF = f.env.GITHUB_WORKFLOW_REF.replace("refs/heads/master", "refs/heads/candidate");
@@ -65,13 +65,13 @@ describe("remote-only chat host qualification without native/provider calls", ()
   });
   it.each(["00077", "9007199254740992", "12345678901234567"])("rejects the same unsafe job identity %s as the dedicated dispatcher", async jobRunId => {
     const f = await fixture(); f.env.GITHUB_WORKFLOW_REF = "paperclipai/paperclip/.github/workflows/chat-completion-testops.yml@refs/heads/master";
-    Object.assign(f.env, { PAPERCLIP_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: jobRunId });
+    Object.assign(f.env, { OUTPOST_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: jobRunId });
     f.executions[0]!.task.id = "projects.project-work"; f.executions[0]!.id = `chat-features.runner-opencode.local.${f.executions[0]!.task.id}`;
     await expect(prepareChatRemoteHost(f)).rejects.toThrow("trusted-github-linux-source-required"); expect(f.fetch).not.toHaveBeenCalled();
   });
   it("admits the maximum safe job identity and retains it exactly", async () => {
     const f = await fixture(); f.env.GITHUB_WORKFLOW_REF = "paperclipai/paperclip/.github/workflows/chat-completion-testops.yml@refs/heads/master";
-    Object.assign(f.env, { PAPERCLIP_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "9007199254740991" });
+    Object.assign(f.env, { OUTPOST_CHAT_COMPLETION_TESTOPS: "v1", ALLURE_JOB_RUN_ID: "9007199254740991" });
     f.executions[0]!.task.id = "projects.project-work"; f.executions[0]!.id = `chat-features.runner-opencode.local.${f.executions[0]!.task.id}`;
     await prepareChatRemoteHost(f); expect(await f.receipt()).toMatchObject({ testOps: { admission: "v1", allureJobRunId: "9007199254740991" } });
   });
@@ -97,7 +97,7 @@ describe("remote-only chat host qualification without native/provider calls", ()
     const f = await fixture();
     if (kind === "local") f.dependencies.platform = "darwin";
     if (kind === "branch-workflow") f.env.GITHUB_WORKFLOW_REF = "untrusted@refs/heads/branch";
-    if (kind === "wrong-source") f.env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA = "b".repeat(40);
+    if (kind === "wrong-source") f.env.OUTPOST_RUNNER_E2E_SOURCE_SHA = "b".repeat(40);
     if (kind === "wrong-model") f.executions[0]!.profile.model = "other";
     if (kind === "automatic-retry") f.executions[0]!.task.automaticRetryPolicy = undefined;
     if (kind === "foreign-repository") f.env.GITHUB_REPOSITORY = "foreign/repository";

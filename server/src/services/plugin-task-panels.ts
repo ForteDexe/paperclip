@@ -1,5 +1,5 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { heartbeatRunEvents, plugins, type Db } from "@paperclipai/db";
+import { heartbeatRunEvents, plugins, type Db } from "@outpost/db";
 
 export const RUNTIME_ACTIVITY_EVENT = "runtime.activity.recorded";
 export interface TaskPanelActivation { pluginKey: string; slotId: string }
@@ -14,16 +14,16 @@ export function runtimeActivity(payload: Record<string, unknown> | null): { name
 /** Core maps authenticated runtime facts to installed UI declarations. */
 export async function readTaskPanelActivations(db: Db, companyId: string, runId: string): Promise<TaskPanelActivation[]> {
   const rows = await db.selectDistinct({
-    payload: sql<Record<string, unknown>>`${heartbeatRunEvents.payload}->'prpEvent'->'payload'`, manifest: plugins.manifestJson, pluginKey: plugins.pluginKey,
+    payload: sql<Record<string, unknown>>`${heartbeatRunEvents.payload}->'orpEvent'->'payload'`, manifest: plugins.manifestJson, pluginKey: plugins.pluginKey,
   }).from(heartbeatRunEvents)
     .innerJoin(plugins, sql`EXISTS (
       SELECT 1 FROM jsonb_array_elements(${plugins.manifestJson}->'ui'->'slots') AS declared_slot
-      WHERE declared_slot->'taskSidePanel'->'activation' = ${heartbeatRunEvents.payload}->'prpEvent'->'payload'
+      WHERE declared_slot->'taskSidePanel'->'activation' = ${heartbeatRunEvents.payload}->'orpEvent'->'payload'
     )`)
     .where(and(eq(heartbeatRunEvents.companyId, companyId), eq(heartbeatRunEvents.runId, runId),
       eq(heartbeatRunEvents.eventType, RUNTIME_ACTIVITY_EVENT), ne(plugins.status, "uninstalled"),
-      sql`${heartbeatRunEvents.payload}->'prpEvent'->>'sourceKind' = 'runner'`,
-      sql`${heartbeatRunEvents.payload}->'prpEvent'->>'eventType' = ${RUNTIME_ACTIVITY_EVENT}`)).limit(128);
+      sql`${heartbeatRunEvents.payload}->'orpEvent'->>'sourceKind' = 'runner'`,
+      sql`${heartbeatRunEvents.payload}->'orpEvent'->>'eventType' = ${RUNTIME_ACTIVITY_EVENT}`)).limit(128);
   return rows.flatMap(({ payload, manifest, pluginKey }) => {
     const activity = runtimeActivity(payload);
     return activity ? (manifest.ui?.slots ?? []).filter(slot => slot.type === "detailTab"

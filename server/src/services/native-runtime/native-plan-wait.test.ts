@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import * as runner from "../../vendor/paperclip-runner/index.js";
+import * as runner from "../../vendor/outpost-runner/index.js";
 import * as lifecycle from "./provider-lifecycle.js";
-import { resolveQualifiedAcpxProfile, validatePrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import { resolveQualifiedAcpxProfile, validatePrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 import { buildQuestionResponseDeliveryEnvelope } from "../question-response-delivery.js";
 import { NATIVE_COMPLETION_CONTRACT_SCHEMA, NATIVE_COMPLETION_POLICY_VERSION } from "./completion-contracts.js";
 import { nativeSha256 } from "./canonical.js";
@@ -9,7 +9,7 @@ import { hasCommittedNativePlanWait, nativePlanWaitFromFacts, type PlanWaitFacts
 
 function committedDb(f: PlanWaitFacts, source: unknown, result: unknown, legacy = false) {
   const sourceRecord = source as any;
-  const resultJson = { result, terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" } };
+  const resultJson = { result, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" } };
   const canonicalSha256 = nativeSha256(resultJson);
   const identity = { resultId: "result", resultSha256: canonicalSha256 };
   const decisionJson = legacy ? { cursorPlanWait: source, cursorPlanWaitResult: identity } : { planWait: source, planWaitResult: identity };
@@ -31,25 +31,25 @@ function fixture(): PlanWaitFacts {
   const contractMetadata = { schemaVersion: NATIVE_COMPLETION_CONTRACT_SCHEMA, policyVersion: NATIVE_COMPLETION_POLICY_VERSION, risk: "low", completionAuthority: "agent_claim_policy" };
   const contractSha = nativeSha256({ ...contractMetadata, contract });
   const planId = `plan-${"a".repeat(64)}`;
-  const input = { schema: "paperclip.question_set.v1", title: "Plan", description: "Exact revised plan text", questions: [{ id: planId, prompt: "Proceed?", required: true, answerMode: "single_select", options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }] };
+  const input = { schema: "outpost.question_set.v1", title: "Plan", description: "Exact revised plan text", questions: [{ id: planId, prompt: "Proceed?", required: true, answerMode: "single_select", options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }] };
   const i = { id: "interaction", ...b, sourceRunId: b.runId, createdByAgentId: b.agentId, resolvedByUserId: "board", resolvedByAgentId: null, resolvedAt: new Date(0),
-    kind: "ask_user_questions", status: "answered", continuationPolicy: "none", idempotencyKey: "paperclip-runner-question:run:request",
+    kind: "ask_user_questions", status: "answered", continuationPolicy: "none", idempotencyKey: "outpost-runner-question:run:request",
     payload: { runtimeRequestId: "request", questionSet: input }, result: { version: 1, answers: [{ questionId: planId, optionIds: ["accept"] }] } };
   const envelope = buildQuestionResponseDeliveryEnvelope(i as never);
   const d = { id: "delivery", ...b, interactionId: i.id, sourceRunId: b.runId, targetRunId: b.runId, targetTurnId: null, status: "delivered", deliveryMode: "steered", acknowledgedAt: new Date(1), payloadSha256: nativeSha256(envelope) };
   const event = (sourceSeq: number, eventType: string, payload: Record<string, unknown>) => {
-    const e = { schema: "paperclip.prp.event.v1", runId: b.runId, normalizedSessionId: "session", turnId: "turn", sourceInstanceId: "instance", sourceEventId: `instance:${sourceSeq}`, sourceSeq, sourceKind: "runner", schemaVersion: 1, eventType, payload };
-    return { ...b, seq: sourceSeq, eventType, payload: { prpEvent: e }, sourceInstanceId: e.sourceInstanceId, sourceEventId: e.sourceEventId, sourceSeq, sourcePayloadSha256: nativeSha256(e), protocolSchemaVersion: 1 };
+    const e = { schema: "outpost.orp.event.v1", runId: b.runId, normalizedSessionId: "session", turnId: "turn", sourceInstanceId: "instance", sourceEventId: `instance:${sourceSeq}`, sourceSeq, sourceKind: "runner", schemaVersion: 1, eventType, payload };
+    return { ...b, seq: sourceSeq, eventType, payload: { orpEvent: e }, sourceInstanceId: e.sourceInstanceId, sourceEventId: e.sourceEventId, sourceSeq, sourcePayloadSha256: nativeSha256(e), protocolSchemaVersion: 1 };
   };
   return {
     binding: b,
     run: { id: b.runId, companyId: b.companyId, agentId: b.agentId, nativeIssueId: b.issueId, runtimeMode: "native", runnerInstanceId: "instance", status: "running", completionContractId: "contract", completionContractSha256: contractSha, runnerProfileJson: { nativeExecutionInput: { binding: b, provider: { kind: "acpx", agent: "cursor", mode: "plan", model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", profile: resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]") }, session: { normalizedSessionId: "session" }, completionContract: { id: "contract", sha256: contractSha, contract } } } },
     contract: { id: "contract", ...contractMetadata, canonicalSha256: contractSha, contractJson: contract },
     events: [
-      event(275, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", status: "pending", type: "input", requestKind: "runtime", requestId: "request", turnId: "turn", itemId: "native-plan-tool", origin: { provider: "cursor", method: "cursor/create_plan", adapter: "acpx-runtime-sidecar" }, input } }),
-      event(294, "tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", name: "arbitrary display name" }),
+      event(275, "runtime_request.created", { request: { schema: "outpost.runtime_request.v2", status: "pending", type: "input", requestKind: "runtime", requestId: "request", turnId: "turn", itemId: "native-plan-tool", origin: { provider: "cursor", method: "cursor/create_plan", adapter: "acpx-runtime-sidecar" }, input } }),
+      event(294, "tool.execution.started", { schema: "outpost.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", name: "arbitrary display name" }),
       event(300, "runtime_request.resolved", { requestId: "request", turnId: "turn", action: "submit", response: envelope.response }),
-      event(303, "tool.execution.completed", { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed" }),
+      event(303, "tool.execution.completed", { schema: "outpost.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed" }),
       event(304, "turn.completed", { status: "completed", error: null }),
     ],
     interactions: [{ interaction: i, delivery: d }],
@@ -57,7 +57,7 @@ function fixture(): PlanWaitFacts {
 }
 function editEvent(f: PlanWaitFacts, index: number, edit: (e: any) => void) {
   const row = f.events.filter(row => !row.eventType.startsWith("tool.execution."))[index]!;
-  const e = (row.payload as any).prpEvent;
+  const e = (row.payload as any).orpEvent;
   edit(e); row.sourcePayloadSha256 = nativeSha256(e);
 }
 
@@ -65,8 +65,8 @@ function resequence(f: PlanWaitFacts) {
   f.events.forEach((row, index) => {
     const sourceSeq = index + 1;
     Object.assign(row, { seq: sourceSeq, sourceSeq, sourceEventId: `instance:${sourceSeq}` });
-    Object.assign((row.payload as any).prpEvent, { sourceSeq, sourceEventId: row.sourceEventId });
-    row.sourcePayloadSha256 = nativeSha256((row.payload as any).prpEvent);
+    Object.assign((row.payload as any).orpEvent, { sourceSeq, sourceEventId: row.sourceEventId });
+    row.sourcePayloadSha256 = nativeSha256((row.payload as any).orpEvent);
   });
 }
 
@@ -76,7 +76,7 @@ function withProgress(count: number) {
   const rows = Array.from({ length: count }, () => {
     const row = structuredClone(start);
     row.eventType = "tool.execution.progressed";
-    (row.payload as any).prpEvent.eventType = row.eventType;
+    (row.payload as any).orpEvent.eventType = row.eventType;
     return row;
   });
   f.events.splice(3, 0, ...rows);
@@ -88,7 +88,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
   it("writes and replays a provider-neutral receipt while preserving its exact authority", async () => {
     const f = fixture(); f.run.status = "succeeded";
     const proof = nativePlanWaitFromFacts(f)!;
-    expect(proof.source.schema).toBe("paperclip.native_plan_wait.v1");
+    expect(proof.source.schema).toBe("outpost.native_plan_wait.v1");
     expect(proof.result.continuation!.idempotencyKey).toMatch(/^native-plan-wait:/);
     expect(await hasCommittedNativePlanWait(committedDb(f, proof.source, proof.result), f.binding)).toBe(true);
     const changed = structuredClone(proof.result); changed.summary = "different result";
@@ -128,9 +128,9 @@ describe("accepted Cursor plan passive-wait authority", () => {
     Object.assign(admission.provider.profile, { agentProfileVersion: 6, commandDigest: "sha256:377dcea64a727ce799cc112458d4b40ba4bc6574cd6c6f7233b6efd5917a6c4b" });
     admission.provider.cursorMode = "plan"; delete admission.provider.mode;
     f.events = f.events.filter(e => !e.eventType.startsWith("tool.execution."));
-    const payload = (type: string) => (f.events.find(e => e.eventType === type)!.payload as any).prpEvent;
+    const payload = (type: string) => (f.events.find(e => e.eventType === type)!.payload as any).orpEvent;
     const { interaction, delivery } = f.interactions[0]!;
-    const source = { ...proof.source, schema: "paperclip.native_cursor_plan_wait.v1", authoritySha256: nativeSha256({ admission, contract: f.contract,
+    const source = { ...proof.source, schema: "outpost.native_cursor_plan_wait.v1", authoritySha256: nativeSha256({ admission, contract: f.contract,
       created: payload("runtime_request.created"), resolved: payload("runtime_request.resolved"), terminal: payload("turn.completed"),
       interaction, delivery, resolvedAt: interaction.resolvedAt!.toISOString(), acknowledgedAt: delivery.acknowledgedAt!.toISOString() }) };
     delete source.toolExecutionId; delete source.toolLifecycleSha256;
@@ -145,8 +145,8 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const proof = nativePlanWaitFromFacts(f);
     expect(proof).not.toBeNull();
     const progress = f.events[1_200]!;
-    (progress.payload as any).prpEvent.payload.name = "updated diagnostic text";
-    progress.sourcePayloadSha256 = nativeSha256((progress.payload as any).prpEvent);
+    (progress.payload as any).orpEvent.payload.name = "updated diagnostic text";
+    progress.sourcePayloadSha256 = nativeSha256((progress.payload as any).orpEvent);
     const changed = nativePlanWaitFromFacts(f);
     expect(changed).not.toBeNull();
     expect(changed!.source.toolLifecycleSha256).not.toBe(proof!.source.toolLifecycleSha256);
@@ -154,7 +154,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
   });
   it.each(["foreign tool", "foreign session", "tampered digest", "late progress"])("rejects %s beyond the first thousand events", kind => {
     const f = withProgress(2_000), row = f.events[1_200]!;
-    const event = (row.payload as any).prpEvent;
+    const event = (row.payload as any).orpEvent;
     if (kind === "foreign tool") event.payload.executionId = "unrelated";
     if (kind === "foreign session") event.normalizedSessionId = "other";
     if (kind === "late progress") { f.events.splice(1_200, 1); f.events.push(row); resequence(f); }
@@ -167,7 +167,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const f = withProgress(1_200);
     const turnStart = structuredClone(f.events[0]!);
     turnStart.eventType = "turn.started";
-    Object.assign((turnStart.payload as any).prpEvent, { eventType: "turn.started", payload: {} });
+    Object.assign((turnStart.payload as any).orpEvent, { eventType: "turn.started", payload: {} });
     f.events.unshift(...Array.from({ length: 995 }, () => structuredClone(turnStart)));
     resequence(f);
     expect(nativePlanWaitFromFacts(f)).not.toBeNull();
@@ -182,14 +182,14 @@ describe("accepted Cursor plan passive-wait authority", () => {
     admission.provider.cursorMode = admission.provider.mode;
     delete admission.provider.mode;
     expect(nativePlanWaitFromFacts(f)).toBeNull();
-    const payload = (type: string) => (f.events.find(e => e.eventType === type)!.payload as any).prpEvent;
+    const payload = (type: string) => (f.events.find(e => e.eventType === type)!.payload as any).orpEvent;
     const { interaction, delivery } = f.interactions[0]!;
     const toolBinding = { toolExecutionId: proof.source.toolExecutionId, toolLifecycleSha256: proof.source.toolLifecycleSha256 };
-    const source = { ...proof.source, schema: "paperclip.native_cursor_plan_wait.v1", authoritySha256: nativeSha256({ admission, contract: f.contract,
+    const source = { ...proof.source, schema: "outpost.native_cursor_plan_wait.v1", authoritySha256: nativeSha256({ admission, contract: f.contract,
       created: payload("runtime_request.created"), resolved: payload("runtime_request.resolved"), terminal: payload("turn.completed"),
       interaction, delivery, resolvedAt: interaction.resolvedAt!.toISOString(), acknowledgedAt: delivery.acknowledgedAt!.toISOString(), toolBinding }) };
     proof.result.continuation!.idempotencyKey = proof.result.continuation!.idempotencyKey.replace("native-plan-wait:", "cursor-plan-wait:");
-    const resultJson = { result: proof.result, terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" } };
+    const resultJson = { result: proof.result, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" } };
     const canonicalSha256 = nativeSha256(resultJson);
     const db = () => {
       const rows = [
@@ -227,7 +227,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const f = fixture();
     const start = f.events.find(row => row.eventType === "tool.execution.started")!;
     const end = f.events.find(row => row.eventType === "tool.execution.completed")!;
-    const event = (start.payload as any).prpEvent;
+    const event = (start.payload as any).orpEvent;
     if (kind === "unrelated same-title tool") event.payload.executionId = "unrelated-tool";
     if (kind === "cross turn") event.turnId = "other";
     if (kind === "cross session") event.normalizedSessionId = "other";
@@ -235,7 +235,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
     if (kind === "duplicate completion") f.events.splice(4, 0, structuredClone(end));
     if (kind === "missing start") f.events = f.events.filter(row => row !== start);
     if (kind === "missing completion") f.events = f.events.filter(row => row !== end);
-    if (kind === "failed completion") { (end.payload as any).prpEvent.payload.status = "failed"; end.sourcePayloadSha256 = nativeSha256((end.payload as any).prpEvent); }
+    if (kind === "failed completion") { (end.payload as any).orpEvent.payload.status = "failed"; end.sourcePayloadSha256 = nativeSha256((end.payload as any).orpEvent); }
     if (kind === "changed request tool") editEvent(f, 0, e => { e.payload.request.itemId = "unrelated-tool"; });
     start.sourcePayloadSha256 = kind === "uncommitted tool row" ? null : nativeSha256(event);
     expect(nativePlanWaitFromFacts(f)).toBeNull();
@@ -244,7 +244,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const f = fixture();
     const extra = structuredClone(f.events.find(row => row.eventType === "tool.execution.started")!);
     extra.seq = 295; extra.sourceSeq = 295; extra.sourceEventId = "instance:295";
-    const e = (extra.payload as any).prpEvent;
+    const e = (extra.payload as any).orpEvent;
     Object.assign(e, { sourceSeq: 295, sourceEventId: extra.sourceEventId });
     Object.assign(e.payload, { executionId: "unrelated", name: "Create Plan" });
     extra.sourcePayloadSha256 = nativeSha256(e); f.events.splice(2, 0, extra);
@@ -254,8 +254,8 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const f = fixture(); const original = nativePlanWaitFromFacts(f)!;
     expect(original.source.toolLifecycleSha256).toMatch(/^[a-f0-9]{64}$/);
     const start = f.events.find(row => row.eventType === "tool.execution.started")!;
-    (start.payload as any).prpEvent.payload.name = "changed display text";
-    start.sourcePayloadSha256 = nativeSha256((start.payload as any).prpEvent);
+    (start.payload as any).orpEvent.payload.name = "changed display text";
+    start.sourcePayloadSha256 = nativeSha256((start.payload as any).orpEvent);
     const changed = nativePlanWaitFromFacts(f)!;
     expect(changed).not.toBeNull();
     expect(changed.source.authoritySha256).not.toBe(original.source.authoritySha256);
@@ -327,7 +327,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
     for (const kind of ["runtime_request.created", "tool.execution.started", "turn.failed", "turn.cancelled", "turn.completed"]) {
       const f = fixture(); const row = structuredClone(f.events[0]!);
       row.seq = 2.5; row.sourceSeq = 3; row.sourceEventId = "instance:later"; row.eventType = kind;
-      const e = (row.payload as any).prpEvent; Object.assign(e, { sourceSeq: 3, sourceEventId: row.sourceEventId, eventType: kind });
+      const e = (row.payload as any).orpEvent; Object.assign(e, { sourceSeq: 3, sourceEventId: row.sourceEventId, eventType: kind });
       if (kind === "runtime_request.created") e.payload.request.requestId = "new-plan";
       row.sourcePayloadSha256 = nativeSha256(e);
       editEvent(f, 2, e => { e.sourceSeq = 4; }); f.events[2]!.sourceSeq = 4;

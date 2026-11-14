@@ -7,9 +7,9 @@ const base = { id: "run", companyId: "company", agentId: "agent", nativeIssueId:
   usageJson: { accountingReceiptSourceId: "source", accountingReceiptSequence: 5 } };
 const event = (seq, type, payload = {}) => ({ seq, eventType: type, runId: base.id, companyId: base.companyId, agentId: base.agentId,
   protocolSchemaVersion: 1, sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq,
-  payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, eventType: type, runId: base.id, turnId: "turn",
+  payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: type, runId: base.id, turnId: "turn",
     sourceKind: "runner", sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq, payload } } });
-const command = { schema: "paperclip.tool.execution.v1", executionId: "sleep", transport: "process", operation: "execute", status: "running" };
+const command = { schema: "outpost.tool.execution.v1", executionId: "sleep", transport: "process", operation: "execute", status: "running" };
 const usage = { kind: "usage", usage: { runDeltaComplete: true, runDelta: { inputTokens: 120, outputTokens: 10 } } };
 let state = { phase: "startup", run: structuredClone(base), events: [event(1, "turn.started")] };
 let beforeStop = false, beforeRedirect = false, stops = 0, replies = 0, cancelled = false, boundary, journey, beforeEvents;
@@ -87,14 +87,14 @@ try {
   assert.equal(stops, 1); assert.equal(replies, 0, "Stop/lease proof cannot substitute for settled accounting");
   const raw = { kind: "usage", item: { type: "usage" }, text: "", channel: "usage" };
   const reconciled = event(8, "item.completed", raw);
-  reconciled.sourceInstanceId = reconciled.payload.prpEvent.sourceInstanceId = "reconciler";
+  reconciled.sourceInstanceId = reconciled.payload.orpEvent.sourceInstanceId = "reconciler";
   state = { ...state, phase: "ready-but-pending", events: [...state.events, reconciled,
     event(9, "item.completed", partial), event(10, "item.completed", usage)],
     run: { ...state.run, usageJson: { ...state.run.usageJson, accountingReceiptReady: true } } };
   await until(() => observed.has("ready-but-pending")); assert.equal(replies, 0);
   const current = await page.evaluate(async () => (await fetch("/api/owned-observation")).json());
   for (const mutate of [row => { row.companyId = "foreign"; }, row => { row.agentId = "foreign"; },
-    row => { row.payload.prpEvent.runId = "foreign"; }, row => { row.sourceEventId = "foreign"; },
+    row => { row.payload.orpEvent.runId = "foreign"; }, row => { row.sourceEventId = "foreign"; },
     row => { row.sourceInstanceId = "foreign"; }, row => { row.sourceSeq++; }]) {
     const foreign = event(11, "item.completed", raw); mutate(foreign);
     assert.equal(nativeCancellationHasNoLaterWork([...current.events, foreign], boundary), false);
@@ -102,7 +102,7 @@ try {
   }
   for (const type of ["tool.execution.started", "message.delta", "item.delta"]) {
     const productive = event(11, type, { kind: "message" });
-    productive.sourceInstanceId = productive.payload.prpEvent.sourceInstanceId = "reconciler";
+    productive.sourceInstanceId = productive.payload.orpEvent.sourceInstanceId = "reconciler";
     assert.equal(nativeCancellationHasNoLaterWork([...current.events, productive], boundary), false);
   }
   assert.equal(nativeCancellationHasNoLaterWork(current.events), false);

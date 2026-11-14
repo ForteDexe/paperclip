@@ -26,7 +26,7 @@ async function startDatabase() {
   if (!dockerPostgres) return startEmbeddedPostgresTestDatabase("cloud-membership-benchmark-");
   const container = `paperclip-cloud-membership-${randomUUID()}`;
   const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  docker("run", "--detach", "--rm", "--name", container, "--label", "paperclip.benchmark=cloud-membership",
+  docker("run", "--detach", "--rm", "--name", container, "--label", "outpost.benchmark=cloud-membership",
     "--publish", "127.0.0.1::5432", "--env", "POSTGRES_USER=paperclip", "--env", "POSTGRES_PASSWORD=paperclip",
     "--env", "POSTGRES_DB=paperclip", "postgres:17");
   const cleanup = async () => { docker("rm", "--force", container); };
@@ -64,8 +64,8 @@ try {
   await fs.writeFile(baselineFile, rewritten);
   const baseline = (await import(pathToFileURL(baselineFile).href)).resolveCloudTenantActor as typeof resolveCloudTenantActor;
 
-  process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "synthetic-membership-benchmark";
-  process.env.PAPERCLIP_MANAGED_CONFIG = JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "synthetic", features: { enableOwnerInstanceAdmin: false }, plugins: { autoInstall: [] } });
+  process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "synthetic-membership-benchmark";
+  process.env.OUTPOST_MANAGED_CONFIG = JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "synthetic", features: { enableOwnerInstanceAdmin: false }, plugins: { autoInstall: [] } });
   const userId = randomUUID();
   const headers = cloudActorHeaderSourceFromHeaders({
     "x-paperclip-cloud-tenant-token": "synthetic-membership-benchmark",

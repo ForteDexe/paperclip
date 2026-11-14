@@ -5,13 +5,13 @@ import {
   agents, approvals, companies, companyMemberships, companySecrets, connectionGrants,
   createDb, heartbeatRuns, issues, toolAccessAuditEvents, toolActionRequests,
   toolApplications, toolCallEvents, toolConnections, toolOauthStates,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { classifyRisk, toolAccessService, type McpToolDescriptor } from "../services/tool-access.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const actor = { actorType: "user" as const, actorId: "braintrust-reviewer" };
-const redirectUri = "https://paperclip.fixture.test/api/tools/oauth/callback";
+const redirectUri = "https://outpost.fixture.test/api/tools/oauth/callback";
 const initialTools: McpToolDescriptor[] = [
   { name: "sql_query", inputSchema: { type: "object", properties: { query: { type: "string" } } }, annotations: { readOnlyHint: true } },
   // Deliberately incorrect provider hints must never downgrade reviewed risk.

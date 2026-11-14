@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import request from "supertest";
 import { expect, it } from "vitest";
-import { activityLog, agents, authUsers, chatConversations, chatEndpoints, chatMessageLinks, issueComments, issueReadStates, issues, issueThreadInteractions, toolApplications, toolConnections } from "@paperclipai/db";
-import { isAgentCreatedIssue } from "@paperclipai/shared";
+import { activityLog, agents, authUsers, chatConversations, chatEndpoints, chatMessageLinks, issueComments, issueReadStates, issues, issueThreadInteractions, toolApplications, toolConnections } from "@outpost/db";
+import { isAgentCreatedIssue } from "@outpost/shared";
 import { issueRoutes } from "../routes/issues.js";
 import { issueService } from "../services/issues.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
@@ -184,7 +184,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
     await svc.markRead(companyId, issue!.id, userId, new Date("2026-01-02"));
     const interaction = await issueThreadInteractionService(ctx.db).create(issue!, {
       kind: "ask_user_questions", addresseeUserId: userId, resolverPolicy: "human_only",
-      payload: { version: 1, questionSet: { schema: "paperclip.question_set.v1", questions: [{ id: "answer", prompt: "What result do you need?", answerMode: "text", required: true }] } },
+      payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "answer", prompt: "What result do you need?", answerMode: "text", required: true }] } },
     }, { agentId: agent!.id });
     const [updated] = await ctx.db.select().from(issues).where(eq(issues.id, issue!.id));
     expect(updated!.updatedAt.getTime()).toBeGreaterThanOrEqual(new Date(interaction.createdAt).getTime());
@@ -262,7 +262,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
       companyId, issueId: ids[name]!, kind: "ask_user_questions", addresseeUserId: userId,
       effectiveResolverPolicy: "human_only" as const, createdAt: new Date("2026-01-02"),
       payload: { version: 1 as const, questions: [], ...(name === "authorization" ? { connectionAuthorization: {} } : {}),
-        questionSet: { schema: "paperclip.question_set.v1" as const, questions: [{ id: "answer", prompt: "What result do you need?", answerMode: "text" as const, required: true }] } },
+        questionSet: { schema: "outpost.question_set.v1" as const, questions: [{ id: "answer", prompt: "What result do you need?", answerMode: "text" as const, required: true }] } },
     })));
     await ctx.db.insert(issueComments).values(["historical", "authorization"].map((name) => ({
       companyId, issueId: ids[name]!, authorUserId: "another-human", body: "The request has changed.", createdAt: new Date("2026-01-03"),

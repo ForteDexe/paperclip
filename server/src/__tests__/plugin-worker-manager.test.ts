@@ -2,14 +2,14 @@ import { currentPluginInteractionOrigin } from "../services/plugin-interaction-c
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import type { Company, PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import type { Company, PaperclipPluginManifestV1 } from "@outpost/shared";
 import {
   createHostClientHandlers,
   JsonRpcCallError,
   PLUGIN_RPC_ERROR_CODES,
   type HostServices,
   type HostToWorkerMethods,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 
 // Mock the shared logger, so a test reads the exact calls the manager makes
 // when it logs a route event. The child logger returns the same mock object,

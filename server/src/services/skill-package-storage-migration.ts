@@ -6,7 +6,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Writable } from "node:stream";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { companySkillRepositorySnapshots as snapshots, type Db, type SkillPackageStorageReceipt } from "@paperclipai/db";
+import { companySkillRepositorySnapshots as snapshots, type Db, type SkillPackageStorageReceipt } from "@outpost/db";
 import type { StorageService } from "../storage/index.js";
 import { boundedHashStream } from "./skill-package-files.js";
 import { skillPackageStore } from "./skill-package-store.js";
@@ -14,7 +14,7 @@ import { skillPackageStore } from "./skill-package-store.js";
 export async function migrateLocalSkillPackageObjects(db: Db, input: {
   source: StorageService; destination: StorageService; writersStopped: boolean; signal: AbortSignal; after?: string;
 }) {
-  if (!input.writersStopped || process.env.PAPERCLIP_EPHEMERAL_MIGRATION !== "true"
+  if (!input.writersStopped || process.env.OUTPOST_EPHEMERAL_MIGRATION !== "true"
     || input.source.provider !== "local_disk" || input.destination.provider !== "s3") throw new Error("offline_skill_object_migration_required");
   const rows = await db.select({ id: snapshots.id, companyId: snapshots.companyId, storage: snapshots.storage })
     .from(snapshots).where(and(sql`${snapshots.storage}->>'provider' = 'local_disk'`,

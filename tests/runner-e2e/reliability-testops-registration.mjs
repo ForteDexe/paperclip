@@ -165,7 +165,7 @@ export function registrationReceipt(operation, state, env) {
     && (state.assignments ?? [{ job: { id: state.jobId } }]).some(row => row?.job?.id === state.jobId);
   const registration = { planId: state.plan?.id ?? null, caseIds };
   return {
-    schema: 'paperclip.reliability-testops-registration/v1', operation,
+    schema: 'outpost.reliability-testops-registration/v1', operation,
     workflowRunId: env.GITHUB_RUN_ID, workflowSha: env.GITHUB_SHA,
     planName: reliabilityPlanName, planUrl: state.plan ? `${endpoint}/testplan/${state.plan.id}` : null,
     jobId: state.jobId, registration, complete,

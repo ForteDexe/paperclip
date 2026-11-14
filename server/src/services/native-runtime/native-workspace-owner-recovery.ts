@@ -4,8 +4,8 @@ import { tryLockNativeWorkspaceFinalization } from "./native-workspace-finalizat
 import { notifyNativeStatusReassessment } from "../native-status-reassessment-notifications.js";
 import { notifyQueuedRunDispatch } from "../run-dispatch-notifications.js";
 import { and, eq, sql } from "drizzle-orm";
-import { heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import { resumeWorkspaceFinalizationSchema } from "@paperclipai/shared";
+import { heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, type Db } from "@outpost/db";
+import { resumeWorkspaceFinalizationSchema } from "@outpost/shared";
 import { conflict } from "../../errors.js";
 import { persistActivity, publishActivity } from "../activity-log.js";
 import { currentNativeWorkspaceRecoveryResult } from "./native-workspace-recovery-binding.js";

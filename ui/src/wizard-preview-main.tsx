@@ -57,7 +57,6 @@ function respond(pathname: string, method: string): Response {
     substring test for the registry answers those with a list of adapters, and
     the step then tries to sort model ids that are not there.
   */
-  if (has("/instance/settings/experimental")) return json({ enableConferenceRoomChat: true });
   if (has("/instance/settings")) return json({ defaultEnvironmentId: "env-sandbox" });
 
   // No credential anywhere, which is what makes the step offer a sign-in.

@@ -83,18 +83,18 @@ Slack, Discord, GitHub, Teams, and Telegram surfaces.
 | Shared catalog project | 727 passed, including exact catalog and branding coverage. |
 | Repository Vitest suite | The initial `pnpm test:run` overlapped edits/rebase and was stopped; it is not a final-commit pass. Fresh targeted and CI checks supersede it. The serialized route run found the missing Photon OpenAPI contract, which is fixed and passes its 8-case suite. Full gate status is recorded in the linked PR. |
 | Build | Full `pnpm build` passed before and after rebase. |
-| Generated forward migration | Generated through `pnpm db:generate`; `@paperclipai/db check:migrations` passed. Disposable database migrations exercised by integration tests. |
+| Generated forward migration | Generated through `pnpm db:generate`; `@outpost/db check:migrations` passed. Disposable database migrations exercised by integration tests. |
 | Native HEIF platform packages | macOS arm64 executed; other published platforms not executed. |
 
 ### Local test prerequisites
 
-The standard `pnpm test:run` launcher isolates `PAPERCLIP_CONFIG`, `PAPERCLIP_HOME`,
+The standard `pnpm test:run` launcher isolates `OUTPOST_CONFIG`, `OUTPOST_HOME`,
 and temporary files. Direct heartbeat/continuation tests must use equivalent
 isolation; otherwise the worktree preview configuration suppresses execution.
 The actual runner-driver fixture also requires:
 
 ```sh
-cargo build --manifest-path packages/paperclip-runner/runner/Cargo.toml --bin fake-codex-app-server
+cargo build --manifest-path packages/outpost-runner/runner/Cargo.toml --bin fake-codex-app-server
 ```
 
 A run without that binary failed at provider startup; the complete 37-case native

@@ -103,7 +103,7 @@
       "created_at": "2026-11-06T17:48:07Z",
       "started_at": "2026-11-06T17:48:30Z",
       "completed_at": "2026-11-06T17:53:43Z",
-      "name": "ci / Verify Paperclip Runner (static checks)",
+      "name": "ci / Verify Outpost Runner (static checks)",
       "check_run_url": "https://api.github.com/repos/paperclipai/paperclip/check-runs/128054259676",
       "labels": [
         "runs-on/fleet=paperclip-public-pr-x64/env=public-ci"
@@ -179,7 +179,7 @@
       "created_at": "2026-11-06T17:48:07Z",
       "started_at": "2026-11-06T17:48:33Z",
       "completed_at": "2026-11-06T18:02:15Z",
-      "name": "ci / Verify Paperclip Runner (vitest package)",
+      "name": "ci / Verify Outpost Runner (vitest package)",
       "check_run_url": "https://api.github.com/repos/paperclipai/paperclip/check-runs/128054259836",
       "labels": [
         "runs-on/fleet=paperclip-public-pr-x64/env=public-ci"
@@ -217,7 +217,7 @@
       "created_at": "2026-11-06T17:48:07Z",
       "started_at": "2026-11-06T17:48:34Z",
       "completed_at": "2026-11-06T17:55:01Z",
-      "name": "ci / Verify Paperclip Runner (vitest native server)",
+      "name": "ci / Verify Outpost Runner (vitest native server)",
       "check_run_url": "https://api.github.com/repos/paperclipai/paperclip/check-runs/128054259878",
       "labels": [
         "runs-on/fleet=paperclip-public-pr-x64/env=public-ci"
@@ -945,7 +945,7 @@
         "start_line": 1806,
         "end_line": 1806,
         "annotation_level": "failure",
-        "title": "[@paperclipai/server] src/__tests__/connection-management.integration.test.ts > connection management with production default agents > reads only the authorized Anthropic account identity through actual agent authentication",
+        "title": "[@outpost/server] src/__tests__/connection-management.integration.test.ts > connection management with production default agents > reads only the authorized Anthropic account identity through actual agent authentication",
         "message": "AssertionError: expected 3 to be 2 // Object.is equality\n\n- Expected\n+ Received\n\n- 2\n+ 3\n\n ❯ src/__tests__/connection-management.integration.test.ts:1806:21\n\n",
         "raw_details": ""
       },

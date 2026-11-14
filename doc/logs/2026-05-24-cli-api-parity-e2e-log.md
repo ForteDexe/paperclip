@@ -8,13 +8,13 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 
 - Repo: `/Users/aronprins/Documents/PaperclipAI/paperclip`
 - Scratch root: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity`
-- `PAPERCLIP_HOME`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home`
-- `PAPERCLIP_INSTANCE_ID`: `cli-api-parity`
-- `PAPERCLIP_CONFIG`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/instances/cli-api-parity/config.json`
-- `PAPERCLIP_CONTEXT`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/context.json`
-- `PAPERCLIP_AUTH_STORE`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/auth.json`
-- `PAPERCLIP_API_URL`: `http://127.0.0.1:3197`
-- `PAPERCLIP_SERVER_PORT`: `3197`
+- `OUTPOST_HOME`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home`
+- `OUTPOST_INSTANCE_ID`: `cli-api-parity`
+- `OUTPOST_CONFIG`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/instances/cli-api-parity/config.json`
+- `OUTPOST_CONTEXT`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/context.json`
+- `OUTPOST_AUTH_STORE`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/auth.json`
+- `OUTPOST_API_URL`: `http://127.0.0.1:3197`
+- `OUTPOST_SERVER_PORT`: `3197`
 - `PORT`: `3197`
 - `CODEX_HOME`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/codex-home`
 - `CLAUDE_HOME`: `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/claude-home`
@@ -77,7 +77,7 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 - Expected result: Config/context/auth paths are scratch paths; context path is scratch; health succeeds on `127.0.0.1:3197`; DB directory is under scratch home.
 - Actual result: Config path, context path, storage path, secrets key path, and DB directory all resolve under `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity`; health returned `status: ok`, version `0.3.1`, `deploymentMode: local_trusted`, `companyDeletionEnabled: true`.
 - Status: PASS.
-- Output summary: `paperclipai env` redacted here because it prints the generated `PAPERCLIP_AGENT_JWT_SECRET`. Context existed at the scratch path with an empty `default` profile.
+- Output summary: `paperclipai env` redacted here because it prints the generated `OUTPOST_AGENT_JWT_SECRET`. Context existed at the scratch path with an empty `default` profile.
 - Follow-up: Set API context and begin CLI parity checks.
 
 ### 2026-05-24T11:08:20+02:00 - Basic context/auth/connectivity
@@ -137,7 +137,7 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 
 ### 2026-05-24T11:16:43+02:00 - Board and agent token lifecycle
 
-- Command: `token board create --company-id ... --name cli-parity-board --never-expires --json`; `token board list --json`; `whoami --api-key <board-token> --json`; `token agent create --company-id ... --agent ... --name cli-parity-agent --json`; `token agent list --company-id ... --agent ... --json`; `context set --profile cli-agent --persona agent ... --api-key-env-var-name PAPERCLIP_API_KEY --json`; `agent me --profile cli-agent --json`; `agent inbox --profile cli-agent --json`; `issue list --profile cli-agent --company-id ... --json`; `company list --profile cli-agent --json`; `token agent revoke ...`; `token board revoke ...`
+- Command: `token board create --company-id ... --name cli-parity-board --never-expires --json`; `token board list --json`; `whoami --api-key <board-token> --json`; `token agent create --company-id ... --agent ... --name cli-parity-agent --json`; `token agent list --company-id ... --agent ... --json`; `context set --profile cli-agent --persona agent ... --api-key-env-var-name OUTPOST_API_KEY --json`; `agent me --profile cli-agent --json`; `agent inbox --profile cli-agent --json`; `issue list --profile cli-agent --company-id ... --json`; `company list --profile cli-agent --json`; `token agent revoke ...`; `token board revoke ...`
 - Purpose: Exercise board token creation/use/list/revoke; agent token creation/list/use/revoke; verify agent tokens cannot use board-only company list.
 - Prerequisites/IDs used: company `12e9db4b-f66c-459b-959e-d645002240fb`; agent `1dd601a1-031a-4225-b005-419427fd059f`.
 - Expected result: Board token works for `whoami`; agent token works for agent persona commands and company-scoped issue list; board-only command fails with clear 403; both tokens are revoked.
@@ -478,18 +478,18 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 
 ### 2026-05-24T12:47:54+02:00 - Worktree and cloud command gated coverage
 
-- Command: `PAPERCLIP_WORKTREES_DIR=tmp/cli-api-parity/worktrees-home pnpm paperclipai worktree:list --json`; `pnpm paperclipai worktree env --config <scratch-config> --json`; `pnpm paperclipai worktree:merge-history --from current --to current --company CLI --dry`; `pnpm paperclipai cloud push --company 12e9db4b-f66c-459b-959e-d645002240fb --dry-run --json`
+- Command: `OUTPOST_WORKTREES_DIR=tmp/cli-api-parity/worktrees-home pnpm paperclipai worktree:list --json`; `pnpm paperclipai worktree env --config <scratch-config> --json`; `pnpm paperclipai worktree:merge-history --from current --to current --company CLI --dry`; `pnpm paperclipai cloud push --company 12e9db4b-f66c-459b-959e-d645002240fb --dry-run --json`
 - Purpose: Start worktree/cloud parity coverage with read-only or dry-run commands before attempting any lifecycle command that creates branches, worktrees, or external cloud connections.
 - Prerequisites/IDs used: Scratch config `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/instances/cli-api-parity/config.json`; scratch worktree root `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/worktrees-home`; company `12e9db4b-f66c-459b-959e-d645002240fb`.
 - Expected result: Worktree list and env introspection should use scratch config/environment; merge-history should reject identical source/target configs without mutating state; cloud push should fail safely if cloud sync is not enabled/configured.
-- Actual result: `worktree:list` passed and showed the current repo branch `improvement/cli-api-parity` with no Paperclip worktree config. `worktree env --config <scratch-config> --json` passed and printed the scratch `PAPERCLIP_CONFIG` plus generated env values; the generated JWT secret is intentionally not copied into this log. `worktree:merge-history --from current --to current --company CLI --dry` failed as expected with `Source and target Paperclip configs are the same. Choose different --from/--to worktrees.` `cloud push --dry-run` failed as expected with `Cloud sync is disabled. Enable the cloud sync experimental setting before running paperclipai cloud push.`
+- Actual result: `worktree:list` passed and showed the current repo branch `improvement/cli-api-parity` with no Paperclip worktree config. `worktree env --config <scratch-config> --json` passed and printed the scratch `OUTPOST_CONFIG` plus generated env values; the generated JWT secret is intentionally not copied into this log. `worktree:merge-history --from current --to current --company CLI --dry` failed as expected with `Source and target Paperclip configs are the same. Choose different --from/--to worktrees.` `cloud push --dry-run` failed as expected with `Cloud sync is disabled. Enable the cloud sync experimental setting before running paperclipai cloud push.`
 - Status: PASS for safe/gated coverage.
 - Output summary: Worktree read-only/dry-run paths behaved safely. Cloud push was not attempted against a real upstream and remained blocked by scratch instance settings.
 - Follow-up: Continue with a scratch-only worktree lifecycle test. Cloud requires an experimental setting plus a configured upstream; keep it gated unless a disposable fake upstream can be wired without touching the real install.
 
 ### 2026-05-24T12:55:45+02:00 - Scratch worktree lifecycle and fix verification
 
-- Command: `HOME=tmp/cli-api-parity/shell-home PAPERCLIP_WORKTREES_DIR=tmp/cli-api-parity/worktree-instances pnpm paperclipai worktree:make cli-parity-wt --home <scratch-worktree-home> --from-config <scratch-config> --server-port 3198 --db-port 54331 --seed-mode minimal`; `pkill` only for the runaway scratch install attempt; edited `cli/src/commands/worktree.ts` and `cli/src/__tests__/worktree.test.ts`; `pnpm exec vitest run cli/src/__tests__/worktree.test.ts`; `pnpm --dir cli typecheck`; `paperclipai worktree:cleanup cli-parity-wt --home <scratch-worktree-home> --force`; reran `paperclipai worktree:make ...`; `paperclipai worktree:list --json`; `paperclipai worktree env --config <scratch-worktree-config> --json`; `paperclipai worktree:merge-history --from paperclip-cli-parity-wt --to current --company CLI --dry`
+- Command: `HOME=tmp/cli-api-parity/shell-home OUTPOST_WORKTREES_DIR=tmp/cli-api-parity/worktree-instances pnpm paperclipai worktree:make cli-parity-wt --home <scratch-worktree-home> --from-config <scratch-config> --server-port 3198 --db-port 54331 --seed-mode minimal`; `pkill` only for the runaway scratch install attempt; edited `cli/src/commands/worktree.ts` and `cli/src/__tests__/worktree.test.ts`; `pnpm exec vitest run cli/src/__tests__/worktree.test.ts`; `pnpm --dir cli typecheck`; `paperclipai worktree:cleanup cli-parity-wt --home <scratch-worktree-home> --force`; reran `paperclipai worktree:make ...`; `paperclipai worktree:list --json`; `paperclipai worktree env --config <scratch-worktree-config> --json`; `paperclipai worktree:merge-history --from paperclip-cli-parity-wt --to current --company CLI --dry`
 - Purpose: Exercise scratch-only worktree creation, initialization, dependency install, minimal DB seed, list/env introspection, dry-run merge history, and cleanup behavior without touching the real home or default instance.
 - Prerequisites/IDs used: Scratch `HOME` `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/shell-home`; scratch worktree instance home `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/worktree-instances`; source config `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/instances/cli-api-parity/config.json`; worktree branch/path `paperclip-cli-parity-wt`.
 - Expected result: `worktree:make` creates `/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/shell-home/paperclip-cli-parity-wt`, installs dependencies once, writes repo-local `.paperclip/config.json` and `.paperclip/.env`, seeds a minimal isolated DB on ports `3198`/`54331`, and leaves normal `worktree:list`, `worktree env`, and `worktree:merge-history --dry` usable.
@@ -514,7 +514,7 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 - Command: disposable Node fake upstream on `http://127.0.0.1:3199`; `instance settings:experimental:update --payload-json '{"enableCloudSync":true}' --json`; `cloud connect http://127.0.0.1:3199 --no-browser --json`; `cloud push --company 12e9db4b-f66c-459b-959e-d645002240fb --remote-url http://127.0.0.1:3199 --dry-run --json`; `run live --company-id ... --limit 5 --min-count 1 --json`; `run issues 9c686a91-c88a-47aa-9326-a889c4281d2b --json`; `run workspace-operations 9c686a91-c88a-47aa-9326-a889c4281d2b --json`; `run workspace-log 00000000-0000-4000-8000-000000000000 --json`; `run cancel 9c686a91-c88a-47aa-9326-a889c4281d2b --json`; `run watchdog-decision 9c686a91-c88a-47aa-9326-a889c4281d2b --decision continue --reason "CLI parity watchdog decision smoke" --json`; `connect --persona board --api-base http://127.0.0.1:3197 --profile cli-connect-smoke --context <scratch-context> --json`
 - Purpose: Exercise cloud connect/push without a real external Paperclip Cloud stack, finish run subcommands that were not covered by earlier run list/get/events/log checks, and verify `connect` behavior in the non-interactive test runner.
 - Prerequisites/IDs used: Fake cloud server on loopback port `3199`; company `12e9db4b-f66c-459b-959e-d645002240fb`; heartbeat run `9c686a91-c88a-47aa-9326-a889c4281d2b` created by `heartbeat run`; scratch context and config paths.
-- Expected result: Cloud sync can be enabled only in the scratch instance; `cloud connect` stores a fake upstream connection under scratch `PAPERCLIP_HOME`; `cloud push --dry-run` exports local company data and posts a preview bundle to the fake upstream; run read/control commands return structured results or controlled 404 for a nonexistent workspace operation; `connect` refuses non-interactive execution with guidance.
+- Expected result: Cloud sync can be enabled only in the scratch instance; `cloud connect` stores a fake upstream connection under scratch `OUTPOST_HOME`; `cloud push --dry-run` exports local company data and posts a preview bundle to the fake upstream; run read/control commands return structured results or controlled 404 for a nonexistent workspace operation; `connect` refuses non-interactive execution with guidance.
 - Actual result: Experimental `enableCloudSync` was enabled in the scratch instance. `cloud connect --no-browser` completed against the fake upstream and stored a fake connection. `cloud push --dry-run` returned a fake preview response with summary `{create:0, update:0, adopt:0, skip:1, conflict:0, staleMapping:0}`. `run live`, `run issues`, and `run workspace-operations` passed; workspace operations returned an empty list. `run workspace-log` on a sentinel ID returned expected `404: Workspace operation not found`. `run cancel` on the already completed run returned the run unchanged with status `succeeded`. `run watchdog-decision` created a watchdog decision record. `connect` returned expected non-interactive error: use `--api-base/--api-key` or context/token commands for scripts.
 - Status: PASS for fake-cloud dry-run and remaining safe run/connect coverage.
 - Output summary: Fake cloud artifacts are under `tmp/cli-api-parity/artifacts/cloud-*`. The fake cloud token is synthetic and stored only in scratch Paperclip home. `connect` remains intentionally interactive; scriptable equivalent coverage is via `context set`, token commands, `whoami`, and agent/board prompt flows already tested.
@@ -625,7 +625,7 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 - Purpose: Confirm the disposable instance is healthy, isolated, cleaned up, and ready for manual continuation.
 - Prerequisites/IDs used: Same scratch env and company/agent IDs.
 - Expected result: Health and OpenAPI pass; all required env vars point under `tmp/cli-api-parity`; `DATABASE_URL` and `DATABASE_MIGRATION_URL` are unset; no active board/agent tokens, plugins, secrets, non-default environments, project workspaces, or active routines remain; only the scratch server listens on `127.0.0.1:3197`; fake cloud port `3199` is stopped; git is clean before this final log update.
-- Actual result: Summary was `{health:"ok", openapi:"3.0.0", pathCount:247, activeBoardTokens:0, activeAgentTokens:0, plugins:0, routines:2, activeRoutines:0, secrets:0, environments:1, projectWorkspaces:0}`. `PAPERCLIP_HOME`, `PAPERCLIP_CONFIG`, `PAPERCLIP_CONTEXT`, `PAPERCLIP_AUTH_STORE`, `CODEX_HOME`, and `CLAUDE_HOME` all point under the scratch path. `DATABASE_URL` and `DATABASE_MIGRATION_URL` were `UNSET`. `node` PID `70429` is listening on `127.0.0.1:3197`; no process is listening on `3199`; git status was clean before this log update.
+- Actual result: Summary was `{health:"ok", openapi:"3.0.0", pathCount:247, activeBoardTokens:0, activeAgentTokens:0, plugins:0, routines:2, activeRoutines:0, secrets:0, environments:1, projectWorkspaces:0}`. `OUTPOST_HOME`, `OUTPOST_CONFIG`, `OUTPOST_CONTEXT`, `OUTPOST_AUTH_STORE`, `CODEX_HOME`, and `CLAUDE_HOME` all point under the scratch path. `DATABASE_URL` and `DATABASE_MIGRATION_URL` were `UNSET`. `node` PID `70429` is listening on `127.0.0.1:3197`; no process is listening on `3199`; git status was clean before this log update.
 - Status: PASS.
 - Output summary: Final clean artifacts are under `tmp/cli-api-parity/artifacts/final-clean-sweep`.
 - Follow-up: Leave the scratch instance running for manual testing.
@@ -687,13 +687,13 @@ Full Paperclip CLI/API parity smoke pass against a disposable local source-tree 
 - Manual continuation:
 
 ```sh
-export PAPERCLIP_HOME=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home
-export PAPERCLIP_INSTANCE_ID=cli-api-parity
-export PAPERCLIP_CONFIG=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/instances/cli-api-parity/config.json
-export PAPERCLIP_CONTEXT=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/context.json
-export PAPERCLIP_AUTH_STORE=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/auth.json
-export PAPERCLIP_API_URL=http://127.0.0.1:3197
-export PAPERCLIP_SERVER_PORT=3197
+export OUTPOST_HOME=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home
+export OUTPOST_INSTANCE_ID=cli-api-parity
+export OUTPOST_CONFIG=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/instances/cli-api-parity/config.json
+export OUTPOST_CONTEXT=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/context.json
+export OUTPOST_AUTH_STORE=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/home/auth.json
+export OUTPOST_API_URL=http://127.0.0.1:3197
+export OUTPOST_SERVER_PORT=3197
 export PORT=3197
 export CODEX_HOME=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/codex-home
 export CLAUDE_HOME=/Users/aronprins/Documents/PaperclipAI/paperclip/tmp/cli-api-parity/claude-home
@@ -716,9 +716,9 @@ pnpm paperclipai health --json
 
 ### 2026-05-24T14:12:30+02:00 - Full OpenAPI generator implementation
 
-- Command: `pnpm add @asteasolutions/zod-to-openapi@7.3.4 --filter @paperclipai/server`; replaced `server/src/routes/openapi.ts` inventory stub with the schema-backed generator from `doc/plans/2026-05-23-cli-api-parity-openapi-reference.ts`; added route wrapper exports; tightened `server/src/__tests__/openapi-routes.test.ts`; `pnpm exec vitest run server/src/__tests__/openapi-routes.test.ts`; `pnpm --dir server typecheck`; restarted isolated server with the scratch env; `pnpm paperclipai openapi --json`.
+- Command: `pnpm add @asteasolutions/zod-to-openapi@7.3.4 --filter @outpost/server`; replaced `server/src/routes/openapi.ts` inventory stub with the schema-backed generator from `doc/plans/2026-05-23-cli-api-parity-openapi-reference.ts`; added route wrapper exports; tightened `server/src/__tests__/openapi-routes.test.ts`; `pnpm exec vitest run server/src/__tests__/openapi-routes.test.ts`; `pnpm --dir server typecheck`; restarted isolated server with the scratch env; `pnpm paperclipai openapi --json`.
 - Purpose: Resolve the final OpenAPI caveat by serving a proper generated OpenAPI document with shared Zod request schemas, auth/security metadata, and response status fixups.
-- Prerequisites/IDs used: Isolated scratch server restarted on `127.0.0.1:3197`; `DATABASE_URL` and `DATABASE_MIGRATION_URL` unset; `PAPERCLIP_HOME`, `PAPERCLIP_CONFIG`, `PAPERCLIP_CONTEXT`, `PAPERCLIP_AUTH_STORE`, `CODEX_HOME`, and `CLAUDE_HOME` all under `tmp/cli-api-parity`.
+- Prerequisites/IDs used: Isolated scratch server restarted on `127.0.0.1:3197`; `DATABASE_URL` and `DATABASE_MIGRATION_URL` unset; `OUTPOST_HOME`, `OUTPOST_CONFIG`, `OUTPOST_CONTEXT`, `OUTPOST_AUTH_STORE`, `CODEX_HOME`, and `CLAUDE_HOME` all under `tmp/cli-api-parity`.
 - Expected result: `/api/openapi.json` and `paperclipai openapi --json` return OpenAPI 3.0 with schema-backed request bodies, security schemes, public-operation security overrides, and create-operation `201` responses.
 - Actual result: Focused OpenAPI test passed and asserts `BoardSessionAuth`, `BoardApiKeyAuth`, `AgentBearerAuth`, public `/api/health` security `[]`, `POST /api/companies` request body schema, `POST /api/companies` `201` response, and `POST /api/agents/{id}/keys` request body schema. Server typecheck passed. Live CLI returned `{openapi:"3.0.0", pathCount:259, security:["BoardSessionAuth","BoardApiKeyAuth","AgentBearerAuth"], companyCreateRequest:{type:"string",minLength:1}, companyCreateStatus:["201","400","401","403"], agentKeyRequest:{type:"string",minLength:1,default:"default"}}`.
 - Status: PASS after OpenAPI caveat fix.
@@ -749,7 +749,7 @@ pnpm paperclipai health --json
 
 ### 2026-05-24T14:19:04+02:00 - Caveat follow-up final status
 
-- Command: `pnpm paperclipai health --json`; `pnpm paperclipai openapi --json`; `lsof -nP -iTCP:3197 -sTCP:LISTEN`; `git status --short --branch`, all with the scratch `PAPERCLIP_*`, `CODEX_HOME`, and `CLAUDE_HOME` environment and with `DATABASE_URL`/`DATABASE_MIGRATION_URL` unset.
+- Command: `pnpm paperclipai health --json`; `pnpm paperclipai openapi --json`; `lsof -nP -iTCP:3197 -sTCP:LISTEN`; `git status --short --branch`, all with the scratch `OUTPOST_*`, `CODEX_HOME`, and `CLAUDE_HOME` environment and with `DATABASE_URL`/`DATABASE_MIGRATION_URL` unset.
 - Purpose: Confirm the three caveats are no longer unresolved after the follow-up fixes and coverage.
 - Prerequisites/IDs used: Isolated scratch server restarted from local source on `127.0.0.1:3197`; PID `84908`; same `tmp/cli-api-parity` home/config/context/auth paths.
 - Expected result: Scratch server is healthy; OpenAPI is schema-backed; git has no code changes before this final log entry; the only remaining difference is this log update.
@@ -850,7 +850,7 @@ pnpm paperclipai health --json
 ### BUG-001 - `context set` erased existing profile fields
 
 - Status: Fixed.
-- Severity: High for isolated CLI testing; a non-default `apiBase` can be silently removed and later commands may fall back to `http://localhost:3100` if `PAPERCLIP_API_URL` is absent.
+- Severity: High for isolated CLI testing; a non-default `apiBase` can be silently removed and later commands may fall back to `http://localhost:3100` if `OUTPOST_API_URL` is absent.
 - Reproduction command: `pnpm paperclipai context set --api-base http://127.0.0.1:3197 --use --json`; then `pnpm paperclipai context set --company-id <company-id> --use --json`; then `pnpm paperclipai context show --json`.
 - Expected result: Profile preserves existing `apiBase` while adding `companyId`.
 - Actual result: Profile only contained `companyId`; `apiBase` was removed.

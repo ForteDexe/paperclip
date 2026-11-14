@@ -52,9 +52,6 @@ const states: Record<string, Record<string, State>> = {
     loading: { text: "Loading runs…" },
     empty: { text: "No runs yet." },
   },
-  "feature-conference-room": {
-    empty: { text: "Conference Room", editable: true },
-  },
   "feature-catalog-review": {
     quarantined: { text: "Review 1 new action" },
     empty: { text: "No actions match “”. Clear the search to see them all." },

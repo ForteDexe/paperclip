@@ -23,7 +23,7 @@ import { loadAgentCaseDocument, projectAgentCaseRead } from "../services/case-ag
 import multer from "multer";
 import { z } from "zod";
 import { and, asc, desc, eq, getTableColumns, ilike, inArray, isNull, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   assets,
@@ -40,13 +40,13 @@ import {
   issues,
   labels,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   createDocumentAnnotationCommentSchema,
   createDocumentAnnotationThreadSchema,
   updateDocumentAnnotationThreadSchema,
   isUuidLike,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { formatAttachmentSize, MAX_ATTACHMENT_BYTES, normalizeContentType } from "../attachment-types.js";
 import { HttpError, badRequest, conflict, notFound, unprocessable } from "../errors.js";
 import { casesDisabledError } from "../services/cases-disabled.js";
@@ -58,7 +58,7 @@ import { authorizationService, issueReadSqlCondition, type AuthorizationActor } 
 import { assertActorCanReadCase, assertActorCanWriteCase, caseReadSqlCondition, filterCasesForActor, retainCaseAccessSource } from "../services/case-access.js";
 import { enrichCaseWork } from "../services/case-work-summary.js";
 import { listIssueStatusBlockerAttention } from "../services/issue-status-presentation.js";
-import type { IssueBlockerAttention } from "@paperclipai/shared";
+import type { IssueBlockerAttention } from "@outpost/shared";
 import { listCaseTaskDocuments } from "../services/case-task-documents.js";
 import { authorizeCaseCreation, authorizeCaseMutation } from "../services/case-mutation-authorization.js";
 import { assertCaseStatusWriteAuthority } from "../services/case-handoffs.js";

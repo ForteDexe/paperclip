@@ -5,7 +5,7 @@ import { createOAuthGrantRefresh } from "../services/tool-access/oauth/grant-ref
 import { secretService } from "../services/secrets.js";
 import { writeConnectionCredential } from "../services/connection-credentials.js";
 import type { PaperclipCloudConnector } from "../services/paperclip-cloud-connector.js";
-import { GITHUB_CONNECTOR_PROFILES } from "@paperclipai/shared";
+import { GITHUB_CONNECTOR_PROFILES } from "@outpost/shared";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -22,7 +22,7 @@ import { readIdleSleepSafety } from "../services/idle-sleep-safety.js";
 import { randomUUID } from "node:crypto";
 import { eq, sql, inArray } from "drizzle-orm";
 import { agents, companies, heartbeatRuns, plugins, pluginJobs, pluginJobRuns, pluginState, providerTraceRecords, issues, issueWatchdogs, issueThreadInteractions, toolApplications, toolConnections, connectionGrants, companySecrets, companySecretVersions, routines, routineTriggers,
-  applyPendingMigrations, createDb, type Db } from "@paperclipai/db";
+  applyPendingMigrations, createDb, type Db } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -32,7 +32,7 @@ import { claimDueTimerHeartbeatForAgent } from "../services/heartbeat/queue.js";
 import { createHeartbeatTimerPolicy } from "../services/heartbeat/timer-policy.js";
 import { pluginJobStore } from "../services/plugin-job-store.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_IDLE_DEADLINE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_IDLE_DEADLINE_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("durable domain deadline snapshot with PostgreSQL", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
@@ -43,10 +43,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     else temporary = await startEmbeddedPostgresTestDatabase("idle-domain-deadlines-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 4, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
     directory = await fs.mkdtemp(path.join(os.tmpdir(), "idle-deadline-producers-"));
-    vi.stubEnv("PAPERCLIP_CONFIG", path.join(directory, "config.json"));
+    vi.stubEnv("OUTPOST_CONFIG", path.join(directory, "config.json"));
     vi.stubEnv("PROVIDER_TRACE_BASE_PATH", path.join(directory, "traces"));
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "local_disk");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "d".repeat(64));
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "local_disk");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "d".repeat(64));
   }, 60_000);
   afterAll(async () => { vi.useRealTimers(); vi.unstubAllEnvs(); await db?.$client.end({ timeout: 1 }); await temporary?.cleanup();
     if (directory) await fs.rm(directory, { recursive: true, force: true }); });

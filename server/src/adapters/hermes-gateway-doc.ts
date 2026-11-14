@@ -14,7 +14,7 @@ Don't use when:
 Runtime distinction:
 - hermes_local: Outpost starts Hermes on the Outpost host through the built-in local adapter.
 - hermes_gateway: Outpost calls an already-running Hermes API server using agentDefaultsPayload.apiBaseUrl.
-- Hermes-originated Outpost API usage: Hermes calls Outpost with PAPERCLIP_API_URL and the Outpost API key claimed through the standard join approval flow. Do not use agentDefaultsPayload.apiBaseUrl for Outpost API calls. For internet-facing Hermes chat/webhook task bridges, use a separate task_bridge key instead of exposing the normal claimed agent key.
+- Hermes-originated Outpost API usage: Hermes calls Outpost with OUTPOST_API_URL and the Outpost API key claimed through the standard join approval flow. Do not use agentDefaultsPayload.apiBaseUrl for Outpost API calls. For internet-facing Hermes chat/webhook task bridges, use a separate task_bridge key instead of exposing the normal claimed agent key.
 
 Hermes gateway process setup:
 - Set API_SERVER_ENABLED=true.
@@ -49,10 +49,10 @@ Network examples:
 - LAN/private network: agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642"; agentDefaultsPayload.paperclipApiUrl = "http://192.168.1.10:3100". Use private IPs or hostnames reachable from both machines.
 - Private overlay: agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642"; agentDefaultsPayload.paperclipApiUrl = "http://paperclip-host.tailnet-name.ts.net:3100". Add the Outpost hostname with npx paperclipai allowed-hostname <host> when authenticated/private mode requires it.
 - Docker: if Hermes runs on the host and Outpost runs in Docker, use agentDefaultsPayload.apiBaseUrl = "http://host.docker.internal:8642". If Hermes runs in another container, use the Compose service DNS name such as "http://hermes:8642".
-- Reverse proxy/TLS: publish Hermes behind HTTPS and set agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example"; set agentDefaultsPayload.paperclipApiUrl = "https://paperclip.example". Keep API_SERVER_KEY required at the origin or proxy.
+- Reverse proxy/TLS: publish Hermes behind HTTPS and set agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example"; set agentDefaultsPayload.paperclipApiUrl = "https://outpost.example". Keep API_SERVER_KEY required at the origin or proxy.
 
 Security notes:
-- Treat API_SERVER_KEY and PAPERCLIP_BRIDGE_API_KEY as secrets.
+- Treat API_SERVER_KEY and OUTPOST_BRIDGE_API_KEY as secrets.
 - When claiming the normal Outpost agent API key, store the parsed token field from the raw claim response before printing or summarizing it. Hermes/tool displays may redact secrets with literal ... or [redacted]; those previews are not valid keys.
 - Never use a normal claimed Outpost agent API key for internet-facing Hermes-originated task bridge calls; task_bridge keys cannot use company-wide issue list/search/read surfaces and can only mutate bridge-created or assigned issues.
 - Prefer private network or TLS for non-loopback gateway access.

@@ -26,7 +26,7 @@ import {
   nativeRunResults,
   issues,
   runIdentityContexts,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -122,10 +122,10 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
     await db.insert(agents).values({
       id: agentId,
       companyId,
-      name: "Paperclip Runner",
+      name: "Outpost Runner",
       role: "engineer",
       status: "idle",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: {},
       runtimeConfig: {},
       permissions: {},
@@ -202,7 +202,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
   async function commitNativeSuccess(f: Awaited<ReturnType<typeof seedQueue>>) {
     const contractId = randomUUID(), resultId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test",
+      revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ nativeIssueId: f.issueId, completionContractId: contractId })
@@ -218,7 +218,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
   it.each([false, true])("polls queued comments without transferring run snapshots (agent fallback: %s)", async fallback => {
     const f = await seedQueue(), payload = "saved-execution-input🙂".repeat(25_000);
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, prompt: payload },
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner", adapterConfig: { instructions: payload } } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner", adapterConfig: { instructions: payload } } },
       stdoutExcerpt: payload, stderrExcerpt: payload,
     }).where(eq(heartbeatRuns.id, f.runId));
     if (fallback) await db.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
@@ -538,7 +538,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
     await db.insert(heartbeatRunEvents).values({
       companyId: seeded.companyId, runId: seeded.runId, agentId: seeded.agentId,
       seq: 1, eventType: "item.completed", sourceEventId: randomUUID(),
-      payload: { prpEvent: { turnId: "approval-ack", itemId: `approval-ack:steer:${seeded.interactionId}`,
+      payload: { orpEvent: { turnId: "approval-ack", itemId: `approval-ack:steer:${seeded.interactionId}`,
         payload: { kind: "steering_acknowledgement" } } },
     });
     const client = app(seeded.companyId);
@@ -919,7 +919,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
       if (runtime === "preparing") {
         await db.update(heartbeatRuns).set({ runtimeMode: "legacy", runtimeModeResolvedAt: null,
           executionStage: "preparing",
-          runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+          runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
         }).where(eq(heartbeatRuns.id, seeded.runId));
       } else {
         await db.update(heartbeatRuns).set({ nativeIssueId: seeded.issueId })
@@ -934,7 +934,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
         status: "running", contextSnapshot: { issueId: randomUUID() } });
       const client = app(seeded.companyId);
       const queue = await request(client).get(`/api/issues/${seeded.issueId}/queued-comments`).expect(200);
-      expect(queue.body).toMatchObject({ protocol: "paperclip_runner_v1", steeringDisposition: "temporarily_unavailable" });
+      expect(queue.body).toMatchObject({ protocol: "outpost_runner_v1", steeringDisposition: "temporarily_unavailable" });
       const response = await request(client).post(`/api/issues/${seeded.issueId}/queued-comments/interrupt`).send({
         queueId: seeded.wakeId, targetRunId: seeded.runId, revision: queue.body.revision,
       });
@@ -969,7 +969,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
         issueId: seeded.issueId, wakeReason: "issue_commented" } } }).where(eq(agentWakeupRequests.id, seeded.wakeId));
     await db.update(heartbeatRuns).set(runtime === "preparing"
       ? { responsibleUserId: "queue-owner", runtimeMode: "legacy", runtimeModeResolvedAt: null, executionStage: "preparing",
-          runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } } }
+          runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } } }
       : { responsibleUserId: "queue-owner", nativeIssueId: seeded.issueId }).where(eq(heartbeatRuns.id, seeded.runId));
     if (runtime === "native") {
       await db.insert(nativeRunFinalizations).values({ companyId: seeded.companyId,
@@ -1076,7 +1076,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
           eventType: "turn.accepted", stream: "system", level: "info", message: "turn accepted" });
       } else {
         await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: seeded.issueId, firstTurnQueuedInput: {
-          schema: "paperclip.first-turn-queued-input.v1", runId: seeded.runId, wakeupRequestIds: [], commentIds: [],
+          schema: "outpost.first-turn-queued-input.v1", runId: seeded.runId, wakeupRequestIds: [], commentIds: [],
           claimedAt: new Date().toISOString() } } }).where(eq(heartbeatRuns.id, seeded.runId));
       }
       const client = app(seeded.companyId);
@@ -1135,7 +1135,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
     if (target === "system-receipt") await db.update(agentWakeupRequests).set({
       requestedByActorType: "system", requestedByActorId: "heartbeat",
     }).where(eq(agentWakeupRequests.id, seeded.wakeId));
-    await db.update(agents).set({ adapterType: runtime === "native" ? "paperclip_runner" : "claude_local",
+    await db.update(agents).set({ adapterType: runtime === "native" ? "outpost_runner" : "claude_local",
       runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } },
     }).where(eq(agents.id, seeded.agentId));
     await db.update(heartbeatRuns).set({ runtimeMode: runtime, status: "succeeded",
@@ -1423,7 +1423,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
       queueId: seeded.wakeId,
       state: "deferred",
       targetRunId: seeded.runId,
-      protocol: "paperclip_runner_v1",
+      protocol: "outpost_runner_v1",
       entries: [
         { position: 0, canEdit: true, canDiscard: true, comment: { id: seeded.commentIds[0] } },
         { position: 1, canEdit: true, canDiscard: true, comment: { id: seeded.commentIds[1] } },
@@ -1950,19 +1950,19 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
     });
   });
 
-  it.each(["paperclip_runner", "codex_local"])("keeps Steer during native preparation even after agent settings change to %s", async adapterType => {
+  it.each(["outpost_runner", "codex_local"])("keeps Steer during native preparation even after agent settings change to %s", async adapterType => {
     const seeded = await seedQueue();
     const steeringCalls = steerNativeSessionMock.mock.calls.length;
     await db.update(heartbeatRuns).set({ runtimeMode: "legacy", runtimeModeResolvedAt: null,
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
     }).where(eq(heartbeatRuns.id, seeded.runId));
     await db.update(agents).set({ adapterType }).where(eq(agents.id, seeded.agentId));
     const client = app(seeded.companyId);
     const initial = await request(client).get(`/api/issues/${seeded.issueId}/queued-comments`).expect(200);
-    expect(initial.body).toMatchObject({ protocol: "paperclip_runner_v1", steeringDisposition: "temporarily_unavailable" });
+    expect(initial.body).toMatchObject({ protocol: "outpost_runner_v1", steeringDisposition: "temporarily_unavailable" });
     const edited = await request(client).patch(`/api/issues/${seeded.issueId}/queued-comments/${seeded.commentIds[0]}`)
       .send({ queueId: seeded.wakeId, revision: initial.body.revision, body: "Updated direction" }).expect(200);
-    expect(edited.body).toMatchObject({ protocol: "paperclip_runner_v1", steeringDisposition: "temporarily_unavailable" });
+    expect(edited.body).toMatchObject({ protocol: "outpost_runner_v1", steeringDisposition: "temporarily_unavailable" });
     expect(steerNativeSessionMock.mock.calls).toHaveLength(steeringCalls);
   });
 
@@ -2101,7 +2101,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
   it("allows the runner to persist its acknowledgement while steering, preserving concurrent run updates", async () => {
     const seeded = await seedQueue();
     await seedDispatchIdentity(seeded);
-    const originalProfile = { adapterDispatch: { adapterType: "paperclip_runner" },
+    const originalProfile = { adapterDispatch: { adapterType: "outpost_runner" },
       nativeExecutionInput: { provider: { kind: "codex", model: "gpt-5.6-sol", reasoningEffort: "medium" } } };
     await db.update(heartbeatRuns).set({ runnerProfileJson: originalProfile }).where(eq(heartbeatRuns.id, seeded.runId));
     await db.update(issues).set({ assigneeAdapterOverrides: { model: "gpt-6-sol", reasoningEffort: "xhigh" } })
@@ -2260,7 +2260,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
       effectiveResolverPolicy: "human_only", resolverPolicyProvenance: "explicit",
       title: "Connect Slack", summary: "The agent needs this connection to continue.",
       payload: { version: 1, serviceSlug: "slack", serviceName: "Slack", phase: "requested",
-        requestingAgentId: seeded.agentId, requestingAgentName: "Paperclip Runner" },
+        requestingAgentId: seeded.agentId, requestingAgentName: "Outpost Runner" },
       result: { version: 1, outcome: "declined", reason: null },
     });
     // Same receipt shape as wakeConnectionIntentAfterResolution.
@@ -2359,7 +2359,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
     { runtime: "legacy", status: "queued" }, { runtime: "legacy", status: "scheduled_retry" },
   ] as const)("accepts Send while the previous $runtime run is $status and delivers it once that run stops", async ({ runtime, status }) => {
     const seeded = await seedQueue();
-    await db.update(agents).set({ adapterType: runtime === "native" ? "paperclip_runner" : "codex_local",
+    await db.update(agents).set({ adapterType: runtime === "native" ? "outpost_runner" : "codex_local",
       runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } },
     }).where(eq(agents.id, seeded.agentId));
     await db.update(heartbeatRuns).set({ runtimeMode: runtime, status, startedAt: null })

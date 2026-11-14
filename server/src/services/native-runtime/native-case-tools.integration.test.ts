@@ -1,26 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, caseAccessSources, caseDocuments, caseEvents, caseHandoffs, caseIssueLinks, cases, documents, heartbeatRuns, issues, pipelineCases, pipelines, pipelineStages, workflows } from "@paperclipai/db";
-import { SYSTEM_ISSUE_DOCUMENT_KEYS } from "@paperclipai/shared";
+import { agents, agentWakeupRequests, caseAccessSources, caseDocuments, caseEvents, caseHandoffs, caseIssueLinks, cases, documents, heartbeatRuns, issues, pipelineCases, pipelines, pipelineStages, workflows } from "@outpost/db";
+import { SYSTEM_ISSUE_DOCUMENT_KEYS } from "@outpost/shared";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { instanceSettingsService } from "../instance-settings.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { createLocalAgentJwt } from "../../agent-auth-jwt.js";
 import { documentService } from "../documents.js";
 
 describe("native case tools through authenticated production routes", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
-  const priorSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const priorSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   beforeAll(async () => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer();
     await instanceSettingsService(server.db).updateExperimental({ enableCases: true });
   }, 60_000);
   afterAll(async () => {
     await server?.close();
-    if (priorSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    else process.env.PAPERCLIP_AGENT_JWT_SECRET = priorSecret;
+    if (priorSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+    else process.env.OUTPOST_AGENT_JWT_SECRET = priorSecret;
   });
   async function fixture(mode: "standard" | "planning" | "ask" = "standard") {
     const f = await server.fixture({ apiToolsEnabled: false, disableWakeOnDemand: true, mode });
@@ -41,7 +41,7 @@ describe("native case tools through authenticated production routes", () => {
 
   async function saveCaseDocument(f: CaseFixture, key: string, body: string, baseRevisionId?: string) {
     const response = await fetch(`${server.apiUrl}/api/cases/${f.record.id}/documents/${key}`, {
-      method: "PUT", headers: { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId)}`,
+      method: "PUT", headers: { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId)}`,
         "Content-Type": "application/json" }, body: JSON.stringify({ title: `Case ${key}`, format: "markdown", body, baseRevisionId }),
     });
     expect(response.status).toBe(200);
@@ -118,7 +118,7 @@ describe("native case tools through authenticated production routes", () => {
       const disabled = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: false, workMode: "standard" });
       await expect(disabled.recover({ tool, callId: "lost-provider-response", arguments: input })).rejects.toThrow("Cases are disabled");
       await server.db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
-      await expect(recover()).rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+      await expect(recover()).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
       expect(await snapshot()).toEqual(before);
       expect(fetch).not.toHaveBeenCalled();
     } finally { fetch.mockRestore(); }
@@ -472,18 +472,18 @@ describe("native case tools through authenticated production routes", () => {
     expect(saved).toMatchObject({ ok: true, status: 200, artifact: { artifactId: expect.any(String) } });
     const asset = (await f.snapshot()).assets.find(asset => asset.id === saved.artifact.artifactId)!;
     expect(asset.objectKey).toContain(`/cases/${f.record.id}/runner-api/`);
-    const headers = { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId)}` };
+    const headers = { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId)}` };
     const readable = await fetch(`${server.apiUrl}${saved.artifact.url}`, { headers });
     expect(readable.status).toBe(200); await readable.body?.cancel();
     const readerId = randomUUID(), readerRunId = randomUUID();
     await server.db.insert(agents).values({ id: readerId, companyId: f.companyId, name: "Another case reader", status: "active",
-      adapterType: "paperclip_runner", adapterConfig: { provider: "codex" }, runtimeConfig: { heartbeat: { enabled: false } } });
+      adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: { heartbeat: { enabled: false } } });
     const [readerTask] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Another task",
       status: "in_progress", assigneeAgentId: readerId }).returning();
     await server.db.insert(heartbeatRuns).values({ id: readerRunId, companyId: f.companyId, agentId: readerId,
       nativeIssueId: readerTask!.id, status: "running", runtimeMode: "native", contextSnapshot: { issueId: readerTask!.id } });
     await server.db.update(issues).set({ executionRunId: readerRunId }).where(eq(issues.id, readerTask!.id));
-    const readerHeaders = { Authorization: `Bearer ${createLocalAgentJwt(readerId, f.companyId, "paperclip_runner", readerRunId)}` };
+    const readerHeaders = { Authorization: `Bearer ${createLocalAgentJwt(readerId, f.companyId, "outpost_runner", readerRunId)}` };
     const sameCase = await fetch(`${server.apiUrl}/api/cases/${f.record.id}`, { headers: readerHeaders });
     expect(sameCase.status).toBe(200); await sameCase.body?.cancel();
     const otherRunCapture = await fetch(`${server.apiUrl}${saved.artifact.url}`, { headers: readerHeaders });

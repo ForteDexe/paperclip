@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   listCodexSkills,
   syncCodexSkills,
-} from "@paperclipai/adapter-codex-local/server";
+} from "@outpost/adapter-codex-local/server";
 
 async function makeTempDir(prefix: string): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -46,11 +46,11 @@ describe("codex local skill sync", () => {
     const snapshot = await listCodexSkills({
       agentId: "agent-native",
       companyId: "company-1",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       config: {},
     });
 
-    expect(snapshot.adapterType).toBe("paperclip_runner");
+    expect(snapshot.adapterType).toBe("outpost_runner");
     expect(snapshot.desiredSkills).toEqual([]);
     expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("available");
   });

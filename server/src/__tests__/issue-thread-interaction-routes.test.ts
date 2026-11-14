@@ -151,7 +151,7 @@ const mockDb = vi.hoisted(() => ({
   transaction: mockDbTransaction,
 }));
 
-vi.mock("@paperclipai/shared/telemetry", () => ({
+vi.mock("@outpost/shared/telemetry", () => ({
   trackAgentTaskCompleted: vi.fn(),
   trackErrorHandlerCrash: vi.fn(),
 }));
@@ -845,7 +845,7 @@ describe("issue thread interaction routes", () => {
   });
 
   it("normalizes a canonical-only mixed question form at the HTTP boundary", async () => {
-    const questionSet = { schema: "paperclip.question_set.v1", questions: [
+    const questionSet = { schema: "outpost.question_set.v1", questions: [
       { id: "repo", prompt: "Repository URL?", required: true, answerMode: "text" },
       { id: "scope", prompt: "Review scope?", required: true, answerMode: "single_select", options: [{ id: "all", label: "All changes" }, { id: "selected", label: "Selected changes" }] },
     ] };

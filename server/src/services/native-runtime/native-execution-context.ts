@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { PluginEnvironmentTaskExecutionContext } from "@paperclipai/plugin-sdk";
-import type { NativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import type { PluginEnvironmentTaskExecutionContext } from "@outpost/plugin-sdk";
+import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 
 export class NativeExecutionContext {
   readonly id = randomUUID();

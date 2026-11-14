@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, sql } from "drizzle-orm";
-import { chatActions, chatEndpoints, chatPublications, toolConnections, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, chatPublications, toolConnections, type Db } from "@outpost/db";
 import type { ChatPublicationPreparationWait } from "../publications/preparation.js";
 import { chatInteractionForm } from "../../chat-interaction-forms.js";
 import { SlackCloudReceiptError } from "./cloud-event.js";

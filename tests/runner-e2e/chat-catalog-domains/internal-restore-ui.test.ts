@@ -21,7 +21,7 @@ function uiModule(file: string, require: (name: string) => unknown) {
 }
 const annotationHash = uiModule("lib/document-annotation-hash.ts", name => { throw new Error(`Unexpected hash dependency ${name}`); });
 const { resolveIssueDocumentDeepLink } = uiModule("lib/issue-document-deep-link.ts", name => {
-  if (name === "@paperclipai/shared") return { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY };
+  if (name === "@outpost/shared") return { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY };
   if (name === "./document-annotation-hash") return annotationHash;
   throw new Error(`Unexpected document route dependency ${name}`);
 }) as unknown as { resolveIssueDocumentDeepLink(hash: string): { kind: string; documentKey?: string } | null };

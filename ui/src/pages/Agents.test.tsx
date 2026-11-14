@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
-import type { Agent, Environment, EnvironmentCapabilities } from "@paperclipai/shared";
+import type { Agent, Environment, EnvironmentCapabilities } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -13,7 +13,7 @@ import { ToastProvider } from "../context/ToastContext";
 import type { BuiltInAgentState } from "../api/builtInAgents";
 import { Agents, filterAgents, filterOrgTree } from "./Agents";
 import { Agents as ProductionAgents } from "./Agents.production";
-import type { AgentOrgChainHealth } from "@paperclipai/shared";
+import type { AgentOrgChainHealth } from "@outpost/shared";
 
 const mockRouterState = vi.hoisted(() => ({
   pathname: "/agents/all",
@@ -248,7 +248,6 @@ function makeInstanceSettings({
       enableIsolatedWorkspaces: true,
       enableStreamlinedLeftNavigation: false,
       enableAgentChat: false,
-      enableConferenceRoomChat: false,
       enableIssuePlanDecompositions: true,
       enableExperimentalFileViewer: false,
       enableExternalObjects: false,

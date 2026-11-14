@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
-import type { Environment, EnvironmentLease } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import type { Environment, EnvironmentLease } from "@outpost/shared";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { readPluginLoginCredential } from "./plugin-login-credential.js";
 const getById = vi.hoisted(() => vi.fn());

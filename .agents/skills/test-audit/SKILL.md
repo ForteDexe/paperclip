@@ -22,7 +22,7 @@ attribution is in [NOTICE.md](NOTICE.md).
   whether the work is a targeted sweep or an exhaustive subsystem audit.
 - Validation and cost claims: read [references/validation.md](references/validation.md).
 - Paperclip commands, invariants, and delivery: read
-  [references/paperclip.md](references/paperclip.md) alongside repository instructions.
+  [references/outpost.md](references/outpost.md) alongside repository instructions.
 
 ## Decision gate
 

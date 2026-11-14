@@ -9,11 +9,11 @@ import {
   issues,
   runIdentityContexts,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { conflict, forbidden } from "../errors.js";
 import { notifyChatRunMilestones } from "./chat-run-milestone-notifications.js";
 import { boundRunIssueId, boundRunIssueIdSql, runTaskContextColumn } from "./run-task-binding.js";
-import { isUuidLike } from "@paperclipai/shared";
+import { isUuidLike } from "@outpost/shared";
 import { queuedCommentIdsFromRunContext, queuedCommentIdsFromWakePayload } from "./issue-queued-comment-queue.js";
 import { queuedInteractionId } from "./queued-interaction-response.js";
 
@@ -668,11 +668,11 @@ export async function storedSteeringAcknowledgement(
         eq(heartbeatRunEvents.runId, context.runId),
         eq(heartbeatRunEvents.eventType, "item.completed"),
         sql`${heartbeatRunEvents.sourceEventId} is not null`,
-        sql`${heartbeatRunEvents.payload}->'prpEvent'->'payload'->>'kind' = 'steering_acknowledgement'`,
-        sql`${heartbeatRunEvents.payload}->'prpEvent'->>'itemId' like ${`%:steer:${context.messageId}`}`,
+        sql`${heartbeatRunEvents.payload}->'orpEvent'->'payload'->>'kind' = 'steering_acknowledgement'`,
+        sql`${heartbeatRunEvents.payload}->'orpEvent'->>'itemId' like ${`%:steer:${context.messageId}`}`,
       ),
     )
     .limit(1);
-  const event = receipt?.payload?.prpEvent as { turnId?: string } | undefined;
+  const event = receipt?.payload?.orpEvent as { turnId?: string } | undefined;
   return typeof event?.turnId === "string" ? { turnId: event.turnId } : null;
 }

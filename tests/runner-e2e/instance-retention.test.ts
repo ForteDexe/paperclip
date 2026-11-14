@@ -15,7 +15,7 @@ async function parent() {
   return root;
 }
 async function instance(under: string, name: string) {
-  const root = path.join(under, `paperclip-runner-e2e-${name}`);
+  const root = path.join(under, `outpost-runner-e2e-${name}`);
   await mkdir(path.join(root, "home", "instances", "default", "db"), { recursive: true });
   return root;
 }
@@ -107,6 +107,6 @@ describe("instance retention", () => {
     await keepInstance(expired, { owner: "w1", reason: "keep" }, Date.now() - KEPT_INSTANCE_MAX_AGE_MS - 1);
     const created = await createRunnerE2ETemporaryRoot(under);
     expect(existsSync(expired)).toBe(false);
-    expect(path.basename(created).startsWith("paperclip-runner-e2e-")).toBe(true);
+    expect(path.basename(created).startsWith("outpost-runner-e2e-")).toBe(true);
   });
 });

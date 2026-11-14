@@ -5,13 +5,13 @@ import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { companySkillVersions, heartbeatRuns,
-  nativeRunFinalizations, environmentLeases, withDedicatedDbConnection, type Db } from "@paperclipai/db";
+  nativeRunFinalizations, environmentLeases, withDedicatedDbConnection, type Db } from "@outpost/db";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { assertSkillSnapshotPath } from "./skill-snapshot.js";
 import { repositorySkillFrontmatter } from "./skill-repository-package.js";
-import type { CompanySkillVersionFileInventoryEntry } from "@paperclipai/shared";
+import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
 import { noteSkillVersionCacheChange } from "./skill-version-retention-notifications.js";
-import { parseNativeExecutionInput } from "../vendor/paperclip-runner/index.js";
+import { parseNativeExecutionInput } from "../vendor/outpost-runner/index.js";
 import { beginRunPhase } from "./execution-preparation-timing.js";
 import { noRetainedExecutionPredicate } from "./pre-dispatch-execution-evidence.js";
 import { withWorkspaceLockKeepalive } from "./native-runtime/native-workspace-lock-keepalive.js";

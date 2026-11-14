@@ -24,7 +24,7 @@ test('inspect reconciles exact historical case identity and discards integration
 });
 
 test('multiple alias identities, foreign project and incomplete metadata stop before mutation', async () => {
-  const conflicts = await inspectChatMetadata(inspectApi([caseRow, { ...caseRow, id: 92, fullName: 'paperclip.Product E2E.chat-features.tasks.create-backlog' }]));
+  const conflicts = await inspectChatMetadata(inspectApi([caseRow, { ...caseRow, id: 92, fullName: 'outpost.Product E2E.chat-features.tasks.create-backlog' }]));
   assert.equal(conflicts.caseConflict, true); assert.deepEqual(conflicts.cases.map(row => row.id), [91, 92]);
   await assert.rejects(ensureChatPlan(() => assert.fail('no ambiguous write'), conflicts, () => assert.fail('no ambiguous marker'))); 
   await assert.rejects(inspectChatMetadata(inspectApi([{ ...caseRow, projectId: 2 }])), /identity_invalid/);
@@ -150,7 +150,7 @@ test('backlog launch preflight sends the typed UTF-8 name filter required by Tes
   const server = launchServer();
   const api = async (route, ...args) => {
     if (route.startsWith('/api/launch?')) {
-      const wire = new URL(route, 'https://paperclip.testops.cloud').searchParams.get('search');
+      const wire = new URL(route, 'https://outpost.testops.cloud').searchParams.get('search');
       let filters;
       try { filters = JSON.parse(Buffer.from(wire, 'base64').toString('utf8')); }
       catch { throw new Error('TestOps HTTP 400: typed launch search required'); }
@@ -205,7 +205,7 @@ test('documented stable-ID list pagination is complete before locally matching e
       return { number, totalPages: 2, totalElements: 2, content: [{ id: number ? 92 : 91 }] };
     }
     if (route === '/api/testcase/91') return { ...caseRow, description: 'SYNTHETIC_PRIVATE_DESCRIPTION' };
-    if (route === '/api/testcase/92') return { id: 92, projectId: 1, fullName: 'paperclip.Product E2E.unrelated.case', automated: true, expectedResult: 'DO_NOT_EXPORT' };
+    if (route === '/api/testcase/92') return { id: 92, projectId: 1, fullName: 'outpost.Product E2E.unrelated.case', automated: true, expectedResult: 'DO_NOT_EXPORT' };
     return inspectApi([], [])(route);
   };
   const result = await inspectChatMetadata(api);

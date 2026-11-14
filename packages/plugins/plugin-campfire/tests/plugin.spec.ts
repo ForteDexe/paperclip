@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { pluginManifestV1Schema } from "@paperclipai/shared";
-import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
-import type { AgentSessionEvent } from "@paperclipai/plugin-sdk";
+import { pluginManifestV1Schema } from "@outpost/shared";
+import { createTestHarness } from "@outpost/plugin-sdk/testing";
+import type { AgentSessionEvent } from "@outpost/plugin-sdk";
 import manifest from "../src/manifest.js";
 import plugin, {
   agentPrompt,

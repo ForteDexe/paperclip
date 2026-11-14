@@ -33,7 +33,7 @@ import {
   issueTreeHolds,
   issues,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -69,7 +69,7 @@ vi.mock("../adapters/index.ts", async () => {
   };
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_DEPENDENCY_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_DEPENDENCY_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -306,7 +306,7 @@ describeEmbeddedPostgres("heartbeat dependency-aware queued run selection", () =
       expect(await waitForCondition(async () => mockAdapterExecute.mock.calls.length === 1, 30_000)).toBe(true);
       const contractId = randomUUID(), resultId = randomUUID(), assessmentId = randomUUID(), decisionId = randomUUID();
       await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+        schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
         completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
         contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
       await db.update(heartbeatRuns).set({ nativeIssueId: issueId, completionContractId: contractId }).where(eq(heartbeatRuns.id, predecessor!.id));

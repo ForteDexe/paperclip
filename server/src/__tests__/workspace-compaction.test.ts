@@ -33,7 +33,7 @@ async function createRepoWithWorktree(gitignore: string[]) {
   await fs.mkdir(repoRoot);
   await git(repoRoot, ["init", "-b", "main"]);
   await git(repoRoot, ["config", "user.name", "Paperclip Test"]);
-  await git(repoRoot, ["config", "user.email", "test@paperclip.local"]);
+  await git(repoRoot, ["config", "user.email", "test@outpost.local"]);
   await write(path.join(repoRoot, ".gitignore"), `${gitignore.join("\n")}\n`);
   await git(repoRoot, ["add", ".gitignore"]);
   await git(repoRoot, ["commit", "-m", "Initial commit"]);

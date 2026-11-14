@@ -30,7 +30,7 @@ import {
 } from "./prepare-bundled-package.mjs";
 
 const rootPackage = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-const profileData = JSON.parse(await readFile(new URL("../packages/paperclip-runner/acpx-profiles.json", import.meta.url), "utf8"));
+const profileData = JSON.parse(await readFile(new URL("../packages/outpost-runner/acpx-profiles.json", import.meta.url), "utf8"));
 const nativeTargets = ["linux-x64", "darwin-arm64", "darwin-x64"];
 function esbuildFixture(t) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-bundled-esbuild-")));
@@ -50,7 +50,7 @@ function esbuildFixture(t) {
     name: "@esbuild/linux-x64", version: "0.28.2", os: ["linux"], cpu: ["x64"],
   });
   writePackage(join(graph, "unrelated-linux-x64"), { name: "unrelated-linux-x64", version: "1.0.0" });
-  const publish = { name: "@paperclipai/adapter-utils", version: "0.3.1", bundleDependencies: ["acpx"],
+  const publish = { name: "@outpost/adapter-utils", version: "0.3.1", bundleDependencies: ["acpx"],
     dependencies: { acpx: "0.22.0" }, optionalDependencies: { unrelated: "1.0.0" } };
   return { directory, graph, esbuild, producerBinary, publish, writePackage };
 }
@@ -107,7 +107,7 @@ const adapterUtilsPackage = JSON.parse(
   await readFile(new URL("../packages/adapter-utils/package.json", import.meta.url), "utf8"),
 );
 const runnerPackage = JSON.parse(
-  await readFile(new URL("../packages/paperclip-runner/package.json", import.meta.url), "utf8"),
+  await readFile(new URL("../packages/outpost-runner/package.json", import.meta.url), "utf8"),
 );
 const serverPackage = JSON.parse(
   await readFile(new URL("../server/package.json", import.meta.url), "utf8"),
@@ -407,7 +407,7 @@ test("bundled esbuild cannot follow a platform payload or package namespace outs
   assert.throws(() => stageBundledEsbuildOptionalDependencies(directory, publish), /escapes its producer graph/);
 });
 
-test("Paperclip Runner pins the qualified ACPX host callbacks", () => {
+test("Outpost Runner pins the qualified ACPX host callbacks", () => {
   assert.equal(rootPackage.pnpm.patchedDependencies["acpx@0.22.0"], "patches/acpx@0.22.0.patch");
   assert.equal(
     rootPackage.pnpm.patchedDependencies["@agentclientprotocol/claude-agent-acp@0.73.0"],
@@ -449,7 +449,7 @@ test("bundled package staging materializes publishConfig entrypoints", () => {
 
 test("bundled package staging materializes workspace dependency versions", () => {
   const staged = materializePublishManifest({
-    name: "@paperclipai/example",
+    name: "@outpost/example",
     version: "2026.723.0",
     dependencies: { exact: "workspace:*", caret: "workspace:^", tilde: "workspace:~" },
   });
@@ -463,15 +463,15 @@ test("bundled package staging materializes workspace dependency versions", () =>
 
 test("bundled package staging installs only dependencies included in the tarball", () => {
   const publishManifest = {
-    name: "@paperclipai/db",
+    name: "@outpost/db",
     version: "2026.723.0-canary.8",
     dependencies: {
-      "@paperclipai/shared": "2026.723.0-canary.8",
+      "@outpost/shared": "2026.723.0-canary.8",
       "drizzle-orm": "^0.45.2",
       "embedded-postgres": "^18.1.0-beta.16",
     },
     devDependencies: {
-      "@paperclipai/paperclip-runner": "2026.723.0-canary.8",
+      "@outpost/outpost-runner": "2026.723.0-canary.8",
     },
     bundleDependencies: ["embedded-postgres"],
   };
@@ -482,7 +482,7 @@ test("bundled package staging installs only dependencies included in the tarball
   });
   assert.equal(installManifest.devDependencies, undefined);
   assert.deepEqual(publishManifest.devDependencies, {
-    "@paperclipai/paperclip-runner": "2026.723.0-canary.8",
+    "@outpost/outpost-runner": "2026.723.0-canary.8",
   });
   assert.deepEqual(installManifest.bundleDependencies, ["embedded-postgres"]);
 });
@@ -593,9 +593,9 @@ test("server package staging applies every bundled runtime patch and preserves t
   mkdirSync(join(nativePackage, "vendor"), { recursive: true });
   writeFileSync(join(nativePackage, "package.json"), JSON.stringify({ name: "@openai/codex", version: "0.160.0-linux-x64", os: ["linux"], cpu: ["x64"] }));
   writeFileSync(join(nativePackage, "vendor/codex"), "producer host fixture; never executed");
-  mkdirSync(join(fixtureSourceRoot, "packages/paperclip-runner/src/drivers/acpx"), { recursive: true });
+  mkdirSync(join(fixtureSourceRoot, "packages/outpost-runner/src/drivers/acpx"), { recursive: true });
   writeFileSync(join(fixtureSourceRoot, "package.json"), JSON.stringify(rootPackage));
-  writeFileSync(join(fixtureSourceRoot, "packages/paperclip-runner/acpx-profiles.json"), JSON.stringify(profileData));
+  writeFileSync(join(fixtureSourceRoot, "packages/outpost-runner/acpx-profiles.json"), JSON.stringify(profileData));
   mkdirSync(join(fixtureSourceRoot, "patches"));
   for (const patchPath of Object.values(rootPackage.pnpm.patchedDependencies)) {
     writeFileSync(join(fixtureSourceRoot, patchPath), readFileSync(new URL(`../${patchPath}`, import.meta.url)));

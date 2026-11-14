@@ -1,4 +1,4 @@
-# OpenAI Dot as a production Paperclip Runner provider
+# OpenAI Dot as a production Outpost Runner provider
 
 Date: 2026-10-02
 
@@ -11,7 +11,7 @@ Scope: Original production design with the implementation status recorded below.
 ## Implementation status
 
 Implemented the dedicated agent OAuth resource, one-use pairing and readiness
-challenge, scoped durable mailbox and operation receipts, PRP v3 external
+challenge, scoped durable mailbox and operation receipts, ORP v3 external
 operations, native input v6 without a workspace or credentials, Rust Dot
 executor, normal task tool/completion authority, provider configuration and
 connection UI. Tests exercise the real Rust Runner and ordinary task status
@@ -31,11 +31,11 @@ approval. See [the adapter runbook](../openai-dot-runner.md).
 
 ## 1. Recommendation
 
-Add **OpenAI Dot** as a provider of the existing `paperclip_runner` adapter:
+Add **OpenAI Dot** as a provider of the existing `outpost_runner` adapter:
 
 ```json
 {
-  "adapterType": "paperclip_runner",
+  "adapterType": "outpost_runner",
   "adapterConfig": {
     "provider": "openai_dot",
     "dotBindingId": "<server-owned binding>",
@@ -46,11 +46,11 @@ Add **OpenAI Dot** as a provider of the existing `paperclip_runner` adapter:
 
 The provider uses MCP Events to notify an existing Dot and authenticated MCP
 tools to receive its actions. Rust `runnerd` owns the provider state machine and
-PRP lifecycle. Paperclip owns connection authorization, durable mailboxes,
+ORP lifecycle. Paperclip owns connection authorization, durable mailboxes,
 admission, tool effects, budgets, approvals, and final task disposition.
 
 The implementation is a new Runner provider, not a new legacy `execute()`
-adapter. Keep `paperclip_runner` in the server/UI/CLI registries. The older
+adapter. Keep `outpost_runner` in the server/UI/CLI registries. The older
 `create-agent-adapter` skill remains useful for configuration, diagnostics and
 cross-surface consistency; its process-spawning package recipe does not define
 this provider's execution architecture.
@@ -116,7 +116,7 @@ OAuth state. A stable deployment and a real readiness check are essential.
 
 ### Paperclip initiates work
 
-A user selects **Paperclip Runner → OpenAI Dot**, connects their Dot, and assigns
+A user selects **Outpost Runner → OpenAI Dot**, connects their Dot, and assigns
 it an ordinary task. Existing scheduling admits the task. Paperclip sends a
 small event; Dot retrieves the current assignment, explicitly accepts it, uses
 the projected tools, and submits its result. The task thread shows delivery,
@@ -174,17 +174,17 @@ sequenceDiagram
   participant Runner as Rust runnerd: Dot provider
   participant Broker as Durable Dot mailbox + public MCP
   participant Dot as OpenAI Dot
-  App->>Runner: Authenticated PRP prepare/open/start
+  App->>Runner: Authenticated ORP prepare/open/start
   Runner->>App: Durable external dispatch request
   App->>Broker: Commit assignment + wakeup item
   Broker->>Dot: Signed MCP Event with references
   Dot->>Broker: Read and accept assignment
   Broker->>App: Durable bound operation
-  App->>Runner: PRP external operation
+  App->>Runner: ORP external operation
   Runner-->>App: turn.started
   Dot->>Broker: Call projected tool
   Broker->>App: Durable bound operation
-  App->>Runner: PRP external operation
+  App->>Runner: ORP external operation
   Runner->>App: Normal semantic tool request
   App->>App: Existing authorization + domain effect + receipt
   App-->>Runner: Normal semantic_tool.result
@@ -193,7 +193,7 @@ sequenceDiagram
   Broker-->>Dot: Tool result
   Dot->>Broker: Propose structured completion
   Broker->>App: Durable bound operation
-  App->>Runner: PRP external operation
+  App->>Runner: ORP external operation
   Runner-->>App: Validated result + terminal events
   App->>App: Existing completion feedback and finalizer
 ```
@@ -208,18 +208,18 @@ second tool dispatcher or finalizer hidden in the MCP route.
 | --- | --- | --- |
 | Public MCP/OAuth | Authenticate each call, resource/scope checks, bounded input, callback verification | Creating an admitted run from supplied IDs; arbitrary agent impersonation |
 | Dot broker in server | Pairing, bindings, mailbox, delivery state, request deduplication, routing to the current controller | Domain effects or provider terminal decisions |
-| Rust Dot provider | Turn acceptance, provider command ordering, projected-call mapping, durable provider receipts, PRP events and checkpoints | DB access, company policy, OAuth secrets, issue status writes |
-| Existing native controller | Admission, PRP ownership/leases, semantic dispatch, governed waits and finalization | Pretending a webhook receipt proves execution |
+| Rust Dot provider | Turn acceptance, provider command ordering, projected-call mapping, durable provider receipts, ORP events and checkpoints | DB access, company policy, OAuth secrets, issue status writes |
+| Existing native controller | Admission, ORP ownership/leases, semantic dispatch, governed waits and finalization | Pretending a webhook receipt proves execution |
 | Dot | Retrieve work, perform reasoning, invoke exposed tools, propose result | Selecting its company/agent/run authority or bypassing finalization |
 
 Runner receives no ChatGPT credential, MCP OAuth token, webhook URL/signing key,
-or unrestricted Paperclip API key. Reuse the authenticated PRP connection for
+or unrestricted Paperclip API key. Reuse the authenticated ORP connection for
 the app-owned broker port. Do not add a second generic HTTP control API solely
 to get operations into runnerd.
 
 The Runner package remains standalone: define the broker port and envelopes in
 the package; implement them in Paperclip server without importing server or DB
-code into `packages/paperclip-runner`.
+code into `packages/outpost-runner`.
 
 ## 4. Production Runner integration
 
@@ -245,7 +245,7 @@ protocol revision. Tasks cannot override that identity or supply callback URLs.
 
 ### Contract changes
 
-The current native input is a closed `paperclip.native-execution-input.v5`
+The current native input is a closed `outpost.native-execution-input.v5`
 contract. Introduce the next input revision with a Dot provider variant; retain
 v1–v5 parsing and recovery for existing providers. Update JSON Schema,
 TypeScript and Rust together, plus export/compatibility manifests and fixtures.
@@ -258,7 +258,7 @@ guards accordingly instead of satisfying existing mandatory cwd fields with a
 made-up project path. A project/task may still exist in Paperclip without its
 checkout being mounted into this provider.
 
-Add a small, versioned external-provider transport extension over PRP. Proposed
+Add a small, versioned external-provider transport extension over ORP. Proposed
 logical messages, with final names fixed in the contract PR:
 
 | Direction | Message | Meaning |
@@ -276,7 +276,7 @@ The existing v2 enums cannot be expanded invisibly in persisted old contracts.
 Reads of assignment/receipt projections may come directly from the authorized
 broker database. Mutating lifecycle operations enter the live Runner. Normal
 `semantic_tool` dispatch, `paperclip_finish`/`paperclip_block` validation,
-completion feedback and PRP finalization remain authoritative.
+completion feedback and ORP finalization remain authoritative.
 
 Command acknowledgement means the external operation was durably admitted to
 the Runner, not that its tool effect finished. A tool operation must release
@@ -395,7 +395,7 @@ conventions, but these ownership boundaries are required:
 | --- | --- |
 | `dot_agent_bindings` | Company, agent, consenting user, dedicated grant, generation, readiness, protocol revision, created/revoked timestamps. Unique active agent binding and active grant binding. |
 | `dot_runner_assignments` | Immutable run/session/turn and completion-contract binding, binding generation, catalog digest, prompt/runtime-context references, status, deadlines and accepted/completed timestamps. Unique run/turn; at most one live assignment per binding. |
-| `dot_runner_operations` | Assignment, request ID, operation, canonical input digest, PRP command/call IDs, status and bounded result/reference. Unique request ID within assignment; no silent argument changes. |
+| `dot_runner_operations` | Assignment, request ID, operation, canonical input digest, ORP command/call IDs, status and bounded result/reference. Unique request ID within assignment; no silent argument changes. |
 | `dot_mailbox_items` | Durable actionable item for assignment, continuation, pending tool result or control request; immutable ID, assignment revision, visibility/consumption state and stable notification identity. |
 
 Do not duplicate canonical task comments, documents, transcripts, result rows or
@@ -417,9 +417,9 @@ to manufacture a Runner assignment.
 
 ### Event definition
 
-Use one production event, proposed `paperclip.dot.mailbox_updated`, filtered by
+Use one production event, proposed `outpost.dot.mailbox_updated`, filtered by
 `companyId` and `bindingId`. The prototype's task-filtered
-`paperclip.dot.work_available` stays a lab contract; migrate setup instructions
+`outpost.dot.work_available` stays a lab contract; migrate setup instructions
 explicitly rather than changing its schema in place.
 
 The event carries only bounded references: binding generation, mailbox item ID,
@@ -461,7 +461,7 @@ Schemas are versioned, bounded and validated before persistence.
 | Inbox/read | Return only current bound work, prompt context, tool catalog references and completion contract. |
 | Accept | Atomically claim the current assignment once; only Runner acceptance emits `turn.started`. |
 | Tool | Map a stable external operation into a normal semantic tool call. |
-| Progress | Append bounded progress through PRP; apply ordinary useful-progress/watchdog rules. |
+| Progress | Append bounded progress through ORP; apply ordinary useful-progress/watchdog rules. |
 | Finish | Propose the canonical structured result; run normal completion feedback and finalization. |
 | Operation status | Read a durable pending/completed/rejected/unknown receipt without redispatch. |
 | Request work | Create an idempotent ordinary wake request while idle; never self-assign by accepting arbitrary IDs. |
@@ -469,7 +469,7 @@ Schemas are versioned, bounded and validated before persistence.
 
 Use `requestId` plus assignment binding as the external operation identity. The
 server reserves it before routing to the current controller. Canonical input
-digest mismatch is an explicit conflict. Derive stable PRP command and semantic
+digest mismatch is an explicit conflict. Derive stable ORP command and semantic
 call IDs from that identity and preserve them across recovery.
 
 The broker receipt and existing semantic effect receipt have different jobs:
@@ -551,7 +551,7 @@ the existing bounded delivery retry policy.
 | After webhook receipt, before accept | Same assignment remains offered; do not synthesize a started turn. |
 | During accept / response lost | Same request returns the accepted receipt; one `turn.started`. |
 | Tool committed, response lost | Reconcile existing semantic receipt; never repeat the effect with a fresh ID. |
-| Paperclip controller restarts | Restore current lease/generation, route persisted operations, replay PRP acknowledgements. |
+| Paperclip controller restarts | Restore current lease/generation, route persisted operations, replay ORP acknowledgements. |
 | runnerd restarts | Restore exact Dot provider checkpoint; verify binding/catalog/assignment identities before replay. |
 | Both restart | Reconcile server records and Runner checkpoint by identity/digest; unresolved divergence becomes operator-visible, not a new assignment. |
 | Subscription expires | Preserve pending work; mark delivery unavailable; wake actionable items after verified reconnection. |
@@ -644,7 +644,7 @@ company budget hard stops for costs Paperclip actually controls.
 
 ## 10. Onboarding and ongoing UX
 
-1. Choose **Paperclip Runner → OpenAI Dot**.
+1. Choose **Outpost Runner → OpenAI Dot**.
 2. Show stable MCP endpoint and connection/pairing flow. Cloud deployments use
    the stable broker once its agent-resource routing is implemented; self-hosted
    deployments use authenticated public HTTPS.
@@ -688,15 +688,15 @@ preserve authorized cleanup/reconciliation of previously admitted work.
 ### Slice 1 — Contracts and deterministic production topology
 
 **Change:** Define the Dot provider, binding snapshot, external-provider port,
-operation receipts, capability limitations and next native/PRP schema revisions.
+operation receipts, capability limitations and next native/ORP schema revisions.
 Add TypeScript/Rust parity fixtures and a scripted external peer.
 
 **Files:**
 
-- `packages/adapter-utils/src/paperclip-runner-permissions.ts`
-- `packages/paperclip-runner/protocol/schemas/` and protocol fixtures
-- `packages/paperclip-runner/src/contracts/{native-execution,harness-driver,types}.ts`
-- `packages/paperclip-runner/src/backends/native-backend-factory.ts`
+- `packages/adapter-utils/src/outpost-runner-permissions.ts`
+- `packages/outpost-runner/protocol/schemas/` and protocol fixtures
+- `packages/outpost-runner/src/contracts/{native-execution,harness-driver,types}.ts`
+- `packages/outpost-runner/src/backends/native-backend-factory.ts`
 - Runner compatibility/export declarations and corresponding Rust protocol code
 
 **Exit:** A qualified test artifact recognizes Dot and rejects incompatible
@@ -724,7 +724,7 @@ Operations can be stored safely before a controller is available.
 ### Slice 3 — Rust provider and authenticated broker port
 
 **Change:** Implement the Dot executor, durable checkpoint, acceptance boundary,
-PRP external operation delivery and normal `ProviderToolBridge` integration.
+ORP external operation delivery and normal `ProviderToolBridge` integration.
 The app port implements only transport persistence/routing.
 
 **Files:**
@@ -733,8 +733,8 @@ The app port implements only transport persistence/routing.
 - `runner/crates/runner-core/src/native_provider_backend.rs`
 - `runner/crates/runner-core/src/provider_bridge.rs` where shared extension is needed
 - Runner durable command/event validation and provider descriptor projection
-- `packages/paperclip-runner/src/drivers/dot/` reference/conformance implementation
-- Runnerd transport facade and `server/src/services/native-runtime/runner-prp-coordinator.ts`
+- `packages/outpost-runner/src/drivers/dot/` reference/conformance implementation
+- Runnerd transport facade and `server/src/services/native-runtime/runner-orp-coordinator.ts`
 
 **Exit:** A real Rust runnerd and scripted MCP peer complete an assignment through
 the app-owned tool authority. Killing either process at a receipt boundary does
@@ -750,7 +750,7 @@ route results through existing completion feedback/status policy.
 
 - `server/src/services/native-runtime/{provider-profile,runtime-mode,prepare-native-run,native-execution-input}.ts`
 - `server/src/services/native-runtime/native-session-executor.ts`
-- `server/src/services/native-runtime/paperclip-runner-tool-authority.ts`
+- `server/src/services/native-runtime/outpost-runner-tool-authority.ts`
 - `server/src/services/native-runtime/{native-run-coordinator-store,native-run-finalizer,status-arbiter}.ts`
 - Narrow integration points in `server/src/services/heartbeat.ts`
 
@@ -782,7 +782,7 @@ connection health, run phase/stop semantics, and CLI watch output.
 
 **Files:**
 
-- `ui/src/adapters/paperclip-runner/index.ts` and its configuration components
+- `ui/src/adapters/outpost-runner/index.ts` and its configuration components
 - Agent creation/configuration and assistant-connection views/API clients
 - Shared provider/connection status types and experimental-setting contracts
 - CLI Runner event formatting/config diagnostics
@@ -869,7 +869,7 @@ pnpm -r typecheck
 pnpm test:run
 pnpm build
 pnpm check:token-gates # when UI changes are present
-pnpm --filter @paperclipai/paperclip-runner verify
+pnpm --filter @outpost/outpost-runner verify
 ```
 
 Browser/product suites are opt-in and required for the onboarding/live acceptance
@@ -912,15 +912,15 @@ outside Paperclip after its Paperclip authority ends.
 ## 14. Sources and implementation anchors
 
 - [Prototype and actual live acceptance](../dot-runner-prototype.md)
-- [Runner architecture](../architecture/paperclip-runner.md)
-- [Runner package ownership and production boundary](../../packages/paperclip-runner/README.md)
+- [Runner architecture](../architecture/outpost-runner.md)
+- [Runner package ownership and production boundary](../../packages/outpost-runner/README.md)
 - [Public MCP identity, tools and hosted broker](../public-mcp.md)
-- [Current Dot reference driver](../../packages/paperclip-runner/src/drivers/dot/dot-harness-driver.ts)
+- [Current Dot reference driver](../../packages/outpost-runner/src/drivers/dot/dot-harness-driver.ts)
 - [Current MCP bridge](../../server/src/services/public-mcp/dot-runner.ts)
 - [Native provider selection](../../server/src/services/native-runtime/provider-profile.ts)
 - [Production native executor](../../server/src/services/native-runtime/native-session-executor.ts)
-- [Rust provider dispatch](../../packages/paperclip-runner/runner/crates/runner-core/src/native_provider_backend.rs)
-- [Production tool authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts)
+- [Rust provider dispatch](../../packages/outpost-runner/runner/crates/runner-core/src/native_provider_backend.rs)
+- [Production tool authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts)
 - [OpenAI MCP Events](https://developers.openai.com/plugins/build/mcp-events),
   checked 2026-10-02: Dot support, asynchronous webhook acknowledgement,
   callback verification, refresh, ordering and delivery limits.
@@ -935,7 +935,7 @@ is assigned in Paperclip, link this plan as its plan document/work product.
 
 ## 15. First-time onboarding checkpoint — 2026-10-07
 
-The live onboarding attempt found and fixed two authorization problems. ChatGPT’s client metadata prefers `private_key_jwt` while also publishing `none` as a supported method; Paperclip now negotiates the supported public-client method while retaining S256 PKCE. Dot’s browser blocks the temporary Cloudflare hostname even though ChatGPT’s MCP discovery service reaches it. An optional `PAPERCLIP_MCP_AUTHORIZATION_ORIGIN` separates the browser authorization ingress from the MCP resource, issuer, and token ingress. Both routes use existing operator-approved tunnels; no new hosted infrastructure was created.
+The live onboarding attempt found and fixed two authorization problems. ChatGPT’s client metadata prefers `private_key_jwt` while also publishing `none` as a supported method; Paperclip now negotiates the supported public-client method while retaining S256 PKCE. Dot’s browser blocks the temporary Cloudflare hostname even though ChatGPT’s MCP discovery service reaches it. An optional `OUTPOST_MCP_AUTHORIZATION_ORIGIN` separates the browser authorization ingress from the MCP resource, issuer, and token ingress. Both routes use existing operator-approved tunnels; no new hosted infrastructure was created.
 
 An operator-issued, expiring, one-use pairing capability now lets Dot approve its exact agent grant without receiving an operator password or board session. The preview validates the pending request, binding, company, current operator membership, and agent status, and displays company, agent, permitted task operations, and access duration before submission. Approval and binding consumption are atomic, and the resulting token remains restricted to the Runner resource and exact agent. The copied setup prompt uses this path and retains the user-requested plugin-creation authorization paragraph. The live attempt also exposed a plugin-name collision and uncertainty about entering the code; the prompt now handles an existing name for another URL, and both the prompt and consent page explain that code entry previews access while submitting Connect grants it.
 

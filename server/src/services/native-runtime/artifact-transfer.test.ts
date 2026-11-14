@@ -4,8 +4,8 @@ import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
-import { SemanticToolOutcomeUnknownError } from "../../vendor/paperclip-runner/index.js";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
+import { SemanticToolOutcomeUnknownError } from "../../vendor/outpost-runner/index.js";
 import { createArtifactInstaller } from "./artifact-transfer.js";
 
 type Runner = Pick<CommandManagedRuntimeRunner, "execute">;

@@ -15,7 +15,7 @@ import {
   plugins,
   projects,
   projectWorkspaces,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -116,7 +116,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await db.insert(environments).values({ id: environmentId, name: "Tasks", driver: "plugin", status: "active",
       config: { pluginKey, driverKey: "tasks", driverConfig: {} } });
     await db.insert(agents).values({ id: agentId, companyId, name: "Task agent", role: "engineer", status: "idle",
-      adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol", lifecycleMode: "warm" }, runtimeConfig: {},
+      adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol", lifecycleMode: "warm" }, runtimeConfig: {},
       defaultEnvironmentId: environmentId, permissions: {} });
     await db.insert(issues).values({ id: issueId, companyId, projectId, projectWorkspaceId: sourceId, title: "Task-only dispatch", status: "in_progress",
       assigneeAgentId: agentId, issueNumber: 1, identifier: "TASK-1" });

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BreadcrumbProvider, useBreadcrumbs } from "../context/BreadcrumbContext";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { CoordinatorAgentSwitcher } from "./CoordinatorAgentSwitcher";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@outpost/shared";
 
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 const navigate = vi.hoisted(() => vi.fn());

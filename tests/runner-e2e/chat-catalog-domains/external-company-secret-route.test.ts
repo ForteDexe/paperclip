@@ -1,10 +1,10 @@
 import {expect,it} from "vitest";
 import {chromium} from "@playwright/test";
 import {companySecretSetupURL} from "./external-company-secret.js";
-const origin="https://paperclip.example",route="/RUN/company/settings/secrets";
+const origin="https://outpost.example",route="/RUN/company/settings/secrets";
 const body="I can't enter the key value myself — company secret values are board-only secure entry, and I won't ask you to paste a secret into chat.\n\nTo add it:\n1. Open `/RUN/company/settings/secrets`.\n2. Click **New secret**.\n3. Use name e.g. **Deployment API key**, env key **DEPLOYMENT_API_KEY**, and enter the deployment key value there.\n4. Save it, then tell me the name/key you used (not the value).\n\nOnce it exists I'll add a `DEPLOYMENT_API_KEY` secret reference to Morgan's agent environment and verify the reference is in place. Saving the secret only stores it; Morgan gets it on its next run after the binding.";
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("admits the actual4587 displayed inline route and rejects absent, foreign, cross-company or hidden routes in offline Chromium",async()=>{
- const browser=await chromium.launch({headless:true,...process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("admits the actual4587 displayed inline route and rejects absent, foreign, cross-company or hidden routes in offline Chromium",async()=>{
+ const browser=await chromium.launch({headless:true,...process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
  const render=async(text:string,html?:string,id="native")=>{await page.setContent(`<article id="comment-${id}"><p>Use secure Settings Secrets for Morgan's deployment credential environment binding.</p>${html??`<code>${text}</code>`}</article>`);};
  try{
   await page.setContent(`<div style="height:100px;overflow-x:hidden;overflow-y:auto"><article id="comment-native"><code>${route}</code><div style="height:1500px">Long reply</div></article></div>`);

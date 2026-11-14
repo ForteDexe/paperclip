@@ -10,21 +10,21 @@ export function taskChatProgress(runId: string, events: Row[], author: string): 
   const items = new Map<string, { kind: string; channel: string; body: string; at: string | null }>();
   const seen = new Set<string>();
   const ordered = events.flatMap<Row>(event => {
-    const envelope = event.payload?.prpEvent;
+    const envelope = event.payload?.orpEvent;
     const tails = envelope?.payload?.outputTails;
     if (!Array.isArray(tails) || !/^(item|turn|session)\.(completed|failed|cancelled|interrupted|closed)$/.test(event.eventType)) return [event];
     // The runtime may hold a possible credential prefix until completion.
     // Preserve its redacted display tail, just as the task page does.
     return [...tails.flatMap((tail, index) => typeof tail?.payload?.text !== "string" ? [] : [{
-      ...event, eventType: "item.delta", payload: { prpEvent: { ...envelope,
+      ...event, eventType: "item.delta", payload: { orpEvent: { ...envelope,
         eventType: "item.delta", itemId: tail.itemId, payload: tail.payload,
         sourceEventId: `${envelope.sourceEventId ?? event.seq}:tail:${index}`,
       } },
     }]), event];
   });
   for (const event of ordered) {
-    const envelope = event.payload?.prpEvent;
-    if (envelope?.schema !== "paperclip.prp.event.v1" || envelope.schemaVersion !== 1 ||
+    const envelope = event.payload?.orpEvent;
+    if (envelope?.schema !== "outpost.orp.event.v1" || envelope.schemaVersion !== 1 ||
       envelope.runId !== runId || envelope.eventType !== event.eventType ||
       !["item.started", "item.delta", "item.completed"].includes(event.eventType)) continue;
     if (envelope.sourceEventId && seen.has(envelope.sourceEventId)) continue;

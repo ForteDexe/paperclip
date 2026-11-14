@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { ISSUE_SUMMARIES_MAX_IDS } from "@paperclipai/shared";
+import { ISSUE_SUMMARIES_MAX_IDS } from "@outpost/shared";
 import { issuesApi } from "./issues";
 
 const first = "11111111-1111-4111-8111-111111111111";

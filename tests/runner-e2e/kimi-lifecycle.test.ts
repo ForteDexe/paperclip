@@ -15,10 +15,10 @@ function fixture(remote = false) {
   const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner", resultJson: {} };
   const issue: Row = { id: "issue", companyId: "company", status: "in_progress" };
   const row = (eventType: string, sourceSeq: number, payload: Row): Row => ({ companyId: "company", runId: "run", seq: sourceSeq, eventType, protocolSchemaVersion: 1,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", normalizedSessionId: "session",
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", normalizedSessionId: "session",
       sourceInstanceId: "runner", sourceSeq, sourceEventId: `runner:run:${sourceSeq}`, emittedAt: "2026-10-28T00:00:00Z", payload } } });
-  const tool = (executionId: string, name: string, operation: string, target: string | null, status = "running") => ({ schema: "paperclip.tool.execution.v1", executionId, transport: "builtin", name, operation, target, status });
-  const request: Row = { schema: "paperclip.runtime_request.v2", type: "permission", requestKind: "permission_approval", status: "pending", requestId: "request", turnId: "turn", itemId: "permission-item",
+  const tool = (executionId: string, name: string, operation: string, target: string | null, status = "running") => ({ schema: "outpost.tool.execution.v1", executionId, transport: "builtin", name, operation, target, status });
+  const request: Row = { schema: "outpost.runtime_request.v2", type: "permission", requestKind: "permission_approval", status: "pending", requestId: "request", turnId: "turn", itemId: "permission-item",
     prompt: `Change file: ${scope.target}`, choices: [{ key: "accept", label: "Allow once" }, { key: "decline", label: "Deny" }, { key: "cancel", label: "Cancel" }],
     details: { toolCallId: "0:native-write" }, origin: { adapter: "acpx-runtime-sidecar", provider: "kimi", method: "session/request_permission" } };
   const events: Row[] = remote ? [row("tool.execution.started", 1, tool("0:read", "Read", "read", scope.actionFile!)), row("tool.execution.completed", 2, tool("0:read", "Read", "read", scope.actionFile!, "completed"))] : [];
@@ -32,7 +32,7 @@ function fixture(remote = false) {
     if (branch === "stop") {
       run.status = "cancelled";
       run.resultJson = { startupCancellation: { cancellationRequestId: cancelId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
-        schema: "paperclip.native-cancellation.v1", intentId: `native-cancellation:${cancelId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
+        schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancelId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
         dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit",
       } };
       events.push(row("runtime_request.cancelled", events.length + 1, { requestId: "request", requestKind: "permission_approval", turnId: "turn", itemId: "permission-item", reason: "turn_terminal" }));
@@ -47,7 +47,7 @@ function fixture(remote = false) {
   };
   return { scope, run, issue, events, request, row, tool, state, observe, settle };
 }
-const payload = (row: Row) => row.payload.prpEvent.payload;
+const payload = (row: Row) => row.payload.orpEvent.payload;
 
 function retainedLocalStopRows() {
   const scope = { companyId: "26725944-fac6-4382-883c-a57d5448a3ba", issueId: "9334a1c6-3f67-4536-8570-e81db0b70498",
@@ -57,18 +57,18 @@ function retainedLocalStopRows() {
   const origin = { method: "session/request_permission", adapter: "acpx-runtime-sidecar", provider: "kimi" };
   const choices = [{ key: "accept", label: "Allow once" }, { key: "decline", label: "Deny" }, { key: "cancel", label: "Cancel" }];
   const request = { type: "permission", itemId: item, method: "session/request_permission", origin,
-    prompt: `Change file: ${scope.target}`, schema: "paperclip.runtime_request.v2", status: "pending", turnId: turn, choices,
+    prompt: `Change file: ${scope.target}`, schema: "outpost.runtime_request.v2", status: "pending", turnId: turn, choices,
     details: { itemId: item, origin, reason: `Change file: ${scope.target}`, turnId: turn, choices,
       threadId: "paperclip-9558eb1e0ea79ed9b728d62643b53ab02477d5a4711ef634d8cf0c5b5d8d0af9", toolCallId },
     requestId: "acpx-input-25f63168069f72f421df7bd9", requestKind: "permission_approval" };
   const row = (eventType: string, seq: number, sourceSeq: number, emittedAt: string, value: Row): Row => ({
     companyId: scope.companyId, runId: scope.runId, seq, eventType, protocolSchemaVersion: 1,
-    payload: { prpEvent: { runId: scope.runId, itemId: item, schema: "paperclip.prp.event.v1", turnId: turn, payload: value,
+    payload: { orpEvent: { runId: scope.runId, itemId: item, schema: "outpost.orp.event.v1", turnId: turn, payload: value,
       priority: 1, emittedAt, eventType, sourceSeq, sourceKind: "runner", schemaVersion: 1,
       sourceEventId: `${source}:${scope.runId}:${sourceSeq}`, sourceInstanceId: source, normalizedSessionId: session } },
   });
   const events = [row("tool.execution.started", 59, 30, "2026-10-28T14:48:05.538Z", {
-    name: "Write", output: "null", schema: "paperclip.tool.execution.v1", status: "running", target: null, exitCode: null,
+    name: "Write", output: "null", schema: "outpost.tool.execution.v1", status: "running", target: null, exitCode: null,
     progress: "Write (pending)", readOnly: false, namespace: null, operation: "edit", transport: "builtin", durationMs: null,
     executionId: toolCallId, outputBytes: 4, inputUpdated: false,
     outputDigest: "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b", outputTruncated: false,
@@ -123,7 +123,7 @@ describe("Kimi native Write lifecycle evidence", () => {
     ["extra shell", f => { f.events.unshift(f.row("tool.execution.started", 0, f.tool("shell", "Bash", "execute", null))); }],
     ["replayed start", f => { f.events.push(f.row("tool.execution.started", 4, f.tool("0:native-write", "Write", "edit", f.scope.target))); }],
     ["foreign company", f => { f.events[0]!.companyId = "foreign"; }],
-    ["foreign source", f => { f.events[0]!.payload.prpEvent.sourceInstanceId = "other"; }],
+    ["foreign source", f => { f.events[0]!.payload.orpEvent.sourceInstanceId = "other"; }],
     ["restored session", f => { f.run.nativeSessionId = "replacement"; }],
     ["another provider generation", f => { f.run.runnerInstanceId = "replacement"; }],
   ] satisfies Array<[string, (f: ReturnType<typeof fixture>) => void]>)("rejects %s", (_name, mutate) => {
@@ -153,11 +153,11 @@ describe("Kimi native Write lifecycle evidence", () => {
   it.each(["replay", "cancelled", "wrong-reason", "changed-request", "injected-original-request", "new-turn", "new-operation", "success", "Stop"])("rejects false native loss %s", kind => {
     const f = fixture(), binding = f.settle("loss"), expiry = f.events.at(-2)!;
     if (kind === "replay") payload(expiry).replayAllowed = true;
-    if (kind === "cancelled") expiry.eventType = expiry.payload.prpEvent.eventType = "runtime_request.cancelled";
+    if (kind === "cancelled") expiry.eventType = expiry.payload.orpEvent.eventType = "runtime_request.cancelled";
     if (kind === "wrong-reason") payload(expiry).reason = "durable_handoff";
     if (kind === "changed-request") payload(expiry).request = { ...f.request, prompt: "replacement" };
     if (kind === "injected-original-request") payload(expiry).request = f.request;
-    if (kind === "new-turn") { f.events.at(-1)!.payload.prpEvent.turnId = "replacement"; }
+    if (kind === "new-turn") { f.events.at(-1)!.payload.orpEvent.turnId = "replacement"; }
     if (kind === "new-operation") f.events.push(f.row("tool.execution.started", 6, f.tool("late", "Write", "edit", f.scope.target)));
     if (kind === "success") f.run.status = "succeeded";
     if (kind === "Stop") f.run.resultJson.nativeCancellation = {};

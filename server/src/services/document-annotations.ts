@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   documentAnnotationAnchorSnapshots,
   documentAnnotationComments,
@@ -10,7 +10,7 @@ import {
   issueComments,
   issueDocuments,
   routineDocuments,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   anchorSnapshotToSelector,
   remapDocumentAnchor,
@@ -22,7 +22,7 @@ import {
   CreateDocumentAnnotationComment,
   CreateDocumentAnnotationThread,
   UpdateDocumentAnnotationThread,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 
 type ActorInput = {

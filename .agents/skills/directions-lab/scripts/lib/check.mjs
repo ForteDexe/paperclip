@@ -27,7 +27,7 @@ export const DENY_LIST = [
 
 export const STORY_EXPORTS = ["Compare", "Today", "TodayProductionPalette"];
 
-export const NOT_RUN = ["pnpm build-storybook (not part of check --run; run it or report why not)", "pnpm -r typecheck (needs the Rust toolchain for paperclip-runner)"];
+export const NOT_RUN = ["pnpm build-storybook (not part of check --run; run it or report why not)", "pnpm -r typecheck (needs the Rust toolchain for outpost-runner)"];
 
 function walk(dir, filter = () => true) {
   if (!existsSync(dir)) return [];

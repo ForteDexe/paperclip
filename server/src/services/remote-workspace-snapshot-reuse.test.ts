@@ -11,9 +11,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog, agents, closeRegisteredClients, companies, createDb, environmentLeases, environments,
   executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issueRecoveryActions, issues, workspaceOperations,
-} from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { remoteWorkspaceRunReferenceSchema, type EnvironmentLease } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { remoteWorkspaceRunReferenceSchema, type EnvironmentLease } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -44,7 +44,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     database = await startEmbeddedPostgresTestDatabase("workspace-snapshot-reuse-");
     db = createDb(database.connectionString);
     root = await realpath(await mkdtemp(path.join(os.tmpdir(), "workspace-snapshot-reuse-")));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "64".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "64".repeat(32));
     vi.stubEnv("DATABASE_URL", database.connectionString);
   }, 60_000);
   afterAll(async () => {
@@ -57,7 +57,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
   async function fixture() {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Snapshot reuse", issuePrefix: `S${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Save workspace", status: "in_progress", assigneeAgentId: agentId });
     const [environment] = await db.insert(environments).values({ name: issueId, driver: "sandbox" }).returning();
     const storage = { ...createStorageService(createLocalDiskStorageProvider(path.join(root, issueId, "objects"))), provider: "s3" as const };
@@ -127,7 +127,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
       .where(eq(heartbeatRuns.id, f.b.runId));
     const [action] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
       kind: "stranded_assigned_issue", cause: "fixture", fingerprint: randomUUID(), ownerType: "board",
-      nextAction: "Continue recovered work", evidence: { workspaceRecovery: { schema: "paperclip.workspace-recovery.v1",
+      nextAction: "Continue recovered work", evidence: { workspaceRecovery: { schema: "outpost.workspace-recovery.v1",
         runId: f.b.runId, status: "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] } } }).returning();
     const [receipt] = await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
       executionWorkspaceId: f.a.workspaceId, heartbeatRunId: f.b.runId, phase: "workspace_recovery", status: "succeeded",
@@ -431,7 +431,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
       heartbeatRunId: f.b.runId, issueId: f.issueId, phase: "remote_workspace_snapshot", status: "failed",
       metadata: { boundary: "repositories:prior", epoch: authority.epoch, generation: f.savedA.generation + 1,
         lastFailure: { code: "remote_workspace_save_failed", at: at.toISOString() },
-        saveWork: { schema: "paperclip.remote-workspace-save-work.v1", activeIds: [], unknown, quiescedAt: at.toISOString() },
+        saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds: [], unknown, quiescedAt: at.toISOString() },
         exportCleanup: { ...authority.location, state: "pending" } } });
     await beginWorkspaceSnapshot(db, { companyId: f.companyId, workspaceId: row.id, operationId, runId: f.b.runId,
       parentSnapshotId: f.savedA.snapshotId, generation: f.savedA.generation + 1, epoch: authority.epoch });

@@ -1,7 +1,7 @@
 import { aiConnectionConfigurationFailure, aiConnectionCredentialNotSharedFailure } from "../../../services/ai-connection-configuration-failure.js";
 import { unprocessable } from "../../../errors.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { createLifecycleWorker } from "../application/worker.js";
 import type { LifecycleAgent, LifecycleStore, LifecycleDriver } from "../application/ports.js";
 import { startAgentLifecycle } from "../index.js";

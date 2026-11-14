@@ -3,7 +3,7 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Agent, AttentionFeed, AttentionItem } from "@paperclipai/shared";
+import type { Agent, AttentionFeed, AttentionItem } from "@outpost/shared";
 import { buildPinnedNavigationItems, CoordinatorSidebar } from "./CoordinatorSidebar";
 import { TooltipProvider } from "./ui/tooltip";
 import { coordinatorAttentionQueryKey, coordinatorAttentionSummaryQueryKey } from "@/lib/coordinator-attention";
@@ -100,7 +100,7 @@ describe("Coordinator pinned pages", () => {
     const chat = { id: "chat-cto", conversationAgentId: "cto", updatedAt: "2026-11-11T12:00:00Z", isUnreadForMe: false };
     fixture.chats = [chat];
     fixture.recentTasks = [{ id: "task", companyId: "company", identifier: "TASK-1", title: "Recent task", status: "todo", recordedAt: 1 }];
-    localStorage.setItem("paperclip.coordinator.pinned-nav.v1:reviewer", JSON.stringify(["agent-chat:company:cto"]));
+    localStorage.setItem("outpost.coordinator.pinned-nav.v1:reviewer", JSON.stringify(["agent-chat:company:cto"]));
 
     await renderSidebar();
 
@@ -135,13 +135,13 @@ describe("Coordinator pinned pages", () => {
   it("keeps mixed pins above More in stored order and prevents native link dragging", async () => {
     fixture.agents = [{ id: "cto", companyId: "company", name: "CTO", urlKey: "cto", role: "cto", status: "idle" } as Agent];
     const saved = ["agent-chat:company:cto", "agent-chat:another-company:hidden", "/artifacts", "/dashboard"];
-    localStorage.setItem("paperclip.coordinator.pinned-nav.v1:reviewer", JSON.stringify(saved));
+    localStorage.setItem("outpost.coordinator.pinned-nav.v1:reviewer", JSON.stringify(saved));
     await renderSidebar();
     const links = [...navigation().querySelectorAll<HTMLAnchorElement>("a")].slice(3);
     expect(links.map(link => link.textContent)).toEqual(["CTO", "Artifacts", "Dashboard"]);
     const more = navigation().querySelector('button[aria-label="More workspace pages"]')!;
     expect(links.at(-1)!.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(JSON.parse(localStorage.getItem("paperclip.coordinator.pinned-nav.v1:reviewer")!)).toEqual(saved);
+    expect(JSON.parse(localStorage.getItem("outpost.coordinator.pinned-nav.v1:reviewer")!)).toEqual(saved);
     const nativeDrag = new Event("dragstart", { bubbles: true, cancelable: true });
     act(() => links[1].dispatchEvent(nativeDrag));
     expect(nativeDrag.defaultPrevented).toBe(true);
@@ -192,7 +192,7 @@ describe("Coordinator pinned pages", () => {
   });
 
   it("keeps pins personal and only renders known destinations", async () => {
-    localStorage.setItem("paperclip.coordinator.pinned-nav.v1:reviewer", JSON.stringify(["/routines", "/projects", "/unknown", "https://example.com"]));
+    localStorage.setItem("outpost.coordinator.pinned-nav.v1:reviewer", JSON.stringify(["/routines", "/projects", "/unknown", "https://example.com"]));
     await renderSidebar();
     expect(Array.from(navigation().querySelectorAll("a")).map(link => link.getAttribute("href")))
       .toEqual(["/chats", "/issues", "/decisions", "/routines", "/projects"]);
@@ -206,7 +206,7 @@ describe("Coordinator pinned pages", () => {
 
   it("reflects pins changed in another browser tab", async () => {
     await renderSidebar();
-    const key = "paperclip.coordinator.pinned-nav.v1:reviewer";
+    const key = "outpost.coordinator.pinned-nav.v1:reviewer";
     await act(async () => {
       localStorage.setItem(key, JSON.stringify(["/agents/all"]));
       window.dispatchEvent(new StorageEvent("storage", { key }));

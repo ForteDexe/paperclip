@@ -9,7 +9,7 @@ function valid() {
   return { companyId: "company", leadId: "ceo", origin, agents: [], tasks: [] as unknown[], activity: [], humanQueries: [], runs: [{ id: "run", status: "succeeded" }],
     links: [`${origin}/RUN/company/settings/instance/environments`],
     reply: "I can't read the computer list from here. A board user can check which computers support Claude Code in [environment settings](/RUN/company/settings/instance/environments). Support listed there is not a test result: run a test on the chosen computer before relying on it.",
-    state: { capabilities: getEnvironmentCapabilities(["claude_local", "paperclip_runner"]), companyPrefix: "RUN",
+    state: { capabilities: getEnvironmentCapabilities(["claude_local", "outpost_runner"]), companyPrefix: "RUN",
       supportedTarget: { id: "owned-local", driver: "local" as const, name: "Local", config: {} as Record<string, unknown> },
       unqualifiedTarget: { id: "owned-ssh", driver: "ssh" as const, name: "Build server abc123-1", config: ssh as Record<string, unknown> },
       agentInventoryStatus: 403, agentProbeStatus: 403, savedTargetsUnchanged: true, workerUnchanged: true } as Record<string, any> };

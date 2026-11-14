@@ -45,7 +45,7 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 export function memberListReadSucceeded(events: readonly Record<string, unknown>[]) {
   return events.some(row => {
     if (row.eventType !== "item.completed") return false;
-    const item = record(record(record(record(row.payload).prpEvent).payload).item), result = record(item.result);
+    const item = record(record(record(record(row.payload).orpEvent).payload).item), result = record(item.result);
     return item.type === "tool_result" && result.apiOperationId === MEMBERS_READ && result.status === 200 && result.ok !== false;
   });
 }
@@ -136,7 +136,7 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
   } catch (error) { await alex.dispose(); people.delete(ctx); throw error; }
 }, gradeAccessGrant, {
   sourceFiles: sources, authentication: "human-session",
-  oracleVersion: scenarioId.endsWith("manage-membership") ? "paperclip.chat-catalog.identity.manage-membership.v3" : "paperclip.chat-catalog.identity.access-grant.v2",
+  oracleVersion: scenarioId.endsWith("manage-membership") ? "outpost.chat-catalog.identity.manage-membership.v3" : "outpost.chat-catalog.identity.access-grant.v2",
   async observe(ctx, state) {
     if (scenarioId.endsWith("invite-teammate")) {
       state.invitations = (await ctx.input.api.get<{ invites: Invitation[] }>(`/api/companies/${ctx.input.fixtures.company.id}/invites`)).invites.filter(row => !(state.invitationsBefore as string[]).includes(row.id));

@@ -12,7 +12,7 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Page }
  * is publishing; the card mirrors the real 2026-09-14-connectors entry.
  */
 
-const PORT = Number(process.env.PAPERCLIP_E2E_PORT ?? 3199);
+const PORT = Number(process.env.OUTPOST_E2E_PORT ?? 3199);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const ANNOUNCEMENT_ID = "e2e-n13-connectors";
 const SETTLE_WAIT_MS = 4_500; // ANNOUNCEMENT_SETTLE_MS (3 s) plus slack.

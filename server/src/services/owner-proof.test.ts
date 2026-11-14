@@ -78,7 +78,7 @@ describe("proveOwnerGone: local owners", () => {
       .toEqual({ verdict: "alive", reason: "pid_alive" });
     // Without the marker a missing space is missing identity, never proof.
     expect(await proveOwnerGone(stamp({ processSpace: null }), probe())).toEqual({ verdict: "unprovable", reason: "missing_identity" });
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     try {
       expect(await proveOwnerGone(legacy, probe())).toEqual({ verdict: "unprovable", reason: "process_space_unrecorded" });
     } finally { vi.unstubAllEnvs(); }

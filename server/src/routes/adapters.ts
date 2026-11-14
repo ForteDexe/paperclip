@@ -19,7 +19,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { Router } from "express";
-import { companies, type Db } from "@paperclipai/db";
+import { companies, type Db } from "@outpost/db";
 import { adapterSettingsService } from "../services/adapter-settings.js";
 import { logActivity, publishActivity, type ActivityPublication } from "../services/activity-log.js";
 import {
@@ -45,7 +45,7 @@ import type { ServerAdapterModule, AdapterConfigSchema } from "../adapters/types
 import type {
   AdapterLoginPanelMode,
   AdapterLoginTimeoutPolicy,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 import { loadExternalAdapterPackage, getUiParserSource, getOrExtractUiParserSource, reloadExternalAdapter } from "../adapters/plugin-loader.js";
 import { logger } from "../middleware/logger.js";
 import { badRequest, forbidden, HttpError } from "../errors.js";
@@ -55,7 +55,7 @@ import { getHiddenSettings } from "../services/settings-visibility.js";
 import { assertBoardOrgAccess, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
 import { BUILTIN_ADAPTER_TYPES, OUTPOST_AGENT_ADAPTER_TYPES } from "../adapters/builtin-adapter-types.js";
 import { agentRunnerAvailability, type RunnerTarget } from "../services/agent-runner-selection.js";
-import type { AgentRunnerAvailability } from "@paperclipai/shared";
+import type { AgentRunnerAvailability } from "@outpost/shared";
 import { resolveAntigravityCandidateAdmission } from "../services/native-runtime/acpx-qualification.js";
 
 const execFileAsync = promisify(execFile);
@@ -63,7 +63,7 @@ let warnedMalformedAntigravityAdmission = false;
 
 /**
  * Floor: when the hosting operator hides the Adapters settings surface
- * (`instance.adapters` in PAPERCLIP_HIDDEN_SETTINGS), adapter management
+ * (`instance.adapters` in OUTPOST_HIDDEN_SETTINGS), adapter management
  * writes are rejected alongside it. Reads stay open — adapter metadata is
  * consumed by agent-creation UIs outside the hidden page.
  */
@@ -322,7 +322,7 @@ export function adapterRoutes(options: {
     }
     const result: AdapterInfo[] = registeredAdapters.map((adapter) => ({
       ...buildAdapterInfo(adapter, externalRecords.get(adapter.type), disabledSet, target),
-      ...(candidate && adapter.type === "paperclip_runner" && !disabledSet.has(adapter.type) && !externalRecords.has(adapter.type)
+      ...(candidate && adapter.type === "outpost_runner" && !disabledSet.has(adapter.type) && !externalRecords.has(adapter.type)
         ? { candidateHarnesses: [{ agent: "antigravity" as const, model: candidate.model }] } : {}),
     })).sort((a, b) => a.type.localeCompare(b.type));
 

@@ -14,7 +14,7 @@ import {
  * original heartbeat selection seam and must remain stable for existing runs
  * and downstream importers.
  */
-export const NATIVE_RUNTIME_RESOLVER_VERSION = "paperclip-runner-v1" as const;
+export const NATIVE_RUNTIME_RESOLVER_VERSION = "outpost-runner-v1" as const;
 
 /** Resolver version for the richer native runtime profile used by runnerd. */
 export const NATIVE_RUNTIME_PROFILE_RESOLVER_VERSION = "phase6-v1" as const;
@@ -28,7 +28,7 @@ export type HeartbeatRuntimeResolution =
   | {
       kind: "native";
       resolverVersion: typeof NATIVE_RUNTIME_RESOLVER_VERSION;
-      reason: "explicit_paperclip_runner" | "persisted_native_selection";
+      reason: "explicit_outpost_runner" | "persisted_native_selection";
       provider: PaperclipRunnerProviderProfile["provider"];
     };
 
@@ -110,7 +110,7 @@ export function resolveNativeRuntimeMode(input: {
   target: { kind?: string } | null | undefined;
   workspaceId: string | null;
 }): NativeRuntimeResolution {
-  const runnerAdapterSelected = input.agent.adapterType === "paperclip_runner";
+  const runnerAdapterSelected = input.agent.adapterType === "outpost_runner";
   // Fresh direct-adapter runs never enter the native control plane, even if an
   // obsolete runtimeConfig.nativeRunner value is still present. Persisted
   // native runs are handled by resolveHeartbeatNativeRuntimeMode above this
@@ -133,37 +133,37 @@ export function resolveNativeRuntimeMode(input: {
   }
   // Dot has its own rollout; enabling it does not opt in other Runner providers.
   if (runnerProfile.provider === "muse") {
-    if (!input.enabled) throw ineligible("paperclip_runner_rollout_disabled", "Outpost Runner is experimental and disabled on this instance.");
-    if (input.museEnabled !== true) throw ineligible("paperclip_runner_muse_disabled", "Enable Muse personal-agent connections in experimental settings before assigning new work.");
+    if (!input.enabled) throw ineligible("outpost_runner_rollout_disabled", "Outpost Runner is experimental and disabled on this instance.");
+    if (input.museEnabled !== true) throw ineligible("outpost_runner_muse_disabled", "Enable Muse personal-agent connections in experimental settings before assigning new work.");
   } else if (runnerProfile.provider === "openai_dot") {
-    if (input.dotEnabled !== true) throw ineligible("paperclip_runner_dot_disabled", "Enable OpenAI Dot and Assistant connections (MCP) in experimental settings before assigning new work.");
+    if (input.dotEnabled !== true) throw ineligible("outpost_runner_dot_disabled", "Enable OpenAI Dot and Assistant connections (MCP) in experimental settings before assigning new work.");
   } else if (runnerProfile.provider === "grok_bot" && (input.grokEnabled !== true || !input.enabled)) {
-    throw ineligible("paperclip_runner_grok_disabled", "Enable Grok Bot, Outpost Runner, and Assistant connections (MCP) before assigning new work.");
+    throw ineligible("outpost_runner_grok_disabled", "Enable Grok Bot, Outpost Runner, and Assistant connections (MCP) before assigning new work.");
   } else if (runnerProfile.provider !== "codex" && runnerProfile.provider !== "opencode"
     && !(runnerProfile.provider === "acpx"
       && (["claude", "copilot", "pi", "antigravity"].includes(runnerProfile.acpxAgent ?? "")))
     && !input.enabled) {
     throw ineligible(
-      "paperclip_runner_rollout_disabled",
+      "outpost_runner_rollout_disabled",
       "Outpost Runner is experimental and disabled on this instance.",
     );
   }
   if (
-    input.agent.adapterType !== "paperclip_runner"
+    input.agent.adapterType !== "outpost_runner"
     || input.agent.status !== "active" && input.agent.status !== "running"
   ) {
     throw ineligible(
-      "paperclip_runner_agent_ineligible",
+      "outpost_runner_agent_ineligible",
       "Outpost Runner requires an active agent.",
     );
   }
   if (runnerProfile.provider === "cursor_cloud" && (input.target?.kind ?? "local") !== "local") {
-    throw ineligible("paperclip_runner_cursor_cloud_local_controller_required", "Cursor Cloud currently requires a local Outpost controller. Cursor hosts its execution environment.");
+    throw ineligible("outpost_runner_cursor_cloud_local_controller_required", "Cursor Cloud currently requires a local Outpost controller. Cursor hosts its execution environment.");
   }
   const allowedWorkModes = ["standard", "planning", "ask", "skill_test"];
   if (!input.issue || !allowedWorkModes.includes(input.issue.workMode)) {
     throw ineligible(
-      "paperclip_runner_issue_ineligible",
+      "outpost_runner_issue_ineligible",
       "Outpost Runner requires a standard, planning, ask, or skill test task.",
     );
   }
@@ -174,7 +174,7 @@ export function resolveNativeRuntimeMode(input: {
   });
   if (!rollout.effects.some((effect) => effect.kind === "record_mode_native")) {
     throw ineligible(
-      "paperclip_runner_rollout_policy_rejected",
+      "outpost_runner_rollout_policy_rejected",
       "Native rollout policy did not select native mode.",
     );
   }
@@ -262,7 +262,7 @@ export function resolveHeartbeatRuntimeMode(input: {
   return {
     kind: "native",
     resolverVersion: NATIVE_RUNTIME_RESOLVER_VERSION,
-    reason: "explicit_paperclip_runner",
+    reason: "explicit_outpost_runner",
     provider: resolution.profile.backend === "opencode_server"
       ? "opencode"
       : resolution.profile.backend === "claude_managed_agents_api"
@@ -304,9 +304,9 @@ export function resolveHeartbeatNativeRuntimeMode(input: {
 }): NativeRuntimeResolution {
   if (input.persisted.runtimeModeResolvedAt) {
     if (input.persisted.runtimeMode === "native") {
-      if (input.agent.adapterType !== "paperclip_runner") {
+      if (input.agent.adapterType !== "outpost_runner") {
         throw ineligible(
-          "paperclip_runner_adapter_binding_mismatch",
+          "outpost_runner_adapter_binding_mismatch",
           "A persisted native run must remain bound to the Outpost Runner adapter.",
         );
       }
@@ -315,7 +315,7 @@ export function resolveHeartbeatNativeRuntimeMode(input: {
         input.agent.status !== "running"
       ) {
         throw ineligible(
-          "paperclip_runner_agent_ineligible",
+          "outpost_runner_agent_ineligible",
           "A persisted Outpost Runner run cannot recover through a non-invokable agent.",
         );
       }
@@ -340,7 +340,7 @@ export function resolveHeartbeatNativeRuntimeMode(input: {
             : null;
       if (backend === null) {
         throw ineligible(
-          "paperclip_runner_driver_unsupported",
+          "outpost_runner_driver_unsupported",
           `Persisted Outpost Runner driver is unsupported: ${driverKind}`,
         );
       }

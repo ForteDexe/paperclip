@@ -1,5 +1,5 @@
 import { and, asc, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
-import { mcpOauthRequests, mcpOauthDeviceRequests, type Db } from "@paperclipai/db";
+import { mcpOauthRequests, mcpOauthDeviceRequests, type Db } from "@outpost/db";
 import type { IdleDeadlineSnapshot } from "../idle-deadline-types.js";
 import type { IdleMcpInspectionBudget } from "./idle-wake-proof.js";
 

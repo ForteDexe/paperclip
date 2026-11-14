@@ -10,18 +10,18 @@ import { REGENERABLE_WORKSPACE_DIR_NAMES } from "./workspace-compaction.js";
 
 const execFile = promisify(execFileCallback);
 
-export const RESTORE_POINT_PAYLOAD_SCHEMA = "paperclip.git-restore-point-payload.v1";
-export const RESTORE_POINT_PAYLOAD_SCHEMA_V2 = "paperclip.git-restore-point-payload.v2";
+export const RESTORE_POINT_PAYLOAD_SCHEMA = "outpost.git-restore-point-payload.v1";
+export const RESTORE_POINT_PAYLOAD_SCHEMA_V2 = "outpost.git-restore-point-payload.v2";
 const PAYLOAD_MAGIC = Buffer.from("PCRP-PLAIN1\n");
 const SEALED_MAGIC = Buffer.from("PCRP1");
-const KEY_SCHEMA = "paperclip.git-restore-point-key.v1";
+const KEY_SCHEMA = "outpost.git-restore-point-key.v1";
 const SHA = /^[0-9a-f]{40}$/;
 const SNAPSHOT_IDENTITY = {
   GIT_AUTHOR_NAME: "Outpost",
-  GIT_AUTHOR_EMAIL: "restore-point@paperclip.invalid",
+  GIT_AUTHOR_EMAIL: "restore-point@outpost.invalid",
   GIT_AUTHOR_DATE: "@0 +0000",
   GIT_COMMITTER_NAME: "Outpost",
-  GIT_COMMITTER_EMAIL: "restore-point@paperclip.invalid",
+  GIT_COMMITTER_EMAIL: "restore-point@outpost.invalid",
   GIT_COMMITTER_DATE: "@0 +0000",
 };
 const EXCLUDED_UNTRACKED = [":(exclude,glob)**/.env", ":(exclude,glob)**/.env.*"];

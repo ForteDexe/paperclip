@@ -213,8 +213,8 @@ describe("actual Slack supported/oversized file phases", () => {
       eventType: "item.completed",
       protocolSchemaVersion: 2,
       payload: {
-        prpEvent: {
-          schema: "paperclip.prp.event.v2",
+        orpEvent: {
+          schema: "outpost.orp.event.v2",
           schemaVersion: 2,
           sourceKind: "runner",
           payload: {

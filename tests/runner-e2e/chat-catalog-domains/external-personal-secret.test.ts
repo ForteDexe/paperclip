@@ -84,7 +84,7 @@ function valid() {
         calls: [{ authorized: true, agentId: "", runId: "", method: "GET", pathname: "/publishing-check", status: 200,
           createdAt: "2026-11-04T00:00:05.000Z", receiptId: "a".repeat(48) }],
         events: [{ runId: "worker", companyId: "company", agentId: "morgan", seq: 1, eventType: "tool.execution.completed",
-          createdAt: "2026-11-04T00:00:06.000Z", payload: { prpEvent: { runId: "worker", eventType: "tool.execution.completed",
+          createdAt: "2026-11-04T00:00:06.000Z", payload: { orpEvent: { runId: "worker", eventType: "tool.execution.completed",
             payload: { name: "bash", status: "completed", exitCode: 0, outputTruncated: false,
               output: JSON.stringify({ ok: true, status: 200, check: "publishing endpoint", receiptId: "a".repeat(48) }) } } } }],
       },
@@ -190,7 +190,7 @@ function answeredQuestionValue() {
   const row = { id: "question", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo",
     addresseeUserId: "person", resolverPolicy: "human_only", continuationPolicy: "wake_assignee", kind: "ask_user_questions", status: "answered",
     resolvedByUserId: "person", resolvedAt: "2026-11-04T13:30:00Z", result: { version: 1, summaryMarkdown: null, answers: [{ questionId: "saved", optionIds: ["yes"] }] },
-    payload: questionSetToAskUserQuestionsPayload({ schema: "paperclip.question_set.v1", description: "Set your own personal publishing value securely in My secrets. Never paste your credential in chat.", questions: [{ id: "saved", prompt: "Have you saved your own value?", helpText: "Settings Secrets My secrets Set my value definition PERSONAL_PUBLISHING_KEY", answerMode: "single_select", required: true,
+    payload: questionSetToAskUserQuestionsPayload({ schema: "outpost.question_set.v1", description: "Set your own personal publishing value securely in My secrets. Never paste your credential in chat.", questions: [{ id: "saved", prompt: "Have you saved your own value?", helpText: "Settings Secrets My secrets Set my value definition PERSONAL_PUBLISHING_KEY", answerMode: "single_select", required: true,
       options: [{ id: "yes", label: "Yes", description: "My personal value is saved." }, { id: "later", label: "Not yet" }] }] }),
   };
   const admitted = personalSecretQuestionHandoff(row, { companyId: "company", issueId: "source", agentId: "ceo", userId: "person", runId: "initial", definitionId: "definition" }, "answered");
@@ -319,6 +319,6 @@ it("keeps successful worked wording dependent on actual worker delivery",()=>{
 });
 
 it("declares the prospective personal acknowledgment calibration without changing its bounds", () => {
-  expect(personalSecretExternalCases[0]).toMatchObject({ oracleVersion: "paperclip.chat-catalog.personal-secret.v17",
+  expect(personalSecretExternalCases[0]).toMatchObject({ oracleVersion: "outpost.chat-catalog.personal-secret.v17",
     expectedRunCount: 3, minimumRunCount: 3, expectedHumanMessageCount: 2, attemptTimeoutMs: 660000 });
 });

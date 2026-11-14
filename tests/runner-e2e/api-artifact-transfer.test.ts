@@ -17,7 +17,7 @@ describe("verified API artifact transfer evidence", () => {
   const storedSource = { artifactId: identity.artifactId, content, sha256, captureActivity };
   const event = (eventType: string, payload: unknown) => {
     const redacted = redactRunnerApiEvent({ eventType, sourceKind: "runner", payload });
-    return { eventType, payload: { prpEvent: redacted } };
+    return { eventType, payload: { orpEvent: redacted } };
   };
   const call = (id: string, name: string, input: unknown, result: unknown) => [
     event("item.started", { item: { id, type: "tool_use", name, input } }),
@@ -42,13 +42,13 @@ describe("verified API artifact transfer evidence", () => {
   });
   it("requires the source capture, actual installation and independently downloaded bytes", () => {
     expect(grade()).toMatchObject({ passed: true, sha256, byteSize: Buffer.byteLength(content) });
-    expect(source()[0]!.payload.prpEvent.payload).not.toHaveProperty("item.input.pathParams");
-    expect(source()[1]!.payload.prpEvent.payload).not.toHaveProperty("item.result.artifact");
+    expect(source()[0]!.payload.orpEvent.payload).not.toHaveProperty("item.input.pathParams");
+    expect(source()[1]!.payload.orpEvent.payload).not.toHaveProperty("item.result.artifact");
   });
   it("accepts Codex textual result envelopes after real persistence redaction", () => {
     const events = [...source(), ...install()].map(entry => {
       if (entry.eventType !== "item.completed") return entry;
-      const payload = entry.payload.prpEvent.payload as { item: { result: unknown } };
+      const payload = entry.payload.orpEvent.payload as { item: { result: unknown } };
       return event(entry.eventType, { ...payload, item: { ...payload.item,
         result: { success: true, contentItems: [{ type: "inputText", text: JSON.stringify(payload.item.result) }] },
       } });

@@ -7,7 +7,7 @@ import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { applyPendingMigrations, agents, companies, activityLog, companySecrets, connectionEventDeliveries, connectionGrants, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, resourceLifecycleEvents, toolApplications, toolConnections } from "@paperclipai/db";
+import { applyPendingMigrations, agents, companies, activityLog, companySecrets, connectionEventDeliveries, connectionGrants, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, resourceLifecycleEvents, toolApplications, toolConnections } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createGitHubGrantContinuity, githubGrantContinuityDeadline, githubContinuityRevision } from "../services/tool-access/github-grant-continuity.js";
 import { createPaperclipCloudConnector } from "../services/paperclip-cloud-connector.js";
@@ -20,11 +20,11 @@ import { createOAuthRefreshLeases } from "../services/tool-access/oauth/refresh-
 import { createOAuthGrantRefresh } from "../services/tool-access/oauth/grant-refresh.js";
 import { secretService } from "../services/secrets.js";
 import { writeConnectionCredential } from "../services/connection-credentials.js";
-import { GITHUB_CONNECTOR_PROFILES } from "@paperclipai/shared";
+import { GITHUB_CONNECTOR_PROFILES } from "@outpost/shared";
 import { notifyToolConnectionHealth } from "../services/tool-connection-health-notifications.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
-const databaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_GITHUB_WORK_TEST_DATABASE_URL");
+const databaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_GITHUB_WORK_TEST_DATABASE_URL");
 const embeddedSupport = databaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeDatabase = embeddedSupport.supported ? describe : describe.skip;
 
@@ -177,7 +177,7 @@ describeDatabase("GitHub coordinator with PostgreSQL and controlled Cloud HTTP (
   it("rereads unchanged access on a scheduled refresh without advancing agent runtime revisions", async () => {
     const f = await fixture(["101"]);
     const agentId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: f.company.id, name: "Runtime fixture", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId: f.company.id, name: "Runtime fixture", adapterType: "outpost_runner" });
     vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => String(url).startsWith("https://api.github.com")
       ? realFetch(`${origin}${new URL(String(url)).pathname}${new URL(String(url)).search}`, init) : realFetch(url, init));
     const actor = { actorType: "system", actorId: "tool_health_sweep" } as const;
@@ -332,7 +332,7 @@ describeDatabase("GitHub coordinator with PostgreSQL and controlled Cloud HTTP (
 
   it("preserves webhook removal debt across an actual signed, held Cloud token rotation and lease cleanup", async () => {
     const f = await fixture(["101"]);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
     const refs = [];
     for (const path of ["oauth.access_token", "oauth.refresh_token"]) {
       const saved = await writeConnectionCredential(db, { companyId: f.company.id, connectionName: "GitHub", configPath: path, label: path, value: path, ownerUserId: "owner" });
@@ -545,7 +545,7 @@ describeDatabase("GitHub coordinator with PostgreSQL and controlled Cloud HTTP (
 
   it("renews an installation created without metadata using the saved connection expiry", async () => {
     const f = await fixture();
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
     try {
       const refs = [];
       for (const path of ["oauth.access_token", "oauth.refresh_token"]) {

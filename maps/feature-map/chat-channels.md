@@ -37,7 +37,7 @@ Open `/apps/chat/:endpointId/settings` and the endpoint’s other available tabs
 
 ### `outbound-agentmail`
 
-Use `paperclipai email inboxes --company-id <company-id>`, then `email send --company-id <company-id> --file <new-email.json>` or `email reply --company-id <company-id> --file <reply.json>`. Inspect `email thread <email-task-id> --company-id <company-id>` and `email delivery <publication-id> --company-id <company-id>`. Agent mutations must provide --run-id or the active PAPERCLIP_RUN_ID.
+Use `paperclipai email inboxes --company-id <company-id>`, then `email send --company-id <company-id> --file <new-email.json>` or `email reply --company-id <company-id> --file <reply.json>`. Inspect `email thread <email-task-id> --company-id <company-id>` and `email delivery <publication-id> --company-id <company-id>`. Agent mutations must provide --run-id or the active OUTPOST_RUN_ID.
 
 ## Driving it with Playwright and provider clients
 

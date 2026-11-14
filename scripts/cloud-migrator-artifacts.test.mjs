@@ -33,7 +33,7 @@ function tarEntry(name, content) {
 function dbArchive(files = migrations) {
   const journal = { version: "7", dialect: "postgresql", entries: Object.keys(files).map((tag, idx) => ({ idx, version: "7", when: idx, tag, breakpoints: true })) };
   return gzipSync(Buffer.concat([
-    tarEntry("package/package.json", JSON.stringify(previewManifest({ name: "@paperclipai/db", dependencies: {} }, sha))),
+    tarEntry("package/package.json", JSON.stringify(previewManifest({ name: "@outpost/db", dependencies: {} }, sha))),
     tarEntry("package/dist/migrations/meta/_journal.json", JSON.stringify(journal)),
     ...Object.entries(files).map(([tag, sql]) => tarEntry(`package/dist/migrations/${tag}.sql`, sql)),
     Buffer.alloc(1024),
@@ -44,15 +44,15 @@ function fixture(t) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(path.join(dir, "db.tgz"), dbArchive());
   writeFileSync(path.join(dir, "shared.tgz"), gzipSync(Buffer.concat([
-    tarEntry("package/package.json", JSON.stringify(previewManifest({ name: "@paperclipai/shared", dependencies: {} }, sha))), Buffer.alloc(1024)])));
+    tarEntry("package/package.json", JSON.stringify(previewManifest({ name: "@outpost/shared", dependencies: {} }, sha))), Buffer.alloc(1024)])));
   const manifest = buildBundle(dir, sha, { classify, exec: (cmd, args, options) => {
     assert.equal(cmd, "npm"); assert.ok(args.includes("--ignore-scripts"));
     const localRoot = JSON.parse(readFileSync(path.join(options.cwd, "package.json")));
-    assert.deepEqual(localRoot.dependencies, { "@paperclipai/db": "file:db.tgz", "@paperclipai/shared": "file:shared.tgz" });
+    assert.deepEqual(localRoot.dependencies, { "@outpost/db": "file:db.tgz", "@outpost/shared": "file:shared.tgz" });
     const packages = { "": localRoot };
-    for (const name of ["db", "shared"]) packages[`node_modules/@paperclipai/${name}`] = {
+    for (const name of ["db", "shared"]) packages[`node_modules/@outpost/${name}`] = {
       version: versionFor(sha), integrity: descriptor(readFileSync(path.join(dir, `${name}.tgz`)), "tgz").integrity,
-      resolved: `file:${name}.tgz`, ...(name === "db" ? { dependencies: { "@paperclipai/shared": versionFor(sha) } } : {}),
+      resolved: `file:${name}.tgz`, ...(name === "db" ? { dependencies: { "@outpost/shared": versionFor(sha) } } : {}),
     };
     writeFileSync(path.join(options.cwd, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages }));
   } });
@@ -154,13 +154,13 @@ test("lockfile rejects mutable, foreign, linked, and mismatched dependencies", (
   const { dir, manifest } = fixture(t);
   const lock = JSON.parse(readFileSync(path.join(dir, "package-lock.json")));
   for (const mutate of [
-    (l) => { l.packages[""].dependencies["@paperclipai/db"] = "latest"; },
-    (l) => { l.packages["node_modules/@paperclipai/shared"].version = "0.0.0"; },
-    (l) => { l.packages["node_modules/@paperclipai/db"].link = true; },
+    (l) => { l.packages[""].dependencies["@outpost/db"] = "latest"; },
+    (l) => { l.packages["node_modules/@outpost/shared"].version = "0.0.0"; },
+    (l) => { l.packages["node_modules/@outpost/db"].link = true; },
     (l) => { l.packages["node_modules/evil"] = { inBundle: true }; },
     (l) => { l.packages["node_modules/evil"] = { integrity: manifest.packages.db.integrity, resolved: "https://evil.invalid/pkg.tgz" }; },
     (l) => { l.packages["node_modules/evil"] = { integrity: "sha1-weak", resolved: "https://registry.npmjs.org/pkg.tgz" }; },
-    (l) => { l.packages["node_modules/a/node_modules/@paperclipai/shared"] = l.packages["node_modules/@paperclipai/shared"]; },
+    (l) => { l.packages["node_modules/a/node_modules/@outpost/shared"] = l.packages["node_modules/@outpost/shared"]; },
   ]) {
     const bad = structuredClone(lock); mutate(bad); assert.throws(() => assertLockfile(bad, manifest));
   }
@@ -201,12 +201,12 @@ test("real npm ci installs the new pair from pinned archives with an empty cache
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
-  for (const name of ["db", "shared"]) lock.packages[`node_modules/@paperclipai/${name}`].resolved = `${base}/${name}.tgz`;
-  writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "paperclip-migrator-install-root", version: "0.0.0", private: true, dependencies: { "@paperclipai/db": versionFor(sha) } }));
+  for (const name of ["db", "shared"]) lock.packages[`node_modules/@outpost/${name}`].resolved = `${base}/${name}.tgz`;
+  writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "paperclip-migrator-install-root", version: "0.0.0", private: true, dependencies: { "@outpost/db": versionFor(sha) } }));
   writeFileSync(path.join(dir, "package-lock.json"), JSON.stringify(lock));
   await promisify(execFile)("npm", ["ci", "--update-notifier=false", "--ignore-scripts", "--no-audit", "--no-fund", "--registry", base, "--cache", path.join(dir, "empty-cache")], { cwd: dir, timeout: 60_000 });
   assert.deepEqual(requests.sort(), ["/db.tgz", "/shared.tgz"]);
-  for (const name of ["db", "shared"]) assert.equal(JSON.parse(readFileSync(path.join(dir, `node_modules/@paperclipai/${name}/package.json`))).version, manifest.packageVersion);
+  for (const name of ["db", "shared"]) assert.equal(JSON.parse(readFileSync(path.join(dir, `node_modules/@outpost/${name}/package.json`))).version, manifest.packageVersion);
 });
 
 test("AWS trust is master-only and publication policy cannot overwrite objects", () => {

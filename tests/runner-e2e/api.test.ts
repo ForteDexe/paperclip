@@ -8,7 +8,7 @@ const response = (status: number, data: unknown = {}): APIResponse => ({
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("fixture instruction revision fence", () => {
   function api(current: APIResponse, saved = response(200)) {
-    vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+    vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
     const request = { get: vi.fn(async () => current), put: vi.fn(async () => saved) };
     return { request, api: new RunnerApi(request as unknown as APIRequestContext) };
   }
@@ -35,7 +35,7 @@ describe("fixture instruction revision fence", () => {
 
 
 it("passes a bounded GET timeout to the request transport without changing its response", async () => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const get = vi.fn(async () => response(200, { status: "running" }));
   const api = new RunnerApi({ get } as unknown as APIRequestContext);
   await expect(api.get("/api/heartbeat-runs/run", { timeout: 1234 })).resolves.toEqual({ status: "running" });
@@ -44,7 +44,7 @@ it("passes a bounded GET timeout to the request transport without changing its r
 
 
 it("preserves GET HTTP status separately from diagnostic text", async () => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const api = new RunnerApi({ get: vi.fn(async () => response(503, { error: "PRIVATE" })) } as unknown as APIRequestContext);
   const error = await api.get("/api/environments/env/leases").catch(error => error);
   expect(error).toBeInstanceOf(RunnerApiHttpError);
@@ -69,7 +69,7 @@ it("keeps existing polling retries when the strict error policy is absent", asyn
 });
 
 it("observes identical native poll results with the actual actor and no traced request", async () => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const get = vi.fn(() => { throw new Error("Poll must not enter the Playwright API recorder"); });
   const api = new RunnerApi({ get } as unknown as APIRequestContext);
   api.setBrowserSession("synthetic-cookie");
@@ -87,14 +87,14 @@ it.each([
   "/api/companies/22222222-2222-4222-8222-222222222222/issues?includeAgentCreatedTasks=true&limit=1000",
   "/api/companies/22222222-2222-4222-8222-222222222222/activity?limit=1000",
 ])("reads the repeated catalog inventory observation %s outside the Playwright trace", async endpoint => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const get = vi.fn(() => { throw new Error("Inventory poll must not enter the Playwright API recorder"); });
   const fetcher = vi.fn(async () => new Response("[]", { status: 200 })); vi.stubGlobal("fetch", fetcher);
   await expect(new RunnerApi({ get } as unknown as APIRequestContext).getRunObservation(endpoint)).resolves.toEqual([]);
   expect(get).not.toHaveBeenCalled(); expect(String((fetcher.mock.calls[0] as unknown[])[0])).toBe(`http://127.0.0.1:3100${endpoint}`);
 });
 it("keeps local-trusted run observations cookie-free and preserves typed HTTP failure without retry", async () => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const api = new RunnerApi({} as APIRequestContext);
   const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("private failure body", { status: 403 })); vi.stubGlobal("fetch", fetcher);
   await expect(api.getRunObservation("/api/heartbeat-runs/11111111-1111-4111-8111-111111111111/events?afterSeq=0&limit=1000")).rejects.toMatchObject({ name: "RunnerApiHttpError", status: 403 });
@@ -111,14 +111,14 @@ it.each([
   "/api/companies/22222222-2222-4222-8222-222222222222/issues?includeAgentCreatedTasks=true&limit=1000&q=x",
   "/api/companies/22222222-2222-4222-8222-222222222222/activity?limit=1000&limit=1000",
 ])("rejects non-observation transport target %s before dispatch", async endpoint => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
   await expect(new RunnerApi({} as APIRequestContext).getRunObservation(endpoint)).rejects.toThrow("allowlisted same-origin GET");
   expect(fetcher).not.toHaveBeenCalled();
 });
 
 it.each([200, 204, 404, 409])("forwards the cleanup request timeout and preserves DELETE status %s", async status => {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const remove = vi.fn(async () => response(status));
   const api = new RunnerApi({ delete: remove } as unknown as APIRequestContext);
   const result = api.delete("/api/environments/environment", { allowNotFound: true, timeout: 500 });

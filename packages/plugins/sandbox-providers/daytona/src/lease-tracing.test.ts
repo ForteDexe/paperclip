@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NOOP_PLUGIN_TRACER, startWorkerRpcHost, type PluginInvocationContext, type PluginTracer } from "@paperclipai/plugin-sdk";
+import { NOOP_PLUGIN_TRACER, startWorkerRpcHost, type PluginInvocationContext, type PluginTracer } from "@outpost/plugin-sdk";
 import plugin, { __resetDaytonaSandboxHandleCacheForTest, __setDaytonaPluginContextForTest } from "./plugin.js";
 import manifest from "./manifest.js";
 import { leaseStateAttributes, withLeaseSpan } from "./lease-tracing.js";
@@ -102,7 +102,7 @@ describe("Daytona lease worker tracing", () => {
       const root = worker.receipts[0].span;
       expect(root.name).toBe("plugin.worker");
       expect(root.children.map(span => span.name)).toEqual(["lease.lookup", "lease.channel_cleanup", "lease.start", "lease.verify"]);
-      expect(root.children[2].attributes).toMatchObject({ "paperclip.sandbox.startup.state": "archived" });
+      expect(root.children[2].attributes).toMatchObject({ "outpost.sandbox.startup.state": "archived" });
       expect(root.children[3].children.map(span => span.name)).toEqual(["lease.workspace", "lease.sentinel", "lease.shell"]);
       function checkBounds(parent: Receipt) {
         for (const child of parent.children) {
@@ -268,6 +268,6 @@ describe("lease tracing cannot change provider work", () => {
   });
 
   it("normalizes unknown provider states before recording", () => {
-    expect(leaseStateAttributes("provider-private-state")).toEqual({ "paperclip.sandbox.startup.state": "other" });
+    expect(leaseStateAttributes("provider-private-state")).toEqual({ "outpost.sandbox.startup.state": "other" });
   });
 });

@@ -6,8 +6,8 @@ import { loadGitHubGrantMetadata } from "./github-access-discovery.js";
 import { measureRunPhase } from "../execution-preparation-timing.js";
 import { measureRunTransaction } from "../execution-transaction-timing.js";
 import { and, eq, sql, or, isNull, ne } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { companies, connectionGrants, toolConnections } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { companies, connectionGrants, toolConnections } from "@outpost/db";
 import { conflict, HttpError, notFound, unprocessable } from "../../errors.js";
 import { isPaperclipCloudConnectorStrategy, PaperclipCloudConnectorError, type PaperclipCloudConnector } from "../paperclip-cloud-connector.js";
 

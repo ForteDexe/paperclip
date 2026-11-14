@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 
 /** Private file contains only explicit disposable-resource allowlists and env
  * names. Credential values belong in the coordinator's child environment. */
-export const EXTERNAL_CONFIG_ENV = "PAPERCLIP_CHAT_CATALOG_EXTERNAL_CONFIG";
+export const EXTERNAL_CONFIG_ENV = "OUTPOST_CHAT_CATALOG_EXTERNAL_CONFIG";
 export type ExternalProvider = "notion" | "slack" | "agentmail" | "vault" | "github";
 export interface ProviderBinding {
   disposable: true;
@@ -44,7 +44,7 @@ export function validateExternalConfig(value: unknown): ExternalFixtureConfig {
   for (const [provider, binding] of Object.entries(config.providers)) {
     if (!["notion", "slack", "agentmail", "vault", "github"].includes(provider) || !binding || binding.disposable !== true
       || !Array.isArray(binding.resourceIds) || !binding.resourceIds.length || binding.resourceIds.some((id: unknown) => typeof id !== "string" || !id.trim())
-      || !Array.isArray(binding.credentialEnv) || !binding.credentialEnv.length || binding.credentialEnv.some((name: unknown) => typeof name !== "string" || !/^PAPERCLIP_CHAT_EVAL_[A-Z0-9_]+$/.test(name))
+      || !Array.isArray(binding.credentialEnv) || !binding.credentialEnv.length || binding.credentialEnv.some((name: unknown) => typeof name !== "string" || !/^OUTPOST_CHAT_EVAL_[A-Z0-9_]+$/.test(name))
       || !binding.prerequisites || typeof binding.prerequisites !== "object" || Array.isArray(binding.prerequisites)
       || Object.values(binding.prerequisites).some(value => typeof value !== "string" || !value.trim())) throw new Error("Invalid disposable provider binding; contents withheld");
   }
@@ -92,7 +92,7 @@ export function selectedExternalBinding(
   const binding = config.providers[requirement.provider];
   const references: NodeJS.ProcessEnv = {};
   for (const name of [...binding?.credentialEnv ?? [], ...requirement.fields.filter(field => field.endsWith("Env")).map(field => binding?.prerequisites[field]).filter((name): name is string => !!name)]) {
-    if (!/^PAPERCLIP_CHAT_EVAL_[A-Z0-9_]+$/.test(name)) throw new Error("Selected provider reference is outside the private namespace");
+    if (!/^OUTPOST_CHAT_EVAL_[A-Z0-9_]+$/.test(name)) throw new Error("Selected provider reference is outside the private namespace");
     references[name] = privateInputs.read(name);
   }
   const receipt = externalPrerequisiteReceipt(scenarioId, config, references);

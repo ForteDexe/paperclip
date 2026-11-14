@@ -376,7 +376,7 @@ test("published canaries are gated by the exact-version onboarding browser smoke
   );
   assert.match(
     releaseWorkflow,
-    /name: Smoke exact published canary through onboarding\n\s+env:\n\s+PAPERCLIP_CANARY_SMOKE_SERVER_LOG: \$\{\{ runner\.temp \}\}\/canary-onboarding-server\.log/,
+    /name: Smoke exact published canary through onboarding\n\s+env:\n\s+OUTPOST_CANARY_SMOKE_SERVER_LOG: \$\{\{ runner\.temp \}\}\/canary-onboarding-server\.log/,
   );
   assert.match(
     releaseWorkflow,
@@ -517,7 +517,7 @@ test("release smoke workflow extends the container readiness budget for CI", () 
   );
   assert.match(
     harness,
-    /wait_for_http "\$PAPERCLIP_PUBLIC_URL\/api\/health" "\$SMOKE_READY_TIMEOUT_SECONDS" 1/,
+    /wait_for_http "\$OUTPOST_PUBLIC_URL\/api\/health" "\$SMOKE_READY_TIMEOUT_SECONDS" 1/,
   );
 });
 
@@ -531,12 +531,12 @@ test("release verify workflow covers the same split test surface as stable PR ve
   );
   assert.match(verifyWorkflow, /pnpm -r typecheck/);
   assert.match(verifyWorkflow, /pnpm build/);
-  const runnerScripts = JSON.parse(readFileSync(path.join(repoRoot, "packages/paperclip-runner/package.json"), "utf8")).scripts;
+  const runnerScripts = JSON.parse(readFileSync(path.join(repoRoot, "packages/outpost-runner/package.json"), "utf8")).scripts;
   const runnerChecks = [...verifyWorkflow.matchAll(/^            checks: (.+)$/gm)]
     .flatMap(([, checks]) => checks.split(" "));
   assert.deepEqual(runnerChecks, runnerScripts["check:all"].split(" && ")
     .map((command) => command.replace(/^pnpm run /, "")));
-  assert.match(verifyWorkflow, /pnpm --filter @paperclipai\/paperclip-runner "\$check"/);
+  assert.match(verifyWorkflow, /pnpm --filter @paperclipai\/outpost-runner "\$check"/);
   assert.match(verifyWorkflow, /runner_workflow_evals:/);
   assert.match(verifyWorkflow, /runner_chaos_evals:/);
   assert.match(
@@ -582,7 +582,7 @@ test("release verify workflow covers the same split test surface as stable PR ve
 
 test("release verification builds native test binaries in a required Rust-cached lane", () => {
   const workflow = readWorkflow("release-verify.yml");
-  const runnerJob = workflow.match(/  verify_paperclip_runner:\n[\s\S]*?(?=\n  [A-Za-z0-9_-]+:|$)/)?.[0] ?? "";
+  const runnerJob = workflow.match(/  verify_outpost_runner:\n[\s\S]*?(?=\n  [A-Za-z0-9_-]+:|$)/)?.[0] ?? "";
   assert.equal((runnerJob.match(/- lane: server-integration/g) ?? []).length, 1);
   assert.doesNotMatch(runnerJob, /continue-on-error/);
   assert.match(runnerJob, /timeout-minutes: 20/);
@@ -591,7 +591,7 @@ test("release verification builds native test binaries in a required Rust-cached
   assert.match(runnerJob, /cache-bin: false/);
   assert.match(runnerJob, /save-if: \$\{\{ matrix\.lane == 'rust'/);
   assert.match(runnerJob, /Build native server test binaries\n\s+if: \$\{\{ matrix\.lane == 'server-integration' \}\}\n\s+timeout-minutes: 10/);
-  assert.match(runnerJob, /pnpm build:rust\n\s+cargo build --release --manifest-path runner\/Cargo\.toml --locked -p paperclip-runner-core --bin paperclip-runnerd --bin fake-codex-app-server/);
+  assert.match(runnerJob, /pnpm build:rust\n\s+cargo build --release --manifest-path runner\/Cargo\.toml --locked -p outpost-runner-core --bin outpost-runnerd --bin fake-codex-app-server/);
   assert.match(runnerJob, /Run native server integration suites\n\s+if: \$\{\{ matrix\.lane == 'server-integration' \}\}\n\s+run: pnpm test:run:general -- --group general-server-native-runner/);
   assert.ok(runnerJob.indexOf("Cache Runner Rust dependencies") < runnerJob.indexOf("Build native server test binaries"));
   assert.ok(runnerJob.indexOf("Build native server test binaries") < runnerJob.indexOf("Run native server integration suites"));
@@ -608,7 +608,7 @@ test("chaos verification prepares native Runner binaries before fault suites", (
   const workflow = readWorkflow("runner-chaos-evals.yml");
   const steps = workflow.split(/\n(?=      - )/);
   const install = steps.find(step => /run:\s*pnpm install\b/.test(step));
-  const prepare = steps.find(step => /run:\s*pnpm --filter @paperclipai\/paperclip-runner build:rust\b/.test(step));
+  const prepare = steps.find(step => /run:\s*pnpm --filter @paperclipai\/outpost-runner build:rust\b/.test(step));
   const faults = steps.find(step => /src\/native-session-runtime\.test\.ts/.test(step));
   assert.ok(install && prepare && faults, "the real Runner fault suite needs its native build prerequisite");
   assert.ok(steps.indexOf(install) < steps.indexOf(prepare));
@@ -737,7 +737,7 @@ test("Runner eval workflows pin actions and gate paid live execution", () => {
         assert.match(value, /chat-completion-testops-cli\.mjs guard/);
         assert.match(value, /chat-completion-testops-cli\.mjs verify-selection/);
         assert.match(value, /--max-parallel 1 --max-automatic-retries 0/);
-        assert.match(value, /PAPERCLIP_CHAT_COMPLETION_TESTOPS: v1/);
+        assert.match(value, /OUTPOST_CHAT_COMPLETION_TESTOPS: v1/);
         assert.doesNotMatch(value, /ALLURE_TOKEN/);
         assert.equal([...value.matchAll(providerSecretReference)].length, 2);
         assert.ok(value.indexOf("chat-completion-testops-cli.mjs verify-selection") < value.search(providerSecretReference));
@@ -854,7 +854,7 @@ test("Runner eval workflows pin actions and gate paid live execution", () => {
   assert.ok(runnerBlock, "expected Runner chaos test command");
   assert.ok(serverBlock, "expected server chaos test command");
   for (const [base, block] of [
-    [path.join(repoRoot, "packages/paperclip-runner"), runnerBlock],
+    [path.join(repoRoot, "packages/outpost-runner"), runnerBlock],
     [path.join(repoRoot, "server"), serverBlock],
   ]) {
     const listedTestPaths =
@@ -878,16 +878,16 @@ test("Runner eval workflows pin actions and gate paid live execution", () => {
 test("direct Grok qualification installs the pinned binary and scopes the selected credential", () => {
   const workflow = readWorkflow("runner-protocol-live-evals.yml");
   assert.ok(workflow.includes("XAI_API_KEY: ${{ matrix.credentialName == 'XAI_API_KEY' && secrets.XAI_API_KEY || '' }}"));
-  assert.ok(workflow.includes("if [ -f packages/paperclip-runner/scripts/provision-grok.mjs ]; then"));
-  assert.ok(workflow.indexOf("sudo node packages/paperclip-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok") < workflow.indexOf("pnpm --filter @paperclipai/paperclip-runner deploy --prod"));
-  assert.ok(workflow.includes("PAPERCLIP_ACPX_GROK_AUTH_JSON_SECRET: ${{ matrix.credentialName == 'PAPERCLIP_ACPX_GROK_AUTH_JSON_SECRET' && secrets.GROK_AUTH_JSON || '' }}"));
+  assert.ok(workflow.includes("if [ -f packages/outpost-runner/scripts/provision-grok.mjs ]; then"));
+  assert.ok(workflow.indexOf("sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok") < workflow.indexOf("pnpm --filter @outpost/outpost-runner deploy --prod"));
+  assert.ok(workflow.includes("OUTPOST_ACPX_GROK_AUTH_JSON_SECRET: ${{ matrix.credentialName == 'OUTPOST_ACPX_GROK_AUTH_JSON_SECRET' && secrets.GROK_AUTH_JSON || '' }}"));
   assert.equal((workflow.match(/secrets\.GROK_AUTH_JSON/gu) ?? []).length, 1);
 });
 
 test("direct protocol concurrency override only lowers the configured ceiling", () => {
   const workflow = readWorkflow("runner-protocol-live-evals.yml");
   const start = workflow.indexOf('          if [ -n "${REQUESTED_MAX_PARALLEL:-}" ]; then');
-  const end = workflow.indexOf("          node packages/paperclip-runner/scripts/runner-protocol-eval-campaign.mjs catalog", start);
+  const end = workflow.indexOf("          node packages/outpost-runner/scripts/runner-protocol-eval-campaign.mjs catalog", start);
   assert.ok(start > 0 && end > start);
   const script = workflow.slice(start, end) + '\nprintf "%s" "$MAX_PARALLEL"\n';
   for (const [requested, expected] of [["", "8"], ["2", "2"], ["8", "8"], ["1", null], ["9", null], ["0", null], ["-1", null], ["2.5", null], ["garbage", null], ["9999999999999999999999", null]]) {
@@ -919,11 +919,11 @@ test("release daemon production uses exact-source native hosts and no publisher 
   assert.match(producer, /git rev-parse HEAD/);
   assert.match(producer, /process.platform \+ "-" \+ process.arch/);
   assert.match(producer, /\['native', \['build:binary'\]/);
-  const runner = JSON.parse(readFileSync(path.join(repoRoot, 'packages/paperclip-runner/package.json'), 'utf8'));
+  const runner = JSON.parse(readFileSync(path.join(repoRoot, 'packages/outpost-runner/package.json'), 'utf8'));
   assert.match(runner.scripts['build:binary'], /cargo build --release --manifest-path runner\/Cargo.toml --locked/);
   assert.match(runner.scripts['build:binary'], /&& node scripts\/stage-runner-binary.mjs$/);
   assert.match(producer, /stage-release-runner-binaries.mjs record/);
-  for (const job of ["runner_chaos_evals", "typecheck", "general_tests", "serialized_tests", "runner_workflow_evals", "verify_paperclip_runner", "build"]) {
+  for (const job of ["runner_chaos_evals", "typecheck", "general_tests", "serialized_tests", "runner_workflow_evals", "verify_outpost_runner", "build"]) {
     assert.ok(workflow.includes(`${job}:\n    if: \${{ !inputs.runner_binaries_only }}`));
   }
   const release = readWorkflow("release.yml");
@@ -956,11 +956,11 @@ test("release daemon production uses exact-source native hosts and no publisher 
     const block = release.split(`  ${job}:\n`)[1].split(/\n  [a-z_]+:\n/)[0];
     assert.match(block, /needs: .*release_runner_binaries/);
     assert.match(block, /pattern: \$\{\{ needs.release_runner_binaries.outputs.runner_artifact_prefix \}\}-\*/);
-    assert.match(block, /PAPERCLIP_RELEASE_RUNNER_ARTIFACTS_DIR/);
+    assert.match(block, /OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR/);
   }
   const script = readFileSync(path.join(repoRoot, 'scripts/release.sh'), 'utf8');
-  assert.ok(script.indexOf('assemble-daemons "$PAPERCLIP_RELEASE_RUNNER_ARTIFACTS_DIR"') < script.indexOf('scripts/build-standalone-public-packages.mjs'));
-  assert.match(script, /cp -R .*paperclip-runner\/dist\/bin\/\." .*server\/dist\/vendor\/paperclip-runner\/bin\//);
+  assert.ok(script.indexOf('assemble-daemons "$OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR"') < script.indexOf('scripts/build-standalone-public-packages.mjs'));
+  assert.match(script, /cp -R .*outpost-runner\/dist\/bin\/\." .*server\/dist\/vendor\/outpost-runner\/bin\//);
   assert.match(script, /elif \[ "\$dry_run" = false \]; then[\s\S]*?release_fail "Public releases require/);
 });
 
@@ -981,8 +981,8 @@ test('native dependency caches are target-bound and unmerged master callers cann
   assert.match(cache, /Swatinem\/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6/);
   assert.match(cache, /workspaces: \$\{\{ steps.native_rust_workspace.outputs.path \}\} -> target/);
   const key = cache.match(/^\s*shared-key: (.+)$/m)?.[1];
-  assert.ok(key?.startsWith("release-native-v2-${{ hashFiles('packages/paperclip-runner/runner/Cargo.toml', "));
-  assert.ok(key?.endsWith("-${{ matrix.host }}-${{ matrix.target }}-${{ hashFiles('packages/paperclip-runner/protocol/**', 'packages/paperclip-runner/src/**', 'packages/paperclip-runner/*.json') }}"));
+  assert.ok(key?.startsWith("release-native-v2-${{ hashFiles('packages/outpost-runner/runner/Cargo.toml', "));
+  assert.ok(key?.endsWith("-${{ matrix.host }}-${{ matrix.target }}-${{ hashFiles('packages/outpost-runner/protocol/**', 'packages/outpost-runner/src/**', 'packages/outpost-runner/*.json') }}"));
   for (const option of ['cache-workspace-crates', 'cache-bin', 'cache-on-failure']) {
     assert.match(cache, new RegExp(option + ': false'));
   }
@@ -1000,8 +1000,8 @@ test('native dependency caches are target-bound and unmerged master callers cann
     [{ repository: 'fork/paperclip' }, github.sha],
     [{ repository_id: '1' }, github.sha],
   ]) assert.equal(canSave({ ...github, ...overrides }, { ref: input }), false);
-  assert.match(producer, /pinned="\$HOME\/paperclip-runner-rust"/);
-  assert.match(producer, /ln -s "\$GITHUB_WORKSPACE\/packages\/paperclip-runner\/runner" "\$pinned"/);
+  assert.match(producer, /pinned="\$HOME\/outpost-runner-rust"/);
+  assert.match(producer, /ln -s "\$GITHUB_WORKSPACE\/packages\/outpost-runner\/runner" "\$pinned"/);
   assert.match(producer, /echo "RUSTUP_TOOLCHAIN=\$toolchain" >> "\$GITHUB_ENV"/);
   assert.doesNotMatch(producer, /cache-hit|continue-on-error/);
   assert.ok(producer.indexOf('Bind immutable producer source and target') < producer.indexOf('Cache native Rust dependencies'));
@@ -1031,7 +1031,7 @@ async function withNativePreparationFixture(mode, check) {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'native-preparation-')));
   let controller;
   try {
-    for (const directory of ['scripts', 'tools', 'packages/paperclip-runner', 'logs']) {
+    for (const directory of ['scripts', 'tools', 'packages/outpost-runner', 'logs']) {
       mkdirSync(path.join(root, directory), { recursive: true });
     }
     for (const helper of ['prefetch-child.mjs', 'prefetch-supervisor.mjs']) {
@@ -1096,9 +1096,9 @@ test('native preparation overlaps independent outputs and joins both before reco
     const result = await completed;
     assert.equal(result.status, 0, result.stderr);
     for (const name of ['native', 'typescript']) assert.equal(readFileSync(path.join(root, name + '.finished'), 'utf8'), 'joined');
-    assert.equal(JSON.parse(readFileSync(path.join(root, 'native.started'), 'utf8')).cwd, path.join(root, 'packages/paperclip-runner'));
+    assert.equal(JSON.parse(readFileSync(path.join(root, 'native.started'), 'utf8')).cwd, path.join(root, 'packages/outpost-runner'));
     assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'native.started'), 'utf8')).args, ['build:binary']);
-    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'typescript.started'), 'utf8')).args, ['--filter', '@paperclipai/paperclip-runner', 'build:typescript']);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'typescript.started'), 'utf8')).args, ['--filter', '@outpost/outpost-runner', 'build:typescript']);
     const results = result.stdout.split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line));
     assert.deepEqual(results.map(item => [item.build, item.status, item.exitCode]), [['typescript', 'fulfilled', 0], ['native', 'fulfilled', 0]]);
   });
@@ -1141,7 +1141,7 @@ test("premerge native qualification consumes the same Linux-packed npm bytes wit
   const qualification = smoke.split("  qualification_daemons:\n")[1];
   assert.doesNotMatch(qualification, /secrets\.|npm publish|id-token: write|contents: write|continue-on-error/);
   assert.match(qualification, /runner_binaries_only: true/);
-  assert.match(qualification, /PAPERCLIP_RUNNER_PUBLIC_PACKS_DIR/);
+  assert.match(qualification, /OUTPOST_RUNNER_PUBLIC_PACKS_DIR/);
   assert.match(qualification, /if: \$\{\{ !cancelled\(\) && steps.pack_identity.outputs.available == 'true' \}\}/);
   assert.match(qualification, /name: \$\{\{ inputs.artifact_name \}\}-public-packages/);
   assert.match(qualification, /--mac-consumer/);
@@ -1268,13 +1268,13 @@ test("exact-source daemon matrices read inert data and never execute preview run
     };
     const template = path.join(root, 'empty-template'); mkdirSync(template);
     git(['init', '-q', '--template=' + template]);
-    const source = path.join(root, 'packages/paperclip-runner/scripts/stage-release-runner-binaries.mjs');
-    const dataFile = path.join(root, 'packages/paperclip-runner/release-runner-targets.json');
+    const source = path.join(root, 'packages/outpost-runner/scripts/stage-release-runner-binaries.mjs');
+    const dataFile = path.join(root, 'packages/outpost-runner/release-runner-targets.json');
     mkdirSync(path.dirname(source), { recursive: true });
     const output = path.join(root, 'outputs'), marker = path.join(root, 'candidate-executed');
     const historical = ['darwin-arm64', 'darwin-x64', 'linux-x64'];
     const current = [...historical, 'linux-arm64'];
-    const contract = targets => JSON.stringify({ schema: 'paperclip.runner.release-targets.v1', targets });
+    const contract = targets => JSON.stringify({ schema: 'outpost.runner.release-targets.v1', targets });
     const malicious = `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'executed');\nwriteFileSync(process.env.GITHUB_OUTPUT, 'matrix={"include":[{"target":"linux-x64","host":"runs-on/fleet=paperclip-post-merge-x64/env=public-ci"}]}\\n');\nprocess.exit(0);\n`;
     const pin = (module, data) => {
       rmSync(dataFile, { force: true });
@@ -1321,7 +1321,7 @@ test("exact-source daemon matrices read inert data and never execute preview run
     assert.equal(readFileSync(output, 'utf8'), '');
     for (const data of [
       contract(['linux-arm64']), contract([...current, 'linux-arm64']), contract([...current.slice(0, 3), 'win32-x64']),
-      JSON.stringify({ schema: 'paperclip.runner.release-targets.v1', targets: current, host: 'trusted-fleet' }),
+      JSON.stringify({ schema: 'outpost.runner.release-targets.v1', targets: current, host: 'trusted-fleet' }),
       JSON.stringify({ schema: 'other', targets: current }), contract('linux-arm64'), 'null', '{invalid', ' '.repeat(65 * 1024),
     ]) {
       const result = run(pin(`export const RELEASE_RUNNER_TARGETS = ${JSON.stringify(historical)};`, data));
@@ -1355,7 +1355,7 @@ test("historical promotion sources keep their packaging path while new sources r
     const tools = path.join(root, 'tools'); mkdirSync(tools);
     writeFileSync(path.join(tools, 'git'), '#!/bin/sh\ncase "$1" in\nrev-parse) printf "%s\\n" "$FIXTURE_HEAD";;\nshow) cat "$FIXTURE_SOURCE";;\n*) exit 3;;\nesac\n', { mode: 0o755 });
     const source = path.join(root, 'release.sh'), output = path.join(root, 'outputs');
-    for (const [contents, required] of [['pnpm build\n', false], ['assemble-daemons "$PAPERCLIP_RELEASE_RUNNER_ARTIFACTS_DIR" "$SOURCE_SHA"\n', true]]) {
+    for (const [contents, required] of [['pnpm build\n', false], ['assemble-daemons "$OUTPOST_RELEASE_RUNNER_ARTIFACTS_DIR" "$SOURCE_SHA"\n', true]]) {
       writeFileSync(source, contents); writeFileSync(output, '');
       const result = spawnSync('bash', ['-euo', 'pipefail', '-c', script], { encoding: 'utf8', env: {
         PATH: `${tools}:/usr/bin:/bin`, SOURCE_SHA: 'a'.repeat(40), FIXTURE_HEAD: 'a'.repeat(40), FIXTURE_SOURCE: source, GITHUB_OUTPUT: output,
@@ -1473,13 +1473,13 @@ test("nested ETARGET output does not retry a final authentication or network fai
 });
 
 const exactCanary = "2026.1009.0-canary.1";
-const canaryTarball = `https://registry.npmjs.org/@paperclipai/server/-/server-${exactCanary}.tgz`;
-const tarballFailure = (url = canaryTarball, prefix = "npm error") => `${prefix} code E404\n${prefix} 404 Not Found - GET ${url} - Not found\n${prefix} 404\n${prefix} 404  The requested resource '@paperclipai/server@${url}' could not be found or you do not have permission to access it.\n`;
+const canaryTarball = `https://registry.npmjs.org/@outpost/server/-/server-${exactCanary}.tgz`;
+const tarballFailure = (url = canaryTarball, prefix = "npm error") => `${prefix} code E404\n${prefix} 404 Not Found - GET ${url} - Not found\n${prefix} 404\n${prefix} 404  The requested resource '@outpost/server@${url}' could not be found or you do not have permission to access it.\n`;
 
 function tarballProof({ config = {}, manifest = {}, status = 200, redirected = false, responseUrl, rawBody } = {}) {
   const calls = [];
   const dist = { tarball: canaryTarball, integrity: `sha512-${Buffer.alloc(64).toString("base64")}`, ...manifest.dist };
-  const data = { name: "@paperclipai/server", version: exactCanary, ...manifest, dist };
+  const data = { name: "@outpost/server", version: exactCanary, ...manifest, dist };
   return { calls, options: {
     signal: new AbortController().signal, prefix: "/fixture/install", env: {},
     runConfig: async (command, args, options) => {
@@ -1523,10 +1523,10 @@ test("mixed npm errors and noncanonical or unreleased tarballs never read config
     ...[
       canaryTarball + "?token=fixture", canaryTarball + "#fragment", canaryTarball.replace("npmjs.org/", "npmjs.org:443/"),
       canaryTarball.replace("npmjs.org/", "npmjs.org.example.invalid/"), canaryTarball.replace("npmjs.org/", "fixture@npmjs.org/"),
-      canaryTarball.replace("https:", "http:"), canaryTarball.replace("@paperclipai/server", "%40paperclipai%2Fserver"),
-      canaryTarball.replace("@paperclipai/server", "@paperclipai/../server"), canaryTarball.replace(exactCanary, "2026.1009.0-canary.2"),
-      "https://registry.npmjs.org/@paperclipai/not-released/-/not-released-2026.1009.0-canary.1.tgz",
-      "https://registry.npmjs.org/@paperclipai/plugin-createos/-/plugin-createos-2026.1009.0-canary.1.tgz",
+      canaryTarball.replace("https:", "http:"), canaryTarball.replace("@outpost/server", "%40paperclipai%2Fserver"),
+      canaryTarball.replace("@outpost/server", "@outpost/../server"), canaryTarball.replace(exactCanary, "2026.1009.0-canary.2"),
+      "https://registry.npmjs.org/@outpost/not-released/-/not-released-2026.1009.0-canary.1.tgz",
+      "https://registry.npmjs.org/@outpost/plugin-createos/-/plugin-createos-2026.1009.0-canary.1.tgz",
       "https://registry.npmjs.org/%40paperclipai%2Fserver/2026.1009.0-canary.1",
     ].map((url) => tarballFailure(url)),
   ];
@@ -1564,7 +1564,7 @@ test("metadata must identify the exact published artifact with valid SHA512 synt
   const fixtures = [
     { status: 404 }, { status: 401 }, { status: 403 }, { status: 302 }, { redirected: true },
     { responseUrl: "https://registry.example.invalid/metadata" }, { rawBody: "not json" },
-    { manifest: { name: "@paperclipai/shared" } }, { manifest: { version: "2026.1009.0-canary.2" } },
+    { manifest: { name: "@outpost/shared" } }, { manifest: { version: "2026.1009.0-canary.2" } },
     { manifest: { dist: { tarball: canaryTarball + "?query=1" } } },
     ...[undefined, "", "sha512-A===", `sha256-${Buffer.alloc(32).toString("base64")}`, `sha512-${Buffer.alloc(64).toString("base64")} extra`]
       .map((integrity) => ({ manifest: { dist: { integrity } } })),

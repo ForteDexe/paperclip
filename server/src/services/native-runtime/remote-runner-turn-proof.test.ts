@@ -13,7 +13,7 @@ async function journal(commands: Array<{ type: string; status: string }>, eventT
   roots.push(root);
   await mkdir(path.join(root, "control-plane"), { recursive: true });
   await writeFile(path.join(root, "control-plane", "control-plane-state.json"), JSON.stringify({
-    schema: "paperclip.runner.durable.control-plane-state.v2", connectionCount: 1,
+    schema: "outpost.runner.durable.control-plane-state.v2", connectionCount: 1,
     commands, committedEvents: eventTypes.map((eventType, index) => ({ sourceSeq: index + 1, eventType })),
     ackedSourceSeq: eventTypes.length,
   }));

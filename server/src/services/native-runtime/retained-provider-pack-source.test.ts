@@ -45,7 +45,7 @@ async function fixture(options: { wrongCode?: boolean; unsafeOverlay?: boolean; 
     const artifact = { path: "bin/tool", sha256: `sha256:${hash(tool)}` };
     const payload = { pins: { opencode: "1.18.34" }, target: { platform: "linux", architecture: "x64" }, runnerSourceRevision: source,
       contractDigest: `sha256:${hash(tool)}`, artifacts: { nodeCommand: artifact, opencodeCommand: artifact, opencodeProxy: artifact } };
-    const manifest = { schema: "paperclip-runner/remote-provider-pack/v1", payload, digest: `sha256:${hash(canonicalProviderPackJson(payload))}` };
+    const manifest = { schema: "outpost-runner/remote-provider-pack/v1", payload, digest: `sha256:${hash(canonicalProviderPackJson(payload))}` };
     await fs.writeFile(path.join(pack, "provider-pack.json"), JSON.stringify(manifest));
     await fs.writeFile(path.join(pack, "bin/tool"), tool, { mode: 0o755 });
     await fs.writeFile(path.join(pack, "bin/large"), Buffer.alloc(1024 * 1024, 42), { mode: 0o755 });
@@ -86,7 +86,7 @@ async function fixture(options: { wrongCode?: boolean; unsafeOverlay?: boolean; 
   const collected = (async () => { for await (const chunk of archive) chunks.push(Buffer.from(chunk)); })();
   for (const name of ["provider-pack.archive.json", ...await fs.readdir(transportPack + ".archives").then(names => names.map(name => `provider-pack.archives/${name}`))]) {
     const bytes = await fs.readFile(path.join(path.dirname(transportPack), name.replace("provider-pack", path.basename(transportPack))));
-    await new Promise<void>((done, reject) => archive.entry({ name: `opt/paperclip-runner/${name}`, type: "file", size: bytes.length }, bytes, error => error ? reject(error) : done()));
+    await new Promise<void>((done, reject) => archive.entry({ name: `opt/outpost-runner/${name}`, type: "file", size: bytes.length }, bytes, error => error ? reject(error) : done()));
   }
   archive.finalize();
   await collected;
@@ -94,7 +94,7 @@ async function fixture(options: { wrongCode?: boolean; unsafeOverlay?: boolean; 
   const config = Buffer.from(JSON.stringify({ architecture: "amd64", os: "linux", config: { Labels: {
     "org.opencontainers.image.revision": selected.manifest.payload.runnerSourceRevision,
     "org.opencontainers.image.source": "https://github.com/paperclipai/paperclip",
-  } }, history: [{ created_by: "COPY /provider-pack-transport/ /opt/paperclip-runner/ # buildkit" }] }));
+  } }, history: [{ created_by: "COPY /provider-pack-transport/ /opt/outpost-runner/ # buildkit" }] }));
   const manifest = Buffer.from(JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json", config: { digest: `sha256:${hash(config)}`, size: config.length }, layers: [{ digest: `sha256:${hash(layer)}`, size: layer.length, mediaType: "application/vnd.oci.image.layer.v1.tar+gzip" }] }));
   const index = Buffer.from(JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json", manifests: [{ digest: `sha256:${hash(manifest)}`, size: manifest.length, platform: { os: "linux", architecture: "amd64" } }] }));
   const routes = new Map<string, Buffer>([

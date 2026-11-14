@@ -14,8 +14,8 @@ describe("explicit diagnostic credential forms", () => {
   });
 });
 import {
-  PRP_V1_EVENT_TYPES,
-  PRP_V2_EVENT_TYPES,
+  ORP_V1_EVENT_TYPES,
+  ORP_V2_EVENT_TYPES,
   REDACTED_EVENT_VALUE,
   redactAgentAdapterConfig,
   redactEventPayload,
@@ -23,16 +23,16 @@ import {
   sanitizeRecord,
 } from "../redaction.js";
 
-import { createCopilotToolEvidence } from "../../../packages/paperclip-runner/src/drivers/acpx/copilot-tool-evidence.js";
-import { appendSemanticToolReceipt } from "../../../packages/paperclip-runner/src/drivers/semantic-tool-receipt.js";
+import { createCopilotToolEvidence } from "../../../packages/outpost-runner/src/drivers/acpx/copilot-tool-evidence.js";
+import { appendSemanticToolReceipt } from "../../../packages/outpost-runner/src/drivers/semantic-tool-receipt.js";
 
 function receiptNotice(version: 1 | 2 = 1): Record<string, any> {
   return {
-    schema: "paperclip.provider.notice.v1", noticeId: `copilot-evidence-${"a".repeat(24)}-1`,
+    schema: "outpost.provider.notice.v1", noticeId: `copilot-evidence-${"a".repeat(24)}-1`,
     severity: "info", category: `paperclip_semantic_tool_receipt_v${version}`, scope: "turn",
     recoverable: true, userActionable: false, summary: "Paperclip returned a semantic tool result.",
     provenance: { method: "paperclip/semantic_tool_result", eventType: "semantic_result", sessionId: "session", turnId: "turn" },
-    details: Object.entries({ stage: "semantic_result", schema: `paperclip.semantic_tool_receipt.v${version}`,
+    details: Object.entries({ stage: "semantic_result", schema: `outpost.semantic_tool_receipt.v${version}`,
       operationId: "finish_task", callIdentitySha256: "a".repeat(64), inputSha256: "b".repeat(64),
       resultSha256: "c".repeat(64), outcome: "returned", ...(version === 2 ? { normalizedInputSha256: "d".repeat(64) } : {}),
     }).map(([name, value]) => ({ name, value })),
@@ -41,20 +41,20 @@ function receiptNotice(version: 1 | 2 = 1): Record<string, any> {
 const receiptSchemaValue = (notice: Record<string, any>) => notice.details.find((detail: any) => detail.name === "schema").value;
 
 describe("redaction", () => {
-  it.each([1, 2, 3] as const)("preserves structured panel activation and redacts adjacent secrets in PRP v%s", version => {
-    const event = { schema: `paperclip.prp.event.v${version}`, schemaVersion: version,
+  it.each([1, 2, 3] as const)("preserves structured panel activation and redacts adjacent secrets in ORP v%s", version => {
+    const event = { schema: `outpost.orp.event.v${version}`, schemaVersion: version,
       eventType: "runtime.activity.recorded", payload: { namespace: "example.runtime", activityKey: "desktop.used" } };
-    expect(redactEventPayload({ prpEvent: event })).toEqual({ prpEvent: event });
-    expect(redactEventPayload({ prpEvent: { ...event, payload: { ...event.payload, apiKey: "secret-sentinel" } } }))
-      .toEqual({ prpEvent: { ...event, payload: { ...event.payload, apiKey: REDACTED_EVENT_VALUE } } });
+    expect(redactEventPayload({ orpEvent: event })).toEqual({ orpEvent: event });
+    expect(redactEventPayload({ orpEvent: { ...event, payload: { ...event.payload, apiKey: "secret-sentinel" } } }))
+      .toEqual({ orpEvent: { ...event, payload: { ...event.payload, apiKey: REDACTED_EVENT_VALUE } } });
   });
-  it.each([1, 2, 3] as const)("preserves credential update metadata and masks adjacent secrets in PRP v%s", version => {
-    const event = { schema: `paperclip.prp.event.v${version}`, schemaVersion: version,
-      eventType: "auth.credentials.updated", payload: { schema: "paperclip.auth.credentials.updated.v1",
+  it.each([1, 2, 3] as const)("preserves credential update metadata and masks adjacent secrets in ORP v%s", version => {
+    const event = { schema: `outpost.orp.event.v${version}`, schemaVersion: version,
+      eventType: "auth.credentials.updated", payload: { schema: "outpost.auth.credentials.updated.v1",
         provider: "codex", bindingId: "harness-auth", revision: 1, detection: "credential_store" } };
-    expect(redactEventPayload({ prpEvent: event })).toEqual({ prpEvent: event });
-    expect(redactEventPayload({ prpEvent: { ...event, payload: { ...event.payload, refresh_token: "secret-sentinel" } } }))
-      .toEqual({ prpEvent: { ...event, payload: { ...event.payload, refresh_token: REDACTED_EVENT_VALUE } } });
+    expect(redactEventPayload({ orpEvent: event })).toEqual({ orpEvent: event });
+    expect(redactEventPayload({ orpEvent: { ...event, payload: { ...event.payload, refresh_token: "secret-sentinel" } } }))
+      .toEqual({ orpEvent: { ...event, payload: { ...event.payload, refresh_token: REDACTED_EVENT_VALUE } } });
   });
 
   it("preserves the actual Copilot receipt producer discriminator through nested durable redaction", () => {
@@ -63,12 +63,12 @@ describe("redaction", () => {
       active: () => true, emit: event => events.push(event) });
     const receipt = appendSemanticToolReceipt({ tool: "finish_task", callId: "call", arguments: {} },
       { content: [{ type: "text", text: "accepted" }] }).receipt;
-    expect(receipt.schema).toBe("paperclip.semantic_tool_receipt.v2");
+    expect(receipt.schema).toBe("outpost.semantic_tool_receipt.v2");
     projector.captureSemanticReceipt()!(receipt);
     expect(events).toHaveLength(1);
     expect(events[0]!.payload.category).toBe("paperclip_semantic_tool_receipt_v2");
     expect(events[0]!.payload.details).toHaveLength(8);
-    const input = { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1,
+    const input = { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1,
       eventType: "provider.notice.recorded", payload: events[0]!.payload } };
     expect(redactEventPayload(input)).toEqual(input);
     expect(redactEventPayload(redactEventPayload(input))).toEqual(input);
@@ -79,8 +79,8 @@ describe("redaction", () => {
     expect(redactEventPayload(notice)).toEqual(notice);
     // Master's JWT detector recognizes encoded headers, so a dotted public
     // identifier needs no receipt-shaped exemption to survive redaction.
-    expect(redactEventPayload({ value: `paperclip.semantic_tool_receipt.v${version}` }))
-      .toEqual({ value: `paperclip.semantic_tool_receipt.v${version}` });
+    expect(redactEventPayload({ value: `outpost.semantic_tool_receipt.v${version}` }))
+      .toEqual({ value: `outpost.semantic_tool_receipt.v${version}` });
   });
 
   it("redacts credentials in receipt-shaped data and every adjacent field", () => {
@@ -89,7 +89,7 @@ describe("redaction", () => {
     notice.details.find((d: any) => d.name === "operationId").value = jwt;
     notice.provenance.sessionId = jwt;
     const redacted = redactEventPayload(notice)! as Record<string, any>;
-    expect(receiptSchemaValue(redacted)).toBe("paperclip.semantic_tool_receipt.v1");
+    expect(receiptSchemaValue(redacted)).toBe("outpost.semantic_tool_receipt.v1");
     expect(redacted.details.find((d: any) => d.name === "operationId").value).toBe(REDACTED_EVENT_VALUE);
     expect(redacted.provenance.sessionId).toBe(REDACTED_EVENT_VALUE);
     expect(redactEventPayload({ notice, password: "canary", arbitrary: jwt }))
@@ -101,24 +101,24 @@ describe("redaction", () => {
     expect(JSON.stringify(hostile)).not.toContain("canary-token");
   });
 
-  it("keeps the discriminator allowlist in exact PRP v1 schema parity", () => {
+  it("keeps the discriminator allowlist in exact ORP v1 schema parity", () => {
     const schema = JSON.parse(
       readFileSync(
         new URL(
-          "../../../packages/paperclip-runner/protocol/schemas/event.schema.json",
+          "../../../packages/outpost-runner/protocol/schemas/event.schema.json",
           import.meta.url,
         ),
         "utf8",
       ),
     ) as { properties: { eventType: { enum: string[] } } };
-    expect([...PRP_V1_EVENT_TYPES]).toEqual(schema.properties.eventType.enum);
+    expect([...ORP_V1_EVENT_TYPES]).toEqual(schema.properties.eventType.enum);
   });
 
   it("keeps the v2 additions in parity with the canonical v2 schema", () => {
     const v1 = JSON.parse(
       readFileSync(
         new URL(
-          "../../../packages/paperclip-runner/protocol/schemas/event.schema.json",
+          "../../../packages/outpost-runner/protocol/schemas/event.schema.json",
           import.meta.url,
         ),
         "utf8",
@@ -127,14 +127,14 @@ describe("redaction", () => {
     const v2 = JSON.parse(
       readFileSync(
         new URL(
-          "../../../packages/paperclip-runner/protocol/schemas/event-v2.schema.json",
+          "../../../packages/outpost-runner/protocol/schemas/event-v2.schema.json",
           import.meta.url,
         ),
         "utf8",
       ),
     ) as { properties: { eventType: { enum: string[] } } };
     const v1Types = new Set(v1.properties.eventType.enum);
-    expect([...PRP_V2_EVENT_TYPES]).toEqual(
+    expect([...ORP_V2_EVENT_TYPES]).toEqual(
       v2.properties.eventType.enum.filter((eventType) => !v1Types.has(eventType)),
     );
   });
@@ -143,7 +143,7 @@ describe("redaction", () => {
     const fixture = JSON.parse(
       readFileSync(
         new URL(
-          "../../../packages/paperclip-runner/protocol/fixtures/replay/duplicate-event.json",
+          "../../../packages/outpost-runner/protocol/fixtures/replay/duplicate-event.json",
           import.meta.url,
         ),
         "utf8",
@@ -151,64 +151,64 @@ describe("redaction", () => {
     ) as { events: Array<Record<string, unknown>> };
 
     for (const event of fixture.events) {
-      const sanitized = redactEventPayload({ prpEvent: event });
-      const envelope = sanitized?.prpEvent as Record<string, unknown>;
+      const sanitized = redactEventPayload({ orpEvent: event });
+      const envelope = sanitized?.orpEvent as Record<string, unknown>;
       expect(envelope.eventType).toBe(event.eventType);
       expect(envelope.sourceEventId).toBe(event.sourceEventId);
       expect(envelope.payload).toEqual(event.payload);
     }
   });
 
-  it("preserves current PRP v2 session discriminators", () => {
+  it("preserves current ORP v2 session discriminators", () => {
     const schema = JSON.parse(readFileSync(
-      new URL("../../../packages/paperclip-runner/protocol/schemas/event-v2.schema.json", import.meta.url),
+      new URL("../../../packages/outpost-runner/protocol/schemas/event-v2.schema.json", import.meta.url),
       "utf8",
     )) as { properties: { eventType: { enum: string[] } } };
     for (const eventType of schema.properties.eventType.enum) {
       const event = {
-        schema: "paperclip.prp.event.v2",
+        schema: "outpost.orp.event.v2",
         schemaVersion: 2,
         eventType,
         payload: { safe: true },
       };
-      const sanitized = redactEventPayload({ prpEvent: event });
-      expect(sanitized?.prpEvent).toEqual(event);
+      const sanitized = redactEventPayload({ orpEvent: event });
+      expect(sanitized?.orpEvent).toEqual(event);
     }
   });
 
-  it("preserves diagnostic PRP discriminators while redacting their credential payloads", () => {
+  it("preserves diagnostic ORP discriminators while redacting their credential payloads", () => {
     const unknown = redactEventPayload({
-      prpEvent: {
-        schema: "paperclip.prp.event.v2",
+      orpEvent: {
+        schema: "outpost.orp.event.v2",
         schemaVersion: 2,
         eventType: "session.not-a-real.event",
       },
     });
-    expect((unknown?.prpEvent as Record<string, unknown>).eventType).toBe(
+    expect((unknown?.orpEvent as Record<string, unknown>).eventType).toBe(
       "session.not-a-real.event",
     );
 
     const mismatched = redactEventPayload({
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         schemaVersion: 2,
         eventType: "session.capabilities.updated",
       },
     });
-    expect((mismatched?.prpEvent as Record<string, unknown>).eventType).toBe(
+    expect((mismatched?.orpEvent as Record<string, unknown>).eventType).toBe(
       "session.capabilities.updated",
     );
 
     const secretPayload = redactEventPayload({
-      prpEvent: {
-        schema: "paperclip.prp.event.v2",
+      orpEvent: {
+        schema: "outpost.orp.event.v2",
         schemaVersion: 2,
         eventType: "session.capabilities.updated",
         payload: { authorization: "Bearer secret-value" },
       },
     });
     expect(
-      ((secretPayload?.prpEvent as Record<string, unknown>).payload as Record<string, unknown>)
+      ((secretPayload?.orpEvent as Record<string, unknown>).payload as Record<string, unknown>)
         .authorization,
     ).toBe(REDACTED_EVENT_VALUE);
   });
@@ -238,7 +238,7 @@ describe("redaction", () => {
           type: "plain",
           value: "sk-plain",
         },
-        PAPERCLIP_API_URL: "http://localhost:3100",
+        OUTPOST_API_URL: "http://localhost:3100",
       },
     };
 
@@ -263,7 +263,7 @@ describe("redaction", () => {
         type: "plain",
         value: REDACTED_EVENT_VALUE,
       },
-      PAPERCLIP_API_URL: "http://localhost:3100",
+      OUTPOST_API_URL: "http://localhost:3100",
     });
   });
 
@@ -286,29 +286,29 @@ describe("redaction", () => {
   it("preserves Paperclip protocol schema identifiers", () => {
     expect(
       sanitizeRecord({
-        schema: "paperclip.question_set.v1",
+        schema: "outpost.question_set.v1",
         nested: {
-          schema: "paperclip.question_response.v1",
-          runtimeSchema: "paperclip.runtime_request.v2",
-          arbitraryProviderValue: "paperclip.question_set.v1",
+          schema: "outpost.question_response.v1",
+          runtimeSchema: "outpost.runtime_request.v2",
+          arbitraryProviderValue: "outpost.question_set.v1",
         },
       }),
     ).toEqual({
-      schema: "paperclip.question_set.v1",
+      schema: "outpost.question_set.v1",
       nested: {
-        schema: "paperclip.question_response.v1",
-        runtimeSchema: "paperclip.runtime_request.v2",
-        arbitraryProviderValue: "paperclip.question_set.v1",
+        schema: "outpost.question_response.v1",
+        runtimeSchema: "outpost.runtime_request.v2",
+        arbitraryProviderValue: "outpost.question_set.v1",
       },
     });
   });
 
   it("preserves native execution v5 and model envelope v3 schema identifiers", () => {
     const input = {
-      schema: "paperclip.native-execution-input.v5",
+      schema: "outpost.native-execution-input.v5",
       nested: {
-        runtimeSchema: "paperclip.native-model-envelope.v3",
-        providerValue: "paperclip.native-execution-input.v5",
+        runtimeSchema: "outpost.native-model-envelope.v3",
+        providerValue: "outpost.native-execution-input.v5",
       },
     };
     expect(sanitizeRecord(input)).toEqual({
@@ -318,21 +318,21 @@ describe("redaction", () => {
         providerValue: input.nested.providerValue,
       },
     });
-    expect(sanitizeRecord({ schema: "paperclip.native-execution-input.v9" })).toEqual({ schema: "paperclip.native-execution-input.v9" });
-    expect(sanitizeRecord({ schema: "paperclip.native-execution-input.v7", runtimeSchema: "paperclip.native-execution-input.v8" })).toEqual({
-      schema: "paperclip.native-execution-input.v7",
-      runtimeSchema: "paperclip.native-execution-input.v8",
+    expect(sanitizeRecord({ schema: "outpost.native-execution-input.v9" })).toEqual({ schema: "outpost.native-execution-input.v9" });
+    expect(sanitizeRecord({ schema: "outpost.native-execution-input.v7", runtimeSchema: "outpost.native-execution-input.v8" })).toEqual({
+      schema: "outpost.native-execution-input.v7",
+      runtimeSchema: "outpost.native-execution-input.v8",
     });
-    expect(sanitizeRecord({ schema: "paperclip.native-execution-input.v4", runtimeSchema: "paperclip.native-model-envelope.v2" })).toEqual({
-      schema: "paperclip.native-execution-input.v4",
-      runtimeSchema: "paperclip.native-model-envelope.v2",
+    expect(sanitizeRecord({ schema: "outpost.native-execution-input.v4", runtimeSchema: "outpost.native-model-envelope.v2" })).toEqual({
+      schema: "outpost.native-execution-input.v4",
+      runtimeSchema: "outpost.native-model-envelope.v2",
     });
   });
 
-  it("preserves only known PRP v1 event discriminators inside validated envelopes", () => {
+  it("preserves only known ORP v1 event discriminators inside validated envelopes", () => {
     const payload = {
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         schemaVersion: 1,
         eventType: "tool.execution.started",
         payload: {
@@ -348,8 +348,8 @@ describe("redaction", () => {
     const sanitized = redactEventPayload(payload);
 
     expect(sanitized).toEqual({
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         schemaVersion: 1,
         eventType: "tool.execution.started",
         payload: {
@@ -367,7 +367,7 @@ describe("redaction", () => {
   it("preserves unknown dotted event values instead of treating them as JWTs", () => {
     expect(
       redactEventPayload({
-        schema: "paperclip.prp.event.v1",
+        schema: "outpost.orp.event.v1",
         schemaVersion: 1,
         eventType: "attacker.supplied.token",
       })?.eventType,
@@ -377,14 +377,14 @@ describe("redaction", () => {
   it("preserves dotted schema identifiers without interpreting their authority", () => {
     expect(
       redactEventPayload({
-        schema: "paperclip.attacker.control.v1",
-        runtimeSchema: "paperclip.attacker.runtime.v1",
+        schema: "outpost.attacker.control.v1",
+        runtimeSchema: "outpost.attacker.runtime.v1",
         schemaVersion: 1,
         eventType: "tool.execution.started",
       }),
     ).toEqual({
-      schema: "paperclip.attacker.control.v1",
-      runtimeSchema: "paperclip.attacker.runtime.v1",
+      schema: "outpost.attacker.control.v1",
+      runtimeSchema: "outpost.attacker.runtime.v1",
       schemaVersion: 1,
       eventType: "tool.execution.started",
     });
@@ -395,8 +395,8 @@ describe("redaction", () => {
       "environment.workspace.realize",
       "native.coordinator.claim",
       "runner.transport.selected",
-      "runner.prp.authenticate",
-      "runner.prp.route.register",
+      "runner.orp.authenticate",
+      "runner.orp.route.register",
       "runner.transport.connect",
       "runner.session.bootstrap",
       "runner.runtime.stage",
@@ -417,7 +417,7 @@ describe("redaction", () => {
 
     for (const span of spanNames) {
       const input = {
-        schema: "paperclip.run-performance-span.v1",
+        schema: "outpost.run-performance-span.v1",
         span,
         parentSpan: "native.session.execute",
         providerHostname: "api.openai.com",
@@ -435,13 +435,13 @@ describe("redaction", () => {
 
     expect(
       redactEventPayload({
-        schema: "paperclip.run-performance-span.v1",
+        schema: "outpost.run-performance-span.v1",
         span: "api.openai.com",
       })?.span,
     ).toBe("api.openai.com");
     expect(
       redactEventPayload({
-        schema: "paperclip.run-performance-span.v1",
+        schema: "outpost.run-performance-span.v1",
         span: "runner.example.com",
       })?.span,
     ).toBe("runner.example.com");
@@ -548,9 +548,9 @@ describe("redaction", () => {
     const input = [
       "Authorization: Bearer live-bearer-token-value",
       `payload {"apiKey":"json-secret-value"}`,
-      `paperclip {"PAPERCLIP_API_KEY":"paperclip-json-secret"}`,
+      `paperclip {"OUTPOST_API_KEY":"paperclip-json-secret"}`,
       `escaped {\\"apiKey\\":\\"escaped-json-secret\\"}`,
-      `export PAPERCLIP_API_KEY='paperclip-shell-secret'`,
+      `export OUTPOST_API_KEY='paperclip-shell-secret'`,
       `GITHUB_TOKEN=${githubToken}`,
       `session=${jwt}`,
     ].join("\n");
@@ -787,7 +787,7 @@ second-line\" status=401`,
         "--api-key=sk-inline-example",
       ],
       env: {
-        PAPERCLIP_RESOLVED_COMMAND:
+        OUTPOST_RESOLVED_COMMAND:
           "env OPENAI_API_KEY=sk-live-example custom-acp --token ghp_example_secret",
         SAFE_VALUE: "visible",
       },
@@ -806,7 +806,7 @@ second-line\" status=401`,
       `--api-key=${REDACTED_EVENT_VALUE}`,
     ]);
     expect(result?.env).toEqual({
-      PAPERCLIP_RESOLVED_COMMAND: `env OPENAI_API_KEY=${REDACTED_EVENT_VALUE} custom-acp --token ${REDACTED_EVENT_VALUE}`,
+      OUTPOST_RESOLVED_COMMAND: `env OPENAI_API_KEY=${REDACTED_EVENT_VALUE} custom-acp --token ${REDACTED_EVENT_VALUE}`,
       SAFE_VALUE: "visible",
     });
   });

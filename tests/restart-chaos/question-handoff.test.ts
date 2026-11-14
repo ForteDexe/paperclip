@@ -219,7 +219,7 @@ describe("Q1 saved question", () => {
         "--adapters", "codex", "--workloads", "Q1", "--faults", "SR1U", "--tasks", "1", "--concurrency", "1"]);
       if (command.mode !== "wave") throw new Error("expected a wave");
       expect(command.options).toMatchObject({ faults: [], sessionFaults: ["SR1U"] });
-      expect(sessionFaultServerEnvironment(command.options.sessionFaults)).toEqual({ PAPERCLIP_TEST_WARM_RETIREMENT_FAULT: "unconfirmed" });
+      expect(sessionFaultServerEnvironment(command.options.sessionFaults)).toEqual({ OUTPOST_TEST_WARM_RETIREMENT_FAULT: "unconfirmed" });
       expect(sessionFaultServerEnvironment(["SR1"])).toEqual({});
       // Locally there is no reused sandbox to drop.
       expect(() => parseCommand(["--workloads", "Q1", "--faults", "SR1U", "--lifecycle", "warm"])).toThrow("--env daytona --daytona-warm");

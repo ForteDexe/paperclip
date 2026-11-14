@@ -39,7 +39,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatActions,
@@ -51,12 +51,12 @@ import {
   chatPublications,
   chatTeamsFileTransfers,
   issueThreadInteractions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatAdapterCapabilities,
   ChatProvider,
   SafeChatPublicationPayload,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   isTelegramDraftStopped,

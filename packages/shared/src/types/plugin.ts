@@ -195,7 +195,7 @@ export interface PluginEnvironmentDriverDeclaration {
   skillKeys?: string[];
   /** Leases require a saved agent and its lifecycle preparation, including during setup. */
   requiresAgent?: boolean;
-  /** Provides Runner execution, resource preparation, and PRP connections via environmentTask. */
+  /** Provides Runner execution, resource preparation, and ORP connections via environmentTask. */
   supportsTasks?: boolean;
   freshWorkspaceVersion?: 1;
   creationOperationVersion?: 1;

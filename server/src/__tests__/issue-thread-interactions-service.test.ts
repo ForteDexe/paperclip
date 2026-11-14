@@ -29,7 +29,7 @@ import {
   workspaceOperations,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -41,13 +41,13 @@ import {
   type IssueThreadInteractionPayload,
   type RequestCheckboxConfirmationPayload,
   type RequestItemVerdictsPayload,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { issueService } from "../services/issues.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
 import { agentService } from "../services/agents.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_INTERACTIONS_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_INTERACTIONS_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -308,7 +308,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
   it("persists and answers a canonical-only mixed question form", async () => {
     const { companyId, issueId } = await seedSourceQuestionFixture({});
     const questionSet = {
-      schema: "paperclip.question_set.v1" as const,
+      schema: "outpost.question_set.v1" as const,
       questions: [
         { id: "repo", prompt: "Repository URL?", required: true, answerMode: "text" as const },
         { id: "scope", prompt: "Review scope?", required: true, answerMode: "single_select" as const, options: [{ id: "all", label: "All changes" }, { id: "selected", label: "Selected changes" }] },
@@ -347,7 +347,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     for (const [index, entry] of cases.entries()) {
       const created = await interactionsSvc.create(issue, {
         kind: "ask_user_questions", payload: { version: 1, questionSet: {
-          schema: "paperclip.question_set.v1", questions: [{ id: "value", prompt: "Value?", required: true, answerMode: "text", textValidation: entry.textValidation }],
+          schema: "outpost.question_set.v1", questions: [{ id: "value", prompt: "Value?", required: true, answerMode: "text", textValidation: entry.textValidation }],
         } },
       }, { userId: "local-board" });
       for (const otherText of entry.invalid) {
@@ -358,7 +358,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
       expect((await interactionsSvc.answerQuestions(issue, created.id, { answers: [{ questionId: "value", optionIds: [], otherText: entry.valid }] }, { userId: "local-board" })).status).toBe("answered");
     }
     const custom = await interactionsSvc.create(issue, { kind: "ask_user_questions", payload: { version: 1, questionSet: {
-      schema: "paperclip.question_set.v1", questions: [{ id: "scope", prompt: "Scope?", required: true, answerMode: "single_select", options: [{ id: "all", label: "All" }, { id: "selected", label: "Selected" }], customAnswer: { enabled: true }, textValidation: { minLength: 3 } }],
+      schema: "outpost.question_set.v1", questions: [{ id: "scope", prompt: "Scope?", required: true, answerMode: "single_select", options: [{ id: "all", label: "All" }, { id: "selected", label: "Selected" }], customAnswer: { enabled: true }, textValidation: { minLength: 3 } }],
     } } }, { userId: "local-board" });
     await expect(interactionsSvc.answerQuestions(issue, custom.id, { answers: [{ questionId: "scope", optionIds: [], otherText: "ab" }] }, { userId: "local-board" })).rejects.toThrow("at least 3");
     expect((await interactionsSvc.answerQuestions(issue, custom.id, { answers: [{ questionId: "scope", optionIds: [], otherText: "abc" }] }, { userId: "local-board" })).status).toBe("answered");
@@ -371,7 +371,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     const created = await interactionsSvc.create(issue, { kind: "ask_user_questions", payload: {
       version: 1,
       questions: [{ id: "scope", prompt: "Scope?", required: true, selectionMode: "single", options: [...options, { id: "existing-custom-id", label: "Other", freeText: true }] }],
-      questionSet: { schema: "paperclip.question_set.v1", questions: [{ id: "scope", prompt: "Scope?", required: true, answerMode: "single_select", options, customAnswer: { enabled: true }, textValidation: { minLength: 3 } }] },
+      questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "scope", prompt: "Scope?", required: true, answerMode: "single_select", options, customAnswer: { enabled: true }, textValidation: { minLength: 3 } }] },
     } }, { userId: "local-board" });
     const answered = await interactionsSvc.answerQuestions(issue, created.id, { answers: [{ questionId: "scope", optionIds: ["existing-custom-id"], otherText: "Specific files" }] }, { userId: "local-board" });
     expect(answered).toMatchObject({ status: "answered", result: { answers: [{ questionId: "scope", optionIds: ["existing-custom-id"], otherText: "Specific files" }] } });
@@ -381,7 +381,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     const { companyId, issueId } = await seedSourceQuestionFixture({});
     const issue = { id: issueId, companyId };
     const created = await interactionsSvc.create(issue, { kind: "ask_user_questions", payload: { version: 1, questionSet: {
-      schema: "paperclip.question_set.v1", questions: [{ id: "scope", prompt: "Scope?", required: true, answerMode: "single_select", options: [{ id: "all", label: "All" }, { id: "selected", label: "Selected" }], customAnswer: { enabled: true }, textValidation: { minLength: 3 } }],
+      schema: "outpost.question_set.v1", questions: [{ id: "scope", prompt: "Scope?", required: true, answerMode: "single_select", options: [{ id: "all", label: "All" }, { id: "selected", label: "Selected" }], customAnswer: { enabled: true }, textValidation: { minLength: 3 } }],
     } } }, { userId: "local-board" });
     if (created.kind !== "ask_user_questions") throw new Error("expected questions");
     const historicalPayload = structuredClone(created.payload);
@@ -409,7 +409,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
   }
 
   it("derives the exact Cloud chat owner, denies other responders, and saves one answer delivery", async () => {
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "test-cloud-token");
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-cloud-token");
     const fixture = await seedChatQuestion();
     const scope = { id: fixture.issueId, companyId: fixture.companyId };
     const created = await interactionsSvc.create(scope, {
@@ -528,7 +528,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
   });
 
   it("lets the implicit local board answer chat questions without an auth row", async () => {
-    vi.stubEnv("PAPERCLIP_DEPLOYMENT_MODE", "local_trusted");
+    vi.stubEnv("OUTPOST_DEPLOYMENT_MODE", "local_trusted");
     const fixture = await seedSourceQuestionFixture({});
     await db.update(issues).set({
       conversationAgentId: fixture.agentId, conversationUserId: "local-board", conversationState: "active",
@@ -545,8 +545,8 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
   });
 
   it.each(["authenticated", "cloud"])("does not infer local-board authority in %s mode", async (mode) => {
-    vi.stubEnv("PAPERCLIP_DEPLOYMENT_MODE", mode === "cloud" ? "local_trusted" : "authenticated");
-    if (mode === "cloud") vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "test-cloud-token");
+    vi.stubEnv("OUTPOST_DEPLOYMENT_MODE", mode === "cloud" ? "local_trusted" : "authenticated");
+    if (mode === "cloud") vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-cloud-token");
     const fixture = await seedSourceQuestionFixture({});
     await expect(interactionsSvc.create({ id: fixture.issueId, companyId: fixture.companyId }, {
       ...questionCreateInput(fixture.runId), addresseeUserId: "local-board",
@@ -557,7 +557,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
   });
 
   it("does not accept a stale Cloud instance-admin row as recipient authority", async () => {
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "test-cloud-token");
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-cloud-token");
     const fixture = await seedSourceQuestionFixture({});
     const userId = "paperclip-id:stale-admin";
     await db.insert(authUsers).values({ id: userId, name: "Stale admin", email: `${randomUUID()}@example.test`, createdAt: new Date(), updatedAt: new Date() });

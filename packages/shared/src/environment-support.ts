@@ -69,7 +69,7 @@ export interface EnvironmentCapabilities {
 const REMOTE_MANAGED_ADAPTERS = new Set<AgentAdapterType>([
   "claude_local",
   "codex_local",
-  "paperclip_runner",
+  "outpost_runner",
   "cursor",
   "gemini_local",
   "grok_local",
@@ -83,7 +83,7 @@ export function adapterSupportsRemoteManagedEnvironments(adapterType: string): b
 }
 
 export function supportedEnvironmentDriversForAdapter(adapterType: string): EnvironmentDriver[] {
-  if (adapterType === "paperclip_runner") return ["local", "ssh", "sandbox", "plugin"];
+  if (adapterType === "outpost_runner") return ["local", "ssh", "sandbox", "plugin"];
   return adapterSupportsRemoteManagedEnvironments(adapterType)
     ? ["local", "ssh", "sandbox"]
     : ["local"];
@@ -197,7 +197,7 @@ export function getEnvironmentCapabilities(
       local: "supported",
       ssh: "supported",
       sandbox: "supported",
-      plugin: adapterTypes.includes("paperclip_runner") ? "supported" : "unsupported",
+      plugin: adapterTypes.includes("outpost_runner") ? "supported" : "unsupported",
     },
     sandboxProviders,
   };

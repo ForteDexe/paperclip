@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
-import { assets, heartbeatRuns, issueAttachments, type Db } from "@paperclipai/db";
+import { assets, heartbeatRuns, issueAttachments, type Db } from "@outpost/db";
 import { z } from "zod";
 import { MAX_ATTACHMENT_BYTES } from "../../attachment-types.js";
 import type { StorageService } from "../../storage/types.js";
@@ -28,16 +28,16 @@ const claimsSchema = z.object({
 }).strict();
 
 function signingSecret(env: NodeJS.ProcessEnv) {
-  return env.PAPERCLIP_AGENT_JWT_SECRET?.trim() || env.BETTER_AUTH_SECRET?.trim();
+  return env.OUTPOST_AGENT_JWT_SECRET?.trim() || env.BETTER_AUTH_SECRET?.trim();
 }
 
 function sign(secret: string, body: Buffer) {
-  return createHmac("sha256", secret).update("paperclip.runner.attachment.v1\0").update(body).digest();
+  return createHmac("sha256", secret).update("outpost.runner.attachment.v1\0").update(body).digest();
 }
 
 export function runnerAttachmentDownloadUrl(env: NodeJS.ProcessEnv = process.env) {
   if (!signingSecret(env)) return null;
-  const configured = env.PAPERCLIP_PUBLIC_URL || env.PAPERCLIP_AUTH_PUBLIC_BASE_URL || env.PAPERCLIP_MANAGED_RUNTIME_PUBLIC_URL;
+  const configured = env.OUTPOST_PUBLIC_URL || env.OUTPOST_AUTH_PUBLIC_BASE_URL || env.OUTPOST_MANAGED_RUNTIME_PUBLIC_URL;
   if (!configured) return null;
   try {
     const origin = new URL(configured);

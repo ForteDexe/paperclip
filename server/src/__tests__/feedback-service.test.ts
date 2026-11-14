@@ -11,7 +11,7 @@ import {
   issueComments,
   issueDocuments,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { feedbackService } from "../services/feedback.js";
 import {
   getEmbeddedPostgresTestSupport,

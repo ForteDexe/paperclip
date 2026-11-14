@@ -241,8 +241,8 @@ const fields = {
   accountingIdentity: optional(shape({ campaignId: string, attemptId: string })),
   publicMcp: optional(assistant),
   schema: oneOf(
-    "paperclip.runner-e2e.result/v1",
-    "paperclip.runner-e2e.result/v2",
+    "outpost.runner-e2e.result/v1",
+    "outpost.runner-e2e.result/v2",
   ),
   executionId: string,
   suiteId: optional(string),
@@ -349,7 +349,7 @@ const fields = {
     ),
   ),
   taskChat: optional(closedShape({
-    schema: oneOf("paperclip.runner-e2e.task-chat/v1"), capturedAt: date,
+    schema: oneOf("outpost.runner-e2e.task-chat/v1"), capturedAt: date,
     status: oneOf("complete", "partial", "unavailable"),
     missing: array(oneOf("agent-names", "task-discovery", "chat-discovery", "task-read", "comments", "interactions", "progress", "thread-projection", "capture")),
     threads: array(closedShape({ issueId: string, identifier: nullable(string), title: string,

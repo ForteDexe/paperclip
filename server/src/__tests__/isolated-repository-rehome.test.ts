@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, applyPendingMigrations, companies, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issues, projects } from "@paperclipai/db";
+import { agents, applyPendingMigrations, companies, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issues, projects } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveManagedProjectWorkspaceDir } from "../home-paths.js";
 import { materializeManagedProjectWorkspace, ensureManagedRepositoriesIgnored } from "../services/managed-repository-checkout.js";
@@ -27,23 +27,23 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_ISOLATED_REHOME_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_ISOLATED_REHOME_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = support.supported ? describe : describe.skip;
 describeEmbeddedPostgres("isolated repository source re-home", () => {
   let db: ReturnType<typeof createDb>;
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let root: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
-  const previousInstance = process.env.PAPERCLIP_INSTANCE_ID;
+  const previousHome = process.env.OUTPOST_HOME;
+  const previousInstance = process.env.OUTPOST_INSTANCE_ID;
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("isolated-repository-rehome-");
     db = createDb(external ?? database!.connectionString);
     root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-isolated-rehome-"));
-    process.env.PAPERCLIP_HOME = path.join(root, "home");
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "41".repeat(32));
+    process.env.OUTPOST_HOME = path.join(root, "home");
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "41".repeat(32));
   });
   afterEach(async () => {
     await db.delete(executionWorkspaceRestorePoints);
@@ -52,8 +52,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
-    if (previousInstance === undefined) delete process.env.PAPERCLIP_INSTANCE_ID; else process.env.PAPERCLIP_INSTANCE_ID = previousInstance;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
+    if (previousInstance === undefined) delete process.env.OUTPOST_INSTANCE_ID; else process.env.OUTPOST_INSTANCE_ID = previousInstance;
     await db.$client.end({ timeout: 1 }); await database?.cleanup(); await fs.rm(root, { recursive: true, force: true });
   });
 
@@ -82,7 +82,7 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree",
       name: "Fixture", status: "active", providerType: "local_fs", cwd: realized.cwd, providerRef: realized.cwd, repoUrl, baseRef: "origin/main",
       branchName: realized.branchName, metadata: { createdByRuntime: realized.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: realized.baseRefSha,
-        isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
     const row = () => db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId)).then(rows => rows[0]!);
     const target = path.join(await fs.realpath(root), path.relative(root, sharedPath), ".paperclip", "worktrees", "fixture-task");
@@ -378,7 +378,7 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     await makeWork(f.cwd);
     await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: f.projectId, sourceIssueId: f.issueId, mode: "isolated_workspace",
       strategyType: "git_worktree", name: "Sibling", status: "active", providerType: "local_fs", cwd: path.join(f.clone, "sibling"), repoUrl: f.repoUrl,
-      metadata: { isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId: f.companyId, issueId: f.issueId, repoUrl: f.repoUrl } } });
+      metadata: { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId: f.companyId, issueId: f.issueId, repoUrl: f.repoUrl } } });
     const result = await rehomeIsolatedRepositoryWorkspace(db, await f.row());
     expect(result).toMatchObject({ rehomed: true, cloneRemoved: false, cloneKeptReason: "base_has_consumers" });
     expect(await exists(f.clone)).toBe(true);

@@ -2,15 +2,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { runChildProcess } from "@paperclipai/adapter-utils/server-utils";
-import { resetClaudeCliCapabilitiesCacheForTests, testEnvironment } from "@paperclipai/adapter-claude-local/server";
+import { runChildProcess } from "@outpost/adapter-utils/server-utils";
+import { resetClaudeCliCapabilitiesCacheForTests, testEnvironment } from "@outpost/adapter-claude-local/server";
 
 const ORIGINAL_ANTHROPIC = process.env.ANTHROPIC_API_KEY;
 const ORIGINAL_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK;
 const ORIGINAL_BEDROCK_URL = process.env.ANTHROPIC_BEDROCK_BASE_URL;
 const ORIGINAL_CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
-const ORIGINAL_PAPERCLIP_HOME = process.env.PAPERCLIP_HOME;
-const ORIGINAL_PAPERCLIP_INSTANCE_ID = process.env.PAPERCLIP_INSTANCE_ID;
+const ORIGINAL_OUTPOST_HOME = process.env.OUTPOST_HOME;
+const ORIGINAL_OUTPOST_INSTANCE_ID = process.env.OUTPOST_INSTANCE_ID;
 
 afterEach(() => {
   resetClaudeCliCapabilitiesCacheForTests();
@@ -34,15 +34,15 @@ afterEach(() => {
   } else {
     process.env.CLAUDE_CONFIG_DIR = ORIGINAL_CLAUDE_CONFIG_DIR;
   }
-  if (ORIGINAL_PAPERCLIP_HOME === undefined) {
-    delete process.env.PAPERCLIP_HOME;
+  if (ORIGINAL_OUTPOST_HOME === undefined) {
+    delete process.env.OUTPOST_HOME;
   } else {
-    process.env.PAPERCLIP_HOME = ORIGINAL_PAPERCLIP_HOME;
+    process.env.OUTPOST_HOME = ORIGINAL_OUTPOST_HOME;
   }
-  if (ORIGINAL_PAPERCLIP_INSTANCE_ID === undefined) {
-    delete process.env.PAPERCLIP_INSTANCE_ID;
+  if (ORIGINAL_OUTPOST_INSTANCE_ID === undefined) {
+    delete process.env.OUTPOST_INSTANCE_ID;
   } else {
-    process.env.PAPERCLIP_INSTANCE_ID = ORIGINAL_PAPERCLIP_INSTANCE_ID;
+    process.env.OUTPOST_INSTANCE_ID = ORIGINAL_OUTPOST_INSTANCE_ID;
   }
 });
 
@@ -409,8 +409,8 @@ console.log(JSON.stringify({ type: "result", result: "hello", usage: { input_tok
     await fs.chmod(commandPath, 0o755);
 
     process.env.CLAUDE_CONFIG_DIR = sourceConfigDir;
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test-instance";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test-instance";
 
     try {
       const result = await testEnvironment({

@@ -71,8 +71,8 @@ export function validSecretScopeReceipt(
   );
 }
 
-/** Native runner shells carry no Paperclip run identity (PAPERCLIP_API_KEY,
- * PAPERCLIP_AGENT_ID and PAPERCLIP_RUN_ID are reserved), so the consumer is
+/** Native runner shells carry no Paperclip run identity (OUTPOST_API_KEY,
+ * OUTPOST_AGENT_ID and OUTPOST_RUN_ID are reserved), so the consumer is
  * identified from saved server state when the bound credential arrives: the
  * agent's one running run, on a task it owns, created from this chat, with its
  * own execution workspace inside the attempt root. Nothing here depends on
@@ -95,7 +95,7 @@ export async function readSecretEndpointActiveRun(ctx: ChatCatalogContext, agent
 }
 
 export async function readSecretEndpointTaskBinding(ctx: ChatCatalogContext, agentId: string, runId: string, taskId: string) {
-  const temporary = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const temporary = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!temporary || !taskId || !ctx.issue()?.id) throw new Error("Actual secret consumer task context unavailable");
   const run = await ctx.input.api.get<{ id: string; companyId: string; agentId: string; status: string; startedAt: string | null; contextSnapshot: { issueId?: string } | null }>(`/api/heartbeat-runs/${runId}`, { timeout: 4000 });
   if (run.id !== runId || run.companyId !== ctx.input.fixtures.company.id || run.agentId !== agentId || run.status !== "running" || !run.startedAt || !Number.isFinite(Date.parse(run.startedAt)) || run.contextSnapshot?.issueId !== taskId)
@@ -126,7 +126,7 @@ export async function secretTestEndpoint(
     throw new Error(
       "Setup blocker: controlled secret endpoint needs the actual local worker environment",
     );
-  const temporary = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const temporary = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!temporary)
     throw new Error("Secret endpoint requires its isolated attempt root");
   const root = await realpath(temporary);
@@ -309,7 +309,7 @@ export async function secretTestEndpoint(
   const port = await listenOnFetchAllowedPort(server),
     scriptPath = home ? path.join(home, `secret-endpoint-check-${ctx.input.nonce}.mjs`) : "",
     url = `http://127.0.0.1:${port}/publishing-check`;
-  const script = `const credential=process.env[${JSON.stringify(envKey)}];if(!credential){process.stdout.write(JSON.stringify({ok:false,reason:'credential unavailable'}));process.exitCode=1;}else{try{const response=await fetch(${JSON.stringify(url)},{method:'GET',redirect:'error',signal:AbortSignal.timeout(20000),headers:{authorization:'Bearer '+credential${options?.personalWorkerReceipt || options?.taskBound || options?.activeRunConsumer ? "" : ",...{'x-paperclip-agent':process.env.PAPERCLIP_AGENT_ID??'','x-paperclip-run':process.env.PAPERCLIP_RUN_ID??''}"},...${options?.forbidAwsRuntimeAuthority ? "{'x-paperclip-no-aws':String(!Object.keys(process.env).some(key=>key.startsWith('AWS_')||key.startsWith('PAPERCLIP_SECRETS_AWS_')))}" : "{}"}}});const result=await response.json();process.stdout.write(JSON.stringify({ok:result.ok===true,status:response.status,check:'publishing endpoint',...${options?.personalWorkerReceipt ? "(/^[a-f0-9]{48}$/.test(result.receiptId??''))?{receiptId:result.receiptId}:{}" : "{}"}}));if(!response.ok)process.exitCode=1;}catch{process.stdout.write(JSON.stringify({ok:false,reason:'endpoint check failed'}));process.exitCode=1;}}\n`;
+  const script = `const credential=process.env[${JSON.stringify(envKey)}];if(!credential){process.stdout.write(JSON.stringify({ok:false,reason:'credential unavailable'}));process.exitCode=1;}else{try{const response=await fetch(${JSON.stringify(url)},{method:'GET',redirect:'error',signal:AbortSignal.timeout(20000),headers:{authorization:'Bearer '+credential${options?.personalWorkerReceipt || options?.taskBound || options?.activeRunConsumer ? "" : ",...{'x-paperclip-agent':process.env.OUTPOST_AGENT_ID??'','x-paperclip-run':process.env.OUTPOST_RUN_ID??''}"},...${options?.forbidAwsRuntimeAuthority ? "{'x-paperclip-no-aws':String(!Object.keys(process.env).some(key=>key.startsWith('AWS_')||key.startsWith('OUTPOST_SECRETS_AWS_')))}" : "{}"}}});const result=await response.json();process.stdout.write(JSON.stringify({ok:result.ok===true,status:response.status,check:'publishing endpoint',...${options?.personalWorkerReceipt ? "(/^[a-f0-9]{48}$/.test(result.receiptId??''))?{receiptId:result.receiptId}:{}" : "{}"}}));if(!response.ok)process.exitCode=1;}catch{process.stdout.write(JSON.stringify({ok:false,reason:'endpoint check failed'}));process.exitCode=1;}}\n`;
   if (scriptPath) await writeFile(scriptPath, script, { mode: 0o600 });
   const command = scriptPath ? `node ${JSON.stringify(scriptPath)}` : `node --input-type=module -e '${script.replace(/'/g, "'\\''")}'`;
   return {

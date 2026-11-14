@@ -131,7 +131,7 @@ export function gradeDependableQualification(config: DependableQualification, at
     return { cell, candidatePassed: candidate.length, candidateRequired: 3, stagingPassedAfterCheckpoint: staging.length,
       complete: checkpointAt !== null && staging.length > 0 };
   });
-  return { schema: "paperclip.e2e.dependable-qualification.v1", revision: config.revision,
+  return { schema: "outpost.e2e.dependable-qualification.v1", revision: config.revision,
     requiredCells: 24, requiredCandidatePasses: 72, complete: cells.every(cell => cell.complete) && !observations.some(row =>
       row.problems.includes("duplicate-attempt-receipt") || row.problems.includes("missing-attempt-receipt")), cells,
     observations, failedAttempts: observations.filter(row => row.originalStatus === "failed").length,

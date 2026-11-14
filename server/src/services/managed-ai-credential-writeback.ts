@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { aiConnectionMetadataSchema } from "@paperclipai/shared";
+import { aiConnectionMetadataSchema } from "@outpost/shared";
 import { and, eq } from "drizzle-orm";
-import { companySecrets, connectionGrants, toolConnections, type Db } from "@paperclipai/db";
+import { companySecrets, connectionGrants, toolConnections, type Db } from "@outpost/db";
 import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decideCodexAuthMerge, readSubscriptionAccountId, withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
-import { decideGrokAuthMerge, parseGrokAuthPayload, hasUsableGrokAuthValue } from "@paperclipai/adapter-grok-local/server";
-import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import { decideCodexAuthMerge, readSubscriptionAccountId, withAccountHomeSecretMutationLock } from "@outpost/adapter-codex-local/server";
+import { decideGrokAuthMerge, parseGrokAuthPayload, hasUsableGrokAuthValue } from "@outpost/adapter-grok-local/server";
+import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@outpost/adapter-utils/workspace-restore-merge";
 import { aiConnectionService } from "./ai-connections.js";
 import { secretService } from "./secrets.js";
 

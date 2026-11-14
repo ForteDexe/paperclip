@@ -4,7 +4,7 @@ import { RunnerApi, SkillSourceUpdateReadError } from "./api.js";
 const company = "11111111-1111-4111-8111-111111111111", skill = "22222222-2222-4222-8222-222222222222";
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function fixture() {
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100"); const traced = { get: vi.fn() };
+  vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100"); const traced = { get: vi.fn() };
   const api = new RunnerApi(traced as unknown as APIRequestContext); api.setBrowserSession("synthetic-private-session");
   return { api, traced };
 }

@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
-import type { IssueChatBootstrap, IssueRecentComments } from "@paperclipai/shared";
+import type { IssueChatBootstrap, IssueRecentComments } from "@outpost/shared";
 import type { RunForIssue } from "@/api/activity";
 import type { ActiveRunForIssue, LiveRunForIssue } from "@/api/heartbeats";
 import { seedIssueIdBatch } from "@/hooks/useIssueIdBatches";

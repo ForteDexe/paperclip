@@ -25,11 +25,11 @@ import {
   issueThreadInteractions,
   issues,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   normalizePrpResultSignals,
   type PrpStructuredRunResult,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 
 const repositoryYieldCorrection = 'This task has a saved repository preparation for its next admission. This is routine setup, not a blocker. Call paperclip_finish with reportedWorkDisposition="yielded" and omit continuation (or use null); Outpost will select the saved workspace continuation. Preserve the completed work and explain what remains. Do not repeat setup, set a timer, or ask the user to restart.';
 
@@ -40,7 +40,7 @@ const repositoryYieldCorrection = 'This task has a saved repository preparation 
 // control plane is reachable now. Ask once per run to re-check with fresh
 // Paperclip calls instead of resting the task blocked on a past stall.
 const paperclipServiceRecheckCorrection = "Outpost answered this report, so its control plane is reachable now. Outpost tool calls that did not return earlier were most likely delayed by an Outpost restart or pause, and their results may have arrived since. Do not report this as a blocker. Re-read the current Outpost state (for example read_document) before writing again; when a write is still needed, repeat it with the same idempotencyKey so it cannot apply twice. Then continue the task and report its real outcome. Report blocked only if a fresh Outpost call fails now.";
-const PAPERCLIP_SERVICE_RECHECK_LIMIT = 1_000;
+const OUTPOST_SERVICE_RECHECK_LIMIT = 1_000;
 const paperclipServiceRechecked = new Set<string>();
 
 function isPaperclipServiceOutageBlocker(result: PrpStructuredRunResult) {
@@ -52,7 +52,7 @@ function isPaperclipServiceOutageBlocker(result: PrpStructuredRunResult) {
 /** Once per run (per server process), so a real persistent failure still rests blocked. */
 function claimPaperclipServiceRecheck(runId: string) {
   if (paperclipServiceRechecked.has(runId)) return false;
-  if (paperclipServiceRechecked.size >= PAPERCLIP_SERVICE_RECHECK_LIMIT)
+  if (paperclipServiceRechecked.size >= OUTPOST_SERVICE_RECHECK_LIMIT)
     paperclipServiceRechecked.delete(paperclipServiceRechecked.values().next().value!);
   paperclipServiceRechecked.add(runId);
   return true;

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { nativeRunMcpRoutes } from "../../server/src/routes/native-run-mcp.js";
 import { createRemoteMcpRelayToken, registerRemoteMcpRelay } from "../../server/src/services/native-runtime/remote-mcp-relay.js";
-import { RUNNER_TOOL_SCOPE_TOKEN_HEADER, startRunnerToolBridge } from "../../packages/paperclip-runner/src/drivers/runner-tool-bridge.js";
+import { RUNNER_TOOL_SCOPE_TOKEN_HEADER, startRunnerToolBridge } from "../../packages/outpost-runner/src/drivers/runner-tool-bridge.js";
 import { assertCursorCloudCallbackIngress, startCursorCloudCallbackProxy } from "./cursor-cloud-callback-proxy.js";
 
 const require = createRequire(resolve(import.meta.dirname, "../../server/package.json"));

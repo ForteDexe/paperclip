@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, agents, companies, createDb } from "@paperclipai/db";
+import { activityLog, agents, companies, createDb } from "@outpost/db";
 import { applyAgentBudgetHoldInTransaction } from "./agent-lifecycle.js";
 import {
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase,

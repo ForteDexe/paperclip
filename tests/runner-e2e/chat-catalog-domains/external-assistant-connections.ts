@@ -139,7 +139,7 @@ export const assistantConnectionExternalCases = [
     gradeAssistantSetup,
     {
       authentication: "human-session",
-      oracleVersion: "paperclip.chat-catalog.external-decline-consent.v2",
+      oracleVersion: "outpost.chat-catalog.external-decline-consent.v2",
       sourceFiles: [
         "chat-catalog-domains/external-assistant-connections.ts",
         "chat-catalog-domains/external-support.ts",

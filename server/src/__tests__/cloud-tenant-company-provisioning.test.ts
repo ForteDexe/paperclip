@@ -12,14 +12,14 @@ import {
   instanceUserRoles,
   issues,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "../middleware/auth.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_CLOUD_PROVISIONING_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_CLOUD_PROVISIONING_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -66,11 +66,11 @@ describeEmbeddedPostgres("cloud tenant company provisioning", () => {
   }, 20_000);
 
   beforeEach(() => {
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = SERVER_TOKEN;
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = SERVER_TOKEN;
   });
 
   afterEach(async () => {
-    delete process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
+    delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
     await db.delete(activityLog);
     await db.delete(principalPermissionGrants);
     await db.delete(companyMemberships);

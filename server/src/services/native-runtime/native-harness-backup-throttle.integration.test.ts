@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { heartbeatRuns, nativeHarnessBackups, nativeRunFinalizations } from "@paperclipai/db";
+import { heartbeatRuns, nativeHarnessBackups, nativeRunFinalizations } from "@outpost/db";
 import { afterEach, expect, it, vi } from "vitest";
 import { describeEmbeddedPostgres, nativeRestartFixture } from "../../__tests__/helpers/native-restart.js";
 import { createLocalDiskStorageProvider } from "../../storage/local-disk-provider.js";
@@ -23,7 +23,7 @@ describeEmbeddedPostgres("durable native provider backups under an object-storag
     vi.unstubAllEnvs();
   });
   async function fixture(provider = "codex") {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "51".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "51".repeat(32));
     const f = await environment.seedRun(randomUUID());
     const { companyId, runtimeRoot, successor } = environment.current;
     await f.db.update(nativeRunFinalizations).set({ controllerBootId: successor.bootId, controllerGeneration: 1,
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("durable native provider backups under an object-storag
     const identity = { normalizedSessionId: randomUUID(), providerSessionId: randomUUID(), provider };
     await writeFile(join(root, provider, "sessions", "history.json"), JSON.stringify(identity), { mode: 0o600 });
     await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({ runId: f.runId, lifecycle: "suspended" }), { mode: 0o600 });
-    const manifest = JSON.stringify({ schema: "paperclip.native-harness-backup.v1", ...identity, directories: [provider, "runner"] });
+    const manifest = JSON.stringify({ schema: "outpost.native-harness-backup.v1", ...identity, directories: [provider, "runner"] });
     await writeFile(join(root, "manifest.json"), manifest, { mode: 0o600 });
     await chmod(join(root, provider, "sessions"), 0o500);
     const sessionScopeId = randomUUID(), scopeDigest = createHash("sha256").update(sessionScopeId).digest("hex");
@@ -56,13 +56,13 @@ describeEmbeddedPostgres("durable native provider backups under an object-storag
     })));
     const payload = { runnerSourceRevision: "a".repeat(40), target: { platform: "linux", architecture: "x64" },
       pins: { opencode: "1.18.34" }, artifacts: { ...artifacts, opencodeCommand: artifacts.opencodeExecutable } };
-    const manifest = { schema: "paperclip-runner/remote-provider-pack/v1", payload,
+    const manifest = { schema: "outpost-runner/remote-provider-pack/v1", payload,
       digest: `sha256:${createHash("sha256").update(canonicalProviderPackJson(payload)).digest("hex")}` };
-    const launchRoot = `/home/daytona/.paperclip-runtime/paperclip-runner/provider-artifacts/${manifest.digest.slice(7)}`;
+    const launchRoot = `/home/daytona/.paperclip-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`;
     await f.db.update(heartbeatRuns).set({ nativeSessionId: f.identity.normalizedSessionId, driverKind: "opencode_server",
       runnerProfileJson: { ...f.preparedProfile, nativeProviderPackAdmissionState: {
-        schema: "paperclip.native-provider-pack-admission-state.v1", state: "verified", admissionEpoch: randomUUID() },
-      nativeProviderPackAdmission: { schema: "paperclip.native-provider-pack-admission.v1", stage: "session_admitted",
+        schema: "outpost.native-provider-pack-admission-state.v1", state: "verified", admissionEpoch: randomUUID() },
+      nativeProviderPackAdmission: { schema: "outpost.native-provider-pack-admission.v1", stage: "session_admitted",
         authority: "core_verified_selection", companyId: f.companyId, agentId: environment.current.agentId,
         runId: f.runId, sessionId: f.identity.normalizedSessionId, runnerInstanceId: "artifact-fixture-runner",
         runnerEnvironmentLeaseId: "artifact-fixture-lease", providerPackDigest: manifest.digest,

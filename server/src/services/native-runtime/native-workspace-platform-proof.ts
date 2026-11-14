@@ -49,7 +49,7 @@ export function verifyWorkspaceWorkerStopReceipt(
     const proof = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as WorkspaceWorkerStopProof;
     const seconds = Math.floor(now.getTime()/1000);
     if (proof.v !== 1 || proof.iss !== "paperclip-cloud" || proof.aud !== "paperclip-workspace-worker-stop/v1"
-      || !env.PAPERCLIP_CLOUD_STACK_ID || proof.sub !== env.PAPERCLIP_CLOUD_STACK_ID || proof.stopped !== true
+      || !env.OUTPOST_CLOUD_STACK_ID || proof.sub !== env.OUTPOST_CLOUD_STACK_ID || proof.stopped !== true
       || proof.runId !== binding.runId || proof.ownerToken !== binding.ownerToken
       || !Number.isInteger(proof.iat) || !Number.isInteger(proof.exp) || proof.iat > seconds+30
       || proof.exp <= seconds || proof.exp <= proof.iat || proof.exp-proof.iat > 60
@@ -64,7 +64,7 @@ export type WorkspaceWorkerStopCheck =
 
 export function workspaceWorkerStopProofSupported(worker: WorkspaceWorker | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
   const context = getCloudStackContext(env);
-  if (!context?.stackId || !context.cloudOrigin || !env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN?.trim() || !validWorker(worker)) return false;
+  if (!context?.stackId || !context.cloudOrigin || !env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN?.trim() || !validWorker(worker)) return false;
   try {
     const origin = new URL(context.cloudOrigin);
     return origin.protocol === "https:" && !origin.username && !origin.password;
@@ -77,7 +77,7 @@ export async function requestWorkspaceWorkerStopProof(binding: WorkspaceStopBind
 } = {}): Promise<WorkspaceWorkerStopCheck> {
   const env = options.env ?? process.env;
   const context = getCloudStackContext(env);
-  const token = env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN?.trim();
+  const token = env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN?.trim();
   if (!workspaceWorkerStopProofSupported(binding.worker, env) || !context?.stackId || !context.cloudOrigin || !token) return { status: "unsupported" };
   let origin: URL;
   try { origin = new URL(context.cloudOrigin); } catch { return { status: "unsupported" }; }

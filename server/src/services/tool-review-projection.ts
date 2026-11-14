@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, inArray, or, sql } from "drizzle-orm";
-import { issueThreadInteractions, toolActionRequests, toolInvocations, type Db } from "@paperclipai/db";
+import { issueThreadInteractions, toolActionRequests, toolInvocations, type Db } from "@outpost/db";
 import { TOOL_APPROVAL_CONNECTION_REQUIRED } from "./tool-approval-connection.js";
 
 export function toolReviewProjectionService(db: Db, reflect: (input: {

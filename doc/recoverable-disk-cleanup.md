@@ -43,14 +43,14 @@ Controls:
 
 | Environment variable | Default | Effect |
 | --- | --- | --- |
-| `PAPERCLIP_SKILL_VERSION_RETENTION_ENABLED` | `true` | Set `false` to stop future sweeps; restoration stays available |
-| `PAPERCLIP_SKILL_VERSION_RETENTION_DRY_RUN` | `false` | Set `true` to report candidates without changing cache or access records |
+| `OUTPOST_SKILL_VERSION_RETENTION_ENABLED` | `true` | Set `false` to stop future sweeps; restoration stays available |
+| `OUTPOST_SKILL_VERSION_RETENTION_DRY_RUN` | `false` | Set `true` to report candidates without changing cache or access records |
 
 The internal `skillVersionRetentionService` supports company-scoped diagnosis,
 bounded continuations, cancellation between entries, and dry run. Explicit agent
 pins stay cached. Operators can also retain newest versions with
-`PAPERCLIP_SKILL_VERSION_RETENTION_KEEP` (default `0`), or change the one-hour
-window with `PAPERCLIP_SKILL_VERSION_RETENTION_GRACE_MINUTES` (default `60`). Each batch reports
+`OUTPOST_SKILL_VERSION_RETENTION_KEEP` (default `0`), or change the one-hour
+window with `OUTPOST_SKILL_VERSION_RETENTION_GRACE_MINUTES` (default `60`). Each batch reports
 candidate and reclaimed allocated bytes, eviction counts, and skip reasons in
 the server log. Compare volume usage before and after to verify physical savings;
 concurrent writes and filesystem allocation can affect the net change. A dry run
@@ -64,7 +64,7 @@ this worker never scans or removes them.
 
 After each remote turn, the server copies the sandbox's harness state (runner
 state plus the provider's session home, such as `codex-home`) to
-`<instance>/runtime/paperclip-runner/durable-sessions/<scope>/failover-backups/current`.
+`<instance>/runtime/outpost-runner/durable-sessions/<scope>/failover-backups/current`.
 A replacement sandbox restores the session from this copy, and an ephemeral sandbox
 restores it at the start of every turn. Each session keeps one copy, and a single
 copy can reach several gigabytes. Codex copies omit credentials, scratch
@@ -112,10 +112,10 @@ The rest of the session directory, including its control-plane state, is kept.
 
 | Environment variable | Default | Effect |
 | --- | --- | --- |
-| `PAPERCLIP_NATIVE_HARNESS_BACKUP_EXPIRATION_ENABLED` | `true` | Set `false` to stop expiring copies |
-| `PAPERCLIP_NATIVE_HARNESS_BACKUP_EXPIRATION_DRY_RUN` | `false` | Set `true` to report candidates without deleting copies or task sessions |
-| `PAPERCLIP_NATIVE_HARNESS_BACKUP_EXPIRATION_DAYS` | `7` | Days an issue must be closed before its sessions' copies expire (minimum `1`) |
-| `PAPERCLIP_NATIVE_RUNNER_EVIDENCE_RETENTION_DAYS` | `7` | Days continuity-break archives and quarantined session state are kept (minimum `1`) |
+| `OUTPOST_NATIVE_HARNESS_BACKUP_EXPIRATION_ENABLED` | `true` | Set `false` to stop expiring copies |
+| `OUTPOST_NATIVE_HARNESS_BACKUP_EXPIRATION_DRY_RUN` | `false` | Set `true` to report candidates without deleting copies or task sessions |
+| `OUTPOST_NATIVE_HARNESS_BACKUP_EXPIRATION_DAYS` | `7` | Days an issue must be closed before its sessions' copies expire (minimum `1`) |
+| `OUTPOST_NATIVE_RUNNER_EVIDENCE_RETENTION_DAYS` | `7` | Days continuity-break archives and quarantined session state are kept (minimum `1`) |
 
 Each batch that finds candidates logs them with candidate and reclaimed allocated
 bytes, cleared task sessions, and skip reasons.
@@ -133,7 +133,7 @@ under the same root:
 
 An entry's age comes from the epoch in its name, or from its modification time when
 that epoch is in the future. An entry is removed once it is older than
-`PAPERCLIP_NATIVE_RUNNER_EVIDENCE_RETENTION_DAYS` and its session is not executing,
+`OUTPOST_NATIVE_RUNNER_EVIDENCE_RETENTION_DAYS` and its session is not executing,
 initializing, warm, or closing in this process. Quarantine entries created by
 native cleanup (`<session>.identity_indeterminate.cleanup.<UUID>`) are referenced
 from recovery history and kept. Symlinks are never followed or removed. Once a
@@ -150,7 +150,7 @@ An entry is renamed to `.expired-<UUID>` in its folder before it is deleted, and
 later sweep finishes an interrupted deletion. An empty `continuity-breaks` folder
 is removed. Archives, quarantine entries, and leftovers count toward the batch
 limits of 200 entries and 50 removals shared with backup copies, and
-`PAPERCLIP_NATIVE_HARNESS_BACKUP_EXPIRATION_ENABLED` and `_DRY_RUN` apply to both.
+`OUTPOST_NATIVE_HARNESS_BACKUP_EXPIRATION_ENABLED` and `_DRY_RUN` apply to both.
 
 ## Native workspace sync folders
 
@@ -203,20 +203,20 @@ run state 200 folders at a time and stops when the server drains or shuts down.
 
 | Environment variable | Default | Effect |
 | --- | --- | --- |
-| `PAPERCLIP_NATIVE_WORKSPACE_SYNC_RETENTION_ENABLED` | `true` | Set `false` to stop removing folders |
-| `PAPERCLIP_NATIVE_WORKSPACE_SYNC_RETENTION_DRY_RUN` | `false` | Set `true` to report candidates without removing folders |
-| `PAPERCLIP_NATIVE_WORKSPACE_SYNC_RETENTION_DAYS` | `7` | Days a run must be finished, and its folder untouched, before removal (minimum `1`) |
+| `OUTPOST_NATIVE_WORKSPACE_SYNC_RETENTION_ENABLED` | `true` | Set `false` to stop removing folders |
+| `OUTPOST_NATIVE_WORKSPACE_SYNC_RETENTION_DRY_RUN` | `false` | Set `true` to report candidates without removing folders |
+| `OUTPOST_NATIVE_WORKSPACE_SYNC_RETENTION_DAYS` | `7` | Days a run must be finished, and its folder untouched, before removal (minimum `1`) |
 
 Each batch that finds candidates logs them with candidate and reclaimed allocated
 bytes and skip reasons.
 
 ## Git workspace restore points
 
-Git cache expiration (`PAPERCLIP_GIT_CACHE_EXPIRATION_ENABLED=true`) normally removes a
+Git cache expiration (`OUTPOST_GIT_CACHE_EXPIRATION_ENABLED=true`) normally removes a
 closed issue's worktree only when its remote can reproduce it exactly. With
-`PAPERCLIP_GIT_RESTORE_POINTS_ENABLED=true`, it can also remove a worktree that has
+`OUTPOST_GIT_RESTORE_POINTS_ENABLED=true`, it can also remove a worktree that has
 unpushed commits, uncommitted or untracked files, or history-only commits, once its issue
-tree has been closed for `PAPERCLIP_GIT_RESTORE_POINT_TERMINAL_DELAY_DAYS` (default `3`).
+tree has been closed for `OUTPOST_GIT_RESTORE_POINT_TERMINAL_DELAY_DAYS` (default `3`).
 For this, only the issues in the tree that use the workspace count: the source issue, and
 each descendant that is bound to it (`execution_workspace_id`, which is how a child that
 inherits the parent's workspace with `reuse_existing` is recorded) or that selects it as
@@ -229,7 +229,7 @@ workspace, its next run or a comment reopens it from the restore point, as below
 workspace reaper does not compact or archive such a worktree by its normal rules while
 descendants are open; only expiration removes it.
 It also removes the worktree of an issue tree that is still open once nothing has
-touched it for `PAPERCLIP_GIT_RESTORE_POINT_IDLE_DAYS` (default `7`, `0` turns this off):
+touched it for `OUTPOST_GIT_RESTORE_POINT_IDLE_DAYS` (default `7`, `0` turns this off):
 no issue in the tree or bound to the workspace was updated and no run for those issues or
 the workspace was created, started or finished in that time, and no run is still live. An
 interrupted removal is finished by later sweeps while the issue stays open. The workspace reaper sets a
@@ -255,7 +255,7 @@ Before removal it saves a restore point:
 The restore point is encrypted with a per-restore-point key wrapped by the instance
 secrets key, uploaded to file storage, read back and hash-checked, then activated in
 the same transaction that archives the workspace with a versioned recipe
-(`paperclip.git-cache-restoration.v2`). Older servers reject that recipe instead of
+(`outpost.git-cache-restoration.v2`). Older servers reject that recipe instead of
 restoring without the saved work. Under the expiration locks, the worktree must still
 match the captured snapshot exactly; otherwise expiration rolls back, keeps the
 worktree, and drops the restore point.
@@ -282,7 +282,7 @@ re-clones the checkout, imports its bundle, checks out the saved commit and appl
 restore point. Submodules, special git state and ignored files other than `.env`
 still keep a worktree from expiring.
 Restore points are refused when the file storage is `s3` and the secrets master key
-does not come from `PAPERCLIP_SECRETS_MASTER_KEY`.
+does not come from `OUTPOST_SECRETS_MASTER_KEY`.
 
 ## Isolated task directories
 
@@ -300,9 +300,9 @@ directory too: artifact cleanup removes a `local_fs` directory only when the row
 runtime created it, and task directory rows never say so. Deleting them on archive would
 discard work silently, so retention saves the files first instead.
 
-With `PAPERCLIP_TASK_DIRECTORY_RETENTION_ENABLED=true` the terminal workspace reaper
+With `OUTPOST_TASK_DIRECTORY_RETENTION_ENABLED=true` the terminal workspace reaper
 handles an open task directory row once every issue in its tree has been `done` or
-`cancelled` for `PAPERCLIP_GIT_RESTORE_POINT_TERMINAL_DELAY_DAYS` (default `3`), the same
+`cancelled` for `OUTPOST_GIT_RESTORE_POINT_TERMINAL_DELAY_DAYS` (default `3`), the same
 delay git restore points use. It registers that moment as its deadline, so a closed tree
 costs no checks before then. It removes the directory only when all of these hold, checked
 under the issue's source lock and the workspace lifecycle lock:
@@ -331,11 +331,11 @@ per-restore-point key wrapped by the instance secrets key, uploaded to file stor
 `git-restore-points/<workspace>/<generation>/task-directory/`, read back and hash-checked,
 and activated in the same transaction that archives the workspace and records the
 `isolatedTaskDirectoryRetention` state in its metadata. It follows the git restore point
-retention (`PAPERCLIP_GIT_RESTORE_POINT_RETENTION_DAYS`, default `90`), counted from the
+retention (`OUTPOST_GIT_RESTORE_POINT_RETENTION_DAYS`, default `90`), counted from the
 later of the tree's close and the removal, so a task that closed long ago still keeps its
-files for the full period. Restore points must be enabled (`PAPERCLIP_GIT_RESTORE_POINTS_ENABLED=true`,
+files for the full period. Restore points must be enabled (`OUTPOST_GIT_RESTORE_POINTS_ENABLED=true`,
 `restore_points_disabled` otherwise), and they are refused when the file storage is `s3`
-and the secrets master key does not come from `PAPERCLIP_SECRETS_MASTER_KEY`.
+and the secrets master key does not come from `OUTPOST_SECRETS_MASTER_KEY`.
 
 Right before deletion the directory is read again. If anything changed since the capture,
 the workspace is made active again, the restore point is dropped and the directory stays
@@ -370,7 +370,7 @@ symbolic links. For each directory:
 - any other directory is an orphan: its workspace row is missing, or archived or
   `cleanup_failed` without the issue bound to it. An orphan is removed when its issue is
   gone, or every issue in the tree has been closed for
-  `PAPERCLIP_TASK_DIRECTORY_ORPHAN_GRACE_DAYS` (default `7`), and nothing in it changed
+  `OUTPOST_TASK_DIRECTORY_ORPHAN_GRACE_DAYS` (default `7`), and nothing in it changed
   during that period, and no project workspace, live runtime service, unsettled run,
   finalization, live lease or unresolved recovery action of the issue refers to it. Leases
 count when they belong to a run of the issue tree, to an issue in the tree, or to any
@@ -393,9 +393,9 @@ scheduled an hour later.
 
 | Environment variable | Default | Effect |
 | --- | --- | --- |
-| `PAPERCLIP_TASK_DIRECTORY_RETENTION_ENABLED` | `false` | Set `true` to let the reaper handle task directories |
-| `PAPERCLIP_TASK_DIRECTORY_RETENTION_DRY_RUN` | `true` | Set `false` to save and remove; a dry run only reports candidates and needs no restore points |
-| `PAPERCLIP_TASK_DIRECTORY_ORPHAN_GRACE_DAYS` | `7` | Days an orphan's issue tree must be closed and its contents unchanged before removal (minimum `1`) |
+| `OUTPOST_TASK_DIRECTORY_RETENTION_ENABLED` | `false` | Set `true` to let the reaper handle task directories |
+| `OUTPOST_TASK_DIRECTORY_RETENTION_DRY_RUN` | `true` | Set `false` to save and remove; a dry run only reports candidates and needs no restore points |
+| `OUTPOST_TASK_DIRECTORY_ORPHAN_GRACE_DAYS` | `7` | Days an orphan's issue tree must be closed and its contents unchanged before removal (minimum `1`) |
 
 Each open or pending workspace logs `event: "execution_workspace.task_directory_retention"`
 with its outcome (`removed`, `dry_run` or `skipped`), skip reason, candidate bytes and
@@ -459,7 +459,7 @@ the project repairs its registration.
 
 Tasks prepared before nested worktrees existed still hold a full standalone clone in each
 `.paperclip-repositories/<name>-<key>` checkout, often of the same large repository many
-times over. With `PAPERCLIP_NESTED_CLONE_MIGRATION_ENABLED=true`, the terminal workspace
+times over. With `OUTPOST_NESTED_CLONE_MIGRATION_ENABLED=true`, the terminal workspace
 reaper converts each such checkout in an open task into a worktree of the project's shared
 clone and deletes the standalone clone. It holds the source lock and workspace lifecycle
 lock that git cache expiration holds, the per-shared-clone lock that nested worktree
@@ -538,7 +538,7 @@ only at checkouts named after the project's configured repositories (plus pendin
 never at arbitrary directories, and attempts at most 8 per workspace per sweep. Pending
 recoveries go first, and the rest rotate across sweeps. While a rotation has not yet visited
 every checkout it registers a retry deadline; after a full rotation without progress it waits
-for a later sweep, until a conversion succeeds or the set of candidate checkouts changes. `PAPERCLIP_NESTED_CLONE_MIGRATION_DRY_RUN=true` reports candidates
+for a later sweep, until a conversion succeeds or the set of candidate checkouts changes. `OUTPOST_NESTED_CLONE_MIGRATION_DRY_RUN=true` reports candidates
 without changing anything and registers no deadlines.
 
 Reopening the issue, or the next run that recreates the worktree, imports the bundle,
@@ -577,7 +577,7 @@ a failed deletion's retry. With nothing due, it schedules nothing, and open tree
 no recurring checks. At review it checks the source issue tree:
 
 - Tree still open: clear `delete_after` and wait for the next issue change.
-- Tree `done` or `cancelled`: expire `PAPERCLIP_GIT_RESTORE_POINT_RETENTION_DAYS`
+- Tree `done` or `cancelled`: expire `OUTPOST_GIT_RESTORE_POINT_RETENTION_DAYS`
   (default `90`, minimum `1`) after the tree's latest close, immediately if that time
   has passed. Expiry first moves the row to `expiring`, runs the expiry hook, and only
   then requests deletion. An `expiring` row's object is never deleted; after a restart
@@ -605,7 +605,7 @@ issue's worktree inside it. Workspace metadata marks these with `isolatedRemoteS
 New workspaces no longer get one; they are worktrees of the project's shared managed
 clone. Each old clone still holds a full `.git` and an unused default-branch checkout.
 
-With `PAPERCLIP_ISOLATED_SOURCE_REHOME_ENABLED=true` (and git cache expiration enabled),
+With `OUTPOST_ISOLATED_SOURCE_REHOME_ENABLED=true` (and git cache expiration enabled),
 the terminal workspace reaper moves each such open workspace onto the shared clone and
 then deletes its private clone. It runs under the same source lock, workspace lifecycle
 lock and Git lock files as git cache expiration, so no run, expiration, reopen or
@@ -705,7 +705,7 @@ Each attempt logs `event: "execution_workspace.isolated_source_rehome"` with the
 skip reason, candidate bytes and reclaimed bytes. A workspace that is skipped, or whose
 clone is kept for a reason that can change, is retried an hour later through the reaper's
 existing deadlines; nothing runs while there is no candidate.
-`PAPERCLIP_ISOLATED_SOURCE_REHOME_DRY_RUN=true` reports candidates without changing
+`OUTPOST_ISOLATED_SOURCE_REHOME_DRY_RUN=true` reports candidates without changing
 anything.
 
 Re-homed workspaces get a new path. An agent that resumes an older session may still

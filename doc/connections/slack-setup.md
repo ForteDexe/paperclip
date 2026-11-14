@@ -35,7 +35,7 @@ Managed setup is disabled by default. Qualification requires all of:
 - The instance chat-connector rollout gate and connection-management permission.
 - Verified Cloud runtime identity, connector broker signing/sealing configuration,
   and valid independently configured public board and webhook HTTPS origins.
-- `PAPERCLIP_SLACK_MANAGED_SETUP_ENABLED=true` on the approved tenant deployment.
+- `OUTPOST_SLACK_MANAGED_SETUP_ENABLED=true` on the approved tenant deployment.
 - The companion Cloud broker deployment with the explicitly enabled `slack.manager`
   profile, approved Slack manager app, token rotation, and its client secret in
   the broker's secret store. No manager client secret belongs in the tenant.
@@ -135,8 +135,8 @@ the production manager-grant vault, state claims, provisioning, completion, and
 runtime. It does not exercise the Cloud broker's sealed handoff; qualify that
 separately on staging afterward.
 
-Set `NODE_ENV=development`, `PAPERCLIP_SLACK_MANAGED_SETUP_ENABLED=true`, and
-`PAPERCLIP_SLACK_MANAGER_DEVELOPMENT_CONFIG` to an absolute path outside the
+Set `NODE_ENV=development`, `OUTPOST_SLACK_MANAGED_SETUP_ENABLED=true`, and
+`OUTPOST_SLACK_MANAGER_DEVELOPMENT_CONFIG` to an absolute path outside the
 checkout containing a mode-0600 JSON file with `appId`, `clientId`, and
 `clientSecret`. Use only an authorized qualification manager app. No credentials
 are shipped with Paperclip. Production ignores this development configuration,
@@ -258,7 +258,7 @@ prove live Slack, complete configuration UI or a deployed stop/restart/wake jour
 ### Reproduce the paired Cloud acceptance
 
 Use the repository's supported Node version and installed dependencies. Compile
-the companion Cloud checkout first. Set `PAPERCLIP_SLACK_TEST_DATABASE_URL` and
+the companion Cloud checkout first. Set `OUTPOST_SLACK_TEST_DATABASE_URL` and
 `SLACK_EVENT_TEST_DATABASE_URL` to two distinct, owned loopback PostgreSQL
 `*_test` databases. Set `SLACK_TEST_CLOUD_DIST` to its absolute compiled `dist`
 directory. This test applies actual migrations and uses only those two databases.

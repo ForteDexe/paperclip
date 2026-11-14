@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, like, sql } from "drizzle-orm";
-import { chatEndpoints, chatSlackManagerGrants, chatSlackRegistrations, companySecrets, toolOauthStates } from "@paperclipai/db";
-import { SLACK_MANAGER_SCOPES, type SlackSetupOptions as SetupChoices } from "@paperclipai/shared";
+import { chatEndpoints, chatSlackManagerGrants, chatSlackRegistrations, companySecrets, toolOauthStates } from "@outpost/db";
+import { SLACK_MANAGER_SCOPES, type SlackSetupOptions as SetupChoices } from "@outpost/shared";
 import { conflict, forbidden } from "../../../../errors.js";
 import { getCloudRuntimeIdentity } from "../../../cloud-runtime-identity.js";
-import { createPaperclipCloudConnector, paperclipCloudConnectorConfigFromEnv, type SealedConnectorCredentials } from "../../../paperclip-cloud-connector.js";
+import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv, type SealedConnectorCredentials } from "../../../paperclip-cloud-connector.js";
 import { instanceSettingsService } from "../../../instance-settings.js";
 import { accessService } from "../../../access.js";
 import { secretService } from "../../../secrets.js";
@@ -24,8 +24,8 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
       if (development) return development;
     }
     // Open-source instances never contact a hosted service to discover this path.
-    if (!getCloudRuntimeIdentity() || process.env.PAPERCLIP_SLACK_MANAGED_SETUP_ENABLED !== "true") return null;
-    const config = paperclipCloudConnectorConfigFromEnv();
+    if (!getCloudRuntimeIdentity() || process.env.OUTPOST_SLACK_MANAGED_SETUP_ENABLED !== "true") return null;
+    const config = outpostCloudConnectorConfigFromEnv();
     return config ? createPaperclipCloudConnector({ config }) : null;
   }
   async function access(companyId: string, actor: SlackSetupActor, database: Database = db) {

@@ -1,15 +1,15 @@
 import { createHash } from "node:crypto";
 
 import { and, asc, eq, inArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   assets,
   heartbeatRuns,
   issueAttachments,
   issueComments,
   issues,
-} from "@paperclipai/db";
-import type { SourceTrustMetadata } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { SourceTrustMetadata } from "@outpost/shared";
 
 import { createRunSecretRedactionRegistry } from "../run-secret-redaction.js";
 import { sanitizeQuarantinedCommentForHigherTrust } from "../source-trust.js";
@@ -19,9 +19,9 @@ import { nativeRunHandedOffTask } from "./native-human-self-handoff.js";
 export const READ_CURRENT_WAKE_COMMENTS_TOOL_NAME =
   "read_current_wake_comments";
 export const CURRENT_WAKE_COMMENTS_BINDING_SCHEMA =
-  "paperclip.current-wake-comments-binding.v1";
+  "outpost.current-wake-comments-binding.v1";
 export const CURRENT_WAKE_COMMENTS_RECEIPT_SCHEMA =
-  "paperclip.current-wake-comments-receipt.v1";
+  "outpost.current-wake-comments-receipt.v1";
 export const NATIVE_CURRENT_WAKE_COMMENTS_UNREAD = "native_current_wake_comments_unread";
 export const NATIVE_CURRENT_WAKE_COMMENTS_CHANGED_AFTER_READ = "native_current_wake_comments_changed_after_read";
 
@@ -73,7 +73,7 @@ export const READ_CURRENT_WAKE_COMMENTS_TOOL_DEFINITION = Object.freeze({
     additionalProperties: false,
   },
   annotations: {
-    semanticContract: "paperclip.server-current-wake-comments.v1",
+    semanticContract: "outpost.server-current-wake-comments.v1",
     operationId: READ_CURRENT_WAKE_COMMENTS_TOOL_NAME,
     version: 1,
     exposure: "run_scoped",
@@ -117,7 +117,7 @@ type CurrentWakeCommentsSnapshot = {
 };
 
 type CurrentWakeCommentsCursor = {
-  schema: "paperclip.current-wake-comments-cursor.v1";
+  schema: "outpost.current-wake-comments-cursor.v1";
   bindingDigest: string;
   snapshotDigest: string;
   commentIndex: number;
@@ -131,7 +131,7 @@ type CurrentWakeCommentChunk = Omit<CurrentWakeComment, "body"> & {
 };
 
 export type CurrentWakeCommentsPage = {
-  schema: "paperclip.current-wake-comments-page.v1";
+  schema: "outpost.current-wake-comments-page.v1";
   bindingDigest: string;
   snapshotDigest: string;
   requestedCount: number;
@@ -363,7 +363,7 @@ function decodeCursor(
       JSON.parse(Buffer.from(value, "base64url").toString("utf8")),
     );
     if (
-      parsed.schema !== "paperclip.current-wake-comments-cursor.v1" ||
+      parsed.schema !== "outpost.current-wake-comments-cursor.v1" ||
       parsed.bindingDigest !== binding.bindingDigest ||
       parsed.snapshotDigest !== snapshotDigest ||
       !Number.isSafeInteger(parsed.commentIndex) ||
@@ -397,7 +397,7 @@ function parseReceipt(value: unknown): CurrentWakeCommentsReceipt | null {
     ) ||
     !(receipt.nextCursor === null || typeof receipt.nextCursor === "string") ||
     typeof receipt.complete !== "boolean" ||
-    result.schema !== "paperclip.current-wake-comments-page.v1"
+    result.schema !== "outpost.current-wake-comments-page.v1"
   ) {
     return null;
   }
@@ -590,14 +590,14 @@ function buildPage(
   const nextCursor = complete
     ? null
     : encodeCursor({
-        schema: "paperclip.current-wake-comments-cursor.v1",
+        schema: "outpost.current-wake-comments-cursor.v1",
         bindingDigest: binding.bindingDigest,
         snapshotDigest: snapshot.snapshotDigest,
         commentIndex,
         bodyOffset,
       });
   return {
-    schema: "paperclip.current-wake-comments-page.v1",
+    schema: "outpost.current-wake-comments-page.v1",
     bindingDigest: binding.bindingDigest,
     snapshotDigest: snapshot.snapshotDigest,
     requestedCount: binding.commentIds.length,

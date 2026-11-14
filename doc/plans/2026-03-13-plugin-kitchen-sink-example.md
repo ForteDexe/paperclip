@@ -135,8 +135,8 @@ The implementation should keep a small validation checklist for these before we 
 The plugin should be named:
 
 - display name: `Kitchen Sink (Example)`
-- package: `@paperclipai/plugin-kitchen-sink-example`
-- plugin id: `paperclip.kitchen-sink-example` or `paperclip-kitchen-sink-example`
+- package: `@outpost/plugin-kitchen-sink-example`
+- plugin id: `outpost.kitchen-sink-example` or `paperclip-kitchen-sink-example`
 
 Recommendation: use `paperclip-kitchen-sink-example` to match current in-repo example naming style.
 

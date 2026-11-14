@@ -7,7 +7,7 @@ import {
   serializeDirectorySnapshot,
   captureDirectorySnapshot,
   disposeDirectorySnapshot,
-} from "@paperclipai/adapter-utils/workspace-restore-merge";
+} from "@outpost/adapter-utils/workspace-restore-merge";
 
 import {
   classifyNativeWorkspaceInbound,
@@ -22,16 +22,16 @@ import {
 const digest = "a".repeat(64);
 
 describe("native workspace sync durable metadata", () => {
-  const originalPaperclipHome = process.env.PAPERCLIP_HOME;
-  const originalPaperclipInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+  const originalPaperclipHome = process.env.OUTPOST_HOME;
+  const originalPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
   const cleanupDirs: string[] = [];
 
   afterEach(async () => {
-    if (originalPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = originalPaperclipHome;
+    if (originalPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = originalPaperclipHome;
     if (originalPaperclipInstanceId === undefined)
-      delete process.env.PAPERCLIP_INSTANCE_ID;
-    else process.env.PAPERCLIP_INSTANCE_ID = originalPaperclipInstanceId;
+      delete process.env.OUTPOST_INSTANCE_ID;
+    else process.env.OUTPOST_INSTANCE_ID = originalPaperclipInstanceId;
     await Promise.all(
       cleanupDirs
         .splice(0)
@@ -115,7 +115,7 @@ describe("native workspace sync durable metadata", () => {
 
   it("reads backward-compatible references and the resource disposition", () => {
     const base = {
-      schema: "paperclip.native-workspace-sync/v1",
+      schema: "outpost.native-workspace-sync/v1",
       state: "prepared",
       descriptorSha256: digest,
       baselineSha256: digest,
@@ -156,8 +156,8 @@ describe("native workspace sync durable metadata", () => {
   it.each(["corrupt", "symlink", "foreign"] as const)("persists compact v2 manifests and rejects %s recovery storage", async (tamper) => {
     const paperclipHome = await mkdtemp(path.join(os.tmpdir(), "paperclip-native-manifest-"));
     cleanupDirs.push(paperclipHome);
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "manifest-test";
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = "manifest-test";
     const workspace = path.join(paperclipHome, "workspace");
     await mkdir(workspace);
     await writeFile(path.join(workspace, "private-filename-雪"), "baseline");
@@ -173,7 +173,7 @@ describe("native workspace sync durable metadata", () => {
     const serialized = serializeDirectorySnapshot(baseline);
     if (serialized.version !== 2) throw new Error("Expected v2");
     const descriptor = {
-      schema: "paperclip.native-workspace-sync/v2" as const,
+      schema: "outpost.native-workspace-sync/v2" as const,
       binding: { runId, companyId: "company", workspaceId: "workspace", leaseId: "lease", providerLeaseId: "sandbox", localCwd: workspace, remoteCwd: "/workspace" },
       state: "prepared" as const, baselineSha256: directorySnapshotSha256(baseline),
       baseline: serialized, gitSnapshot: null, seed: null,
@@ -210,8 +210,8 @@ describe("native workspace sync durable metadata", () => {
       path.join(os.tmpdir(), "paperclip-native-workspace-sync-"),
     );
     cleanupDirs.push(paperclipHome);
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "descriptor-test";
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = "descriptor-test";
     const baseline = {
       exclude: [".paperclip-runtime"],
       entries: new Map([
@@ -222,7 +222,7 @@ describe("native workspace sync durable metadata", () => {
       ]),
     };
     const descriptor = {
-      schema: "paperclip.native-workspace-sync/v1" as const,
+      schema: "outpost.native-workspace-sync/v1" as const,
       binding: {
         runId: "run-idempotent",
         companyId: "company-1",
@@ -278,8 +278,8 @@ describe("native workspace sync durable metadata", () => {
       path.join(os.tmpdir(), "paperclip-native-workspace-sync-repair-"),
     );
     cleanupDirs.push(paperclipHome);
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "descriptor-repair-test";
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = "descriptor-repair-test";
     const baseline = {
       exclude: [".paperclip-runtime"],
       entries: new Map([
@@ -291,7 +291,7 @@ describe("native workspace sync durable metadata", () => {
     };
     const finalHostSha256 = "b".repeat(64);
     const descriptor = {
-      schema: "paperclip.native-workspace-sync/v1" as const,
+      schema: "outpost.native-workspace-sync/v1" as const,
       binding: {
         runId: "run-finalized-repair",
         companyId: "company-1",
@@ -369,7 +369,7 @@ describe("native workspace sync durable metadata", () => {
     expect(persistedLeaseMetadata).toMatchObject({
       retained: true,
       nativeWorkspaceSync: {
-        schema: "paperclip.native-workspace-stamp/v1",
+        schema: "outpost.native-workspace-stamp/v1",
         workspaceId: descriptor.binding.workspaceId,
         providerLeaseId: descriptor.binding.providerLeaseId,
         remoteCwd: descriptor.binding.remoteCwd,

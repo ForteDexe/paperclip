@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { HeartbeatRun } from "@paperclipai/shared";
-import { isNativeWorkspaceExportRepairCause } from "@paperclipai/shared";
+import type { HeartbeatRun } from "@outpost/shared";
+import { isNativeWorkspaceExportRepairCause } from "@outpost/shared";
 import { RunWorkspaceSourceInspection } from "./RunWorkspaceSourceInspection";
 import { useNavigate } from "@/lib/router";
 import { issuesApi } from "../api/issues";

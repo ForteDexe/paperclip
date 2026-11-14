@@ -17,14 +17,14 @@ import {
   issues,
   nativeRunFinalizations,
   nativeRunnerCheckpoints,
-} from "@paperclipai/db";
-import type { NativeExecutionInputV1 } from "@paperclipai/paperclip-runner";
+} from "@outpost/db";
+import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
 const provider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async (importOriginal) => ({
+vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   ...(await importOriginal<
-    typeof import("../../vendor/paperclip-runner/index.js")
+    typeof import("../../vendor/outpost-runner/index.js")
   >()),
   executeNativeSession: provider.execute,
 }));
@@ -33,11 +33,11 @@ import { executePaperclipNativeSession, prepareNativeSessionOpenTimeoutRetry, sc
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { claimNativeSessionResumptions } from "./native-finalization-reconciler.js";
-import { DurablePrpControlPlane, NativeProviderTerminalFailure } from "../../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane, NativeProviderTerminalFailure } from "../../vendor/outpost-runner/index.js";
 import { createNativeRunnerExecutionDriver } from "./native-runner-execution-driver.js";
 import { currentNativeControllerIdentity } from "./native-restart-recovery.js";
 import { loadNativeRunnerCheckpoint } from "./native-runner-checkpoint.js";
-import { environmentRunnerIngressErrorData, JsonRpcCallError, PluginEnvironmentRunnerIngressError } from "@paperclipai/plugin-sdk";
+import { environmentRunnerIngressErrorData, JsonRpcCallError, PluginEnvironmentRunnerIngressError } from "@outpost/plugin-sdk";
 import { accountRunCost } from "../run-cost-accounting.js";
 import { settleUnrecoverableExecutions } from "../execution-recovery-resolution.js";
 import { agentProviderLimitCooldown } from "./native-startup-retry.js";
@@ -63,7 +63,7 @@ function sessionOpenFailure(options: {
     status,
   };
   const error = new Error(
-    `PRP command session.open ${status}: ${JSON.stringify(result, (key, value) =>
+    `ORP command session.open ${status}: ${JSON.stringify(result, (key, value) =>
       key === "providerFailure" ? undefined : value)}`,
   );
   Object.defineProperty(error, "runnerCommandResult", {
@@ -75,7 +75,7 @@ function sessionOpenFailure(options: {
 
 function limitFailure(overrides: Record<string, unknown> = {}) {
   return {
-    schema: "paperclip.provider-failure.v1",
+    schema: "outpost.provider-failure.v1",
     provider: "anthropic",
     phase: "turn",
     category: "rate_limit",
@@ -116,7 +116,7 @@ describe("native provider startup retry", () => {
       companyId,
       name: `Startup agent ${agentId.slice(0, 8)}`,
       status: "active",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", agent: "claude" },
     });
     return agentId;
@@ -163,7 +163,7 @@ describe("native provider startup retry", () => {
       .from(completionContracts)
       .where(eq(completionContracts.issueId, issueId));
     const execution: NativeExecutionInputV1 = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "gpt-5.6-luna" },
       task: {
@@ -183,7 +183,7 @@ describe("native provider startup retry", () => {
       completionContract: {
         id: contract.id,
         sha256: contract.canonicalSha256,
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue, { revision: contract.revision }),
       },
       interactionResponses: [],
@@ -233,7 +233,7 @@ describe("native provider startup retry", () => {
           },
         },
       }),
-    ).rejects.toThrow("PRP command session.open");
+    ).rejects.toThrow("ORP command session.open");
     expect(provider.execute).toHaveBeenCalledTimes(1);
     return startedAt;
   }
@@ -332,7 +332,7 @@ describe("native provider startup retry", () => {
       core.store.state.tickets = {};
     }
     if (options.checkpoint === "legacy") {
-      core.store.state.schema = "paperclip.runner.durable.control-plane-state.v1";
+      core.store.state.schema = "outpost.runner.durable.control-plane-state.v1";
       delete core.store.state.bootstrapHistory;
     }
     const launch = vi.fn();
@@ -344,7 +344,7 @@ describe("native provider startup retry", () => {
         settlementArmed = false;
         if (options.race === "checkpoint") { core.issueBootstrapTicket(); await core.flushCheckpoint(); }
         if (options.race === "stop") await db.update(heartbeatRuns).set({ resultJson: {
-          nativeCancellation: { schema: "paperclip.native-cancellation.v1", companyId, issueId: seeded.issueId,
+          nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId, issueId: seeded.issueId,
             runId: seeded.runId, scope: "run", intentAuditId: randomUUID(), dispatchState: "pending" },
         } }).where(eq(heartbeatRuns.id, seeded.runId));
         if (options.race === "claim") await db.update(nativeRunFinalizations).set({
@@ -487,7 +487,7 @@ describe("native provider startup retry", () => {
       const seeded = await seedRun(await createAgent());
       // The controller stopped waiting for session.open during startup, before
       // any provider identity, event, checkpoint, or prompt existed.
-      const timeout = () => new Error(`${startupFailureCode}: PRP command session.open timed out`);
+      const timeout = () => new Error(`${startupFailureCode}: ORP command session.open timed out`);
 
       const firstFailedAt = await failStartup(seeded, timeout());
       let state = await read(seeded);
@@ -534,10 +534,10 @@ describe("native provider startup retry", () => {
   );
 
   it.each([
-    { name: "the provider session started before the timeout settled", eventType: "session.started", message: "runner_local_connect_failed: PRP command session.open timed out" },
-    { name: "a provider turn started", eventType: "turn.started", message: "runner_local_connect_failed: PRP command session.open timed out" },
-    { name: "the timeout came after startup completed", eventType: null, message: "provider_transport_failed: PRP command session.open timed out" },
-    { name: "a different startup command timed out", eventType: null, message: "runner_local_connect_failed: PRP command turn.start timed out" },
+    { name: "the provider session started before the timeout settled", eventType: "session.started", message: "runner_local_connect_failed: ORP command session.open timed out" },
+    { name: "a provider turn started", eventType: "turn.started", message: "runner_local_connect_failed: ORP command session.open timed out" },
+    { name: "the timeout came after startup completed", eventType: null, message: "provider_transport_failed: ORP command session.open timed out" },
+    { name: "a different startup command timed out", eventType: null, message: "runner_local_connect_failed: ORP command turn.start timed out" },
   ])("never retries a timeout automatically when $name", async ({ eventType, message }) => {
     const seeded = await seedRun(await createAgent());
     provider.execute.mockReset().mockImplementation(async () => {
@@ -578,13 +578,13 @@ describe("native provider startup retry", () => {
     let stateBase: string;
     let previousStateDir: string | undefined;
     beforeAll(() => {
-      previousStateDir = process.env.PAPERCLIP_RUNNER_STATE_DIR;
+      previousStateDir = process.env.OUTPOST_RUNNER_STATE_DIR;
       stateBase = mkdtempSync(join(tmpdir(), "native-startup-retry-state-"));
-      process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
+      process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
     });
     afterAll(() => {
-      if (previousStateDir === undefined) delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-      else process.env.PAPERCLIP_RUNNER_STATE_DIR = previousStateDir;
+      if (previousStateDir === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR;
+      else process.env.OUTPOST_RUNNER_STATE_DIR = previousStateDir;
       rmSync(stateBase, { recursive: true, force: true });
     });
 
@@ -603,9 +603,9 @@ describe("native provider startup retry", () => {
       mkdirSync(join(root, "control-plane"), { recursive: true });
       mkdirSync(join(root, "runner"), { recursive: true });
       writeFileSync(join(root, "control-plane", "control-plane-state.json"), JSON.stringify({
-        schema: "paperclip.runner.durable.control-plane-state.v2",
+        schema: "outpost.runner.durable.control-plane-state.v2",
         identity: { runId: seeded.runId, normalizedSessionId: seeded.execution.binding.runId },
-        bootstrapHistory: { schema: "paperclip.runner.bootstrap-history.v1", credentialsIssued: 1, adopted: false },
+        bootstrapHistory: { schema: "outpost.runner.bootstrap-history.v1", credentialsIssued: 1, adopted: false },
         commands: [
           { type: "run.prepare", status: "completed", result: { result: { status: "prepared" } } },
           { type: "session.open", status: "completed", result: { commandType: "session.open", status: "completed",
@@ -619,15 +619,15 @@ describe("native provider startup retry", () => {
         connectionCount: 1,
       }));
       writeFileSync(join(root, "runner", "runner-state.json"), JSON.stringify({
-        schema: "paperclip.runner.durable.state.v1", lifecycle: "suspended", nextSourceSeq: 3, ackedSourceSeq: 2, outbox: [],
+        schema: "outpost.runner.durable.state.v1", lifecycle: "suspended", nextSourceSeq: 3, ackedSourceSeq: 2, outbox: [],
         processedCommands: {
-          command_prp_00000001: { commandType: "run.prepare", status: "completed" },
-          command_prp_00000002: { commandType: "session.open", status: "completed", result: { processId: pid, status: "started" } },
+          command_orp_00000001: { commandType: "run.prepare", status: "completed" },
+          command_orp_00000002: { commandType: "session.open", status: "completed", result: { processId: pid, status: "started" } },
         },
       }));
       return root;
     }
-    const timeout = () => new Error("runner_local_connect_failed: PRP command session.open timed out");
+    const timeout = () => new Error("runner_local_connect_failed: ORP command session.open timed out");
 
     it("quarantines an opened session that no turn used, so the same-run retry starts fresh", async () => {
       const seeded = await seedRun(await createAgent());

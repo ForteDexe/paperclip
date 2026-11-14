@@ -27,7 +27,7 @@ import {
   issues,
   userSecretDeclarations,
   userSecretDefinitions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { conflict } from "../errors.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { secretRoutes } from "../routes/secrets.js";
@@ -43,19 +43,19 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 
-const externalTestDatabase = resolveExternalTestDatabaseUrl("PAPERCLIP_SECRET_PROPOSAL_TEST_DATABASE_URL");
+const externalTestDatabase = resolveExternalTestDatabaseUrl("OUTPOST_SECRET_PROPOSAL_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalTestDatabase ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
 describeEmbeddedPostgres("secret proposal routes", () => {
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
-  const previousKeyFile = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
+  const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
   const secretsTmpDir = path.join(os.tmpdir(), `paperclip-secret-proposals-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = path.join(secretsTmpDir, "master.key");
+    process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = path.join(secretsTmpDir, "master.key");
     if (externalTestDatabase) { db = createDb(externalTestDatabase, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 }); return; }
     const started = await startEmbeddedPostgresTestDatabase("secret-proposal-routes");
     stopDb = started.cleanup;
@@ -83,8 +83,8 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   afterAll(async () => {
     await db?.$client.end({ timeout: 1 });
     await stopDb?.();
-    if (previousKeyFile === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-    else process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = previousKeyFile;
+    if (previousKeyFile === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
+    else process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = previousKeyFile;
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 

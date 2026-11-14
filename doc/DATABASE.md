@@ -64,7 +64,7 @@ does not recover provider state that was already lost before enrollment.
 For an already-failed run, a valid legacy controller can lack proof of the
 original Runner artifact after its old bootstrap tickets were pruned. The
 migration preserves those exact controller and supervisor bytes as an encrypted
-`paperclip.legacy-controller-archive.v1` object through the same backup ledger.
+`outpost.legacy-controller-archive.v1` object through the same backup ledger.
 Its scope is the hash of its manifest and is separate from the provider session
 scope. Publication requires a terminal-failure coordinator with no live owner.
 The archive does not become an executable Runner checkpoint. Task pointers,
@@ -117,7 +117,7 @@ including governed-wait failures and warm-session refusals. No provider history
 is reconstructed or declared recovered.
 
 The same original-volume maintenance owner has a separate `web_evidence` mode.
-It stores a `paperclip.native-harness-web-evidence.v1` receipt. This mode proves
+It stores a `outpost.native-harness-web-evidence.v1` receipt. This mode proves
 that the web server's retained files have durable byte coverage. It does not
 require an external VM's termination receipt and does not settle that VM's
 recovery obligation. It requires the same settled web controller, finalizer,
@@ -312,8 +312,8 @@ profiles. Wrong runtime, nonterminal status, process identity, provider events,
 invalid but non-null checkpoints, and future checkpoint barriers retain their
 existing selection rules. Stored run payloads and history reads stay complete.
 Run the synthetic PostgreSQL comparison with a pinned pre-change revision:
-`pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-native-session-resume-reads.ts --baseline-ref=<commit>`.
-An optional `PAPERCLIP_SESSION_RESUME_BENCHMARK_DATABASE_URL` must name a dedicated
+`pnpm --filter @outpost/server exec tsx ../scripts/benchmark-native-session-resume-reads.ts --baseline-ref=<commit>`.
+An optional `OUTPOST_SESSION_RESUME_BENCHMARK_DATABASE_URL` must name a dedicated
 test database ending in `_test`; otherwise the harness starts disposable PostgreSQL.
 
 Agent request authentication uses a compact run-identity read. It omits saved
@@ -442,7 +442,7 @@ migration builds the index concurrently. To compare both plans on a disposable
 local fixture:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-budget-cancellation-scan.ts --runs=20000 --payload-kib=16
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-budget-cancellation-scan.ts --runs=20000 --payload-kib=16
 ```
 
 Workspace activity and cleanup checks (`expirationScope` in
@@ -459,7 +459,7 @@ binding scans `heartbeat_runs`.
 To compare both plans on a disposable local fixture:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-workspace-activity.ts --baseline-ref=<pre-fix commit> --runs-per-workspace=3000
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-workspace-activity.ts --baseline-ref=<pre-fix commit> --runs-per-workspace=3000
 ```
 
 The task page's created-from list (`createdFromIssueCondition` in
@@ -475,7 +475,7 @@ A recorded origin task still wins over a run, and a run over activity. To compar
 both plans on a disposable local fixture:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-created-from-issues.ts --baseline-ref=<pre-fix commit>
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-created-from-issues.ts --baseline-ref=<pre-fix commit>
 ```
 
 GitHub review lookups use four indexes from migration 0456, which builds them
@@ -500,7 +500,7 @@ Native retention, recovery, resume and archive reads find a session's runs
 through it instead of reading the agent's whole run history. To measure it:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-native-session-run-index.ts
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-native-session-run-index.ts
 ```
 
 Chat-admission checks use `chat_actions_company_issue_kind_idx` from migration
@@ -513,8 +513,8 @@ which all match on the same company and payload issue ID. Without it, each check
 reads the full `chat_actions` table. The check SQL is unchanged. Local proof:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-chat-admission-index.ts
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-chat-admission-index-migration.ts
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-chat-admission-index.ts
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-chat-admission-index-migration.ts
 ```
 
 Native harness backup expiration finds the leases that reference one backup root
@@ -529,7 +529,7 @@ regression test checks that the planner uses the index. The migration builds the
 index concurrently. To compare both plans on a disposable local fixture:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-environment-lease-backup-lookup.ts
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-environment-lease-backup-lookup.ts
 ```
 
 The chat wake-notice sweep compares UUID columns directly against guarded,
@@ -540,7 +540,7 @@ wakeup-history index.
 To compare all three queries on the same disposable local PostgreSQL fixture:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-slow-queries.ts --baseline-ref=origin/master
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-slow-queries.ts --baseline-ref=origin/master
 ```
 
 Use a revision before these fixes for `--baseline-ref` after they merge. The
@@ -557,7 +557,7 @@ query does not scan the endpoint's processed history or read its
 endpoint fixture:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-inbound-queue-discovery.ts --baseline-ref=<commit> --endpoint-history=20000 --only=endpoint-history --require-work-budget
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-inbound-queue-discovery.ts --baseline-ref=<commit> --endpoint-history=20000 --only=endpoint-history --require-work-budget
 ```
 
 Run history defaults to 200 rows and permits at most 1,000 rows, including
@@ -694,7 +694,7 @@ complete; no recovery decision is cached.
 To measure authentication query responses on disposable synthetic data:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-agent-authentication.ts --baseline-ref=06689c1b3410000bcd65ff40cb469e600209c4db
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-agent-authentication.ts --baseline-ref=06689c1b3410000bcd65ff40cb469e600209c4db
 ```
 
 This compares the current query with the original query in that revision. It
@@ -705,7 +705,7 @@ or fleet-wide savings.
 To compare the real summary and full history queries with an earlier revision:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-run-history.ts --baseline-ref=1e731520bb
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-run-history.ts --baseline-ref=1e731520bb
 ```
 
 The fixture has 1,400 synthetic runs with 192 KiB contexts. Both queries return
@@ -727,7 +727,7 @@ suite checks both plans and verifies the attached and retained source results.
 To compare this query on a disposable fixture with 13,429 tasks:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-workspace-authorization.ts --baseline-ref=5c7a025032
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-workspace-authorization.ts --baseline-ref=5c7a025032
 ```
 
 The benchmark loads the baseline authorization module with current dependencies,
@@ -907,7 +907,7 @@ SQL uses the driver default. With `false`, preparation stays disabled.
 
 ### Bounded response diagnostics
 
-`PAPERCLIP_DB_RESPONSE_CAPTURE_WINDOW=<start>/<end>` enables one explicit UTC
+`OUTPOST_DB_RESPONSE_CAPTURE_WINDOW=<start>/<end>` enables one explicit UTC
 window. Both timestamps use ISO format ending in `Z`. The window lasts at most
 60 seconds and starts within 30 minutes. Unset, invalid, and expired windows
 leave database construction unchanged. An expired window stays inactive after a
@@ -978,8 +978,8 @@ stack capture, grouping and bounded sizing add measurement overhead. More caller
 groups still share the existing group, page and output-rate caps. This diagnostic
 is not a production performance improvement.
 
-Look for `paperclip.db_response_capture.entry.v2` and
-`paperclip.db_response_capture.summary.v2` in the process logs. Version 2 uses
+Look for `outpost.db_response_capture.entry.v2` and
+`outpost.db_response_capture.summary.v2` in the process logs. Version 2 uses
 sampled, bounded primitive-value sizing; do not interpret it as the version 1
 all-result byte estimate. A log provider
 can store `event` as a structured field instead of message text. Filter by that
@@ -995,7 +995,7 @@ Fetch a complete capture as follows:
    from zero through `groupPages - 1`, filtering on the entry event, `captureId`,
    and `groupPage`. Request at least `groupPageSize` matching records per page.
    A structured query can use
-   `@event:paperclip.db_response_capture.entry.v2 AND @captureId:<id> AND @groupPage:0`.
+   `@event:outpost.db_response_capture.entry.v2 AND @captureId:<id> AND @groupPage:0`.
 3. If the provider's record limit is smaller than a page, fetch each
    `groupIndex` separately with the same capture ID. Each index matches one
    entry. Do not split by timestamp: entries can share a timestamp.
@@ -1375,7 +1375,7 @@ pnpm exec tsx scripts/migration-compatibility.ts            # distribution over 
 pnpm exec tsx scripts/migration-compatibility.ts --check    # the pull-request guard
 ```
 
-The guard runs in `check:migrations` (so in the `@paperclipai/db` typecheck and
+The guard runs in `check:migrations` (so in the `@outpost/db` typecheck and
 build) against the merge base with `origin/master`, and in the pull-request
 policy job through `.github/scripts/check-pr-migration-order.mjs`. Migrations
 that were already on `master` when the classifier shipped are not annotated.
@@ -1424,7 +1424,7 @@ connection, before enabling the new server and UI.
 
 `drizzle-kit generate` diffs `packages/db/src/schema/` against the newest snapshot in `packages/db/src/migrations/meta/`. That snapshot must describe the schema that every migration produces when they run in order. A snapshot that drifts from the schema makes the *next* migration wrong, because `generate` folds the drift into it. The drift can add a column that an earlier migration already created, which makes that migration fail on a fresh database. It can also drop a column that the schema still uses.
 
-- Create every migration with `pnpm --filter @paperclipai/db generate`. Do not hand-write a snapshot.
+- Create every migration with `pnpm --filter @outpost/db generate`. Do not hand-write a snapshot.
 - Do not hand-edit a snapshot to resolve a merge conflict. Renumber your migration and run `generate` again, as `packages/db/.gitattributes` describes.
 - The repo keeps only the newest 5 snapshots. `generate` runs `prune:snapshots` afterwards to delete older ones. Drizzle only reads the newest snapshot, and each snapshot is a full copy of the schema (over 1 MB each). Older snapshots are still in git history.
 - `packages/db/src/migration-snapshot-drift.test.ts` is the enforcement backstop. It repeats the diff that `generate` performs and fails when the newest snapshot no longer matches `packages/db/src/schema/`.
@@ -1440,7 +1440,7 @@ records commit together. Discovery and new-agent admission read the database
 at their asynchronous operation boundaries; no polling or mutable settings cache
 is used. Disabled adapters remain available to existing agents.
 
-`PAPERCLIP_ADAPTERS` and `PAPERCLIP_ADAPTERS_FILE` declare the effective operator
+`OUTPOST_ADAPTERS` and `OUTPOST_ADAPTERS_FILE` declare the effective operator
 adapter list. The declaration is parsed once for a process configuration and
 validated at startup. It does not rewrite stored preferences. A conflicting
 adapter toggle returns 403. Removing the declaration restores saved choices.
@@ -1458,7 +1458,7 @@ larger than 64 KiB, malformed input, and read failures. An existing durable row
 wins over every stale file. Ordinary Cloud reads do not read a legacy file.
 
 The focused PostgreSQL suite can use an owned disposable PostgreSQL database via
-`PAPERCLIP_ADAPTER_SETTINGS_TEST_DATABASE_URL` when embedded PostgreSQL is
+`OUTPOST_ADAPTER_SETTINGS_TEST_DATABASE_URL` when embedded PostgreSQL is
 unavailable. It applies migrations and inserts test data, so never point this
 variable at an existing application database.
 
@@ -1497,7 +1497,7 @@ constructing URL-dependent runtime services on every boot.
 
 ### Unclaimed Cloud warm standby
 
-`PAPERCLIP_CLOUD_WARM_STANDBY=1` is an opt-in control-plane marker for an
+`OUTPOST_CLOUD_WARM_STANDBY=1` is an opt-in control-plane marker for an
 unclaimed warm application. It requires Cloud configuration, a stack identity,
 and runtime identity verification keys. After restoring the durable identity,
 startup checks once for company data. Existing companies or a persisted claim
@@ -1604,7 +1604,7 @@ evidence even when every referenced ID exists. Native source identities on
 rewriting historical rows. Per-run native source identifiers are unique, while
 the existing legacy sequence behavior remains unchanged. The hidden native
 coordinator serializes on its bound `heartbeat_runs` row, allocates
-`next_event_seq`, and commits a validated PRP event before the transport sends
+`next_event_seq`, and commits a validated ORP event before the transport sends
 its cumulative ACK. Byte-equivalent source retries return the existing cursor;
 gaps and conflicting replays fail closed. Accepted structured results enter the
 finalization ledger, whose retry time and owner lease are checked under a row
@@ -1649,7 +1649,7 @@ candidate object keys before I/O so a lost reply can be reconciled and abandoned
 objects can be reclaimed. Object existence alone is not a committed save.
 
 `execution_workspaces.metadata.remoteWorkspace`, schema
-`paperclip.remote-workspace.v1`, holds the source, epoch, committed snapshot ID,
+`outpost.remote-workspace.v1`, holds the source, epoch, committed snapshot ID,
 remote allocation/path, writer run, and dirty flag. Paths in this record belong
 to the remote allocation. Save publication checks the current writer/epoch and
 atomically commits the ledger row, authority pointer, and operation receipt.
@@ -1790,13 +1790,13 @@ For local/default installs, the active provider is `local_encrypted`:
 
 Optional overrides:
 
-- `PAPERCLIP_SECRETS_MASTER_KEY` (32-byte key as base64, hex, or raw 32-char string)
-- `PAPERCLIP_SECRETS_MASTER_KEY_FILE` (custom key file path)
+- `OUTPOST_SECRETS_MASTER_KEY` (32-byte key as base64, hex, or raw 32-char string)
+- `OUTPOST_SECRETS_MASTER_KEY_FILE` (custom key file path)
 
 Strict mode to block new inline sensitive env values:
 
 ```sh
-PAPERCLIP_SECRETS_STRICT_MODE=true
+OUTPOST_SECRETS_STRICT_MODE=true
 ```
 
 You can set strict mode and provider defaults via:
@@ -1930,7 +1930,7 @@ through their acknowledgment rows. An earlier release that runs during
 a rolling deploy writes only acknowledgment rows, and the new reads honor them.
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-plugin-lifecycle-inbox.ts --baseline-ref=8d2bf78323 --agents=400 --per-agent=2500 --acked=2000
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-plugin-lifecycle-inbox.ts --baseline-ref=8d2bf78323 --agents=400 --per-agent=2500 --acked=2000
 ```
 
 ## Legacy controller ownership
@@ -1951,7 +1951,7 @@ instance storage as other workspaces. `agent_instruction_revisions` and
 `agent_instruction_heads` are retained as read-only upgrade input. Their heads
 are adopted once into the managed directory; new saves never append revisions.
 `agent_instruction_working_copies` holds per-run baseline hashes, state, and
-capture receipts. New receipts identify `paperclip.agent-files.v1`; historical
+capture receipts. New receipts identify `outpost.agent-files.v1`; historical
 rows retain the instruction-only format. Completed directory runs discard their
 baseline and private copies. See [Persistent agent files](agent-files.md).
 
@@ -2204,7 +2204,7 @@ These service measurements exclude network acquisition, copying, environment
 acquisition, and provider startup. Reproduce with:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-workspace-preparation-history.ts --baseline-ref=df80616d98119cbf5abd40549794d9980a5fabf6
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-workspace-preparation-history.ts --baseline-ref=df80616d98119cbf5abd40549794d9980a5fabf6
 ```
 
 Workspace-record and workspace-operation `_issuePrivacySources` /
@@ -2239,7 +2239,7 @@ indexes can filter candidates before reading large contexts. Native bindings
 continue to override legacy context IDs. No new index or migration is needed.
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-recovery-queries.ts --baseline-ref=1e731520bb
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-recovery-queries.ts --baseline-ref=1e731520bb
 ```
 
 This disposable fixture compares the real ownership, recovery-action and status
@@ -2257,7 +2257,7 @@ runs by company only and test each comment against every run of its company.
 No new index or migration is needed.
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-comment-wake-check.ts --baseline-ref=02bfe71a6b
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-comment-wake-check.ts --baseline-ref=02bfe71a6b
 ```
 
 This disposable fixture compares the complete check result, the complete
@@ -2277,7 +2277,7 @@ could not use a key, so each exhausted hold read every run, finalizer and lease
 of its company.
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-recovery-status-checks.ts --baseline-ref=8d2bf78323
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-recovery-status-checks.ts --baseline-ref=8d2bf78323
 ```
 
 This fixture compares every changed discovery condition for every recovery
@@ -2357,12 +2357,12 @@ The synthetic PostgreSQL benchmark captures the service-generated baseline and
 treatment queries, compares complete outputs, and measures raw DataRow bytes:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-github-review-wait.ts --baseline-ref=663fe667d66d3863d0919a8724f1d99500feef0b
+pnpm --filter @outpost/server exec tsx ../scripts/benchmark-github-review-wait.ts --baseline-ref=663fe667d66d3863d0919a8724f1d99500feef0b
 ```
 
 It uses disposable embedded PostgreSQL by default. A disposable local database
 named `review_wait_benchmark...` can be supplied through
-`PAPERCLIP_TEST_DATABASE_URL` to compare another PostgreSQL major version.
+`OUTPOST_TEST_DATABASE_URL` to compare another PostgreSQL major version.
 DataRow bytes exclude response metadata and transport overhead.
 
 An issue list or inbox request reads the waits of all its tasks in one pass.
@@ -2375,7 +2375,7 @@ benchmark counts the statements of one request and measures its wall and CPU
 time against a pre-fix commit:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx scripts/benchmark-review-wait-provenance.ts --baseline-ref=<pre-fix commit>
+pnpm --filter @outpost/server exec tsx scripts/benchmark-review-wait-provenance.ts --baseline-ref=<pre-fix commit>
 ```
 
 

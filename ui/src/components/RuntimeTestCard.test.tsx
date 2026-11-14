@@ -11,7 +11,7 @@ it("shows the installation repair directly on a missing runtime test", () => {
   const message = "The ACPX claude runtime is incomplete: required package @agentclientprotocol/claude-agent-acp is missing. Reinstall or rebuild Outpost with its bundled provider dependencies, restart the server, then test the agent's runtime before retrying.";
   try {
     flushSync(() => root.render(<RuntimeTestCard state="fail" onTest={() => {}} result={{
-      adapterType: "paperclip_runner", status: "fail", testedAt: "2026-10-11T11:19:14Z",
+      adapterType: "outpost_runner", status: "fail", testedAt: "2026-10-11T11:19:14Z",
       checks: [{ code: "acpx_runtime_package_missing", level: "error", message }],
     }} />));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Runtime missing");

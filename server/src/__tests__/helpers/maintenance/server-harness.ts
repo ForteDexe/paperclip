@@ -1,4 +1,4 @@
-import type { ManagedExperimentalFeatureKey } from "@paperclipai/shared";
+import type { ManagedExperimentalFeatureKey } from "@outpost/shared";
 import type { IdleWorkCaptureSnapshot } from './idle-work-capture.js';
 import type { IncomingHttpSnapshot } from '../../../../../scripts/sleep-qualification/evidence.mjs';
 import { fork } from "node:child_process";
@@ -63,11 +63,11 @@ export interface MaintenanceConfiguration {
   storageProvider?: "local_disk" | "s3";
 }
 export interface MaintenanceRuntimeSecrets {
-  PAPERCLIP_AGENT_JWT_SECRET: string;
-  PAPERCLIP_DECISION_SIGNING_SECRET: string;
-  PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: string;
+  OUTPOST_AGENT_JWT_SECRET: string;
+  OUTPOST_DECISION_SIGNING_SECRET: string;
+  OUTPOST_TOOL_ACTION_SIGNING_SECRET: string;
   BETTER_AUTH_SECRET: string;
-  PAPERCLIP_SECRETS_MASTER_KEY: string;
+  OUTPOST_SECRETS_MASTER_KEY: string;
 }
 export interface MaintenanceServerOptions {
   runtimeSecrets?: Readonly<MaintenanceRuntimeSecrets>;
@@ -86,11 +86,11 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
   const configuration = options.configuration;
   const runtimeSecrets = options.runtimeSecrets;
   if (runtimeSecrets !== undefined) {
-    const keys: Array<keyof MaintenanceRuntimeSecrets> = ['PAPERCLIP_AGENT_JWT_SECRET', 'PAPERCLIP_DECISION_SIGNING_SECRET',
-      'PAPERCLIP_TOOL_ACTION_SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'PAPERCLIP_SECRETS_MASTER_KEY'];
+    const keys: Array<keyof MaintenanceRuntimeSecrets> = ['OUTPOST_AGENT_JWT_SECRET', 'OUTPOST_DECISION_SIGNING_SECRET',
+      'OUTPOST_TOOL_ACTION_SIGNING_SECRET', 'BETTER_AUTH_SECRET', 'OUTPOST_SECRETS_MASTER_KEY'];
     if (!runtimeSecrets || Object.keys(runtimeSecrets).length !== keys.length || keys.some(key =>
       typeof runtimeSecrets[key] !== 'string' || runtimeSecrets[key].trim().length < 32)
-      || !/^[a-f0-9]{64}$/.test(runtimeSecrets.PAPERCLIP_SECRETS_MASTER_KEY)) {
+      || !/^[a-f0-9]{64}$/.test(runtimeSecrets.OUTPOST_SECRETS_MASTER_KEY)) {
       throw new Error('Maintenance runtimeSecrets requires exactly five complete generated fixture secrets');
     }
   }
@@ -163,46 +163,46 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
       execArgv: [...(options.childPreload ? ["--require", fileURLToPath(options.childPreload)] : []), ...((configuration?.announcements || options.captureIdleWork || options.childEntry) ? ['--experimental-test-module-mocks'] : []), "--import", fileURLToPath(new URL("../../../../node_modules/tsx/dist/loader.mjs", import.meta.url))],
       env: {
         ...(captureStartedAt === undefined ? {} : {
-          PAPERCLIP_MAINTENANCE_IDLE_WORK_CAPTURE: '1',
-          PAPERCLIP_DB_RESPONSE_CAPTURE_WINDOW: `${new Date(captureStartedAt).toISOString()}/${new Date(captureStartedAt + 60_000).toISOString()}`,
+          OUTPOST_MAINTENANCE_IDLE_WORK_CAPTURE: '1',
+          OUTPOST_DB_RESPONSE_CAPTURE_WINDOW: `${new Date(captureStartedAt).toISOString()}/${new Date(captureStartedAt + 60_000).toISOString()}`,
         }),
         ...(options.childPreload ? {
-          PAPERCLIP_SKILL_DEFAULT_CADENCE_GUARD_LOG: process.env.PAPERCLIP_SKILL_DEFAULT_CADENCE_GUARD_LOG,
-          PAPERCLIP_SKILL_DEFAULT_CADENCE_GUARD_ORIGINS: JSON.stringify([options.githubOrigin, options.cloud?.s3Origin].filter(Boolean)),
+          OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_LOG: process.env.OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_LOG,
+          OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_ORIGINS: JSON.stringify([options.githubOrigin, options.cloud?.s3Origin].filter(Boolean)),
         } : {}),
         PATH: process.env.PATH, TMPDIR: process.env.TMPDIR, NODE_ENV: "production",
-        PAPERCLIP_HOME: directory, PAPERCLIP_CONFIG: configPath, PAPERCLIP_INSTANCE_ID: "maintenance-test",
-        PAPERCLIP_RUNNER_STATE_DIR: path.join(directory, "durable-sessions"),
+        OUTPOST_HOME: directory, OUTPOST_CONFIG: configPath, OUTPOST_INSTANCE_ID: "maintenance-test",
+        OUTPOST_RUNNER_STATE_DIR: path.join(directory, "durable-sessions"),
         DATABASE_URL: proxy.url, DATABASE_POOL_MAX: options.databasePoolMax === undefined ? (configuration ? "4" : "6") : String(options.databasePoolMax), DATABASE_APPLICATION_NAME: "maintenance-integration-test",
-        PAPERCLIP_AGENT_JWT_SECRET: runtimeSecrets?.PAPERCLIP_AGENT_JWT_SECRET ?? randomUUID(), PAPERCLIP_DECISION_SIGNING_SECRET: runtimeSecrets?.PAPERCLIP_DECISION_SIGNING_SECRET ?? randomUUID(),
-        PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: runtimeSecrets?.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET ?? randomUUID(), BETTER_AUTH_SECRET: runtimeSecrets?.BETTER_AUTH_SECRET ?? randomUUID(),
-        CODEX_HOME: path.join(directory, "codex"), PAPERCLIP_ANNOUNCEMENTS_ENABLED: String(configuration?.announcements ?? false),
-        ...(configuration?.announcements ? { PAPERCLIP_MAINTENANCE_ANNOUNCEMENT_FIXTURE: '1' } : {}),
-        PAPERCLIP_DB_BACKUP_ENABLED: String(Boolean(configuration?.automaticBackups)), PAPERCLIP_UI_DEV_MIDDLEWARE: "false",
-        ...(configuration?.automaticBackups ? { PAPERCLIP_DB_BACKUP_IDLE_CHECKPOINT_ENABLED: configuration.automaticBackups.idleCheckpoint ? "1" : "0" } : {}),
-        ...(configuration?.telemetryOrigin ? { PAPERCLIP_TELEMETRY_ENDPOINT: configuration.telemetryOrigin } : {}),
+        OUTPOST_AGENT_JWT_SECRET: runtimeSecrets?.OUTPOST_AGENT_JWT_SECRET ?? randomUUID(), OUTPOST_DECISION_SIGNING_SECRET: runtimeSecrets?.OUTPOST_DECISION_SIGNING_SECRET ?? randomUUID(),
+        OUTPOST_TOOL_ACTION_SIGNING_SECRET: runtimeSecrets?.OUTPOST_TOOL_ACTION_SIGNING_SECRET ?? randomUUID(), BETTER_AUTH_SECRET: runtimeSecrets?.BETTER_AUTH_SECRET ?? randomUUID(),
+        CODEX_HOME: path.join(directory, "codex"), OUTPOST_ANNOUNCEMENTS_ENABLED: String(configuration?.announcements ?? false),
+        ...(configuration?.announcements ? { OUTPOST_MAINTENANCE_ANNOUNCEMENT_FIXTURE: '1' } : {}),
+        OUTPOST_DB_BACKUP_ENABLED: String(Boolean(configuration?.automaticBackups)), OUTPOST_UI_DEV_MIDDLEWARE: "false",
+        ...(configuration?.automaticBackups ? { OUTPOST_DB_BACKUP_IDLE_CHECKPOINT_ENABLED: configuration.automaticBackups.idleCheckpoint ? "1" : "0" } : {}),
+        ...(configuration?.telemetryOrigin ? { OUTPOST_TELEMETRY_ENDPOINT: configuration.telemetryOrigin } : {}),
         ...(configuration?.otelOrigin ? { OTEL_EXPORTER_OTLP_ENDPOINT: configuration.otelOrigin, OTEL_EXPORTER_OTLP_PROTOCOL: "http/json" } : {}),
         HEARTBEAT_SCHEDULER_ENABLED: String(options.enabled ?? true),
-        PAPERCLIP_MAINTENANCE_FAKE_CLOCK: String(options.clock ?? false),
-        ...(options.suppressed ? { PAPERCLIP_IN_WORKTREE: "true" } : {}),
-        ...(options.githubOrigin ? { PAPERCLIP_MAINTENANCE_GITHUB_ORIGIN: options.githubOrigin } : {}),
+        OUTPOST_MAINTENANCE_FAKE_CLOCK: String(options.clock ?? false),
+        ...(options.suppressed ? { OUTPOST_IN_WORKTREE: "true" } : {}),
+        ...(options.githubOrigin ? { OUTPOST_MAINTENANCE_GITHUB_ORIGIN: options.githubOrigin } : {}),
         ...(options.connector ? {
-          PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID: options.connector.instanceId ?? "maintenance-connector", PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: "test",
-          PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: options.connector.signPrivateKey,
-          PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: options.connector.sealPrivateKey,
-          PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: options.connector.origin,
+          OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID: options.connector.instanceId ?? "maintenance-connector", OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "test",
+          OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: options.connector.signPrivateKey,
+          OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: options.connector.sealPrivateKey,
+          OUTPOST_CLOUD_CONNECTOR_BASE_URL: options.connector.origin,
         } : {}),
-        ...(options.controlJwks ? { PAPERCLIP_CLOUD_STACK_ID: "maintenance-stack", PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: options.controlJwks } : {}),
+        ...(options.controlJwks ? { OUTPOST_CLOUD_STACK_ID: "maintenance-stack", OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: options.controlJwks } : {}),
         ...(options.cloud ? {
-          PAPERCLIP_MANAGED_CONFIG: JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "2026.720.0", features: configuration?.managedFeatures ?? {}, plugins: { autoInstall: [] } }),
-          PAPERCLIP_SECRETS_MASTER_KEY: runtimeSecrets?.PAPERCLIP_SECRETS_MASTER_KEY ?? randomBytes(32).toString("hex"),
-          PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "maintenance-tenant-token", PAPERCLIP_CLOUD_STACK_ID: "maintenance-stack",
-          PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: options.cloud.jwks, PAPERCLIP_CLOUD_WARM_STANDBY: options.cloud.standby ? "1" : "0",
-          PAPERCLIP_PUBLIC_URL: options.tenantActor ? `http://127.0.0.1:${address.port}` : "https://pool-maintenance.staging.paperclip.app", PAPERCLIP_PRIMARY_HOST: options.tenantActor ? "127.0.0.1" : "pool-maintenance.staging.paperclip.app",
-          ...(options.tenantActor ? { PAPERCLIP_MAINTENANCE_MANAGED_TENANT: "1" } : {}),
+          OUTPOST_MANAGED_CONFIG: JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "2026.720.0", features: configuration?.managedFeatures ?? {}, plugins: { autoInstall: [] } }),
+          OUTPOST_SECRETS_MASTER_KEY: runtimeSecrets?.OUTPOST_SECRETS_MASTER_KEY ?? randomBytes(32).toString("hex"),
+          OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "maintenance-tenant-token", OUTPOST_CLOUD_STACK_ID: "maintenance-stack",
+          OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: options.cloud.jwks, OUTPOST_CLOUD_WARM_STANDBY: options.cloud.standby ? "1" : "0",
+          OUTPOST_PUBLIC_URL: options.tenantActor ? `http://127.0.0.1:${address.port}` : "https://pool-maintenance.staging.outpost.app", OUTPOST_PRIMARY_HOST: options.tenantActor ? "127.0.0.1" : "pool-maintenance.staging.outpost.app",
+          ...(options.tenantActor ? { OUTPOST_MAINTENANCE_MANAGED_TENANT: "1" } : {}),
           AWS_ACCESS_KEY_ID: "maintenance-fixture", AWS_SECRET_ACCESS_KEY: "maintenance-fixture", AWS_EC2_METADATA_DISABLED: "true",
         } : {}),
-        PAPERCLIP_MIGRATION_PROMPT: "never", PAPERCLIP_MIGRATION_AUTO_APPLY: "true", PAPERCLIP_MANAGED_RUNTIME_HTTPS: "off",
+        OUTPOST_MIGRATION_PROMPT: "never", OUTPOST_MIGRATION_AUTO_APPLY: "true", OUTPOST_MANAGED_RUNTIME_HTTPS: "off",
       },
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     });

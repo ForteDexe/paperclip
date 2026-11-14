@@ -86,13 +86,13 @@ export function publicChoiceMessages(
   expected: { companyId: string; agentId: string; runId: string },
 ) {
   return events.flatMap((event) => {
-    const prp = record(record(event.payload).prpEvent),
-      payload = record(prp.payload),
+    const orp = record(record(event.payload).orpEvent),
+      payload = record(orp.payload),
       item = record(payload.item);
     return event.companyId === expected.companyId &&
       event.agentId === expected.agentId &&
       event.runId === expected.runId &&
-      prp.runId === expected.runId &&
+      orp.runId === expected.runId &&
       event.eventType === "item.completed" &&
       item.type === "agentMessage" &&
       item.status === "completed" &&
@@ -285,7 +285,7 @@ export const providerChoiceExternalCases = [
     gradeProviderChoice,
     {
       authentication: "human-session",
-      oracleVersion: "paperclip.chat-catalog.provider-choice.structural.v2",
+      oracleVersion: "outpost.chat-catalog.provider-choice.structural.v2",
       sourceFiles: [
         "chat-catalog-domains/external-provider-choice.ts",
         "run-observations.ts",

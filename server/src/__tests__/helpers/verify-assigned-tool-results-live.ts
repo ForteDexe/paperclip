@@ -1,8 +1,8 @@
 /** Opt-in paid smoke:
- * PAPERCLIP_LIVE_TOOL_RESULTS=true pnpm --filter @paperclipai/server exec vitest run src/services/native-runtime/runner-tool-results.live.test.ts
+ * OUTPOST_LIVE_TOOL_RESULTS=true pnpm --filter @outpost/server exec vitest run src/services/native-runtime/runner-tool-results.live.test.ts
  * Requires a built native runner and an existing Codex login. Uses disposable
  * database/storage and a private credential copy. The app response is synthetic;
- * Codex, Runner, PRP, persistence and authenticated asset reads are real.
+ * Codex, Runner, ORP, persistence and authenticated asset reads are real.
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -11,12 +11,12 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
-import { agents, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, heartbeatRuns, issues } from "@outpost/db";
 import { startRunnerApiTestServer } from "./runner-api-server.js";
 import { createAssignedMcpTools } from "../../services/native-runtime/assigned-mcp-tools.js";
-import { PaperclipRunnerToolAuthority } from "../../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../../services/native-runtime/outpost-runner-tool-authority.js";
 import type { ToolGatewayService } from "../../services/tool-gateway.js";
-import { createRunnerdCodexTransport } from "../../vendor/paperclip-runner/index.js";
+import { createRunnerdCodexTransport } from "../../vendor/outpost-runner/index.js";
 import { RUNNER_TOOL_RESULT_MAX_BYTES } from "../../services/native-runtime/runner-tool-results.js";
 
 const root = await mkdtemp(join(tmpdir(), "paperclip-tool-result-live-"));
@@ -26,11 +26,11 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 try {
   const codexHome = join(root, "codex");
   await mkdir(codexHome, { mode: 0o700 });
-  await copyFile(join(process.env.PAPERCLIP_LIVE_CODEX_HOME ?? homedir() + "/.codex", "auth.json"), join(codexHome, "auth.json"));
+  await copyFile(join(process.env.OUTPOST_LIVE_CODEX_HOME ?? homedir() + "/.codex", "auth.json"), join(codexHome, "auth.json"));
   await writeFile(join(codexHome, "config.toml"), 'model_reasoning_effort = "low"\n');
-  process.env.PAPERCLIP_HOME = join(root, "instance");
-  process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
-  process.env.PAPERCLIP_TELEMETRY_DISABLED = "1";
+  process.env.OUTPOST_HOME = join(root, "instance");
+  process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
+  process.env.OUTPOST_TELEMETRY_DISABLED = "1";
   server = await startRunnerApiTestServer();
   const fixture = await server.fixture({ disableWakeOnDemand: true, apiToolsEnabled: false });
   await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {
@@ -56,12 +56,12 @@ try {
   let retrieved = "";
   const started = Date.now();
   bundle = createRunnerdCodexTransport({
-    codexCommand: process.env.PAPERCLIP_LIVE_CODEX_COMMAND ?? fileURLToPath(new URL("../../../../node_modules/.pnpm/@openai+codex@0.160.0/node_modules/@openai/codex/bin/codex.js", import.meta.url)),
+    codexCommand: process.env.OUTPOST_LIVE_CODEX_COMMAND ?? fileURLToPath(new URL("../../../../node_modules/.pnpm/@openai+codex@0.160.0/node_modules/@openai/codex/bin/codex.js", import.meta.url)),
     sourceCodexHome: codexHome, environment: { ...process.env, CODEX_HOME: codexHome },
     disableCodexProjectInstructions: true,
     stateDirectory: join(root, "runner"),
     lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
-    prpIdentity: { runnerInstanceId: "tool-result-live", environmentLeaseId: "tool-result-lease",
+    orpIdentity: { runnerInstanceId: "tool-result-live", environmentLeaseId: "tool-result-lease",
       runId: fixture.runId, normalizedSessionId: "tool-result-session", turnId: "tool-result-turn", itemId: "tool-result-item" },
   });
   bundle.transport.setServerRequestHandler(async request => {
@@ -100,7 +100,7 @@ try {
   clearTimeout(timer);
   assert.equal(executions, 1, "The original operation must execute once");
   assert.ok(calls.some(call => call.tool === "read_tool_result"), "Provider must retrieve the saved result");
-  assert.ok(calls.every(call => call.resultBytes <= RUNNER_TOOL_RESULT_MAX_BYTES), "All delivered results must fit PRP");
+  assert.ok(calls.every(call => call.resultBytes <= RUNNER_TOOL_RESULT_MAX_BYTES), "All delivered results must fit ORP");
   assert.ok(calls.some(call => call.resultBytes > 490_000), "Provider must receive a page near the 500 KB limit");
   assert.equal(pages.length, 2, "The full 660 KB result should require only two page reads");
   assert.equal(pages.at(-1)?.nextOffsetBytes, null, "Provider must read through EOF");
@@ -113,7 +113,7 @@ try {
   const evidence = { passed: true, model: "gpt-6.1-sol", trust: "low_trust_review", platform: `${process.platform}-${process.arch}`,
     responseBytes: Buffer.byteLength(JSON.stringify(original)), executions, calls, allPagesDelivered: true, providerReceivedFinalField: true,
     runnerClosed: true, durationMs: Date.now() - started, upstream: "synthetic governed response" };
-  if (process.env.PAPERCLIP_LIVE_EVIDENCE_PATH) await writeFile(process.env.PAPERCLIP_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
+  if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
   console.log(JSON.stringify(evidence));
 } finally {
   clearTimeout(timer);

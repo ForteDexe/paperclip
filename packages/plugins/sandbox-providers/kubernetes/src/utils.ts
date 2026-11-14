@@ -52,10 +52,10 @@ export interface LabelsInput {
 
 export function paperclipLabels(input: LabelsInput): Record<string, string> {
   return {
-    "paperclip.io/run-id": input.runId,
-    "paperclip.io/agent-id": input.agentId,
-    "paperclip.io/company-id": input.companyId,
-    "paperclip.io/adapter": input.adapterType,
-    "paperclip.io/managed-by": "paperclip-k8s-plugin",
+    "outpost.io/run-id": input.runId,
+    "outpost.io/agent-id": input.agentId,
+    "outpost.io/company-id": input.companyId,
+    "outpost.io/adapter": input.adapterType,
+    "outpost.io/managed-by": "paperclip-k8s-plugin",
   };
 }

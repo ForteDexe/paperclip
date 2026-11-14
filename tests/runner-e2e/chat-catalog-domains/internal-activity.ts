@@ -57,7 +57,7 @@ export const activityCases: readonly ChatCatalogCase[] = [
     t = await ctx.input.api.patch(`/api/issues/${t.id}`, { priority: "low" });
     const activity = await ctx.input.api.get<Entity[]>(`/api/issues/${t.id}/activity`);
     return { project: p, task: t, observedAt: new Date().toISOString(), timezone: await ctx.input.page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone), priorityEvents: activity.filter(row => row.action === "issue.updated" && row.details?.priority) };
-  }), oracleVersion: "paperclip.chat-catalog.activity-audit.structural.v3" },
+  }), oracleVersion: "outpost.chat-catalog.activity-audit.structural.v3" },
 ];
 
 export function mentionsRecordedTime(reply: string, recordedAt: string | undefined, observedAt: string, timezone: string, allRecordedAt: Array<string | undefined> = []): boolean {
@@ -152,7 +152,7 @@ function companyOverview(): ChatCatalogCase {
     const timezone = await ctx.input.page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
     return { project: p, task: active, blockedTask, doneTask, worker, blocker, hiddenCompany, hiddenMarker, timezone };
   });
-  return { ...base, oracleVersion: "paperclip.chat-catalog.activity-overview.grounded.v4", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/recorded-work-claims.ts"], async verifySetup(ctx, state) {
+  return { ...base, oracleVersion: "outpost.chat-catalog.activity-overview.grounded.v4", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/recorded-work-claims.ts"], async verifySetup(ctx, state) {
     const active = await ctx.input.api.get<Entity & { assigneeUserId: string | null }>(`/api/issues/${entity(state, "task").id}`);
     const worker = await ctx.input.api.get<Entity>(`/api/agents/${entity(state, "worker").id}`);
     const c = checks();

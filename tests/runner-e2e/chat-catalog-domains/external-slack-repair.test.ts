@@ -282,7 +282,7 @@ it("projects only closed authorization status and exact designated identity, nev
   const binding = {
     disposable: true as const,
     resourceIds: ["T123", "UBOT"],
-    credentialEnv: ["PAPERCLIP_CHAT_EVAL_SLACK_BOT"],
+    credentialEnv: ["OUTPOST_CHAT_EVAL_SLACK_BOT"],
     prerequisites: { workspaceId: "T123", botUserId: "UBOT" },
   };
   expect(

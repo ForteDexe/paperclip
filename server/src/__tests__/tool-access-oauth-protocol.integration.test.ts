@@ -7,7 +7,7 @@ import { join } from "node:path";
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, approvals, companies, companyMemberships, createDb, connectionGrants, heartbeatRuns, issues, toolActionRequests, toolCatalogEntries, toolConnections, toolOauthStates, toolPolicies } from "@paperclipai/db";
+import { agents, approvals, companies, companyMemberships, createDb, connectionGrants, heartbeatRuns, issues, toolActionRequests, toolCatalogEntries, toolConnections, toolOauthStates, toolPolicies } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { toolAccessService } from "../services/tool-access.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
@@ -28,10 +28,10 @@ describe("tool OAuth over local HTTP", () => {
 
   beforeAll(async () => {
     keyDir = await mkdtemp(join(tmpdir(), "tool-oauth-protocol-"));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", join(keyDir, "key"));
-    vi.stubEnv("PAPERCLIP_PUBLIC_URL", "http://127.0.0.1:3100");
-    vi.stubEnv("PAPERCLIP_TOOL_OAUTH_CLIENT_ID", "");
-    vi.stubEnv("PAPERCLIP_TOOL_OAUTH_CLIENT_SECRET", "");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", join(keyDir, "key"));
+    vi.stubEnv("OUTPOST_PUBLIC_URL", "http://127.0.0.1:3100");
+    vi.stubEnv("OUTPOST_TOOL_OAUTH_CLIENT_ID", "");
+    vi.stubEnv("OUTPOST_TOOL_OAUTH_CLIENT_SECRET", "");
     fixture = await startEmbeddedPostgresTestDatabase("tool-oauth-protocol-");
     db = createDb(fixture.connectionString);
   });
@@ -204,7 +204,7 @@ describe("tool OAuth over local HTTP", () => {
       const reviewActions = ["after refresh", "tomorrow", "connection repair", "changed authorization", "withdrawn formal approval", "expired authorization"];
       for (const action of reviewActions) {
         await expect(gateway.executeTool({ sessionToken: session.token, tool: tool.name,
-          parameters: { action, sharingPolicy: { mode: "domain", domain: "paperclip.ing" } } })).rejects.toMatchObject({ reasonCode: "approval_required" });
+          parameters: { action, sharingPolicy: { mode: "domain", domain: "outpost.ing" } } })).rejects.toMatchObject({ reasonCode: "approval_required" });
       }
       const savedActions = await db.select().from(toolActionRequests).where(eq(toolActionRequests.issueId, issue.id));
       expect(savedActions).toHaveLength(reviewActions.length);
@@ -343,7 +343,7 @@ describe("tool OAuth over local HTTP", () => {
       expect(executions.map(call => JSON.parse(call.body).params.arguments.action).sort())
         .toEqual(["after refresh", "connection repair", "tomorrow"]);
       for (const execution of executions) expect(JSON.parse(execution.body).params.arguments.sharingPolicy)
-        .toEqual({ mode: "domain", domain: "paperclip.ing" });
+        .toEqual({ mode: "domain", domain: "outpost.ing" });
     } finally {
       provider.closeAllConnections();
       await new Promise<void>((resolve, reject) => provider.close((error) => error ? reject(error) : resolve()));

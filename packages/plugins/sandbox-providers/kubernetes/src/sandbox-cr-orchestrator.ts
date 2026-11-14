@@ -129,7 +129,7 @@ export async function getSandboxCrStatus(
 /**
  * Returns the pod name backing a Sandbox CR.
  * Primary: read status.podName from the CR (set by the controller once ready).
- * Fallback: list pods in the namespace filtered by the paperclip.io/managed-by
+ * Fallback: list pods in the namespace filtered by the outpost.io/managed-by
  * label and the sandbox name label set on the pod template.
  */
 export async function findPodForSandbox(

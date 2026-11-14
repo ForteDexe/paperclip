@@ -9,7 +9,7 @@ it("retains exact public SDK bytes in a separately owned scaffold workspace", as
   const root = await mkdtemp(path.join(tmpdir(), "sdk-custody-control-"));
   try {
     const source = path.join(root, "source"); await mkdir(path.join(source, "dist"), { recursive: true });
-    const manifest = JSON.stringify({ name: "@paperclipai/plugin-sdk", exports: { ".": { import: "./dist/index.js" } } });
+    const manifest = JSON.stringify({ name: "@outpost/plugin-sdk", exports: { ".": { import: "./dist/index.js" } } });
     await writeFile(path.join(source, "package.json"), manifest); await writeFile(path.join(source, "dist/index.js"), "export const publicSdk = true;\n");
     const owned = path.join(root, "owned"); await mkdir(owned);
     await expect(mirrorPreviewSdk(source, source)).rejects.toThrow("separately owned");

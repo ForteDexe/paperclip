@@ -8,7 +8,7 @@ merge, deployment, and migration of existing agents are outside this request.
 
 ## User outcome and release contract
 
-An operator selects Google Antigravity in native Paperclip Runner, binds an
+An operator selects Google Antigravity in native Outpost Runner, binds an
 authorized Google runtime account, selects an exact model, and assigns an ordinary
 task. The task produces independently verified files/artifacts, settles through
 Paperclip, and can be stopped with physical process cleanup.
@@ -46,7 +46,7 @@ Paperclip, and can be stopped with physical process cleanup.
 
 Provider translation, native metadata, question semantics, auth-home settings,
 and executable verification belong under the Antigravity provider boundary.
-The existing Runner owns supervision/PRP/replay; Paperclip retains company,
+The existing Runner owns supervision/ORP/replay; Paperclip retains company,
 credential, permission, budget, result, and task-state authority.
 
 - Integration owner: Runner profile/contracts, sidecar/Rust admission, CLI wiring,
@@ -156,7 +156,7 @@ execution remains rejected pending separate qualification.
 - Eight real PostgreSQL connection integration tests passed without DB/service
   mocks, covering encrypted user credentials, selected homes, company/member/
   install authority, revoked defaults, and refresh/reconnect compare-and-swap.
-- The final metadata candidate is `1.4.3-paperclip.4`, closure
+- The final metadata candidate is `1.4.3-outpost.4`, closure
   `05ed2a3e39c95fc813abeb664a78a295d1dcbfd4098f28cbc17d30d710a1ea92`.
   Its setup-only `_paperclip/models` path invokes the official account catalog
   without creating a conversation, native helper, or prompt. Four actual-source

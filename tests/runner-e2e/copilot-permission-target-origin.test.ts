@@ -41,13 +41,13 @@ describe("pending patch target bound by its exact permission", () => {
   it.each(["card-call", "card-request", "card-source", "wrong-provider", "wrong-adapter", "wrong-method", "permission-path", "context-after-edit"])("keeps durable evidence guard for %s", kind => {
     const f = fixture();
     const row = (eventType: string, seq: number) => f.events.find((r: any) => r.eventType === eventType && r.seq === seq);
-    const payload = (r: any) => r.payload.prpEvent.payload;
+    const payload = (r: any) => r.payload.orpEvent.payload;
     if (kind === "card-call") payload(row("runtime_request.created", 134)).request.details.toolCallId = "other-call";
     if (kind === "card-request") payload(row("runtime_request.created", 134)).request.requestId = "other-request";
     if (kind === "wrong-provider") payload(row("runtime_request.created", 134)).request.origin.provider = "cursor";
     if (kind === "wrong-adapter") payload(row("runtime_request.created", 134)).request.origin.adapter = "untrusted";
     if (kind === "wrong-method") payload(row("runtime_request.created", 134)).request.origin.method = "other";
-    if (kind === "card-source") row("runtime_request.created", 134).payload.prpEvent.sourceInstanceId = "other-source";
+    if (kind === "card-source") row("runtime_request.created", 134).payload.orpEvent.sourceInstanceId = "other-source";
     if (kind === "permission-path") payload(row("provider.notice.recorded", 137)).details.find((d: any) => d.name === "target").value = "other.txt";
     if (kind === "context-after-edit") row("tool.execution.completed", 130).seq = 136;
     expect(f.read).toThrow();

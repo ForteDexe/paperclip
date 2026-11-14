@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withDirectoryMergeLock } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import { withDirectoryMergeLock } from "@outpost/adapter-utils/workspace-restore-merge";
 
 // `@sentry/node` is an optional peer and is not installed for this suite.
 // Mock it and the exact-version gate so the opt-in capture path runs.
@@ -46,8 +46,8 @@ describe("Sentry directory-merge lock timeout context", () => {
 
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-sentry-lock-"));
     cleanupDirs.push(rootDir);
-    vi.stubEnv("PAPERCLIP_HOME", path.join(rootDir, "home"));
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "test-instance");
+    vi.stubEnv("OUTPOST_HOME", path.join(rootDir, "home"));
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "test-instance");
     const targetDir = path.join(rootDir, "target");
     await mkdir(targetDir);
     let timeout: unknown;

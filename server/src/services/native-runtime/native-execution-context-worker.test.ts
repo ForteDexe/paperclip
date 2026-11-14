@@ -2,10 +2,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
-import { createHostClientHandlers } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import { createHostClientHandlers } from "@outpost/plugin-sdk";
 import { createPluginWorkerManager } from "../plugin-worker-manager.js";
-import type { NativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { NativeExecutionContext } from "./native-execution-context.js";
 
 const execution = { binding: { companyId: "company", agentId: "agent", runId: "run" } } as NativeExecutionInput;
@@ -70,12 +70,12 @@ describe("Core startup responsibility across real worker IPC", () => {
     let draining: Promise<void> | undefined;
     try {
       const acquire = manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
-        driverKey: "tasks", config: { hostWrite: true }, runId: "run", agentId: "agent", adapterType: "paperclip_runner",
+        driverKey: "tasks", config: { hostWrite: true }, runId: "run", agentId: "agent", adapterType: "outpost_runner",
         creationOperationId: "recovered-operation" }, 10, undefined, settled, "reconstructed-acquire", observe);
       const rejected = expect(acquire).rejects.toThrow("timed out");
       await entered; await rejected;
       await expect(manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
-        driverKey: "tasks", config: {}, runId: "run", agentId: "agent", adapterType: "paperclip_runner",
+        driverKey: "tasks", config: {}, runId: "run", agentId: "agent", adapterType: "outpost_runner",
         creationOperationId: "unrelated-operation" }, 10, undefined, unrelatedSettled, "unrelated-acquire", async () => {})).rejects.toThrow("timed out");
       recover("unrelated-operation");
       vi.useFakeTimers();
@@ -124,7 +124,7 @@ describe("Core startup responsibility across real worker IPC", () => {
     const settled = vi.fn(), observe = vi.fn(async () => {});
     try {
       const acquisition = manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
-        driverKey: "tasks", config: { hostWrite: true }, runId: "run", agentId: "agent", adapterType: "paperclip_runner" },
+        driverKey: "tasks", config: { hostWrite: true }, runId: "run", agentId: "agent", adapterType: "outpost_runner" },
         10, undefined, settled, "dead-acquire", observe);
       const rejected = expect(acquisition).rejects.toThrow("timed out");
       await entered; await rejected;
@@ -154,7 +154,7 @@ describe("Core startup responsibility across real worker IPC", () => {
     });
     try {
       const acquire = manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
-        driverKey: "tasks", config: {}, runId: "run", agentId: "agent", adapterType: "paperclip_runner" }, 10, undefined, settled, "late-acquire", observe);
+        driverKey: "tasks", config: {}, runId: "run", agentId: "agent", adapterType: "outpost_runner" }, 10, undefined, settled, "late-acquire", observe);
       await expect(acquire).rejects.toThrow("timed out");
       await manager.call(manifest.id, "configChanged", { config: { release: true, duplicate: true } });
       await vi.waitFor(() => expect(observe).toHaveBeenCalledOnce());

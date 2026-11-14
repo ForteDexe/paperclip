@@ -3,7 +3,7 @@ import type { DeadlineReconciliationSnapshot } from "../../services/deadline-rec
 import { readIdleRetrySchedule } from "../../services/heartbeat/idle-retry-schedule.js";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { agents, environments, heartbeatRuns, plugins, type Db } from "@paperclipai/db";
+import { agents, environments, heartbeatRuns, plugins, type Db } from "@outpost/db";
 import { expect, vi } from "vitest";
 import { environmentRuntimeService } from "../../services/environment-runtime.js";
 import type { PluginWorkerManager } from "../../services/plugin-worker-manager.js";

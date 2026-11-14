@@ -46,7 +46,7 @@ import {
   buildProjectMentionHref,
   buildRoutineMentionHref,
   buildUserMentionHref,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { Boxes, CalendarClock, Flag, Hash, User, X } from "lucide-react";
 import { applyMentionChipDecoration, clearMentionChipDecoration, parseMentionChipHref } from "../lib/mention-chips";
 import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";
@@ -73,7 +73,7 @@ export interface MentionOption {
   kind?: "agent" | "project" | "user" | "issue";
   agentId?: string;
   agentIcon?: string | null;
-  agentAppearance?: import("@paperclipai/shared").AgentAppearance | null;
+  agentAppearance?: import("@outpost/shared").AgentAppearance | null;
   projectId?: string;
   projectColor?: string | null;
   userId?: string;

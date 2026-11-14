@@ -1,7 +1,7 @@
-import { environmentSupportsLoginPty } from "@paperclipai/shared";
+import { environmentSupportsLoginPty } from "@outpost/shared";
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type AiProvider, type AiAuthMethod, type AiConnectionLoginIntent } from "@paperclipai/shared";
+import { type AiProvider, type AiAuthMethod, type AiConnectionLoginIntent } from "@outpost/shared";
 import { AgentProviderConnection } from "@/components/new-agent/AgentProviderConnection";
 import { ProviderApiKeyCard } from "@/components/AdapterLoginChrome";
 import { Button } from "@/components/ui/button";

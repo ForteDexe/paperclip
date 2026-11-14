@@ -69,7 +69,7 @@ export async function preparePersonalSecretWorker(ctx: ChatCatalogContext, id: s
     load: () => ctx.input.api.get(`/api/agents/${id}`),
     accept: value => chatCatalogAgentIsReady(value), reject: value => value.lifecycleError ? "Personal-secret worker has an unrelated setup failure before its required binding" : undefined });
   remainingIdentityObservationBudget(ctx);
-  if (agent.id !== id || agent.companyId !== ctx.input.fixtures.company.id || agent.adapterType !== "paperclip_runner" || Object.hasOwn(agent.adapterConfig.env ?? {}, "PUBLISHING_API_KEY")) throw new Error("Personal-secret prerequisite worker identity or initial binding differs");
+  if (agent.id !== id || agent.companyId !== ctx.input.fixtures.company.id || agent.adapterType !== "outpost_runner" || Object.hasOwn(agent.adapterConfig.env ?? {}, "PUBLISHING_API_KEY")) throw new Error("Personal-secret prerequisite worker identity or initial binding differs");
   return agent;
 }
 /** This is a prospective saved-config resolution check. The exact missing user
@@ -79,10 +79,10 @@ export async function provePersonalSecretMissingBoundary(ctx: ChatCatalogContext
   const lead = await ctx.input.api.get<PersonalSetupAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`);
   if (!chatCatalogAgentIsReady(lead) || lead.id !== ctx.input.fixtures.agent.id || lead.companyId !== ctx.input.fixtures.company.id || lead.lifecycleError) throw new Error("Personal-secret CEO must remain independently ready");
   const ref = (agent.adapterConfig.env as Record<string, unknown> | undefined)?.PUBLISHING_API_KEY as { type?: string; key?: string; required?: boolean; allowMissingOverride?: boolean } | undefined;
-  if (!["ready", "preparing", "verifying", "pausing"].includes(agent.lifecycleState) || !Array.isArray(agent.lifecycleHolds) || agent.lifecycleHolds.some(hold => hold !== "setup") || state.morganReadyBeforeRequiredBinding !== true || agent.id !== state.morganId || agent.companyId !== ctx.input.fixtures.company.id || agent.adapterType !== "paperclip_runner" || personalSecretUnboundConfigHash(agent.adapterConfig) !== state.morganUnboundConfigHash || ref?.type !== "user_secret_ref" || ref.key !== "PERSONAL_PUBLISHING_KEY" || ref.required !== true || ref.allowMissingOverride !== false || (agent.lifecycleError && agent.lifecycleError !== missingBindingLifecycleError)) throw new Error("Personal-secret worker has an unrelated lifecycle or configuration failure");
+  if (!["ready", "preparing", "verifying", "pausing"].includes(agent.lifecycleState) || !Array.isArray(agent.lifecycleHolds) || agent.lifecycleHolds.some(hold => hold !== "setup") || state.morganReadyBeforeRequiredBinding !== true || agent.id !== state.morganId || agent.companyId !== ctx.input.fixtures.company.id || agent.adapterType !== "outpost_runner" || personalSecretUnboundConfigHash(agent.adapterConfig) !== state.morganUnboundConfigHash || ref?.type !== "user_secret_ref" || ref.key !== "PERSONAL_PUBLISHING_KEY" || ref.required !== true || ref.allowMissingOverride !== false || (agent.lifecycleError && agent.lifecycleError !== missingBindingLifecycleError)) throw new Error("Personal-secret worker has an unrelated lifecycle or configuration failure");
   const origin = ctx.input.api.baseURL, cookies = await ctx.input.page.context().cookies(origin);
   if (!cookies.length) throw new Error("Personal-secret setup probe requires the real current-person session");
-  const response = await fetch(new URL(`/api/companies/${ctx.input.fixtures.company.id}/adapters/paperclip_runner/test-environment`, origin), { method: "POST", redirect: "error", signal: AbortSignal.timeout(Math.min(15_000, remainingIdentityObservationBudget(ctx))), headers: { "content-type": "application/json", Origin: origin, Cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join("; ") }, body: JSON.stringify({ agentId: agent.id, adapterConfig: agent.adapterConfig }) });
+  const response = await fetch(new URL(`/api/companies/${ctx.input.fixtures.company.id}/adapters/outpost_runner/test-environment`, origin), { method: "POST", redirect: "error", signal: AbortSignal.timeout(Math.min(15_000, remainingIdentityObservationBudget(ctx))), headers: { "content-type": "application/json", Origin: origin, Cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join("; ") }, body: JSON.stringify({ agentId: agent.id, adapterConfig: agent.adapterConfig }) });
   try {
     let body: { code?: string; details?: { code?: string; definitionId?: string; responsibleUserId?: string } };
     try { body = await response.json(); } catch { throw new Error("Personal-secret setup response could not be verified; contents withheld"); }
@@ -196,9 +196,9 @@ export function personalSecretWorkerReceipt(run: PersonalSecretWorkerRun | undef
   const matching = evidence.events.filter(event => {
     if (event.companyId !== expected.companyId || event.agentId !== expected.agentId || event.runId !== run.id
       || event.eventType !== "tool.execution.completed" || !Number.isSafeInteger(event.seq) || event.seq <= 0) return false;
-    const prp = event.payload?.prpEvent as { runId?: string; eventType?: string; payload?: { name?: string; status?: string; exitCode?: number; outputTruncated?: boolean; output?: unknown } } | undefined;
-    const tool = prp?.payload, observed = Date.parse(String(event.createdAt));
-    if (prp?.runId !== run.id || prp.eventType !== event.eventType || tool?.name !== "bash" || tool.status !== "completed"
+    const orp = event.payload?.orpEvent as { runId?: string; eventType?: string; payload?: { name?: string; status?: string; exitCode?: number; outputTruncated?: boolean; output?: unknown } } | undefined;
+    const tool = orp?.payload, observed = Date.parse(String(event.createdAt));
+    if (orp?.runId !== run.id || orp.eventType !== event.eventType || tool?.name !== "bash" || tool.status !== "completed"
       || tool.exitCode !== 0 || tool.outputTruncated !== false || typeof tool.output !== "string"
       || !Number.isFinite(observed) || observed < requested || observed > finished) return false;
     try {
@@ -461,14 +461,14 @@ export const personalSecretExternalCases = [
         if (!o.state.initialQuestionId) return;
         return { interactionId: String(o.state.initialQuestionId), sourceRunId: String(o.state.initialRunId), userId: String(o.state.currentPersonId) };
       },
-      oracleVersion: "paperclip.chat-catalog.personal-secret.v17",
+      oracleVersion: "outpost.chat-catalog.personal-secret.v17",
       setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["current-owner-missing-required-personal-value"] },
       expectedRunCount: 3,
       minimumRunCount: 3,
       expectedHumanMessageCount: 2,
       attemptTimeoutMs: 660000,
       sourceFiles: [
-        "../../packages/paperclip-runner/src/protocol-actions/request-human-input.ts",
+        "../../packages/outpost-runner/src/protocol-actions/request-human-input.ts",
         "chat-catalog-domains/external-personal-secret.ts",
         "chat-catalog-domains/external-personal-secret-menu.ts",
         "../../ui/src/pages/secrets/MyUserSecretsTab.tsx",

@@ -17,7 +17,7 @@ export interface CaseHandoffObservation {
   documents: Record<string, Row>; handoffToolRunIds: string[]; workflowReadRunIds: string[]; pendingInteractions: number;
 }
 export function hasNativeHandoffReceipt(events: Row[]): boolean {
-  const valid = events.map(event => ({ event, envelope: event.payload?.prpEvent }))
+  const valid = events.map(event => ({ event, envelope: event.payload?.orpEvent }))
     .filter(({ event, envelope }) => envelope && envelope.sourceKind === "runner" && isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion));
   const named = (name: unknown) => typeof name === "string" && (name === "handoff_case" || name.endsWith(".handoff_case"));
   return valid.some(({ event, envelope }) => {

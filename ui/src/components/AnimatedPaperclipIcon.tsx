@@ -22,7 +22,7 @@ export function AnimatedPaperclipIcon({ className, ...props }: SVGProps<SVGSVGEl
   );
 }
 
-/** Full-page loading state: a large, centered, gray animated paperclip. */
+/** Full-page loading state: a large, centered, gray animated outpost. */
 export function PaperclipLoading({ className }: { className?: string }) {
   return (
     <div

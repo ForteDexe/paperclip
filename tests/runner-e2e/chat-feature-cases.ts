@@ -8,7 +8,7 @@ import type { RunnerProfileFixture, RunnerTaskFixture } from "./types.js";
 
 export const CHAT_FEATURE_SUITE = "chat-features";
 export const CHAT_FEATURE_BUDGET_CENTS = 500;
-export const CHAT_FEATURE_GRADER = "paperclip.chat-features.v2";
+export const CHAT_FEATURE_GRADER = "outpost.chat-features.v2";
 export const CHAT_FEATURE_OPENCODE_MODEL = "openrouter/deepseek/deepseek-v4.1-flash-1017";
 export const CHAT_FEATURE_CASES = ["create-backlog", "delegate-announcement"] as const;
 export type ChatFeatureCase = typeof CHAT_FEATURE_CASES[number];
@@ -61,7 +61,7 @@ export function chatFeatureProfile(profile: RunnerProfileFixture): RunnerProfile
     const config = payload.adapterConfig as Record<string, unknown>;
     const { codexPermissionMode: _permission, ...adapterConfig } = config;
     const throughputRouting = profile.id === "runner-opencode" && profile.provider === "opencode"
-      && profile.model === CHAT_FEATURE_OPENCODE_MODEL && profile.adapterType === "paperclip_runner" && profile.credential === "OPENROUTER_API_KEY";
+      && profile.model === CHAT_FEATURE_OPENCODE_MODEL && profile.adapterType === "outpost_runner" && profile.credential === "OPENROUTER_API_KEY";
     return { ...payload, name: "CEO", title: "CEO", role: "ceo",
       capabilities: "Coordinates company work and delegates tasks to the team.",
       budgetMonthlyCents: CHAT_FEATURE_BUDGET_CENTS,

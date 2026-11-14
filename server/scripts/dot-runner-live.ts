@@ -11,9 +11,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
 import { z } from "zod";
-import { activityLog, authUsers, companies, companyMemberships, createDb, issues, mcpEventSubscriptions, mcpEventDeliveries, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
-import { DotHarnessDriver } from "../../packages/paperclip-runner/src/drivers/dot/dot-harness-driver.js";
-import { HarnessDriverBackend } from "../../packages/paperclip-runner/src/backends/harness-driver-backend.js";
+import { activityLog, authUsers, companies, companyMemberships, createDb, issues, mcpEventSubscriptions, mcpEventDeliveries, startEmbeddedPostgresTestDatabase } from "@outpost/db";
+import { DotHarnessDriver } from "../../packages/outpost-runner/src/drivers/dot/dot-harness-driver.js";
+import { HarnessDriverBackend } from "../../packages/outpost-runner/src/backends/harness-driver-backend.js";
 import { publicMcpIngressRoutes } from "../src/routes/public-mcp.js";
 import { createPublicMcpOAuth } from "../src/services/public-mcp/oauth.js";
 import { createPublicMcpEvents } from "../src/services/public-mcp/events.js";
@@ -26,9 +26,9 @@ assert(origin.startsWith("https://"), "DOT_LAB_ORIGIN must be the public HTTPS t
 const port = z.coerce.number().int().min(1024).max(65534).parse(process.env.DOT_LAB_PORT ?? 43127);
 const requestIdSchema = z.string().regex(/^pcmcp_request_[A-Za-z0-9_-]{43}$/);
 const scratch = await mkdtemp(join(tmpdir(), "paperclip-dot-live-"));
-process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = join(scratch, "master.key");
-delete process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-delete process.env.PAPERCLIP_CLOUD_API_ORIGIN;
+process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(scratch, "master.key");
+delete process.env.OUTPOST_SECRETS_MASTER_KEY;
+delete process.env.OUTPOST_CLOUD_API_ORIGIN;
 const controlToken = randomBytes(32).toString("base64url");
 const app = express(); app.use(express.json({ limit: "256kb" }));
 const control = express(); control.use(express.json({ limit: "16kb" }));
@@ -83,7 +83,7 @@ try {
     }
     next();
   });
-  app.get("/", (_req, res) => res.type("text").send("Disposable Paperclip Dot lab. Authenticated MCP endpoint: /mcp/paperclip. No production data."));
+  app.get("/", (_req, res) => res.type("text").send("Disposable Paperclip Dot lab. Authenticated MCP endpoint: /mcp/outpost. No production data."));
   app.get("/mcp-connect/:id", async (req, res) => {
     const id = requestIdSchema.parse(req.params.id);
     const redirect = redirects.get(id);
@@ -132,9 +132,9 @@ try {
   control.post("/queue", async (_req, res) => {
     assert(native && !queued, "Connect first; this lab permits one task");
     const subscriptions = await db.select().from(mcpEventSubscriptions);
-    assert(subscriptions.some(s => s.grantId === grantId && s.name === "paperclip.dot.work_available" && !s.stoppedAt && s.expiresAt > new Date()), "Dot must establish its event subscription first");
+    assert(subscriptions.some(s => s.grantId === grantId && s.name === "outpost.dot.work_available" && !s.stoppedAt && s.expiresAt > new Date()), "Dot must establish its event subscription first");
     queued = true;
-    await native.startTurn({ message: { role: "user", text: "Live integration test: compute 17 + 25. Call the projected save_report tool with body 'Dot received the Paperclip event. 17 + 25 = 42.' Then finish with schema paperclip.run_result.v1, reportedWorkDisposition 'done', summary stating the saved result, completionClaim {contractRevision:'dot-live-v1',objectiveSatisfied:true,criteria:[],remainingWork:[]}, and empty arrays for evidence, verification, attentionRequests, artifacts. Do not use any other apps, private data, external messages, or additional tasks." } });
+    await native.startTurn({ message: { role: "user", text: "Live integration test: compute 17 + 25. Call the projected save_report tool with body 'Dot received the Paperclip event. 17 + 25 = 42.' Then finish with schema outpost.run_result.v1, reportedWorkDisposition 'done', summary stating the saved result, completionClaim {contractRevision:'dot-live-v1',objectiveSatisfied:true,criteria:[],remainingWork:[]}, and empty arrays for evidence, verification, attentionRequests, artifacts. Do not use any other apps, private data, external messages, or additional tasks." } });
     await service!.tick(); res.json({ queued: true });
   });
   control.post("/stop", (_req, res) => { res.json({ stopping: true }); stopLab(); });
@@ -143,7 +143,7 @@ try {
   await writeFile(join(scratch, "control.json"), JSON.stringify({ origin, controlOrigin: `http://127.0.0.1:${port + 1}`, token: controlToken, companyId: company.id, taskId: task.id }), { mode: 0o600 });
   console.log(`LIVE LAB READY ${origin}/mcp/paperclip`);
   console.log(`Local control file: ${join(scratch, "control.json")}`);
-  console.log(`Standing instruction: Subscribe to paperclip.dot.work_available for companyId ${company.id}, taskId ${task.id}. When an event arrives, check paperclip_dot_inbox; read, accept, execute and finish its assignment. Do not poll. Wait for the event before taking work.`);
+  console.log(`Standing instruction: Subscribe to outpost.dot.work_available for companyId ${company.id}, taskId ${task.id}. When an event arrives, check paperclip_dot_inbox; read, accept, execute and finish its assignment. Do not poll. Wait for the event before taking work.`);
   process.once("SIGINT", stopLab); process.once("SIGTERM", stopLab);
   const timer = setTimeout(stopLab, 2 * 3600_000); timer.unref();
   await stopped; clearTimeout(timer);

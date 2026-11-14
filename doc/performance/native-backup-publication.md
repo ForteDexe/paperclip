@@ -11,7 +11,7 @@ symlinks into live trees.
 Run the focused correctness tests from an installed checkout:
 
 ```sh
-pnpm --filter @paperclipai/server exec vitest run src/services/native-runtime/native-harness-backup-cleanup.test.ts src/services/native-runtime/native-harness-backup-publication.test.ts
+pnpm --filter @outpost/server exec vitest run src/services/native-runtime/native-harness-backup-cleanup.test.ts src/services/native-runtime/native-harness-backup-publication.test.ts
 ```
 
 Run the performance comparison from the repository root with the Node version

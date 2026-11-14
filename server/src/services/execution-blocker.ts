@@ -5,11 +5,11 @@ import { legacyShutdownBeforeDispatchCondition } from "./legacy-shutdown-before-
 import { and, desc, eq, gt, inArray, not, or, sql, type SQL } from "drizzle-orm";
 import { conversationRecoveryActionPredicate, getConversationOwnershipBlocker } from "./conversation-continuation.js";
 import { z } from "zod";
-import { agentWakeupRequests, chatConversations, chatEndpoints, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueComments, issues, issueRecoveryActions, nativeRunFinalizations, nativeRunResults, toolConnections, workspaceOperations, type Db } from "@paperclipai/db";
+import { agentWakeupRequests, chatConversations, chatEndpoints, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueComments, issues, issueRecoveryActions, nativeRunFinalizations, nativeRunResults, toolConnections, workspaceOperations, type Db } from "@outpost/db";
 import { canContinueCancelledRun, readRunCancellation } from "./run-cancellation.js";
 import { canRetryStoppedRun } from "./cancelled-native-startup.js";
 import { queuedCommentIdsFromWakePayload } from "./issue-queued-comment-queue.js";
-import { EXECUTION_RECONCILIATION_CAUSES, readRunFailureCause, withoutSqlStatementText, type ExecutionBlocker } from "@paperclipai/shared";
+import { EXECUTION_RECONCILIATION_CAUSES, readRunFailureCause, withoutSqlStatementText, type ExecutionBlocker } from "@outpost/shared";
 import { hasRequiredWorkspaceRecovery, LEGACY_WORKSPACE_RECOVERY_SCHEMA, nativeRunHasNoWorkspaceAccess } from "./workspace-restore-recovery-state.js";
 import { unreconciledNativeExportPredicate } from "./native-runtime/native-workspace-reconstruction.js";
 import { hasRecoveredCleanupStopReceipt, hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
@@ -190,7 +190,7 @@ export function providerTurnWorkEventCondition(eventType: SQL, sourceEventId: SQ
  */
 export function stoppedBeforeProviderTurnCondition() {
   return sql`(stopped.status = 'cancelled' and stopped.runtime_mode = 'native'
-    and stopped.result_json->'nativeCancellation'->>'schema' = 'paperclip.native-cancellation.v1'
+    and stopped.result_json->'nativeCancellation'->>'schema' = 'outpost.native-cancellation.v1'
     and stopped.result_json->'nativeCancellation'->>'runId' = stopped.id::text
     and stopped.result_json->'nativeCancellation'->>'scope' = 'run'
     and stopped.result_json->'nativeCancellation'->>'dispatchState' = 'acknowledged'
@@ -205,7 +205,7 @@ export function stoppedBeforeProviderTurnCondition() {
 export function interruptedPreparationBeforeProviderWorkCondition() {
   return sql`(stopped.status = 'interrupted' and stopped.runtime_mode = 'legacy'
     and stopped.runtime_mode_resolved_at is null and stopped.execution_stage = 'preparing'
-    and stopped.runner_profile_json#>>'{adapterDispatch,adapterType}' = 'paperclip_runner'
+    and stopped.runner_profile_json#>>'{adapterDispatch,adapterType}' = 'outpost_runner'
     and stopped.runner_profile_json->'nativeExecutionInput' is null
     and stopped.process_pid is null and stopped.process_group_id is null and stopped.process_started_at is null
     and stopped.session_id_after is null and stopped.native_issue_id is null and stopped.native_session_id is null
@@ -237,7 +237,7 @@ export function interruptedPreparationBeforeProviderWorkCondition() {
           and lease.status in ('released', 'expired', 'failed')
           and coalesce(lease.metadata->>'pendingCleanupInFlight', 'false') = 'false'
           and (lease.provider = 'local' or (
-            lease.metadata#>>'{remoteExecutionTermination,schema}' = 'paperclip.remote-termination.v1'
+            lease.metadata#>>'{remoteExecutionTermination,schema}' = 'outpost.remote-termination.v1'
             and lease.metadata#>>'{remoteExecutionTermination,companyId}' = lease.company_id::text
             and lease.metadata#>>'{remoteExecutionTermination,runId}' = stopped.id::text
             and lease.metadata#>>'{remoteExecutionTermination,leaseId}' = lease.id::text

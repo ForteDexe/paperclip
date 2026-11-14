@@ -265,7 +265,7 @@ export async function stageTrustedHistoryAssets(
 }
 
 interface BundleManifest {
-  schema: "paperclip.runner-e2e.bundle/v1";
+  schema: "outpost.runner-e2e.bundle/v1";
   campaignId: string;
   bundleDigest: string;
   files: Array<{ path: string; sha256: string; bytes: number }>;
@@ -367,7 +367,7 @@ export async function createBundleManifest(
     .update(JSON.stringify(files))
     .digest("hex");
   return {
-    schema: "paperclip.runner-e2e.bundle/v1",
+    schema: "outpost.runner-e2e.bundle/v1",
     campaignId,
     bundleDigest,
     files,
@@ -391,7 +391,7 @@ export function buildHistoryPointers(history: RunnerE2EHistoryIndex) {
   };
   return {
     latest: {
-      schema: "paperclip.runner-e2e.pointer/v1",
+      schema: "outpost.runner-e2e.pointer/v1",
       updatedAt: history.updatedAt,
       overall: pointer(history.latestCampaignId),
       suites: Object.fromEntries(
@@ -402,7 +402,7 @@ export function buildHistoryPointers(history: RunnerE2EHistoryIndex) {
       ),
     },
     latestGreen: {
-      schema: "paperclip.runner-e2e.pointer/v1",
+      schema: "outpost.runner-e2e.pointer/v1",
       updatedAt: history.updatedAt,
       overall: pointer(history.latestGreenCampaignId),
       suites: Object.fromEntries(
@@ -544,7 +544,7 @@ export async function uploadImmutableBundle(
 
 async function main() {
   const reportRoot = path.resolve(
-    process.env.PAPERCLIP_RUNNER_E2E_REPORT_DIR ??
+    process.env.OUTPOST_RUNNER_E2E_REPORT_DIR ??
       "runner-e2e-merged-report/normalized",
   );
   const bucket = process.env.RUNNER_E2E_HISTORY_S3_BUCKET ?? "";
@@ -553,7 +553,7 @@ async function main() {
     prefix: process.env.RUNNER_E2E_HISTORY_PREFIX ?? "runner-e2e",
     publicBaseUrl: process.env.RUNNER_E2E_HISTORY_PUBLIC_BASE_URL ?? "",
   });
-  const bounded = process.env.PAPERCLIP_E2E_BOUNDED_HISTORY === "true";
+  const bounded = process.env.OUTPOST_E2E_BOUNDED_HISTORY === "true";
   if (bounded && process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_RUN_ATTEMPT !== "1") {
     throw new Error("Bounded history publication requires the original workflow attempt; retain failed publication evidence");
   }
@@ -567,7 +567,7 @@ async function main() {
   if (campaign.operations) validateEvalOperationsReport(campaign.operations);
   if (campaign.feedbackReview) validateCampaignFeedbackReview(campaign, campaign.feedbackReview);
   assertPublicCampaign(campaign);
-  if (campaign.schema !== "paperclip.runner-e2e.campaign/v2") {
+  if (campaign.schema !== "outpost.runner-e2e.campaign/v2") {
     throw new Error("Historical publishing requires a v2 normalized campaign");
   }
 

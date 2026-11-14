@@ -517,8 +517,8 @@ describe("SidebarRecentTasks", () => {
       id: "issue-1", companyId: "company-1", title: "Retry after upgrade", identifier: "PAP-1",
       status: "in_progress" as const, assigneeAgentId: "agent-1", hiddenAt: null, updatedAt: new Date(1),
     };
-    window.localStorage.setItem("paperclip.recentTasks:company-1:user-1", JSON.stringify([{ ...issue, recordedAt: 1 }]));
-    window.localStorage.setItem("paperclip.recentTasks:company-1:user-1:restart-wake-retry", JSON.stringify([issue.id]));
+    window.localStorage.setItem("outpost.recentTasks:company-1:user-1", JSON.stringify([{ ...issue, recordedAt: 1 }]));
+    window.localStorage.setItem("outpost.recentTasks:company-1:user-1:restart-wake-retry", JSON.stringify([issue.id]));
     mockIssuesApi.get.mockResolvedValue(issue);
     mockIssuesApi.getTreeControlState.mockResolvedValue({ activePauseHold: null });
     mockAgentsApi.wakeup.mockResolvedValue({ id: "run-1" });
@@ -536,7 +536,7 @@ describe("SidebarRecentTasks", () => {
     expect(mockAgentsApi.wakeup).toHaveBeenCalledWith("agent-1", expect.objectContaining({
       reason: "recent_task_restart_retry",
     }), "company-1");
-    expect(window.localStorage.getItem("paperclip.recentTasks:company-1:user-1:restart-wake-retry")).toBeNull();
+    expect(window.localStorage.getItem("outpost.recentTasks:company-1:user-1:restart-wake-retry")).toBeNull();
   });
 
   it("prunes tasks that become hidden", async () => {

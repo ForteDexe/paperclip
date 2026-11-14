@@ -1,5 +1,5 @@
-import { PAPERCLIP_RUNNER_IDLE_TIMEOUT_DEFAULT_MS, resolvePaperclipRunnerIdleTimeoutMs } from "@paperclipai/adapter-utils";
-import type { NativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import { OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS, resolvePaperclipRunnerIdleTimeoutMs } from "@outpost/adapter-utils";
+import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import {
   defaultsRemoteSandboxRunToWarm, defaultsToWarmFollowUp, supportsManagedNativeWarmSession,
 } from "../native-runtime/native-warm-capability.js";
@@ -40,16 +40,16 @@ export function resolveHeartbeatNativeLifecyclePolicy(input: {
     managedAi: input.managedAiSelected ? { attribution: input.managedAiAttribution } : null,
   });
   const agentMode = explicit ? input.agentMode
-    : input.adapterType === "paperclip_runner" && (localDefault || remoteDefault) ? "warm" : "per_turn";
+    : input.adapterType === "outpost_runner" && (localDefault || remoteDefault) ? "warm" : "per_turn";
   // An explicit warm choice honors the agent's idle window. The remote default
   // uses the window the environment view forwards to the provider: the
   // environment's, then the agent's.
   const agentPolicy: NativeLifecyclePolicy = agentMode === "warm"
     ? { mode: "warm", idleTimeoutMs: explicit ? resolvePaperclipRunnerIdleTimeoutMs(input.agentIdleTimeoutMs)
       : remoteDefault ? resolvePaperclipRunnerIdleTimeoutMs(input.remoteSandboxTarget?.idleTimeoutMs ?? input.agentIdleTimeoutMs)
-        : PAPERCLIP_RUNNER_IDLE_TIMEOUT_DEFAULT_MS }
+        : OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS }
     : { mode: "per_turn", idleTimeoutMs: null };
-  const supportsManagedWarm = input.adapterType === "paperclip_runner" && (input.taskOwned ||
+  const supportsManagedWarm = input.adapterType === "outpost_runner" && (input.taskOwned ||
     supportsManagedNativeWarmSession(profile, input.managedAiAttribution));
   return input.persistedPolicy ??
     (["openai_dot_mcp", "grok_bot_mcp", "muse_external", "cursor_cloud_api"].includes(input.backend) || input.managedAiSelected && !supportsManagedWarm

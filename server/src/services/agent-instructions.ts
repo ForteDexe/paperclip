@@ -3,7 +3,7 @@ import { invalidateAgentFileProjection, persistDurableAgentFiles, restoreDurable
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { activityLog, agentFileRoots, agentInstructionHeads, agents, fileStorageDb, type Db } from "@paperclipai/db";
+import { activityLog, agentFileRoots, agentInstructionHeads, agents, fileStorageDb, type Db } from "@outpost/db";
 import { instructionPath, assertInstructionPathSafe, instructionBytes, readInstructionBytes } from "./agent-instruction-files.js";
 import { notFound, unprocessable } from "../errors.js";
 import { resolveHomeAwarePath, resolvePaperclipInstanceRoot } from "../home-paths.js";
@@ -318,7 +318,7 @@ export function deriveBundleState(agent: AgentLike): BundleState {
 
 /** Configuration mutations cannot introduce authority on disposable disk. */
 export function assertEphemeralAgentInstructions(agent: AgentLike) {
-  if (process.env.PAPERCLIP_EPHEMERAL_SERVER === "true" && agentInstructionsBundleMode(agent) === "external") {
+  if (process.env.OUTPOST_EPHEMERAL_SERVER === "true" && agentInstructionsBundleMode(agent) === "external") {
     throw unprocessable("Volume-free servers require managed agent instructions");
   }
 }
@@ -660,7 +660,7 @@ export function agentInstructionsService(db?: Db) {
   ): Promise<{ bundle: AgentInstructionsBundle; adapterConfig: Record<string, unknown> }> {
     const state = await recoverManagedBundleState(agent, deriveBundleState(agent));
     const nextMode = input.mode ?? state.mode ?? "managed";
-    if (process.env.PAPERCLIP_EPHEMERAL_SERVER === "true" && nextMode === "external") {
+    if (process.env.OUTPOST_EPHEMERAL_SERVER === "true" && nextMode === "external") {
       throw unprocessable("Volume-free servers require managed agent instructions");
     }
     const nextEntryFile = input.entryFile ? normalizeRelativeFilePath(input.entryFile) : state.entryFile;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Environment } from "@paperclipai/shared";
+import type { Environment } from "@outpost/shared";
 
 import {
   ManagedSandboxUnavailableForTestError,

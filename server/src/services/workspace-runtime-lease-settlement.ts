@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { executionWorkspaceRuntimeLeases, type Db } from "@paperclipai/db";
+import { executionWorkspaceRuntimeLeases, type Db } from "@outpost/db";
 import { persistActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
 import type { OwnerProof } from "./owner-proof.js";
 import type { InProgressRecord, SettleOutcome } from "./recovery/ownership-registry.js";

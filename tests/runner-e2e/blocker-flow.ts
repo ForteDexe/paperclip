@@ -69,7 +69,7 @@ export async function runBlockerFlow(input: {
     if (failed.length) throw new Error(`Blocker outcome checks failed: ${failed.map(c => c.id).join(", ")}`);
   }
   try {
-    for (const file of ["skills/paperclip/SKILL.md", "skills/paperclip/references/api-reference.md", "skills/paperclip-create-agent/SKILL.md",
+    for (const file of ["skills/paperclip/SKILL.md", "skills/paperclip/references/api-reference.md",
       ...["blocker-cases.ts", "blocker-flow.ts", "blocker-input.ts", "blocker-fixtures.ts", "blocker-scoring.ts"].map(f => `tests/runner-e2e/${f}`)]) {
       hashes[file] = createHash("sha256").update(await readFile(path.resolve(import.meta.dirname, "../..", file))).digest("hex");
     }

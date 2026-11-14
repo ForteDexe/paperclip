@@ -203,14 +203,14 @@ describe("OnboardingWizard adapter selection", () => {
 
   it("recovers a saved Codex runner draft without changing its model or runner", async () => {
     mockAdapterRegistry.list = [
-      { type: "paperclip_runner" },
+      { type: "outpost_runner" },
       { type: "codex_local" },
     ];
     window.localStorage.setItem(
       ONBOARDING_STORAGE_KEY,
       JSON.stringify({
         step: 0,
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         model: "gpt-runner-only",
         command: "runnerd",
         args: "--native",
@@ -242,7 +242,7 @@ describe("OnboardingWizard adapter selection", () => {
       ONBOARDING_STORAGE_KEY,
       JSON.stringify({
         step: 0,
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         model: "gpt-runner-only",
         command: "runnerd",
         args: "--native",
@@ -292,8 +292,8 @@ describe("OnboardingWizard adapter selection", () => {
   });
 
   it.each([false, true])("normalizes a saved Copilot draft with the native runner experiment set to %s", async (nativeRunnerEnabled) => {
-    mockAdapterRegistry.list = [{ type: "paperclip_runner" }, { type: "codex_local" }];
-    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ step: 0, adapterType: "paperclip_runner", onboardingCopilot: true, model: "gpt-5.6-luna" }));
+    mockAdapterRegistry.list = [{ type: "outpost_runner" }, { type: "codex_local" }];
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ step: 0, adapterType: "outpost_runner", onboardingCopilot: true, model: "gpt-5.6-luna" }));
     const { root } = await mount(nativeRunnerEnabled);
     try {
       const saved = JSON.parse(window.localStorage.getItem(ONBOARDING_STORAGE_KEY)!);

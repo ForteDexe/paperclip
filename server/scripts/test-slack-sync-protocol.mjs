@@ -14,7 +14,7 @@ const mode = args[0] === '--warm-only' ? 'warm' : 'action-delayed';
 const testNamePattern = args.length === 1
   ? `captures signed Slack forwarding protocol with registered owners \\(${mode}\\)$`
   : 'captures signed Slack forwarding protocol with registered owners';
-const names = ['PAPERCLIP_SLACK_TEST_DATABASE_URL'];
+const names = ['OUTPOST_SLACK_TEST_DATABASE_URL'];
 for (const name of names) {
   if (!process.env[name]) throw new Error(`Set ${name} to an owned dedicated PostgreSQL test database`);
   let url;
@@ -27,10 +27,10 @@ const vitest = path.join(path.dirname(require.resolve('vitest/package.json')), '
 const ownedHome = mkdtempSync(path.join(tmpdir(), 'paperclip-slack-protocol-'));
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME,
-  LANG: process.env.LANG, TMPDIR: ownedHome, PAPERCLIP_HOME: ownedHome,
+  LANG: process.env.LANG, TMPDIR: ownedHome, OUTPOST_HOME: ownedHome,
   NODE_ENV: 'test', NODE_OPTIONS: '', SLACK_GATE_EXPECT_PRELOAD: '1',
-  PAPERCLIP_SLACK_TEST_DATABASE_URL: process.env.PAPERCLIP_SLACK_TEST_DATABASE_URL,
-  PAPERCLIP_SLACK_PROTOCOL_CAPTURE: '1',
+  OUTPOST_SLACK_TEST_DATABASE_URL: process.env.OUTPOST_SLACK_TEST_DATABASE_URL,
+  OUTPOST_SLACK_PROTOCOL_CAPTURE: '1',
   SLACK_GATE_PROCESS_LOG: process.env.SLACK_GATE_PROCESS_LOG,
 };
 const child = spawn(process.execPath, ['--require', guard, vitest, 'run',

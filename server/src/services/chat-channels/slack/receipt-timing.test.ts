@@ -22,11 +22,11 @@ describe("Slack receipt timing", () => {
     const finish = beginSlackReceiptTiming(input);
     finish("confirmed");
     expect(tracer.startSpan).toHaveBeenCalledWith("chat.slack.receipt", {
-      attributes: { "paperclip.chat.receipt.operation": "add", "paperclip.chat.receipt.queue_ms": 100 },
+      attributes: { "outpost.chat.receipt.operation": "add", "outpost.chat.receipt.queue_ms": 100 },
     });
     expect(span.setAttribute.mock.calls).toEqual([
-      ["paperclip.chat.receipt.outcome", "confirmed"],
-      ["paperclip.chat.receipt.delivery_age_ms", 250],
+      ["outpost.chat.receipt.outcome", "confirmed"],
+      ["outpost.chat.receipt.delivery_age_ms", 250],
     ]);
     expect(span.end).toHaveBeenCalledOnce();
   });

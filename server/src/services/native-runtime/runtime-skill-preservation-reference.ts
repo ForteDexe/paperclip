@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
-import { heartbeatRuns, companySkillRepositorySnapshots } from "@paperclipai/db";
+import { heartbeatRuns, companySkillRepositorySnapshots } from "@outpost/db";
 import { nativeSha256 } from "./canonical.js";
-import { parseNativeExecutionInput, type NativeRuntimeContextSnapshot } from "../../vendor/paperclip-runner/index.js";
+import { parseNativeExecutionInput, type NativeRuntimeContextSnapshot } from "../../vendor/outpost-runner/index.js";
 
 export const RUNTIME_SKILL_PRESERVATION_KEY = "nativeRuntimeSkillPreservation";
-export const RUNTIME_SKILL_PRESERVATION_SCHEMA = "paperclip.runtime-skill-preservation.v1";
+export const RUNTIME_SKILL_PRESERVATION_SCHEMA = "outpost.runtime-skill-preservation.v1";
 export type PreservedRuntimeSkill = {
   key: string; runtimeName: string; bundle: NativeRuntimeContextSnapshot["skills"][number]["bundle"];
   manifestText: string; packageSnapshotId: string; packageContentHash: string;

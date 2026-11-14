@@ -1,4 +1,4 @@
-import { normalizeClaudeRunnerOptions } from "@paperclipai/shared";
+import { normalizeClaudeRunnerOptions } from "@outpost/shared";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within, waitFor } from "storybook/test";
 import { Route, Routes } from "@/lib/router";
@@ -28,7 +28,7 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
   let qualified = false;
   let agent = { ...storybookAgents[0]!, urlKey: "migration-agent", name: harness === "claude_local" ? "ClaudeWriter" : "CodexCoder",
     status: running ? "running" : "idle", lifecycleState: "ready", defaultEnvironmentId: nativeComputerTest ? savedComputer.id : null,
-    adapterType: upgraded || nativeComputerTest ? "paperclip_runner" : harness,
+    adapterType: upgraded || nativeComputerTest ? "outpost_runner" : harness,
     adapterConfig: { model: harness === "claude_local" ? "claude-sonnet-4-6" : "gpt-5.4", modelReasoningEffort: "medium", timeoutSec: 180,
       ...(nativeComputerTest ? { provider: "opencode" } : upgraded ? profile : {}), ...(incompatible ? { chrome: true } : {}), env: { MIGRATION_MARKER: { type: "plain", value: "keep-this-setting" } } },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
@@ -44,8 +44,8 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
       qualified = true;
       return Response.json({ ok: true, driver: "sandbox", details: { platformQualificationRecorded: true } });
     }
-    if (nativeComputerTest && url.pathname.endsWith("/adapters/paperclip_runner/test-environment")) {
-      return Response.json({ adapterType: "paperclip_runner", status: qualified ? "pass" : "fail", testedAt: new Date().toISOString(),
+    if (nativeComputerTest && url.pathname.endsWith("/adapters/outpost_runner/test-environment")) {
+      return Response.json({ adapterType: "outpost_runner", status: qualified ? "pass" : "fail", testedAt: new Date().toISOString(),
         checks: [{ code: "native_runtime_test", level: qualified ? "info" : "error", message: qualified ? "Native runtime ready." : "Saved computer qualification is stale." }] });
     }
     if (url.pathname === "/api/adapters") {
@@ -68,7 +68,7 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
         const { runner: _runner, replaceAdapterConfig: _replace, adapterConfig, ...rest } = patch;
         const converted = { ...agent.adapterConfig, ...adapterConfig, ...profile };
         const normalized = harness === "claude_local" ? normalizeClaudeRunnerOptions(converted) : { config: converted, warnings: [] };
-        agent = { ...agent, ...rest, adapterType: "paperclip_runner", adapterConfig: normalized.config as typeof agent.adapterConfig };
+        agent = { ...agent, ...rest, adapterType: "outpost_runner", adapterConfig: normalized.config as typeof agent.adapterConfig };
         return Response.json({ ...agent, configurationWarnings: normalized.warnings });
       }
       return Response.json(agent);
@@ -119,14 +119,14 @@ export const Upgrading: Story = { parameters: { runnerUpgrade: { delay: 60_000 }
 export const UpgradeCodex: Story = { play: async ({ canvasElement }) => {
   const page = within(canvasElement);
   await userEvent.click(await page.findByRole("button", { name: "Upgrade runner" }));
-  await expect(await page.findByText("Upgraded to Paperclip Runner.")).toBeVisible();
+  await expect(await page.findByText("Upgraded to Outpost Runner.")).toBeVisible();
   await waitFor(() => expect(page.queryByRole("button", { name: "Upgrade runner" })).not.toBeInTheDocument());
   await expect(await page.findByRole("button", { name: /^Model$/ })).toHaveTextContent(/gpt-5.4/i);
 } };
 export const UpgradeClaude: Story = { ...UpgradeCodex, parameters: { runnerUpgrade: { harness: "claude_local" } }, play: async ({ canvasElement }) => {
   const page = within(canvasElement);
   await userEvent.click(await page.findByRole("button", { name: "Upgrade runner" }));
-  await expect(await page.findByText("Upgraded to Paperclip Runner.")).toBeVisible();
+  await expect(await page.findByText("Upgraded to Outpost Runner.")).toBeVisible();
   await expect(await page.findByRole("button", { name: /^Model$/ })).toHaveTextContent(/claude[- ]sonnet[- ]4[-.]6/i);
 } };
 export const FailureAndRetry: Story = { parameters: { runnerUpgrade: { failOnce: true } }, play: async ({ canvasElement }) => {
@@ -134,20 +134,20 @@ export const FailureAndRetry: Story = { parameters: { runnerUpgrade: { failOnce:
   await userEvent.click(await page.findByRole("button", { name: "Upgrade runner" }));
   await expect(await page.findByRole("alert")).toHaveTextContent("Could not save this agent");
   await userEvent.click(page.getByRole("button", { name: "Upgrade runner" }));
-  await expect(await page.findByText("Upgraded to Paperclip Runner.")).toBeVisible();
+  await expect(await page.findByText("Upgraded to Outpost Runner.")).toBeVisible();
 } };
 export const IncompatibleClaudeSetting: Story = { name: "Ignored Claude setting", parameters: { runnerUpgrade: { harness: "claude_local", incompatible: true } }, play: async ({ canvasElement }) => {
   const page = within(canvasElement);
   await expect(await page.findByText(/Chrome integration.*is ignored/)).toBeVisible();
   await userEvent.click(await page.findByRole("button", { name: "Upgrade runner" }));
-  await expect(await page.findByText("Upgraded to Paperclip Runner.")).toBeVisible();
+  await expect(await page.findByText("Upgraded to Outpost Runner.")).toBeVisible();
 } };
 export const RepairAndUpgrade: Story = { ...IncompatibleClaudeSetting, name: "Remove obsolete option and upgrade", play: async ({ canvasElement }) => {
   const page = within(canvasElement);
   await userEvent.click(await page.findByRole("switch", { name: "Enable Chrome" }));
   await expect(page.getByText("Your unsaved changes will be included.")).toBeVisible();
   await userEvent.click(page.getByRole("button", { name: "Upgrade runner" }));
-  await expect(await page.findByText("Upgraded to Paperclip Runner.")).toBeVisible();
+  await expect(await page.findByText("Upgraded to Outpost Runner.")).toBeVisible();
 } };
 export const AlreadyUpgraded: Story = { parameters: { runnerUpgrade: { upgraded: true } } };
 export const UnavailableEnvironment: Story = { parameters: { runnerUpgrade: { unavailable: true } } };

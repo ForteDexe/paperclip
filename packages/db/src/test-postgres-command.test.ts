@@ -8,12 +8,12 @@ import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport } from "./test-embedded-postgres.js";
 
-const previousAdmin = process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL;
-delete process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL;
+const previousAdmin = process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL;
+delete process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL;
 let supported = false;
 try { supported = process.platform !== "win32" && (await getEmbeddedPostgresTestSupport()).supported; }
 finally {
-  if (previousAdmin !== undefined) process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL = previousAdmin;
+  if (previousAdmin !== undefined) process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL = previousAdmin;
 }
 const execute = promisify(execFile);
 
@@ -24,8 +24,8 @@ it.skipIf(!supported).each(["SIGTERM", "SIGINT"] as const)("drains the test comm
     ...process.env, TEST_COMMAND_TREE_READY: ready, TEST_COMMAND_TREE_DONE: done,
     TMPDIR: directory, TEMP: directory, TMP: directory,
   };
-  delete env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL;
-  delete env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+  delete env.OUTPOST_TEST_POSTGRES_ADMIN_URL;
+  delete env.OUTPOST_TEST_POSTGRES_TEMPLATE;
   const wrapper = spawn(process.execPath, [
     "--import", fileURLToPath(new URL("../node_modules/tsx/dist/loader.mjs", import.meta.url)),
     fileURLToPath(new URL("./test-postgres-command.ts", import.meta.url)), "--", process.execPath,

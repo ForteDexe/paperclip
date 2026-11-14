@@ -18,7 +18,7 @@ test("Mine refreshes a recent-task history with one summaries request", async ({
       id, companyId, title: `Recent ${index}`, identifier: null, status: "backlog", recordedAt: Date.now() - index * 1000,
     }));
     for (const owner of new Set([userId ?? "__local_board__", "__local_board__"])) {
-      localStorage.setItem(`paperclip.recentTasks.v2:${companyId}:${owner}`, JSON.stringify(entries));
+      localStorage.setItem(`outpost.recentTasks.v2:${companyId}:${owner}`, JSON.stringify(entries));
     }
   }, { companyId, userId, taskIds });
   const summaries: URL[] = [];

@@ -35,7 +35,7 @@ export const wrongResolverExternalCases=[definition("connection-setup.wrong-pers
   return {original,related:before,alexId:alex.id,otherId:session.user.id};
  }catch(error){await alex.dispose();people.delete(ctx);throw error;}
 },gradeWrongResolver,{
- oracleVersion:"paperclip.chat-catalog.external.v2",authentication:"human-session",expectedRunCount:2,minimumRunCount:2,expectedHumanMessageCount:1,attemptTimeoutMs:540000,
+ oracleVersion:"outpost.chat-catalog.external.v2",authentication:"human-session",expectedRunCount:2,minimumRunCount:2,expectedHumanMessageCount:1,attemptTimeoutMs:540000,
  sourceFiles:["chat-catalog-domains/external-wrong-resolver.ts","chat-catalog-domains/identity-auth.ts","chat-catalog-domains/identity-private-browser.ts","chat-catalog-domains/identity-private-browser-worker.ts","chat-catalog-domains/identity-wizard.ts","chat-catalog-domains/identity-support.ts","chat-catalog-domains/external-support.ts","chat-catalog-domains/internal-support.ts","../../server/src/routes/connection-intents.ts","../../server/src/services/connection-intents.ts","chat-scenarios/connection-setup.yaml"],
  async act(ctx,state){
   await waitForReply({...ctx,allRuns:async()=>(await ctx.allRuns()).filter(run=>run.contextSnapshot?.issueId===ctx.issue()?.id)});

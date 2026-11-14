@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { recoveryPostgresSupport, startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { createReusableLeaseHandoff } from "../environment-lease-handoff.js";
 import { environmentService } from "../environments.js";
@@ -30,17 +30,17 @@ describeDb("retired native backup source authority", () => {
     const companyId = randomUUID(), agentId = randomUUID(), sessionId = randomUUID(), runnerInstanceId = randomUUID();
     const sourceRunId = randomUUID(), currentRunId = randomUUID(), leaseId = randomUUID(), providerLeaseId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Retired source", issuePrefix: `R${companyId.slice(0, 5)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "outpost_runner" });
     for (const id of [sourceRunId, currentRunId]) await db.insert(heartbeatRuns).values({ id, companyId, agentId,
       status: id === sourceRunId ? "succeeded" : "running", runtimeMode: "native", nativeSessionId: sessionId,
       invocationSource: "assignment", triggerDetail: "system" });
     const lease = (id: string) => ({ id, companyId, heartbeatRunId: sourceRunId, provider: "daytona", providerLeaseId,
       status: options.status ?? "expired", cleanupStatus: "success", releasedAt: new Date(),
       metadata: {
-        nativeHarnessBackup: { schema: "paperclip.native-harness-backup-stamp.v2", normalizedSessionId: sessionId, runnerInstanceId,
+        nativeHarnessBackup: { schema: "outpost.native-harness-backup-stamp.v2", normalizedSessionId: sessionId, runnerInstanceId,
           sessionScopeSha256: "a".repeat(64), sourceProviderLeaseId: providerLeaseId, authorizedProviderLeaseId: providerLeaseId,
           manifestSha256: options.stampSha ?? manifestSha256, completedAt: completedAt.toISOString() },
-        ...(options.termination === null ? {} : { remoteExecutionTermination: { schema: "paperclip.remote-termination.v1", companyId,
+        ...(options.termination === null ? {} : { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId,
           runId: sourceRunId, leaseId: id, provider: "daytona", providerLeaseId, state: options.termination ?? "destroyed",
           confirmedAt: new Date().toISOString() } }),
       } });
@@ -53,13 +53,13 @@ describeDb("retired native backup source authority", () => {
       Object.assign(sourceLease, { status: "released", leasePolicy: hold === "reusable_policy" ? "reuse_by_environment" : "retain_on_failure",
         acquiredAt: new Date(Date.now() - 60_000), releasedAt: new Date(Date.now() + 1_000) });
       sourceLease.metadata = { ...sourceLease.metadata, pluginId,
-        ...(hold === "no_marker" ? {} : { workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1",
+        ...(hold === "no_marker" ? {} : { workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1",
           runId: hold === "foreign_marker" ? randomUUID() : sourceRunId } }),
-        ...(hold === "no_stop_receipt" ? {} : { sandboxStopAndRetainReceipt: { schema: "paperclip.sandbox-stop-and-retain-receipt.v1",
+        ...(hold === "no_stop_receipt" ? {} : { sandboxStopAndRetainReceipt: { schema: "outpost.sandbox-stop-and-retain-receipt.v1",
           requestId: randomUUID(), companyId, runId: sourceRunId, leaseId, provider: "daytona", providerLeaseId, pluginId,
           method: "environmentStopLease", confirmedAt: termination.confirmedAt } }) };
       if (hold === "dirty_writer") await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
-        schema: "paperclip.native-workspace-sync/v3", state: "prepared", leaseId, providerLeaseId, workspaceId: randomUUID(),
+        schema: "outpost.native-workspace-sync/v3", state: "prepared", leaseId, providerLeaseId, workspaceId: randomUUID(),
         remoteCwd: "/work", resourceDisposition: "keep_running", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64),
         finalHostSha256: null } } }).where(eq(heartbeatRuns.id, sourceRunId));
     }
@@ -74,7 +74,7 @@ describeDb("retired native backup source authority", () => {
         ...(idle === "cleanup_in_flight" ? { pendingCleanupInFlight: true } : {}) } as typeof sourceLease.metadata;
       if (idle === "run_active") await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, sourceRunId));
       if (idle === "export_pending") await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
-        schema: "paperclip.native-workspace-sync/v3", state: "prepared", leaseId, providerLeaseId, workspaceId: randomUUID(),
+        schema: "outpost.native-workspace-sync/v3", state: "prepared", leaseId, providerLeaseId, workspaceId: randomUUID(),
         remoteCwd: "/work", resourceDisposition: "keep_running", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64),
         finalHostSha256: null } } }).where(eq(heartbeatRuns.id, sourceRunId));
     }
@@ -194,7 +194,7 @@ describeDb("retired native backup source authority", () => {
     expect(source!.status).toBe(idleWarm);
     expect(source!.metadata).not.toHaveProperty("reusableSandboxLease");
     expect(source!.metadata?.reusableSandboxLeaseSuperseded).toMatchObject({
-      schema: "paperclip.reusable-sandbox-lease-superseded.v1", reusableSandboxLease: { version: 1, provider: "daytona" } });
+      schema: "outpost.reusable-sandbox-lease-superseded.v1", reusableSandboxLease: { version: 1, provider: "daytona" } });
   });
 
   it("refuses a reuse handoff of a source superseded while its provider resume was pending", async () => {
@@ -205,7 +205,7 @@ describeDb("retired native backup source authority", () => {
     const [source] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, lastSourceLeaseId));
     const environmentId = randomUUID(), runId = randomUUID(), agentId = randomUUID();
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
-    await db.insert(agents).values({ id: agentId, companyId: source!.companyId, name: "Other", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId: source!.companyId, name: "Other", adapterType: "outpost_runner" });
     await db.insert(heartbeatRuns).values({ id: runId, companyId: source!.companyId, agentId, status: "running",
       runtimeMode: "native", invocationSource: "assignment", triggerDetail: "system" });
     const issueId = randomUUID(), workspaceId = randomUUID();

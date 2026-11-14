@@ -4,7 +4,7 @@ import {
   runWorker,
   type AgentSessionEvent,
   type PluginContext,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 import { PLUGIN_ID, STREAM_CHANNEL } from "./manifest.js";
 
 type Params = Record<string, unknown>;

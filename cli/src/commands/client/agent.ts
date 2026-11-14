@@ -16,11 +16,11 @@ import {
   type Agent,
   type AgentWakeupResponse,
   type Issue,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   removeMaintainerOnlySkillSymlinks,
   resolvePaperclipSkillsDir,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -219,10 +219,10 @@ function buildAgentEnvExports(input: {
 }): string {
   const escaped = (value: string) => value.replace(/'/g, "'\"'\"'");
   return [
-    `export PAPERCLIP_API_URL='${escaped(input.apiBase)}'`,
-    `export PAPERCLIP_COMPANY_ID='${escaped(input.companyId)}'`,
-    `export PAPERCLIP_AGENT_ID='${escaped(input.agentId)}'`,
-    `export PAPERCLIP_API_KEY='${escaped(input.apiKey)}'`,
+    `export OUTPOST_API_URL='${escaped(input.apiBase)}'`,
+    `export OUTPOST_COMPANY_ID='${escaped(input.companyId)}'`,
+    `export OUTPOST_AGENT_ID='${escaped(input.agentId)}'`,
+    `export OUTPOST_API_KEY='${escaped(input.apiKey)}'`,
   ].join("\n");
 }
 

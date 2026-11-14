@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { INSTANCE_FEATURE_CATALOG, instanceExperimentalSettingsSchema, type InstanceExperimentalSettings } from "@paperclipai/shared";
+import { INSTANCE_FEATURE_CATALOG, instanceExperimentalSettingsSchema, type InstanceExperimentalSettings } from "@outpost/shared";
 import {
   applyExperimentalSettingsPatch,
   applyCloudCatalogDefaults,
@@ -85,7 +85,7 @@ describe("instance settings service", () => {
     expect(applyExperimentalSettingsPatch(enabled, { enableOpenAiDot: false }).enableOpenAiDot).toBe(false);
   });
   it("keeps chat connectors opt-in across legacy storage and patches without disabling Apps", () => {
-    for (const stored of [undefined, {}, { enableApps: true }, { enableConferenceRoomChat: true }]) {
+    for (const stored of [undefined, {}, { enableApps: true }]) {
       expect(normalizeExperimentalSettings(stored).enableChatConnectors).toBe(false);
     }
     const enabled = applyExperimentalSettingsPatch({}, { enableChatConnectors: true });
@@ -140,7 +140,6 @@ describe("instance settings service", () => {
       enableMemoryConnectors: false,
       enablePaperclipNotebook: false,
       enableGoogleWorkspaceConnector: false,
-      enableConferenceRoomChat: false,
       enableClassicTaskInterface: false,
       enableLegacyComposerSubmit: false,
       enableExternalObjects: false,
@@ -192,15 +191,6 @@ describe("instance settings service", () => {
       normalizeExperimentalSettings({ enableRunnerPreviewIngress: true })
         .enableRunnerPreviewIngress,
     ).toBe(true);
-  });
-
-  it("defaults enableConferenceRoomChat to false for empty and legacy stored settings", () => {
-    expect(normalizeExperimentalSettings(undefined).enableConferenceRoomChat).toBe(false);
-    expect(normalizeExperimentalSettings({}).enableConferenceRoomChat).toBe(false);
-    // Rows persisted before the flag existed (PAP-137) must normalize to off.
-    expect(
-      normalizeExperimentalSettings({ enableStreamlinedLeftNavigation: true }).enableConferenceRoomChat,
-    ).toBe(false);
   });
 
   it("defaults enableClassicTaskInterface to false for empty and legacy stored settings", () => {
@@ -286,25 +276,6 @@ describe("instance settings service", () => {
     ).toBe(true);
   });
 
-  it("round-trips an enableConferenceRoomChat patch through the update merge", () => {
-    // updateExperimental merges `{ ...normalize(current), ...patch }` and
-    // re-normalizes; emulate that to prove the flag survives the roundtrip
-    // without disturbing other settings.
-    const current = normalizeExperimentalSettings({});
-    const enabled = normalizeExperimentalSettings({ ...current, enableConferenceRoomChat: true });
-    expect(enabled.enableConferenceRoomChat).toBe(true);
-    expect(enabled.enableStreamlinedLeftNavigation).toBe(true);
-
-    const disabled = normalizeExperimentalSettings({ ...enabled, enableConferenceRoomChat: false });
-    expect(disabled).toEqual(current);
-  });
-
-  it("rejects non-boolean enableConferenceRoomChat values back to the default", () => {
-    expect(
-      normalizeExperimentalSettings({ enableConferenceRoomChat: "yes" }).enableConferenceRoomChat,
-    ).toBe(false);
-  });
-
   it("defaults enableBuiltInAgents to false for empty and legacy stored settings", () => {
     expect(normalizeExperimentalSettings(undefined).enableBuiltInAgents).toBe(false);
     expect(normalizeExperimentalSettings({}).enableBuiltInAgents).toBe(false);
@@ -326,8 +297,8 @@ describe("instance settings service", () => {
       {
         now: () => activatedAt,
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       },
     );
@@ -347,8 +318,8 @@ describe("instance settings service", () => {
       { enableWorktreeRunExecution: false },
       {
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       },
     );
@@ -365,8 +336,8 @@ describe("instance settings service", () => {
       {
         now: () => new Date("2026-07-10T12:00:00.000Z"),
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       },
     );
@@ -375,8 +346,8 @@ describe("instance settings service", () => {
       { enableWorktreeRunExecution: false },
       {
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       },
     );
@@ -387,8 +358,8 @@ describe("instance settings service", () => {
       {
         now: () => new Date("2026-07-10T12:05:00.000Z"),
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       },
     );
@@ -409,8 +380,8 @@ describe("instance settings service", () => {
       },
       {
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       },
     );
@@ -430,8 +401,8 @@ describe("instance settings service", () => {
       resolveWorktreeRunExecutionActivationState({
         getExperimental: async () => experimental,
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       }),
     ).resolves.toEqual({
@@ -452,8 +423,8 @@ describe("instance settings service", () => {
       resolveWorktreeRunExecutionActivationState({
         getExperimental: async () => experimental,
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       }),
     ).resolves.toMatchObject({
@@ -474,8 +445,8 @@ describe("instance settings service", () => {
       resolveWorktreeRunExecutionActivationState({
         getExperimental: async () => experimental,
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "target-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "target-instance",
         },
       }),
     ).resolves.toMatchObject({
@@ -493,8 +464,8 @@ describe("instance settings service", () => {
           throw new Error("settings unavailable");
         },
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "true",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "true",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       }),
     ).resolves.toMatchObject({
@@ -508,8 +479,8 @@ describe("instance settings service", () => {
       resolveWorktreeRunExecutionActivationState({
         getExperimental,
         runtimeEnv: {
-          PAPERCLIP_IN_WORKTREE: "false",
-          PAPERCLIP_INSTANCE_ID: "worktree-instance",
+          OUTPOST_IN_WORKTREE: "false",
+          OUTPOST_INSTANCE_ID: "worktree-instance",
         },
       }),
     ).resolves.toMatchObject({

@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ServerAdapterModule } from "./types.js";
-import { validateAdapterLoginCapability } from "@paperclipai/adapter-utils";
+import { validateAdapterLoginCapability } from "@outpost/adapter-utils";
 import { logger } from "../middleware/logger.js";
 import { isCloudManagedInstance } from "../services/cloud-instance.js";
 import { assertExternalAdapterCodeAllowed } from "../services/adapter-code-policy.js";
@@ -111,7 +111,7 @@ function extractUiParserSource(
   } else {
     logger.info(
       { packageName },
-      "Adapter has ./ui-parser export but no paperclip.adapterUiParser version — loading anyway (future versions may require it)",
+      "Adapter has ./ui-parser export but no outpost.adapterUiParser version — loading anyway (future versions may require it)",
     );
   }
 

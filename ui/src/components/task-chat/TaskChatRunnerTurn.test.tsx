@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ExecutionProjection } from "@paperclipai/shared";
+import type { ExecutionProjection } from "@outpost/shared";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -128,13 +128,13 @@ describe("TaskChatRunnerTurn", () => {
     choices: [],
     fields: [],
     questionSet: {
-      schema: "paperclip.question_set.v1",
+      schema: "outpost.question_set.v1",
       questions: [
         { id: `${id}-field`, prompt, required: true, answerMode: "text" },
       ],
     },
     response: {
-      schema: "paperclip.question_response.v1",
+      schema: "outpost.question_response.v1",
       answers: { [`${id}-field`]: { text: "Answered" } },
     },
   });
@@ -1354,7 +1354,7 @@ describe("TaskChatRunnerTurn", () => {
           choices: [],
           fields: [],
           questionSet: {
-            schema: "paperclip.question_set.v1",
+            schema: "outpost.question_set.v1",
             questions: [
               {
                 id: "goal",
@@ -1365,7 +1365,7 @@ describe("TaskChatRunnerTurn", () => {
             ],
           },
           response: {
-            schema: "paperclip.question_response.v1",
+            schema: "outpost.question_response.v1",
             answers: { goal: { text: "Serve a small JSON API." } },
           },
         },

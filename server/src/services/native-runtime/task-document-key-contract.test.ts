@@ -1,9 +1,9 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
-import { issueDocumentKeySchema } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { issueDocumentKeySchema } from "@outpost/shared";
 import { documentService } from "../documents.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { RUNNER_BRIDGE_SCHEMAS, runnerBridgeDefinitions } from "./runner-bridge-tools.js";
 
 const binding = {

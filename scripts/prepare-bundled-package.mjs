@@ -62,7 +62,7 @@ export function configureBundledProviderOverrides(installManifest, bundledDepend
   ]) {
     if (!bundledDependencies.includes(serverPackage)) continue;
     const profile = profileData?.profiles?.[agent];
-    if (profileData?.schema !== "paperclip.acpx-profiles.v1" || profile?.agentServerPackage !== serverPackage
+    if (profileData?.schema !== "outpost.acpx-profiles.v1" || profile?.agentServerPackage !== serverPackage
       || profile.agentRuntimePackage !== runtimePackage || !/^\d+\.\d+\.\d+$/.test(profile.agentServerVersion ?? "")
       || !/^\d+\.\d+\.\d+$/.test(profile.agentRuntimeVersion ?? "")
       || result.dependencies?.[serverPackage] !== profile.agentServerVersion) {
@@ -397,7 +397,7 @@ export function prepareBundledPackage(sourceDir, destinationDir, { sourceRoot = 
   const publishManifest = materializePublishManifest(sourcePackage);
   const rootPackage = JSON.parse(readFileSync(resolve(sourceRoot, "package.json"), "utf8"));
   const profileData = bundledDependencies.includes("@agentclientprotocol/codex-acp")
-    ? JSON.parse(readFileSync(resolve(sourceRoot, "packages/paperclip-runner/acpx-profiles.json"), "utf8")) : undefined;
+    ? JSON.parse(readFileSync(resolve(sourceRoot, "packages/outpost-runner/acpx-profiles.json"), "utf8")) : undefined;
   const { installManifest, profiles } = configureBundledProviderOverrides(
     createBundledInstallManifest(publishManifest, bundledDependencies), bundledDependencies, rootPackage, profileData,
   );

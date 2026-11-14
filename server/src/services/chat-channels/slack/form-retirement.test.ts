@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
-import type { chatActions } from "@paperclipai/db";
+import type { chatActions } from "@outpost/db";
 import { parseSlackFormBinding } from "./cloud-forms.js";
 import { parseSlackFormRetirementReceipt, slackFormRetirementReceipt, slackFormRetirementHistoryReceipt } from "./ack-retirement-receipt.js";
 import { assertSlackFormRetirementWorkAuthority, verifyRetainedSlackFormRetirement } from "./form-retirement-work.js";
@@ -20,7 +20,7 @@ function row(): typeof chatActions.$inferSelect {
 }
 function signed(value: unknown = receipt) {
   const pair = generateKeyPairSync("ed25519"), kid = "retirement-unit";
-  const env = { PAPERCLIP_CLOUD_STACK_ID: "instance", PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, use: "sig", alg: "EdDSA" }] }) };
+  const env = { OUTPOST_CLOUD_STACK_ID: "instance", OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, use: "sig", alg: "EdDSA" }] }) };
   const enc = (input: unknown) => Buffer.from(JSON.stringify(input)).toString("base64url");
   const body = enc({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + enc({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: "instance", receipt: value });
   return { compactJws: body + "." + sign(null, Buffer.from(body), pair.privateKey).toString("base64url"), env };
@@ -32,8 +32,8 @@ it("verifies a real runtime signature without admitting the other receipt kind",
 });
 it("rejects foreign instance, unknown signing key and tampered retirement payload", () => {
   const input = signed();
-  expect(() => verifySlackFormRetirementReceipt({ ...input, env: { ...input.env, PAPERCLIP_CLOUD_STACK_ID: "foreign" } })).toThrow();
-  expect(() => verifySlackFormRetirementReceipt({ ...input, env: { ...input.env, PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: '{"keys":[]}' } })).toThrow();
+  expect(() => verifySlackFormRetirementReceipt({ ...input, env: { ...input.env, OUTPOST_CLOUD_STACK_ID: "foreign" } })).toThrow();
+  expect(() => verifySlackFormRetirementReceipt({ ...input, env: { ...input.env, OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: '{"keys":[]}' } })).toThrow();
   const parts = input.compactJws.split("."); parts[1] = Buffer.from("{}").toString("base64url");
   expect(() => verifySlackFormRetirementReceipt({ ...input, compactJws: parts.join(".") })).toThrow();
 });
@@ -50,9 +50,9 @@ it("requires exact local company, immutable original subject, fingerprint and ow
   expect(() => assertSlackFormRetirementWorkAuthority(current, { ...identity, instanceId: "foreign" }, receipt)).toThrow();
 });
 it("key outage remains retryable and invalid signature is visible attention", () => {
-  const input = signed(); vi.stubEnv("PAPERCLIP_CLOUD_STACK_ID", "instance"); vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", "");
+  const input = signed(); vi.stubEnv("OUTPOST_CLOUD_STACK_ID", "instance"); vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", "");
   expect(() => verifyRetainedSlackFormRetirement(input.compactJws)).toThrow(expect.objectContaining({ code: "form_retirement_verifier_unavailable" }));
-  vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", input.env.PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS);
+  vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", input.env.OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS);
   const other = signed(); expect(() => verifyRetainedSlackFormRetirement(other.compactJws)).toThrow(expect.objectContaining({ code: "form_retirement_receipt_invalid" }));
 });
 it("accepted retirement retains normal polling identity without granting new-use delivery authority", () => {

@@ -1,7 +1,7 @@
 const HONEYCOMB_QUERY_URL =
   "https://ui.honeycomb.io/paperclip/environments/test/datasets/paperclip/";
 
-export const HONEYCOMB_RUN_HASH_ATTRIBUTE = "paperclip.task.run.run_id";
+export const HONEYCOMB_RUN_HASH_ATTRIBUTE = "outpost.task.run.run_id";
 
 export async function hashPaperclipRunId(
   runId: string,

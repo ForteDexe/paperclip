@@ -1,6 +1,6 @@
 import { and, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
-import { agentWakeupRequests, chatMessageLinks, type Db } from "@paperclipai/db";
-import { isUuidLike } from "@paperclipai/shared";
+import { agentWakeupRequests, chatMessageLinks, type Db } from "@outpost/db";
+import { isUuidLike } from "@outpost/shared";
 import { withQueuedCommentIdsInWakePayload } from "../../../services/issue-queued-comment-queue.js";
 
 // A reviewed chat run attests exactly one conversation. A wake records its

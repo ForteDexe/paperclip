@@ -31,7 +31,7 @@ import {
 import { deferredWorkIntentWait, promoteDeferredWorkIntents, saveUndeliveredUserComments } from "../work-intent-outbox.js";
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, not, notInArray, or, sql, type SQL } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   heartbeatRunEvents,
   heartbeatRuns,
@@ -41,7 +41,7 @@ import {
   statusDecisionEffects,
   statusDecisions,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   finalizeNativeRun,
   recordNativeFinalizationFailure,

@@ -21,18 +21,18 @@ export async function superviseRollingDeployment(input: {
 }) {
   const config = paperclipConfigSchema.parse(JSON.parse(await readFile(input.configPath, "utf8")));
   if (config.database.mode !== "postgres" || !config.database.connectionString) throw new Error("Rolling qualification requires independently owned Postgres");
-  if (input.environment.PAPERCLIP_STORAGE_PROVIDER !== "s3") throw new Error("Rolling qualification requires disposable S3 storage");
+  if (input.environment.OUTPOST_STORAGE_PROVIDER !== "s3") throw new Error("Rolling qualification requires disposable S3 storage");
   const databaseUrl = config.database.connectionString;
   const controls = runnerE2EServerControlPaths(input.temporaryRoot);
   const proxy = await startRollingDeploymentProxy(input.port);
   const servers: Server[] = [];
   const environment = { ...input.environment,
-    PAPERCLIP_EPHEMERAL_SERVER: "true", PAPERCLIP_DURABLE_AGENT_FILES: "true", PAPERCLIP_SHARED_UI_ASSETS: "true",
-    PAPERCLIP_DATABASE_LISTEN_URL: databaseUrl, PAPERCLIP_SECRETS_MASTER_KEY: randomBytes(32).toString("base64"),
-    HEARTBEAT_SCHEDULER_ENABLED: "true", RUN_LOG_S3_BUCKET: input.environment.PAPERCLIP_STORAGE_S3_BUCKET,
-    RUN_LOG_S3_ENDPOINT: input.environment.PAPERCLIP_STORAGE_S3_ENDPOINT,
-    RUN_LOG_S3_REGION: input.environment.PAPERCLIP_STORAGE_S3_REGION,
-    RUN_LOG_S3_FORCE_PATH_STYLE: input.environment.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE,
+    OUTPOST_EPHEMERAL_SERVER: "true", OUTPOST_DURABLE_AGENT_FILES: "true", OUTPOST_SHARED_UI_ASSETS: "true",
+    OUTPOST_DATABASE_LISTEN_URL: databaseUrl, OUTPOST_SECRETS_MASTER_KEY: randomBytes(32).toString("base64"),
+    HEARTBEAT_SCHEDULER_ENABLED: "true", RUN_LOG_S3_BUCKET: input.environment.OUTPOST_STORAGE_S3_BUCKET,
+    RUN_LOG_S3_ENDPOINT: input.environment.OUTPOST_STORAGE_S3_ENDPOINT,
+    RUN_LOG_S3_REGION: input.environment.OUTPOST_STORAGE_S3_REGION,
+    RUN_LOG_S3_FORCE_PATH_STYLE: input.environment.OUTPOST_STORAGE_S3_FORCE_PATH_STYLE,
   };
   const start = async () => {
     const server = await startRollingDeploymentProcess({ root: input.temporaryRoot, name: `controller-${servers.length + 1}`,
@@ -53,8 +53,8 @@ export async function superviseRollingDeployment(input: {
   let current: Server | undefined, lastRequest: string | undefined, probeIssueId: string | undefined;
   // The read-only observer uses the production checkpoint loader in this
   // isolated supervisor process. Give it the same disposable key as A/B/C.
-  const previousMasterKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-  process.env.PAPERCLIP_SECRETS_MASTER_KEY = environment.PAPERCLIP_SECRETS_MASTER_KEY;
+  const previousMasterKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
+  process.env.OUTPOST_SECRETS_MASTER_KEY = environment.OUTPOST_SECRETS_MASTER_KEY;
   try {
     // Keep the fixture's isolation evidence for its one generated stable secret.
     // It is outside A/B/C homes, like the independent database and object store;
@@ -62,7 +62,7 @@ export async function superviseRollingDeployment(input: {
     const keyPath = path.resolve(config.secrets.localEncrypted.keyFilePath);
     if (!keyPath.startsWith(`${path.resolve(input.temporaryRoot)}${path.sep}`)) throw new Error("Rolling fixture key escaped its owned root");
     await mkdir(path.dirname(keyPath), { recursive: true, mode: 0o700 });
-    await writeFile(keyPath, environment.PAPERCLIP_SECRETS_MASTER_KEY, { mode: 0o600, flag: "wx" });
+    await writeFile(keyPath, environment.OUTPOST_SECRETS_MASTER_KEY, { mode: 0o600, flag: "wx" });
     current = await start(); await current.waitForReady(); proxy.routeTo(current.origin);
     while (!input.cancelled()) {
       if (current.child.exitCode !== null || current.child.signalCode !== null) throw new Error("Serving rolling controller exited unexpectedly");
@@ -131,8 +131,8 @@ export async function superviseRollingDeployment(input: {
       try { await Promise.all(servers.map(server => server.stop())); }
       finally { await proxy.close(); }
     } finally {
-      if (previousMasterKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-      else process.env.PAPERCLIP_SECRETS_MASTER_KEY = previousMasterKey;
+      if (previousMasterKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY;
+      else process.env.OUTPOST_SECRETS_MASTER_KEY = previousMasterKey;
     }
   }
 }

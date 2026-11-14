@@ -6,7 +6,7 @@ import {
   normalizeAgentUrlKey,
   type IssuePriority,
   type IssueDisplayStatus,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type { CompanySearchParams } from "@/api/search";
 
 const SEARCH_FILTER_PARAM_KEYS = [

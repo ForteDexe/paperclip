@@ -52,7 +52,7 @@ const DEFAULT_BRIDGE_MAX_BODY_BYTES = 10 * 1024 * 1024 + BRIDGE_MULTIPART_FRAMIN
 // round trip finishes in well under one second, so 10s is far above a normal
 // iteration and never false-fires on a slow-but-live call. It is also well
 // under the in-sandbox 30s response deadline
-// (PAPERCLIP_BRIDGE_RESPONSE_TIMEOUT_MS), so the host loop fails fast and writes
+// (OUTPOST_BRIDGE_RESPONSE_TIMEOUT_MS), so the host loop fails fast and writes
 // 503 responses before the in-sandbox client gives up. A silently unresponsive
 // sandbox channel makes a client call hang with no reject; this timeout turns
 // that hang into a caught error, so the poll loop can back off and retry while
@@ -88,14 +88,14 @@ const BACKSTOP_WRITE_RETRY_MS = 50;
 const MAX_TRANSIENT_ITERATION_BACKOFF_MS = 5_000;
 const REMOTE_WRITE_BASE64_CHUNK_SIZE = 32 * 1024;
 export const SANDBOX_CALLBACK_BRIDGE_ENTRYPOINT = "paperclip-bridge-server.mjs";
-const SANDBOX_EXEC_CHANNEL_ENV = "PAPERCLIP_SANDBOX_EXEC_CHANNEL";
+const SANDBOX_EXEC_CHANNEL_ENV = "OUTPOST_SANDBOX_EXEC_CHANNEL";
 const SANDBOX_EXEC_CHANNEL_BRIDGE = "bridge";
 
 // The bridge modes the generated gateway supports. The file mode polls a
 // request/response queue on disk. The http2 mode runs one Node HTTP/2 client
 // session directly on stdin/stdout, after it sends the one READY line the
 // host readiness gate expects. The generated `.mjs` selects the mode from
-// `PAPERCLIP_API_BRIDGE_MODE`. The generated gateway rejects every other
+// `OUTPOST_API_BRIDGE_MODE`. The generated gateway rejects every other
 // value with a fixed startup error, including the retired duplex transport.
 // HTTP/2 is the preferred transport. `queue_v1` is the soft-deprecated fallback.
 const SANDBOX_CALLBACK_BRIDGE_FILE_MODE = "queue_v1";
@@ -205,11 +205,10 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   // Subtasks / delegation
   { method: "POST", path: /^\/api\/companies\/[^/]+\/issues$/ },
 
-  // Hiring (paperclip-create-agent skill): adapter/icon discovery, comparing
-  // existing agent configs, submitting the hire request, and linking the
-  // resulting approval to its source issue. Direct agent creation
-  // (POST /api/companies/:id/agents) stays denied — hires must go through the
-  // approval-gated agent-hires endpoint, which the server still permission-checks.
+  // Agent creation: adapter/icon discovery, comparing existing configurations,
+  // submitting the request, and linking its approval to the source task. Direct
+  // creation (POST /api/companies/:id/agents) stays denied; the server still
+  // permission-checks the approval-gated endpoint.
   { method: "GET", path: /^\/llms\/agent-configuration\.txt$/ },
   { method: "GET", path: /^\/llms\/agent-configuration\/[^/]+\.txt$/ },
   { method: "GET", path: /^\/llms\/agent-icons\.txt$/ },
@@ -474,21 +473,21 @@ export function buildSandboxCallbackBridgeEnv(input: {
   maxBodyBytes?: number | null;
 }): Record<string, string> {
   return {
-    PAPERCLIP_API_BRIDGE_MODE: SANDBOX_CALLBACK_BRIDGE_FILE_MODE,
-    PAPERCLIP_BRIDGE_QUEUE_DIR: input.queueDir,
-    PAPERCLIP_BRIDGE_TOKEN: input.bridgeToken,
-    PAPERCLIP_BRIDGE_HOST: input.host?.trim() || "127.0.0.1",
-    PAPERCLIP_BRIDGE_PORT: String(input.port && input.port > 0 ? Math.trunc(input.port) : 0),
-    PAPERCLIP_BRIDGE_POLL_INTERVAL_MS: String(
+    OUTPOST_API_BRIDGE_MODE: SANDBOX_CALLBACK_BRIDGE_FILE_MODE,
+    OUTPOST_BRIDGE_QUEUE_DIR: input.queueDir,
+    OUTPOST_BRIDGE_TOKEN: input.bridgeToken,
+    OUTPOST_BRIDGE_HOST: input.host?.trim() || "127.0.0.1",
+    OUTPOST_BRIDGE_PORT: String(input.port && input.port > 0 ? Math.trunc(input.port) : 0),
+    OUTPOST_BRIDGE_POLL_INTERVAL_MS: String(
       normalizeTimeoutMs(input.pollIntervalMs, DEFAULT_BRIDGE_POLL_INTERVAL_MS),
     ),
-    PAPERCLIP_BRIDGE_RESPONSE_TIMEOUT_MS: String(
+    OUTPOST_BRIDGE_RESPONSE_TIMEOUT_MS: String(
       normalizeTimeoutMs(input.responseTimeoutMs, DEFAULT_BRIDGE_RESPONSE_TIMEOUT_MS),
     ),
-    PAPERCLIP_BRIDGE_MAX_QUEUE_DEPTH: String(
+    OUTPOST_BRIDGE_MAX_QUEUE_DEPTH: String(
       normalizeTimeoutMs(input.maxQueueDepth, DEFAULT_BRIDGE_MAX_QUEUE_DEPTH),
     ),
-    PAPERCLIP_BRIDGE_MAX_BODY_BYTES: String(
+    OUTPOST_BRIDGE_MAX_BODY_BYTES: String(
       normalizeTimeoutMs(input.maxBodyBytes, DEFAULT_BRIDGE_MAX_BODY_BYTES),
     ),
   };
@@ -1026,7 +1025,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         } catch (error) {
           lastWriteError = error instanceof Error ? error.message : String(error);
           console.warn(
-            `[paperclip] sandbox callback bridge failed to write response for ${response.id} (attempt ${attempt}/${MAX_BACKSTOP_WRITE_ATTEMPTS}): ${lastWriteError}`,
+            `[outpost] sandbox callback bridge failed to write response for ${response.id} (attempt ${attempt}/${MAX_BACKSTOP_WRITE_ATTEMPTS}): ${lastWriteError}`,
           );
           if (attempt < MAX_BACKSTOP_WRITE_ATTEMPTS) {
             await new Promise((resolve) => setTimeout(resolve, BACKSTOP_WRITE_RETRY_MS));
@@ -1157,7 +1156,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         };
       } catch (error) {
         console.warn(
-          `[paperclip] sandbox callback bridge handler failed for ${request.id}: ${error instanceof Error ? error.message : String(error)}`,
+          `[outpost] sandbox callback bridge handler failed for ${request.id}: ${error instanceof Error ? error.message : String(error)}`,
         );
         // Tell a worker abort apart from a normal handler failure. The recovery
         // path aborts `guard.controller` when the per-iteration timeout or the
@@ -1255,7 +1254,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         return;
       } catch (error) {
         console.warn(
-          `[paperclip] sandbox callback bridge failed to write 504 backstop for ${requestId} (attempt ${attempt}/${MAX_BACKSTOP_WRITE_ATTEMPTS}): ${error instanceof Error ? error.message : String(error)}`,
+          `[outpost] sandbox callback bridge failed to write 504 backstop for ${requestId} (attempt ${attempt}/${MAX_BACKSTOP_WRITE_ATTEMPTS}): ${error instanceof Error ? error.message : String(error)}`,
         );
         if (attempt < MAX_BACKSTOP_WRITE_ATTEMPTS) {
           await new Promise((resolve) => setTimeout(resolve, BACKSTOP_WRITE_RETRY_MS));
@@ -1383,7 +1382,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         // can still read it and deliver a terminal 503. A remove here drops the
         // request and strands the caller until its own deadline.
         console.warn(
-          `[paperclip] sandbox callback bridge could not read pending request ${requestId}: ${error instanceof Error ? error.message : String(error)}`,
+          `[outpost] sandbox callback bridge could not read pending request ${requestId}: ${error instanceof Error ? error.message : String(error)}`,
         );
         continue;
       }
@@ -1417,7 +1416,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         } catch (error) {
           lastWriteError = error instanceof Error ? error.message : String(error);
           console.warn(
-            `[paperclip] sandbox callback bridge failed to write recovery 503 for ${requestId} (attempt ${attempt}/${MAX_BACKSTOP_WRITE_ATTEMPTS}): ${lastWriteError}`,
+            `[outpost] sandbox callback bridge failed to write recovery 503 for ${requestId} (attempt ${attempt}/${MAX_BACKSTOP_WRITE_ATTEMPTS}): ${lastWriteError}`,
           );
           if (attempt < MAX_BACKSTOP_WRITE_ATTEMPTS) {
             await new Promise((resolve) => setTimeout(resolve, BACKSTOP_WRITE_RETRY_MS));
@@ -1431,7 +1430,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
       } else {
         // Every 503 write failed. Keep the request file for a later recovery pass.
         console.warn(
-          `[paperclip] sandbox callback bridge kept queued request ${requestId} after every recovery 503 write failed: ${lastWriteError}`,
+          `[outpost] sandbox callback bridge kept queued request ${requestId} after every recovery 503 write failed: ${lastWriteError}`,
         );
       }
     }
@@ -1453,7 +1452,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         // now on the trace; swallow it here so the worker recovery continues.
       }
     }
-    console.warn(`[paperclip] ${error.message}`);
+    console.warn(`[outpost] ${error.message}`);
   };
 
   // The timestamp of the last successful loop iteration. The watchdog compares
@@ -1473,14 +1472,14 @@ export async function startSandboxCallbackBridgeWorker(input: {
       await failPendingRequests(message, { abandonInFlight: true });
     } catch (error) {
       console.warn(
-        `[paperclip] sandbox callback bridge watchdog failed to abort queued requests: ${error instanceof Error ? error.message : String(error)}`,
+        `[outpost] sandbox callback bridge watchdog failed to abort queued requests: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   };
 
   // Start the long-lived poll loop outside the measured startup-step store.
   // The `makeDir` calls above are startup work and must keep the active
-  // `bridge.paperclip` step. The loop runs run-time execs for the whole run,
+  // `bridge.outpost` step. The loop runs run-time execs for the whole run,
   // so each loop `sandbox.exec` span must not parent to the ended step or copy
   // its `criticalPath` flag. `runWithoutActiveStep` empties the store for the
   // loop only; Node keeps the empty store on every later poll continuation.
@@ -1538,7 +1537,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
             // only warn, so a flapping channel does not spam failed spans.
             await surfaceRunError(new Error(message));
           } else {
-            console.warn(`[paperclip] ${message}`);
+            console.warn(`[outpost] ${message}`);
           }
           const backoffMs = Math.min(
             pollIntervalMs * 2 ** consecutivePollFailures,
@@ -1602,7 +1601,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
               await failPendingRequests(message, { abandonInFlight: true });
             } catch (failPendingError) {
               console.warn(
-                `[paperclip] sandbox callback bridge failed to abort queued requests after a request failure: ${failPendingError instanceof Error ? failPendingError.message : String(failPendingError)}`,
+                `[outpost] sandbox callback bridge failed to abort queued requests after a request failure: ${failPendingError instanceof Error ? failPendingError.message : String(failPendingError)}`,
               );
             }
           } finally {
@@ -1621,7 +1620,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
         await failPendingRequests(message, { abandonInFlight: true });
       } catch (failPendingError) {
         console.warn(
-          `[paperclip] sandbox callback bridge failed to abort queued requests after worker failure: ${failPendingError instanceof Error ? failPendingError.message : String(failPendingError)}`,
+          `[outpost] sandbox callback bridge failed to abort queued requests after worker failure: ${failPendingError instanceof Error ? failPendingError.message : String(failPendingError)}`,
         );
       }
     } finally {
@@ -2120,23 +2119,23 @@ import path from "node:path";
 import http2 from "node:http2";
 import { Duplex } from "node:stream";
 
-const bridgeMode = process.env.PAPERCLIP_API_BRIDGE_MODE || "${SANDBOX_CALLBACK_BRIDGE_FILE_MODE}";
-const queueDir = process.env.PAPERCLIP_BRIDGE_QUEUE_DIR;
-const bridgeToken = process.env.PAPERCLIP_BRIDGE_TOKEN;
-const host = process.env.PAPERCLIP_BRIDGE_HOST || "127.0.0.1";
-const port = Number(process.env.PAPERCLIP_BRIDGE_PORT || "0");
+const bridgeMode = process.env.OUTPOST_API_BRIDGE_MODE || "${SANDBOX_CALLBACK_BRIDGE_FILE_MODE}";
+const queueDir = process.env.OUTPOST_BRIDGE_QUEUE_DIR;
+const bridgeToken = process.env.OUTPOST_BRIDGE_TOKEN;
+const host = process.env.OUTPOST_BRIDGE_HOST || "127.0.0.1";
+const port = Number(process.env.OUTPOST_BRIDGE_PORT || "0");
 // The host assigns the loopback port and passes it through the launch
 // environment. The gateway binds exactly this port; it never selects a
 // different one. The host also passes one random per-open nonce here. The
 // gateway echoes it in the READY frame so the host correlates READY with this
 // channel open. The nonce is a liveness signal, not authentication.
-const bridgeNonce = process.env.PAPERCLIP_BRIDGE_NONCE || "";
-const pollIntervalMs = Number(process.env.PAPERCLIP_BRIDGE_POLL_INTERVAL_MS || "100");
+const bridgeNonce = process.env.OUTPOST_BRIDGE_NONCE || "";
+const pollIntervalMs = Number(process.env.OUTPOST_BRIDGE_POLL_INTERVAL_MS || "100");
 const responseTimeoutMs = Number(
-  process.env.PAPERCLIP_BRIDGE_RESPONSE_TIMEOUT_MS || "${DEFAULT_BRIDGE_RESPONSE_TIMEOUT_MS}",
+  process.env.OUTPOST_BRIDGE_RESPONSE_TIMEOUT_MS || "${DEFAULT_BRIDGE_RESPONSE_TIMEOUT_MS}",
 );
-const maxQueueDepth = Number(process.env.PAPERCLIP_BRIDGE_MAX_QUEUE_DEPTH || "${DEFAULT_BRIDGE_MAX_QUEUE_DEPTH}");
-const maxBodyBytes = Number(process.env.PAPERCLIP_BRIDGE_MAX_BODY_BYTES || "${DEFAULT_BRIDGE_MAX_BODY_BYTES}");
+const maxQueueDepth = Number(process.env.OUTPOST_BRIDGE_MAX_QUEUE_DEPTH || "${DEFAULT_BRIDGE_MAX_QUEUE_DEPTH}");
+const maxBodyBytes = Number(process.env.OUTPOST_BRIDGE_MAX_BODY_BYTES || "${DEFAULT_BRIDGE_MAX_BODY_BYTES}");
 // The header allowlist. Both the file gateway and the http2 gateway strip an
 // inbound request to these headers before they forward it. One copy serves both
 // modes. The route allowlist stays on the host: both modes forward a request to
@@ -2144,7 +2143,7 @@ const maxBodyBytes = Number(process.env.PAPERCLIP_BRIDGE_MAX_BODY_BYTES || "${DE
 const allowedHeaders = new Set(${JSON.stringify([...DEFAULT_SANDBOX_CALLBACK_BRIDGE_HEADER_ALLOWLIST])});
 
 if (!bridgeToken) {
-  throw new Error("PAPERCLIP_BRIDGE_TOKEN is required.");
+  throw new Error("OUTPOST_BRIDGE_TOKEN is required.");
 }
 // Closed allowlist for the bridge mode. The generated gateway supports exactly
 // two transports: http2 and the file-mode queue. Every other value, including
@@ -2156,10 +2155,10 @@ if (
   bridgeMode !== "${SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE}" &&
   bridgeMode !== "${SANDBOX_CALLBACK_BRIDGE_FILE_MODE}"
 ) {
-  throw new Error("Unsupported PAPERCLIP_API_BRIDGE_MODE: " + bridgeMode);
+  throw new Error("Unsupported OUTPOST_API_BRIDGE_MODE: " + bridgeMode);
 }
 if (bridgeMode !== "${SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE}" && !queueDir) {
-  throw new Error("PAPERCLIP_BRIDGE_QUEUE_DIR and PAPERCLIP_BRIDGE_TOKEN are required.");
+  throw new Error("OUTPOST_BRIDGE_QUEUE_DIR and OUTPOST_BRIDGE_TOKEN are required.");
 }
 
 // A crashed gateway is a dead loopback port for the rest of the run: nothing
@@ -2739,7 +2738,7 @@ function runHttp2Gateway() {
   // positive loopback port, and the gateway binds exactly that port or exits
   // nonzero. It never selects a different port.
   if (!Number.isInteger(port) || port <= 0) {
-    diag("http2 gateway requires a positive assigned PAPERCLIP_BRIDGE_PORT; got " + String(port));
+    diag("http2 gateway requires a positive assigned OUTPOST_BRIDGE_PORT; got " + String(port));
     process.exit(1);
   }
   server.on("error", (error) => {
@@ -2776,6 +2775,6 @@ if (bridgeMode === "${SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE}") {
 } else if (bridgeMode === "${SANDBOX_CALLBACK_BRIDGE_FILE_MODE}") {
   await runFileGateway();
 } else {
-  throw new Error("Unsupported PAPERCLIP_API_BRIDGE_MODE: " + bridgeMode);
+  throw new Error("Unsupported OUTPOST_API_BRIDGE_MODE: " + bridgeMode);
 }`;
 }

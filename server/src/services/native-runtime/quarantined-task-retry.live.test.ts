@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, companies, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@paperclipai/db";
+import { agents, agentWakeupRequests, companies, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { expect, it } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -13,11 +13,11 @@ import { instanceSettingsService } from "../instance-settings.js";
 import { withReleasedNativeRunProcess } from "../native-local-process-stop.js";
 import { nativeSha256 } from "./canonical.js";
 import { closeIdleWarmNativeSessionsForRestart } from "./native-session-executor.js";
-import { parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import { parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 
-it.skipIf(process.env.PAPERCLIP_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh real Codex turn through task Retry after inherited quarantine", async () => {
+it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh real Codex turn through task Retry after inherited quarantine", async () => {
   const home = createIsolatedTestHome();
-  const keys = ["PAPERCLIP_HOME", "CODEX_HOME", "PAPERCLIP_API_URL", "PAPERCLIP_AGENT_JWT_SECRET", "PAPERCLIP_TELEMETRY_DISABLED", "PAPERCLIP_RUNNER_STATE_DIR"];
+  const keys = ["OUTPOST_HOME", "CODEX_HOME", "OUTPOST_API_URL", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_TELEMETRY_DISABLED", "OUTPOST_RUNNER_STATE_DIR"];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
   let heartbeat: ReturnType<typeof heartbeatService> | undefined;
@@ -25,14 +25,14 @@ it.skipIf(process.env.PAPERCLIP_LIVE_QUARANTINED_RETRY !== "true")("starts a fre
   try {
     const codexHome = join(home.home, "codex"), stateBase = join(home.home, "runner-state");
     await mkdir(codexHome, { mode: 0o700 });
-    await copyFile(join(process.env.PAPERCLIP_LIVE_CODEX_HOME ?? join(homedir(), ".codex"), "auth.json"), join(codexHome, "auth.json"));
+    await copyFile(join(process.env.OUTPOST_LIVE_CODEX_HOME ?? join(homedir(), ".codex"), "auth.json"), join(codexHome, "auth.json"));
     process.env.CODEX_HOME = codexHome;
-    process.env.PAPERCLIP_HOME = join(home.home, "instance");
-    process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
-    process.env.PAPERCLIP_TELEMETRY_DISABLED = "1";
+    process.env.OUTPOST_HOME = join(home.home, "instance");
+    process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_TELEMETRY_DISABLED = "1";
     server = await startRunnerApiTestServer({ deploymentMode: "authenticated", humanSessions: true });
-    process.env.PAPERCLIP_API_URL = server.apiUrl;
+    process.env.OUTPOST_API_URL = server.apiUrl;
     const f = await server.fixture({ connectionScenario: "fresh" }), db = server.db;
     companyId = f.companyId;
     const markers = [randomUUID(), randomUUID()];
@@ -63,7 +63,7 @@ it.skipIf(process.env.PAPERCLIP_LIVE_QUARANTINED_RETRY !== "true")("starts a fre
     const owner = await withReleasedNativeRunProcess(db, original);
     expect(owner.processPid).toBeTruthy();
     const execution = parseNativeExecutionInput(owner.runnerProfileJson!.nativeExecutionInput);
-    const root = join(stateBase, nativeSha256({ schema: "paperclip.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
+    const root = join(stateBase, nativeSha256({ schema: "outpost.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
       workspace: { kind: "managed", executionWorkspaceId: execution.binding.executionWorkspaceId },
       provider: { driverKind: "codex_app_server", identity: { kind: "codex" } }, normalizedSessionId: owner.nativeSessionId }));
     const controlPath = join(root, "control-plane/control-plane-state.json"), providerPath = join(root, "runner/codex-provider-state.json");
@@ -119,12 +119,12 @@ it.skipIf(process.env.PAPERCLIP_LIVE_QUARANTINED_RETRY !== "true")("starts a fre
     const evidence = { passed: true, platform: `${process.platform}-${process.arch}`, model: "gpt-6.1-sol", effort: "high",
       ownerRunId: owner.id, sourceRunId: sourceId, successorRunId: successor.id, freshSession: true,
       priorJournalPreserved: true, fileLines: 2, taskStatus: task.status, locksCleared: true, finalization: coordinator.phase };
-    if (process.env.PAPERCLIP_LIVE_EVIDENCE_PATH) await writeFile(process.env.PAPERCLIP_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
+    if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
     console.log(JSON.stringify(evidence));
   } catch (error) {
-    if (server && companyId && process.env.PAPERCLIP_LIVE_EVIDENCE_PATH) {
+    if (server && companyId && process.env.OUTPOST_LIVE_EVIDENCE_PATH) {
       const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-      await writeFile(`${process.env.PAPERCLIP_LIVE_EVIDENCE_PATH}.failure.json`, JSON.stringify({ error: String(error),
+      await writeFile(`${process.env.OUTPOST_LIVE_EVIDENCE_PATH}.failure.json`, JSON.stringify({ error: String(error),
         runs: runs.map(run => ({ id: run.id, status: run.status, error: run.error, result: run.resultJson,
           execution: (run.runnerProfileJson?.nativeExecutionInput as { workspace?: unknown } | undefined)?.workspace,
           continuation: run.contextSnapshot?.executionContinuation })),

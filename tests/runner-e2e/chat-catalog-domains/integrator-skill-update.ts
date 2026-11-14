@@ -26,8 +26,8 @@ export function acceptedSkillReviewRun(o: InternalObservation, issueId: string) 
     && run.contextSnapshot?.issueId === issueId && (run.nativeIssueId == null || run.nativeIssueId === issueId)
     && typeof run.contextSnapshot?.commentId === "string"
     && result?.finalizationPhase === "committed" && result.finalizationReasonCode === "conversation_turn_finished"
-    && result.prpRunTerminalState === "succeeded" && result.prpTurnTerminalState === "completed"
-    && native?.schema === "paperclip.run_result.v1" && native.reportedWorkDisposition === "done"
+    && result.orpRunTerminalState === "succeeded" && result.orpTurnTerminalState === "completed"
+    && native?.schema === "outpost.run_result.v1" && native.reportedWorkDisposition === "done"
     && typeof result.summary === "string" && result.summary.trim() && native.summary === result.summary ? run : undefined;
 }
 export function readVisibleSkillReview(input: { runId: string; humanCommentId: string }) {
@@ -163,7 +163,7 @@ export const integratorSkillUpdateCases = [integratorDefinition("skills", "skill
   const selected = await saveSkillConversationContext(ctx, { description: `Selected upstream accessibility skill: ${upstream.name} (${upstream.id}), tracked source ${source.id}. Installed source revision ${upstream.sourceRef}; tracking reference ${source.trackingRef}. Separate editable local copy: ${localFork.name} (${localFork.id}).` });
   return { upstream, localFork, source, factualContextAttachment: selected.factualContextAttachment, localVersions: await readSkillVersionHistory(ctx.input.api, ctx.input.fixtures.company.id, localFork.id, localFork.currentVersionId) };
 }, observeUpdate, gradeIntegratorSkillUpdate, async (ctx, state) => { const skill = state.upstream as CompanySkillDetail; await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/skills/studio/${skill.id}`, skill.name); },
-{ oracleVersion: "paperclip.chat-catalog.integrator.v3", authentication: "human-session", queryAttachments: factualContextQueryAttachment("skill-context.md"), expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 540_000,
+{ oracleVersion: "outpost.chat-catalog.integrator.v3", authentication: "human-session", queryAttachments: factualContextQueryAttachment("skill-context.md"), expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 540_000,
   sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/integrator-skill-versions.ts", "chat-catalog-domains/integrator-skill-update.ts", "chat-catalog-domains/integrator-skill-source.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/skills.yaml"],
   async act(ctx, state) {
     updateReceipts.delete(ctx);

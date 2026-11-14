@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { agentWakeupRequests, chatConversations, chatDeliveries, chatMessageLinks, createDb, heartbeatRuns,
-  issueComments, issues, type Db } from "@paperclipai/db";
+  issueComments, issues, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
 import { seedBoundChatAuthorization } from "../../../__tests__/helpers/bound-chat-authorization.js";
 import { authorizeChatConversationForBoundRun } from "../../../services/native-runtime/chat-attachment-reuse.js";
@@ -316,7 +316,7 @@ describe.skipIf(!support.supported)("chat wake batches stay within one conversat
       commentId: reply, wakeCommentId: reply, [CONTEXT_KEY]: merged } }).where(eq(agentWakeupRequests.id, savedId));
     expect(merged).toMatchObject({ wakeCommentIds: [earlier, reply], chatConversationId: f.conversationId });
     // This is the shape that failed on staging.
-    await expect(attest(merged)).rejects.toThrow("paperclip_runner_chat_attachment_binding_denied");
+    await expect(attest(merged)).rejects.toThrow("outpost_runner_chat_attachment_binding_denied");
 
     const release = releaseIssue();
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));

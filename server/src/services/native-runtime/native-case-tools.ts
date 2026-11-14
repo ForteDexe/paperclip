@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { cases, type Db } from "@paperclipai/db";
+import { cases, type Db } from "@outpost/db";
 import { z } from "zod";
-import { caseInitialDocumentsSchema, caseWorkflowDocumentTextSchema, isUuidLike } from "@paperclipai/shared";
+import { caseInitialDocumentsSchema, caseWorkflowDocumentTextSchema, isUuidLike } from "@outpost/shared";
 import { patchCaseSchema } from "../../routes/cases-schemas.js";
 import { badRequest, notFound } from "../../errors.js";
 import { casesDisabledError } from "../cases-disabled.js";

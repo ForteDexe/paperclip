@@ -92,13 +92,13 @@ plus the existing AI connection, retry accounting, run-dispatch and UI suites.
 
 ## UI review in Storybook
 
-Run `pnpm --filter @paperclipai/ui storybook` from Core, then open
+Run `pnpm --filter @outpost/ui storybook` from Core, then open
 **AI Connections / Connection pools**. The 16 stories use production components
 for pool selection, legacy-session adoption, unavailable/read-only selections,
 mixed-provider composer models and effort, mobile composer settings, usage waits,
 run selections and override notes, and scheduled retries.
 `AllCoreSurfaces` provides an overview; individual stories expose the expanded
-menus and adoption dialog. Run `pnpm --filter @paperclipai/ui build-storybook`
+menus and adoption dialog. Run `pnpm --filter @outpost/ui build-storybook`
 to build the preview.
 
 Pool configuration stories belong to the private Cloud plugin's own Storybook
@@ -117,7 +117,7 @@ enable the experimental flag, and use a company named for an E2E or test drive
 with two saved, authorized AI accounts. Run:
 
 ```sh
-PAPERCLIP_CONNECTION_POOL_E2E=1 \
+OUTPOST_CONNECTION_POOL_E2E=1 \
 AI_CONNECTIONS_TEST_URL=http://127.0.0.1:3100 \
 AI_CONNECTIONS_TEST_COMPANY_ID=<test-company-id> \
 pnpm exec playwright test --config tests/ai-connections-app/playwright.config.ts connection-pools.spec.ts

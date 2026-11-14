@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto";
 import { test, expect } from "@playwright/test";
 import { privateClaudeOperation } from "./runtime-claude-private.js";
 for (const branch of ["success", "private-child-failure", "parent-failure"] as const) test(`standalone Claude credential boundary ${branch}`, async () => {
-  test.skip(!process.env.PAPERCLIP_CLAUDE_CANARY_PRIVATE_FILE, "Explicit synthetic-only privacy canary");
+  test.skip(!process.env.OUTPOST_CLAUDE_CANARY_PRIVATE_FILE, "Explicit synthetic-only privacy canary");
   const credential = `synthetic-claude-${randomUUID()}`, cookie = `synthetic-cookie-${randomUUID()}`;
-  await appendFile(process.env.PAPERCLIP_CLAUDE_CANARY_PRIVATE_FILE!, `${credential}\n${cookie}\n`, { mode: 0o600 });
+  await appendFile(process.env.OUTPOST_CLAUDE_CANARY_PRIVATE_FILE!, `${credential}\n${cookie}\n`, { mode: 0o600 });
   const companyId = randomUUID(), environmentId = randomUUID(), connectionId = randomUUID(), grantId = randomUUID(); let keyObserved = false, cookieObserved = false;
   const server = createServer(async (req, res) => {
     cookieObserved ||= req.headers.cookie === `canary=${cookie}`;

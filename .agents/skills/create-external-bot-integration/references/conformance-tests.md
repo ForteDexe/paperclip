@@ -197,9 +197,9 @@ actual Rust/PostgreSQL tests and an opt-in private Daytona case:
 pnpm exec vitest run server/src/__tests__/dot-runner.test.ts -t 'private Daytona Rust'
 ```
 
-That candidate read `PAPERCLIP_DOT_DAYTONA_LIVE=1`, `DAYTONA_API_KEY`, an immutable
-`PAPERCLIP_DOT_DAYTONA_IMAGE`, optional `PAPERCLIP_DOT_DAYTONA_RUNNER_BINARY`, and
-`PAPERCLIP_DOT_DAYTONA_EVIDENCE`. Locate the current fixture and inspect its flags,
+That candidate read `OUTPOST_DOT_DAYTONA_LIVE=1`, `DAYTONA_API_KEY`, an immutable
+`OUTPOST_DOT_DAYTONA_IMAGE`, optional `OUTPOST_DOT_DAYTONA_RUNNER_BINARY`, and
+`OUTPOST_DOT_DAYTONA_EVIDENCE`. Locate the current fixture and inspect its flags,
 cost bounds, dependencies, and `finally` cleanup before running. Do not print
 credentials. This case used a scripted MCP client; it never replaced real Dot
 qualification. The command/flags are historical anchors, not a guaranteed current CLI.

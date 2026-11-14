@@ -3,8 +3,8 @@ import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, workspaceOperations } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import { executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, workspaceOperations } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { attachPreservedRemoteWorkspaceSnapshots } from "./remote-workspace-recovery-attachments.js";
 import { useWorkspaceRecoveryFixture, db, failedRemotePreparation, root, run } from "./__tests__/workspace-recovery-fixture.js";
 
@@ -39,12 +39,12 @@ describe("remote workspace recovery receipt fallback", () => {
         contextSnapshot: { issueId: f.issueId },
         errorCode: "native_continuation_requires_reconciliation",
         error: "native_controller_recovery_missing_evidence:retained_sandbox_binding",
-        runnerProfileJson: { remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", epoch: 6, state: "saved",
+        runnerProfileJson: { remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", epoch: 6, state: "saved",
           leaseId, providerLeaseId: randomUUID(), remoteCwd: `/home/daytona/paperclip-workspace/.paperclip-workspaces/${f.workspaceId}-6-${leaseId}`,
           workspaceId: f.workspaceId, snapshotId: variant === "saved_other_snapshot" ? randomUUID() : restoredSnapshotId } },
         resultJson: { stopReason: "adapter_failed", executionRecovery: { kind: "bootstrap", providerWorkStarted: false },
           workspaceRestoreFailure: "restore_failed",
-          workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] } } });
+          workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] } } });
       await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId, heartbeatRunId: sourceId,
         executionWorkspaceId: f.workspaceId, phase: "remote_workspace_restore",
         status: variant === "restore_not_succeeded" ? "failed" : "succeeded",
@@ -81,13 +81,13 @@ describe("remote workspace recovery receipt fallback", () => {
       executionWorkspaceId: sourceWorkspaceId, sourceOperationId: randomUUID(), sourceRunId: sourceId,
       generation: 7, epoch: 6, status: variant === "superseded_snapshot_with_hold" ? "superseded" : "committed",
       sha256: "b".repeat(64) });
-    const reference = { schema: "paperclip.remote-workspace-run.v1", epoch: 6,
+    const reference = { schema: "outpost.remote-workspace-run.v1", epoch: 6,
       state: variant === "receipt_on_prepared_reference" ? "prepared" : "saved", leaseId, providerLeaseId,
       remoteCwd: `/home/daytona/paperclip-workspace/.paperclip-workspaces/${sourceWorkspaceId}-6-${leaseId}`,
       workspaceId: sourceWorkspaceId, snapshotId: variant === "receipt_on_prepared_reference" ? null : savedSnapshotId,
       ...(variant === "unreadable_reference_with_hold" ? { savedBy: "previous-release" } : {}) };
     const hold = { workspaceRestoreFailure: "restore_failed",
-      workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] } };
+      workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] } };
     await db.insert(heartbeatRuns).values({ id: sourceId, companyId: f.companyId, agentId: template.agentId,
       nativeIssueId: f.issueId, issueId: f.issueId, status: "failed", runtimeMode: "native",
       finishedAt: new Date(Date.now() - 60_000), createdAt: new Date(Date.now() - 120_000), contextSnapshot: { issueId: f.issueId },
@@ -98,7 +98,7 @@ describe("remote workspace recovery receipt fallback", () => {
     const [recoveryAction] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
       kind: "active_run_watchdog", status: "resolved", ownerType: "board", cause: "native_continuation_requires_reconciliation",
       fingerprint: `native-workspace:${sourceId}`, nextAction: "Recover saved work",
-      evidence: { runId: sourceId, ...hold, workspaceRecovery: { schema: "paperclip.workspace-recovery.v1",
+      evidence: { runId: sourceId, ...hold, workspaceRecovery: { schema: "outpost.workspace-recovery.v1",
         runId: variant === "receipt_for_other_run" ? randomUUID() : sourceId, status: "recovered", stage: "saving_receipts",
         attempt: 1, requestIds: [] } } }).returning();
     if (variant !== "unreadable_reference_with_hold" && variant !== "superseded_snapshot_with_hold")

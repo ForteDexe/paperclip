@@ -1,12 +1,12 @@
-import { normalizeRunFailureCause } from "@paperclipai/shared";
-import type { AdapterExecutionResult } from "@paperclipai/adapter-utils";
-import { safeErrorCauseCode } from "../../vendor/paperclip-runner/index.js";
+import { normalizeRunFailureCause } from "@outpost/shared";
+import type { AdapterExecutionResult } from "@outpost/adapter-utils";
+import { safeErrorCauseCode } from "../../vendor/outpost-runner/index.js";
 
 /**
  * Bounded diagnosis for runs that settle with a generic failure code
  * (`adapter_failed`, `setup_failed`). The code stays generic because callers
  * compare against it; `resultJson.failureCause` names what went wrong with a
- * closed-shape token (see `@paperclipai/shared` run-failure-cause). It is
+ * closed-shape token (see `@outpost/shared` run-failure-cause). It is
  * derived only from error codes, class names, provider HTTP status, process
  * exit facts and enum families, never from message text.
  */

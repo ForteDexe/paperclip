@@ -46,7 +46,7 @@ export const gatewayExternalCases = [definition("gateways-profiles.create-gatewa
     return { profileId: profile.id, connectionId: connection.connectionId, gatewaysPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/gateways` };
   } catch (error) { providers.delete(ctx); await provider.close(); throw error; }
 }, gradeGatewayCreate, {
-  oracleVersion: "paperclip.chat-catalog.external.v2",
+  oracleVersion: "outpost.chat-catalog.external.v2",
   sourceFiles: ["chat-catalog-domains/external-gateways-profiles.ts", "chat-catalog-domains/external-gateway-rotation.ts", "chat-catalog-domains/external-provider.ts", "chat-catalog-domains/external-secret-scan.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-support.ts", "run-observations.ts", "chat-scenarios/gateways-profiles.yaml"],
   async act(ctx, state) {
     await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx));

@@ -8,7 +8,7 @@ import { savedTaskWorkspace } from "./runtime-workspaces.js";
 import { runtimeDefinition, runtimeObservation, observeRuntime, type RuntimeAgent } from "./runtime-support.js";
 const exec = promisify(execFile);
 async function ownedGit(cwd: string, args: string[]) {
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root || !(await realpath(cwd)).startsWith(`${await realpath(root)}${path.sep}`)) throw new Error("Git fixture escaped the isolated task workspace");
   return (await exec("git", args, { cwd, timeout: 15_000, maxBuffer: 262_144 })).stdout;
 }
@@ -58,7 +58,7 @@ export const runtimeGitCases = [runtimeDefinition("workspaces.inspect-git", asyn
     headerBefore: await readFile(header, "utf8"), notesBefore: await readFile(notes, "utf8") };
 }, gradeInspectGit, {
   sourceFiles: ["chat-catalog-domains/runtime-git.ts", "chat-catalog-domains/runtime-workspaces.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/workspaces.yaml"],
-  oracleVersion: "paperclip.chat-catalog.inspect-git.structural.v4", expectedRunCount: 2, attemptTimeoutMs: 540_000,
+  oracleVersion: "outpost.chat-catalog.inspect-git.structural.v4", expectedRunCount: 2, attemptTimeoutMs: 540_000,
   async observe(ctx, state) {
     const cwd = String(state.nativeInspectionCwd);
     state.workspaceAfter = await ctx.input.api.get(`/api/issues/${(state.task as Entity).id}/workspace`);

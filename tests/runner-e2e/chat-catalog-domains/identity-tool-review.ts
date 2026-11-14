@@ -104,7 +104,7 @@ export const toolReviewIdentityCases = ["approve-tool-once", "decline-tool"].map
 }, gradeToolReview, {
   sourceFiles: ["chat-catalog-domains/identity-tool-review.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts",
     "everyday-decisions.ts", "../fixtures/connection-review-provider.ts", "chat-scenarios/questions-and-approvals.yaml"],
-  ...(id === "approve-tool-once" ? { oracleVersion: "paperclip.chat-catalog.identity.approve-tool-once.v2" } : {}),
+  ...(id === "approve-tool-once" ? { oracleVersion: "outpost.chat-catalog.identity.approve-tool-once.v2" } : {}),
   expectedRunCount: id === "approve-tool-once" ? 4 : 3, minimumRunCount: id === "approve-tool-once" ? 2 : 1, expectedHumanMessageCount: 2,
   ...(id === "decline-tool" ? { setupHumanMessageCount: 1 } : {}), attemptTimeoutMs: 600_000,
   async act(ctx, state) {

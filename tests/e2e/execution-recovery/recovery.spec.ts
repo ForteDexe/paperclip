@@ -111,7 +111,7 @@ for (const journey of [
       const port = await listenOnFetchAllowedPort(fixture);
       const env: NodeJS.ProcessEnv = {
         ...process.env,
-        PAPERCLIP_RECOVERY_CEO_LINEAGE: journey === "ceo_lineage" ? "1" : "0",
+        OUTPOST_RECOVERY_CEO_LINEAGE: journey === "ceo_lineage" ? "1" : "0",
         IN_FEED_FIXTURE_KEY: "not-a-real-model-key",
         NODE_ENV: "test",
         PATH: `${root}/tests/e2e/fixtures/recovery-bin:${process.env.PATH}`,
@@ -260,7 +260,7 @@ for (const journey of [
         base + prefix + "/company/settings/instance/experimental",
       );
       const nativeRunnerToggle = page.getByRole("switch", {
-        name: "Toggle Paperclip Runner experimental setting",
+        name: "Toggle Outpost Runner experimental setting",
       });
       // Fresh instances may already enable the native runner. Configure the
       // desired state instead of blindly toggling the current default off.
@@ -276,14 +276,14 @@ for (const journey of [
         .toBe(true);
       await page.goto(base + prefix + `/agents/${agent.id}/configuration`);
       await page.getByRole("button", { name: "Codex", exact: true }).click();
-      await page.getByRole("button", { name: /Paperclip Runner/ }).click();
+      await page.getByRole("button", { name: /Outpost Runner/ }).click();
       await page
         .getByRole("button", { name: /^Save(?: changes)?$/ })
         .first()
         .click();
       await expect
         .poll(async () => (await api(`/agents/${agent.id}`)).adapterType)
-        .toBe("paperclip_runner");
+        .toBe("outpost_runner");
       const nativeAgent = await api(`/agents/${agent.id}`);
       expect(nativeAgent.adapterConfig.env).toEqual(agent.adapterConfig.env);
       if (journey !== "ceo_lineage") {
@@ -292,7 +292,7 @@ for (const journey of [
         agent = await api(`/companies/${company.id}/agents`, "POST", {
           name: "Executor",
           role: "engineer",
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: executorConfig,
         });
       }

@@ -46,7 +46,7 @@ export async function runTaskWorkspacesFlow(input: {
   async function save(phase: string) {
     const checks = gradeTaskWorkspaces(evidence);
     if (issue) input.observe(issue, runs, checks);
-    await input.evidence("task-workspaces.json", { schema: "paperclip.e2e.task-workspaces.v1", phase,
+    await input.evidence("task-workspaces.json", { schema: "outpost.e2e.task-workspaces.v1", phase,
       budgetMonthlyCents: TASK_WORKSPACES_BUDGET_CENTS, expectedTurns: 3, observation: evidence, checks });
     await input.evidence("task-workspaces-runs.json", { runs, events: eventEvidence });
   }
@@ -106,11 +106,11 @@ export async function runTaskWorkspacesFlow(input: {
       run: { id: run.id, status: run.status, runtimeMode: run.runtimeMode, nativePhase: run.nativePhase,
         nativeBinding: nativeInput?.binding?.executionWorkspaceId, nativeCwd: nativeInput?.workspace?.cwd,
         transport: spans.find(p => p?.span === "runner.transport.selected")?.mode,
-        authenticated: spans.some(p => p?.span === "runner.prp.authenticate" && p.outcome === "ok"),
-        nativeCompleted: events.some(event => event.eventType === "run.result.accepted" && event.payload?.prpEvent?.sourceKind === "control_plane"
-          && event.payload.prpEvent.runId === run.id && event.payload.prpEvent.payload?.result?.reportedWorkDisposition === "done")
-          && events.some(event => event.eventType === "run.terminal" && event.payload?.prpEvent?.sourceKind === "control_plane"
-            && event.payload.prpEvent.runId === run.id && event.payload.prpEvent.payload?.runTerminalState === "succeeded") },
+        authenticated: spans.some(p => p?.span === "runner.orp.authenticate" && p.outcome === "ok"),
+        nativeCompleted: events.some(event => event.eventType === "run.result.accepted" && event.payload?.orpEvent?.sourceKind === "control_plane"
+          && event.payload.orpEvent.runId === run.id && event.payload.orpEvent.payload?.result?.reportedWorkDisposition === "done")
+          && events.some(event => event.eventType === "run.terminal" && event.payload?.orpEvent?.sourceKind === "control_plane"
+            && event.payload.orpEvent.runId === run.id && event.payload.orpEvent.payload?.runTerminalState === "succeeded") },
       prepareCalls: events.filter(event => isRepositoryPreparationReceipt(event, run.id)).length,
     };
     if (turn > 1) {

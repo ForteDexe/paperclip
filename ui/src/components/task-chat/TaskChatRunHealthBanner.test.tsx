@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { HeartbeatRunEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent } from "@outpost/shared";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -28,8 +28,8 @@ function event(seq: number, eventType: string, payload: Record<string, unknown>)
     color: null,
     message: null,
     payload: {
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         sourceEventId: `event-${seq}`,
         sourceSeq: seq,
         sourceInstanceId: "runner-1",
@@ -50,7 +50,7 @@ function event(seq: number, eventType: string, payload: Record<string, unknown>)
 /** The runner's mapping of a failed Codex mcpServer/startupStatus/updated. */
 function mcpFailure(seq: number, server: string, reason: string) {
   return event(seq, "provider.notice.recorded", {
-    schema: "paperclip.provider.notice.v1",
+    schema: "outpost.provider.notice.v1",
     noticeId: `mcp-startup:${server}`,
     severity: "warning",
     category: "mcp_server_startup_failed",
@@ -96,7 +96,7 @@ describe("run health banner", () => {
     render([
       mcpFailure(1, "paperclip", "program not found: paperclip-mcp"),
       event(2, "provider.notice.recorded", {
-        schema: "paperclip.provider.notice.v1", noticeId: "other", severity: "warning",
+        schema: "outpost.provider.notice.v1", noticeId: "other", severity: "warning",
         category: "auth", scope: "session", recoverable: true, userActionable: true, summary: "Sign in again",
       }),
     ]);

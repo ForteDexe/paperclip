@@ -1,7 +1,7 @@
 import type {
   ChatAdapterCapabilities,
   ChatProvider,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 const PROVIDER_LABELS: Record<ChatProvider, string> = {
   speko: "Speko",

@@ -55,11 +55,11 @@ describe("stdin file race (parent PAP-4037)", () => {
 
     const env: Record<string, string> = {
       ...process.env,
-      PAPERCLIP_PROCESS_SESSION_DIR: sessionDir,
-      PAPERCLIP_PROCESS_SESSION_COMMAND_B64: commandPayload,
+      OUTPOST_PROCESS_SESSION_DIR: sessionDir,
+      OUTPOST_PROCESS_SESSION_COMMAND_B64: commandPayload,
     };
     if (options?.maxRetries != null) {
-      env.PAPERCLIP_PROCESS_SESSION_STDIN_MAX_RETRIES = String(options.maxRetries);
+      env.OUTPOST_PROCESS_SESSION_STDIN_MAX_RETRIES = String(options.maxRetries);
     }
 
     const child = spawn(process.execPath, [wrapperPath], {
@@ -964,9 +964,9 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
           [
             `const fs = require("fs");`,
             `const path = require("path");`,
-            `const target = process.env.PAPERCLIP_TEST_FAKE_BIRTHTIME_TARGET;`,
-            `const mode = process.env.PAPERCLIP_TEST_FAKE_BIRTHTIME_MODE;`,
-            `const sessionDir = process.env.PAPERCLIP_PROCESS_SESSION_DIR;`,
+            `const target = process.env.OUTPOST_TEST_FAKE_BIRTHTIME_TARGET;`,
+            `const mode = process.env.OUTPOST_TEST_FAKE_BIRTHTIME_MODE;`,
+            `const sessionDir = process.env.OUTPOST_PROCESS_SESSION_DIR;`,
             `if (target && mode && sessionDir) {`,
             `  const resolvedTarget = path.resolve(target === "stdinDir" ? path.join(sessionDir, "stdin") : sessionDir);`,
             `  const originalLstat = fs.promises.lstat.bind(fs.promises);`,
@@ -1001,8 +1001,8 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
       await writeFile(preloadPath, [
         `const fs = require("fs");`,
         `const path = require("path");`,
-        `const mode = process.env.PAPERCLIP_TEST_PROBE_LIFETIME;`,
-        `const sessionDir = process.env.PAPERCLIP_PROCESS_SESSION_DIR;`,
+        `const mode = process.env.OUTPOST_TEST_PROBE_LIFETIME;`,
+        `const sessionDir = process.env.OUTPOST_PROCESS_SESSION_DIR;`,
         `const probePath = path.join(sessionDir, ".paperclip-birthtime-probe-" + process.pid + "-1");`,
         `const tracePath = path.join(sessionDir, ".probe-lifetime.json");`,
         `const events = [];`,
@@ -1077,9 +1077,9 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
           [
             `const fs = require("fs");`,
             `const path = require("path");`,
-            `const mode = process.env.PAPERCLIP_TEST_PROBE_SWAP_MODE;`,
-            `const seq = process.env.PAPERCLIP_TEST_PROBE_SWAP_SEQ;`,
-            `const symlinkTarget = process.env.PAPERCLIP_TEST_PROBE_SWAP_SYMLINK_TARGET;`,
+            `const mode = process.env.OUTPOST_TEST_PROBE_SWAP_MODE;`,
+            `const seq = process.env.OUTPOST_TEST_PROBE_SWAP_SEQ;`,
+            `const symlinkTarget = process.env.OUTPOST_TEST_PROBE_SWAP_SYMLINK_TARGET;`,
             `if (mode && seq) {`,
             `  const expectedName = ".paperclip-birthtime-probe-" + process.pid + "-" + seq;`,
             `  let swapped = false;`,
@@ -1128,7 +1128,7 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
           [
             `const fs = require("fs");`,
             `const path = require("path");`,
-            `const seq = process.env.PAPERCLIP_TEST_FSTAT_FAILURE_SEQ;`,
+            `const seq = process.env.OUTPOST_TEST_FSTAT_FAILURE_SEQ;`,
             `if (seq) {`,
             `  const expectedName = ".paperclip-birthtime-probe-" + process.pid + "-" + seq;`,
             `  const originalOpen = fs.promises.open.bind(fs.promises);`,
@@ -1198,30 +1198,30 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
 
     const env: Record<string, string> = {
       ...process.env,
-      PAPERCLIP_PROCESS_SESSION_DIR: sessionDir,
-      PAPERCLIP_PROCESS_SESSION_COMMAND_B64: commandPayload,
+      OUTPOST_PROCESS_SESSION_DIR: sessionDir,
+      OUTPOST_PROCESS_SESSION_COMMAND_B64: commandPayload,
     };
-    if (options?.maxRetries != null) env.PAPERCLIP_PROCESS_SESSION_STDIN_MAX_RETRIES = String(options.maxRetries);
-    if (options?.terminateGraceMs != null) env.PAPERCLIP_PROCESS_SESSION_TERMINATE_GRACE_MS = String(options.terminateGraceMs);
+    if (options?.maxRetries != null) env.OUTPOST_PROCESS_SESSION_STDIN_MAX_RETRIES = String(options.maxRetries);
+    if (options?.terminateGraceMs != null) env.OUTPOST_PROCESS_SESSION_TERMINATE_GRACE_MS = String(options.terminateGraceMs);
 
     const execArgv: string[] = [];
     if (options?.fakeBirthtime) {
-      env.PAPERCLIP_TEST_FAKE_BIRTHTIME_TARGET = options.fakeBirthtime.target;
-      env.PAPERCLIP_TEST_FAKE_BIRTHTIME_MODE = options.fakeBirthtime.mode;
+      env.OUTPOST_TEST_FAKE_BIRTHTIME_TARGET = options.fakeBirthtime.target;
+      env.OUTPOST_TEST_FAKE_BIRTHTIME_MODE = options.fakeBirthtime.mode;
       execArgv.push("--require", await getFakeBirthtimePreloadPath());
     }
     if (options?.probeSwap) {
-      env.PAPERCLIP_TEST_PROBE_SWAP_SEQ = String(options.probeSwap.seq);
-      env.PAPERCLIP_TEST_PROBE_SWAP_MODE = options.probeSwap.mode;
-      if (options.probeSwap.symlinkTarget) env.PAPERCLIP_TEST_PROBE_SWAP_SYMLINK_TARGET = options.probeSwap.symlinkTarget;
+      env.OUTPOST_TEST_PROBE_SWAP_SEQ = String(options.probeSwap.seq);
+      env.OUTPOST_TEST_PROBE_SWAP_MODE = options.probeSwap.mode;
+      if (options.probeSwap.symlinkTarget) env.OUTPOST_TEST_PROBE_SWAP_SYMLINK_TARGET = options.probeSwap.symlinkTarget;
       execArgv.push("--require", await getProbeSwapPreloadPath());
     }
     if (options?.probeLifetime) {
-      env.PAPERCLIP_TEST_PROBE_LIFETIME = options.probeLifetime;
+      env.OUTPOST_TEST_PROBE_LIFETIME = options.probeLifetime;
       execArgv.push("--require", await getProbeLifetimePreloadPath());
     }
     if (options?.fstatFailure) {
-      env.PAPERCLIP_TEST_FSTAT_FAILURE_SEQ = String(options.fstatFailure.seq);
+      env.OUTPOST_TEST_FSTAT_FAILURE_SEQ = String(options.fstatFailure.seq);
       execArgv.push("--require", await getFstatFailurePreloadPath());
     }
 
@@ -1717,8 +1717,8 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
       cwd: targetDir,
       env: {
         ...process.env,
-        PAPERCLIP_PROCESS_SESSION_DIR: linkDir,
-        PAPERCLIP_PROCESS_SESSION_COMMAND_B64: commandPayload,
+        OUTPOST_PROCESS_SESSION_DIR: linkDir,
+        OUTPOST_PROCESS_SESSION_COMMAND_B64: commandPayload,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -1752,7 +1752,7 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
       command: process.execPath,
       args: [
         "-e",
-        "process.stdout.write(JSON.stringify(Object.keys(process.env).filter((k) => k.startsWith('PAPERCLIP_PROCESS_SESSION'))));process.exit(0)",
+        "process.stdout.write(JSON.stringify(Object.keys(process.env).filter((k) => k.startsWith('OUTPOST_PROCESS_SESSION'))));process.exit(0)",
       ],
     });
     await waitFor(() => wrapper.frames.some((frame) => frame.type === "exit"), 4_000);
@@ -2279,8 +2279,8 @@ describe("deterministic remote process-session wrapper shutdown (PAP-5316)", () 
       cwd: sessionDir,
       env: {
         ...process.env,
-        PAPERCLIP_PROCESS_SESSION_DIR: sessionDir,
-        PAPERCLIP_PROCESS_SESSION_COMMAND_B64: commandPayload,
+        OUTPOST_PROCESS_SESSION_DIR: sessionDir,
+        OUTPOST_PROCESS_SESSION_COMMAND_B64: commandPayload,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

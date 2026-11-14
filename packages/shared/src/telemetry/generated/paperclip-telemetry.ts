@@ -174,7 +174,7 @@ export interface EventDimensionsMap {
   "skill.imported": PaperclipSkillImportedDimensions;
 }
 
-export const PAPERCLIP_EVENTS = {
+export const OUTPOST_EVENTS = {
   "agent.created": "agent.created",
   "agent.first_heartbeat": "agent.first_heartbeat",
   "agent.task_completed": "agent.task_completed",
@@ -196,7 +196,7 @@ export const PAPERCLIP_EVENTS = {
   "skill.imported": "skill.imported",
 } as const;
 
-export const PAPERCLIP_ENUM_DESCRIPTIONS = {
+export const OUTPOST_ENUM_DESCRIPTIONS = {
   "agent.created": {
     "agent_role": {
       "ceo": "Agent configured for company leadership and board coordination work.",

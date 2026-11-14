@@ -16,12 +16,12 @@ import {
   statusDecisions,
   workAssessments,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   CONTROL_PLANE_CONFORMANCE_OPEN,
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
-} from "../vendor/paperclip-runner/testing.js";
+} from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import {
   reconcileNativeFinalizations,
@@ -30,7 +30,7 @@ import {
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
 import { assertRetainedNativeSourceArchiveSettled, reconcileRetainedNativeSessionCleanup } from "../services/native-runtime/native-session-executor.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_FINALIZATION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZATION_TEST_DATABASE_URL");
 
 describe("P6-16/P6-25/P6-28 native finalization recovery", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -68,7 +68,7 @@ describe("P6-16/P6-25/P6-28 native finalization recovery", () => {
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -146,7 +146,7 @@ describe("P6-16/P6-25/P6-28 native finalization recovery", () => {
       companyId,
       issueId: staleIssueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -248,7 +248,7 @@ describe("P6-16/P6-25/P6-28 native finalization recovery", () => {
         runtimeMode: "native",
         status: "succeeded",
         nativePhase: "terminal_failure",
-        resultJson: expect.objectContaining({ prpRunTerminalState: "succeeded" }),
+        resultJson: expect.objectContaining({ orpRunTerminalState: "succeeded" }),
       }),
     ]);
     await expect(reconcileNativeFinalizations(db, [runId])).resolves.toEqual([]);
@@ -418,7 +418,7 @@ describe("retained native cleanup discovery", () => {
       companyId: owner.companyId,
       issueId,
       revision: options.revision ?? 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "standard",
       completionAuthority: "server_arbiter",

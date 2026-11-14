@@ -35,7 +35,7 @@ export function gradeExistingGrok(value: unknown) {
     && /Grok|Bot/i.test(String(s.initialReply)) && /authori[sz]|connect|setup|set up|MCP|human|browser/i.test(String(s.initialReply)) && !/(?:Bot|it|agent|connection)\s+(?:is\s+)?(?:already\s+|fully\s+|now\s+)?(?:connected|ready)\b(?!\s+(?:once|when|after|pending|only|subject)\b)|(?:already|fully|now)\s+(?:connected|ready)|I(?:['’]ve| have)\s+(?:authorized|connected)/i.test(String(s.initialReply)),
     "The canonical answer starts or points to the real signed-in human flow and does not label the previously unauthorized Bot ready.");
   c.add("real-pairing-and-authenticated-two-way-challenge", s.humanHandoffCompleted === true && s.publicPersonGrantBound === true && s.operatorAvailable === true && s.actualHumanPairingObserved === true && s.sameChosenCompanyAndBot === true && s.realRoundTrip === true && s.routineConfiguredSecurely === true && !!worker
-    && o.agents.length === (s.beforeAgentIds as string[]).length + 1 && (s.beforeAgentIds as string[]).every(id => o.agents.some(row => row.id === id)) && worker.companyId === o.companyId && worker.adapterType === "paperclip_runner" && worker.adapterConfig.provider === "grok_bot" && worker.lifecycleState === "ready",
+    && o.agents.length === (s.beforeAgentIds as string[]).length + 1 && (s.beforeAgentIds as string[]).every(id => o.agents.some(row => row.id === id)) && worker.companyId === o.companyId && worker.adapterType === "outpost_runner" && worker.adapterConfig.provider === "grok_bot" && worker.lifecycleState === "ready",
     "The exact chosen company/Bot is bound through genuine external Bot authorization; only its actual authenticated verify acknowledgement makes setup complete.");
   c.add("honest-phase-bound-ready-result-and-capability-limits", s.confirmationBound === true && /ready|connected|verified|round.?trip/i.test(String(s.resultReply)) && truthfulGrokCapabilities(String(s.resultReply))
     && o.runs.length === 2 && o.runs.every(row => row.agentId === o.leadId && row.status === "succeeded") && o.tasks.length === 0 && o.humanQueries.length === 2 && o.humanQueries[1] === confirmation,
@@ -44,7 +44,7 @@ export function gradeExistingGrok(value: unknown) {
 }
 export const runtimeGrokCases = [runtimeDefinition("agents.existing-grok-bot", async ctx => {
   const selected = selectedRuntimeInputs(ctx, "agents.existing-grok-bot");
-  if (!selected.values.botId.trim() || selected.values.botId.length > 100 || /[\r\n]/.test(selected.values.botId) || selected.values.credentialEnvName !== "PAPERCLIP_CHAT_EVAL_GROK_BOT_TOKEN" || selected.values.challengeMethod !== "authenticated-mcp-routine") throw new Error("Setup blocker: require the actual owned existing Grok desktop Bot name, selected routine key and supported authenticated-mcp-routine challenge");
+  if (!selected.values.botId.trim() || selected.values.botId.length > 100 || /[\r\n]/.test(selected.values.botId) || selected.values.credentialEnvName !== "OUTPOST_CHAT_EVAL_GROK_BOT_TOKEN" || selected.values.challengeMethod !== "authenticated-mcp-routine") throw new Error("Setup blocker: require the actual owned existing Grok desktop Bot name, selected routine key and supported authenticated-mcp-routine challenge");
   const webhook = new URL(selected.values.endpoint); if (webhook.protocol !== "https:" || webhook.username || webhook.password || webhook.hash) throw new Error("Existing Bot webhook must be its actual owned HTTPS routine endpoint");
   const key = selected.reference(selected.values.credentialEnvName); if (!ctx.input.privateSecrets) throw new Error("Grok routine requires the private value sink"); ctx.input.privateSecrets.push(key, selected.values.endpoint);
   await ctx.input.api.patch("/api/instance/settings/experimental", { enableGrokBot: true, enablePublicMcp: true, enableNativeRunner: true });
@@ -100,7 +100,7 @@ export const runtimeGrokCases = [runtimeDefinition("agents.existing-grok-bot", a
   async cleanup(ctx, state) {
     const companyId = ctx.input.fixtures.company.id, before = state.beforeAgentIds as string[] | undefined;
     if (!before) return;
-    const targets = (await ctx.input.api.get<Agent[]>(`/api/companies/${companyId}/agents`)).filter(agent => !before.includes(agent.id) && agent.companyId === companyId && agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "grok_bot");
+    const targets = (await ctx.input.api.get<Agent[]>(`/api/companies/${companyId}/agents`)).filter(agent => !before.includes(agent.id) && agent.companyId === companyId && agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "grok_bot");
     for (const agent of targets) await ctx.input.api.delete(endpoint(companyId, agent.id));
     const beforeGrants = state.beforeGrantIds as string[] | undefined, grants = await ctx.input.api.get<McpConnection[]>("/api/mcp/connections");
     for (const grant of grants) if (!beforeGrants?.includes(grant.id) && grant.companyId === companyId && targets.some(agent => agent.id === grant.agent?.id) && !grant.revokedAt) await ctx.input.api.delete(`/api/mcp/connections/${grant.id}`);

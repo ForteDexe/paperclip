@@ -1,5 +1,5 @@
-import type { AskUserQuestionsAnswer, AskUserQuestionsPayload, PaperclipQuestionSetPayload } from "@paperclipai/shared";
-import { parsePaperclipQuestionResponse, type PaperclipQuestionResponse } from "../vendor/paperclip-runner/index.js";
+import type { AskUserQuestionsAnswer, AskUserQuestionsPayload, PaperclipQuestionSetPayload } from "@outpost/shared";
+import { parsePaperclipQuestionResponse, type PaperclipQuestionResponse } from "../vendor/outpost-runner/index.js";
 import { validateQuestionPatterns } from "./question-pattern-validation.js";
 
 function prepareQuestionInteractionAnswers(
@@ -9,7 +9,7 @@ function prepareQuestionInteractionAnswers(
 ) {
   const answerByQuestionId = new Map(answers.map((answer) => [answer.questionId, answer]));
   const response: PaperclipQuestionResponse = {
-    schema: "paperclip.question_response.v1",
+    schema: "outpost.question_response.v1",
     answers: {},
   };
   for (const question of questionSet.questions) {

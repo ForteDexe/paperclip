@@ -89,7 +89,7 @@ export const GIT_SYNC_COMMIT_IDENTITY_ARGS = [
   "-c",
   "user.name=Outpost",
   "-c",
-  "user.email=noreply@paperclip.ing",
+  "user.email=noreply@outpost.ing",
 ] as const;
 
 function shellQuote(value: string) {
@@ -172,7 +172,7 @@ export async function disposeGitWorkspaceSnapshot(snapshot: GitWorkspaceSnapshot
 
 /** Snapshot deadlines include disk backpressure. Operators can allow up to 24h. */
 export function workspaceSnapshotTimeoutMs(): number {
-  const configured = Number(process.env.PAPERCLIP_WORKSPACE_GIT_SNAPSHOT_TIMEOUT_MS);
+  const configured = Number(process.env.OUTPOST_WORKSPACE_GIT_SNAPSHOT_TIMEOUT_MS);
   return Number.isFinite(configured) && configured >= 1000 ? Math.min(configured, 86_400_000) : 30 * 60_000;
 }
 
@@ -1222,6 +1222,6 @@ export async function resetLocalGitIndexToHead(input: {
     throw new Error("Workspace restore left staged git index changes after reset");
   }
   if (input.checkWorkingTreeClean && await hasDiff(["diff", "--quiet", "HEAD", "--"])) {
-    console.warn("[paperclip] Workspace restore preserved local working tree changes after clean sandbox restore.");
+    console.warn("[outpost] Workspace restore preserved local working tree changes after clean sandbox restore.");
   }
 }

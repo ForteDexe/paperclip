@@ -3227,7 +3227,7 @@ that every listed duty has the same defect. All remaining duties and older gates
 remain active; no merge is authorized.
 
 
-Slice 52 producer audit correction: the hidden PRP coordinator has a second
+Slice 52 producer audit correction: the hidden ORP coordinator has a second
 accepted-result writer. Added its missing transaction-aware workspace hint after
 two red real-producer regressions. The complete lifecycle suite passes all 18
 cases, covering first result plus outer commit/rollback for both writer paths.

@@ -407,7 +407,7 @@ export type SafeExternalChatCardAction =
     };
 
 export interface SafeExternalChatCard {
-  schema: "paperclip.chat.card.v1";
+  schema: "outpost.chat.card.v1";
   kind: SafeExternalChatCardKind;
   title: string;
   body?: string;

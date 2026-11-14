@@ -7,7 +7,7 @@ import { registerNativeHarnessBackupExpirationWork } from "../services/native-ru
 import { noteNativeHarnessBackupChange } from "../services/native-harness-backup-expiration-notifications.js";
 import { writeEnvironmentCleanup } from "../services/environment-cleanup-notifications.js";
 import { issueService } from "../services/issues.js";
-import { applyPendingMigrations } from "@paperclipai/db";
+import { applyPendingMigrations } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { registerNativeRunnerEvidenceRetentionWork } from "../services/native-runtime/native-runner-evidence-retention-work.js";
 import { noteNativeRunnerEvidence } from "../services/native-runtime/native-runner-evidence-signal.js";
@@ -30,13 +30,13 @@ import {
   issues,
   nativeRunFinalizations,
   nativeRunnerCheckpoints,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { recoveryPostgresSupport as embeddedPostgresSupport, startRecoveryPostgres } from "./helpers/recovery-postgres.js";
 import { nativeHarnessBackupExpirationService } from "../services/native-runtime/native-harness-backup-expiration.ts";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { logger } from "../middleware/logger.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_RETENTION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_RETENTION_TEST_DATABASE_URL");
 const describeEmbeddedPostgres = external || embeddedPostgresSupport.supported ? describe : describe.skip;
 
 if (!external && !embeddedPostgresSupport.supported) {
@@ -126,7 +126,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     await db.insert(agentTaskSessions).values({
       companyId,
       agentId: agent!.id,
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       taskKey: issue!.id,
       sessionParamsJson: { sessionId },
       lastRunId: run!.id,
@@ -465,7 +465,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
   it("retains incomplete native snapshot publications even after the issue closes", async () => {
     const session = await seedSession({ finalization: { phase: "committed" } });
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeControllerRecovery: {
-      schema: "paperclip.native-controller-recovery.v1", checkpoint: null,
+      schema: "outpost.native-controller-recovery.v1", checkpoint: null,
     } } }).where(eq(heartbeatRuns.id, session.runId));
     expect(await service().tick()).toMatchObject({ expired: 0, skipped: { native_recovery_incomplete: 1 } });
     expect(await exists(session.current)).toBe(true);

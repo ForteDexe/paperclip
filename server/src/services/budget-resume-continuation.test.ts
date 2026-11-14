@@ -3,7 +3,7 @@ import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents, agentWakeupRequests, budgetIncidents, budgetPolicies, budgetResumeClaims, companies, createDb, heartbeatRuns, issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { budgetService } from "./budgets.js";
 import { heartbeatService } from "./heartbeat.js";
 import { HttpError } from "../errors.js";

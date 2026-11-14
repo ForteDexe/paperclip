@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode, t
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Pencil, X } from "lucide-react";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@outpost/shared";
 import { agentsApi } from "@/api/agents";
 import { describeError } from "@/api/errors";
 import { bindAccount } from "@/lib/account-scope";

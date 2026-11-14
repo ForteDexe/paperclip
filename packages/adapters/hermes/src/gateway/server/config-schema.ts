@@ -1,4 +1,4 @@
-import type { AdapterConfigSchema } from "@paperclipai/adapter-utils";
+import type { AdapterConfigSchema } from "@outpost/adapter-utils";
 import { DEFAULT_EVENT_RECONNECT_MS, DEFAULT_TIMEOUT_SEC } from "../shared/constants.js";
 import { INSECURE_REMOTE_HTTP_ESCAPE_HATCH } from "./transport-security.js";
 
@@ -17,7 +17,7 @@ export function getConfigSchema(): AdapterConfigSchema {
         label: "API key",
         type: "text",
         required: true,
-        hint: "Hermes API_SERVER_KEY, not PAPERCLIP_API_KEY. Stored as an Outpost secret reference.",
+        hint: "Hermes API_SERVER_KEY, not OUTPOST_API_KEY. Stored as an Outpost secret reference.",
         meta: { secret: true },
       },
       {

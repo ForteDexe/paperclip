@@ -99,7 +99,7 @@ function agentFeedback(): ChatCatalogCase {
       throw error;
     }
   }, gradeAgentFeedback);
-  return { ...base, oracleVersion: "paperclip.chat-catalog.agent-feedback.v2", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 3, attemptTimeoutMs: 600_000,
+  return { ...base, oracleVersion: "outpost.chat-catalog.agent-feedback.v2", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 3, attemptTimeoutMs: 600_000,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-agent-feedback.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/internal-commentary-reader.ts", "chat-run-evidence-observer.ts"],
     async observe(ctx, state): Promise<FeedbackObservation> {
       if (!key) throw new Error("Feedback read probe was not created during setup"); const o = await observeInternal(ctx, state); const root = `/api/companies/${o.companyId}`;

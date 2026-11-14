@@ -610,7 +610,7 @@ export function Layout() {
               collapsed={designSandbox ? false : collapsed}
               peeking={designSandbox ? false : peeking}
               resizable
-              storageKey={designSandbox ? "paperclip.design-proposals.sandbox.sidebar-width" : undefined}
+              storageKey={designSandbox ? "outpost.design-proposals.sandbox.sidebar-width" : undefined}
               onPanelMouseEnter={handlePanelPointerEnter}
               onPanelMouseLeave={handlePanelPointerLeave}
               onPanelFocusCapture={collapsed ? handlePanelFocus : undefined}

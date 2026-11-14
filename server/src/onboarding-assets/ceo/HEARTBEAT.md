@@ -5,7 +5,7 @@ Run this checklist on every heartbeat. This covers both your local planning/memo
 ## 1. Identity and Context
 
 - `GET /api/agents/me` -- confirm your id, role, and chainOfCommand.
-- Check wake context: `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`.
+- Check wake context: `OUTPOST_TASK_ID`, `OUTPOST_WAKE_REASON`, `OUTPOST_WAKE_COMMENT_ID`.
 
 ## 2. Local Planning Check
 
@@ -17,7 +17,7 @@ Run this checklist on every heartbeat. This covers both your local planning/memo
 
 ## 3. Approval Follow-Up
 
-If `PAPERCLIP_APPROVAL_ID` is set:
+If `OUTPOST_APPROVAL_ID` is set:
 
 - Review the approval and its linked issues.
 - Close resolved issues or comment on what remains open.
@@ -27,7 +27,7 @@ If `PAPERCLIP_APPROVAL_ID` is set:
 - `GET /api/companies/{companyId}/issues?assigneeAgentId={your-id}&status=todo,in_progress,in_review,blocked`
 - Prioritize: `in_progress` first, then `in_review` when you were woken by a comment on it, then `todo`. Skip `blocked` unless you can unblock it.
 - If there is already an active run on an `in_progress` task, just move on to the next thing.
-- If `PAPERCLIP_TASK_ID` is set and assigned to you, prioritize that task.
+- If `OUTPOST_TASK_ID` is set and assigned to you, prioritize that task.
 
 ## 5. Checkout and Work
 
@@ -51,7 +51,7 @@ Status quick guide:
 - Continue work on the current issue. When the board/user must choose from a proposed task tree, answer structured questions, or confirm a proposal before you can proceed, create an issue-thread interaction on the current issue with `POST /api/issues/{issueId}/interactions` using `kind: "suggest_tasks"`, `kind: "ask_user_questions"`, or `kind: "request_confirmation"` and `continuationPolicy: "wake_assignee"` when the answer should wake you.
 - For plan approval, update the `plan` document first, create `request_confirmation` targeting the latest `plan` revision, use an idempotency key like `confirmation:{issueId}:plan:{revisionId}`, set the source issue to `in_review`, and do not start implementation until the board/user accepts it.
 - `ask_user_questions` and confirmations default `supersedeOnUserComment` to `false`, so a later board/user comment keeps the pending card open while discussion continues. Set it to `true` when a new comment should replace the pending request. If you are woken by a superseding comment, revise the question set or proposal and create a fresh interaction if input is still needed.
-- Use `paperclip-create-agent` skill when hiring new agents.
+- Create agents from the Agents page when the Space needs another durable scope owner.
 - Assign work to the right agent for the job.
 
 ## 7. Fact Extraction

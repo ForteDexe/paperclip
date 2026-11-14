@@ -138,7 +138,7 @@ async function waitForActiveTurn(ctx: ReliabilityFlowContext, issueId = ctx.pare
       if (!requireTool) return { current, run, tool: true };
       const events = await collectRunEvents<Row>((afterSeq, limit) =>
         ctx.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-      return { current, run, tool: events.some(row => row.payload?.prpEvent?.eventType === "tool.execution.completed") };
+      return { current, run, tool: events.some(row => row.payload?.orpEvent?.eventType === "tool.execution.completed") };
     },
     accept: value => Boolean(value.run && value.tool),
     reject: value => value.current.issues.find(issue => issue.id === issueId)?.status === "done"

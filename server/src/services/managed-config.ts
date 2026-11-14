@@ -2,7 +2,7 @@
  * Cloud managed-config bootstrap (harness → app contract).
  *
  * Instances managed by the Paperclip Cloud harness receive one environment
- * variable, `PAPERCLIP_MANAGED_CONFIG`, holding a single JSON document:
+ * variable, `OUTPOST_MANAGED_CONFIG`, holding a single JSON document:
  *
  *   {
  *     "v": 1,
@@ -48,11 +48,11 @@ import {
   INSTANCE_FEATURE_CATALOG,
   instanceExperimentalSettingsSchema,
   type ManagedExperimentalFeatureKey,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 export type ManagedConfigEnv = Record<string, string | undefined>;
 
-export const MANAGED_CONFIG_ENV_KEY = "PAPERCLIP_MANAGED_CONFIG";
+export const MANAGED_CONFIG_ENV_KEY = "OUTPOST_MANAGED_CONFIG";
 export const SUPPORTED_MANAGED_CONFIG_VERSION = 1;
 
 export interface ManagedInstanceConfig {
@@ -167,7 +167,7 @@ const WORKER_ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const COMPANY_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const WORKER_ENV_DENIED_NAME_PATTERN =
-  /(^|_)(AWS|CREDENTIAL|CREDENTIALS|DATABASE|DSN|JWT|KEY|KEYS|PASSWORD|POSTGRES|PRIVATE|SECRET|SECRETS|SIGNING|TOKEN)(_|$)|^(DB|DYLD|LD|NODE)_|^(PATH|PAPERCLIP_MANAGED_CONFIG)$/;
+  /(^|_)(AWS|CREDENTIAL|CREDENTIALS|DATABASE|DSN|JWT|KEY|KEYS|PASSWORD|POSTGRES|PRIVATE|SECRET|SECRETS|SIGNING|TOKEN)(_|$)|^(DB|DYLD|LD|NODE)_|^(PATH|OUTPOST_MANAGED_CONFIG)$/;
 
 function findSecretLikeConfigKey(value: Record<string, unknown>, path: string): string | null {
   for (const [key, child] of Object.entries(value)) {
@@ -395,7 +395,7 @@ function parseManagedEnvironmentsSection(
 }
 
 /**
- * Parse `PAPERCLIP_MANAGED_CONFIG` from a raw env map. Returns null only when
+ * Parse `OUTPOST_MANAGED_CONFIG` from a raw env map. Returns null only when
  * the variable is absent (self-hosted). Throws with a precise error on a
  * present-but-blank value or any malformed document so a cloud instance fails
  * to start (fail closed).

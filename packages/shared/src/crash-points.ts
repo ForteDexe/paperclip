@@ -9,14 +9,14 @@
  *
  * Arming (test mode only):
  *
- *   PAPERCLIP_CRASH_POINT=<name>[:<nth>]        SIGKILL this process at the nth hit (default 1)
- *   PAPERCLIP_CRASH_POINT_RECEIPT=<file>        optional; one JSON line is appended before the kill
- *   PAPERCLIP_CRASH_POINT_GATE=<file>           optional; hits before this file exists are not counted,
+ *   OUTPOST_CRASH_POINT=<name>[:<nth>]        SIGKILL this process at the nth hit (default 1)
+ *   OUTPOST_CRASH_POINT_RECEIPT=<file>        optional; one JSON line is appended before the kill
+ *   OUTPOST_CRASH_POINT_GATE=<file>           optional; hits before this file exists are not counted,
  *                                               so setup work (seeding, probes) cannot fire the point
  *
- * Runtime arming (one booted server, many points), instead of PAPERCLIP_CRASH_POINT:
+ * Runtime arming (one booted server, many points), instead of OUTPOST_CRASH_POINT:
  *
- *   PAPERCLIP_CRASH_POINT_CONTROL=<file>        each hit reads "<token> <name>[:<nth>] [fail]" from the file;
+ *   OUTPOST_CRASH_POINT_CONTROL=<file>        each hit reads "<token> <name>[:<nth>] [fail]" from the file;
  *                                               no file or an empty one means disarmed. Hits count per
  *                                               token, so writing a new token re-arms with a fresh count.
  *
@@ -46,10 +46,10 @@ import { CRASH_POINTS, isCrashPointName, type CrashPointName } from "./crash-poi
 export { CRASH_POINTS, CRASH_POINT_NAME_PATTERN, isCrashPointName } from "./crash-point-registry.js";
 export type { CrashPointDefinition, CrashPointInvariant, CrashPointName } from "./crash-point-registry.js";
 
-export const CRASH_POINT_ENV = "PAPERCLIP_CRASH_POINT";
-export const CRASH_POINT_RECEIPT_ENV = "PAPERCLIP_CRASH_POINT_RECEIPT";
-export const CRASH_POINT_GATE_ENV = "PAPERCLIP_CRASH_POINT_GATE";
-export const CRASH_POINT_CONTROL_ENV = "PAPERCLIP_CRASH_POINT_CONTROL";
+export const CRASH_POINT_ENV = "OUTPOST_CRASH_POINT";
+export const CRASH_POINT_RECEIPT_ENV = "OUTPOST_CRASH_POINT_RECEIPT";
+export const CRASH_POINT_GATE_ENV = "OUTPOST_CRASH_POINT_GATE";
+export const CRASH_POINT_CONTROL_ENV = "OUTPOST_CRASH_POINT_CONTROL";
 /** Printed to stderr just before the kill; the suite greps server logs for it. */
 export const CRASH_POINT_LOG_PREFIX = "[crash-point]";
 

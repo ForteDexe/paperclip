@@ -1,6 +1,6 @@
 import { notifyEnvironmentCleanup } from "./environment-cleanup-notifications.js";
 import { and, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRuns, issues, type Db } from "@paperclipai/db";
+import { environmentLeases, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { adapterExecutionControls } from "./adapter-execution-control.js";
 import { legacyControllerBootId } from "./legacy-controller-lease.js";
 import { LEGACY_WORKSPACE_RECOVERY_SCHEMA } from "./workspace-restore-recovery-state.js";
@@ -8,7 +8,7 @@ import { logger } from "../middleware/logger.js";
 import { currentControllerProcessStamp, readControllerProcess } from "./controller-process-identity.js";
 import { proveOwnerGone, type LocalOwnerStamp, type OwnerProof } from "./owner-proof.js";
 
-const SCHEMA = "paperclip.legacy-shutdown-workspace-settlement.v1";
+const SCHEMA = "outpost.legacy-shutdown-workspace-settlement.v1";
 type Lease = Pick<typeof environmentLeases.$inferSelect, "id" | "companyId" | "heartbeatRunId" | "metadata">;
 type Run = Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId">;
 const SETTLEMENT_RENEW_MS = 10_000;

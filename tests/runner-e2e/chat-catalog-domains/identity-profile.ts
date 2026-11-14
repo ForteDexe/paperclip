@@ -50,7 +50,7 @@ export const profileIdentityCases: readonly ChatCatalogCase[] = [identityDefinit
   } catch (error) { await observer.dispose(); observers.delete(ctx); throw error; }
 }, gradeProfile, {
   authentication: "human-session",
-  oracleVersion: "paperclip.chat-catalog.identity-profile.v3",
+  oracleVersion: "outpost.chat-catalog.identity-profile.v3",
   sourceFiles: ["chat-catalog-domains/identity-profile.ts", "chat-catalog-domains/internal-comment-reference.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/navigation-preferences.yaml"],
   async act(ctx, state) {
     await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx));

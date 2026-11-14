@@ -3,7 +3,7 @@ import { scrubChatPrivateEnvironment } from "./chat-private-inputs.js";
 import { CHAT_ANNOUNCEMENT_FEED_URL, CHAT_ANNOUNCEMENT_SCENARIO } from "./chat-announcement-fixture.js";
 import { PRIVATE_DIAGNOSTICS_ENV } from "./private-diagnostics.js";
 import { installedDaytonaPluginKeys } from "./installed-daytona-plugin.js";
-import { QUALIFIED_ACPX_PROFILES } from "../../packages/paperclip-runner/src/drivers/acpx/qualified-profiles.js";
+import { QUALIFIED_ACPX_PROFILES } from "../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js";
 import { assertInstalledCliSelection, installedCliKeys, usesInstalledCli } from "./installed-cli.js";
 import path from "node:path";
 import { isEvalRemoteOrigin } from "./eval-remote-gateway.js";
@@ -11,39 +11,39 @@ import { chatNeedsApiTools, isManagedHiringCase } from "./chat-cases.js";
 import { CREDENTIAL_NAMES } from "./types.js";
 import type { MatrixExecution } from "./types.js";
 
-const DATABASE_KEYS = ["DATABASE_URL", "DATABASE_MIGRATION_URL", "PAPERCLIP_RUNNER_E2E_POSTGRES_ADMIN_URL"] as const;
-const AMBIENT_PAPERCLIP_CREDENTIAL_KEYS = [
-  "PAPERCLIP_API_KEY",
-  "PAPERCLIP_ACPX_CANDIDATE_ADMISSION",
-  "PAPERCLIP_AGENT_API_KEY",
-  "PAPERCLIP_TASK_BRIDGE_TOKEN",
-  "PAPERCLIP_E2E_GATEWAY_TOKEN",
-  "PAPERCLIP_E2E_GATEWAY_PHASE_PATH",
-  "PAPERCLIP_E2E_OTLP_RELAY_URL",
-  "PAPERCLIP_E2E_REMOTE_GATEWAY_ORIGIN",
-  "PAPERCLIP_SETUP_TOKEN",
-  "PAPERCLIP_SECRETS_MASTER_KEY",
-  "PAPERCLIP_SECRETS_MASTER_KEY_FILE",
+const DATABASE_KEYS = ["DATABASE_URL", "DATABASE_MIGRATION_URL", "OUTPOST_RUNNER_E2E_POSTGRES_ADMIN_URL"] as const;
+const AMBIENT_OUTPOST_CREDENTIAL_KEYS = [
+  "OUTPOST_API_KEY",
+  "OUTPOST_ACPX_CANDIDATE_ADMISSION",
+  "OUTPOST_AGENT_API_KEY",
+  "OUTPOST_TASK_BRIDGE_TOKEN",
+  "OUTPOST_E2E_GATEWAY_TOKEN",
+  "OUTPOST_E2E_GATEWAY_PHASE_PATH",
+  "OUTPOST_E2E_OTLP_RELAY_URL",
+  "OUTPOST_E2E_REMOTE_GATEWAY_ORIGIN",
+  "OUTPOST_SETUP_TOKEN",
+  "OUTPOST_SECRETS_MASTER_KEY",
+  "OUTPOST_SECRETS_MASTER_KEY_FILE",
 ] as const;
 const GENERATED_SERVER_SECRET_KEYS = [
-  "PAPERCLIP_AGENT_JWT_SECRET",
-  "PAPERCLIP_DECISION_SIGNING_SECRET",
-  "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET",
+  "OUTPOST_AGENT_JWT_SECRET",
+  "OUTPOST_DECISION_SIGNING_SECRET",
+  "OUTPOST_TOOL_ACTION_SIGNING_SECRET",
   "BETTER_AUTH_SECRET",
 ] as const;
 const AMBIENT_EXTERNAL_STATE_KEYS = [
-  "PAPERCLIP_STORAGE_S3_BUCKET",
-  "PAPERCLIP_STORAGE_S3_REGION",
-  "PAPERCLIP_STORAGE_S3_ENDPOINT",
-  "PAPERCLIP_STORAGE_S3_PREFIX",
-  "PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE",
+  "OUTPOST_STORAGE_S3_BUCKET",
+  "OUTPOST_STORAGE_S3_REGION",
+  "OUTPOST_STORAGE_S3_ENDPOINT",
+  "OUTPOST_STORAGE_S3_PREFIX",
+  "OUTPOST_STORAGE_S3_FORCE_PATH_STYLE",
 ] as const;
 const PROVIDER_SECRET_KEY = /^(?:OPENAI|ANTHROPIC|OPENROUTER|BRAINTRUST|DAYTONA|XAI|GROK|KIMI|CURSOR|COPILOT|GITHUB|GH)(?:_|$)/;
 
 /** Vault SDK authority is never ambient chat input. An explicitly selected
  * server-only vault handoff supplies its own finite overrides after scrubbing. */
 export function scrubAmbientVaultEnvironment(env: NodeJS.ProcessEnv) {
-  for (const name of Object.keys(env)) if (name.startsWith("AWS_") || name.startsWith("PAPERCLIP_SECRETS_AWS_")) delete env[name];
+  for (const name of Object.keys(env)) if (name.startsWith("AWS_") || name.startsWith("OUTPOST_SECRETS_AWS_")) delete env[name];
   return env;
 }
 
@@ -54,16 +54,16 @@ export function applyEvalGatewayEnvironment(env: NodeJS.ProcessEnv, credential: 
     if (CREDENTIAL_NAMES.includes(name as typeof CREDENTIAL_NAMES[number])
       || PROVIDER_SECRET_KEY.test(name) && /KEY|TOKEN|SECRET|PASSWORD/.test(name)) delete env[name];
   }
-  delete env.PAPERCLIP_E2E_OTLP_RELAY_URL;
-  delete env.PAPERCLIP_E2E_REMOTE_GATEWAY_ORIGIN;
-  if (isEvalRemoteOrigin(gateway.baseUrl)) env.PAPERCLIP_E2E_REMOTE_GATEWAY_ORIGIN = gateway.baseUrl;
+  delete env.OUTPOST_E2E_OTLP_RELAY_URL;
+  delete env.OUTPOST_E2E_REMOTE_GATEWAY_ORIGIN;
+  if (isEvalRemoteOrigin(gateway.baseUrl)) env.OUTPOST_E2E_REMOTE_GATEWAY_ORIGIN = gateway.baseUrl;
   env[credential] = gateway.token;
-  env.PAPERCLIP_E2E_GATEWAY_BASE_URL = gateway.baseUrl;
-  env.PAPERCLIP_E2E_GATEWAY_TOKEN = gateway.token;
-  env.PAPERCLIP_E2E_GATEWAY_PHASE_PATH = gateway.phasePath;
+  env.OUTPOST_E2E_GATEWAY_BASE_URL = gateway.baseUrl;
+  env.OUTPOST_E2E_GATEWAY_TOKEN = gateway.token;
+  env.OUTPOST_E2E_GATEWAY_PHASE_PATH = gateway.phasePath;
   if (gateway.observability) {
     env.BRAINTRUST_API_KEY = gateway.observability.token;
-    env.PAPERCLIP_E2E_OTLP_RELAY_URL = gateway.observability.baseUrl;
+    env.OUTPOST_E2E_OTLP_RELAY_URL = gateway.observability.baseUrl;
   }
 }
 
@@ -89,7 +89,7 @@ export function runnerE2EServerControlPaths(temporaryRoot: string) {
 export function resolvePaperclipRunnerBinaryForHarness(
   executions: readonly MatrixExecution[],
   repositoryRoot: string,
-  configuredPath = process.env.PAPERCLIP_RUNNER_BINARY,
+  configuredPath = process.env.OUTPOST_RUNNER_BINARY,
   platform: NodeJS.Platform = process.platform,
 ): string | undefined {
   if (configuredPath?.trim()) return configuredPath;
@@ -102,22 +102,22 @@ export function resolvePaperclipRunnerBinaryForHarness(
   return path.join(
     repositoryRoot,
     "packages",
-    "paperclip-runner",
+    "outpost-runner",
     "runner",
     "target",
     "debug",
-    platform === "win32" ? "paperclip-runnerd.exe" : "paperclip-runnerd",
+    platform === "win32" ? "outpost-runnerd.exe" : "outpost-runnerd",
   );
 }
 
 /**
  * Remote native cells stage the same controller-owned binary whose digest is
- * authorized by the PRP control plane. Local cells launch it directly.
+ * authorized by the ORP control plane. Local cells launch it directly.
  */
 export function resolvePaperclipRemoteRunnerBinaryForHarness(
   executions: readonly MatrixExecution[],
   runnerBinary: string | undefined,
-  configuredPath = process.env.PAPERCLIP_RUNNER_REMOTE_BINARY_PATH,
+  configuredPath = process.env.OUTPOST_RUNNER_REMOTE_BINARY_PATH,
   platform: NodeJS.Platform = process.platform,
   architecture: NodeJS.Architecture = process.arch,
 ): string | undefined {
@@ -151,25 +151,25 @@ export function buildRunnerE2EProcessEnvironment(
   delete result[PUBLIC_ORIGIN_CONTROL_ENV]; delete result[PUBLIC_ORIGIN_RECEIPT_ENV];
   if (executions.some(execution => execution.suite.id === "chat-features")) scrubChatPrivateEnvironment(result, executions);
   else scrubChatPrivateEnvironment(result, []);
-  delete result.PAPERCLIP_RUNNER_E2E_POSTGRES_ADMIN_URL;
+  delete result.OUTPOST_RUNNER_E2E_POSTGRES_ADMIN_URL;
   // The supervisor's read-only recovery observer must use the same disposable
   // instance key as the serving child, never a launching shell's vault key.
-  delete result.PAPERCLIP_SECRETS_MASTER_KEY;
-  delete result.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-  delete result.PAPERCLIP_E2E_GATEWAY_PHASE_PATH;
-  delete result.PAPERCLIP_E2E_OTLP_RELAY_URL;
-  delete result.PAPERCLIP_E2E_REMOTE_GATEWAY_ORIGIN;
+  delete result.OUTPOST_SECRETS_MASTER_KEY;
+  delete result.OUTPOST_SECRETS_MASTER_KEY_FILE;
+  delete result.OUTPOST_E2E_GATEWAY_PHASE_PATH;
+  delete result.OUTPOST_E2E_OTLP_RELAY_URL;
+  delete result.OUTPOST_E2E_REMOTE_GATEWAY_ORIGIN;
   // Only the isolated dismissal journey consumes the reviewed public staging feed.
   // Other cells keep announcements disabled so ambient notices cannot obscure evidence.
   const announcement = executions.length === 1 && executions[0]!.suite.id === "chat-features"
     && executions[0]!.task.id === CHAT_ANNOUNCEMENT_SCENARIO;
-  result.PAPERCLIP_ANNOUNCEMENTS_ENABLED = announcement ? "true" : "false";
-  if (announcement) result.PAPERCLIP_ANNOUNCEMENTS_FEED_URL = CHAT_ANNOUNCEMENT_FEED_URL;
+  result.OUTPOST_ANNOUNCEMENTS_ENABLED = announcement ? "true" : "false";
+  if (announcement) result.OUTPOST_ANNOUNCEMENTS_FEED_URL = CHAT_ANNOUNCEMENT_FEED_URL;
   delete result.OPENCODE_ALLOW_ALL_MODELS;
   // Discard ambient admission. Only explicit candidate cells authorize the
   // exact model in their isolated server; credentials still use company secrets.
-  delete result.PAPERCLIP_RUNNER_ACPX_QUALIFICATION;
-  delete result.PAPERCLIP_ACPX_CANDIDATE_ADMISSION;
+  delete result.OUTPOST_RUNNER_ACPX_QUALIFICATION;
+  delete result.OUTPOST_ACPX_CANDIDATE_ADMISSION;
   const candidates = new Map<string, string>();
   for (const execution of executions) {
     const agent = execution.profile.qualificationCandidate;
@@ -196,14 +196,14 @@ export function buildRunnerE2EProcessEnvironment(
   }
   // Installed lanes must prove normal production admission without candidate overrides.
   if (candidates.size > 0 && !installed) {
-    result.PAPERCLIP_RUNNER_ACPX_QUALIFICATION = JSON.stringify(
+    result.OUTPOST_RUNNER_ACPX_QUALIFICATION = JSON.stringify(
       [...candidates].map(([agent, model]) => ({ agent, model })),
     );
   }
   // These stories explicitly require the native API surface. Other suites
   // retain the server default or any supplied operator restriction.
   if (executions.some((e) => isManagedHiringCase(e.suite.id, e.task.id) || chatNeedsApiTools(e.suite.id, e.task.id))) {
-    result.PAPERCLIP_RUNNER_API_TOOLS_ENABLED = "true";
+    result.OUTPOST_RUNNER_API_TOOLS_ENABLED = "true";
   }
   if (
     executions.length > 0 &&
@@ -224,7 +224,7 @@ export function buildRunnerE2EProcessEnvironment(
  * boundary through encrypted company secrets. Explicit subscription fixtures
  * stage their login in the disposable company's private credential home.
  */
-export function buildPaperclipServerEnvironment(
+export function buildOutpostServerEnvironment(
   source: NodeJS.ProcessEnv,
   overrides: NodeJS.ProcessEnv = {},
 ): NodeJS.ProcessEnv {
@@ -232,19 +232,19 @@ export function buildPaperclipServerEnvironment(
   scrubAmbientVaultEnvironment(result);
   delete result[PUBLIC_ORIGIN_CONTROL_ENV]; delete result[PUBLIC_ORIGIN_RECEIPT_ENV];
   delete result[PRIVATE_DIAGNOSTICS_ENV];
-  delete result.PAPERCLIP_RUNNER_E2E_POSTGRES_ADMIN_URL;
+  delete result.OUTPOST_RUNNER_E2E_POSTGRES_ADMIN_URL;
   for (const key of Object.keys(result)) {
     if (PROVIDER_SECRET_KEY.test(key)) delete result[key];
   }
   for (const key of [
     ...CREDENTIAL_NAMES,
     ...DATABASE_KEYS,
-    ...AMBIENT_PAPERCLIP_CREDENTIAL_KEYS,
+    ...AMBIENT_OUTPOST_CREDENTIAL_KEYS,
     ...AMBIENT_EXTERNAL_STATE_KEYS,
   ]) {
     delete result[key];
   }
-  for (const key of [...GENERATED_SERVER_SECRET_KEYS, ...installedCliKeys, ...installedDaytonaPluginKeys, "PAPERCLIP_RUNNER_E2E_UPGRADE_ARTIFACTS"]) delete result[key];
+  for (const key of [...GENERATED_SERVER_SECRET_KEYS, ...installedCliKeys, ...installedDaytonaPluginKeys, "OUTPOST_RUNNER_E2E_UPGRADE_ARTIFACTS"]) delete result[key];
   Object.assign(result, overrides);
   delete result[PRIVATE_DIAGNOSTICS_ENV];
   return result;
@@ -260,8 +260,8 @@ export function assertIsolatedServerEnvironment(
     generatedSecretsMasterKey?: string;
   },
 ) {
-  const home = env.PAPERCLIP_HOME;
-  const config = env.PAPERCLIP_CONFIG;
+  const home = env.OUTPOST_HOME;
+  const config = env.OUTPOST_CONFIG;
   if (home !== expected.paperclipHome || config !== expected.configPath) {
     throw new Error(
       "Paperclip server environment does not use the allocated home/config paths",
@@ -283,12 +283,12 @@ export function assertIsolatedServerEnvironment(
   for (const key of [
     ...CREDENTIAL_NAMES,
     ...DATABASE_KEYS,
-    ...AMBIENT_PAPERCLIP_CREDENTIAL_KEYS,
+    ...AMBIENT_OUTPOST_CREDENTIAL_KEYS,
     ...AMBIENT_EXTERNAL_STATE_KEYS,
   ]) {
-    if (key === "PAPERCLIP_SECRETS_MASTER_KEY" && expected.generatedSecretsMasterKey && env[key] === expected.generatedSecretsMasterKey) continue;
+    if (key === "OUTPOST_SECRETS_MASTER_KEY" && expected.generatedSecretsMasterKey && env[key] === expected.generatedSecretsMasterKey) continue;
     if (env[key] && !(AMBIENT_EXTERNAL_STATE_KEYS.includes(key as typeof AMBIENT_EXTERNAL_STATE_KEYS[number])
-      && expected.workspaceStorage?.[key] === env[key] && expected.workspaceStorage?.PAPERCLIP_STORAGE_PROVIDER === "s3"))
+      && expected.workspaceStorage?.[key] === env[key] && expected.workspaceStorage?.OUTPOST_STORAGE_PROVIDER === "s3"))
       throw new Error(
         `Paperclip server environment unexpectedly contains ${key}`,
       );

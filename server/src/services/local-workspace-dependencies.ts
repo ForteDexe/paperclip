@@ -1,12 +1,12 @@
 import { and, eq, isNotNull, notExists, sql } from "drizzle-orm";
-import { agents, environments, executionWorkspaces, type Db } from "@paperclipai/db";
+import { agents, environments, executionWorkspaces, type Db } from "@outpost/db";
 
 export function localWorkspaceDependencyWhere(db: Pick<Db, "select">) {
   const taskOwner = sql`${executionWorkspaces.metadata}->'runnerTaskWorkspaceOwner'`;
   const pluginTaskWorkspace = db.select({ id: agents.id }).from(agents).innerJoin(environments,
     sql`${environments.id}::text = ${taskOwner}->>'environmentId'`).where(and(
     eq(executionWorkspaces.providerType, "adapter_managed"),
-    eq(agents.companyId, executionWorkspaces.companyId), eq(agents.adapterType, "paperclip_runner"),
+    eq(agents.companyId, executionWorkspaces.companyId), eq(agents.adapterType, "outpost_runner"),
     sql`${agents.id}::text = ${taskOwner}->>'agentId'`, eq(environments.driver, "plugin"),
     sql`jsonb_typeof(${taskOwner}) = 'object'`,
     sql`jsonb_typeof(${taskOwner}->'agentId') = 'string'`,
@@ -21,7 +21,7 @@ export function localWorkspaceDependencyWhere(db: Pick<Db, "select">) {
   ));
   return and(
     isNotNull(executionWorkspaces.cwd), sql`${executionWorkspaces.providerType} <> 'plugin'`,
-    sql`coalesce(${executionWorkspaces.metadata}->'remoteWorkspace'->>'schema', '') <> 'paperclip.remote-workspace.v1'`,
+    sql`coalesce(${executionWorkspaces.metadata}->'remoteWorkspace'->>'schema', '') <> 'outpost.remote-workspace.v1'`,
     notExists(pluginTaskWorkspace),
   );
 }

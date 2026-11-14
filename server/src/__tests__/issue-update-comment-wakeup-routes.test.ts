@@ -373,7 +373,7 @@ describe("issue update comment wakeups", () => {
     // A Stop receipt alone must not authorize this intentional-stop exception.
     expect(isAcknowledgedNativeStop({ id: SOURCE_RUN_ID, companyId: existing.companyId,
       status: "cancelled", nativeIssueId: existing.id, resultJson: { ...stopMetadata,
-        nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: SOURCE_RUN_ID,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: SOURCE_RUN_ID,
           companyId: existing.companyId, issueId: existing.id, scope: "run",
           reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
           intentAuditId: "stop-intent", acknowledgementAuditId: "stop-acknowledgement" },
@@ -633,7 +633,7 @@ describe("issue update comment wakeups", () => {
     const stopMetadata = mockHeartbeatService.cancelRun.mock.calls[0]![2].resultJson;
     expect(stopMetadata).toMatchObject({ operatorInterrupted: true, cancelledByActorType: "user", cancelledByUserId: "local-board" });
     expect(isAcknowledgedNativeStop({ ...run, status: "cancelled", resultJson: { ...stopMetadata,
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: SOURCE_RUN_ID, companyId: existing.companyId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: SOURCE_RUN_ID, companyId: existing.companyId,
         issueId: existing.id, scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: "stop-intent", acknowledgementAuditId: "stop-acknowledgement" } } })).toBe(true);
   });

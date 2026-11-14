@@ -6,12 +6,12 @@ import { aiRoutingHarness } from "./ai-provider-routing.js";
 describe("Antigravity native runtime identity and credentials", () => {
   const config = { provider: "acpx", acpxAgent: "antigravity" };
   const compatible = (connection: Parameters<typeof isAiConnectionCompatible>[0]) =>
-    isAiConnectionCompatible(connection, "paperclip_runner", "exact-model", "acpx", "antigravity");
+    isAiConnectionCompatible(connection, "outpost_runner", "exact-model", "acpx", "antigravity");
 
   it("uses a native harness identity without a legacy adapter transition", () => {
-    expect(agentHarnessType("paperclip_runner", config)).toBe("antigravity_runtime");
-    expect(agentRuntimeSettingsHarness("paperclip_runner", config)).toBe("antigravity_runtime");
-    expect(aiRoutingHarness("paperclip_runner", "acpx", "antigravity")).toBe("antigravity_runtime");
+    expect(agentHarnessType("outpost_runner", config)).toBe("antigravity_runtime");
+    expect(agentRuntimeSettingsHarness("outpost_runner", config)).toBe("antigravity_runtime");
+    expect(aiRoutingHarness("outpost_runner", "acpx", "antigravity")).toBe("antigravity_runtime");
     expect(paperclipRunnerProfileForHarness("antigravity_runtime")).toBeUndefined();
   });
 

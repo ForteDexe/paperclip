@@ -1,5 +1,5 @@
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
-import { PLUGIN_RPC_ERROR_CODES } from "@paperclipai/plugin-sdk";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
+import { PLUGIN_RPC_ERROR_CODES } from "@outpost/plugin-sdk";
 import {
   attachRemoteRunnerRecoveryDiagnostic,
   RemoteRunnerRecoveryError,

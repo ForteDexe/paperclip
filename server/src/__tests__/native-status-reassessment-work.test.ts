@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 import request from "supertest";
-import { LOW_TRUST_REVIEW_PRESET } from "@paperclipai/shared";
+import { LOW_TRUST_REVIEW_PRESET } from "@outpost/shared";
 import { issueRoutes } from "../routes/issues.js";
 import { errorHandler } from "../middleware/index.js";
 import { workProductService } from "../services/work-products.js";
@@ -23,7 +23,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, issueWorkProducts, issueThreadInteractions,
-  nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments, workspaceOperations } from "@paperclipai/db";
+  nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments, workspaceOperations } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 import { nativeStatusReassessmentWork } from "../services/native-runtime/native-status-reassessment-work.js";
@@ -45,7 +45,7 @@ describe("native reassessment worker lifecycle", () => {
   beforeAll(async () => {
     logRoot = await mkdtemp(join(tmpdir(), "reassessment-workspace-logs-"));
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = logRoot;
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_STATUS_REASSESSMENT_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_STATUS_REASSESSMENT_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-status-reassessment-");
     db = createDb(external ?? temporary!.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Reassessment lifecycle", issuePrefix: `RS${randomUUID().slice(0, 8)}` });
@@ -98,7 +98,7 @@ describe("native reassessment worker lifecycle", () => {
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", runtimeMode: "native",
       nativeIssueId: issueId, completionContractId: contractId, contextSnapshot: { issueId }, finishedAt: new Date() });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v1", risk: "low",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "low",
       completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test-v1", criteria: [{ id: "objective", requirement: "Verified artifact" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "reassessment-test" });
@@ -302,10 +302,10 @@ describe("native reassessment worker lifecycle", () => {
     await vi.advanceTimersByTimeAsync(1000);
     await db.update(issueWorkProducts).set({ updatedAt: new Date() }).where(eq(issueWorkProducts.id, seeded.workProductId));
     await start(); await flush(); await quiet();
-    const prpEvent = { sourceKind: "control_plane", payload: { evidenceOutcome: " accepted " } };
-    const input = { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded", payload: { prpEvent },
+    const orpEvent = { sourceKind: "control_plane", payload: { evidenceOutcome: " accepted " } };
+    const input = { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded", payload: { orpEvent },
       ...(path === "native source" ? { nativeSource: { sourceInstanceId: randomUUID(), sourceEventId: randomUUID(),
-        sourceSeq: 1, protocolSchemaVersion: 1, canonicalPayload: prpEvent } } : {}) };
+        sourceSeq: 1, protocolSchemaVersion: 1, canonicalPayload: orpEvent } } : {}) };
     expect((await appendHeartbeatRunEvent(db, input)).disposition).toBe("committed");
     await flush();
     expect(await status(seeded.issueId)).toBe("done");
@@ -321,7 +321,7 @@ describe("native reassessment worker lifecycle", () => {
     await start(); await flush(); await quiet();
     const write = async (tx: typeof db) => {
       await appendHeartbeatRunEvent(tx, { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
-        payload: { prpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } });
+        payload: { orpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } });
       await vi.advanceTimersByTimeAsync(1000);
       expect(await status(seeded.issueId)).toBe("in_review");
     };
@@ -346,12 +346,12 @@ describe("native reassessment worker lifecycle", () => {
     try {
       await appendHeartbeatRunEvent(db, { companyId, agentId, runId: seeded.runId, eventType: "log", message: "Still working" });
       await appendHeartbeatRunEvent(db, { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
-        payload: { prpEvent: { sourceKind: "runner", payload: { evidenceOutcome: "accepted" } } } });
+        payload: { orpEvent: { sourceKind: "runner", payload: { evidenceOutcome: "accepted" } } } });
       expect(wakes).not.toHaveBeenCalled();
       await quiet();
       expect(await status(seeded.issueId)).toBe("in_review");
       await appendHeartbeatRunEvent(db, { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
-        payload: { prpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } });
+        payload: { orpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } });
       await flush();
       expect(await status(seeded.issueId)).toBe("done");
       await quiet();

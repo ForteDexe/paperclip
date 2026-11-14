@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { releaseAgentLifecycleLeaseOfHolderInTransaction } from "../../modules/agent-lifecycle/index.js";
 import { persistActivity, publishActivity, type ActivityPublication } from "../activity-log.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
@@ -30,7 +30,7 @@ export async function settleAgentLifecycleLease(db: Db, record: InProgressRecord
       companyId: agent.companyId, actorType: "system", actorId: "ownership-reconciler",
       action: "agent.lifecycle_lease_reconciled", entityType: "agent", entityId: agent.id, agentId: agent.id,
       details: {
-        schema: "paperclip.agent-lifecycle-lease-settlement.v1", phase: agent.lifecycleState,
+        schema: "outpost.agent-lifecycle-lease-settlement.v1", phase: agent.lifecycleState,
         operationId: agent.lifecycleOperation?.id ?? null, proof: context.proof.reason, previousLeaseUntil: released.leaseUntil,
         reconciledAt: context.now.toISOString(),
       },

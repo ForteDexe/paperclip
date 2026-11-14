@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { deriveAgentUrlKey, deriveProjectUrlKey, normalizeProjectUrlKey, hasNonAsciiContent } from "@paperclipai/shared";
-import type { BillingType, FinanceDirection, FinanceEventKind } from "@paperclipai/shared";
+import { deriveAgentUrlKey, deriveProjectUrlKey, normalizeProjectUrlKey, hasNonAsciiContent } from "@outpost/shared";
+import type { BillingType, FinanceDirection, FinanceEventKind } from "@outpost/shared";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -215,7 +215,7 @@ export function visibleRunTokenTotal(usage: Record<string, unknown> | null | und
 
 /** Muse exposes Outpost bridge events, not raw private provider traffic. */
 export function supportsRawProviderTrace(adapterType: string, adapterConfig: Record<string, unknown> | null | undefined): boolean {
-  return adapterType !== "paperclip_runner" || adapterConfig?.provider !== "muse";
+  return adapterType !== "outpost_runner" || adapterConfig?.provider !== "muse";
 }
 
 /** Persisted accounting facts belong to this run, even after its agent changes provider. */

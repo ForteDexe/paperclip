@@ -46,8 +46,8 @@ export const forbiddenAgentCredentialOperations = new Set(["POST /api/cli-auth/c
 export function agentApiOperations(events: readonly { payload?: Record<string, unknown> | null }[]) {
   const operations: string[] = [];
   for (const event of events) {
-    const prp = event.payload?.prpEvent as { payload?: { item?: { type?: string; result?: { apiOperationId?: unknown } } } } | undefined;
-    const item = prp?.payload?.item;
+    const orp = event.payload?.orpEvent as { payload?: { item?: { type?: string; result?: { apiOperationId?: unknown } } } } | undefined;
+    const item = orp?.payload?.item;
     if (item?.type === "tool_result" && typeof item.result?.apiOperationId === "string") operations.push(item.result.apiOperationId);
   }
   return operations;
@@ -55,7 +55,7 @@ export function agentApiOperations(events: readonly { payload?: Record<string, u
 export const cliAuthorizationIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("access.cli-authorization", async ctx => {
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
   if (!session.user?.id || session.user.id === "local-board" || !ctx.input.privateSecrets) throw new Error("CLI authorization requires a real human session and private credential redaction");
-  const privateRoot = process.env.PAPERCLIP_RUNNER_E2E_PRIVATE_DIR;
+  const privateRoot = process.env.OUTPOST_RUNNER_E2E_PRIVATE_DIR;
   if (!privateRoot || !path.isAbsolute(privateRoot)) throw new Error("CLI credentials require the attempt-private result root outside the model workspace");
   const directory = path.join(privateRoot, "cases", ctx.scenario.id, `cli-auth-${ctx.input.nonce}`);
   if (path.relative(ctx.input.workspacePath, directory).startsWith("..") === false) throw new Error("CLI credential home cannot be placed inside the model workspace");
@@ -64,7 +64,7 @@ export const cliAuthorizationIdentityCases: readonly ChatCatalogCase[] = [identi
   const before = await readAgentResource(ctx, `/api/agents/${ctx.input.fixtures.agent.id}`);
   return { humanId: session.user.id, agentBeforeId: (before.data as { id?: string })?.id };
 }, gradeCliAuthorization, {
-  authentication: "human-session", attemptTimeoutMs: 420_000, oracleVersion: "paperclip.chat-catalog.identity.cli-authorization.v2",
+  authentication: "human-session", attemptTimeoutMs: 420_000, oracleVersion: "outpost.chat-catalog.identity.cli-authorization.v2",
   async observe(ctx, state) {
     const o = await observeIdentity(ctx, state); const events: { payload?: Record<string, unknown> | null }[] = [];
     for (const run of o.runs) events.push(...await collectRunEvents<{ seq?: number; payload?: Record<string, unknown> | null }>((afterSeq, limit) =>
@@ -148,7 +148,7 @@ async function privateChallenge(ctx: ChatCatalogContext, id: string, token: stri
 async function runCli(ctx: ChatCatalogContext, args: string[], name: string): Promise<{ code: number | null; stdout: string }> {
   const resources = owned.get(ctx); if (!resources) throw new Error("Owned CLI process state missing");
   const environment: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: resources.directory, USER: process.env.USER, LANG: process.env.LANG, TMPDIR: process.env.TMPDIR,
-    PAPERCLIP_HOME: resources.directory, PAPERCLIP_AUTH_STORE: resources.store, PAPERCLIP_NO_BROWSER: "1", DO_NOT_TRACK: "1" };
+    OUTPOST_HOME: resources.directory, OUTPOST_AUTH_STORE: resources.store, OUTPOST_NO_BROWSER: "1", DO_NOT_TRACK: "1" };
   const child = spawn(process.execPath, ["--import", path.join(root, "cli/node_modules/tsx/dist/loader.mjs"), path.join(root, "cli/src/index.ts"), ...args,
     "--api-base", ctx.input.api.baseURL, "--json"], { cwd: root, env: environment, stdio: ["ignore", "pipe", "pipe"] });
   resources.processes.add(child); let stdout = ""; let writes = Promise.resolve();

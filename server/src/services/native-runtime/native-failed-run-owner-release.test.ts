@@ -15,7 +15,7 @@ import {
   issueRecoveryActions,
   nativeRunFinalizations,
   subscribeDatabaseWork,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { issueRecoveryActionService } from "../issue-recovery-actions.js";
 import { agentExecutionsHaveStopped } from "../agent-execution-stop.js";
@@ -80,7 +80,7 @@ describe("failed native run owner release", () => {
       errorCode: input.errorCode ?? null, error: input.error ?? null,
       runnerProfileJson: {
         mode: "native",
-        nativeExecutionInput: { schema: "paperclip.native-execution-input.v1", binding: { runId } },
+        nativeExecutionInput: { schema: "outpost.native-execution-input.v1", binding: { runId } },
         sessionCheckpoint: { backendKind: "codex_app_server", sessionId: "persisted-session", identity: { runId },
           providerSessionId: "provider-session", activeTurnId: "active-turn" },
       },

@@ -59,7 +59,7 @@ export function withRestoreConcurrency(primary: ChatCatalogCase): ChatCatalogCas
     const revision = rows.find(row => row.id === doc.latestRevisionId); if (!revision || revision.createdByUserId !== editor.id || revision.body !== body) throw new Error("Other-person edit lacks actual revision attribution");
     return { ...revision, latestRevisionNumber: doc.latestRevisionNumber };
   };
-  return { ...primary, oracleVersion: "paperclip.chat-catalog.restore-document.saved-edit.v2", authentication: "human-session", coverageGaps: [], expectedRunCount: 3, minimumRunCount: 3, expectedHumanMessageCount: 3, attemptTimeoutMs: 660000,
+  return { ...primary, oracleVersion: "outpost.chat-catalog.restore-document.saved-edit.v2", authentication: "human-session", coverageGaps: [], expectedRunCount: 3, minimumRunCount: 3, expectedHumanMessageCount: 3, attemptTimeoutMs: 660000,
     sourceFiles: [...primary.sourceFiles, "chat-catalog-domains/internal-restore-concurrency.ts", "chat-catalog-domains/identity-auth.ts"],
     async setup(ctx) { const browser = ctx.input.page.context().browser(); if (!browser || !ctx.input.privateSecrets) throw new Error("Concurrent editor context requires actual authenticated people and private credential redaction");
       editor = await createAuthenticatedPerson({ api: ctx.input.api, browser, secrets: ctx.input.privateSecrets, name: "Casey" });

@@ -1,13 +1,13 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import { agents, environments, plugins, pluginCompanySettings, resourceLifecycleEvents, fileStorageDb, type Db } from "@paperclipai/db";
-import type { PluginAgentRuntimeState, PluginAgentRuntimeIdentity } from "@paperclipai/plugin-sdk";
+import { agents, environments, plugins, pluginCompanySettings, resourceLifecycleEvents, fileStorageDb, type Db } from "@outpost/db";
+import type { PluginAgentRuntimeState, PluginAgentRuntimeIdentity } from "@outpost/plugin-sdk";
 import { agentRecordQueries } from "../lib/agent-records.js";
 import { conflict, forbidden, unprocessable } from "../errors.js";
 import { agentInstructionsService } from "./agent-instructions.js";
 import { pluginAgentConnectionAssignments } from "./plugin-agent-connections.js";
 import { companySkillService } from "./company-skills.js";
 import { withSkillActor } from "./skill-access.js";
-import { readPaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
+import { readPaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { skillVersionSelectionMap } from "./runtime-skill-selections.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { agentInstanceSecretService } from "./agent-instance-secrets.js";
@@ -79,7 +79,7 @@ export async function pluginAgentRuntimeState(db: Db, pluginId: string, companyI
     const settings = instance.experimental;
     const skills = await withSkillActor({ type: "agent", agentId, companyId, source: "agent_key" }, () =>
       companySkillService(db).listRuntimeSkillEntries(companyId, {
-        selectionConfig, includeLegacy: state.agent.adapterType !== "paperclip_runner", snapshotLatest: true,
+        selectionConfig, includeLegacy: state.agent.adapterType !== "outpost_runner", snapshotLatest: true,
         versionSelections: skillVersionSelectionMap(preference.desiredSkillEntries, { versionPinsEnabled: settings.enableBetaSkills }),
       }));
     if (environmentSkills.some(key => !skills.some(skill => skill.key === key && skill.sourceStatus !== "missing"))) {

@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { LinkPreviewResult, LinkPreviewTarget } from "@paperclipai/shared";
+import type { LinkPreviewResult, LinkPreviewTarget } from "@outpost/shared";
 import { api } from "@/api/client";
 
 export interface LinkPreviewContextValue {

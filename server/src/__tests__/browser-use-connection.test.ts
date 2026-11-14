@@ -37,7 +37,7 @@ import {
   financeEvents,
   budgetPolicies,
   budgetReservations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { browserUseViewports } from "../services/browser-use-viewport.js";
@@ -46,7 +46,7 @@ import { registerBrowserUseCleanup } from "../services/browser-use-work.js";
 import { browserUseService } from "../services/browser-use.js";
 import { applyConnectorSkills, prepareConnectorSkillDelivery, resolveConnectorAssignments } from "../services/connector-runtime.js";
 import { registerAssignedMcpGateway } from "../services/native-runtime/assigned-mcp-tools.js";
-import { listPaperclipSkillEntries } from "@paperclipai/adapter-utils/server-utils";
+import { listPaperclipSkillEntries } from "@outpost/adapter-utils/server-utils";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
@@ -60,16 +60,16 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
   () => {
     let db: ReturnType<typeof createDb>;
     let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
-    const originalApiUrl = process.env.PAPERCLIP_API_URL;
+    const originalApiUrl = process.env.OUTPOST_API_URL;
     beforeAll(async () => {
-      process.env.PAPERCLIP_API_URL = "http://127.0.0.1:3100";
+      process.env.OUTPOST_API_URL = "http://127.0.0.1:3100";
       temp = await startEmbeddedPostgresTestDatabase("paperclip-browser-use-");
       db = createDb(temp.connectionString);
     }, 30000);
     afterAll(async () => {
       await temp?.cleanup();
-      if (originalApiUrl === undefined) delete process.env.PAPERCLIP_API_URL;
-      else process.env.PAPERCLIP_API_URL = originalApiUrl;
+      if (originalApiUrl === undefined) delete process.env.OUTPOST_API_URL;
+      else process.env.OUTPOST_API_URL = originalApiUrl;
     });
     async function fixture(personal = false) {
       const [company] = await db
@@ -405,7 +405,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect(markdown).toContain("browser_start");
       expect(markdown).toContain(f.connection.connectionId);
       expect(markdown).not.toContain("bu_fixture_secret");
-      for (const adapterType of ["paperclip_runner", "codex_local", "claude_local", "kimi_local"]) {
+      for (const adapterType of ["outpost_runner", "codex_local", "claude_local", "kimi_local"]) {
         const delivery = await prepareConnectorSkillDelivery({ ...config, engine: "cli" }, adapterType);
         expect(delivery.config.paperclipRuntimeSkills).toEqual([skill]);
       }

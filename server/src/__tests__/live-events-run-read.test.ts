@@ -1,5 +1,5 @@
 import { readTaskPanelActivations } from "../services/plugin-task-panels.js";
-import { plugins, heartbeatRunEvents } from "@paperclipai/db";
+import { plugins, heartbeatRunEvents } from "@outpost/db";
 import { subscribeCompanyLiveEvents } from "../services/live-events.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
@@ -17,8 +17,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agentApiKeys, agents, authUsers, companies, companyMemberships, createDb,
   heartbeatRuns, issueAccessGrants, issues, type Db,
-} from "@paperclipai/db";
-import * as schema from "@paperclipai/db/schema/index";
+} from "@outpost/db";
+import * as schema from "@outpost/db/schema/index";
 import { setupLiveEventsWebSocketServer } from "../realtime/live-events-ws.js";
 import { publishLiveEvent } from "../services/live-events.js";
 import { authorizationService, type AuthorizationActor } from "../services/authorization.js";
@@ -28,21 +28,21 @@ import { startRecoveryPostgres } from "./helpers/recovery-postgres.js";
 describe("live-event run read boundaries", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>>;
   let db: Db;
-  const previousPrivacy = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-  const previousMasterKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
+  const previousPrivacy = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+  const previousMasterKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
 
   beforeAll(async () => {
     temporary = await startRecoveryPostgres("live-event-run-reads-");
     db = createDb(temporary.connectionString);
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = randomBytes(32).toString("base64");
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
+    process.env.OUTPOST_SECRETS_MASTER_KEY = randomBytes(32).toString("base64");
   }, 120_000);
 
   afterAll(async () => {
-    if (previousPrivacy === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousPrivacy;
-    if (previousMasterKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    else process.env.PAPERCLIP_SECRETS_MASTER_KEY = previousMasterKey;
+    if (previousPrivacy === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousPrivacy;
+    if (previousMasterKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY;
+    else process.env.OUTPOST_SECRETS_MASTER_KEY = previousMasterKey;
     await temporary?.cleanup();
   });
 
@@ -54,14 +54,14 @@ describe("live-event run read boundaries", () => {
     await db.insert(plugins).values({ pluginKey, packageName: pluginKey, version: "1.0.0", status,
       manifestJson: { ui: { slots: [{ type: "detailTab", id: "screen", entityTypes: ["agent"], taskSidePanel: { availabilityPath: "/agents/:entityId/ready", activation: { namespace: `example.runtime-${status}`, activityKey: "desktop.used" } } }] } } as never });
     const write = (seq: number, panel: unknown) => db.insert(heartbeatRunEvents).values({ companyId, agentId: agent.id, runId: run.id,
-      seq, eventType: "runtime.activity.recorded", payload: { prpEvent: { sourceKind: "runner", eventType: "runtime.activity.recorded", payload: panel } } });
+      seq, eventType: "runtime.activity.recorded", payload: { orpEvent: { sourceKind: "runner", eventType: "runtime.activity.recorded", payload: panel } } });
     await write(1, { namespace: `example.runtime-${status}`, activityKey: "desktop.used" });
     await write(2, { namespace: `example.runtime-${status}`, activityKey: "unknown.activity" });
     await write(3, { namespace: "unknown.runtime", activityKey: "desktop.used" });
     await write(4, { namespace: `example.runtime-${status}`, activityKey: "desktop.used" }); // Replay may repeat activity with a new source ID.
     await write(5, { namespace: `example.runtime-${status}`, activityKey: "desktop.used", runId: "caller-run" });
     await db.insert(heartbeatRunEvents).values({ companyId, agentId: agent.id, runId: run.id, seq: 6,
-      eventType: "runtime.activity.recorded", payload: { prpEvent: { sourceKind: "control_plane", eventType: "runtime.activity.recorded", payload: { namespace: `example.runtime-${status}`, activityKey: "desktop.used" } } } });
+      eventType: "runtime.activity.recorded", payload: { orpEvent: { sourceKind: "control_plane", eventType: "runtime.activity.recorded", payload: { namespace: `example.runtime-${status}`, activityKey: "desktop.used" } } } });
     expect(await readTaskPanelActivations(db, companyId, run.id)).toEqual([{ pluginKey, slotId: "screen" }]);
     expect(await readTaskPanelActivations(db, randomUUID(), run.id)).toEqual([]);
     await db.update(plugins).set({ status: "uninstalled" }).where(eq(plugins.pluginKey, pluginKey));
@@ -206,7 +206,7 @@ describe("live-event run read boundaries", () => {
       for (let seq = 1; seq <= count; seq++) {
         publishLiveEvent({ companyId, type: "heartbeat.run.log", payload: { runId: run.id, seq, chunk: `token-${seq}` } });
         publishLiveEvent({ companyId, type: "heartbeat.run.event", payload: { runId: run.id, seq,
-          payload: { prpEvent: { eventType: "item.delta", payload: { text: `native-${seq}` } } } } });
+          payload: { orpEvent: { eventType: "item.delta", payload: { text: `native-${seq}` } } } } });
       }
       publishLiveEvent({ companyId, type: "agent.status", payload: { agentId: barrier, status: "idle" } });
       await expect.poll(() => messages.some(message => message.payload.agentId === barrier), { timeout: 20_000 }).toBe(true);
@@ -259,7 +259,7 @@ describe("live-event run read boundaries", () => {
     const batch = async () => {
       const start = messages.length, barrier = randomUUID();
       publishLiveEvent({ companyId, type: "heartbeat.run.event", payload: { runId: run.id, seq: 1,
-        payload: { prpEvent: { eventType: "item.delta", payload: { text: "native-text-and-tool-detail" } } } } });
+        payload: { orpEvent: { eventType: "item.delta", payload: { text: "native-text-and-tool-detail" } } } } });
       publishLiveEvent({ companyId, type: "heartbeat.run.log", payload: { runId: run.id, chunk: "legacy-log-content" } });
       publishLiveEvent({ companyId, type: "heartbeat.run.status", payload: { runId: run.id, status: "running" } });
       publishLiveEvent({ companyId, type: "agent.status", payload: { agentId: barrier, status: "idle" } });
@@ -300,8 +300,8 @@ describe("live-event run read boundaries", () => {
     const registry = createRunSecretRedactionRegistry(db);
     await registry.register(companyId, run.id, registered);
     await instanceSettingsService(db).updateGeneral({ censorUsernameInLogs: true });
-    const body = kind === "panel" ? { prpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { namespace: `example.${registered}`, activityKey: `${homedir()}/synthetic.txt` } } }
-      : { prpEvent: { eventType: "item.delta", payload: { kind: "agentMessage",
+    const body = kind === "panel" ? { orpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { namespace: `example.${registered}`, activityKey: `${homedir()}/synthetic.txt` } } }
+      : { orpEvent: { eventType: "item.delta", payload: { kind: "agentMessage",
         text: `${homedir()}/synthetic.txt ${registered}`, password: "sensitive-key-sentinel" } } };
     const sourcePayload = { runId: run.id, agentId: agent.id, seq: 1, eventType: kind === "panel" ? "runtime.activity.recorded" : "item.delta", payload: body };
     const expected = await registry.redactForRun(companyId, run.id,

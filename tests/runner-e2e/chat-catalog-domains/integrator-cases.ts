@@ -103,7 +103,7 @@ export const integratorCasesCases: readonly ChatCatalogCase[] = [
     if (!ctx.issue()) throw new Error("Customer bug context requires its actual standing conversation");
     await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: "Customer bug: the checkout button stops responding on mobile Safari after a trial item and a test address are entered. The person is asking about this bug." });
     return {};
-  }), oracleVersion: "paperclip.chat-catalog.cases-disabled.structural.v1" },
+  }), oracleVersion: "outpost.chat-catalog.cases-disabled.structural.v1" },
   { ...define("cases.browse-cases", true, async ctx => {
     const launch = await project(ctx, "Launch"); const other = await project(ctx, "Research");
     const create = (title: string, projectId: string, status: string) => ctx.input.api.post<CaseRecord>(`${root(ctx)}/cases`, { caseType: "customer", key: `browse-${ctx.input.nonce}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title, projectId, status });
@@ -114,5 +114,5 @@ export const integratorCasesCases: readonly ChatCatalogCase[] = [
     const saved = await ctx.input.api.get<CaseRecord[]>(`${root(ctx)}/cases?limit=200`);
     if (new Set([open, second, closed, elsewhere].map(row => row.id)).size !== 4 || ![open, second, closed, elsewhere].every(row => saved.some(now => now.id === row.id && now.status === row.status && now.projectId === row.projectId))) throw new Error("Case browsing setup did not retain four distinct scoped status records");
     return { project: launch, openCases: [open, second], excludedCases: [closed, elsewhere], finishedTask };
-  }), oracleVersion: "paperclip.chat-catalog.cases-browse.structural.v3" },
+  }), oracleVersion: "outpost.chat-catalog.cases-browse.structural.v3" },
 ];

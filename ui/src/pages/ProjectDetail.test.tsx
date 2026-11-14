@@ -3,7 +3,7 @@
 import { ApiError } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Project } from "@paperclipai/shared";
+import type { Project } from "@outpost/shared";
 import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
@@ -165,7 +165,7 @@ function project(overrides: Partial<Project> = {}): Project {
     managedByPlugin: {
       id: "managed-1",
       pluginId: "plugin-1",
-      pluginKey: "paperclip.missions",
+      pluginKey: "outpost.missions",
       pluginDisplayName: "Missions",
       resourceKind: "project",
       resourceKey: "operations",
@@ -311,7 +311,7 @@ describe("ProjectDetail", () => {
     expect(container.textContent).toContain("Plugin operations");
     expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", {
       projectId: "project-1",
-      originKindPrefix: "plugin:paperclip.missions",
+      originKindPrefix: "plugin:outpost.missions",
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HeartbeatRunEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent } from "@outpost/shared";
 import { nativeRunEventsToTranscript } from "../transcript/native-run-events";
 import type { TranscriptEntry } from "@/adapters";
 import { buildTurnTimelineRows, paperclipRunnerTimelineItems, transcriptToTaskChatItems } from "./transcript-adapter";
@@ -20,8 +20,8 @@ function event(seq: number, eventType: string, payload: Record<string, unknown>)
     color: null,
     message: null,
     payload: {
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         sourceEventId: `event-${seq}`,
         sourceSeq: seq,
         sourceInstanceId: "runner-1",
@@ -41,7 +41,7 @@ function event(seq: number, eventType: string, payload: Record<string, unknown>)
 
 function delegation(seq: number, id: string, status: string, child: Record<string, unknown>) {
   return event(seq, status === "running" ? (seq < 3 ? "delegation.started" : "delegation.updated") : "delegation.completed", {
-    schema: "paperclip.delegation.v1",
+    schema: "outpost.delegation.v1",
     delegationId: id,
     action: "spawn",
     status,
@@ -51,7 +51,7 @@ function delegation(seq: number, id: string, status: string, child: Record<strin
 
 function tool(seq: number, id: string, done: boolean, parentItemId?: string) {
   return event(seq, done ? "tool.execution.completed" : "tool.execution.started", {
-    schema: "paperclip.tool.execution.v1",
+    schema: "outpost.tool.execution.v1",
     executionId: id,
     transport: "builtin",
     operation: "read",
@@ -125,13 +125,13 @@ describe("subagent timeline rows", () => {
       eventType, status: "running", title: "", summary: "", payload,
     });
     const entries: TranscriptEntry[] = [
-      activity("tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "toolu_a", name: "Task", status: "running" }),
-      activity("delegation.started", { schema: "paperclip.delegation.v1", delegationId: "toolu_a", action: "spawn", status: "running",
+      activity("tool.execution.started", { schema: "outpost.tool.execution.v1", executionId: "toolu_a", name: "Task", status: "running" }),
+      activity("delegation.started", { schema: "outpost.delegation.v1", delegationId: "toolu_a", action: "spawn", status: "running",
         children: [{ childId: "toolu_a", role: "Explore", summary: "Find tests", status: "running" }] }),
-      activity("tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "toolu_b", name: "Task", status: "running" }),
-      activity("delegation.started", { schema: "paperclip.delegation.v1", delegationId: "toolu_b", action: "spawn", status: "running",
+      activity("tool.execution.started", { schema: "outpost.tool.execution.v1", executionId: "toolu_b", name: "Task", status: "running" }),
+      activity("delegation.started", { schema: "outpost.delegation.v1", delegationId: "toolu_b", action: "spawn", status: "running",
         children: [{ childId: "toolu_b", role: "Explore", summary: "Find docs", status: "running" }] }),
-      activity("tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "toolu_a1", name: "Read", status: "running", parentItemId: "toolu_a" }),
+      activity("tool.execution.started", { schema: "outpost.tool.execution.v1", executionId: "toolu_a1", name: "Read", status: "running", parentItemId: "toolu_a" }),
     ];
     const items = transcriptToTaskChatItems(entries, { runId: RUN_ID, running: true });
     const timeline = buildTurnTimelineRows(paperclipRunnerTimelineItems(items), true);

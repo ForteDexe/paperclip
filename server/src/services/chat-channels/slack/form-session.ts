@@ -1,12 +1,12 @@
 import { isSlackFormEnrollmentActionId } from "./form-enrollment-identity.js";
 import { parseSlackFormRetirementReceipt, slackFormRetirementHistoryReceipt } from "./ack-retirement-receipt.js";
 import { createHash } from "node:crypto";
-import type { IssueThreadInteraction } from "@paperclipai/shared";
+import type { IssueThreadInteraction } from "@outpost/shared";
 import { createLocalEncryptedCipher } from "../../../secrets/local-encrypted-provider.js";
 import type { StoredSecretVersionMaterial } from "../../../secrets/types.js";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { chatActions, chatEndpoints, chatExternalPrincipals, chatPublications, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, chatExternalPrincipals, chatPublications, type Db } from "@outpost/db";
 import type { ResolvedChatQuestionFormOpen } from "../../chat-question-forms.js";
 import type { CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../delivery-work-notifications.js";

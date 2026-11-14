@@ -1,9 +1,9 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { readEnvironmentResumeErrorDiagnostic } from "@paperclipai/plugin-sdk";
-import type { Db } from "@paperclipai/db";
-import { environmentLeases, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import { readEnvironmentResumeErrorDiagnostic } from "@outpost/plugin-sdk";
+import type { Db } from "@outpost/db";
+import { environmentLeases, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
+import type { EnvironmentLease } from "@outpost/shared";
 import { writeEnvironmentCleanup } from "./environment-cleanup-notifications.js";
 import { verifyRecoverableNativeHarnessBackup } from "./native-runtime/native-harness-backup-storage.js";
 import { findPluginWorkerUnavailableError } from "./plugin-worker-unavailable-error.js";
@@ -96,7 +96,7 @@ export async function reusableSandboxReplacementIsSafe(input: {
   if (!snapshot) return false;
 
   const scope = lease.metadata?.reusableSandboxLease as { adapterType?: unknown } | undefined;
-  if ((input.adapterType === "paperclip_runner" || scope?.adapterType === "paperclip_runner")
+  if ((input.adapterType === "outpost_runner" || scope?.adapterType === "outpost_runner")
     && !await verifyRecoverableNativeHarnessBackup({ db, companyId: lease.companyId,
       stamp: lease.metadata?.nativeHarnessBackup, providerLeaseId: lease.providerLeaseId })) return false;
 

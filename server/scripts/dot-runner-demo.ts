@@ -9,9 +9,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
-import { activityLog, authUsers, companies, companyMemberships, createDb, issues, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
-import { DotHarnessDriver } from "../../packages/paperclip-runner/src/drivers/dot/dot-harness-driver.js";
-import { HarnessDriverBackend } from "../../packages/paperclip-runner/src/backends/harness-driver-backend.js";
+import { activityLog, authUsers, companies, companyMemberships, createDb, issues, startEmbeddedPostgresTestDatabase } from "@outpost/db";
+import { DotHarnessDriver } from "../../packages/outpost-runner/src/drivers/dot/dot-harness-driver.js";
+import { HarnessDriverBackend } from "../../packages/outpost-runner/src/backends/harness-driver-backend.js";
 import { publicMcpIngressRoutes } from "../src/routes/public-mcp.js";
 import { createPublicMcpOAuth } from "../src/services/public-mcp/oauth.js";
 import { createPublicMcpEvents } from "../src/services/public-mcp/events.js";
@@ -30,9 +30,9 @@ async function close(server: Server) {
 
 const scratch = await mkdtemp(join(tmpdir(), "paperclip-dot-demo-"));
 // This process has its own ephemeral encryption key, never the instance key.
-process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = join(scratch, "master.key");
-delete process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-delete process.env.PAPERCLIP_CLOUD_API_ORIGIN;
+process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(scratch, "master.key");
+delete process.env.OUTPOST_SECRETS_MASTER_KEY;
+delete process.env.OUTPOST_CLOUD_API_ORIGIN;
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
 const app = express(); app.use(express.json({ limit: "256kb" }));
 const http = createServer(app);
@@ -120,7 +120,7 @@ try {
     const writeId = randomUUID();
     await Promise.all([0, 1].map(() => call("paperclip_dot_tool", { name: "save_report", arguments: { body: "Synthetic competitor report" } }, writeId)));
     await call("paperclip_dot_progress", { text: "The lab report is saved." });
-    await call("paperclip_dot_finish", { result: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Lab report saved.",
+    await call("paperclip_dot_finish", { result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Lab report saved.",
       completionClaim: { contractRevision: "dot-lab-v1", objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [] } });
     resolveWork();
   };
@@ -135,11 +135,11 @@ try {
     res.sendStatus(204);
     if (receivedIds.has(id)) return;
     receivedIds.add(id);
-    assert.equal(body.name, "paperclip.dot.work_available");
+    assert.equal(body.name, "outpost.dot.work_available");
     assert(!JSON.stringify(body).includes("competitor"));
     void peer().catch(rejectWork);
   });
-  const subscription = { name: "paperclip.dot.work_available", arguments: { companyId: company.id, taskId: task.id },
+  const subscription = { name: "outpost.dot.work_available", arguments: { companyId: company.id, taskId: task.id },
     delivery: { mode: "webhook", url: "https://dot-demo.invalid/events", secret: webhookSecret } };
   await rpc("events/subscribe", subscription);
   console.log("✓ Real OAuth connection and signed webhook verification");

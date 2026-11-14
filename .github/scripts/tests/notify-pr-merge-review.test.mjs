@@ -229,7 +229,7 @@ test("command failures cannot print a private URL, token, or event payload", () 
     writeFileSync(file, "PRIVATE_EVENT_INVALID_JSON");
     const run = spawnSync(process.execPath, [".github/scripts/notify-pr-merge-review.mjs"], {
       encoding: "utf8", env: { ...process.env, GITHUB_EVENT_PATH: file,
-        PAPERCLIP_PR_REVIEW_WEBHOOK_URL: "PRIVATE_URL_SENTINEL", PAPERCLIP_PR_REVIEW_WEBHOOK_TOKEN: "PRIVATE_TOKEN_SENTINEL" },
+        OUTPOST_PR_REVIEW_WEBHOOK_URL: "PRIVATE_URL_SENTINEL", OUTPOST_PR_REVIEW_WEBHOOK_TOKEN: "PRIVATE_TOKEN_SENTINEL" },
     });
     assert.equal(run.status, 0);
     assert.doesNotMatch(run.stdout + run.stderr, /PRIVATE_/);
@@ -247,7 +247,7 @@ test("workflow uses read permissions, a protected environment, trusted checkout,
     assert.ok(workflow.includes(`  ${permission}: read`), `Missing ${permission}: read`);
   }
   assert.doesNotMatch(workflow, /: write|download-artifact|restore@|pull_request_target:/);
-  for (const name of ["PAPERCLIP_PR_REVIEW_WEBHOOK_URL", "PAPERCLIP_PR_REVIEW_WEBHOOK_TOKEN"]) {
+  for (const name of ["OUTPOST_PR_REVIEW_WEBHOOK_URL", "OUTPOST_PR_REVIEW_WEBHOOK_TOKEN"]) {
     assert.ok(workflow.includes(`secrets.${name}`));
     assert.ok(!workflow.includes(`vars.${name}`));
   }

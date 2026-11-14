@@ -3,8 +3,8 @@ import { context, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import { eq } from "drizzle-orm";
-import { agents, authUsers, companyMemberships, createDb, heartbeatRuns, issueComments, issues } from "@paperclipai/db";
-import type { NativeRunIdentity, NativeSession, NativeSessionBackend, PrpEvent } from "@paperclipai/paperclip-runner";
+import { agents, authUsers, companyMemberships, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import type { NativeRunIdentity, NativeSession, NativeSessionBackend, PrpEvent } from "@outpost/outpost-runner";
 import { describe, expect, it, vi } from "vitest";
 import { heartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -32,7 +32,7 @@ function completingBackend(db: ReturnType<typeof createDb>): NonNullable<Heartbe
       async *events() {
         const turnId = await turn.promise;
         const event = (sourceSeq: number, eventType: PrpEvent["eventType"], payload: Record<string, unknown>): PrpEvent => ({
-          schema: "paperclip.prp.event.v1", sourceKind: "runner", sourceInstanceId,
+          schema: "outpost.orp.event.v1", sourceKind: "runner", sourceInstanceId,
           sourceEventId: `${sourceInstanceId}:${identity.runId}:${sourceSeq}`, sourceSeq,
           runId: identity.runId, normalizedSessionId: identity.sessionId, turnId,
           schemaVersion: 1, priority: 0, emittedAt: new Date().toISOString(), eventType, payload,

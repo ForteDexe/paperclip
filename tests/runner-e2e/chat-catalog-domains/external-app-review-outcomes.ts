@@ -7,7 +7,7 @@
 export interface ReviewedConnection { id: string; name: string }
 
 /** `origin` is the app's own origin: relative links and absolute links to it are equivalent. */
-export function reviewReplyStaysOnRecord(reply: string, connection: ReviewedConnection | undefined, origin = "https://paperclip.invalid") {
+export function reviewReplyStaysOnRecord(reply: string, connection: ReviewedConnection | undefined, origin = "https://outpost.invalid") {
   if (!connection?.id || !reply.trim()) return false;
   // Inline links, reference-style definitions and bare URLs all render as links in chat.
   // Code spans and blocks render as code, not links.

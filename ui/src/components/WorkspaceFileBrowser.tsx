@@ -25,7 +25,7 @@ import type {
   WorkspaceFileListFileItem,
   WorkspaceFileListMode,
   WorkspaceFileSelector,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { companyProjectsQuery } from "@/lib/company-projects-query";
 
 type BrowserSource = "current" | "other";

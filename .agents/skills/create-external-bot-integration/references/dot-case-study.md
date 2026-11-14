@@ -63,7 +63,7 @@ latency/concurrency needed an earlier explicit release contract.
 ## Historical Dot protocol and tools
 
 Transport was authenticated MCP inward and signed MCP Events outward. The
-qualified event was `paperclip.dot.mailbox_updated`. Subscription methods included
+qualified event was `outpost.dot.mailbox_updated`. Subscription methods included
 `events/list`, `events/subscribe`, and `events/unsubscribe`; these are protocol
 methods, not extra callable tools. The experiment used MCP version `2026-07-28`.
 Verify current support and account eligibility instead of copying that version.
@@ -87,8 +87,8 @@ these steps into an unverified conversational “done.”
 Historical constants help reproduce old cases, not set new-provider defaults:
 
 - Instance settings: **Assistant connections (MCP)** and **OpenAI Dot**, with
-  authenticated sign-in and a stable `PAPERCLIP_PUBLIC_URL`. The old
-  `PAPERCLIP_ENABLE_OPENAI_DOT` environment flag no longer enabled the provider.
+  authenticated sign-in and a stable `OUTPOST_PUBLIC_URL`. The old
+  `OUTPOST_ENABLE_OPENAI_DOT` environment flag no longer enabled the provider.
   Self-hosted Dot did not require the general Runner picker flag; Cloud additionally
   required native Runner configuration and the managed execution plugin.
 - Pairing code: 15 minutes, one use. Access token: 15 minutes.

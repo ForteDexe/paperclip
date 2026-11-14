@@ -10,17 +10,17 @@ import {
   inArray,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatConversations,
   chatEndpointResources,
   chatEndpoints,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatEndpointSetupState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   type DiscordGatewayCallbackEvent,

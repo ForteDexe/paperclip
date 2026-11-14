@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agents, heartbeatRuns } from "@paperclipai/db";
-import type { IssueContextCompaction } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { agents, heartbeatRuns } from "@outpost/db";
+import type { IssueContextCompaction } from "@outpost/shared";
 
 /**
  * On-demand context compaction ("Compact now").
@@ -55,7 +55,7 @@ export function isContextCompactionRun(context: unknown): boolean {
  */
 export function contextCompactionSupport(agent: AgentBinding): { supported: true } | { supported: false; reason: string } {
   const unsupported = { supported: false as const, reason: "This agent's harness can't compact on request." };
-  if (agent.adapterType !== "paperclip_runner") return unsupported;
+  if (agent.adapterType !== "outpost_runner") return unsupported;
   const config = asRecord(agent.adapterConfig);
   const provider = typeof config.provider === "string" ? config.provider : "codex";
   if (provider === "codex") return { supported: true };

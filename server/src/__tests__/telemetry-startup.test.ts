@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const stateFactory = vi.hoisted(() => vi.fn());
 
-vi.mock("@paperclipai/shared/telemetry", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@paperclipai/shared/telemetry")>(),
+vi.mock("@outpost/shared/telemetry", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@outpost/shared/telemetry")>(),
   loadOrCreateState: stateFactory,
 }));
 

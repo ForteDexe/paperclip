@@ -44,7 +44,7 @@ describe("tool activity vocabulary", () => {
     expect(mcpToolIdentity("mcp.linear-server.search_issues")).toEqual({ namespace: "linear-server", name: "search_issues" });
     expect(mcpToolSegment("mcp__linear-server__search_issues")).toBe("Search issues");
     expect(mcpToolSegment("mcp.linear-server.search_issues")).toBe("Search issues");
-    const mcp = toolActivityPresentation({ name: "mcp.paperclip.search_tasks" });
+    const mcp = toolActivityPresentation({ name: "mcp.outpost.search_tasks" });
     expect(mcp).toMatchObject({
       family: "mcp",
       icon: McpIcon,
@@ -98,7 +98,7 @@ describe("tool activity vocabulary", () => {
       "view_image", "Image generation", "Compact conversation", "Guardian Review",
       "apply_patch", "multi_tool_use.parallel", "wait_agent", "interrupt_agent",
     ];
-    const paperclip = [
+    const outpost = [
       "get_task_context", "get_task_history", "list_documents", "read_document", "list_document_revisions",
       "report_progress", "answer_status_question", "write_document", "request_human_input",
       "register_deliverable", "finish_task", "paperclip_finish", "block_task", "paperclip_block",
@@ -107,8 +107,8 @@ describe("tool activity vocabulary", () => {
       "create_task", "request_approval", "decide_approval", "comment_on_approval", "schedule_wake",
       "generic_api_request",
     ];
-    for (const name of [...anticipated, ...paperclip]) {
-      const presentation = toolActivityPresentation({ name, namespace: paperclip.includes(name) ? "paperclip" : undefined });
+    for (const name of [...anticipated, ...outpost]) {
+      const presentation = toolActivityPresentation({ name, namespace: outpost.includes(name) ? "paperclip" : undefined });
       expect(presentation.confidence, name).toBe("exact");
       expect(presentation.runningLabel, name).not.toMatch(/running a tool|tool call/i);
       expect(presentation.completedLabel, name).not.toMatch(/ran a tool|tool call/i);

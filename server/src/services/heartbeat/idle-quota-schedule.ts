@@ -1,6 +1,6 @@
 import { finishedIdleRun, finishedIdleWake } from "../idle-work-proof.js";
-import { agents, agentWakeupRequests, companies, heartbeatRuns, issues, type Db } from "@paperclipai/db";
-import { PROVIDER_QUOTA_MONITOR_SERVICE_NAME, issueExecutionMonitorPolicySchema, issueExecutionPolicySchema } from "@paperclipai/shared";
+import { agents, agentWakeupRequests, companies, heartbeatRuns, issues, type Db } from "@outpost/db";
+import { PROVIDER_QUOTA_MONITOR_SERVICE_NAME, issueExecutionMonitorPolicySchema, issueExecutionPolicySchema } from "@outpost/shared";
 import { eq, sql } from "drizzle-orm";
 import type { DeadlineReconciliationSnapshot } from "../deadline-reconciliation.js";
 import { idleDeadlineRowLimit, isFutureIdleDeadline, type IdleDeadlineSnapshot, type IdleIssueWait } from "../idle-deadline-types.js";

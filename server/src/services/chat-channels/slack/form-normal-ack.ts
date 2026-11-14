@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
 import { stageSlackFormNormalAck, acceptSlackFormAckReceipt } from "./form-ack-work.js";
 import { slackFormConnectorIdentity } from "./cloud-consumer.js";

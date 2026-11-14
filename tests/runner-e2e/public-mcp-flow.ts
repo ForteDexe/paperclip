@@ -23,8 +23,8 @@ const publicFixtureCredentials = new WeakMap<RunnerApi, { userId: string; email:
 export async function signInPublicFixturePerson(api: RunnerApi, target: BrowserContext) {
   const person = publicFixtureCredentials.get(api);
   if (!person) throw new Error("Public sign-in requires the exact registered fixture API/person object");
-  const receiptPath = process.env[PUBLIC_ORIGIN_RECEIPT_ENV], attemptId = process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID;
-  const executions = JSON.parse(process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "[]") as string[];
+  const receiptPath = process.env[PUBLIC_ORIGIN_RECEIPT_ENV], attemptId = process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID;
+  const executions = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]") as string[];
   if (!receiptPath || !attemptId || executions.length !== 1) throw new Error("Public fixture sign-in requires its exact selected attempt's validated origin receipt");
   const receipt = await readValidatedPublicOriginReceipt({ receiptPath, attemptId, executionId: executions[0]!, backendOrigin: api.baseURL });
   return privatePublicSignIn({ receiptPath, attemptId, executionId: receipt.executionId, backendOrigin: api.baseURL, publicOrigin: receipt.publicOrigin, userId: person.userId, email: person.email, password: person.password }, person.secrets, async file => {
@@ -142,9 +142,9 @@ export async function runPublicMcpFlow(input: {
       receiver = await eventReceiver(input.secrets);
       const discovered = await mcpEventRpc(connection.tokens, "server/discover");
       const eventCatalog = await mcpEventRpc(connection.tokens, "events/list");
-      check("events-discovered", Boolean((discovered.capabilities as { events?: unknown })?.events) && Array.isArray(eventCatalog.events) && eventCatalog.events.some((e: { name: string }) => e.name === "paperclip.task.status_changed"), "The real MCP 2.0 endpoint advertises the completion event.");
+      check("events-discovered", Boolean((discovered.capabilities as { events?: unknown })?.events) && Array.isArray(eventCatalog.events) && eventCatalog.events.some((e: { name: string }) => e.name === "outpost.task.status_changed"), "The real MCP 2.0 endpoint advertises the completion event.");
       monitorTask = async taskId => {
-        subscription = { name: "paperclip.task.status_changed", arguments: { companyId: team.id, taskId, statuses: ["done"] }, delivery: { mode: "webhook", url: receiver!.url, secret: receiver!.secret }, ttlMs: 600_000 };
+        subscription = { name: "outpost.task.status_changed", arguments: { companyId: team.id, taskId, statuses: ["done"] }, delivery: { mode: "webhook", url: receiver!.url, secret: receiver!.secret }, ttlMs: 600_000 };
         const monitor = await mcpEventRpc(connection.tokens, "events/subscribe", subscription);
         check("callback-verified", receiver!.verified === 1 && typeof monitor.id === "string", "The public HTTPS callback independently verified Standard Webhooks HMAC and echoed a fresh challenge.");
         await evidence("public-mcp-events.json", { startupAttempts: receiver!.startupAttempts, startupFailures: receiver!.startupFailures, subscriptionId: monitor.id, callbackVerified: receiver!.verified === 1, events: receiver!.events });
@@ -182,7 +182,7 @@ export async function runPublicMcpFlow(input: {
       check("event-report-retrieved", gradeReportRetrieval({ companyId: team.id, taskId: issue.id, marker, ...answer }), "A fresh model conversation used the delivered event to retrieve and quote the durable report.");
       check("event-no-feedback-loop", answer.calls.every(isReadOnlyMcpCall) && (await api.get<Comment[]>(`/api/issues/${issue.id}/comments`)).every(comment => comment.authorUserId !== input.userId), "Event handling produced no human comment or task mutation.");
       check("event-independent-oracle", gradeEventFollowUp({ companyId: team.id, taskId: issue.id, marker, ...answer, callbackVerified: receiver!.verified === 1, signatureVerified: true, event, humanCommentCount: (await api.get<Comment[]>(`/api/issues/${issue.id}/comments`)).filter(comment => comment.authorUserId === input.userId).length }), "Calibrated event evidence, durable read-back and no-mutation oracle.");
-      check("event-company-task-bound", event.data.companyId === team.id && event.data.taskId === issue.id && event.name === "paperclip.task.status_changed" && event.cursor === null, "The signed event names the independently observed completed task in the authorized company.");
+      check("event-company-task-bound", event.data.companyId === team.id && event.data.taskId === issue.id && event.name === "outpost.task.status_changed" && event.cursor === null, "The signed event names the independently observed completed task in the authorized company.");
       await mcpEventRpc(connection.tokens, "events/unsubscribe", { ...subscription, ttlMs: undefined, delivery: { mode: "webhook", url: receiver!.url } });
       subscription = undefined;
     } else if (execution.task.id === "human-feedback") {

@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { startMcpRevocationIndexSync } from "./revocation-index-sync.js";
 
 const managed=vi.hoisted(()=>({value:null as {stackId:string;canonicalOrigin:string}|null}));
 vi.mock("../cloud-runtime-identity.js",()=>({getCloudRuntimeIdentity:()=>managed.value}));
-vi.mock("../paperclip-cloud-connector.js",()=>({paperclipCloudConnectorConfigFromEnv:()=>undefined,createPaperclipCloudConnector:vi.fn()}));
+vi.mock("../paperclip-cloud-connector.js",()=>({outpostCloudConnectorConfigFromEnv:()=>undefined,createPaperclipCloudConnector:vi.fn()}));
 beforeEach(()=>{managed.value=null;});
 function unitOwner(db:Db){
   const register=vi.fn(),publish=vi.fn();

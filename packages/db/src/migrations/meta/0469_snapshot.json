@@ -2789,7 +2789,7 @@
             }
           ],
           "isUnique": false,
-          "where": "NOT (coalesce(\"agent_instruction_working_copies\".\"receipt\", '{}'::jsonb) ? 'retainedByRunId') AND (\n      (\"agent_instruction_working_copies\".\"attempts\" < 3 AND (\"agent_instruction_working_copies\".\"state\" IN ('prepared', 'pending_collection', 'unchanged_turn', 'warm_saved')\n        OR (\"agent_instruction_working_copies\".\"state\" = 'preparing' AND \"agent_instruction_working_copies\".\"receipt\"->>'schema' = 'paperclip.agent-files.v1')))\n      OR (\"agent_instruction_working_copies\".\"state\" = 'unavailable' AND \"agent_instruction_working_copies\".\"process_stopped_at\" IS NULL\n        AND \"agent_instruction_working_copies\".\"location\" LIKE 'remote:%' AND \"agent_instruction_working_copies\".\"receipt\"->>'schema' = 'paperclip.agent-files.v1'))",
+          "where": "NOT (coalesce(\"agent_instruction_working_copies\".\"receipt\", '{}'::jsonb) ? 'retainedByRunId') AND (\n      (\"agent_instruction_working_copies\".\"attempts\" < 3 AND (\"agent_instruction_working_copies\".\"state\" IN ('prepared', 'pending_collection', 'unchanged_turn', 'warm_saved')\n        OR (\"agent_instruction_working_copies\".\"state\" = 'preparing' AND \"agent_instruction_working_copies\".\"receipt\"->>'schema' = 'outpost.agent-files.v1')))\n      OR (\"agent_instruction_working_copies\".\"state\" = 'unavailable' AND \"agent_instruction_working_copies\".\"process_stopped_at\" IS NULL\n        AND \"agent_instruction_working_copies\".\"location\" LIKE 'remote:%' AND \"agent_instruction_working_copies\".\"receipt\"->>'schema' = 'outpost.agent-files.v1'))",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2811,7 +2811,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\"agent_instruction_working_copies\".\"state\" IN ('saved', 'unchanged', 'resolved', 'unavailable')\n      AND \"agent_instruction_working_copies\".\"process_stopped_at\" IS NOT NULL\n      AND \"agent_instruction_working_copies\".\"receipt\"->>'schema' = 'paperclip.agent-files.v1'\n      AND coalesce(\"agent_instruction_working_copies\".\"receipt\"->>'retainedByRunId', '') = ''\n      AND \"agent_instruction_working_copies\".\"receipt\"->>'cleanupPending' IS DISTINCT FROM 'false'\n      AND (\"agent_instruction_working_copies\".\"receipt\" ? 'baseline' OR \"agent_instruction_working_copies\".\"receipt\"->>'cleanupPending' = 'true')",
+          "where": "\"agent_instruction_working_copies\".\"state\" IN ('saved', 'unchanged', 'resolved', 'unavailable')\n      AND \"agent_instruction_working_copies\".\"process_stopped_at\" IS NOT NULL\n      AND \"agent_instruction_working_copies\".\"receipt\"->>'schema' = 'outpost.agent-files.v1'\n      AND coalesce(\"agent_instruction_working_copies\".\"receipt\"->>'retainedByRunId', '') = ''\n      AND \"agent_instruction_working_copies\".\"receipt\"->>'cleanupPending' IS DISTINCT FROM 'false'\n      AND (\"agent_instruction_working_copies\".\"receipt\" ? 'baseline' OR \"agent_instruction_working_copies\".\"receipt\"->>'cleanupPending' = 'true')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -30788,7 +30788,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'paperclip.remote-workspace-archive.v1'"
+          "default": "'outpost.remote-workspace-archive.v1'"
         },
         "object_key": {
           "name": "object_key",
@@ -34663,7 +34663,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\"heartbeat_run_events\".\"event_type\" = 'item.completed' and (\"heartbeat_run_events\".\"payload\" -> 'prpEvent' -> 'payload' ->> 'kind') = 'usage'",
+          "where": "\"heartbeat_run_events\".\"event_type\" = 'item.completed' and (\"heartbeat_run_events\".\"payload\" -> 'orpEvent' -> 'payload' ->> 'kind') = 'usage'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -34678,7 +34678,7 @@
               "nulls": "last"
             },
             {
-              "expression": "(\"payload\" -> 'prpEvent' ->> 'normalizedSessionId')",
+              "expression": "(\"payload\" -> 'orpEvent' ->> 'normalizedSessionId')",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -35521,7 +35521,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\"heartbeat_runs\".\"runtime_mode\" = 'native' AND \"heartbeat_runs\".\"status\" = 'cancelled'\n        AND \"heartbeat_runs\".\"runner_profile_json\"->'nativeWorkspaceSync'->>'state' = 'prepared'\n        AND \"heartbeat_runs\".\"result_json\"->'nativeCancellation'->>'dispatchState' = 'acknowledged'\n        AND (\"heartbeat_runs\".\"result_json\"->'workspaceRestoreRecovery'->>'schema' = 'paperclip.workspace-restore-recovery.v1'\n          AND \"heartbeat_runs\".\"result_json\"->>'workspaceRestoreFailure' IN ('restore_permission_denied', 'restore_lock_timeout', 'restore_unsafe_archive', 'restore_invalid_metadata', 'restore_failed')) IS NOT TRUE",
+          "where": "\"heartbeat_runs\".\"runtime_mode\" = 'native' AND \"heartbeat_runs\".\"status\" = 'cancelled'\n        AND \"heartbeat_runs\".\"runner_profile_json\"->'nativeWorkspaceSync'->>'state' = 'prepared'\n        AND \"heartbeat_runs\".\"result_json\"->'nativeCancellation'->>'dispatchState' = 'acknowledged'\n        AND (\"heartbeat_runs\".\"result_json\"->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'\n          AND \"heartbeat_runs\".\"result_json\"->>'workspaceRestoreFailure' IN ('restore_permission_denied', 'restore_lock_timeout', 'restore_unsafe_archive', 'restore_invalid_metadata', 'restore_failed')) IS NOT TRUE",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -35537,7 +35537,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\"heartbeat_runs\".\"result_json\"->'workspaceRestoreRecovery'->>'schema' = 'paperclip.workspace-restore-recovery.v1'\n        and not (coalesce(\"heartbeat_runs\".\"result_json\", '{}'::jsonb) ? 'systemRecoveryAdoption')\n        and \"heartbeat_runs\".\"status\" in ('failed', 'interrupted', 'timed_out', 'cancelled', 'succeeded')",
+          "where": "\"heartbeat_runs\".\"result_json\"->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'\n        and not (coalesce(\"heartbeat_runs\".\"result_json\", '{}'::jsonb) ? 'systemRecoveryAdoption')\n        and \"heartbeat_runs\".\"status\" in ('failed', 'interrupted', 'timed_out', 'cancelled', 'succeeded')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -40390,7 +40390,7 @@
             }
           ],
           "isUnique": false,
-          "where": "not (\"issue_recovery_actions\".\"evidence\" ? 'systemRecovery') and (\n        \"issue_recovery_actions\".\"evidence\"->'workspaceRestoreRecovery'->>'schema' = 'paperclip.workspace-restore-recovery.v1'\n        or \"issue_recovery_actions\".\"cause\" in ('native_workspace_sync_out_unrecoverable', 'native_workspace_sync_out_retry_exhausted')\n      )",
+          "where": "not (\"issue_recovery_actions\".\"evidence\" ? 'systemRecovery') and (\n        \"issue_recovery_actions\".\"evidence\"->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'\n        or \"issue_recovery_actions\".\"cause\" in ('native_workspace_sync_out_unrecoverable', 'native_workspace_sync_out_retry_exhausted')\n      )",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -40406,7 +40406,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\n      (\"issue_recovery_actions\".\"evidence\"->'workspaceRestoreRecovery'->>'schema' = 'paperclip.workspace-restore-recovery.v1'\n        or \"issue_recovery_actions\".\"cause\" in ('native_workspace_sync_out_unrecoverable', 'native_workspace_sync_out_retry_exhausted'))\n      and (\"issue_recovery_actions\".\"evidence\"->'executionReconciliation' is null\n        or \"issue_recovery_actions\".\"evidence\"#>>'{workspaceRecovery,status}' = 'recovered')\n    ",
+          "where": "\n      (\"issue_recovery_actions\".\"evidence\"->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'\n        or \"issue_recovery_actions\".\"cause\" in ('native_workspace_sync_out_unrecoverable', 'native_workspace_sync_out_retry_exhausted'))\n      and (\"issue_recovery_actions\".\"evidence\"->'executionReconciliation' is null\n        or \"issue_recovery_actions\".\"evidence\"#>>'{workspaceRecovery,status}' = 'recovered')\n    ",
           "concurrently": false,
           "method": "btree",
           "with": {}

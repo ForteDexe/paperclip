@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { and, eq, type SQL } from "drizzle-orm";
-import type { UpdateEnvironment } from "@paperclipai/shared";
+import type { UpdateEnvironment } from "@outpost/shared";
 import { SANDBOX_PLATFORM_PROBE_METADATA_KEY } from "../services/environment-custom-image-runtime.js";
 import {
   activityLog,
@@ -20,7 +20,7 @@ import {
   instanceSettings,
   issues,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -28,7 +28,7 @@ import {
 import { environmentService } from "../services/environments.ts";
 import { attachPaperclipSessionMetadataToSessionParams, buildEffectiveRunSessionConfigMetadata, resolveTaskSessionConfigFreshness } from "../services/heartbeat/workspaces.js";
 
-const externalTestDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const externalTestDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 if (externalTestDatabaseUrl && !new URL(externalTestDatabaseUrl).pathname.endsWith("_test")) {
   throw new Error("Environment service tests require an isolated database ending in _test");
 }
@@ -1091,7 +1091,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       })
       .returning();
 
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "test-server-token";
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "test-server-token";
     try {
       const adopted = await svc.ensureLocalEnvironment(companyId);
 
@@ -1114,7 +1114,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         .then((rows) => rows[0]);
       expect(reusedRow?.updatedAt.toISOString()).toBe(adoptedRow?.updatedAt.toISOString());
     } finally {
-      delete process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
+      delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
     }
   });
 
@@ -1300,7 +1300,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const revision = new Date("2026-01-01T00:00:00.000Z");
     await db.update(environments).set({ updatedAt: revision }).where(eq(environments.id, created.id));
     const metadata = (environment: typeof created) => buildEffectiveRunSessionConfigMetadata({
-      adapterType: "paperclip_runner", effectiveAdapterConfig: { model: "model-a" },
+      adapterType: "outpost_runner", effectiveAdapterConfig: { model: "model-a" },
       agentRuntimeConfig: {}, issueOverrides: null, workspaceConfig: null,
       environment: { selectedEnvironmentId: environment.id, selectedEnvironment: {
         id: environment.id, driver: environment.driver, config: environment.config,

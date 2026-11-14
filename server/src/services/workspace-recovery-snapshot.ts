@@ -7,11 +7,11 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { environmentLeases, workspaceOperations, type Db } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { createCommandManagedRuntimeClient } from "@paperclipai/adapter-utils/command-managed-runtime";
-import { createTarballFromDirectory, exportSandboxWorkspaceSnapshot, restoreVerifiedSnapshotArchive } from "@paperclipai/adapter-utils/sandbox-managed-runtime";
-import { captureDirectorySnapshotOffThread, disposeDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import { environmentLeases, workspaceOperations, type Db } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { createCommandManagedRuntimeClient } from "@outpost/adapter-utils/command-managed-runtime";
+import { createTarballFromDirectory, exportSandboxWorkspaceSnapshot, restoreVerifiedSnapshotArchive } from "@outpost/adapter-utils/sandbox-managed-runtime";
+import { captureDirectorySnapshotOffThread, disposeDirectorySnapshot } from "@outpost/adapter-utils/workspace-restore-merge";
 import { getStorageService, type StorageService } from "../storage/index.js";
 import { SystemRecoveryFailure } from "./system-recovery-state.js";
 import { recoveryRunAncestry } from "./recovery-run-ancestry.js";
@@ -19,7 +19,7 @@ import { recoveryRunAncestry } from "./recovery-run-ancestry.js";
 const storedFileSchema = z.object({ objectKey: z.string().min(1), sha256: z.string().regex(/^[a-f0-9]{64}$/), byteSize: z.number().int().positive() });
 type StoredFile = z.infer<typeof storedFileSchema>;
 const snapshotSchema = z.object({
-  schema: z.literal("paperclip.workspace-recovery-snapshot.v1"), recoveryActionId: z.string().uuid(),
+  schema: z.literal("outpost.workspace-recovery-snapshot.v1"), recoveryActionId: z.string().uuid(),
   leaseId: z.string().uuid(), providerLeaseId: z.string().min(1), archive: storedFileSchema, manifest: storedFileSchema,
 });
 export type PreservedWorkspaceSnapshot = z.infer<typeof snapshotSchema>;
@@ -89,7 +89,7 @@ export async function preserveWorkspaceSnapshot(input: {
     sql`${workspaceOperations.metadata}->>'recoveryActionId' = ${input.actionId}`);
   const [existing] = await input.db.select().from(workspaceOperations).where(scope)
     .orderBy(desc(workspaceOperations.createdAt)).limit(1);
-  if (existing?.metadata?.schema === "paperclip.workspace-recovery-snapshot.v1") {
+  if (existing?.metadata?.schema === "outpost.workspace-recovery-snapshot.v1") {
     const saved = readSnapshot(existing.metadata, input.companyId, input.runId);
     const heads = await Promise.all([storage.headObject(input.companyId, saved.archive.objectKey),
       storage.headObject(input.companyId, saved.manifest.objectKey)]);
@@ -120,7 +120,7 @@ export async function preserveWorkspaceSnapshot(input: {
     const snapshot = await captureDirectorySnapshotOffThread(directory, { exclude: [], diskBacked: true });
     try {
       await pipeline(Readable.from((function* () {
-        yield `${JSON.stringify({ schema: "paperclip.workspace-file-manifest.v1" })}\n`;
+        yield `${JSON.stringify({ schema: "outpost.workspace-file-manifest.v1" })}\n`;
         for (const entry of snapshot.entries) yield `${JSON.stringify(entry)}\n`;
       })()), createWriteStream(manifestPath, { flags: "wx", mode: 0o600 }));
     } finally { await disposeDirectorySnapshot(snapshot); }
@@ -132,7 +132,7 @@ export async function preserveWorkspaceSnapshot(input: {
     const prefix = `${input.companyId}/workspace-recovery/${input.runId}/${input.leaseId}`;
     const stored = files.map((file, index) => ({ objectKey: `${prefix}/${file.sha256}.${index === 0 ? "tar" : "jsonl"}`,
       sha256: file.sha256, byteSize: file.byteSize }));
-    const metadata: PreservedWorkspaceSnapshot = { schema: "paperclip.workspace-recovery-snapshot.v1",
+    const metadata: PreservedWorkspaceSnapshot = { schema: "outpost.workspace-recovery-snapshot.v1",
       recoveryActionId: input.actionId, leaseId: input.leaseId, providerLeaseId: input.providerLeaseId,
       archive: stored[0], manifest: stored[1] };
     await input.assertHeld();

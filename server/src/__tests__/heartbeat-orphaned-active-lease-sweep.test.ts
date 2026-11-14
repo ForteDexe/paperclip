@@ -12,7 +12,7 @@ import {
   environmentLeases,
   environments,
   heartbeatRuns,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -170,7 +170,7 @@ describeEmbeddedPostgres("heartbeat sweepOrphanedActiveLeases", () => {
     const leaseId = await insertActiveLease({ companyId, environmentId, heartbeatRunId: runId, status, updatedAt: oldEnough() });
     const lease = (await leaseRow(leaseId))!;
     const reference = {
-      schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+      schema: "outpost.native-workspace-sync/v3", state: "prepared",
       descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
       workspaceId: randomUUID(), leaseId, providerLeaseId: lease.providerLeaseId,
       remoteCwd: "/workspace", resourceDisposition: "destroy",
@@ -249,7 +249,7 @@ describeEmbeddedPostgres("heartbeat sweepOrphanedActiveLeases", () => {
         runnerProfileJson: {
           nativeWorkspaceSync: mode === "finalized" ? { ...reference, state: "finalized", finalHostSha256: "c".repeat(64) } : reference,
           ...(mode === "no_workspace" ? { nativeExecutionInput: {
-            schema: "paperclip.native-execution-input.v6", binding: { runId, companyId, agentId, issueId: null },
+            schema: "outpost.native-execution-input.v6", binding: { runId, companyId, agentId, issueId: null },
             provider: { kind: "openai_dot" }, workspace: { access: "none", cwd: null },
           } } : {}),
         },

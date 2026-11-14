@@ -155,7 +155,7 @@ this transport has finished.
 Run the focused server suites with the repository's supported pnpm version:
 
 ```sh
-pnpm --filter @paperclipai/server exec vitest run --config vitest.config.ts \
+pnpm --filter @outpost/server exec vitest run --config vitest.config.ts \
   src/services/native-runtime/native-harness-backup-storage.integration.test.ts \
   src/services/native-runtime/native-harness-backup-archive.test.ts \
   src/services/native-runtime/remote-opencode-artifacts.test.ts \
@@ -171,13 +171,13 @@ The opt-in Linux qualification requires two locally cached Paperclip images with
 full immutable image IDs and different OpenCode proxy hashes. Both images must
 have the same Linux architecture and the standard qualified provider pack. The
 new image must include the packaged Runner binary at
-`/app/server/dist/vendor/paperclip-runner/bin/paperclip-runnerd`.
+`/app/server/dist/vendor/outpost-runner/bin/outpost-runnerd`.
 Build the current checkout's Runner TypeScript SDK first. Use the local Docker
 context that has the cached images:
 
 ```sh
-pnpm --filter @paperclipai/paperclip-runner build:typescript
-pnpm --filter @paperclipai/server exec tsx scripts/qualify-opencode-cold-recovery.mts \
+pnpm --filter @outpost/outpost-runner build:typescript
+pnpm --filter @outpost/server exec tsx scripts/qualify-opencode-cold-recovery.mts \
   --context desktop-linux \
   --old-image "$OLD_IMAGE" \
   --new-image "$NEW_IMAGE" \

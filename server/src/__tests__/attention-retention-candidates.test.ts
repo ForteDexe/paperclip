@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { applyPendingMigrations, createDb } from "@paperclipai/db";
+import { applyPendingMigrations, createDb } from "@outpost/db";
 import { ATTENTION_RETENTION_KIND_ORDER, listAttentionRetentionCandidates } from "../services/attention-retention.js";
 import { DEFAULT_DECISION_ARCHIVE_DAYS } from "../services/decision-retention.js";
 import type { AttentionRetentionScope } from "../services/retention-work-notifications.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_ATTENTION_RETENTION_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_ATTENTION_RETENTION_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 type Cursor = { sourceKind: string; sourceId: string };
 type Db = ReturnType<typeof createDb>;

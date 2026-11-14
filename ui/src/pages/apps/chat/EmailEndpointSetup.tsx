@@ -1,4 +1,4 @@
-import { isUuidLike } from "@paperclipai/shared";
+import { isUuidLike } from "@outpost/shared";
 import { ApiError } from "@/api/client";
 import { describeError } from "@/api/errors";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
@@ -49,7 +49,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import type {
   AgentPermissions,
   EmailEndpointSummary,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { companyProjectsQuery } from "@/lib/company-projects-query";
 const selectClass =
   "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -97,7 +97,7 @@ function EmailEndpointSetupForm({ companyId }: { companyId: string }) {
   const cache = useQueryClient();
   const resumeId = params.get("resume");
   const setupId = params.get("setupId");
-  const draftKey = `paperclip.agentmail-setup:${companyId}:${resumeId ?? setupId ?? params.get("connectionId") ?? "new"}:${params.get("agentId") ?? "choose"}`;
+  const draftKey = `outpost.agentmail-setup:${companyId}:${resumeId ?? setupId ?? params.get("connectionId") ?? "new"}:${params.get("agentId") ?? "choose"}`;
   const [draft] = useState(() => {
     const saved = readEmailSetupDraft(draftKey);
     // A Finish setup link always names its original inbox, including when an
@@ -321,7 +321,7 @@ function EmailEndpointSetupForm({ companyId }: { companyId: string }) {
   const cancel = () => { try { sessionStorage.removeItem(draftKey); } catch {} navigate("/apps"); };
   function openDraft(nextDraft: EmailSetupDraft & { requestId: string; connectionId: string }) {
     try {
-      sessionStorage.setItem(`paperclip.agentmail-setup:${companyId}:${nextDraft.requestId}:${agentId}`, JSON.stringify(nextDraft));
+      sessionStorage.setItem(`outpost.agentmail-setup:${companyId}:${nextDraft.requestId}:${agentId}`, JSON.stringify(nextDraft));
     } catch { /* The new link still restores the agent and saved account. */ }
     navigate(`/apps/chat/connect?${new URLSearchParams({ provider: "agentmail", purpose: "chat", setupId: nextDraft.requestId, agentId, connectionId: nextDraft.connectionId })}`);
   }

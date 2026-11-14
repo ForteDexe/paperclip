@@ -1,5 +1,5 @@
 import express from "express";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import request from "supertest";
 import { describe, it } from "vitest";
 
@@ -119,8 +119,8 @@ describe("managed provider profile route authorization", () => {
           agentRuntimeArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/example",
           memoryArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/example",
           memoryId: "memory-example",
-          invocationRoleArn: "arn:aws:iam::123456789012:role/paperclip-runner",
-          contextBucket: "paperclip-runner-context",
+          invocationRoleArn: "arn:aws:iam::123456789012:role/outpost-runner",
+          contextBucket: "outpost-runner-context",
           contextPrefix: "profiles/example",
           contextKmsKeyArn: "arn:aws:kms:us-east-1:123456789012:key/example",
           qualificationRevision: "aws-agentcore-harness-context-v2",

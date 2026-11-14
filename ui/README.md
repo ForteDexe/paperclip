@@ -1,4 +1,4 @@
-# @paperclipai/ui
+# @outpost/ui
 
 Published static assets for the Paperclip board UI.
 
@@ -11,13 +11,13 @@ The npm package contains the production build under `dist/`. It does not ship th
 Storybook config, stories, and fixtures live under `ui/storybook/`.
 
 ```sh
-pnpm --filter @paperclipai/ui storybook
-pnpm --filter @paperclipai/ui build-storybook
+pnpm --filter @outpost/ui storybook
+pnpm --filter @outpost/ui build-storybook
 ```
 
 ## Typical use
 
-Install the package, then serve or copy the built files from `node_modules/@paperclipai/ui/dist`.
+Install the package, then serve or copy the built files from `node_modules/@outpost/ui/dist`.
 
 ## Editor dependency identity
 

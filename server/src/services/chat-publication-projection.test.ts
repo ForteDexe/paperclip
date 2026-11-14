@@ -108,7 +108,7 @@ describe("chat publication projection", () => {
             {
               type: "link",
               label: "Open Paperclip",
-              url: "https://paperclip.example/tasks/123?handoff=secret#private",
+              url: "https://outpost.example/tasks/123?handoff=secret#private",
             },
             { type: "link", label: "Unsafe", url: "javascript:alert(1)" },
           ],
@@ -122,7 +122,7 @@ describe("chat publication projection", () => {
       progressState: "waiting_for_input",
       interactionId: "interaction:123",
       card: {
-        schema: "paperclip.chat.card.v1",
+        schema: "outpost.chat.card.v1",
         kind: "question",
         title: "Choose a path",
         body: "Do not leak token: [REDACTED]",
@@ -131,7 +131,7 @@ describe("chat publication projection", () => {
           {
             type: "link",
             label: "Open Paperclip",
-            url: "https://paperclip.example/tasks/123",
+            url: "https://outpost.example/tasks/123",
           },
         ],
       },

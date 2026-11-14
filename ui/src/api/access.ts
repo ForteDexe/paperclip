@@ -1,4 +1,4 @@
-import type { AgentAdapterType, JoinRequest, PermissionKey } from "@paperclipai/shared";
+import type { AgentAdapterType, JoinRequest, PermissionKey } from "@outpost/shared";
 import { api, type RequestOptions } from "./client";
 
 export type HumanCompanyRole = "owner" | "admin" | "operator" | "viewer";

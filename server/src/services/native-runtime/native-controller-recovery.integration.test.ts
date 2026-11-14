@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agentTaskSessions, agents, companies, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, nativeRunnerCheckpoints } from "@paperclipai/db";
-import { DurablePrpControlPlane, parseNativeExecutionInput, type PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+import { agentTaskSessions, agents, companies, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, nativeRunnerCheckpoints } from "@outpost/db";
+import { DurablePrpControlPlane, parseNativeExecutionInput, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { startRecoveryPostgres, recoveryPostgresSupport } from "../../__tests__/helpers/recovery-postgres.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
@@ -28,24 +28,24 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   let db: ReturnType<typeof createDb>;
   let home: ReturnType<typeof createIsolatedTestHome>;
   let root: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
+  const previousHome = process.env.OUTPOST_HOME;
   const companyId = randomUUID(), agentId = randomUUID();
   const compatibility = { configDigest: `sha256:${"a".repeat(64)}`, processConfigDigest: null };
   beforeAll(async () => {
     home = createIsolatedTestHome();
-    process.env.PAPERCLIP_HOME = home.home;
+    process.env.OUTPOST_HOME = home.home;
     root = await mkdtemp(join(tmpdir(), "native-controller-discovery-"));
     database = await startRecoveryPostgres("native-controller-discovery-");
     db = createDb(database.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Controller discovery", issuePrefix: "NCD" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "paperclip_runner", adapterConfig: { provider: "codex" } });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
   }, 60_000);
   afterAll(async () => {
     await database?.cleanup();
     if (root) await rm(root, { recursive: true, force: true });
     home?.cleanup();
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = previousHome;
   });
 
   async function seed() {
@@ -74,7 +74,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), runnerProfileJson: profile }).where(eq(heartbeatRuns.id, runId));
     const scope = { companyId, agentId, issueId, runId, normalizedSessionId: native.normalizedSessionId };
     return { scope, native, profile, snapshot, owner,
-      supervisor: { schema: "paperclip.native-session-supervisor.v1", ...compatibility, snapshot } };
+      supervisor: { schema: "outpost.native-session-supervisor.v1", ...compatibility, snapshot } };
   }
 
   it("imports a retained source once, rejects stale input, and resolves it without any local projection", async () => {
@@ -103,7 +103,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const fixture = await seed(), runId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID();
     const remoteCwd = join(root, runId, "remote"), providerLeaseId = randomUUID();
     const previous = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+      schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
       binding: { companyId, agentId, issueId: fixture.scope.issueId, runId: fixture.scope.runId,
         executionWorkspaceId: randomUUID() },
       task: { identifier: "NCD-1", title: "Continue retained work", description: null,
@@ -111,7 +111,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       workspace: { cwd: remoteCwd, repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: fixture.scope.normalizedSessionId, driverKind: "codex_app_server",
         protocolVersion: 1, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 } },
-      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Continue the saved work", criteria: [{ id: "objective", requirement: "Save the result" }] } },
       credentialBindings: [], interactionResponses: [],
     });
@@ -136,7 +136,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const identity = { runId: fixture.scope.runId, normalizedSessionId: fixture.scope.normalizedSessionId,
       runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
       turnId: fixture.native.turnId, itemId: fixture.native.itemId };
-    const runnerRoot = join(remoteCwd, ".paperclip-runtime", "paperclip-runner", "sessions",
+    const runnerRoot = join(remoteCwd, ".paperclip-runtime", "outpost-runner", "sessions",
       createHash("sha256").update(fixture.scope.normalizedSessionId).digest("hex"), "runner");
     await mkdir(runnerRoot, { recursive: true });
     await writeFile(join(runnerRoot, "runner-state.json"), JSON.stringify({ ...identity, lifecycle: "ready", outbox: [], pendingTerminalDelivery: null }));
@@ -382,7 +382,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   it.each(["committed", "workspace_finalizing"])("defers a remote warm continuation while its %s predecessor has a finalization lease", async phase => {
     const fixture = await seed(), runId = randomUUID(), environmentId = randomUUID();
     const previous = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+      schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
       binding: { companyId, agentId, issueId: fixture.scope.issueId, runId: fixture.scope.runId,
         executionWorkspaceId: randomUUID() },
       task: { identifier: "NCD-1", title: "Continue retained execution", description: null,
@@ -390,7 +390,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: fixture.scope.normalizedSessionId, driverKind: "codex_app_server",
         protocolVersion: 1, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 } },
-      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Continue the saved work.", criteria: [{ id: "objective", requirement: "Save the result." }] } },
       credentialBindings: [], interactionResponses: [],
     });
@@ -524,10 +524,10 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const identity = { runId: fixture.scope.runId, normalizedSessionId: fixture.scope.normalizedSessionId,
       runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
       turnId: fixture.native.turnId, itemId: fixture.native.itemId };
-    const runnerDirectory = (cwd: string) => join(cwd, ".paperclip-runtime", "paperclip-runner", "sessions",
+    const runnerDirectory = (cwd: string) => join(cwd, ".paperclip-runtime", "outpost-runner", "sessions",
       createHash("sha256").update(fixture.scope.normalizedSessionId).digest("hex"), "runner");
     await mkdir(runnerDirectory(sourceCwd), { recursive: true });
-    await writeFile(join(runnerDirectory(sourceCwd), "runner-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.state.v1",
+    await writeFile(join(runnerDirectory(sourceCwd), "runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1",
       ...identity, lifecycle, outbox: [], pendingTerminalDelivery: null, pendingProviderCleanup: null, warmTransition: null }));
     const commands: string[] = [];
     const execute = (request: { command: string; args?: string[] }) => {
@@ -544,14 +544,14 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       });
     };
     const execution = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+      schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
       binding: { companyId, agentId, issueId: fixture.scope.issueId, runId, executionWorkspaceId: workspaceId },
       task: { identifier: "NCD-1", title: "Continue retained work", description: null,
         prompt: "Continue the saved work.", workMode: "standard" },
       workspace: { cwd: movedCwd, repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: fixture.scope.normalizedSessionId, driverKind: "codex_app_server",
         protocolVersion: 1, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 } },
-      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Continue the saved work", criteria: [{ id: "objective", requirement: "Save the result" }] } },
       credentialBindings: [], interactionResponses: [],
     });
@@ -559,7 +559,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const controller = join(root, `controller-${runId}`);
     await mkdir(join(controller, "control-plane"), { recursive: true });
     await writeFile(join(controller, "control-plane", "control-plane-state.json"),
-      JSON.stringify({ schema: "paperclip.runner.durable.control-plane-state.v2", identity }));
+      JSON.stringify({ schema: "outpost.runner.durable.control-plane-state.v2", identity }));
     const target = { kind: "remote", transport: "sandbox", environmentId, leaseId: randomUUID(), providerKey: "daytona",
       remoteCwd: movedCwd, sandboxLeaseAcquisition: { outcome: "resumed", providerLeaseId }, runner: { execute } } as const;
     const restore = () => restoreRemoteSuspendedRunnerCheckpoint({ db, execution, runnerExecutionTarget: target as never }, controller);
@@ -602,11 +602,11 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const identity = { runId: fixture.scope.runId, normalizedSessionId: fixture.scope.normalizedSessionId,
       runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
       turnId: fixture.native.turnId, itemId: fixture.native.itemId };
-    const runnerDirectory = join(cwd, ".paperclip-runtime", "paperclip-runner", "sessions",
+    const runnerDirectory = join(cwd, ".paperclip-runtime", "outpost-runner", "sessions",
       createHash("sha256").update(fixture.scope.normalizedSessionId).digest("hex"), "runner");
     const suspend = { commandId: randomUUID(), controllerSeq: 7 };
     await mkdir(runnerDirectory, { recursive: true });
-    await writeFile(join(runnerDirectory, "runner-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.state.v1",
+    await writeFile(join(runnerDirectory, "runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1",
       ...identity, lifecycle: "suspended", outbox: [], lastControllerCommandSeq: 7,
       pendingTerminalDelivery: { ...suspend, commandType: "runner.suspend", lifecycle: "suspended", ...("pending" in variant ? variant.pending : {}) },
       pendingProviderCleanup: null, warmTransition: null, ...("runner" in variant ? variant.runner : {}) }));
@@ -622,14 +622,14 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       });
     };
     const execution = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+      schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
       binding: { companyId, agentId, issueId: fixture.scope.issueId, runId, executionWorkspaceId: workspaceId },
       task: { identifier: "NCD-1", title: "Continue retained work", description: null,
         prompt: "Continue the saved work.", workMode: "standard" },
       workspace: { cwd, repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: fixture.scope.normalizedSessionId, driverKind: "codex_app_server",
         protocolVersion: 1, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 900_000 } },
-      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Continue the saved work", criteria: [{ id: "objective", requirement: "Save the result" }] } },
       credentialBindings: [], interactionResponses: [],
     });
@@ -637,7 +637,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const controller = join(root, `controller-${runId}`);
     await mkdir(join(controller, "control-plane"), { recursive: true });
     await writeFile(join(controller, "control-plane", "control-plane-state.json"), JSON.stringify({
-      schema: "paperclip.runner.durable.control-plane-state.v2", identity,
+      schema: "outpost.runner.durable.control-plane-state.v2", identity,
       commands: "journalCommands" in variant ? variant.journalCommands : [
         { ...suspend, type: "journal" in variant ? variant.journal : "runner.suspend", status: "pending" },
         ...("laterCommand" in variant ? [{ commandId: randomUUID(), controllerSeq: 8, type: "turn.stop", status: "pending" }] : []),
@@ -649,7 +649,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     if (variant.accepted) {
       await restore();
       expect(JSON.parse(await readFile(join(controller, "plugin-runner-state.json"), "utf8")))
-        .toEqual({ schema: "paperclip.runner.durable.state.v1", lifecycle: "suspended", ...identity });
+        .toEqual({ schema: "outpost.runner.durable.state.v1", lifecycle: "suspended", ...identity });
     } else {
       await expect(restore()).rejects.toThrow("native_controller_recovery_missing_evidence:runner_not_settled");
       await expect(readFile(join(controller, "plugin-runner-state.json"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -680,7 +680,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const fixture = await seed();
     await importNativeControllerRecovery(db, { ...fixture.scope, expectedConfigDigest: compatibility.configDigest, supervisor: fixture.supervisor });
     await db.insert(agentTaskSessions).values([0, 1].map(index => ({ companyId, agentId, taskKey: `${fixture.scope.issueId}-${index}`,
-      adapterType: "paperclip_runner", lastRunId: fixture.scope.runId })));
+      adapterType: "outpost_runner", lastRunId: fixture.scope.runId })));
     const first = await readNativeControllerRecoveryInventory(db, { limit: 1 });
     expect(first).toMatchObject({ inspected: 1, coverage: "partial", truncated: true, selectedRetainedEvidence: 1, fullPayloadsValidated: false });
     const next = await readNativeControllerRecoveryInventory(db, { limit: 1, afterId: first.nextAfterId! });

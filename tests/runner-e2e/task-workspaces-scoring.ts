@@ -74,10 +74,10 @@ export function gradeTaskWorkspaces(value: TaskWorkspaceObservation) {
 
 export function isRepositoryPreparationReceipt(event: {
   eventType?: string;
-  payload?: { prpEvent?: { sourceKind?: string; runId?: string; payload?: { name?: string; status?: string } } };
+  payload?: { orpEvent?: { sourceKind?: string; runId?: string; payload?: { name?: string; status?: string } } };
 }, runId: string) {
-  const receipt = event.payload?.prpEvent;
+  const receipt = event.payload?.orpEvent;
   return event.eventType === "tool.execution.completed" && receipt?.sourceKind === "runner"
     && receipt.runId === runId && receipt.payload?.status === "completed"
-    && ["prepare_repository", "paperclip.prepare_repository", "paperclip_prepare_repository"].includes(receipt.payload.name ?? "");
+    && ["prepare_repository", "outpost.prepare_repository", "paperclip_prepare_repository"].includes(receipt.payload.name ?? "");
 }

@@ -6,8 +6,8 @@ const nonce = "n1";
 const probe = planningWriteProbeFile(nonce);
 const denied = "/bin/bash: line 1: plan-write-probe-n1.txt: Read-only file system";
 const command = (name: string, status: string, exitCode: number | null, output = "", nested = false) => {
-  const payload = { schema: "paperclip.tool.execution.v1", name, status, exitCode, output };
-  return { eventType: "tool.execution.completed", payload: nested ? { prpEvent: { payload } } : payload };
+  const payload = { schema: "outpost.tool.execution.v1", name, status, exitCode, output };
+  return { eventType: "tool.execution.completed", payload: nested ? { orpEvent: { payload } } : payload };
 };
 const write = `/bin/bash -lc 'printf probe > ${probe} || echo WRITE_REFUSED'`;
 

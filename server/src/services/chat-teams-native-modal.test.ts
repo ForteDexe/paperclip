@@ -1,4 +1,4 @@
-import type { AskUserQuestionsInteraction } from "@paperclipai/shared";
+import type { AskUserQuestionsInteraction } from "@outpost/shared";
 import type { ModalResponse } from "chat";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -124,7 +124,7 @@ function questionForm() {
         },
       ],
       questionSet: {
-        schema: "paperclip.question_set.v1",
+        schema: "outpost.question_set.v1",
         title: "Release details",
         submitLabel: "Continue",
         questions: [
@@ -278,7 +278,7 @@ describe("Teams native task module adapter-to-runtime boundary", () => {
     ) => {
       const response = await runtime.handleWebhook(
         new Request(
-          "https://paperclip.test/api/chat-webhooks/synthetic/microsoft-teams",
+          "https://outpost.test/api/chat-webhooks/synthetic/microsoft-teams",
           {
             method: "POST",
             headers: {

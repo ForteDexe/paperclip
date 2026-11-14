@@ -18,7 +18,7 @@ const credentials = new WeakMap<ChatCatalogContext, Array<{ id: string; token: s
 /** Whether a saved reply body has a Markdown link to this exact task page. */
 export function replyLinksTask(body: string, task: { id: string; identifier?: string | null }) {
   return [...body.matchAll(/\]\(([^)\s]+)\)/g)].some(([, href]) => {
-    try { const parts = new URL(href!, "http://paperclip.invalid").pathname.split("/").map(decodeURIComponent); const index = parts.lastIndexOf("issues");
+    try { const parts = new URL(href!, "http://outpost.invalid").pathname.split("/").map(decodeURIComponent); const index = parts.lastIndexOf("issues");
       return index >= 0 && index === parts.length - 2 && [task.id, task.identifier].filter(Boolean).includes(parts[index + 1]); } catch { return false; }
   });
 }
@@ -88,7 +88,7 @@ export const runtimeIndependentReviewCases = [runtimeDefinition("task-coordinati
     actualImplementation: true, setupReviewRunCount: 0, setupRunIds: acknowledged.runs.map(row => row.id), reviewerEligibleBeforeQuery: reviewer.lifecycleState === "ready" && ["active", "idle"].includes(reviewer.status ?? "") };
 }, gradeIndependentReview, {
   authentication: "human-session", setupHumanMessageCount: 1, expectedHumanMessageCount: 3, expectedRunCount: 6, minimumRunCount: 5, attemptTimeoutMs: 1_020_000,
-  oracleVersion: "paperclip.chat-catalog.runtime.independent-review.v5",
+  oracleVersion: "outpost.chat-catalog.runtime.independent-review.v5",
   sourceFiles: ["chat-catalog-domains/runtime-independent-review.ts", "chat-catalog-domains/run-roles.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/identity-support.ts", "registered-artifact.ts", "chat-scenarios/task-coordination.yaml"],
   async act(ctx, state) {
     const task = state.task as Issue, reviewer = state.reviewer as Entity;

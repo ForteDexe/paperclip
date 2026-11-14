@@ -10,7 +10,7 @@
 
 import Ajv, { type ErrorObject } from "ajv";
 import addFormats from "ajv-formats";
-import { envBindingSecretRefSchema, type JsonSchema } from "@paperclipai/shared";
+import { envBindingSecretRefSchema, type JsonSchema } from "@outpost/shared";
 
 export interface ConfigValidationResult {
   valid: boolean;

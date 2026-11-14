@@ -5,8 +5,8 @@ import path from "node:path";
 import net from "node:net";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import * as tables from "@paperclipai/db";
-import { isRuntimeExposureAppPort } from "@paperclipai/shared";
+import * as tables from "@outpost/db";
+import { isRuntimeExposureAppPort } from "@outpost/shared";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { completedHistoryChecks, readIdleSleepSafety } from "../services/idle-sleep-safety.js";
@@ -14,7 +14,7 @@ import { readIdleIssueSchedule } from "../services/idle-issue-schedule.js";
 import { companyTransferRunService } from "../services/company-transfer-runs.js";
 import { inspectIdleSpool } from "../services/idle-local-work.js";
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_HISTORY_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 // getUploadUrl returns the attachment once an upload completes. These tests need a new link.
@@ -843,7 +843,7 @@ const DELETE_METHOD = "DELETE" as never;
         return new Response(null, { status });
       } });
       const principal = await p.oauth.authenticate(p.token);
-      await events.subscribe(principal, { name: "paperclip.task.status_changed", arguments: { companyId: f.companyId, taskId: f.issueId },
+      await events.subscribe(principal, { name: "outpost.task.status_changed", arguments: { companyId: f.companyId, taskId: f.issueId },
         delivery: { mode: "webhook", url: "https://receiver.example/events", secret: `whsec_${randomBytes(32).toString("base64")}` } });
       await logActivity(db, { companyId: f.companyId, actorType: "system", actorId: "history",
         action: "issue.updated", entityType: "issue", entityId: f.issueId, details: { status: "done" } });
@@ -860,7 +860,7 @@ const DELETE_METHOD = "DELETE" as never;
     const f = await seed(), p = await mcp(f);
     const subscriptionId = randomUUID();
     await db.insert(tables.mcpEventSubscriptions).values({ id: subscriptionId, companyId: f.companyId, grantId: p.grantId,
-      name: "paperclip.task.updated", taskId: f.issueId, arguments: { taskId: f.issueId }, deliveryMaterial: {}, verifiedAt: now,
+      name: "outpost.task.updated", taskId: f.issueId, arguments: { taskId: f.issueId }, deliveryMaterial: {}, verifiedAt: now,
       expiresAt: now, stoppedAt: now });
     const [activity] = await db.insert(tables.activityLog).values({ companyId: f.companyId, actorType: "system", actorId: "history",
       action: "issue.updated", entityType: "issue", entityId: f.issueId }).returning();
@@ -875,8 +875,8 @@ const DELETE_METHOD = "DELETE" as never;
   it.each([false, true])("requires actual Speko configure completion after tool receipts, defaultsFailure=%s", async defaultsFailure => {
     const { chatChannelService } = await import("../services/chat-channels.js");
     const { instanceSettingsService } = await import("../services/instance-settings.js");
-    const f = await seed(), p = await mcp(f), oldKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "a".repeat(64);
+    const f = await seed(), p = await mcp(f), oldKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "a".repeat(64);
     await db.insert(tables.companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: p.userId,
       membershipRole: "owner", status: "active" });
     await instanceSettingsService(db).updateExperimental({ enableChatConnectors: true });
@@ -927,7 +927,7 @@ const DELETE_METHOD = "DELETE" as never;
       expect(activity.details).toMatchObject({ endpointId: endpoint.id, provider: "speko" });
     } finally {
       await chat.shutdown();
-      if (oldKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY; else process.env.PAPERCLIP_SECRETS_MASTER_KEY = oldKey;
+      if (oldKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY; else process.env.OUTPOST_SECRETS_MASTER_KEY = oldKey;
     }
   }, 60_000);
 
@@ -1313,9 +1313,9 @@ const DELETE_METHOD = "DELETE" as never;
     const { githubIngressFixture } = await import("./helpers/github-webhook-ingress.js");
     const { githubReviewCheckService } = await import("../services/chat-github-checks.js");
     const { secretService } = await import("../services/secrets.js");
-    const { defaultGitHubReviewPolicy } = await import("@paperclipai/shared");
-    const oldKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "a".repeat(64);
+    const { defaultGitHubReviewPolicy } = await import("@outpost/shared");
+    const oldKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "a".repeat(64);
     try {
       const f = await githubIngressFixture(db);
       const privateKey = generateKeyPairSync("rsa", { modulusLength: 2048,
@@ -1372,7 +1372,7 @@ const DELETE_METHOD = "DELETE" as never;
       expect(await blocked("chat_actions")).toBe(false);
       await db.update(tables.chatActions).set({ result: { state: "queued", retryable: true } }).where(eq(tables.chatActions.id, completed.id));
       expect(await blocked("chat_actions")).toBe(true);
-    } finally { if (oldKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY; else process.env.PAPERCLIP_SECRETS_MASTER_KEY = oldKey; }
+    } finally { if (oldKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY; else process.env.OUTPOST_SECRETS_MASTER_KEY = oldKey; }
   }, 60_000);
 
   it("retires real question-form tokens only after their exact canonical answer commits", async () => {
@@ -1456,8 +1456,8 @@ const DELETE_METHOD = "DELETE" as never;
     const { teamsFileTransferService } = await import("../services/chat-teams-file-transfers.js");
     const { projectTeamsFilePublication } = await import("../services/chat-teams-file-publication.js");
     const { installTeamsFileConsentHook, restoreTeamsFileConsentBinding } = await import("../services/chat-teams-file-consent.js");
-    const oldKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "a".repeat(64);
+    const oldKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "a".repeat(64);
     try {
       const f = await seed(), c = await connection(f), bytes = Buffer.from("Actual Teams transfer");
       const authority = { companyId: f.companyId, endpointId: randomUUID(), conversationId: randomUUID(), issueId: f.issueId,
@@ -1511,7 +1511,7 @@ const DELETE_METHOD = "DELETE" as never;
       const [receipt] = await db.select().from(tables.chatActions).where(eq(tables.chatActions.kind, "teams_file_consent"));
       await db.update(tables.chatActions).set({ payload: { ...receipt.payload, receiptDigest: "wrong" } }).where(eq(tables.chatActions.id, receipt.id));
       expect(await blocked("chat_actions")).toBe(true);
-    } finally { if (oldKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY; else process.env.PAPERCLIP_SECRETS_MASTER_KEY = oldKey; }
+    } finally { if (oldKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY; else process.env.OUTPOST_SECRETS_MASTER_KEY = oldKey; }
   });
 
   it("measures both chat predicates against 10000 valid retained deliveries and 30000 completed actions", async () => {
@@ -1543,7 +1543,7 @@ const DELETE_METHOD = "DELETE" as never;
     await db.execute(sql`ANALYZE chat_deliveries`);
     await db.execute(sql`ANALYZE chat_actions`);
     const current = completedHistoryChecks.filter(c => ["chat_deliveries", "chat_actions"].includes(c.reason));
-    const baselinePath = process.env.PAPERCLIP_HISTORY_QUERY_BASELINE_PATH;
+    const baselinePath = process.env.OUTPOST_HISTORY_QUERY_BASELINE_PATH;
     const baseline: { reason: string; query: string }[] = baselinePath ? JSON.parse(await readFile(baselinePath, "utf8")) : [];
     const measurements = [];
     for (const [revision, checks] of [["published_aaf55692", baseline], ["repair", current]] as const) {
@@ -1557,7 +1557,7 @@ const DELETE_METHOD = "DELETE" as never;
       }
     }
     const evidence = { deliveries: 10000, actions: 29998, measurements };
-    if (process.env.PAPERCLIP_HISTORY_QUERY_PLANS_PATH) await writeFile(process.env.PAPERCLIP_HISTORY_QUERY_PLANS_PATH,
+    if (process.env.OUTPOST_HISTORY_QUERY_PLANS_PATH) await writeFile(process.env.OUTPOST_HISTORY_QUERY_PLANS_PATH,
       JSON.stringify(evidence, null, 2));
     console.info(`Retained chat history query plans ${JSON.stringify(evidence)}`);
     expect(await blocked("chat_deliveries")).toBe(false);
@@ -1646,8 +1646,8 @@ const DELETE_METHOD = "DELETE" as never;
     const { toolAccessService } = await import("../services/tool-access.js");
     const { browserUseService } = await import("../services/browser-use.js");
     const f = await seed(), userId = "browser-history-reviewer", providerRun = randomUUID(), providerSession = randomUUID(), providerBrowser = randomUUID();
-    const oldKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "a".repeat(64);
+    const oldKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "a".repeat(64);
     let providerStatus = "running", stopped = false, stopCalls = 0;
     const request = async (url: string, init: RequestInit = {}) => {
       const route = new URL(url).pathname.replace("/api/v4", "");
@@ -1695,7 +1695,7 @@ const DELETE_METHOD = "DELETE" as never;
       await db.update(tables.browserUseRuns).set({ eventsDrained: 0 }).where(eq(tables.browserUseRuns.id, run.id));
       expect(await blocked("browser_use_runs")).toBe(true);
     } finally {
-      if (oldKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY; else process.env.PAPERCLIP_SECRETS_MASTER_KEY = oldKey;
+      if (oldKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY; else process.env.OUTPOST_SECRETS_MASTER_KEY = oldKey;
     }
   });
 
@@ -1753,8 +1753,8 @@ const DELETE_METHOD = "DELETE" as never;
 
   it("uses actual secret and binding approval receipts, including ciphertext scrubbing", async () => {
     const { createSecretProposalsService } = await import("../services/secret-proposals.js");
-    const f = await seed(), p = await mcp(f), oldKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "a".repeat(64);
+    const f = await seed(), p = await mcp(f), oldKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "a".repeat(64);
     try {
       await db.update(tables.heartbeatRuns).set({ status: "running", finishedAt: null }).where(eq(tables.heartbeatRuns.id, f.runId));
       await db.update(tables.issues).set({ status: "in_progress", executionRunId: f.runId }).where(eq(tables.issues.id, f.issueId));
@@ -1770,7 +1770,7 @@ const DELETE_METHOD = "DELETE" as never;
       expect(await blocked("company_secret_proposals")).toBe(false);
       await db.update(tables.companySecretProposals).set({ appliedBindingConfigPath: null }).where(eq(tables.companySecretProposals.id, binding.id));
       expect(await blocked("company_secret_proposals")).toBe(true);
-    } finally { if (oldKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY; else process.env.PAPERCLIP_SECRETS_MASTER_KEY = oldKey; }
+    } finally { if (oldKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY; else process.env.OUTPOST_SECRETS_MASTER_KEY = oldKey; }
   });
 
   it("uses actual retention archive notification dispatch and durable acknowledgment", async () => {
@@ -1809,8 +1809,8 @@ const DELETE_METHOD = "DELETE" as never;
 
   it("retains actual decided effects, and reblocks when one effect lacks its completion receipt", async () => {
     const { decisionService } = await import("../services/decisions.js");
-    const previous = process.env.PAPERCLIP_DECISION_SIGNING_SECRET;
-    process.env.PAPERCLIP_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
+    const previous = process.env.OUTPOST_DECISION_SIGNING_SECRET;
+    process.env.OUTPOST_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
     try {
       const f = await seed(), p = await mcp(f);
       await db.insert(tables.companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: p.userId,
@@ -1842,14 +1842,14 @@ const DELETE_METHOD = "DELETE" as never;
       expect(await blocked("decisions")).toBe(true);
       expect(await blocked("decision_effect_executions")).toBe(true);
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_DECISION_SIGNING_SECRET;
-      else process.env.PAPERCLIP_DECISION_SIGNING_SECRET = previous;
+      if (previous === undefined) delete process.env.OUTPOST_DECISION_SIGNING_SECRET;
+      else process.env.OUTPOST_DECISION_SIGNING_SECRET = previous;
     }
   }, 60_000);
 
   it.each(["zero_effect", "dismissed", "cancelled", "expired", "partial", "failed"] as const)("proves the actual decision owner branch %s", async branch => {
-    const previous = process.env.PAPERCLIP_DECISION_SIGNING_SECRET;
-    process.env.PAPERCLIP_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
+    const previous = process.env.OUTPOST_DECISION_SIGNING_SECRET;
+    process.env.OUTPOST_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
     try {
       const f = await decisionFixture();
       const effects = branch === "zero_effect" ? [] : [
@@ -1873,13 +1873,13 @@ const DELETE_METHOD = "DELETE" as never;
       expect(await blocked("decisions")).toBe(false);
       expect(await blocked("decision_effect_executions")).toBe(false);
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_DECISION_SIGNING_SECRET; else process.env.PAPERCLIP_DECISION_SIGNING_SECRET = previous;
+      if (previous === undefined) delete process.env.OUTPOST_DECISION_SIGNING_SECRET; else process.env.OUTPOST_DECISION_SIGNING_SECRET = previous;
     }
   }, 60_000);
 
   it.each(["missing_decider", "missing_option"] as const)("requires the actual %s recovery stop receipt after partial effects", async reason => {
-    const previous = process.env.PAPERCLIP_DECISION_SIGNING_SECRET;
-    process.env.PAPERCLIP_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
+    const previous = process.env.OUTPOST_DECISION_SIGNING_SECRET;
+    process.env.OUTPOST_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
     try {
       const f = await decisionFixture();
       const decision = await f.service.create({ companyId: f.companyId, actor: f.actor, agentId: f.agentId, runId: f.runId,
@@ -1898,14 +1898,14 @@ const DELETE_METHOD = "DELETE" as never;
       await db.delete(tables.activityLog).where(sql`${tables.activityLog.entityId} = ${decision.id} AND ${tables.activityLog.action} = 'decision.recovery_failed'`);
       expect(await blocked("decisions")).toBe(true);
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_DECISION_SIGNING_SECRET; else process.env.PAPERCLIP_DECISION_SIGNING_SECRET = previous;
+      if (previous === undefined) delete process.env.OUTPOST_DECISION_SIGNING_SECRET; else process.env.OUTPOST_DECISION_SIGNING_SECRET = previous;
     }
   });
 
   it.each(["archive", "keep", "manifest_failure"] as const)("checks the separate reviewed retention manifest for %s", async branch => {
     const { hashAttentionArchiveManifest } = await import("../services/decision-retention.js");
-    const previous = process.env.PAPERCLIP_DECISION_SIGNING_SECRET;
-    process.env.PAPERCLIP_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
+    const previous = process.env.OUTPOST_DECISION_SIGNING_SECRET;
+    process.env.OUTPOST_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
     try {
       const f = await decisionFixture(), activityAt = new Date("2026-04-01T00:00:00.000Z");
       await db.insert(tables.decisionRetention).values({ companyId: f.companyId, sourceKind: "review", sourceId: f.issueId,
@@ -1928,7 +1928,7 @@ const DELETE_METHOD = "DELETE" as never;
         expect(await blocked("decisions")).toBe(true);
       }
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_DECISION_SIGNING_SECRET; else process.env.PAPERCLIP_DECISION_SIGNING_SECRET = previous;
+      if (previous === undefined) delete process.env.OUTPOST_DECISION_SIGNING_SECRET; else process.env.OUTPOST_DECISION_SIGNING_SECRET = previous;
     }
   }, 60_000);
 
@@ -1944,13 +1944,13 @@ const DELETE_METHOD = "DELETE" as never;
       { companyId: f.companyId, principalType: "agent", principalId: f.agentId, membershipRole: "member", status: "active" },
     ]);
     const adapterConfig = { provider: "muse", allowUnmeteredProvider: true, lifecycle: "per_turn" };
-    await db.update(tables.agents).set({ status: "active", adapterType: "paperclip_runner", adapterConfig }).where(eq(tables.agents.id, f.agentId));
+    await db.update(tables.agents).set({ status: "active", adapterType: "outpost_runner", adapterConfig }).where(eq(tables.agents.id, f.agentId));
     const ticket = randomBytes(32).toString("base64url");
     const [binding] = await db.insert(tables.museAgentBindings).values({ companyId: f.companyId, agentId: f.agentId, operatorId: p.userId,
       ticketHash: museCredentialHash(ticket), ticketExpiresAt: new Date(Date.now() + 600_000) }).returning();
     await db.update(tables.agents).set({ adapterConfig: { ...adapterConfig, museBindingId: binding.id } }).where(eq(tables.agents.id, f.agentId));
     const identity = museIdentity(db), credentials = await identity.pair(ticket, "2");
-    const broker = museRunnerBroker(db, { publicOrigin: "https://paperclip.example",
+    const broker = museRunnerBroker(db, { publicOrigin: "https://outpost.example",
       heartbeat: { wakeup: async () => null, cancelRun: async () => null } });
     await db.update(tables.museAgentBindings).set({ status: "ready", receiverContactAt: new Date(), verifiedReplyAt: new Date() })
       .where(eq(tables.museAgentBindings.id, binding.id));
@@ -1979,8 +1979,8 @@ const DELETE_METHOD = "DELETE" as never;
       const [assignment] = await db.select().from(tables.museRunnerAssignments).where(eq(tables.museRunnerAssignments.runId, f.runId));
       expect(await blocked("muse_runner_assignments")).toBe(true);
       await broker.act(subject, { version: 1, command: "accept", assignmentId: assignment.id, requestId: randomUUID() });
-      const { digestPaperclipSemanticContent } = await import("../vendor/paperclip-runner/index.js");
-      const nativeRequestId = "history_question", response = { schema: "paperclip.question_response.v1", answers: [] };
+      const { digestPaperclipSemanticContent } = await import("../vendor/outpost-runner/index.js");
+      const nativeRequestId = "history_question", response = { schema: "outpost.question_response.v1", answers: [] };
       const inputDigest = digestPaperclipSemanticContent({ requestId: nativeRequestId, turnId, response });
       await port.inputAvailable({ sourceEventId: randomUUID(), payload: { binding: ref, requestId: nativeRequestId, turnId, inputDigest, response } });
       expect(await blocked("muse_input_deliveries")).toBe(true);
@@ -2020,7 +2020,7 @@ const DELETE_METHOD = "DELETE" as never;
     const [grant] = await db.select().from(tables.mcpOauthGrants).where(eq(tables.mcpOauthGrants.id, p.grantId));
     const [binding] = await db.insert(tables.dotAgentBindings).values({ companyId: f.companyId, agentId: f.agentId, operatorId: p.userId,
       grantId: p.grantId, providerKind: "openai_dot", status: "connected" }).returning();
-    await db.update(tables.agents).set({ status: "active", adapterType: "paperclip_runner",
+    await db.update(tables.agents).set({ status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "openai_dot", dotBindingId: binding.id, allowUnmeteredProvider: true } }).where(eq(tables.agents.id, f.agentId));
     await db.update(tables.issues).set({ status: "in_progress", responsibleUserId: p.userId, checkoutRunId: f.runId, executionRunId: f.runId }).where(eq(tables.issues.id, f.issueId));
     await db.update(tables.heartbeatRuns).set({ status: "running", runtimeMode: "native", driverKind: "openai_dot_mcp", finishedAt: null,
@@ -2037,7 +2037,7 @@ const DELETE_METHOD = "DELETE" as never;
         const body = JSON.parse(String(init.body));
         return body.type === "verification" ? Response.json({ challenge: body.challenge }) : new Response(null, { status: 204 });
       } });
-    await events.subscribe(principal, { name: "paperclip.dot.mailbox_updated", arguments: { companyId: f.companyId, bindingId: binding.id },
+    await events.subscribe(principal, { name: "outpost.dot.mailbox_updated", arguments: { companyId: f.companyId, bindingId: binding.id },
       delivery: { mode: "webhook", url: "https://receiver.example/dot", secret: `whsec_${randomBytes(32).toString("base64")}` } });
     await events.tick();
     const challenge = (await broker.mailbox(principal)).items.find(item => item.kind === "readiness_challenge")!;
@@ -2123,9 +2123,9 @@ const DELETE_METHOD = "DELETE" as never;
     const supervisor = await import("../services/local-service-supervisor.js");
     let ownedProcess: Awaited<ReturnType<typeof supervisor.findLocalServiceRegistryRecordByRuntimeServiceId>> = null;
     const directory = await mkdtemp(path.join(tmpdir(), "history-owned-runtime-"));
-    const previousHome = process.env.PAPERCLIP_HOME, previousInstance = process.env.PAPERCLIP_INSTANCE_ID;
-    process.env.PAPERCLIP_HOME = directory;
-    process.env.PAPERCLIP_INSTANCE_ID = "history-owned-runtime";
+    const previousHome = process.env.OUTPOST_HOME, previousInstance = process.env.OUTPOST_INSTANCE_ID;
+    process.env.OUTPOST_HOME = directory;
+    process.env.OUTPOST_INSTANCE_ID = "history-owned-runtime";
     const f = await seed();
     const [workspace] = await db.insert(tables.executionWorkspaces).values({ companyId: f.companyId, name: "Owned local runtime",
       mode: "shared_workspace", strategyType: "project_primary", providerType: "local_fs", cwd: directory }).returning();
@@ -2217,8 +2217,8 @@ const DELETE_METHOD = "DELETE" as never;
       await runtime.resetRuntimeServicesForTests({ terminateProcesses: true });
       if (ownedProcess) await supervisor.terminateLocalService({ pid: ownedProcess.pid,
         processGroupId: ownedProcess.processGroupId ?? ownedProcess.pid, port: ownedProcess.port });
-      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
-      if (previousInstance === undefined) delete process.env.PAPERCLIP_INSTANCE_ID; else process.env.PAPERCLIP_INSTANCE_ID = previousInstance;
+      if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
+      if (previousInstance === undefined) delete process.env.OUTPOST_INSTANCE_ID; else process.env.OUTPOST_INSTANCE_ID = previousInstance;
       await rm(directory, { recursive: true, force: true });
     }
   }, 60_000);

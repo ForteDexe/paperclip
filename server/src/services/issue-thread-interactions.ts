@@ -10,7 +10,7 @@ import { notifyChatConfirmationResolution } from "./chat-confirmation-notificati
 import { notifyChatRunMilestones } from "./chat-run-milestone-notifications.js";
 import { notifyToolReviewChange } from "./tool-review-work-notifications.js";
 import { projectGitHubInteractionErrors } from "./tool-access/github-action-error-projection.js";
-import { normalizeEscapedLineBreaks } from "@paperclipai/shared/validators/text";
+import { normalizeEscapedLineBreaks } from "@outpost/shared/validators/text";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import { historicalQuestionCondition } from "./issue-question-context.js";
 import {
@@ -22,7 +22,7 @@ import { bindQualityReview, requiredQualityReview } from "./required-quality-rev
 import { resolveChatTaskAssignment } from "./chat-task-assignment.js";
 import { isUniqueViolation } from "../db-errors.js";
 import { assertAgentRunWriteAllowed } from "../agent-run-cancellation.js";
-import { connectionIntentDeliveries } from "@paperclipai/db";
+import { connectionIntentDeliveries } from "@outpost/db";
 import { isDeepStrictEqual } from "node:util";
 import {
   and,
@@ -37,7 +37,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   assets,
@@ -57,11 +57,11 @@ import {
   issues,
   toolActionRequests,
   toolOauthStates,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   trackInteractionCreated,
   trackInteractionResolved,
-} from "@paperclipai/shared/telemetry";
+} from "@outpost/shared/telemetry";
 import type {
   AcceptIssueThreadInteraction,
   AskUserQuestionsAnswer,
@@ -91,7 +91,7 @@ import type {
   SuggestTasksResultCreatedTask,
   SubmitIssueThreadInteractionVerdicts,
   WithdrawIssueThreadInteraction,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   acceptIssueThreadInteractionSchema,
   askUserQuestionsPayloadSchema,
@@ -114,7 +114,7 @@ import {
   suggestTasksResultSchema,
   submitIssueThreadInteractionVerdictsSchema,
   withdrawIssueThreadInteractionSchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { z } from "zod";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { getTelemetryClient } from "../telemetry.js";
@@ -696,7 +696,7 @@ function parseStoredInteractionResult<S extends z.ZodTypeAny>(
   const parsed = schema.safeParse(raw);
   if (parsed.success) return parsed.data;
   console.warn(
-    `[paperclip] Dropping unparseable ${row.kind} interaction result for interaction ${row.id}`,
+    `[outpost] Dropping unparseable ${row.kind} interaction result for interaction ${row.id}`,
     parsed.error.issues,
   );
   return null;
@@ -1580,7 +1580,7 @@ async function emitInteractionResolvedTelemetry(
         roleByAgentId = await fetchCreatorAgentRoleById(db, [interaction]);
       } catch (error) {
         console.error(
-          "[paperclip] Failed to load interaction.resolved creator role",
+          "[outpost] Failed to load interaction.resolved creator role",
           error,
         );
       }
@@ -1607,7 +1607,7 @@ async function emitInteractionResolvedTelemetry(
     });
   } catch (error) {
     console.error(
-      "[paperclip] Failed to emit interaction.resolved telemetry",
+      "[outpost] Failed to emit interaction.resolved telemetry",
       error,
     );
   }
@@ -1630,7 +1630,7 @@ function emitInteractionCreatedTelemetry(args: {
     });
   } catch (error) {
     console.error(
-      "[paperclip] Failed to emit interaction.created telemetry",
+      "[outpost] Failed to emit interaction.created telemetry",
       error,
     );
   }
@@ -1646,7 +1646,7 @@ async function emitResolvedInteractionsTelemetry(
     roleByAgentId = await fetchCreatorAgentRoleById(db, interactions);
   } catch (error) {
     console.error(
-      "[paperclip] Failed to load interaction.resolved creator roles",
+      "[outpost] Failed to load interaction.resolved creator roles",
       error,
     );
   }

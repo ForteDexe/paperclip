@@ -1,5 +1,5 @@
-import type { PluginEnvironmentWorkspaceAllocationFiles } from "@paperclipai/plugin-sdk";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import type { PluginEnvironmentWorkspaceAllocationFiles } from "@outpost/plugin-sdk";
+import type { EnvironmentLease } from "@outpost/shared";
 
 export function workspaceAllocationFiles(lease: EnvironmentLease, remoteCwd: string) {
   const raw = lease.metadata?.workspaceAllocationFiles;

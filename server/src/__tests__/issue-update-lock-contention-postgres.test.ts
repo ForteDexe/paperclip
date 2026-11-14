@@ -6,7 +6,7 @@ import pino, { type Logger } from "pino";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, agents, companies, createDb, heartbeatRuns, issueComments, issues } from "@paperclipai/db";
+import { activityLog, agents, companies, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
 import { createHttpLogger } from "../middleware/logger.js";

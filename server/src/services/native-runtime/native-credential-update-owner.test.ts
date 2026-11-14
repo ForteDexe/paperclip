@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import type { NativeSession, PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import type { NativeSession, PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { createNativeCredentialUpdateOwner } from "./native-credential-updates.js";
 
 const event = { eventType: "auth.credentials.updated" } as PrpEvent;

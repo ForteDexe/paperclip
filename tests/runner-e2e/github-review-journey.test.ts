@@ -96,7 +96,7 @@ describe("reused target ownership", () => {
     const scope = { companyId: 'company', agentId: 'agent', issueId: 'issue' };
     const failed = { ...scope, id: 'run', status: 'failed', runtimeMode: 'native', nativePhase: 'retryable_failure' };
     const get = vi.fn().mockResolvedValueOnce(failed).mockResolvedValue({ ...failed, status: 'cancelled', costAccountingPending: true,
-      resultJson: { nativeCancellation: { schema: 'paperclip.native-cancellation.v1', runId: 'run', companyId: 'company', issueId: 'issue', scope: 'run', reasonCode: 'cancellation_run_only', dispatched, dispatchState: 'acknowledged', intentAuditId: 'intent', acknowledgementAuditId: 'ack' } } });
+      resultJson: { nativeCancellation: { schema: 'outpost.native-cancellation.v1', runId: 'run', companyId: 'company', issueId: 'issue', scope: 'run', reasonCode: 'cancellation_run_only', dispatched, dispatchState: 'acknowledged', intentAuditId: 'intent', acknowledgementAuditId: 'ack' } } });
     const post = vi.fn().mockResolvedValue({});
     await stopOwnedGitHubReviewRun({ get, post } as unknown as ConnectionApi, 'run', scope, new AbortController().signal);
     expect(post).toHaveBeenCalledExactlyOnceWith('/api/heartbeat-runs/run/cancel', { cancellationRequestId: expect.any(String) });
@@ -163,7 +163,7 @@ describe("reused target ownership", () => {
 describe("governed campaign admission", () => {
   it("rejects operations-managed selection before opening credentials or browsers", async () => {
     const execution = runnerMatrix.find(entry => entry.id === "github-review-journey.configured-agent.daytona.setup-and-first-review")!;
-    vi.stubEnv("PAPERCLIP_E2E_OPERATIONS_MANIFEST", "/private/campaign.json");
+    vi.stubEnv("OUTPOST_E2E_OPERATIONS_MANIFEST", "/private/campaign.json");
     try {
       await expect(runGitHubReviewCampaign({ executions: [execution], catalog: runnerMatrix, repositoryRoot: "/does-not-exist" }))
         .rejects.toThrow("no budgeted routing qualification");
@@ -189,7 +189,7 @@ describe("retained journey metadata", () => {
       dependencies: [], checkpoints: { automatic_task: true }, cleanup: { endpoint: true, app: true, branch: true, pullRequest: true }, budgetPolicyRead: "verified",
       budgetPolicies: [{ scopeType: "agent", amount: 100, hardStopEnabled: true, unpricedUsagePolicy: "allow" }],
       execution: { reviewId: "review", issueId: "issue", runId: "run", runStatus: "failed", issueStatus: "in_progress", runtimeMode: "native", environmentId: "sandbox", provider: "opencode", model: "configured-model" } };
-    const result = { schema: "paperclip.runner-e2e.result/v2", executionId: "github-review-journey.configured-agent.local.setup-and-first-review", suiteId: "github-review-journey", suiteDefinitionHash: "definition",
+    const result = { schema: "outpost.runner-e2e.result/v2", executionId: "github-review-journey.configured-agent.local.setup-and-first-review", suiteId: "github-review-journey", suiteDefinitionHash: "definition",
       attempt: 1, status: "failed", profileId: "configured-agent", environmentId: "local", caseId: "setup-and-first-review", provider: "opencode", model: "configured-model", runtimeMode: "native",
       startedAt: "2026-10-24T00:00:00Z", finishedAt: "2026-10-24T00:01:00Z", durationMs: 60000, cleanup: "passed", githubReviewJourney: evidence };
     expect(() => validateRetainedRunnerResult(result)).not.toThrow();
@@ -202,12 +202,12 @@ describe("review execution attribution", () => {
   const expected = { runId: "run", companyId: "company", agentId: "agent", issueId: "issue", runtimeMode: "native", environmentId: "sandbox", executionEnvironment: "daytona" as const,
     environment: { id: "sandbox", driver: "sandbox", config: { provider: "daytona" } }, provider: "opencode", model: "configured-model" };
   const run = () => ({ id: "run", companyId: "company", agentId: "agent", issueId: "issue", status: "succeeded", runtimeMode: "native",
-    contextSnapshot: { paperclipEnvironment: { id: "sandbox", driver: "sandbox" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "configured-model" } } } });
+    contextSnapshot: { outpostEnvironment: { id: "sandbox", driver: "sandbox" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "configured-model" } } } });
   it("rejects a mismatched environment kind or provider even when the ID matches", () => {
     expect(verifyGitHubReviewRun(run(), { ...expected, executionEnvironment: "local" })).toBe(false);
     expect(verifyGitHubReviewRun(run(), { ...expected, environment: { ...expected.environment, config: { provider: "fake" } } })).toBe(false);
-    expect(verifyGitHubReviewRun({ ...run(), contextSnapshot: { paperclipEnvironment: { id: "sandbox", driver: "local" } } }, expected)).toBe(false);
-    const local = { ...run(), contextSnapshot: { paperclipEnvironment: { id: "local", driver: "local" } } };
+    expect(verifyGitHubReviewRun({ ...run(), contextSnapshot: { outpostEnvironment: { id: "sandbox", driver: "local" } } }, expected)).toBe(false);
+    const local = { ...run(), contextSnapshot: { outpostEnvironment: { id: "local", driver: "local" } } };
     expect(verifyGitHubReviewRun(local, { ...expected, executionEnvironment: "local", environmentId: "local", environment: { id: "local", driver: "local", config: {} } })).toBe(true);
   });
   it("requires the actual successful native run, environment, provider, and model", () => {

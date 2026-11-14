@@ -1,4 +1,4 @@
-import { instanceExperimentalSettingsSchema, type InstanceExperimentalSettingsWithManaged, type McpConnection, type McpConnectionRequest } from "@paperclipai/shared";
+import { instanceExperimentalSettingsSchema, type InstanceExperimentalSettingsWithManaged, type McpConnection, type McpConnectionRequest } from "@outpost/shared";
 import { fn } from "storybook/test";
 
 // Local portrait fixture keeps avatar previews independent of third-party image hosts.
@@ -50,7 +50,7 @@ export function installPublicMcpFixture(fixture: PublicMcpFixture = {}) {
       if (fixture.loading) return new Promise<Response>(() => {});
       if (fixture.unavailable) return error("Assistant connections are unavailable. Check the experimental setting or reconnect.", 403);
       if (path === "/api/instance/settings/experimental") return Response.json(settings);
-      if (path === "/api/mcp/setup") return Response.json({ enabled: settings.enablePublicMcp, serverUrl: "https://paperclip.example/mcp/paperclip" });
+      if (path === "/api/mcp/setup") return Response.json({ enabled: settings.enablePublicMcp, serverUrl: "https://outpost.example/mcp/paperclip" });
       if (path === "/api/mcp/connections") return fixture.connectionsUnavailable ? error("Connection status is unavailable.") : Response.json(rows);
       if (path === "/api/mcp/device") return fixture.deviceExpired ? error("This code is expired. Start a new connection from your assistant.", 404) : Response.json({ ...request, clientName: "Paperclip CLI (device)", redirectOrigin: "", ...fixture.request });
       if (path === `/api/mcp/requests/${request.id}`) return Response.json({ ...request, ...fixture.request });

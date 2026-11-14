@@ -8,7 +8,7 @@ export function makeDefinition(scenarioId: string, setup: ChatCatalogCase["setup
     : scenarioId === "documents-artifacts.restore-document" ? ["concurrent-edit-conflict"]
     : scenarioId === "tasks.edit-properties" ? ["execution-ownership-denied"] : [];
   return { scenarioId, setup, coverageGaps, sourceFiles: ["chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", `chat-catalog-domains/internal-${scenarioId.split(".")[0]}.ts`, `chat-scenarios/${scenarioId.split(".")[0]}.yaml`],
-    oracleVersion: "paperclip.chat-catalog.internal.v1", expectedRunCount: 1, verifyResult: verifyInternalResult, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000, observe: observeInternal, grade };
+    oracleVersion: "outpost.chat-catalog.internal.v1", expectedRunCount: 1, verifyResult: verifyInternalResult, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000, observe: observeInternal, grade };
 }
 
 export async function fixtureWorker(ctx: ChatCatalogContext) {

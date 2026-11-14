@@ -7,7 +7,7 @@ import request from "supertest";
 import WebSocket from "ws";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { workspaceOperations, agents, approvals, assets, chatEndpoints, chatExternalPrincipals, chatConversations, chatIdentityLinks, chatDeliveries, toolApplications, toolConnections, executionWorkspaces, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, projectAccessMembers, projects, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
+import { workspaceOperations, agents, approvals, assets, chatEndpoints, chatExternalPrincipals, chatConversations, chatIdentityLinks, chatDeliveries, toolApplications, toolConnections, executionWorkspaces, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, projectAccessMembers, projects, startEmbeddedPostgresTestDatabase } from "@outpost/db";
 import { authorizationService, canPublishIssueToChatAudience, canActorReadIssuePrivacy, issueReadSqlCondition, canActorReadProjectPrivacy, projectReadSqlCondition, canActorReadApproval, approvalReadSqlCondition, canActorReadExecutionWorkspace, type AuthorizationActor } from "../services/authorization.js";
 
 import { canActorReadWorkspaceOperation } from "../services/heartbeat-run-privacy.js";
@@ -18,7 +18,7 @@ describe("private task production review", () => {
   let db: ReturnType<typeof createDb>;
   let fixtureCompanyNumber = 0;
   beforeAll(async () => {
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-private-review-");
     db = createDb(tempDb.connectionString);
     // Load the current route dependency graph during setup, outside assertion timeouts.

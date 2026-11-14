@@ -4,7 +4,7 @@ import { savedCall } from "./api-read-receipts.test-fixtures.js";
 
 const taskId = "77ca2c1f-1aab-4acc-aca2-80d8057a1900";
 const toolRow = (name: string, output: string, status = "completed", eventType = "tool.execution.completed", sourceKind = "runner") => ({
-  eventType, payload: { prpEvent: { sourceKind, eventType, payload: { name, status, output } } },
+  eventType, payload: { orpEvent: { sourceKind, eventType, payload: { name, status, output } } },
 });
 const activity = (id: string) => JSON.stringify({ result: { apiOperationId: "GET /api/issues/{id}/activity", data: [{ entityId: id, action: "issue.updated" }] } });
 

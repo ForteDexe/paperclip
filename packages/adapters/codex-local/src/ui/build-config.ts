@@ -7,9 +7,9 @@ import {
   resolvePaperclipRunnerPermissionMode,
   resolvePaperclipRunnerCursorMode,
   resolvePaperclipRunnerPiThinkingLevel,
-  PAPERCLIP_RUNNER_ACPX_PROFILES,
+  OUTPOST_RUNNER_ACPX_PROFILES,
   type CreateConfigValues,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 import { DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX } from "../index.js";
 
 function parseCommaArgs(value: string): string[] {
@@ -123,7 +123,7 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
       ...Object.fromEntries(cloudKeys.filter(key => schemaValues[key] !== undefined).map(key => [key, schemaValues[key]])),
     };
   }
-  const selectedAcpxProfile = PAPERCLIP_RUNNER_ACPX_PROFILES.find(profile => profile.value === schemaValues.acpxAgent);
+  const selectedAcpxProfile = OUTPOST_RUNNER_ACPX_PROFILES.find(profile => profile.value === schemaValues.acpxAgent);
   const candidate = context?.candidateHarnesses?.find(candidate => candidate.agent === schemaValues.acpxAgent);
   const selectedModel = typeof v.model === "string" && v.model ? v.model : schemaValues.model;
   if (provider === "acpx" && selectedAcpxProfile && !selectedAcpxProfile.qualified

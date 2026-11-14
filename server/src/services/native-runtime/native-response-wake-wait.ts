@@ -6,7 +6,7 @@ import {
   nativeRunFinalizations,
   statusDecisions,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { NATIVE_RESPONSE_WAKE_WAITING_REASON } from "./status-arbiter.js";
 
 type Binding = {

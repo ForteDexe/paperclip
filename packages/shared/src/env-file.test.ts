@@ -13,9 +13,9 @@ describe("env file editor", () => {
       "# operator comment",
       "UNKNOWN='keep this encoding'",
       "",
-      "export PAPERCLIP_HOME = '/old path'  # managed path",
-      "PAPERCLIP_DUPLICATE=stale",
-      'PAPERCLIP_DUPLICATE="current"',
+      "export OUTPOST_HOME = '/old path'  # managed path",
+      "OUTPOST_DUPLICATE=stale",
+      'OUTPOST_DUPLICATE="current"',
       "TRAILING=untouched",
       "",
     ].join("\r\n");
@@ -23,9 +23,9 @@ describe("env file editor", () => {
     const updated = updateEnvFileContents(
       original,
       {
-        PAPERCLIP_HOME: "/new path",
-        PAPERCLIP_DUPLICATE: "current",
-        PAPERCLIP_WORKTREE_COLOR: "#439edb",
+        OUTPOST_HOME: "/new path",
+        OUTPOST_DUPLICATE: "current",
+        OUTPOST_WORKTREE_COLOR: "#439edb",
       },
       { valueEncoding: "minimal" },
     );
@@ -34,11 +34,11 @@ describe("env file editor", () => {
       "# operator comment",
       "UNKNOWN='keep this encoding'",
       "",
-      'export PAPERCLIP_HOME = "/new path"  # managed path',
-      "PAPERCLIP_DUPLICATE=current",
-      'PAPERCLIP_DUPLICATE="current"',
+      'export OUTPOST_HOME = "/new path"  # managed path',
+      "OUTPOST_DUPLICATE=current",
+      'OUTPOST_DUPLICATE="current"',
       "TRAILING=untouched",
-      'PAPERCLIP_WORKTREE_COLOR="#439edb"',
+      'OUTPOST_WORKTREE_COLOR="#439edb"',
       "",
     ].join("\r\n"));
     expect(updated.replaceAll("\r\n", "")).not.toContain("\n");
@@ -46,8 +46,8 @@ describe("env file editor", () => {
 
   it("uses JSON encoding for changed values without re-encoding current assignments", () => {
     const original = [
-      "PAPERCLIP_CURRENT=plain-value",
-      "PAPERCLIP_CHANGED=old",
+      "OUTPOST_CURRENT=plain-value",
+      "OUTPOST_CHANGED=old",
       "UNKNOWN=\"operator value\"",
       "",
     ].join("\n");
@@ -56,17 +56,17 @@ describe("env file editor", () => {
       updateEnvFileContents(
         original,
         {
-          PAPERCLIP_CURRENT: "plain-value",
-          PAPERCLIP_CHANGED: "new",
-          PAPERCLIP_ADDED: "added",
+          OUTPOST_CURRENT: "plain-value",
+          OUTPOST_CHANGED: "new",
+          OUTPOST_ADDED: "added",
         },
         { valueEncoding: "json" },
       ),
     ).toBe([
-      "PAPERCLIP_CURRENT=plain-value",
-      'PAPERCLIP_CHANGED="new"',
+      "OUTPOST_CURRENT=plain-value",
+      'OUTPOST_CHANGED="new"',
       'UNKNOWN="operator value"',
-      'PAPERCLIP_ADDED="added"',
+      'OUTPOST_ADDED="added"',
       "",
     ].join("\n"));
   });
@@ -74,25 +74,25 @@ describe("env file editor", () => {
   it("does not treat an unquoted dotenv comment as the managed value", () => {
     expect(
       updateEnvFileContents(
-        ["PAPERCLIP_COLOR=#439edb", "PAPERCLIP_HOME=old# keep this comment"].join("\n"),
+        ["OUTPOST_COLOR=#439edb", "OUTPOST_HOME=old# keep this comment"].join("\n"),
         {
-          PAPERCLIP_COLOR: "#439edb",
-          PAPERCLIP_HOME: "new",
+          OUTPOST_COLOR: "#439edb",
+          OUTPOST_HOME: "new",
         },
         { valueEncoding: "minimal" },
       ),
     ).toBe(
-      ['PAPERCLIP_COLOR="#439edb"#439edb', "PAPERCLIP_HOME=new# keep this comment"].join("\n"),
+      ['OUTPOST_COLOR="#439edb"#439edb', "OUTPOST_HOME=new# keep this comment"].join("\n"),
     );
   });
 
   it("is a no-op when every managed duplicate is already current", () => {
     const original = [
-      "export PAPERCLIP_HOME = '/same path' # first",
-      'PAPERCLIP_HOME="/same path"',
+      "export OUTPOST_HOME = '/same path' # first",
+      'OUTPOST_HOME="/same path"',
       "UNKNOWN=value",
     ].join("\n");
 
-    expect(updateEnvFileContents(original, { PAPERCLIP_HOME: "/same path" })).toBe(original);
+    expect(updateEnvFileContents(original, { OUTPOST_HOME: "/same path" })).toBe(original);
   });
 });

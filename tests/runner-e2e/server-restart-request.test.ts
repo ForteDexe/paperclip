@@ -8,7 +8,7 @@ import { readRestartRequest, kimiCandidateAdmissionForExecution } from "./server
 
 let root: string;
 let requestPath: string;
-const profilesModule = "../../packages/paperclip-runner/src/drivers/acpx/qualified-profiles.js";
+const profilesModule = "../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js";
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "paperclip-supervisor-request-"));
   requestPath = join(root, "restart.json");
@@ -89,7 +89,7 @@ it.each(["local", "daytona"])("uses ordinary released Kimi restart without candi
 });
 
 it.each(["local", "daytona"])("stages only exact pending Kimi company/model/profile/target via owned restart on %s", async environment => {
-  const actual = await vi.importActual<typeof import("../../packages/paperclip-runner/src/drivers/acpx/qualified-profiles.js")>(profilesModule);
+  const actual = await vi.importActual<typeof import("../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js")>(profilesModule);
   vi.doMock(profilesModule, () => ({ ...actual, QUALIFIED_ACPX_PROFILES: { ...actual.QUALIFIED_ACPX_PROFILES,
     kimi: { ...actual.QUALIFIED_ACPX_PROFILES.kimi, qualificationStatus: "pending" } } }));
   vi.resetModules();

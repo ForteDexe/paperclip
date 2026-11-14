@@ -17,7 +17,7 @@ function input() {
 describe("only real declared Slack canonical ingress", () => {
   it("privately proves the selected human token and unique provider handle instead of inferring identity from a display name",async()=>{
     const receipt=input().receipt,secrets:string[]=[],calls:string[]=[];
-    const ctx={input:{privateSecrets:secrets,privateInputs:{configuration:()=>({providers:{slack:{disposable:true,resourceIds:["T123","C123","U123"],prerequisites:{workspaceId:"T123",channelId:"C123",senderUserId:"U123",senderTokenEnv:"PAPERCLIP_CHAT_EVAL_SLACK_SENDER"}}}}),read:()=>"synthetic-private-token"}}} as unknown as ChatCatalogContext;
+    const ctx={input:{privateSecrets:secrets,privateInputs:{configuration:()=>({providers:{slack:{disposable:true,resourceIds:["T123","C123","U123"],prerequisites:{workspaceId:"T123",channelId:"C123",senderUserId:"U123",senderTokenEnv:"OUTPOST_CHAT_EVAL_SLACK_SENDER"}}}}),read:()=>"synthetic-private-token"}}} as unknown as ChatCatalogContext;
     let actualUser="U123";
     const fetcher=(async(url,options)=>{calls.push(String(url));expect((options?.headers as Record<string,string>).authorization).toBe("Bearer synthetic-private-token");return new Response(JSON.stringify(String(url).endsWith("auth.test")?{ok:true,user_id:actualUser,team_id:"T123"}:{ok:true,user:{id:actualUser,team_id:"T123",name:"fixture.sender",is_bot:false}}));}) as typeof fetch;
     await expect(verifySelectedSlackSender(ctx,receipt,AbortSignal.timeout(1000),fetcher)).resolves.toEqual({userId:"U123",workspaceId:"T123",handle:"fixture.sender"});

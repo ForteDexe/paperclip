@@ -15,7 +15,7 @@ export async function installSpekoTestProvider(origin: string, port: number) {
   const creditRejectedAgents = new Set<string>(), creationAttempts = new Map<string, number>();
   // The simulated external provider outlives an app restart, just as Speko does.
   // This file contains only deterministic fixture credentials, never a real key.
-  const stateFile = resolve(process.env.PAPERCLIP_HOME!, "speko-fixture-state.json");
+  const stateFile = resolve(process.env.OUTPOST_HOME!, "speko-fixture-state.json");
   if (existsSync(stateFile)) {
     const state = JSON.parse(readFileSync(stateFile, "utf8"));
     for (const [key, value] of state.tools) tools.set(key, value);

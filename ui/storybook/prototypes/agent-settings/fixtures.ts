@@ -3,17 +3,17 @@ import type {
   AgentInstructionsBundle,
   AgentSkillSnapshot,
   CompanySkillListItem,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   storybookHiredAgent,
   storybookAgents,
   storybookIssues,
   storybookSecrets,
 } from "../../fixtures/paperclipData";
-import { models as claudeModels } from "@paperclipai/adapter-claude-local";
-import { models as openCodeModels } from "@paperclipai/adapter-opencode-local";
+import { models as claudeModels } from "@outpost/adapter-claude-local";
+import { models as openCodeModels } from "@outpost/adapter-opencode-local";
 import { storybookEnvironments } from "../../fixtures/onboardingEnvironment";
-import { models as codexModels } from "@paperclipai/adapter-codex-local";
+import { models as codexModels } from "@outpost/adapter-codex-local";
 import { runtimeTestResult, type TestOutcome } from "../new-agent-fixtures";
 export const COMPANY = "company-storybook";
 export const ID = "agent-settings-preview";
@@ -315,7 +315,7 @@ export function createSettingsFixtures(
             url.pathname.includes("claude")
               ? claudeModels
               : url.pathname.includes("codex") ||
-                  url.pathname.includes("paperclip_runner")
+                  url.pathname.includes("outpost_runner")
                 ? codexModels
                 : url.pathname.includes("opencode")
                   ? openCodeModels

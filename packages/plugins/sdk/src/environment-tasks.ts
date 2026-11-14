@@ -8,7 +8,7 @@ const taskFilePath = z.string().min(1).max(2000).refine(value =>
   value.replace(/^\//u, "").split("/").every(part => part !== "" && part !== "." && part !== ".."), "Expected a canonical task file path");
 // Provider IDs are opaque; providers validate their own addressing constraints.
 const providerId = z.string().min(1);
-// PRP identity.schema.json stableId.
+// ORP identity.schema.json stableId.
 const runnerIdentity = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/);
 const durableIdentity = z.object({ runnerInstanceId: runnerIdentity, environmentLeaseId: runnerIdentity,
   runId: runnerIdentity, normalizedSessionId: runnerIdentity, turnId: runnerIdentity, itemId: runnerIdentity }).strict();
@@ -36,7 +36,7 @@ export type PluginEnvironmentTaskCredential = z.infer<typeof environmentTaskCred
 
 /** Runner owns this versioned data contract. The plugin resolves its execution-host locations. */
 export const environmentRunnerLaunchRequirementsSchema = z.object({
-  schema: z.literal("paperclip.runner.launch-requirements.v1"),
+  schema: z.literal("outpost.runner.launch-requirements.v1"),
   identity: durableIdentity,
   provider: z.enum(["codex", "opencode", "acpx", "claude_managed", "aws_agentcore"]),
   model: z.string().min(1).nullable(), instructions: z.string().max(1024 * 1024),
@@ -58,7 +58,7 @@ const preparedLaunch = z.object({ configurationId: providerId.max(1024),
   provider: z.record(z.string(), z.unknown()),
 }).strict();
 
-/** One plugin-provided Runner execution attempt with a PRP connection. Secrets are transient RPC input. */
+/** One plugin-provided Runner execution attempt with a ORP connection. Secrets are transient RPC input. */
 export const environmentTaskOperationSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("describe") }).strict(),
   z.object({ kind: z.literal("copilot_metadata"), token: credentialValue, model: z.string().min(1).max(1024).optional() }).strict(),
@@ -72,13 +72,13 @@ export const environmentTaskOperationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("submit"),
     projectIds: z.array(z.string().uuid()).max(64).refine(ids => new Set(ids).size === ids.length, "Duplicate project IDs"),
     runner: z.object({
-      /** Inclusive PRP version range supported by the submitting client. */
+      /** Inclusive ORP version range supported by the submitting client. */
       protocolMin: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
       protocolMax: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
       harness: identifier,
       runnerId: runnerIdentity, leaseId: runnerIdentity, runId: runnerIdentity,
       sessionId: runnerIdentity, turnId: runnerIdentity, itemId: runnerIdentity,
-    }).strict().refine(value => value.protocolMin <= value.protocolMax, "Invalid PRP version range"),
+    }).strict().refine(value => value.protocolMin <= value.protocolMax, "Invalid ORP version range"),
     bootstrapTicket: z.string().min(1).max(65_536),
     /** Opaque prior provider task; Core authorizes the saved session before supplying it. */
     resumeFrom: z.string().min(1).optional(),
@@ -201,7 +201,7 @@ export interface PluginEnvironmentTaskParams extends Omit<PluginEnvironmentDrive
   agentId: string | null;
   /** Company-validated projects to prepare on submit; empty during cleanup. */
   projectIds: string[];
-  workspace?: import("@paperclipai/shared").WorkspaceProviderBinding;
+  workspace?: import("@outpost/shared").WorkspaceProviderBinding;
   fresh?: import("./workspace-provider.js").PluginFreshWorkspace;
   operation: PluginEnvironmentTaskOperation;
   executionContextSupported?: 1;

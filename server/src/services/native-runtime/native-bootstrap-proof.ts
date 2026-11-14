@@ -5,8 +5,8 @@
  */
 
 export const RUNNERD_CONTROL_PLANE_STATE_SCHEMAS: ReadonlySet<string> = new Set([
-  "paperclip.runner.durable.control-plane-state.v1",
-  "paperclip.runner.durable.control-plane-state.v2",
+  "outpost.runner.durable.control-plane-state.v1",
+  "outpost.runner.durable.control-plane-state.v2",
 ]);
 
 const RUNNERD_BOOTSTRAP_COMMAND_TYPES = new Set(["run.prepare", "session.open"]);
@@ -147,7 +147,7 @@ function collectRecordedProcessIds(value: unknown, into: Array<{ id: unknown; gr
   return true;
 }
 
-function prpEventType(event: Record<string, unknown>): string {
+function orpEventType(event: Record<string, unknown>): string {
   return String(event.eventType ?? record(record(event.envelope).payload).eventType);
 }
 
@@ -201,7 +201,7 @@ export function runnerdStateIsOpenedSessionBeforeTurn(
       !committed.every((event, index) => event.sourceSeq === index + 1)) return false;
   if (!Array.isArray(runnerJournal.outbox)) return false;
   const outbox = runnerJournal.outbox.map(record);
-  if (![...committed, ...outbox].every(event => PRE_TURN_EVENT_TYPES.has(prpEventType(event)))) return false;
+  if (![...committed, ...outbox].every(event => PRE_TURN_EVENT_TYPES.has(orpEventType(event)))) return false;
   const processed = Object.values(record(runnerJournal.processedCommands)).map(record);
   if (!processed.every(command => RUNNERD_BOOTSTRAP_COMMAND_TYPES.has(String(command.commandType)) ||
       RUNNER_MAINTENANCE_COMMAND_TYPES.has(String(command.commandType)))) return false;

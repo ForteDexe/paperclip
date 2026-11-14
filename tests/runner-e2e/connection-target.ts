@@ -89,12 +89,12 @@ export async function startConnectionTarget(config: ConnectionConfig, executions
     // Only bootstrap essentials are inherited. Selected provider keys enter via UI.
     const env: NodeJS.ProcessEnv = Object.fromEntries(["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "NODE_EXTRA_CA_CERTS"].flatMap(key => process.env[key] ? [[key, process.env[key]!]] : []));
     Object.assign(env, {
-      PAPERCLIP_HOME: home, PAPERCLIP_INSTANCE_ID: instance, PAPERCLIP_CONFIG: path.join(home, "instances", instance, "config.json"),
-      PAPERCLIP_RUNNER_E2E_TEMP_ROOT: root, PAPERCLIP_RUNNER_E2E_PORT: String(port), PAPERCLIP_RUNNER_E2E_SERVER_LOG: path.join(root, "server.log"),
-      PAPERCLIP_RUNNER_BINARY: resolvePaperclipRunnerBinaryForHarness(executions, repositoryRoot),
-      PAPERCLIP_VITE_CACHE_DIR: path.join(root, "vite-cache"), PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false",
-      PAPERCLIP_AGENT_JWT_SECRET: randomBytes(48).toString("hex"), PAPERCLIP_DECISION_SIGNING_SECRET: randomBytes(48).toString("hex"),
-      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: randomBytes(48).toString("hex"), BETTER_AUTH_SECRET: randomBytes(48).toString("hex"),
+      OUTPOST_HOME: home, OUTPOST_INSTANCE_ID: instance, OUTPOST_CONFIG: path.join(home, "instances", instance, "config.json"),
+      OUTPOST_RUNNER_E2E_TEMP_ROOT: root, OUTPOST_RUNNER_E2E_PORT: String(port), OUTPOST_RUNNER_E2E_SERVER_LOG: path.join(root, "server.log"),
+      OUTPOST_RUNNER_BINARY: resolvePaperclipRunnerBinaryForHarness(executions, repositoryRoot),
+      OUTPOST_VITE_CACHE_DIR: path.join(root, "vite-cache"), OUTPOST_ANNOUNCEMENTS_ENABLED: "false",
+      OUTPOST_AGENT_JWT_SECRET: randomBytes(48).toString("hex"), OUTPOST_DECISION_SIGNING_SECRET: randomBytes(48).toString("hex"),
+      OUTPOST_TOOL_ACTION_SIGNING_SECRET: randomBytes(48).toString("hex"), BETTER_AUTH_SECRET: randomBytes(48).toString("hex"),
     });
     assertActive();
     child = spawn(process.execPath, runnerE2ETypeScriptProcessArgs(repositoryRoot, path.join(repositoryRoot, "tests/runner-e2e/server.ts")), { cwd: repositoryRoot, env, detached: process.platform !== "win32", stdio: "ignore" });

@@ -2,17 +2,17 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 import { materializeAsset } from "./runtime-context.js";
 import { removeRuntimeAssetTree, runtimeAssetRetention, RUNTIME_ASSET_RETENTION_MS } from "./runtime-asset-retention.js";
 
 let home: string;
-const originalHome = process.env.PAPERCLIP_HOME;
-beforeEach(async () => { home = await fs.mkdtemp(path.join(os.tmpdir(), "runtime-asset-gc-")); process.env.PAPERCLIP_HOME = home; });
+const originalHome = process.env.OUTPOST_HOME;
+beforeEach(async () => { home = await fs.mkdtemp(path.join(os.tmpdir(), "runtime-asset-gc-")); process.env.OUTPOST_HOME = home; });
 afterEach(async () => {
   await removeRuntimeAssetTree(home);
-  if (originalHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = originalHome;
+  if (originalHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = originalHome;
   vi.restoreAllMocks();
 });
 function database(rows: unknown[] = []) {

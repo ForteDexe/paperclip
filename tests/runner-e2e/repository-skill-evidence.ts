@@ -16,9 +16,9 @@ export function repositoryRuntimeSessionRoot(instanceRoot: string, sessionId: st
   const canonical = (value: any): string => value && typeof value === "object"
     ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
     : JSON.stringify(value);
-  const scope = { schema: "paperclip.native-session-scope.v2", companyId: owner.companyId, agentId: owner.agentId,
+  const scope = { schema: "outpost.native-session-scope.v2", companyId: owner.companyId, agentId: owner.agentId,
     workspace: { kind: "transient", ...owner.workspace }, provider: { driverKind: owner.driverKind, identity: { kind: "codex" } }, normalizedSessionId: sessionId };
-  return path.join(instanceRoot, "runtime", "paperclip-runner", "durable-sessions", createHash("sha256").update(canonical(scope)).digest("hex"));
+  return path.join(instanceRoot, "runtime", "outpost-runner", "durable-sessions", createHash("sha256").update(canonical(scope)).digest("hex"));
 }
 
 /** Bind disk locations to the active native session, rather than library caches. */
@@ -30,7 +30,7 @@ export function isOwnedRepositoryRuntimeRoot(root: string, sessionId: string, lo
   if (location.kind === "local") return parent === path.join(repositoryRuntimeSessionRoot(location.instanceRoot, sessionId, location.owner), "codex-home", "skills")
     || (location.contextSkills?.sessionId === sessionId && location.contextSkills.roots.includes(root)
       && parent === path.join(location.instanceRoot, "runtime-context-assets", "bundles"));
-  const filesystem = path.posix.join(location.remoteCwd, ".paperclip-runtime", "paperclip-runner", "sessions", digest, "filesystem");
+  const filesystem = path.posix.join(location.remoteCwd, ".paperclip-runtime", "outpost-runner", "sessions", digest, "filesystem");
   return parent === path.posix.join(filesystem, "codex-home", "skills")
     || parent === path.posix.join(filesystem, "context", "skills");
 }

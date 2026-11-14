@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, open, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
-import { PAPERCLIP_PROTOCOL_ACTIONS } from "../../packages/paperclip-runner/src/protocol-actions/index.js";
+import { OUTPOST_PROTOCOL_ACTIONS } from "../../packages/outpost-runner/src/protocol-actions/index.js";
 
 // Reject malformed counters wholesale. Unknown input never becomes a diagnostic
 // string, path, or authority; even a complete scan remains unqualified evidence.
@@ -153,7 +153,7 @@ const failures = new Map([
 const phases = [["Real prior active Launch checkout", "held-work-timeout"], ["Canonical project-defaults turn settles", "canonical-turn-timeout"], ["Actual new native task reads inherited project context", "future-work-timeout"]];
 const toolNames = ["bash", "paperclip_call_api", "paperclip_finish", "paperclip_get_workspace", "paperclip_get_run", "paperclip_list_runs"];
 const recognizedTools = new Set([...toolNames, "read", "glob", "grep", "task", "todowrite", "question",
-  ...PAPERCLIP_PROTOCOL_ACTIONS.map(action => `paperclip_${action.id}`)]);
+  ...OUTPOST_PROTOCOL_ACTIONS.map(action => `paperclip_${action.id}`)]);
 const toolName = (value: unknown) => typeof value === "string" && recognizedTools.has(value) ? value : "other";
 const apiOperations = new Map([
   ["GET /api/projects/{id}", "read-project"], ["PATCH /api/projects/{id}", "update-project"],
@@ -163,7 +163,7 @@ const apiOperations = new Map([
 ]);
 function sourceProgress(value: unknown) {
   const rows = Array.isArray(value) ? value : [];
-  const events = rows.map(row => record(record(row).payload).prpEvent ?? row).map(record);
+  const events = rows.map(row => record(record(row).payload).orpEvent ?? row).map(record);
   const tools = events.filter(event => ["tool.execution.started", "tool.execution.progressed", "tool.execution.completed"].includes(event.eventType));
   const names = [...new Set([...toolNames, ...tools.map(event => toolName(record(event.payload).name)), "other"])];
   return {
@@ -199,7 +199,7 @@ export function privateAttemptDiagnostic(input: PrivateAttemptDiagnosticInput) {
   const errors = [productError, original.error, persistedState.scanError, record(persistedState.originalResult).error].filter(value => typeof value === "string") as string[];
   const evidence = record(input.evidence), leaks = Array.isArray(evidence.leaks) ? evidence.leaks : [];
   return {
-    schema: "paperclip.private-attempt-diagnostic/v1",
+    schema: "outpost.private-attempt-diagnostic/v1",
     packagingBudget: closedPackagingBudget(record(input.error).evidenceBudget ?? evidence.budget, message),
     stage: member(input.stage, ["execution", "package-original", "seal-original", "attach-original", "attach-health-detail", "attach-source-sdk"]),
     status: member(result.status, ["passed", "failed", "skipped"]),
@@ -261,6 +261,6 @@ export async function appendPrivateAttemptDiagnostic(input: PrivateAttemptDiagno
   try {
     const metadata = await file.stat();
     if (!metadata.isFile() || typeof process.getuid === "function" && metadata.uid !== process.getuid()) throw new Error("Invalid diagnostic environment file owner");
-    await file.write(`PAPERCLIP_E2E_CLOSED_DIAGNOSTIC_V1=${JSON.stringify(privateAttemptDiagnostic(input))}\n`);
+    await file.write(`OUTPOST_E2E_CLOSED_DIAGNOSTIC_V1=${JSON.stringify(privateAttemptDiagnostic(input))}\n`);
   } finally { await file.close(); }
 }

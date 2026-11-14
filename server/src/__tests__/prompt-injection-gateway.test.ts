@@ -8,9 +8,9 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import express from "express";
 import { createDb, companies, companyMemberships, agents, issues, projects, heartbeatRuns, toolApplications, toolConnections, connectionGrants,
-  toolCatalogEntries, toolConnectionInstalls, toolPolicies, toolInvocations, toolCallEvents, toolActionRequests, promptInjectionInvocations, costEvents, budgetReservations } from "@paperclipai/db";
-import { startEmbeddedPostgresTestDatabase } from "@paperclipai/db/test-embedded-postgres";
-import { PROMPT_INJECTION_DEFAULT_MODEL } from "@paperclipai/shared";
+  toolCatalogEntries, toolConnectionInstalls, toolPolicies, toolInvocations, toolCallEvents, toolActionRequests, promptInjectionInvocations, costEvents, budgetReservations } from "@outpost/db";
+import { startEmbeddedPostgresTestDatabase } from "@outpost/db/test-embedded-postgres";
+import { PROMPT_INJECTION_DEFAULT_MODEL } from "@outpost/shared";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { toolGatewayRoutes } from "../routes/tool-gateway.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
@@ -23,7 +23,7 @@ import { promptInjectionCorpus } from "./fixtures/prompt-injection-corpus.js";
 let db: ReturnType<typeof createDb>, database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>, home: string;
 beforeAll(async () => {
   home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-guard-gateway-")));
-  vi.stubEnv("PAPERCLIP_HOME", home);
+  vi.stubEnv("OUTPOST_HOME", home);
   database = await startEmbeddedPostgresTestDatabase("paperclip-guard-gateway-db-"); db = createDb(database.connectionString);
 }, 90000);
 afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) await rm(home, { recursive: true, force: true }); });

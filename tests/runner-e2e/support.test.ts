@@ -10,7 +10,7 @@ import { FixtureRegistry } from "./fixture-registry.js";
 import { classifyFailure, shouldRetryFailure } from "./failure-classifier.js";
 import {
   assertIsolatedServerEnvironment,
-  buildPaperclipServerEnvironment,
+  buildOutpostServerEnvironment,
   buildRunnerE2EProcessEnvironment,
   resolvePaperclipRemoteRunnerBinaryForHarness,
   resolvePaperclipRunnerBinaryForHarness,
@@ -56,7 +56,7 @@ const cleanupDirectories: string[] = [];
 it("rejects reasoning mislabeled as assistant text without echoing private content", () => {
   const reasoning = {
     eventType: "item.delta",
-    payload: { prpEvent: {
+    payload: { orpEvent: {
       eventType: "item.delta",
       payload: { kind: "agentMessage", text: "PRIVATE_THOUGHT", update: { kind: "reasoning" } },
     } },
@@ -65,10 +65,10 @@ it("rejects reasoning mislabeled as assistant text without echoing private conte
     "provider reasoning was projected as assistant text in 1 durable events",
   ]);
   const correctlyTyped = structuredClone(reasoning);
-  correctlyTyped.payload.prpEvent.payload.kind = "reasoning";
+  correctlyTyped.payload.orpEvent.payload.kind = "reasoning";
   expect(reasoningProjectionFailures([correctlyTyped])).toEqual([]);
   const assistant = structuredClone(reasoning);
-  assistant.payload.prpEvent.payload.update.kind = "agentMessage";
+  assistant.payload.orpEvent.payload.update.kind = "agentMessage";
   expect(reasoningProjectionFailures([assistant])).toEqual([]);
 });
 
@@ -141,7 +141,7 @@ describe("runner E2E local binary resolution", () => {
     ).toBe(
       path.join(
         "/repository",
-        "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "packages/outpost-runner/runner/target/debug/outpost-runnerd",
       ),
     );
   });
@@ -151,10 +151,10 @@ describe("runner E2E local binary resolution", () => {
       resolvePaperclipRunnerBinaryForHarness(
         [localNativeExecution],
         "/repository",
-        "/custom/paperclip-runnerd",
+        "/custom/outpost-runnerd",
         "linux",
       ),
-    ).toBe("/custom/paperclip-runnerd");
+    ).toBe("/custom/outpost-runnerd");
   });
 
   it("uses and stages the same build-once binary for remote native cells", () => {
@@ -167,7 +167,7 @@ describe("runner E2E local binary resolution", () => {
     expect(runnerBinary).toBe(
       path.join(
         "/repository",
-        "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "packages/outpost-runner/runner/target/debug/outpost-runnerd",
       ),
     );
     expect(
@@ -200,10 +200,10 @@ describe("runner E2E local binary resolution", () => {
       resolvePaperclipRemoteRunnerBinaryForHarness(
         [remoteNativeExecution],
         runnerBinary,
-        "/cross-compiled/paperclip-runnerd",
+        "/cross-compiled/outpost-runnerd",
         "darwin",
       ),
-    ).toBe("/cross-compiled/paperclip-runnerd");
+    ).toBe("/cross-compiled/outpost-runnerd");
     expect(resolvePaperclipRemoteRunnerBinaryForHarness(
       [remoteNativeExecution], runnerBinary, undefined, "linux", "arm64",
     )).toBeUndefined();
@@ -235,7 +235,7 @@ describe("runner E2E provider environment", () => {
           { KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "ambient" },
           [execution],
         ),
-      ).toEqual({ KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "true", PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false" });
+      ).toEqual({ KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "true", OUTPOST_ANNOUNCEMENTS_ENABLED: "false" });
     }
 
     for (const execution of [nativeOpenCode, breadthOpenCode]) {
@@ -244,16 +244,16 @@ describe("runner E2E provider environment", () => {
           { KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "ambient" },
           [execution],
         ),
-      ).toEqual({ KEEP_ME: "yes", PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false" });
+      ).toEqual({ KEEP_ME: "yes", OUTPOST_ANNOUNCEMENTS_ENABLED: "false" });
     }
   });
 
   it("disables announcements through the server boundary except the isolated dismissal fixture", () => {
     for (const execution of runnerMatrix) {
-      const source = { PAPERCLIP_ANNOUNCEMENTS_ENABLED: "true" };
+      const source = { OUTPOST_ANNOUNCEMENTS_ENABLED: "true" };
       const env = buildRunnerE2EProcessEnvironment(source, [execution]);
-      expect(buildPaperclipServerEnvironment(env).PAPERCLIP_ANNOUNCEMENTS_ENABLED).toBe(execution.suite.id === "chat-features" && execution.task.id === CHAT_ANNOUNCEMENT_SCENARIO ? "true" : "false");
-      expect(source.PAPERCLIP_ANNOUNCEMENTS_ENABLED).toBe("true");
+      expect(buildOutpostServerEnvironment(env).OUTPOST_ANNOUNCEMENTS_ENABLED).toBe(execution.suite.id === "chat-features" && execution.task.id === CHAT_ANNOUNCEMENT_SCENARIO ? "true" : "false");
+      expect(source.OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("true");
     }
   });
 });
@@ -262,9 +262,9 @@ describe("hiring capability opt-in", () => {
   it("enables API tools only when the manual hiring story is selected", () => {
     const hire = runnerMatrix.find((e) => e.suite.id === "everyday-workflows" && e.task.id === "hire-reuse")!;
     const delegate = runnerMatrix.find((e) => e.suite.id === "everyday-workflows" && e.task.id === "delegate-feedback")!;
-    expect(buildRunnerE2EProcessEnvironment({}, [hire]).PAPERCLIP_RUNNER_API_TOOLS_ENABLED).toBe("true");
-    expect(buildRunnerE2EProcessEnvironment({}, [delegate]).PAPERCLIP_RUNNER_API_TOOLS_ENABLED).toBeUndefined();
-    expect(buildRunnerE2EProcessEnvironment({}, []).PAPERCLIP_RUNNER_API_TOOLS_ENABLED).toBeUndefined();
+    expect(buildRunnerE2EProcessEnvironment({}, [hire]).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBe("true");
+    expect(buildRunnerE2EProcessEnvironment({}, [delegate]).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBeUndefined();
+    expect(buildRunnerE2EProcessEnvironment({}, []).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBeUndefined();
   });
 });
 
@@ -300,7 +300,7 @@ describe("runner E2E server port allocation", () => {
 
 describe("runner E2E sensitive API boundary", () => {
   it("uses the authenticated browser session for encrypted secret provisioning", async () => {
-    vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "43123");
+    vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "43123");
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ id: "secret-id" }));
     vi.stubGlobal("fetch", fetchMock);
     const api = new RunnerApi({} as never);
@@ -309,7 +309,7 @@ describe("runner E2E sensitive API boundary", () => {
     expect(fetchMock).toHaveBeenCalledWith(new URL("http://127.0.0.1:43123/api/companies/company/secrets"), expect.objectContaining({ headers: { "content-type": "application/json", Cookie: "fixture.session=opaque", Origin: "http://127.0.0.1:43123" } }));
   });
   it("keeps secret request bodies out of Playwright API tracing", async () => {
-    vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "43123");
+    vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "43123");
     const playwrightPost = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ id: "secret-id" }), {
@@ -454,10 +454,10 @@ describe("runner E2E matchers", () => {
   it("normalizes message text and evaluates state invariants", async () => {
     const results = await evaluateMatchers(
       [
-        { kind: "message_contains", expected: "PAPERCLIP_E2E_OK_nonce" },
+        { kind: "message_contains", expected: "OUTPOST_E2E_OK_nonce" },
         {
           kind: "message_occurrences",
-          expected: "PAPERCLIP_E2E_OK_nonce",
+          expected: "OUTPOST_E2E_OK_nonce",
           count: 1,
         },
         { kind: "issue_status", expected: "done" },
@@ -672,13 +672,13 @@ describe("runner E2E run observations", () => {
     const event = {
       eventType: "run.result.accepted",
       payload: {
-        prpEvent: {
-          schema: "paperclip.prp.event.v1",
+        orpEvent: {
+          schema: "outpost.orp.event.v1",
           eventType: "run.result.accepted",
           sourceKind: "control_plane",
           payload: {
             result: {
-              schema: "paperclip.run_result.v1",
+              schema: "outpost.run_result.v1",
               reportedWorkDisposition: "yielded",
               evidence: [{ ref: "interaction:pending" }],
               artifacts: [
@@ -702,8 +702,8 @@ describe("runner E2E run observations", () => {
         {
           ...event,
           payload: {
-            prpEvent: {
-              ...event.payload.prpEvent,
+            orpEvent: {
+              ...event.payload.orpEvent,
               sourceKind: "runner",
             },
           },
@@ -715,11 +715,11 @@ describe("runner E2E run observations", () => {
         {
           ...event,
           payload: {
-            prpEvent: {
-              ...event.payload.prpEvent,
+            orpEvent: {
+              ...event.payload.orpEvent,
               payload: {
                 result: {
-                  ...event.payload.prpEvent.payload.result,
+                  ...event.payload.orpEvent.payload.result,
                   artifacts: [],
                 },
               },
@@ -830,7 +830,7 @@ describe("runner E2E failure policy", () => {
   });
 
   it.each([
-    'native_session_recovery_failed: Error: PRP command run.attach failed: {"result":{"code":"command_execution_failed","message":"failed to start ACPX provider: ACPX sidecar command session.open was rejected (retryable=false, classification=unclassified)"},"status":"failed"}',
+    'native_session_recovery_failed: Error: ORP command run.attach failed: {"result":{"code":"command_execution_failed","message":"failed to start ACPX provider: ACPX sidecar command session.open was rejected (retryable=false, classification=unclassified)"},"status":"failed"}',
     "native_session_recovery_failed: provider transport failed\nACPX sidecar command session.open was rejected (retryable = false, classification=session_not_found)",
   ])("does not retry explicit non-retryable ACPX recovery rejection: %s", (message) => {
     const failureClass = classifyFailure(new Error(message));
@@ -839,8 +839,8 @@ describe("runner E2E failure policy", () => {
   });
 
   it.each([
-    'native_session_recovery_failed: PRP run.attach failed: {"message":"failed to start ACPX provider: ACPX sidecar command session.open was rejected (retryable=true, classification=network)","status":"failed"}',
-    'native_session_recovery_failed: PRP run.attach failed: {"message":"failed to start ACPX provider: ACPX sidecar command session.open was rejected","status":"failed"}',
+    'native_session_recovery_failed: ORP run.attach failed: {"message":"failed to start ACPX provider: ACPX sidecar command session.open was rejected (retryable=true, classification=network)","status":"failed"}',
+    'native_session_recovery_failed: ORP run.attach failed: {"message":"failed to start ACPX provider: ACPX sidecar command session.open was rejected","status":"failed"}',
     "native_session_recovery_failed: failed to start ACPX provider: ECONNRESET",
   ])("retains transient ACPX recovery retries: %s", (message) => {
     const failureClass = classifyFailure(new Error(message));
@@ -890,7 +890,7 @@ describe("runner E2E failure policy", () => {
     expect(
       classifyFailure(
         new Error(
-          "runner_ingress_unavailable: paperclip-runnerd: cumulative ACK cannot move beyond the produced source cursor",
+          "runner_ingress_unavailable: outpost-runnerd: cumulative ACK cannot move beyond the produced source cursor",
         ),
       ),
     ).toBe("transient_infrastructure");
@@ -926,7 +926,7 @@ describe("runner E2E server isolation", () => {
   });
 
   it("strips database and paid-provider credentials from the Paperclip process", () => {
-    const env = buildPaperclipServerEnvironment(
+    const env = buildOutpostServerEnvironment(
       {
         PATH: "/bin",
         DATABASE_URL: "postgres://existing",
@@ -943,21 +943,21 @@ describe("runner E2E server isolation", () => {
         XAI_ORG_ID: "xai-sensitive",
         GROK_HOME: "/outside/grok",
         OPENAI_ORG_ID: "also-provider-sensitive",
-        PAPERCLIP_API_KEY: "ambient-board-key",
-        PAPERCLIP_AGENT_API_KEY: "ambient-agent-key",
-        PAPERCLIP_TASK_BRIDGE_TOKEN: "ambient-task-token",
-        PAPERCLIP_SETUP_TOKEN: "ambient-setup-token",
-        PAPERCLIP_SECRETS_MASTER_KEY: "ambient-master-key",
-        PAPERCLIP_SECRETS_MASTER_KEY_FILE: "/outside/master.key",
-        PAPERCLIP_STORAGE_S3_BUCKET: "production-bucket",
+        OUTPOST_API_KEY: "ambient-board-key",
+        OUTPOST_AGENT_API_KEY: "ambient-agent-key",
+        OUTPOST_TASK_BRIDGE_TOKEN: "ambient-task-token",
+        OUTPOST_SETUP_TOKEN: "ambient-setup-token",
+        OUTPOST_SECRETS_MASTER_KEY: "ambient-master-key",
+        OUTPOST_SECRETS_MASTER_KEY_FILE: "/outside/master.key",
+        OUTPOST_STORAGE_S3_BUCKET: "production-bucket",
       },
       {
-        PAPERCLIP_HOME: "/tmp/cell/paperclip-home",
-        PAPERCLIP_CONFIG: "/tmp/cell/paperclip-home/instances/e2e/config.json",
+        OUTPOST_HOME: "/tmp/cell/paperclip-home",
+        OUTPOST_CONFIG: "/tmp/cell/paperclip-home/instances/e2e/config.json",
         XDG_CACHE_HOME: "/tmp/cell/xdg-cache",
-        PAPERCLIP_AGENT_JWT_SECRET: "generated-agent-jwt",
-        PAPERCLIP_DECISION_SIGNING_SECRET: "generated-decision-key",
-        PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: "generated-tool-key",
+        OUTPOST_AGENT_JWT_SECRET: "generated-agent-jwt",
+        OUTPOST_DECISION_SIGNING_SECRET: "generated-decision-key",
+        OUTPOST_TOOL_ACTION_SIGNING_SECRET: "generated-tool-key",
         BETTER_AUTH_SECRET: "generated-auth-key",
       },
     );
@@ -972,15 +972,15 @@ describe("runner E2E server isolation", () => {
     expect(env.OPENAI_ORG_ID).toBeUndefined();
     expect(env.XAI_ORG_ID).toBeUndefined();
     expect(env.GROK_HOME).toBeUndefined();
-    expect(env.PAPERCLIP_API_KEY).toBeUndefined();
-    expect(env.PAPERCLIP_AGENT_API_KEY).toBeUndefined();
+    expect(env.OUTPOST_API_KEY).toBeUndefined();
+    expect(env.OUTPOST_AGENT_API_KEY).toBeUndefined();
     expect(env.XDG_CACHE_HOME).toBe("/tmp/cell/xdg-cache");
-    expect(env.PAPERCLIP_AGENT_JWT_SECRET).toBe("generated-agent-jwt");
-    expect(env.PAPERCLIP_TASK_BRIDGE_TOKEN).toBeUndefined();
-    expect(env.PAPERCLIP_SETUP_TOKEN).toBeUndefined();
-    expect(env.PAPERCLIP_SECRETS_MASTER_KEY).toBeUndefined();
-    expect(env.PAPERCLIP_SECRETS_MASTER_KEY_FILE).toBeUndefined();
-    expect(env.PAPERCLIP_STORAGE_S3_BUCKET).toBeUndefined();
+    expect(env.OUTPOST_AGENT_JWT_SECRET).toBe("generated-agent-jwt");
+    expect(env.OUTPOST_TASK_BRIDGE_TOKEN).toBeUndefined();
+    expect(env.OUTPOST_SETUP_TOKEN).toBeUndefined();
+    expect(env.OUTPOST_SECRETS_MASTER_KEY).toBeUndefined();
+    expect(env.OUTPOST_SECRETS_MASTER_KEY_FILE).toBeUndefined();
+    expect(env.OUTPOST_STORAGE_S3_BUCKET).toBeUndefined();
     expect(() =>
       assertIsolatedServerEnvironment(env, {
         temporaryRoot: "/tmp/cell",
@@ -997,23 +997,23 @@ describe("runner E2E server isolation", () => {
       configPath: "/tmp/cell/paperclip-home/instances/e2e/config.json",
     };
     const env = (extra: NodeJS.ProcessEnv) => ({
-      PAPERCLIP_HOME: expected.paperclipHome,
-      PAPERCLIP_CONFIG: expected.configPath,
+      OUTPOST_HOME: expected.paperclipHome,
+      OUTPOST_CONFIG: expected.configPath,
       XDG_CACHE_HOME: "/tmp/cell/xdg-cache",
-      PAPERCLIP_AGENT_JWT_SECRET: "generated-agent-jwt",
-      PAPERCLIP_DECISION_SIGNING_SECRET: "generated-decision-key",
-      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: "generated-tool-key",
+      OUTPOST_AGENT_JWT_SECRET: "generated-agent-jwt",
+      OUTPOST_DECISION_SIGNING_SECRET: "generated-decision-key",
+      OUTPOST_TOOL_ACTION_SIGNING_SECRET: "generated-tool-key",
       BETTER_AUTH_SECRET: "generated-auth-key",
       ...extra,
     });
-    expect(() => assertIsolatedServerEnvironment(env({ PAPERCLIP_SECRETS_MASTER_KEY: "wave-key" }),
+    expect(() => assertIsolatedServerEnvironment(env({ OUTPOST_SECRETS_MASTER_KEY: "wave-key" }),
       { ...expected, generatedSecretsMasterKey: "wave-key" })).not.toThrow();
-    expect(() => assertIsolatedServerEnvironment(env({ PAPERCLIP_SECRETS_MASTER_KEY: "ambient-key" }), expected))
-      .toThrow("PAPERCLIP_SECRETS_MASTER_KEY");
-    expect(() => assertIsolatedServerEnvironment(env({ PAPERCLIP_SECRETS_MASTER_KEY: "ambient-key" }),
-      { ...expected, generatedSecretsMasterKey: "wave-key" })).toThrow("PAPERCLIP_SECRETS_MASTER_KEY");
-    expect(() => assertIsolatedServerEnvironment(env({ PAPERCLIP_SECRETS_MASTER_KEY: "wave-key", PAPERCLIP_SECRETS_MASTER_KEY_FILE: "/tmp/cell/key" }),
-      { ...expected, generatedSecretsMasterKey: "wave-key" })).toThrow("PAPERCLIP_SECRETS_MASTER_KEY_FILE");
+    expect(() => assertIsolatedServerEnvironment(env({ OUTPOST_SECRETS_MASTER_KEY: "ambient-key" }), expected))
+      .toThrow("OUTPOST_SECRETS_MASTER_KEY");
+    expect(() => assertIsolatedServerEnvironment(env({ OUTPOST_SECRETS_MASTER_KEY: "ambient-key" }),
+      { ...expected, generatedSecretsMasterKey: "wave-key" })).toThrow("OUTPOST_SECRETS_MASTER_KEY");
+    expect(() => assertIsolatedServerEnvironment(env({ OUTPOST_SECRETS_MASTER_KEY: "wave-key", OUTPOST_SECRETS_MASTER_KEY_FILE: "/tmp/cell/key" }),
+      { ...expected, generatedSecretsMasterKey: "wave-key" })).toThrow("OUTPOST_SECRETS_MASTER_KEY_FILE");
   });
 
   it("uses absolute repository paths for the Playwright web server", () => {
@@ -1106,8 +1106,8 @@ describe("runner E2E evidence redaction", () => {
         apiKeyRef: "DAYTONA_API_KEY",
       },
     });
-    expect(sanitizeJson("paperclip.runner-e2e.evidence/v1", [secret])).toBe(
-      "paperclip.runner-e2e.evidence/v1",
+    expect(sanitizeJson("outpost.runner-e2e.evidence/v1", [secret])).toBe(
+      "outpost.runner-e2e.evidence/v1",
     );
   });
 
@@ -1284,7 +1284,7 @@ describe("runner E2E evidence redaction", () => {
         root,
         path.join(
           root,
-          "instances/instance-1/runtime/paperclip-runner/acpx/acpx/session-1/codex-home/auth.json",
+          "instances/instance-1/runtime/outpost-runner/acpx/acpx/session-1/codex-home/auth.json",
         ),
       ),
     ).toBe(true);
@@ -1293,7 +1293,7 @@ describe("runner E2E evidence redaction", () => {
         root,
         path.join(
           root,
-          "instances/instance-1/runtime/paperclip-runner/durable-sessions/session-1/codex-home/auth.json",
+          "instances/instance-1/runtime/outpost-runner/durable-sessions/session-1/codex-home/auth.json",
         ),
       ),
     ).toBe(true);
@@ -1308,7 +1308,7 @@ describe("runner E2E evidence redaction", () => {
         root,
         path.join(
           root,
-          "instances/instance-1/runtime/paperclip-runner/durable-sessions/session-1/codex-home/config.toml",
+          "instances/instance-1/runtime/outpost-runner/durable-sessions/session-1/codex-home/config.toml",
         ),
       ),
     ).toBe(false);
@@ -1412,7 +1412,7 @@ describe("runner E2E evidence redaction", () => {
     await writeFile(
       path.join(privateDir, "snapshots", "api-state.json"),
       JSON.stringify({
-        log: String.raw`curl -H \"Authorization: Bearer temporary-run-token\" \\\n+  \"$PAPERCLIP_API_URL/api/issues\"`,
+        log: String.raw`curl -H \"Authorization: Bearer temporary-run-token\" \\\n+  \"$OUTPOST_API_URL/api/issues\"`,
       }),
     );
     await packageEvidence({
@@ -1516,20 +1516,20 @@ describe("warm continuity grading scope", () => {
     const execution = runnerMatrix.find((cell) => cell.task.flow === "warm_three_turn")!;
     const matchers = execution.task.buildMatchers("test-nonce", execution);
     expect(matchers).toContainEqual({
-      kind: "message_occurrences", expected: "PAPERCLIP_E2E_WARM_T1_test-nonce", count: 1,
+      kind: "message_occurrences", expected: "OUTPOST_E2E_WARM_T1_test-nonce", count: 1,
     });
     expect(matchers).toContainEqual({
-      kind: "message_occurrences", expected: "PAPERCLIP_E2E_WARM_T2_test-nonce", count: 1,
+      kind: "message_occurrences", expected: "OUTPOST_E2E_WARM_T2_test-nonce", count: 1,
     });
     expect(matchers).toContainEqual({
-      kind: "message_occurrences", expected: "PAPERCLIP_E2E_WARM_T3_test-nonce", count: 1,
+      kind: "message_occurrences", expected: "OUTPOST_E2E_WARM_T3_test-nonce", count: 1,
     });
     expect(matchers).toContainEqual({
       kind: "message_ordered",
       expected: [
-        "PAPERCLIP_E2E_WARM_T1_test-nonce",
-        "PAPERCLIP_E2E_WARM_T2_test-nonce",
-        "PAPERCLIP_E2E_WARM_T3_test-nonce",
+        "OUTPOST_E2E_WARM_T1_test-nonce",
+        "OUTPOST_E2E_WARM_T2_test-nonce",
+        "OUTPOST_E2E_WARM_T3_test-nonce",
       ],
     });
     expect(matchers).toContainEqual({
@@ -1547,17 +1547,17 @@ describe("warm continuity grading scope", () => {
       .filter((matcher) => matcher.kind.startsWith("message_"));
     const passing = await evaluateMatchers(matchers, {
       message: [
-        "Turn one is complete: PAPERCLIP_E2E_WARM_T1_test-nonce.",
-        "Turn two is complete: PAPERCLIP_E2E_WARM_T2_test-nonce.",
-        "Turn three is complete: PAPERCLIP_E2E_WARM_T3_test-nonce.",
+        "Turn one is complete: OUTPOST_E2E_WARM_T1_test-nonce.",
+        "Turn two is complete: OUTPOST_E2E_WARM_T2_test-nonce.",
+        "Turn three is complete: OUTPOST_E2E_WARM_T3_test-nonce.",
       ].join("\n"),
     });
     expect(passing.every((result) => result.passed)).toBe(true);
 
     const invalidMessages = [
-      "PAPERCLIP_E2E_WARM_T1_test-nonce PAPERCLIP_E2E_WARM_T1_test-nonce PAPERCLIP_E2E_WARM_T2_test-nonce PAPERCLIP_E2E_WARM_T3_test-nonce",
-      "PAPERCLIP_E2E_WARM_T1_test-nonce PAPERCLIP_E2E_WARM_T3_test-nonce",
-      "PAPERCLIP_E2E_WARM_T3_test-nonce PAPERCLIP_E2E_WARM_T2_test-nonce PAPERCLIP_E2E_WARM_T1_test-nonce",
+      "OUTPOST_E2E_WARM_T1_test-nonce OUTPOST_E2E_WARM_T1_test-nonce OUTPOST_E2E_WARM_T2_test-nonce OUTPOST_E2E_WARM_T3_test-nonce",
+      "OUTPOST_E2E_WARM_T1_test-nonce OUTPOST_E2E_WARM_T3_test-nonce",
+      "OUTPOST_E2E_WARM_T3_test-nonce OUTPOST_E2E_WARM_T2_test-nonce OUTPOST_E2E_WARM_T1_test-nonce",
     ];
     for (const message of invalidMessages) {
       const results = await evaluateMatchers(matchers, { message });

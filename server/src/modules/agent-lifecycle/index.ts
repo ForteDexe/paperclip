@@ -1,9 +1,9 @@
 import type { ActivityPublication } from "../../types/activity-publication.js";
 import { AgentLifecycleConflict } from "./domain/policy.js";
 import { hireApprovalService as approvalRecords, type HireDecisionTarget } from "./adapters/approvals.js";
-import { agents, companies } from "@paperclipai/db";
+import { agents, companies } from "@outpost/db";
 import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { LifecycleEffects } from "./adapters/effects.js";
 export type { LifecycleEffects } from "./adapters/effects.js";
 import { updateAgentConfiguration } from "./adapters/configuration.js";

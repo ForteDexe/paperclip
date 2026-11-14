@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { executionWorkspaces, heartbeatRuns, issues, type Db } from "@paperclipai/db";
-import { workspaceProviderOperationSchema } from "@paperclipai/plugin-sdk";
+import { executionWorkspaces, heartbeatRuns, issues, type Db } from "@outpost/db";
+import { workspaceProviderOperationSchema } from "@outpost/plugin-sdk";
 import { logger } from "../middleware/logger.js";
 import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
 

@@ -13,8 +13,8 @@ import {
   chatGitHubConfigurations,
   chatGitHubReviews,
   type Db,
-} from "@paperclipai/db";
-import type { GitHubReviewEventContext } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { GitHubReviewEventContext } from "@outpost/shared";
 import { runtimePublicOrigin } from "./cloud-runtime-identity.js";
 import {
   githubBotRepositoryToken,

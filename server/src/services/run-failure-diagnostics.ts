@@ -1,22 +1,22 @@
 import { readWorkspaceBaseRefDiagnostic } from "./workspace-base-ref-diagnostics.js";
 import { getEnvironmentAcquisitionDiagnostic } from "./environment-acquisition-diagnostics.js";
-import type { heartbeatRuns } from "@paperclipai/db";
+import type { heartbeatRuns } from "@outpost/db";
 import { readControllerLeaseLoss, readControllerLeaseLossCause, readRunCancellation } from "./run-cancellation.js";
 import { readProcessLossDiagnostic } from "./process-loss-diagnostics.js";
 import { readReviewedChatBindingDenialReason } from "./reviewed-chat-binding-diagnostics.js";
-import { WORKSPACE_RESTORE_FAILURE_CODES } from "@paperclipai/shared";
+import { WORKSPACE_RESTORE_FAILURE_CODES } from "@outpost/shared";
 import {
   collectDiagnosticEnvironmentSecrets,
   collectHostEnvironmentTokenSecrets,
   redactDiagnosticText,
-} from "@paperclipai/adapter-utils/command-redaction";
-import { directoryMergeLockTimeoutDiagnosticsFor } from "@paperclipai/adapter-utils/directory-merge-lock-diagnostics";
-import { sanitizeWorkspaceRestoreDiagnostic } from "@paperclipai/adapter-utils/workspace-restore-diagnostics";
+} from "@outpost/adapter-utils/command-redaction";
+import { directoryMergeLockTimeoutDiagnosticsFor } from "@outpost/adapter-utils/directory-merge-lock-diagnostics";
+import { sanitizeWorkspaceRestoreDiagnostic } from "@outpost/adapter-utils/workspace-restore-diagnostics";
 import {
   ACP_PROCESS_TERMINAL_SIGNALS,
   ACP_PROCESS_TERMINAL_SOURCES,
   ACP_TOOL_KINDS,
-} from "@paperclipai/adapter-utils/acpx-engine/constants";
+} from "@outpost/adapter-utils/acpx-engine/constants";
 import { redactCurrentUserText } from "../log-redaction.js";
 import { storageFailureDiagnosticsFor } from "../storage/failure-diagnostics.js";
 import { redactSensitiveText, REDACTED_EVENT_VALUE } from "../redaction.js";

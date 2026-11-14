@@ -1,6 +1,6 @@
-import type { AdapterEnvironmentCheck } from "@paperclipai/adapter-utils";
-import { maybeRunSandboxInstallCommand, type AdapterSandboxInstallCommandCheck } from "@paperclipai/adapter-utils/execution-target";
-import { shellQuote } from "@paperclipai/adapter-utils/ssh";
+import type { AdapterEnvironmentCheck } from "@outpost/adapter-utils";
+import { maybeRunSandboxInstallCommand, type AdapterSandboxInstallCommandCheck } from "@outpost/adapter-utils/execution-target";
+import { shellQuote } from "@outpost/adapter-utils/ssh";
 import path from "node:path";
 import { claudeCliVersionAtLeast, readClaudeCommandVersion } from "./cli-capabilities.js";
 

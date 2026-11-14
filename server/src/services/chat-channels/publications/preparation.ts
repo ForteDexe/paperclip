@@ -9,15 +9,15 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatEndpoints,
   chatPublications,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   SafeChatPublicationPayload,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   renderPublicationTransportText,

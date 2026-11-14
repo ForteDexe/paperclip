@@ -4,7 +4,7 @@ function valid() {
   return { scenarioId: "steering.steer-active", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
     runs: [{ id: "worker", status: "succeeded" }, { id: "source", status: "succeeded" }],
     state: { task: { id: "website" }, targetId: "blue", humanId: "human", workerRunId: "worker", workerWasReallyWaiting: true,
-      queueBefore: { issueId: "website", targetRunId: "worker", protocol: "paperclip_runner_v1", steeringDisposition: "available", entries: [{ comment: { id: "blue", body: "Switch to a blue design while you are working.", authorUserId: "human", authorAgentId: null } }] },
+      queueBefore: { issueId: "website", targetRunId: "worker", protocol: "outpost_runner_v1", steeringDisposition: "available", entries: [{ comment: { id: "blue", body: "Switch to a blue design while you are working.", authorUserId: "human", authorAgentId: null } }] },
       queueAfterAction: { entries: [] as Array<{ comment: { id: string; body: string } }> }, humanSteerSelected: true, humanSteerAttempted: false, agentSteerStatus: 403,
       steerControlEnabled: true, continuationControlVisible: false, unsupportedStateRetained: false, steeredActivityCount: 1,
       queryReply: "Use Steer beside your saved message to send this direction to Morgan's active turn; waiting in the queue is separate from delivery.",

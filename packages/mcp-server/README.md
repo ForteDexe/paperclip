@@ -9,24 +9,24 @@ not talk to the database directly and it does not reimplement business logic.
 
 The server reads its configuration from environment variables:
 
-- `PAPERCLIP_API_URL` - Outpost base URL, for example `http://localhost:3100`
-- `PAPERCLIP_API_KEY` - bearer token used for `/api` requests
-- `PAPERCLIP_COMPANY_ID` - optional default company for company-scoped tools
-- `PAPERCLIP_AGENT_ID` - optional default agent for checkout helpers
-- `PAPERCLIP_RUN_ID` - optional run id forwarded on mutating requests
+- `OUTPOST_API_URL` - Outpost base URL, for example `http://localhost:3100`
+- `OUTPOST_API_KEY` - bearer token used for `/api` requests
+- `OUTPOST_COMPANY_ID` - optional default company for company-scoped tools
+- `OUTPOST_AGENT_ID` - optional default agent for checkout helpers
+- `OUTPOST_RUN_ID` - optional run id forwarded on mutating requests
 
-Inside an active heartbeat, Outpost also injects `PAPERCLIP_RUNTIME_TOOLS_*` variables. They enable the run-scoped `connections_search` and `connection_request` tools and expire with the run.
+Inside an active heartbeat, Outpost also injects `OUTPOST_RUNTIME_TOOLS_*` variables. They enable the run-scoped `connections_search` and `connection_request` tools and expire with the run.
 
 ## Usage
 
 ```sh
-npx -y @paperclipai/mcp-server
+npx -y @outpost/mcp-server
 ```
 
 Or locally in this repo:
 
 ```sh
-pnpm --filter @paperclipai/mcp-server build
+pnpm --filter @outpost/mcp-server build
 node packages/mcp-server/dist/stdio.js
 ```
 

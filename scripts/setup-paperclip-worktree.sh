@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-base_cwd="${PAPERCLIP_WORKSPACE_BASE_CWD:?PAPERCLIP_WORKSPACE_BASE_CWD is required}"
-worktree_cwd="${PAPERCLIP_WORKSPACE_CWD:?PAPERCLIP_WORKSPACE_CWD is required}"
-paperclip_home="${PAPERCLIP_HOME:-$HOME/.paperclip}"
-paperclip_instance_id="${PAPERCLIP_INSTANCE_ID:-default}"
+base_cwd="${OUTPOST_WORKSPACE_BASE_CWD:?OUTPOST_WORKSPACE_BASE_CWD is required}"
+worktree_cwd="${OUTPOST_WORKSPACE_CWD:?OUTPOST_WORKSPACE_CWD is required}"
+paperclip_home="${OUTPOST_HOME:-$HOME/.paperclip}"
+paperclip_instance_id="${OUTPOST_INSTANCE_ID:-default}"
 default_source_config_path="$paperclip_home/instances/$paperclip_instance_id/config.json"
 paperclip_dir="$worktree_cwd/.paperclip"
 worktree_config_path="$paperclip_dir/config.json"
@@ -12,7 +12,7 @@ worktree_env_path="$paperclip_dir/.env"
 seed_manifest_path="$paperclip_dir/seed-manifest.json"
 seed_pending_marker_path="$paperclip_dir/seed-pending"
 seed_complete_marker_path="$paperclip_dir/seed-complete"
-worktree_name="${PAPERCLIP_WORKSPACE_BRANCH:-$(basename "$worktree_cwd")}"
+worktree_name="${OUTPOST_WORKSPACE_BRANCH:-$(basename "$worktree_cwd")}"
 created_worktree_config=0
 worktree_instance_id="$(WORKTREE_CWD="$worktree_cwd" node <<'EOF'
 const crypto = require("node:crypto");
@@ -54,11 +54,11 @@ if [[ ! -e "$source_config_path" && ! -L "$source_config_path" ]]; then
   # A base workspace that is a plain checkout carries no instance config of its own.
   # Fall back to the control plane's own registered instance config, which is process
   # state this workspace cannot rewrite.
-  source_config_path="${PAPERCLIP_CONFIG:-$default_source_config_path}"
+  source_config_path="${OUTPOST_CONFIG:-$default_source_config_path}"
   source_config_origin="control-plane instance"
   # Environment-configured servers need no local instance config. A new plain
   # checkout can still prepare dependencies without inventing a seed source.
-  # The Docker image sets PAPERCLIP_CONFIG to this default even without a file.
+  # The Docker image sets OUTPOST_CONFIG to this default even without a file.
   # Custom sources and existing development instances must still fail closed.
   if [[ "$source_config_path" == "$default_source_config_path" && ! -e "$source_config_path" && ! -L "$source_config_path" ]]; then
     source_required=0
@@ -257,16 +257,16 @@ const configPath = path.resolve(process.env.WORKTREE_CONFIG_PATH);
 const envPath = path.resolve(process.env.WORKTREE_ENV_PATH);
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
 const env = parseEnvFile(fs.readFileSync(envPath, "utf8"));
-const envConfigPath = expandHomePrefix(env.PAPERCLIP_CONFIG);
+const envConfigPath = expandHomePrefix(env.OUTPOST_CONFIG);
 if (envConfigPath && path.resolve(envConfigPath) !== configPath) {
   fail(`existing worktree env points at ${envConfigPath}, not ${configPath}`);
 }
 
-const homeDir = expandHomePrefix(env.PAPERCLIP_HOME);
-const instanceId = env.PAPERCLIP_INSTANCE_ID;
+const homeDir = expandHomePrefix(env.OUTPOST_HOME);
+const instanceId = env.OUTPOST_INSTANCE_ID;
 const expectedInstanceId = process.env.WORKTREE_INSTANCE_ID;
 if (!homeDir || !instanceId) {
-  fail("existing worktree env is missing PAPERCLIP_HOME or PAPERCLIP_INSTANCE_ID");
+  fail("existing worktree env is missing OUTPOST_HOME or OUTPOST_INSTANCE_ID");
 }
 if (instanceId !== expectedInstanceId) {
   fail(`existing worktree env names legacy or mismatched instance ${instanceId}, expected ${expectedInstanceId}`);
@@ -357,7 +357,7 @@ const sourceConfigPath = path.resolve(process.env.SOURCE_CONFIG_PATH);
 const sourceEnvPath = path.join(path.dirname(sourceConfigPath), ".env");
 let sourceInstanceId = path.basename(path.dirname(sourceConfigPath));
 if (fs.existsSync(sourceEnvPath)) {
-  const match = fs.readFileSync(sourceEnvPath, "utf8").match(/^\s*(?:export\s+)?PAPERCLIP_INSTANCE_ID\s*=\s*["']?([^\s"'#]+)["']?/m);
+  const match = fs.readFileSync(sourceEnvPath, "utf8").match(/^\s*(?:export\s+)?OUTPOST_INSTANCE_ID\s*=\s*["']?([^\s"'#]+)["']?/m);
   if (match?.[1]) sourceInstanceId = match[1];
 }
 fs.rmSync(completePath, { force: true });
@@ -391,11 +391,11 @@ write_fallback_worktree_config() {
   WORKTREE_NAME="$worktree_name" \
   BASE_CWD="$base_cwd" \
   WORKTREE_CWD="$worktree_cwd" \
-  PAPERCLIP_DIR="$paperclip_dir" \
+  OUTPOST_DIR="$paperclip_dir" \
   SOURCE_CONFIG_PATH="$source_config_path" \
   SOURCE_ENV_PATH="$source_env_path" \
   WORKTREE_INSTANCE_ID="$worktree_instance_id" \
-  PAPERCLIP_WORKTREES_DIR="${PAPERCLIP_WORKTREES_DIR:-}" \
+  OUTPOST_WORKTREES_DIR="${OUTPOST_WORKTREES_DIR:-}" \
   node <<'EOF'
 const fs = require("node:fs");
 const os = require("node:os");
@@ -496,10 +496,10 @@ function resolveRuntimeLikePath(value, configPath) {
 
 async function main() {
   const worktreeName = process.env.WORKTREE_NAME;
-  const paperclipDir = process.env.PAPERCLIP_DIR;
+  const paperclipDir = process.env.OUTPOST_DIR;
   const sourceConfigPath = process.env.SOURCE_CONFIG_PATH;
   const sourceEnvPath = process.env.SOURCE_ENV_PATH;
-  const worktreeHome = path.resolve(expandHomePrefix(nonEmpty(process.env.PAPERCLIP_WORKTREES_DIR) ?? "~/.paperclip-worktrees"));
+  const worktreeHome = path.resolve(expandHomePrefix(nonEmpty(process.env.OUTPOST_WORKTREES_DIR) ?? "~/.paperclip-worktrees"));
   const instanceId = process.env.WORKTREE_INSTANCE_ID;
   if (!/^[A-Za-z0-9_-]+$/.test(instanceId ?? "")) {
     throw new Error("WORKTREE_INSTANCE_ID is missing or unsafe");
@@ -589,7 +589,7 @@ async function main() {
 
   fs.writeFileSync(configPath, `${JSON.stringify(targetConfig, null, 2)}\n`, { mode: 0o600 });
 
-  const inlineMasterKey = nonEmpty(sourceEnvEntries.PAPERCLIP_SECRETS_MASTER_KEY);
+  const inlineMasterKey = nonEmpty(sourceEnvEntries.OUTPOST_SECRETS_MASTER_KEY);
   if (inlineMasterKey) {
     fs.mkdirSync(path.resolve(instanceRoot, "secrets"), { recursive: true });
     fs.writeFileSync(targetConfig.secrets.localEncrypted.keyFilePath, inlineMasterKey, {
@@ -597,8 +597,8 @@ async function main() {
       mode: 0o600,
     });
   } else {
-    const sourceKeyFilePath = nonEmpty(sourceEnvEntries.PAPERCLIP_SECRETS_MASTER_KEY_FILE)
-      ? resolveRuntimeLikePath(sourceEnvEntries.PAPERCLIP_SECRETS_MASTER_KEY_FILE, sourceConfigPath)
+    const sourceKeyFilePath = nonEmpty(sourceEnvEntries.OUTPOST_SECRETS_MASTER_KEY_FILE)
+      ? resolveRuntimeLikePath(sourceEnvEntries.OUTPOST_SECRETS_MASTER_KEY_FILE, sourceConfigPath)
       : nonEmpty(sourceConfig?.secrets?.localEncrypted?.keyFilePath)
         ? resolveRuntimeLikePath(sourceConfig.secrets.localEncrypted.keyFilePath, sourceConfigPath)
         : null;
@@ -611,22 +611,22 @@ async function main() {
   }
 
   const envLines = [
-    "PAPERCLIP_HOME=" + JSON.stringify(worktreeHome),
-    "PAPERCLIP_INSTANCE_ID=" + JSON.stringify(instanceId),
-    "PAPERCLIP_CONFIG=" + JSON.stringify(configPath),
-    "PAPERCLIP_CONTEXT=" + JSON.stringify(path.resolve(worktreeHome, "context.json")),
-    "PAPERCLIP_IN_WORKTREE=true",
-    "PAPERCLIP_WORKTREE_NAME=" + JSON.stringify(worktreeName),
+    "OUTPOST_HOME=" + JSON.stringify(worktreeHome),
+    "OUTPOST_INSTANCE_ID=" + JSON.stringify(instanceId),
+    "OUTPOST_CONFIG=" + JSON.stringify(configPath),
+    "OUTPOST_CONTEXT=" + JSON.stringify(path.resolve(worktreeHome, "context.json")),
+    "OUTPOST_IN_WORKTREE=true",
+    "OUTPOST_WORKTREE_NAME=" + JSON.stringify(worktreeName),
   ];
 
   // Secrets that must be carried over from the source instance so the worktree's
-  // dev server behaves like the real one. PAPERCLIP_TOOL_ACTION_SIGNING_SECRET is
+  // dev server behaves like the real one. OUTPOST_TOOL_ACTION_SIGNING_SECRET is
   // required for signed tool-gateway approvals (ask-first MCP policies); without
   // it the first gated POST /tool-gateway/tools/call returns Internal server error.
   // BETTER_AUTH_SECRET keeps auth tokens compatible across the source/worktree pair.
   const propagatedSecretKeys = [
-    "PAPERCLIP_AGENT_JWT_SECRET",
-    "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET",
+    "OUTPOST_AGENT_JWT_SECRET",
+    "OUTPOST_TOOL_ACTION_SIGNING_SECRET",
     "BETTER_AUTH_SECRET",
   ];
   for (const key of propagatedSecretKeys) {

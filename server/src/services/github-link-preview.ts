@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import type { LinkPreviewState } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import type { LinkPreviewState } from "@outpost/shared";
 import { createGitHubExternalObjectProvider, type GitHubExternalObjectProviderOptions } from "./github-external-object-provider.js";
 import { resolveGitHubApiCredential, resolveManagedGitHubCredential } from "./git-credentials.js";
 import { secretService } from "./secrets.js";

@@ -946,7 +946,7 @@ export function GitHubChatPreview({
                       conversation. PR events can ask the same agent to review
                       changes.
                     </Heading>
-                    <GitHubSetupPrompt instanceUrl={import.meta.env.VITE_PAPERCLIP_INSTANCE_URL ?? ""} />
+                    <GitHubSetupPrompt instanceUrl={import.meta.env.VITE_OUTPOST_INSTANCE_URL ?? ""} />
                     <Select
                       disabled={draft.connected}
                       label="Paperclip agent"
@@ -991,7 +991,7 @@ export function GitHubChatPreview({
                         </p>
                         <a
                           className="mt-2 inline-block underline"
-                          href="https://paperclip.ing/docs"
+                          href="https://outpost.ing/docs"
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1002,7 +1002,7 @@ export function GitHubChatPreview({
                     ) : (
                       <Notice>
                         GitHub will send events to{" "}
-                        <strong>acme.staging.paperclip.app</strong>. Signed
+                        <strong>acme.staging.outpost.app</strong>. Signed
                         delivery is checked after installation.
                       </Notice>
                     )}
@@ -1140,7 +1140,7 @@ export function GitHubChatPreview({
                           <summary className="cursor-pointer">
                             Configure the existing App on GitHub
                           </summary>
-                          <CopyValue value="https://acme.staging.paperclip.app/api/chat-webhooks/example-public-id/github" />
+                          <CopyValue value="https://acme.staging.outpost.app/api/chat-webhooks/example-public-id/github" />
                           <p>
                             Set this webhook URL on your App. Enable Contents
                             read, Issues write, Pull requests write, and Checks
@@ -1307,7 +1307,7 @@ export function GitHubChatPreview({
                       <summary className="cursor-pointer text-muted-foreground">
                         Connection details & troubleshooting
                       </summary>
-                      <CopyValue value="https://acme.staging.paperclip.app/api/chat-webhooks/example-public-id/github" />
+                      <CopyValue value="https://acme.staging.outpost.app/api/chat-webhooks/example-public-id/github" />
                       <p className="text-xs text-muted-foreground">
                         Webhook verification does not prove a complete agent
                         review. Try a real PR after setup.
@@ -1584,13 +1584,13 @@ export function GitHubChatPreview({
                 {
                   name: bot,
                   public: false,
-                  url: "https://acme.staging.paperclip.app",
+                  url: "https://acme.staging.outpost.app",
                   hook_attributes: {
-                    url: "https://acme.staging.paperclip.app/api/chat-webhooks/example-public-id/github",
+                    url: "https://acme.staging.outpost.app/api/chat-webhooks/example-public-id/github",
                     active: true,
                   },
                   redirect_url:
-                    "https://acme.staging.paperclip.app/api/chat-github/manifest/callback",
+                    "https://acme.staging.outpost.app/api/chat-github/manifest/callback",
                   default_permissions: {
                     contents: "read",
                     issues: "write",

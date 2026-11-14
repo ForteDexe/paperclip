@@ -37,7 +37,7 @@ validates the result (lines 83-116). Line numbers in 1.1-1.5 refer to that scrip
   (`Foundations, Components, Layouts, Pages, AI Generated Test Pages, Patterns, Guidelines`); a lab group
   outside the list sorts after them; the catalog does not enforce group names. Never edit the generated
   `preview.tsx` (`maps/storybook-map/README.md:90`).
-- `ui/storybook/.storybook/preview-base.tsx:853` wraps a story whose `parameters.paperclip.home` is
+- `ui/storybook/.storybook/preview-base.tsx:853` wraps a story whose `parameters.outpost.home` is
   `"design-proposals"` in `<AvatarInitialProvider><div className="design-proposal-theme">` unless
   `parameters.designProposalTheme === false`; `html:has(.design-proposal-theme)` switches `--font-mono` to
   Paper Mono (`ui/src/index.css:3916-3918`). Theme toolbar defaults to dark (line 861); a11y is `test: "error"` (line 876).
@@ -345,9 +345,9 @@ cd ui && pnpm typecheck
 pnpm build-storybook
 ```
 
-- Fresh worktree: `pnpm install --frozen-lockfile` and build `@paperclipai/plugin-sdk` first, or `tsc`
-  reports `Cannot find module '@paperclipai/plugin-sdk/ui'` in `PluginOrganizationSwitcher(.test).tsx`.
-  Repo-wide `pnpm -r typecheck` needs the Rust toolchain for `paperclip-runner`; report it as not run when absent.
+- Fresh worktree: `pnpm install --frozen-lockfile` and build `@outpost/plugin-sdk` first, or `tsc`
+  reports `Cannot find module '@outpost/plugin-sdk/ui'` in `PluginOrganizationSwitcher(.test).tsx`.
+  Repo-wide `pnpm -r typecheck` needs the Rust toolchain for `outpost-runner`; report it as not run when absent.
 - PR title `feat(ui): ...`; one or more `.test.ts(x)` files in the diff; no `pnpm-lock.yaml` change; no new
   `package.json` script; no file crossing 1,000 lines; no code comments; no committed screenshots or
   generated files.

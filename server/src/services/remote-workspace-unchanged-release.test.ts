@@ -9,9 +9,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents, closeRegisteredClients, companies, createDb, environmentLeases, environments, executionWorkspaces,
   heartbeatRunEvents, heartbeatRuns, issues, workspaceOperations,
-} from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { EnvironmentLease } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { EnvironmentLease } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -32,7 +32,7 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
     database = await startEmbeddedPostgresTestDatabase("workspace-unchanged-release-");
     db = createDb(database.connectionString);
     root = await realpath(await mkdtemp(path.join(os.tmpdir(), "workspace-unchanged-release-")));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "63".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "63".repeat(32));
     vi.stubEnv("DATABASE_URL", database.connectionString);
   }, 60_000);
   afterAll(async () => {
@@ -46,7 +46,7 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
   async function preparedFollowUp(options: { runtimeProvisionCommand?: string } = {}) {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Unchanged release", issuePrefix: `U${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Daily repair", status: "in_progress", assigneeAgentId: agentId });
     const [environment] = await db.insert(environments).values({ name: issueId, driver: "sandbox" }).returning();
     const storage = { ...createStorageService(createLocalDiskStorageProvider(path.join(root, issueId, "objects"))), provider: "s3" as const };
@@ -244,7 +244,7 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
     const { [UNCHANGED_BASELINE_KEY]: _dropped, ...previousRelease } = current.metadata ?? {};
     const next = baseline === undefined ? previousRelease
       : baseline === "drop_snapshot" ? { ...previousRelease, [UNCHANGED_BASELINE_KEY]: { ...recorded, snapshotId: undefined } }
-      : { ...previousRelease, [UNCHANGED_BASELINE_KEY]: { ...recorded, schema: "paperclip.remote-workspace-unchanged-baseline.v0" } };
+      : { ...previousRelease, [UNCHANGED_BASELINE_KEY]: { ...recorded, schema: "outpost.remote-workspace-unchanged-baseline.v0" } };
     await db.update(executionWorkspaces).set({ metadata: next }).where(eq(executionWorkspaces.id, current.id));
     await f.end();
     await expectFullSave(f);

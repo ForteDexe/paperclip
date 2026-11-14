@@ -4,7 +4,7 @@ function valid() {
   return { scenarioId: "steering.interrupt-with-direction", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
     runs: [{ id: "old", status: "cancelled" }, { id: "source", status: "succeeded" }, { id: "new", status: "succeeded" }],
     state: { task: { id: "website" }, worker: { id: "morgan" }, workerRunId: "old", approvedDirection: { id: "accepted-plan" },
-      directionQueue: { issueId: "website", targetRunId: "old", protocol: "paperclip_runner_v1", entries: [{ source: { kind: "interaction", requiresFreshSession: true, interactionId: "accepted-plan" } }] },
+      directionQueue: { issueId: "website", targetRunId: "old", protocol: "outpost_runner_v1", entries: [{ source: { kind: "interaction", requiresFreshSession: true, interactionId: "accepted-plan" } }] },
       planApprovedByHuman: true, interruptControlEnabled: true, humanInterrupted: true, interruptStatus: 200,
       oldRunAfter: { id: "old", status: "cancelled", finishedAt: "2026-10-26T12:00:00.000Z" }, nativeStopAcknowledged: true, oldEvidenceRetained: true,
       queryReply: "Use the supported Interrupt button beside your saved simpler plan response. It stops the current attempt before sending the accepted direction to one eligible fresh continuation.", workerRunningAfterReply: true, humanFollowedReplyTaskLink: true,

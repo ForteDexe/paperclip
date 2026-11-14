@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { fork } from 'node:child_process';
 import { once } from 'node:events';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { createDb } from '@paperclipai/db';
+import { createDb } from '@outpost/db';
 import { startEmbeddedPostgresTestDatabase } from '../../dist/__tests__/helpers/embedded-postgres.js';
 import { createProfileProjectionFixture } from '../../dist/__tests__/helpers/tool-profile-projection-fixture.js';
 const index = process.argv.indexOf('--output-dir');

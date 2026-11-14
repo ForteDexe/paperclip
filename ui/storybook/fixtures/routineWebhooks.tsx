@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { ActivityEvent, Issue, RoutineDetail as RoutineDetailData, RoutineRunSummary, RoutineTrigger } from "@paperclipai/shared";
+import type { ActivityEvent, Issue, RoutineDetail as RoutineDetailData, RoutineRunSummary, RoutineTrigger } from "@outpost/shared";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { routinesApi } from "@/api/routines";
 import { issuesApi } from "@/api/issues";
@@ -14,7 +14,7 @@ import { storybookAgents, storybookIssues } from "./paperclipData";
 const now = new Date("2026-09-18T15:00:00Z");
 const routineId = "routine-webhook-story";
 const companyId = "company-storybook";
-const defaultWebhookUrl = "https://acme.paperclip.example/api/routine-triggers/public/0123456789abcdef01234567/fire";
+const defaultWebhookUrl = "https://acme.outpost.example/api/routine-triggers/public/0123456789abcdef01234567/fire";
 const demoSecret = "storybook-demo-secret-not-a-real-credential";
 const actorFields = {
   createdByAgentId: null, createdByUserId: null,

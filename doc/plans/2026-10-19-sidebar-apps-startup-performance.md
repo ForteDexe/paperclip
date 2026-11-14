@@ -145,13 +145,13 @@ with heartbeat disabled. Only this task's own preview/test processes were stoppe
 Native PostgreSQL package symlinks were restored with its install hook.
 
 Archive `ui/` and `announcements/` at the baseline revision, link the same installed
-dependencies, and build from that UI directory with `PAPERCLIP_BUILD_COMMIT` set
+dependencies, and build from that UI directory with `OUTPOST_BUILD_COMMIT` set
 to its full SHA. Save the two production builds in separate directories, then run:
 
 ```sh
-PAPERCLIP_APPS_BENCH_BASELINE_DIST=/path/to/baseline-dist \
-PAPERCLIP_APPS_BENCH_CANDIDATE_DIST=/path/to/candidate-dist \
-PAPERCLIP_APPS_BENCH_SERVER_DIST=/path/to/server-checkout/ui/dist \
+OUTPOST_APPS_BENCH_BASELINE_DIST=/path/to/baseline-dist \
+OUTPOST_APPS_BENCH_CANDIDATE_DIST=/path/to/candidate-dist \
+OUTPOST_APPS_BENCH_SERVER_DIST=/path/to/server-checkout/ui/dist \
 node scripts/benchmark-apps-startup.mjs comparison http://127.0.0.1:3214/ /tmp/apps-comparison
 ```
 

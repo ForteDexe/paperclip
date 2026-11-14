@@ -2,11 +2,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult } from "@outpost/adapter-utils";
 
 const processResult = vi.hoisted(() => vi.fn());
-vi.mock("@paperclipai/adapter-utils/execution-target", async (original) => ({
-  ...await original<typeof import("@paperclipai/adapter-utils/execution-target")>(),
+vi.mock("@outpost/adapter-utils/execution-target", async (original) => ({
+  ...await original<typeof import("@outpost/adapter-utils/execution-target")>(),
   runAdapterExecutionTargetProcess: processResult,
 }));
 
@@ -100,7 +100,7 @@ describe("CLI adapter accounting on timeout", () => {
       }
       for (const [kind, auth, biller] of [["openrouter", "api_key", "openrouter"], ["custom", "api_key", "unknown"], ["local", "none", "unknown"]]) {
         const routed = await execute({ ...context, config: { ...context.config,
-          managedAiRouting: { kind, auth }, env: { ...(context.config.env as object), OPENAI_API_KEY: "", PAPERCLIP_AI_PROVIDER_KEY: auth === "none" ? "" : "fixture" },
+          managedAiRouting: { kind, auth }, env: { ...(context.config.env as object), OPENAI_API_KEY: "", OUTPOST_AI_PROVIDER_KEY: auth === "none" ? "" : "fixture" },
         } });
         expect(routed).toMatchObject({ billingType: "api", biller, costUsd: null });
         expect(onUsage.mock.calls.at(-1)![0]).toMatchObject({ billingType: "api", biller, costUsd: null });
@@ -251,7 +251,7 @@ describe("CLI adapter accounting on timeout", () => {
 describe("incremental protocol accounting", () => {
   it.each(["turn.failed", "error", "turn.started"])("saves an unpriced Codex %s checkpoint before exposing its log", async (type) => {
     const { createCodexJsonlParser } = await import("../../../packages/adapters/codex-local/src/server/parse.js");
-    const { createUsageCheckpointLog } = await import("@paperclipai/adapter-utils/usage-checkpoint");
+    const { createUsageCheckpointLog } = await import("@outpost/adapter-utils/usage-checkpoint");
     const consume = createCodexJsonlParser();
     const order: string[] = [];
     const saved = vi.fn(async () => { order.push("receipt"); });

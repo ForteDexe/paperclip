@@ -10,7 +10,7 @@ import {
 
 /** Runs the launch writer as the remote launcher does, with a Node child standing in for runnerd. */
 async function launch(root: string, childSource: string, script = REMOTE_RUNNER_CHILD_LAUNCH_SCRIPT) {
-  const child = spawn("/bin/sh", ["-c", script, "paperclip-runner-child", join(root, "state", "identity"), "nonce", "runner-id",
+  const child = spawn("/bin/sh", ["-c", script, "outpost-runner-child", join(root, "state", "identity"), "nonce", "runner-id",
     join(root, "diagnostics"), process.execPath, "-e", childSource, "--", "--runner-id", "runner-id"],
   { stdio: ["ignore", "pipe", "pipe"] });
   let stderr = "";
@@ -24,17 +24,17 @@ describe("remote runnerd stderr evidence", () => {
     const root = await mkdtemp(join(tmpdir(), "runner-launch-stderr-"));
     try {
       await mkdir(join(root, "state"));
-      const result = await launch(root, 'process.stderr.write("paperclip-runnerd: lease expired\\n"); process.exit(3)');
+      const result = await launch(root, 'process.stderr.write("outpost-runnerd: lease expired\\n"); process.exit(3)');
       expect(result.code).toBe(3);
       // Nothing reaches the launcher's own stderr; the reason stays in the sandbox file.
       expect(result.stderr).toBe("");
       const file = join(root, "diagnostics", REMOTE_RUNNER_PROCESS_STDERR_FILE);
-      expect(await readFile(file, "utf8")).toBe("paperclip-runnerd: lease expired\n");
+      expect(await readFile(file, "utf8")).toBe("outpost-runnerd: lease expired\n");
       expect((await stat(file)).mode & 0o077).toBe(0);
       expect((await readFile(join(root, "state", "identity"), "utf8")).split("\n")[1]).toBe(String(result.pid));
       // A second launch appends: the earlier exit reason survives the relaunch.
       await launch(root, 'process.stderr.write("second\\n")');
-      expect(await readFile(file, "utf8")).toBe("paperclip-runnerd: lease expired\nsecond\n");
+      expect(await readFile(file, "utf8")).toBe("outpost-runnerd: lease expired\nsecond\n");
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 

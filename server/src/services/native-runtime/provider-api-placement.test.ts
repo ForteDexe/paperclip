@@ -6,16 +6,16 @@ import { resolveProviderApiPlacement } from "./provider-api-placement.js";
 import { evaluateExecutionAllowlist } from "../execution-allowlist.js";
 
 const placement = { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" };
-const agent = { adapterType: "paperclip_runner", adapterConfig: {
+const agent = { adapterType: "outpost_runner", adapterConfig: {
   provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification",
 } };
 function execution(provider: "cursor_cloud" | "codex") {
   return buildNativeExecutionInput({ companyId: randomUUID(), agentId: randomUUID(), runId: randomUUID(), provider,
-    model: "caller-model", ...(provider === "cursor_cloud" ? { cursorCloud: { schema: "paperclip.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/qualification" }] } } : {}),
+    model: "caller-model", ...(provider === "cursor_cloud" ? { cursorCloud: { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/qualification" }] } } : {}),
     issue: { id: randomUUID(), identifier: "API-1", title: "Bound task", description: null, workMode: "standard" },
     taskPrompt: "Complete the task", normalizedSessionId: randomUUID(),
     workspace: { id: randomUUID(), cwd: "/private/controller", repoUrl: null, repoRef: null, branchName: null },
-    completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+    completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
       contract: { revision: "1", objective: "Complete the task", criteria: [{ id: "objective", requirement: "Complete the task" }] } },
     runtimeContext: nativeRuntimeContextFixture(),
   });

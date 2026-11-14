@@ -282,7 +282,7 @@ export const secretDeliveryExternalCases = [
     },
     gradeSecretDelivery,
     {
-      oracleVersion: "paperclip.chat-catalog.external-least-scope-delivery.v12", authentication: "human-session",
+      oracleVersion: "outpost.chat-catalog.external-least-scope-delivery.v12", authentication: "human-session",
       // CEO turn, Morgan's check (plus at most one wake from a handoff
       // comment on the created task), and the CEO's confirmation.
       expectedRunCount: 4,
@@ -312,7 +312,7 @@ export const secretDeliveryExternalCases = [
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "chat-catalog-domains/external-plugin-sdk-mirror.ts",
         "../../packages/plugins/sdk/package.json",
-        "../../packages/plugins/create-paperclip-plugin/src/index.ts",
+        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/secrets.yaml",

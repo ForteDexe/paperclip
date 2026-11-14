@@ -9,7 +9,7 @@ import { MCP_MIRROR_MAX_BINDING_BYTES, MCP_MIRROR_MAX_ENVELOPE_BYTES } from "./c
 function owner(instanceId="unit-mirror-instance") {
   const signing=generateKeyPairSync("ed25519"),sealing=generateKeyPairSync("x25519");
   const captured:string[]=[];
-  const connector=createPaperclipCloudConnector({config:{baseUrl:"https://my.paperclip.app",instanceId,environment:"production",
+  const connector=createPaperclipCloudConnector({config:{baseUrl:"https://my.outpost.app",instanceId,environment:"production",
     signPrivateKey:signing.privateKey.export({format:"pem",type:"pkcs8"}).toString(),
     sealPrivateKey:sealing.privateKey.export({format:"pem",type:"pkcs8"}).toString()},
     request:async(_url,init)=>{captured.push(String(init?.body));return new Response(JSON.stringify({mcpClientMirror:{complete:false,nextSequence:0,receivedRecords:0}}),{status:200,headers:{"content-type":"application/json"}});}});
@@ -35,7 +35,7 @@ test("unit controlled transport captures the actual signed and escaped MCP singl
   assert.equal(claims.iss,"unit-mirror-instance");
   assert.equal(claims.sub,"instance-client-metadata");
   assert.equal(claims.cid,"instance-client-metadata");
-  assert.equal(claims.aud,"https://my.paperclip.app/v1/connector/mcp-client-mirror");
+  assert.equal(claims.aud,"https://my.outpost.app/v1/connector/mcp-client-mirror");
   assert.equal(claims.exp-claims.iat,60);
   assert.equal(claims.sh,createHash("sha256").update(binding).digest("base64url"));
 });

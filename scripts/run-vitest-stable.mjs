@@ -24,25 +24,25 @@ const serverSrcDir = path.join(repoRoot, "server", "src");
 const serverTestsDir = path.join(repoRoot, "server", "src", "__tests__");
 const serverScriptsDir = path.join(repoRoot, "server", "scripts");
 const nonServerProjects = [
-  "@paperclipai/shared",
-  "@paperclipai/skills-catalog",
-  "@paperclipai/db",
-  "@paperclipai/adapter-utils",
-  "@paperclipai/adapter-claude-local",
-  "@paperclipai/adapter-codex-local",
-  "@paperclipai/adapter-cursor-cloud",
-  "@paperclipai/adapter-cursor-local",
-  "@paperclipai/adapter-gemini-local",
-  "@paperclipai/adapter-grok-local",
-  "@paperclipai/hermes-paperclip-adapter",
-  "@paperclipai/adapter-kimi-local",
-  "@paperclipai/adapter-openclaw-gateway",
-  "@paperclipai/adapter-opencode-local",
-  "@paperclipai/adapter-pi-local",
-  "@paperclipai/plugin-daytona",
-  "@paperclipai/plugin-sdk",
-  "@paperclipai/create-paperclip-plugin",
-  "@paperclipai/ui",
+  "@outpost/shared",
+  "@outpost/skills-catalog",
+  "@outpost/db",
+  "@outpost/adapter-utils",
+  "@outpost/adapter-claude-local",
+  "@outpost/adapter-codex-local",
+  "@outpost/adapter-cursor-cloud",
+  "@outpost/adapter-cursor-local",
+  "@outpost/adapter-gemini-local",
+  "@outpost/adapter-grok-local",
+  "@outpost/hermes-outpost-adapter",
+  "@outpost/adapter-kimi-local",
+  "@outpost/adapter-openclaw-gateway",
+  "@outpost/adapter-opencode-local",
+  "@outpost/adapter-pi-local",
+  "@outpost/plugin-daytona",
+  "@outpost/plugin-sdk",
+  "@outpost/create-outpost-plugin",
+  "@outpost/ui",
   "paperclipai",
 ];
 const routeTestPattern = /[^/]*(?:route|routes|authz)[^/]*\.test\.ts$/;
@@ -74,9 +74,9 @@ const additionalSerializedServerTests = new Set([
   "server/src/__tests__/routines-e2e.test.ts",
 ]);
 // Suite-specific external URLs can also name a shared mutable database.
-// Owned database factories use PAPERCLIP_TEST_POSTGRES_ADMIN_URL instead.
+// Owned database factories use OUTPOST_TEST_POSTGRES_ADMIN_URL instead.
 const hasSharedTestDatabase = Object.entries(process.env).some(([key, value]) =>
-  key.startsWith("PAPERCLIP_") && key.endsWith("_TEST_DATABASE_URL") && value?.trim(),
+  key.startsWith("OUTPOST_") && key.endsWith("_TEST_DATABASE_URL") && value?.trim(),
 );
 let invocationIndex = 0;
 const serializedModeName = "serialized";
@@ -114,7 +114,7 @@ const nativeRunnerSuites = [
 // workflows inherit the caller's GITHUB_WORKFLOW), the last Verify Paperclip
 // Runner vitest shard runs the native-runner group instead, because those
 // lanes restore the shared release-runner-v2 Rust cache (see
-// packages/paperclip-runner/scripts/run-pr-vitest-lane.mjs). Every other
+// packages/outpost-runner/scripts/run-pr-vitest-lane.mjs). Every other
 // caller of the same group keeps the suite in the server shards, so a renamed or
 // unknown workflow degrades to today's slower-but-covered behavior rather
 // than dropping the suite.
@@ -138,7 +138,7 @@ function excludedServerSuites(groupName) {
 const generalWorkspacesAGroupName = "general-workspaces-a";
 const generalWorkspacesBGroupName = "general-workspaces-b";
 const generalWorkspacesCGroupName = "general-workspaces-c";
-const generalWorkspacesAProjects = ["@paperclipai/ui", "paperclipai"];
+const generalWorkspacesAProjects = ["@outpost/ui", "paperclipai"];
 // The db project runs in its own lane. Its vitest invocation took 168-250s
 // of a 436-513s workspaces-b job (PR runs 38084171761, 38083084276 and
 // 38083020834, 2026-10-10), which made workspaces-b the slowest check once
@@ -148,7 +148,7 @@ const generalWorkspacesAProjects = ["@paperclipai/ui", "paperclipai"];
 // slow suites on one runner. Splitting by project is deterministic and
 // leaves the remaining projects at ~265-275s of vitest time, roughly level
 // with this lane.
-const generalWorkspacesCProjects = ["@paperclipai/db"];
+const generalWorkspacesCProjects = ["@outpost/db"];
 const generalWorkspacesBProjects = nonServerProjects.filter(
   (project) => !generalWorkspacesAProjects.includes(project) && !generalWorkspacesCProjects.includes(project),
 );
@@ -348,7 +348,7 @@ function parseCliOptions(argv) {
     mode === serializedModeName ||
     (mode === generalModeName &&
       ([...generalServerGroups, generalChatGroupName, generalWorkspacesAGroupName].includes(group)
-        || Boolean(process.env.PAPERCLIP_CI_TEST_SELECTION)
+        || Boolean(process.env.OUTPOST_CI_TEST_SELECTION)
           && [generalWorkspacesBGroupName, generalWorkspacesCGroupName].includes(group)));
   if (!shardAllowed && shardIndex !== null) {
     fail(
@@ -420,20 +420,20 @@ async function runVitest(args, label, testShard = null, exactFiles = false) {
   const env = {
     ...process.env,
     NODE_ENV: "test",
-    PAPERCLIP_TEST_HOST_HOME: process.env.PAPERCLIP_TEST_HOST_HOME
-      ?? (process.env.PAPERCLIP_HOME?.trim() || path.join(os.homedir(), ".paperclip")),
-    PAPERCLIP_HOME: path.join(testRoot, "h"),
+    OUTPOST_TEST_HOST_HOME: process.env.OUTPOST_TEST_HOST_HOME
+      ?? (process.env.OUTPOST_HOME?.trim() || path.join(os.homedir(), ".paperclip")),
+    OUTPOST_HOME: path.join(testRoot, "h"),
     // Config discovery otherwise prefers the checkout's .paperclip/config.json
-    // over PAPERCLIP_HOME, importing preview scheduling policy into unit tests.
-    PAPERCLIP_CONFIG: path.join(testRoot, "h", "config.json"),
-    PAPERCLIP_INSTANCE_ID: `vt-${process.pid}-${invocationIndex}`,
+    // over OUTPOST_HOME, importing preview scheduling policy into unit tests.
+    OUTPOST_CONFIG: path.join(testRoot, "h", "config.json"),
+    OUTPOST_INSTANCE_ID: `vt-${process.pid}-${invocationIndex}`,
     TMPDIR: path.join(testRoot, "t"),
   };
   // The wrapper has already validated and consumed this shard's manifest.
   // Tests may launch independent runner fixtures with a different root/inventory.
-  delete env.PAPERCLIP_CI_TEST_SELECTION;
-  delete env.PAPERCLIP_CI_SELECTION_HASH;
-  mkdirSync(env.PAPERCLIP_HOME, { recursive: true });
+  delete env.OUTPOST_CI_TEST_SELECTION;
+  delete env.OUTPOST_CI_SELECTION_HASH;
+  mkdirSync(env.OUTPOST_HOME, { recursive: true });
   mkdirSync(env.TMPDIR, { recursive: true });
   if (testShard) {
     const file = path.resolve(repoRoot, chatSuite);
@@ -489,7 +489,7 @@ async function runVitest(args, label, testShard = null, exactFiles = false) {
 
 async function runGeneralSuites(routeTests, chatShards) {
   for (const shard of chatShards ?? []) {
-    await runVitest(["--project", "@paperclipai/server", ...serializedServerVitestArgs, chatSuite],
+    await runVitest(["--project", "@outpost/server", ...serializedServerVitestArgs, chatSuite],
       "chat integration test shard", shard);
   }
   for (const groupName of generalGroupNames) {
@@ -523,7 +523,7 @@ async function runGeneralGroup(routeTests, groupName, shardIndex = null, shardCo
     // Each invocation gets its own temporary home and embedded PostgreSQL.
     // Wait for both children even on failure so no sibling is abandoned.
     const results = await Promise.allSettled(chatShardWorkers(shardIndex, shardCount).map((shard) =>
-      runVitest(["--project", "@paperclipai/server", ...serializedServerVitestArgs, chatSuite],
+      runVitest(["--project", "@outpost/server", ...serializedServerVitestArgs, chatSuite],
         "chat integration test shard", shard),
     ));
     const failed = results.find((result) => result.status === "rejected");
@@ -532,7 +532,7 @@ async function runGeneralGroup(routeTests, groupName, shardIndex = null, shardCo
   }
   if (groupName === generalServerNativeRunnerGroupName) {
     await runVitest(
-      ["--project", "@paperclipai/server",
+      ["--project", "@outpost/server",
         // Each file owns its database, home, and processes. Keep cases serial,
         // but overlap long real lease windows in four isolated fork workers.
         ...(hasSharedTestDatabase ? serializedServerVitestArgs
@@ -562,7 +562,7 @@ async function runGeneralGroup(routeTests, groupName, shardIndex = null, shardCo
       await runVitest(
         [
           "--project",
-          "@paperclipai/server",
+          "@outpost/server",
           // Files have separate fork processes and isolated homes/configs.
           // Keep each file's cases serial; overlap three independent files.
           // An explicit shared test database cannot be isolated this way.
@@ -583,7 +583,7 @@ async function runGeneralGroup(routeTests, groupName, shardIndex = null, shardCo
     await runVitest(
       [
         "--project",
-        "@paperclipai/server",
+        "@outpost/server",
         ...serializedServerVitestArgs,
         ...excludeRouteArgs,
       ],
@@ -624,7 +624,7 @@ async function runSerializedSuites(routeTests, shardIndex, shardCount) {
     await runVitest(
       [
         "--project",
-        "@paperclipai/server",
+        "@outpost/server",
         ...shardTests.map((test) => test.repoPath),
         "--pool=forks",
         "--isolate",
@@ -663,16 +663,16 @@ const generalServerTestFiles = [
 
 const options = parseCliOptions(process.argv.slice(2));
 const selectionProjects = options.mode === serializedModeName || generalServerGroups.includes(options.group)
-  ? ["@paperclipai/server"]
+  ? ["@outpost/server"]
   : options.group === generalWorkspacesAGroupName ? generalWorkspacesAProjects
     : options.group === generalWorkspacesBGroupName ? generalWorkspacesBProjects
       : options.group === generalWorkspacesCGroupName ? generalWorkspacesCProjects : [];
-const selection = process.env.PAPERCLIP_CI_TEST_SELECTION
+const selection = process.env.OUTPOST_CI_TEST_SELECTION
   ? selectedShard(loadSelection(), options, selectionProjects) : null;
-if (selection?.["@paperclipai/server"]) {
+if (selection?.["@outpost/server"]) {
   const owned = new Set(options.mode === serializedModeName ? routeTests.map((test) => test.repoPath)
     : generalServerTestFiles.filter((file) => !excludedServerSuites(options.group).includes(file)));
-  for (const file of selection["@paperclipai/server"]) {
+  for (const file of selection["@outpost/server"]) {
     if (!owned.has(file)) fail(`Selected test belongs to another server lane: ${file}`);
   }
 }
@@ -742,7 +742,7 @@ if (options.dryRun) {
 try {
   if (selection) {
     for (const [project, files] of Object.entries(selection)) {
-      const serverArgs = project !== "@paperclipai/server" ? []
+      const serverArgs = project !== "@outpost/server" ? []
         : options.mode === serializedModeName || hasSharedTestDatabase
           ? ["--pool=forks", "--isolate", ...serializedServerVitestArgs]
           : ["--pool=forks", "--isolate", "--fileParallelism", "--maxWorkers=3"];

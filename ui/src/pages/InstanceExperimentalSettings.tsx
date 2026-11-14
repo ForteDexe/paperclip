@@ -6,8 +6,8 @@ import type {
   InstanceFeatureKey,
   ManagedSettingMetadata,
   PatchInstanceExperimentalSettings,
-} from "@paperclipai/shared";
-import { experimentalSettingKey } from "@paperclipai/shared";
+} from "@outpost/shared";
+import { experimentalSettingKey } from "@outpost/shared";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { useHiddenSettings } from "@/hooks/useHiddenSettings";

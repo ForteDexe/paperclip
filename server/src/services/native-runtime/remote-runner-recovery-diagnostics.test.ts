@@ -111,17 +111,17 @@ describe("exited remote runner evidence", () => {
     try {
       expect(execFileSync("sh", ["-c", REMOTE_RUNNER_EXIT_EVIDENCE_SCRIPT, "t", directory], { encoding: "utf8" })).toBe("");
       await mkdir(directory);
-      await writeFile(join(directory, "runnerd.stderr.log"), "paperclip-runnerd: transport reconnect grace exceeded");
+      await writeFile(join(directory, "runnerd.stderr.log"), "outpost-runnerd: transport reconnect grace exceeded");
       await writeFile(join(directory, "runnerd.process-stderr.log"), `${"x".repeat(10_000)}\nlast stderr line`);
       const output = execFileSync("sh", ["-c", REMOTE_RUNNER_EXIT_EVIDENCE_SCRIPT, "t", directory], { encoding: "utf8" });
-      expect(output).toContain("== runnerd.stderr.log\npaperclip-runnerd: transport reconnect grace exceeded");
+      expect(output).toContain("== runnerd.stderr.log\noutpost-runnerd: transport reconnect grace exceeded");
       expect(output).toContain("== runnerd.process-stderr.log\n");
       expect(output).toContain("last stderr line");
       expect(output.length).toBeLessThan(4_200);
       // Each file keeps its share: a long stderr tail cannot crowd out the exit diagnostic.
       const bounded = boundRemoteRunnerExitEvidence(output, text => text)!;
       expect(bounded.length).toBeLessThanOrEqual(REMOTE_RUNNER_EXIT_EVIDENCE_MAX_CHARS);
-      expect(bounded).toContain("paperclip-runnerd: transport reconnect grace exceeded");
+      expect(bounded).toContain("outpost-runnerd: transport reconnect grace exceeded");
       expect(bounded).toContain("last stderr line");
       // The first candidate directory with evidence wins; a later shared directory is read only when it has none.
       const shared = join(root, "shared");
@@ -151,7 +151,7 @@ describe("exited remote runner evidence", () => {
   it("keeps the exit reason through the recorded event payload", () => {
     const diagnostic = { stage: "process_verification", reason: "process_not_running", runnerLifecycle: "ready", runnerSettled: false,
       runnerRecoverableFailure: "lease_expired_requires_bootstrap", runnerDiagnostics: ["connection lease expired"],
-      runnerExitEvidence: "== runnerd.stderr.log\npaperclip-runnerd: connection lease expired" };
+      runnerExitEvidence: "== runnerd.stderr.log\noutpost-runnerd: connection lease expired" };
     expect(readRemoteRunnerRecoveryDiagnostic(JSON.parse(JSON.stringify(diagnostic)))).toEqual(diagnostic);
     expect(readRemoteRunnerRecoveryDiagnostic({ ...diagnostic, runnerRecoverableFailure: "bad value", runnerDiagnostics: [1],
       runnerExitEvidence: 4 })).toEqual({ stage: "process_verification", reason: "process_not_running", runnerLifecycle: "ready", runnerSettled: false });

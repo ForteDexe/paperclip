@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, statusDecisions } from "@paperclipai/db";
-import type { ControlPlanePort, NativeExecutionInputV1, PrpEvent, PrpTerminalState } from "@paperclipai/paperclip-runner";
+import { agents, agentWakeupRequests, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, statusDecisions } from "@outpost/db";
+import type { ControlPlanePort, NativeExecutionInputV1, PrpEvent, PrpTerminalState } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT } from "../../vendor/paperclip-runner/testing.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT } from "../../vendor/outpost-runner/testing.js";
 
 const provider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../vendor/paperclip-runner/index.js")>()),
+vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../vendor/outpost-runner/index.js")>()),
   executeNativeSession: provider.execute,
 }));
 
@@ -38,7 +38,7 @@ describe("native failed-turn continuation", () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-failed-turn-");
     db = createDb(temporary.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Native failed turn", issuePrefix: "NFT" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "OpenCode agent", status: "active", adapterType: "paperclip_runner", adapterConfig: { provider: "opencode", model: "openrouter/test-model" } });
+    await db.insert(agents).values({ id: agentId, companyId, name: "OpenCode agent", status: "active", adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: "openrouter/test-model" } });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "member" });
   });
   afterAll(async () => { await temporary?.cleanup(); });
@@ -58,25 +58,25 @@ describe("native failed-turn continuation", () => {
     const completionInput = buildNativeCompletionContract(issue, { revision: contract.revision });
     await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
     const execution: NativeExecutionInputV1 = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "opencode", model: "openrouter/test-model" },
       task: { identifier: issueId, title: issue.title, description: null, prompt: "Review the PR.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: native.normalizedSessionId, driverKind: "opencode_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1", contract: completionInput },
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1", contract: completionInput },
       interactionResponses: [], credentialBindings: [],
     };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, runId));
     const event: PrpEvent = {
-      schema: "paperclip.prp.event.v1", runId, normalizedSessionId: native.normalizedSessionId,
+      schema: "outpost.orp.event.v1", runId, normalizedSessionId: native.normalizedSessionId,
       turnId: native.turnId, sourceInstanceId: native.runnerInstanceId, sourceEventId: "turn-terminal", sourceSeq: 1,
       sourceKind: "runner", eventType: "turn.failed", schemaVersion: 1, priority: 0, emittedAt: new Date().toISOString(),
       payload: code === "opencode_server_exited"
         ? { status: "failed", error: { code, message: "OpenCode stopped while the turn was running.", opencodeFailure: { kind: "server_exited", signal: "SIGKILL", connectionError: "ECONNREFUSED" } } }
         : { status: "failed", error: { code, message: "OpenCode ended without a final answer.", retryable: false } },
     };
-    const terminal: PrpTerminalState = { schema: "paperclip.prp.terminal.v1", turnTerminalState: "failed", runTerminalState: "failed", reportedWorkDisposition: "needs_review" };
+    const terminal: PrpTerminalState = { schema: "outpost.orp.terminal.v1", turnTerminalState: "failed", runTerminalState: "failed", reportedWorkDisposition: "needs_review" };
     const result = { ...CONTROL_PLANE_CONFORMANCE_RESULT, reportedWorkDisposition: "needs_review" as const,
       completionClaim: { ...CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim, contractRevision: completionInput.revision } };
     const openInput = { identity: { companyId, issueId, runId, agentId, sessionId: native.normalizedSessionId }, backendKind: "mock" as const, sourceInstanceId: native.runnerInstanceId };

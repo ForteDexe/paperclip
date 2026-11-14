@@ -7,8 +7,8 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, createDb, environmentLeases, environments, heartbeatRuns, nativeRunFinalizations, executionWorkspaceSnapshots, executionWorkspaceRestorePoints, executionWorkspaces, issues, projects, projectWorkspaces, workspaceOperations, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { activityLog, agents, companies, createDb, environmentLeases, environments, heartbeatRuns, nativeRunFinalizations, executionWorkspaceSnapshots, executionWorkspaceRestorePoints, executionWorkspaces, issues, projects, projectWorkspaces, workspaceOperations, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { resolveManagedProjectWorkspaceDir } from "../home-paths.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -38,7 +38,7 @@ describe.skipIf(!support.supported)("bounded workspace cohort migration", () => 
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
   beforeEach(async () => {
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "pc-workspace-cohort-")));
-    vi.stubEnv("PAPERCLIP_HOME", home); vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "61".repeat(32));
+    vi.stubEnv("OUTPOST_HOME", home); vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
     storage = createStorageService(createLocalDiskStorageProvider(path.join(home, "objects")));
   });
   afterEach(async () => {
@@ -92,10 +92,10 @@ describe.skipIf(!support.supported)("bounded workspace cohort migration", () => 
   }
   async function recoverable(f: Awaited<ReturnType<typeof fixture>>) {
     const workspace = f.leaves[0], runId = randomUUID(), leaseId = randomUUID(), providerLeaseId = randomUUID();
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Held recovery", adapterType: "paperclip_runner" }).returning();
+    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Held recovery", adapterType: "outpost_runner" }).returning();
     const [environment] = await db.insert(environments).values({ name: runId, driver: "daytona" }).returning();
     await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: agent.id, nativeIssueId: workspace.sourceIssueId,
-      runtimeMode: "native", status: "failed", runnerProfileJson: { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3",
+      runtimeMode: "native", status: "failed", runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3",
         state: "prepared", workspaceId: workspace.id, leaseId, providerLeaseId, remoteCwd: "/workspaces/held",
         descriptorSha256: "12".repeat(32), baselineSha256: "34".repeat(32), resourceDisposition: "keep_running" } } });
     await db.insert(environmentLeases).values({ id: leaseId, companyId: f.companyId, issueId: workspace.sourceIssueId,
@@ -343,7 +343,7 @@ describe.skipIf(!support.supported)("bounded workspace cohort migration", () => 
       supersedeExpiredRemoteWorkspaceMigrationCohort({ db, companyId: f.companyId, cohort,
         expiredWorkspaceIds, signal: AbortSignal.timeout(60_000), ...options });
     const [missingProof] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, expiredWorkspaceIds[0]));
-    const withoutRestorePoint = { ...(missingProof.metadata!.gitCacheRestoration as Record<string, unknown>), schema: "paperclip.git-cache-restoration.v1" };
+    const withoutRestorePoint = { ...(missingProof.metadata!.gitCacheRestoration as Record<string, unknown>), schema: "outpost.git-cache-restoration.v1" };
     delete (withoutRestorePoint as Record<string, unknown>).restorePoint;
     await db.update(executionWorkspaces).set({ metadata: { ...missingProof.metadata, gitCacheRestoration: withoutRestorePoint } })
       .where(eq(executionWorkspaces.id, missingProof.id));
@@ -354,7 +354,7 @@ describe.skipIf(!support.supported)("bounded workspace cohort migration", () => 
     await db.update(executionWorkspaces).set({ metadata: missingProof.metadata }).where(eq(executionWorkspaces.id, missingProof.id));
     const [authorityRow] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, cohort.members[2].workspaceId));
     await db.update(executionWorkspaces).set({ metadata: { ...authorityRow.metadata, remoteWorkspace: {
-      schema: "paperclip.remote-workspace.v1", epoch: 1, source: initialOperations[0].metadata!.source,
+      schema: "outpost.remote-workspace.v1", epoch: 1, source: initialOperations[0].metadata!.source,
       snapshotId: oldSnapshots.find(row => row.status === "uploaded")!.id, writerRunId: null, location: null, dirty: false } } })
       .where(eq(executionWorkspaces.id, authorityRow.id));
     await expect(compensate()).rejects.toThrow("online_workspace_source_scope_unproven");
@@ -399,7 +399,7 @@ describe.skipIf(!support.supported)("bounded workspace cohort migration", () => 
     await expect(compensate()).resolves.toMatchObject({ ...receipt, replayed: true });
     const failed = await db.select().from(workspaceOperations);
     for (const operation of failed) expect(operation).toMatchObject({ status: "failed", metadata: {
-      ...oldOperations.find(row => row.id === operation.id)!.metadata, lastFailure: { schema: "paperclip.remote-workspace-migration-supersession.v1",
+      ...oldOperations.find(row => row.id === operation.id)!.metadata, lastFailure: { schema: "outpost.remote-workspace-migration-supersession.v1",
         code: "source_expired_during_import", cohortId: cohort.id, supersessionId: receipt.supersessionId } } });
     expect(await db.select().from(executionWorkspaceSnapshots)).toEqual(oldSnapshots);
     expect(await db.select().from(issues)).toEqual(tasks); expect(await db.select().from(heartbeatRuns)).toEqual(runs);

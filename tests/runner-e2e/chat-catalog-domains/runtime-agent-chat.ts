@@ -46,7 +46,7 @@ export const runtimeAgentChatCases = [runtimeDefinition("agent-chat.reopen-conve
   const read = await readAgentResource(ctx, `/api/companies/${ctx.input.fixtures.company.id}/chats`);
   return { existingIssueId: source.id, lead, history, historyMarker, setupRunIds: firstRuns.map(run => run.id), agentChatListStatus: read.status };
 }, gradeReopenConversation, {
-  oracleVersion: "paperclip.chat-catalog.runtime.reopen-conversation.v3", authentication: "human-session", setupHumanMessageCount: 1, expectedHumanMessageCount: 2, expectedRunCount: 2, attemptTimeoutMs: 420_000,
+  oracleVersion: "outpost.chat-catalog.runtime.reopen-conversation.v3", authentication: "human-session", setupHumanMessageCount: 1, expectedHumanMessageCount: 2, expectedRunCount: 2, attemptTimeoutMs: 420_000,
   async act(ctx, state) {
     await pollUntil({ label: "Canonical reopen query settled", deadlineAt: Date.now() + 150_000,
       load: async () => { await ctx.refreshIssue(); return { source: ctx.issue(), runs: await ctx.allRuns() }; },

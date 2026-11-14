@@ -18,7 +18,7 @@ export function activeFollowupBoundary(run: Row, events: Row[]): ActiveFollowupB
   if (!activeNativeTurnStarted(run, events) || !events.length
     || events.some((event, index) => event.seq !== index + 1)) return null;
   const bound = events.filter(event => {
-    const envelope = event.payload?.prpEvent;
+    const envelope = event.payload?.orpEvent;
     return envelope && isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)
       && event.runId === run.id && event.companyId === run.companyId && event.agentId === run.agentId
       && envelope.runId === run.id && envelope.eventType === event.eventType && envelope.sourceKind === "runner"
@@ -29,8 +29,8 @@ export function activeFollowupBoundary(run: Row, events: Row[]): ActiveFollowupB
   const latestTurn = bound.filter(event => /^turn\.(started|completed|failed|cancelled|interrupted)$/.test(event.eventType)).at(-1);
   if (latestTurn?.eventType !== "turn.started") return null;
   const starts = bound.filter(event => {
-    const payload = event.payload.prpEvent.payload;
-    return event.seq > latestTurn.seq && event.eventType === "tool.execution.started" && payload?.schema === "paperclip.tool.execution.v1"
+    const payload = event.payload.orpEvent.payload;
+    return event.seq > latestTurn.seq && event.eventType === "tool.execution.started" && payload?.schema === "outpost.tool.execution.v1"
       && typeof payload.executionId === "string" && Boolean(payload.executionId)
       && ["builtin", "process"].includes(payload.transport)
       && (payload.operation === "execute"
@@ -47,14 +47,14 @@ export function activeFollowupBoundary(run: Row, events: Row[]): ActiveFollowupB
       && payload.readOnly !== true && payload.status === "running";
   });
   const pending = starts.filter(start => {
-    const id = start.payload.prpEvent.payload.executionId;
-    return starts.filter(other => other.payload.prpEvent.payload.executionId === id).length === 1
+    const id = start.payload.orpEvent.payload.executionId;
+    return starts.filter(other => other.payload.orpEvent.payload.executionId === id).length === 1
       && !events.some(event => event.eventType === "tool.execution.completed"
-        && event.payload?.prpEvent?.payload?.executionId === id);
+        && event.payload?.orpEvent?.payload?.executionId === id);
   });
   const started = pending.at(-1);
   if (!started) return null;
-  const envelope = started.payload.prpEvent;
+  const envelope = started.payload.orpEvent;
   return { runId: run.id, executionId: envelope.payload.executionId, startedSeq: started.seq,
     sourceEventId: envelope.sourceEventId, sourceInstanceId: envelope.sourceInstanceId, sourceSeq: envelope.sourceSeq,
     startedRowSha256: createHash("sha256").update(JSON.stringify(started)).digest("hex") };

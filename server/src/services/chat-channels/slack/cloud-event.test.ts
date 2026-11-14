@@ -3,7 +3,7 @@ import { createHmac, createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { verifySlackSignature } from "@chat-adapter/slack/webhook";
 import { createChatSdkEndpointRuntime } from "../../chat-sdk-runtime.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { EndpointRow } from "../runtime-types.js";
 import { createSlackWebhookCallbacks } from "./webhook-callbacks.js";
 import { receiveSlackCloudEvent, slackCloudAcceptedAt, type CurrentSlackCloudBinding, type SlackCloudEvent } from "./cloud-event.js";

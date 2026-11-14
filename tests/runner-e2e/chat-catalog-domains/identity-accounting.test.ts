@@ -77,8 +77,8 @@ describe("actual saved native accounting contexts", () => {
     const comment = valid("budgets-costs.repair-cost-recording"); (comment.state.leadApiCalls as LeadApiCall[]).push(costRead("initial", "POST /api/issues/{id}/comments", 201)); expect(grade(comment).passed).toBe(true);
   });
   it("pairs redacted call_api uses with their results by run and item id", () => {
-    const use = (runId: string, id: string, operationId: string) => ({ runId, payload: { prpEvent: { payload: { item: { type: "tool_use", name: "call_api", id, input: { operationId, apiPayloadRedacted: true, apiPayloadSha256: `sha-${id}` } } } } } });
-    const result = (runId: string, id: string, apiOperationId: string, status: number) => ({ runId, payload: { prpEvent: { payload: { item: { type: "tool_result", tool_use_id: id, result: { apiOperationId, ok: status < 300, status } } } } } });
+    const use = (runId: string, id: string, operationId: string) => ({ runId, payload: { orpEvent: { payload: { item: { type: "tool_use", name: "call_api", id, input: { operationId, apiPayloadRedacted: true, apiPayloadSha256: `sha-${id}` } } } } } });
+    const result = (runId: string, id: string, apiOperationId: string, status: number) => ({ runId, payload: { orpEvent: { payload: { item: { type: "tool_result", tool_use_id: id, result: { apiOperationId, ok: status < 300, status } } } } } });
     expect(leadApiCalls([use("r1", "a", "GET /x"), result("r1", "a", "GET /x", 200), use("r1", "b", "POST /y"), result("r2", "b", "POST /y", 201), result("r1", "b", "GET /z", 200)]))
       .toEqual([{ runId: "r1", operationId: "GET /x", digest: "sha-a", ok: true, status: 200 }]);
   });

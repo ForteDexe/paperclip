@@ -15,7 +15,7 @@ const codes = new Set([
   "opencode_model_configured", "opencode_hello_probe_timed_out", "opencode_hello_probe_passed",
   "opencode_hello_probe_unexpected_output", "opencode_hello_probe_model_unavailable",
   "opencode_hello_probe_auth_required", "opencode_hello_probe_failed",
-  "paperclip_runner_provider_unsupported", "agent_runner_config_incompatible", "paperclip_runner_mode_invalid", "paperclip_runner_opencode_model_invalid",
+  "outpost_runner_provider_unsupported", "agent_runner_config_incompatible", "outpost_runner_mode_invalid", "outpost_runner_opencode_model_invalid",
 ]);
 const categories = ["authentication", "rate-limit", "network", "permission", "command-missing", "module-missing", "model-unavailable", "timeout", "unknown"] as const;
 type Category = typeof categories[number];
@@ -53,7 +53,7 @@ export async function installChatReadinessObserver(input: {
   const retain = async (companyId: string, result: any, thrown: boolean) => {
     if (++sequence > 100) return;
     const detailRetention = thrown ? undefined : await retainHealthHelloDetail(root, input.executionIds, sequence, result);
-    const receipt = { ...(detailRetention ? { detailRetention } : {}), schema: "paperclip.chat-readiness-probe/v1", companyId, sequence,
+    const receipt = { ...(detailRetention ? { detailRetention } : {}), schema: "outpost.chat-readiness-probe/v1", companyId, sequence,
       status: ["pass", "warn", "fail"].includes(result?.status) ? result.status : "unknown", thrown,
       checks: Array.isArray(result?.checks) ? result.checks.slice(0, 64).map((check: any) => closedCheck({ ...check,
         category: readinessErrorCategory(`${check?.message ?? ""}\n${check?.detail ?? ""}`) })) : [],
@@ -70,7 +70,7 @@ export async function installChatReadinessObserver(input: {
   };
   input.adapter.testEnvironment = async function (...args) {
     const context = args[0];
-    if (context.adapterType !== "paperclip_runner" || context.config.provider !== "opencode" || !uuid(context.companyId)) return original.apply(this, args);
+    if (context.adapterType !== "outpost_runner" || context.config.provider !== "opencode" || !uuid(context.companyId)) return original.apply(this, args);
     let result;
     try { result = await original.apply(this, args); }
     catch (error) { await retain(context.companyId, error, true); throw error; }
@@ -80,7 +80,7 @@ export async function installChatReadinessObserver(input: {
 }
 /** Re-project even the private file. No arbitrary file keys/strings enter evidence. */
 export interface ClosedReadinessReceipt {
-  schema: "paperclip.chat-readiness-probe/v1"; companyId: string; sequence: number; status: string; thrown: boolean;
+  schema: "outpost.chat-readiness-probe/v1"; companyId: string; sequence: number; status: string; thrown: boolean;
   checks: Array<{ code: string; level: string; category: Category }>; errorCategory: Category; detailRetention?: "retained" | "withheld";
 }
 export async function readChatReadinessReceipts(temporaryRoot: string, companyId: string): Promise<ClosedReadinessReceipt[]> {
@@ -91,7 +91,7 @@ export async function readChatReadinessReceipts(temporaryRoot: string, companyId
   if (bytes.length > 1_000_000) throw new Error("Readiness receipt exceeds bound");
   return bytes.trim().split("\n").filter(Boolean).slice(0, 100).flatMap(line => {
     let row; try { row = JSON.parse(line); } catch { return []; }
-    if (!row || row.schema !== "paperclip.chat-readiness-probe/v1" || row.companyId !== companyId || !Number.isInteger(row.sequence) || row.sequence < 1 || row.sequence > 100) return [];
+    if (!row || row.schema !== "outpost.chat-readiness-probe/v1" || row.companyId !== companyId || !Number.isInteger(row.sequence) || row.sequence < 1 || row.sequence > 100) return [];
     return [{ ...(row.detailRetention === "retained" || row.detailRetention === "withheld" ? { detailRetention: row.detailRetention } : {}), schema: row.schema, companyId, sequence: row.sequence,
       status: ["pass", "warn", "fail"].includes(row.status) ? row.status : "unknown", thrown: row.thrown === true,
       checks: Array.isArray(row.checks) ? row.checks.slice(0, 64).map(closedCheck) : [],

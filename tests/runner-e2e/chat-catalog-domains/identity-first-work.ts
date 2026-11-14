@@ -52,7 +52,7 @@ export const firstWorkIdentityCases: readonly ChatCatalogCase[] = [identityDefin
   const comments = await ctx.input.api.get<Entity[]>(`/api/issues/${source.id}/comments`);
   return { sourceId: source.id, worker, project: p, beforeSourceHumanComments: comments.filter(comment => comment.authorUserId).length, beforeSourceRuns: (await ctx.allRuns()).length };
 }, gradeFirstWork, {
-  oracleVersion: "paperclip.chat-catalog.identity.first-work.v3", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 600_000,
+  oracleVersion: "outpost.chat-catalog.identity.first-work.v3", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 600_000,
   sourceFiles: ["chat-catalog-domains/identity-first-work.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/onboarding.yaml"],
   async act(ctx, state) {
     const o = await pollUntil({ label: "first real completed website and delivered HTML", deadlineAt: Date.now() + 360_000,
@@ -63,7 +63,7 @@ export const firstWorkIdentityCases: readonly ChatCatalogCase[] = [identityDefin
     const source = ctx.input.page.url(); await ctx.input.page.locator(`[id^="comment-"] a[href=${JSON.stringify(href)}]`).first().click();
     if (!file.attachment.originalFilename) throw new Error("Delivered website has no visible file name");
     await expect(ctx.input.page.getByText(file.attachment.originalFilename, { exact: true }).first()).toBeVisible(); state.visibleArtifactName = true;
-    const privateDir = process.env.PAPERCLIP_RUNNER_E2E_PRIVATE_DIR; if (!privateDir) throw new Error("Attempt-private output directory is required");
+    const privateDir = process.env.OUTPOST_RUNNER_E2E_PRIVATE_DIR; if (!privateDir) throw new Error("Attempt-private output directory is required");
     const folder = await mkdtemp(path.join(privateDir, "identity-website-")); folders.set(ctx, folder);
     const filename = path.join(folder, "website.html"); const bytes = await ctx.input.api.getAttachmentContent(file.attachment.id);
     await writeFile(filename, bytes, { mode: 0o600 }); state.renderedBytesMatch = createHash("sha256").update(bytes).digest("hex") === file.sha256;

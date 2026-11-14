@@ -74,7 +74,7 @@ export const documents_artifactsCases: readonly ChatCatalogCase[] = [
     const p = await project(ctx);
     const t = await task(ctx, "Website task", p.id, { assigneeAgentId: ctx.input.fixtures.agent.id, description: WEBSITE_PLAN_BRIEF });
     return { project: p, task: t };
-  }), oracleVersion: "paperclip.chat-catalog.write-plan.brief-coverage.v2" },
+  }), oracleVersion: "outpost.chat-catalog.write-plan.brief-coverage.v2" },
   withRestoreConcurrency(define("documents-artifacts.restore-document", async ctx => {
     const p = await project(ctx); const t = await task(ctx, "Website task", p.id, { description: "The website task's plan has three saved revisions. The previous version before the last edit is the desired content." });
     const revisions: Entity[] = [];

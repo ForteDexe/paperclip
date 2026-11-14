@@ -7,8 +7,8 @@ import { constants, createReadStream, createWriteStream, promises as fs } from "
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
-import { companySkillRepositorySnapshots as snapshots, companySkillVersions, companySkillSources, withDedicatedDbConnection, type Db, type SkillPackageFileMapping, type SkillPackageStorageReceipt, type SkillPackageRestoreRecipe } from "@paperclipai/db";
-import type { CompanySkillVersionFileInventoryEntry } from "@paperclipai/shared";
+import { companySkillRepositorySnapshots as snapshots, companySkillVersions, companySkillSources, withDedicatedDbConnection, type Db, type SkillPackageFileMapping, type SkillPackageStorageReceipt, type SkillPackageRestoreRecipe } from "@outpost/db";
+import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
 import { getStorageService, type StorageService } from "../storage/index.js";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { conflict, notFound } from "../errors.js";
@@ -20,7 +20,7 @@ import { assertSkillPackageFileSize, boundedHashStream, extractSkillPackageArchi
 
 /** External storage is the default; false is an explicit rolling-upgrade escape hatch. */
 export function skillPackageStorageEnabled() {
-  return process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED !== "false";
+  return process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED !== "false";
 }
 
 const descriptorColumns = { id: snapshots.id, companyId: snapshots.companyId, contentHash: snapshots.contentHash,

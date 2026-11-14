@@ -16,7 +16,7 @@ import {
 import { createAgentSchema } from "./agent.js";
 
 describe("issue validators", () => {
-  it.each(["BASH_ENV", "ZDOTDIR", "GH_CONFIG_DIR", "PAPERCLIP_GITHUB_LAUNCHER_DIR"])("rejects task-owned managed shell selector %s", key => {
+  it.each(["BASH_ENV", "ZDOTDIR", "GH_CONFIG_DIR", "OUTPOST_GITHUB_LAUNCHER_DIR"])("rejects task-owned managed shell selector %s", key => {
     for (const name of [key, key.toLowerCase()]) {
       const overrides = {adapterConfig:{env:{[name]:"/workspace/startup"}}};
       expect(createIssueSchema.safeParse({title:"Task",assigneeAdapterOverrides:overrides}).success).toBe(false);
@@ -711,7 +711,7 @@ describe("issue validators", () => {
     expect(updateIssueSchema.safeParse(overrides).success).toBe(false);
   });
 
-  it.each(["PAPERCLIP_RUNNER_PREPARED_HARNESS_HOME", "paperclip_runner_prepared_harness_home"])("rejects task-level prepared storage via %s", key => {
+  it.each(["OUTPOST_RUNNER_PREPARED_HARNESS_HOME", "outpost_runner_prepared_harness_home"])("rejects task-level prepared storage via %s", key => {
     const overrides = { assigneeAdapterOverrides: { adapterConfig: { env: { [key]: "/home/agent/.claude", TASK_FLAG: "kept" } } } };
     expect(createIssueSchema.safeParse({ title: "Task", ...overrides }).success).toBe(false);
     expect(updateIssueSchema.safeParse(overrides).success).toBe(false);
@@ -742,7 +742,7 @@ describe("issue validators", () => {
 
 describe("persisted canonical question initial text", () => {
   const question = { id: "draft", prompt: "Edit", required: true, answerMode: "text" };
-  const input = (patch: Record<string, unknown>) => ({ schema: "paperclip.question_set.v1", questions: [{ ...question, ...patch }] });
+  const input = (patch: Record<string, unknown>) => ({ schema: "outpost.question_set.v1", questions: [{ ...question, ...patch }] });
   it("retains exact editable content through the server payload validator", () => {
     for (const initialText of ["", "  Draft\n漢字\n", "x".repeat(100_000)]) {
       expect(paperclipQuestionSetPayloadSchema.parse(input({ initialText }))).toEqual(input({ initialText }));

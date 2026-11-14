@@ -14,7 +14,7 @@ afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); poll.mockReset
 const parkedResult = { nativeResult: { reportedWorkDisposition: "yielded", evidence: [{ ref: "interaction:question" }],
   continuation: { kind: "response_wake", idempotencyKey: "interaction-response:question" } } };
 async function fixture(run: { status: string; resultJson: unknown } = { status: "succeeded", resultJson: parkedResult }) {
-  const root = await mkdtemp(path.join(tmpdir(), "approval-owned-task-")); roots.push(root); vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root);
+  const root = await mkdtemp(path.join(tmpdir(), "approval-owned-task-")); roots.push(root); vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
   const cwd = path.join(root, "actual-isolated-task"); await mkdir(cwd);
   const gate = taskBoundRuntimeGate("approval-owned");
   await writeFile(path.join(cwd, `${gate.gateName}.waiting`), "waiting");

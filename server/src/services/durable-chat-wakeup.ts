@@ -1,6 +1,6 @@
 import { slackDeliveryMeetsMentionRequirement } from "./chat-channels/slack/wake-authority.js";
 import { createHash } from "node:crypto";
-import { agentWakeupRequests, chatActions, chatConversations, chatDeliveries, chatEndpoints, type Db } from "@paperclipai/db";
+import { agentWakeupRequests, chatActions, chatConversations, chatDeliveries, chatEndpoints, type Db } from "@outpost/db";
 import { and, eq, exists, inArray, or, sql, type SQLWrapper } from "drizzle-orm";
 import { HttpError } from "../errors.js";
 

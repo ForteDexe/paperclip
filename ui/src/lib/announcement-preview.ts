@@ -1,5 +1,5 @@
 import animatedHero from "../../../announcements/examples/animated/assets/78bafb6adbfd9da899cdbb5d934b4c0b9df5d419d6f0a5104a87a7b25dcc6bd8.html?raw";
-import type { Announcement } from "@paperclipai/shared";
+import type { Announcement } from "@outpost/shared";
 
 /** Design guide / Storybook only. Never a runtime feed fallback. */
 export const announcementPreview: Announcement = {
@@ -8,7 +8,7 @@ export const announcementPreview: Announcement = {
   title: "Give your next idea a team",
   description: "Bring agents, projects, and work together. Set the direction, then follow your team’s progress in Outpost.",
   image: { path: `assets/${"0".repeat(64)}.png`, alt: "Outpost — ideas become work" },
-  secondaryLink: { kind: "external", label: "Learn more", url: "https://paperclip.ing" },
+  secondaryLink: { kind: "external", label: "Learn more", url: "https://outpost.ing" },
   primaryAction: { kind: "route", label: "Explore your projects", path: "/projects" },
 };
 

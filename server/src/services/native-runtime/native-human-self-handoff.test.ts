@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { agents, authUsers, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issueRecoveryActions,
-  issues, nativeRunFinalizations, statusDecisions, type Db } from "@paperclipai/db";
+  issues, nativeRunFinalizations, statusDecisions, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { getExecutionBlocker } from "../execution-blocker.js";
@@ -55,7 +55,7 @@ describe("handed-off task decision policy", () => {
   });
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_HUMAN_HANDOFF_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_HUMAN_HANDOFF_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 /**
@@ -76,13 +76,13 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
     const runId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Handoff fixture", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Nibbler", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Nibbler", adapterType: "outpost_runner" });
     await db.insert(authUsers).values({ id: userId, name: "Reviewer", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Draft the plan", status: "in_progress",
       assigneeAgentId: agentId, createdByUserId: userId, description: "Draft the plan and hand it to me for review." });
     const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "low", completionAuthority: "agent_claim_policy",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "low", completionAuthority: "agent_claim_policy",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "test", objective: "Draft the plan",
         criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: `handoff-${issueId}`, createdByActorType: "system", createdByActorId: "test" }).returning();
@@ -133,11 +133,11 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
   });
 
   const results = {
-    done: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Plan drafted and handed to the reviewer.",
+    done: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Plan drafted and handed to the reviewer.",
       completionClaim: { contractRevision: "test", objectiveSatisfied: true,
         criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: ["task:self"] }], remainingWork: [] },
       evidence: [{ ref: "task:self" }], verification: [], attentionRequests: [], artifacts: [] },
-    needs_review: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "needs_review", summary: "Waiting for the reviewer.",
+    needs_review: { schema: "outpost.run_result.v1", reportedWorkDisposition: "needs_review", summary: "Waiting for the reviewer.",
       completionClaim: { contractRevision: "test", objectiveSatisfied: false,
         criteria: [{ criterionId: "objective", status: "unknown", evidenceRefs: [] }],
         remainingWork: [{ description: "Reviewer decides", blocksCompletion: true }] },
@@ -153,7 +153,7 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toMatchObject({ status: "running", errorCode: null });
 
     const result = JSON.parse(JSON.stringify(results[disposition]).replaceAll("task:self", `task:${f.issueId}`));
-    await f.port.completeRun({ result, terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded",
+    await f.port.completeRun({ result, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded",
       turnTerminalState: "completed", reportedWorkDisposition: disposition }, turnId: `handoff-${disposition}` });
     await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: false });
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -172,7 +172,7 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
     const f = await runningNativeTask();
     await handOffToPerson(f);
     const result = JSON.parse(JSON.stringify(results.needs_review));
-    await f.port.completeRun({ result, terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "failed",
+    await f.port.completeRun({ result, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "failed",
       turnTerminalState: "failed", reportedWorkDisposition: "needs_review" }, turnId: "handoff-failed" });
     await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: false });
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));

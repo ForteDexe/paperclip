@@ -23,9 +23,9 @@
  */
 
 import { and, eq, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { companies, environments } from "@paperclipai/db";
-import type { PluginEnvironmentConfig } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { companies, environments } from "@outpost/db";
+import type { PluginEnvironmentConfig } from "@outpost/shared";
 import { logActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
 import { normalizeEnvironmentConfig } from "./environment-config.js";
 import { validatePluginEnvironmentDriverConfig } from "./plugin-environment-driver.js";

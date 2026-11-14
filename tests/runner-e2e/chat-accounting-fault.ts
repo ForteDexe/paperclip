@@ -51,7 +51,7 @@ $fault$`,
 
 export async function armAccountingFault(input: { executionId: string; binding: AccountingFaultBinding; env?: NodeJS.ProcessEnv }): Promise<AccountingFault> {
   const env = input.env ?? process.env;
-  let selected: unknown; try { selected = JSON.parse(env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "null"); } catch { selected = null; }
+  let selected: unknown; try { selected = JSON.parse(env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "null"); } catch { selected = null; }
   if (!reviewedChatExecutionIds(ACCOUNTING_SCENARIO).includes(input.executionId) || !Array.isArray(selected) || selected.length !== 1 || selected[0] !== input.executionId)
     throw new Error("Accounting fault is allowed only when its own case is the single selected execution");
   const statements = accountingFaultSql(randomBytes(6).toString("hex"), input.binding);

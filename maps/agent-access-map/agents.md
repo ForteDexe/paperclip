@@ -141,7 +141,7 @@ the reviewed commit above.
 
 Scoped Evidence: `source-only` — [creation policy](../../server/src/services/agent-hiring.ts),
 [runner resolution](../../server/src/services/agent-runner-selection.ts),
-[native hire binding](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts),
+[native hire binding](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts),
 [frozen approval activation](../../server/src/modules/agent-lifecycle/adapters/approvals.ts)
 and [same-harness import preservation](../../server/src/services/company-portability.ts)
 at the scoped commit. No permitted-agent journey was executed for this map update.

@@ -33,7 +33,7 @@ export function selectsRemoteChat(executions: readonly Selection[]) {
 export async function prepareChatRemoteHost(input: { executions: readonly Selection[]; env: Environment; repositoryRoot: string; outputDirectory: string; dependencies?: Partial<RemoteHostDependencies> }) {
   if (!selectsRemoteChat(input.executions)) return undefined;
   const deps = { ...defaults, ...input.dependencies }, env = input.env;
-  const receipt: Record<string, unknown> = { schema: "paperclip.chat-remote-host/v1", status: "blocked", scope: "before-evaluation", evaluationAdmitted: false,
+  const receipt: Record<string, unknown> = { schema: "outpost.chat-remote-host/v1", status: "blocked", scope: "before-evaluation", evaluationAdmitted: false,
     allocationSpotOnlyClaimed: false, hostPolicy: "aws-fleet-spot-or-on-demand", databaseLane: "embedded-postgres", automaticRetries: 0, maximumParallel: 2,
     executionIds: input.executions.map(e => e.id) };
   const filename = path.join(input.outputDirectory, "chat-remote-host.json");
@@ -41,7 +41,7 @@ export async function prepareChatRemoteHost(input: { executions: readonly Select
   const persist = () => writeFile(filename, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
   let reason = "trusted-github-linux-source-required";
   try {
-    const testOpsPilot = (env.GITHUB_WORKFLOW_REF === testOpsWorkflow || env.GITHUB_WORKFLOW_REF === catalogTestOpsWorkflow) && env.PAPERCLIP_CHAT_COMPLETION_TESTOPS === "v1"
+    const testOpsPilot = (env.GITHUB_WORKFLOW_REF === testOpsWorkflow || env.GITHUB_WORKFLOW_REF === catalogTestOpsWorkflow) && env.OUTPOST_CHAT_COMPLETION_TESTOPS === "v1"
       && env.GITHUB_RUN_ATTEMPT === "1" && /^[1-9][0-9]{0,15}$/.test(env.ALLURE_JOB_RUN_ID ?? "")
       && Number.isSafeInteger(Number(env.ALLURE_JOB_RUN_ID))
       && input.executions.every(execution => (env.GITHUB_WORKFLOW_REF === testOpsWorkflow ? testOpsPilotIds : catalogTestOpsIds).has(execution.id)
@@ -51,7 +51,7 @@ export async function prepareChatRemoteHost(input: { executions: readonly Select
       || !/^\d+$/.test(env.GITHUB_RUN_ID ?? "") || !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? "") || deps.platform !== "linux" || deps.arch !== "x64") throw new Error(reason);
     if (input.executions.some(e => (e.suite.id !== "chat-features" && (e.suite.id !== CHAT_SETUP_HEALTH_SUITE || e.id !== CHAT_SETUP_HEALTH_ID)) || e.profile.id !== "runner-opencode" || !reviewedChatProfile(e.profile) || e.environment.id !== "local" || e.task.automaticRetryPolicy !== "single_attempt")) throw new Error(reason);
     const source = await deps.sourceRevision(input.repositoryRoot);
-    if (!/^[a-f0-9]{40}$/.test(source) || env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA !== source) throw new Error(reason);
+    if (!/^[a-f0-9]{40}$/.test(source) || env.OUTPOST_RUNNER_E2E_SOURCE_SHA !== source) throw new Error(reason);
     Object.assign(receipt, { workflowRef: env.GITHUB_WORKFLOW_REF, workflowRunId: env.GITHUB_RUN_ID, workflowAttempt: Number(env.GITHUB_RUN_ATTEMPT), sourceRevision: source });
     if (testOpsPilot) Object.assign(receipt, { testOps: { admission: "v1", allureJobRunId: env.ALLURE_JOB_RUN_ID } });
     reason = "aws-instance-identity-unavailable";

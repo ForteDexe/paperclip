@@ -18,16 +18,16 @@ import { findRegenerableWorkspaceDirs } from "./workspace-compaction.js";
 import { ensureGitRestorePointCommit, validateGitRestorePointRef, type GitRestorePointRef } from "./git-restore-point-storage.js";
 import { getStorageService } from "../storage/index.js";
 import type { StorageService } from "../storage/types.js";
-import { PROJECT_REPOSITORIES_DIR } from "@paperclipai/adapter-utils/git-workspace-sync";
+import { PROJECT_REPOSITORIES_DIR } from "@outpost/adapter-utils/git-workspace-sync";
 import { OWNED_NESTED_REF_LIMIT, forgetExpiredNestedRepositoryWorktree, nestedRepositoryBaseCandidates, readLinkedNestedCheckout, recordedNestedRepositoryBase, type LinkedNestedCheckout } from "./nested-repository-worktrees.js";
 
 const execFile = promisify(execFileCallback);
 const shaPattern = /^[a-f0-9]{40}$/;
 export const GIT_CACHE_RESTORATION_KEY = "gitCacheRestoration";
 export const GIT_CACHE_EXPIRATION_REASON = "reproducible_git_cache_expired";
-export const GIT_CACHE_RESTORATION_SCHEMA_V2 = "paperclip.git-cache-restoration.v2";
+export const GIT_CACHE_RESTORATION_SCHEMA_V2 = "outpost.git-cache-restoration.v2";
 export type GitCacheRestoration = {
-  schema: "paperclip.git-cache-restoration.v1" | typeof GIT_CACHE_RESTORATION_SCHEMA_V2;
+  schema: "outpost.git-cache-restoration.v1" | typeof GIT_CACHE_RESTORATION_SCHEMA_V2;
   companyId: string;
   workspaceId: string;
   sourceIssueId: string;
@@ -46,7 +46,7 @@ export type GitCacheRestoration = {
   restorePoint?: GitRestorePointRef;
 };
 export type GitCacheExpiration = {
-  schema: "paperclip.git-cache-expiration.v1"; generation: number; workspaceRemoved: boolean;
+  schema: "outpost.git-cache-expiration.v1"; generation: number; workspaceRemoved: boolean;
   worktreeTrash: string; worktreeAdmin: string; baseTrash: string | null; completed: boolean; lockToken?: string;
 };
 type Workspace = {
@@ -174,7 +174,7 @@ function hasRestorePoints(recipe: GitCacheRestoration) {
 }
 
 function restorationSchemaMatches(recipe: GitCacheRestoration) {
-  return recipe.schema === "paperclip.git-cache-restoration.v1"
+  return recipe.schema === "outpost.git-cache-restoration.v1"
     ? !hasRestorePoints(recipe)
     : recipe.schema === GIT_CACHE_RESTORATION_SCHEMA_V2 && hasRestorePoints(recipe);
 }
@@ -273,7 +273,7 @@ export async function assertReproducibleBaseGitStorage(cwd: string, signal?: Abo
   for (const directory of ["objects", "refs", "logs"]) await walk(directory);
 }
 
-const PAPERCLIP_CLAUDE_SETTINGS_FILE = ".claude/settings.local.json";
+const OUTPOST_CLAUDE_SETTINGS_FILE = ".claude/settings.local.json";
 
 export type ManagedCheckoutProver = (checkoutPath: string, name: string, signal?: AbortSignal) => Promise<void>;
 
@@ -559,7 +559,7 @@ export async function assertReproducibleGitFiles(cwd: string, signal?: AbortSign
   if (localConfig.split("\n").filter(Boolean).some(key => !/^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode)|remote\.origin\.(url|fetch)|branch\..+\.(remote|merge))$/.test(key))) throw new Error("unsupported_local_git_config");
   const regenerable = await findRegenerableWorkspaceDirs(cwd, { signal });
   const ignored = (await gitCacheCommand(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"], signal)).split("\0").filter(Boolean);
-  const unexplained = ignored.filter(file => !(options.preserveSettings && file === PAPERCLIP_CLAUDE_SETTINGS_FILE) && !regenerable.some(dir => file.startsWith(`${dir}/`))
+  const unexplained = ignored.filter(file => !(options.preserveSettings && file === OUTPOST_CLAUDE_SETTINGS_FILE) && !regenerable.some(dir => file.startsWith(`${dir}/`))
     && !(options.restorePoint && (/^\.env(\..*)?$/.test(path.posix.basename(file)) || restorePointSavesIgnoredFile(file))));
   const checkouts = new Set<string>();
   for (const file of unexplained) {
@@ -660,7 +660,7 @@ async function inspectRecipe(workspace: Workspace, resolveGitAuth: GitRemoteAuth
     if (!restorePoint || signal?.aborted) throw error;
     headOnRemote = false;
   }
-  return { headOnRemote, recipe: { schema: "paperclip.git-cache-restoration.v1", companyId: workspace.companyId, workspaceId: workspace.id,
+  return { headOnRemote, recipe: { schema: "outpost.git-cache-restoration.v1", companyId: workspace.companyId, workspaceId: workspace.id,
     sourceIssueId: workspace.sourceIssueId, repoUrl: workspace.repoUrl, commit, branchName: workspace.branchName,
     sourceKind: recordedIsolatedRemoteSource(workspace) ? "isolated_remote" : "managed_project", projectId: workspace.projectId,
     sourcePath: source, worktreePath: workspace.cwd, gitBranchOwnershipVersion: 1, verifiedAt: new Date().toISOString() } };
@@ -670,7 +670,7 @@ export function readGitCacheExpiration(workspace: Workspace): GitCacheExpiration
   const state = workspace.metadata?.gitCacheExpiration as GitCacheExpiration | undefined;
   if (!state) return null;
   const recipe = readGitCacheRestoration(workspace);
-  if (!recipe || state.schema !== "paperclip.git-cache-expiration.v1" || !Number.isSafeInteger(state.generation)
+  if (!recipe || state.schema !== "outpost.git-cache-expiration.v1" || !Number.isSafeInteger(state.generation)
     || state.generation !== workspace.metadata?.lifecycleGeneration
     || (state.lockToken !== undefined && !/^[a-f0-9]{64}$/.test(state.lockToken))
     || state.worktreeTrash !== path.join(path.dirname(recipe.worktreePath), `.expired-git-worktree-${workspace.id}-${state.generation}`)

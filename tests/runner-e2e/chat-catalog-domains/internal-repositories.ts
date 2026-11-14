@@ -19,7 +19,7 @@ export async function connectRepositoryFixture(ctx: ChatCatalogContext) {
   const binding = selectedExternalBinding(ctx);
   await ctx.input.evidence("chat-catalog-github-prerequisite.json", { scenarioId: ctx.scenario.id, provider: "github", configured: true, missing: [] });
   const envName = binding.prerequisites.tokenEnv!;
-  if (!binding.credentialEnv.includes(envName) || !/^PAPERCLIP_CHAT_EVAL_[A-Z0-9_]+$/.test(envName))
+  if (!binding.credentialEnv.includes(envName) || !/^OUTPOST_CHAT_EVAL_[A-Z0-9_]+$/.test(envName))
     throw new Error("Setup blocker: GitHub tokenEnv must name an explicitly authorized scoped credentialEnv binding");
   if (!ctx.input.privateSecrets) throw new Error("Setup blocker: disposable GitHub credential and attempt-private redaction sink are required");
   const token = selectedExternalCredential(ctx, binding, "tokenEnv");

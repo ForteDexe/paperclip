@@ -92,7 +92,7 @@ const base = makeDefinition("tasks.attachment-brief", async ctx => {
   ctx.input.privateSecrets.push(key.token); workerProbeKeys.set(ctx, { ...key, workerId: worker.id });
   return { worker, sourceId: source.id, briefAttachment: receipt, briefBody, briefHash: hash(Buffer.from(briefBody)), workerProbeKeyId: key.id };
 }, gradeAttachmentBrief);
-export const taskAttachmentCases: readonly ChatCatalogCase[] = [{ ...base, authentication: "human-session", oracleVersion: "paperclip.chat-catalog.attachment-brief.v2",
+export const taskAttachmentCases: readonly ChatCatalogCase[] = [{ ...base, authentication: "human-session", oracleVersion: "outpost.chat-catalog.attachment-brief.v2",
   queryAttachments: [{ stateKey: "briefAttachment", filename: "website-brief.md" }], expectedRunCount: 3, minimumRunCount: 2,
   runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1 },
   sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-task-attachment.ts", "chat-catalog-domains/identity-support.ts", "chat-query-attachments.ts"],

@@ -8,7 +8,7 @@ vi.mock("../api/agents", () => ({ agentsApi: { testEnvironment } }));
 const input = {
   companyId: "company-1",
   agentId: "agent-1",
-  adapterType: "paperclip_runner",
+  adapterType: "outpost_runner",
   providerAdapter: "claude_local",
   environmentId: "sandbox-1",
   adapterConfig: {
@@ -24,7 +24,7 @@ const input = {
   },
 };
 const ready = {
-  adapterType: "paperclip_runner",
+  adapterType: "outpost_runner",
   status: "pass",
   testedAt: "now",
   checks: [{ code: "runtime", level: "info", message: "Ready" }],
@@ -60,7 +60,7 @@ it("does not report a connection when runtime readiness passes but provider auth
     });
   const result = await testAgentSetup(input);
   expect(result.status).toBe("fail");
-  expect(result.adapterType).toBe("paperclip_runner");
+  expect(result.adapterType).toBe("outpost_runner");
   expect(testEnvironment).toHaveBeenLastCalledWith(
     "company-1",
     "claude_local",
@@ -121,7 +121,7 @@ it("preserves runtime warnings after a successful provider request", async () =>
 it("keeps the resolved native identity and explicitly bounds the supplementary Codex CLI probe to legacy", async () => {
   testEnvironment.mockResolvedValueOnce(ready).mockResolvedValueOnce({ ...ready, adapterType: "codex_local" });
   const result = await testAgentSetup({ ...input, adapterType: "codex_local", providerAdapter: "codex_local", runner: "paperclip" });
-  expect(result.adapterType).toBe("paperclip_runner");
+  expect(result.adapterType).toBe("outpost_runner");
   expect(testEnvironment.mock.calls[0][2].runner).toBe("paperclip");
   expect(testEnvironment.mock.calls[1][2].runner).toBe("legacy");
 });

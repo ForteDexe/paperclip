@@ -13,23 +13,23 @@ const date = (ms: number) => new Date(Date.UTC(2026, 8, 30, 15, 13, 7, ms)).toIS
 function fixture(eventType = "turn.completed") {
   const frame = (seq: number, type: string, payload: unknown, persisted = 305, emitted = 129): any => ({
     seq: seq + 40, companyId: "company", runId: "run", eventType: type, createdAt: date(persisted),
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", sourceKind: "runner", runId: "run", turnId: "turn",
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", sourceKind: "runner", runId: "run", turnId: "turn",
       normalizedSessionId: "normalized-session", sourceInstanceId: "runner-instance", sourceSeq: seq,
       sourceEventId: `runner-instance:run:${seq}`, eventType: type, emittedAt: date(emitted), payload } },
   });
   const notice = (seq: number, stage: string, details: Record<string, string>) => frame(seq, "provider.notice.recorded", {
-    schema: "paperclip.provider.notice.v1", category: "copilot_tool_evidence_v1", scope: "turn",
+    schema: "outpost.provider.notice.v1", category: "copilot_tool_evidence_v1", scope: "turn",
     provenance: { sessionId: "native-session", turnId: "turn", eventType: stage, method: stage === "tool" ? "session/update" : "session/request_permission" },
     details: Object.entries({ stage, toolCallId: "denied-edit", operation: "edit", ...details }).map(([name, value]) => ({ name, value })),
   });
   const events = [notice(111, "permission_requested", { requestId: "request", target: "copilot-denied-nonce.txt", declineOffered: "true" }),
     notice(113, "permission_delivered", { requestId: "request", outcome: "reject_once" }), notice(114, "tool", { status: "failed" }),
-    frame(115, "tool.execution.completed", { schema: "paperclip.tool.execution.v1", executionId: "denied-edit", operation: "edit", status: "failed" }, 317),
+    frame(115, "tool.execution.completed", { schema: "outpost.tool.execution.v1", executionId: "denied-edit", operation: "edit", status: "failed" }, 317),
     frame(121, eventType, { status: eventType.slice(5), error: null }, 900, 887),
     frame(112, "runtime_request.resolved", { requestId: "request", turnId: "turn", requestKind: "permission_approval", action: "decline" })];
   const run: any = { id: "run", companyId: "company", nativeIssueId: "issue", status: "cancelled", finishedAt: date(910),
     resultJson: { startupCancellation: { requestedAt: date(892), cancellationRequestId: "11111111-1111-4111-8111-111111111111" }, nativeCancellation: {
-      schema: "paperclip.native-cancellation.v1", companyId: "company", runId: "run", issueId: "issue", scope: "run", dispatched: true,
+      schema: "outpost.native-cancellation.v1", companyId: "company", runId: "run", issueId: "issue", scope: "run", dispatched: true,
       dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentId: "native-cancellation:11111111-1111-4111-8111-111111111111",
       intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit", recordedAt: date(901), acknowledgedAt: date(909),
     } } };
@@ -41,7 +41,7 @@ function fixture(eventType = "turn.completed") {
   return { events, request, run, issue: { id: "issue", companyId: "company", status: "in_progress" }, preStop, stopDispatchMonotonicNs, stopAcknowledgement };
 
 }
-const terminal = (f: ReturnType<typeof fixture>) => f.events[4]!.payload.prpEvent;
+const terminal = (f: ReturnType<typeof fixture>) => f.events[4]!.payload.orpEvent;
 function blockedNaturalFixture() {
   const f = fixture();
   f.events.push({ seq: 162, companyId: "company", runId: "run", eventType: "lifecycle", createdAt: date(890), payload: {
@@ -195,16 +195,16 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
   });
   it.each(["native-session", "normalized-session", "failed-tool", "delivery", "duplicate-tool", "tool-order"])("rejects %s corruption", kind => {
     const f = fixture();
-    if (kind === "native-session") f.events[2]!.payload.prpEvent.payload.provenance.sessionId = "foreign";
-    if (kind === "normalized-session") f.events[2]!.payload.prpEvent.normalizedSessionId = "foreign";
-    if (kind === "failed-tool") f.events[3]!.payload.prpEvent.payload.status = "completed";
-    if (kind === "delivery") f.events[1]!.payload.prpEvent.payload.details.find((d: any) => d.name === "outcome").value = "allow_once";
+    if (kind === "native-session") f.events[2]!.payload.orpEvent.payload.provenance.sessionId = "foreign";
+    if (kind === "normalized-session") f.events[2]!.payload.orpEvent.normalizedSessionId = "foreign";
+    if (kind === "failed-tool") f.events[3]!.payload.orpEvent.payload.status = "completed";
+    if (kind === "delivery") f.events[1]!.payload.orpEvent.payload.details.find((d: any) => d.name === "outcome").value = "allow_once";
     if (kind === "duplicate-tool") f.events.push(structuredClone(f.events[3]));
-    if (kind === "tool-order") f.events[3]!.payload.prpEvent.sourceSeq = 122;
+    if (kind === "tool-order") f.events[3]!.payload.orpEvent.sourceSeq = 122;
     expect(() => readCopilotDenialSettlement(f)).toThrow();
   });
   it.each(["missing", "duplicate", "foreign-turn", "accept", "expired", "after-delivery"])("rejects %s durable resolution", kind => {
-    const f = fixture(), r = f.events[5]!, p = r.payload.prpEvent;
+    const f = fixture(), r = f.events[5]!, p = r.payload.orpEvent;
     if (kind === "missing") f.events.pop();
     if (kind === "duplicate") f.events.push(structuredClone(r));
     if (kind === "foreign-turn") p.payload.turnId = "foreign";
@@ -217,7 +217,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     const f = fixture();
     expect(copilotDenialSampleCursor([f.events[0]], f.request)).toEqual({ runId: "run", turnId: "turn", normalizedSessionId: "normalized-session", sourceInstanceId: "runner-instance", sourceSeq: 111 });
     expect(copilotDenialSampleCursor(f.events, f.request).sourceSeq).toBe(121);
-    f.events[1]!.payload.prpEvent.normalizedSessionId = "foreign";
+    f.events[1]!.payload.orpEvent.normalizedSessionId = "foreign";
     expect(() => copilotDenialSampleCursor(f.events, f.request)).toThrow(/cursor/);
   });
   it("awaits exact pre-Stop receipt retention and waits for post-Stop cancelled terminal before sampling", async () => {
@@ -306,7 +306,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     try {
       const f = fixture(), post = stopPost(f), sample = vi.fn(async () => {});
       if (kind === "missing-edit") f.events.splice(3, 1);
-      if (kind === "foreign-edit") f.events[3]!.payload.prpEvent.normalizedSessionId = "foreign";
+      if (kind === "foreign-edit") f.events[3]!.payload.orpEvent.normalizedSessionId = "foreign";
       if (kind === "missing-terminal") f.events.splice(4, 1);
       if (kind === "foreign-terminal") terminal(f).sourceInstanceId = "foreign";
       const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 3000,

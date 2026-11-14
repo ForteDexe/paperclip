@@ -6,7 +6,7 @@ const observed: TaskReplyObservation = { body: "The exact final reply", anchor: 
 function events() {
   return [{ seq: 1, runId: run.id, companyId: run.companyId, agentId: run.agentId, eventType: "item.completed", protocolSchemaVersion: 1,
     sourceEventId: "event", sourceInstanceId: "instance", sourceSeq: 1,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: run.id, sourceKind: "runner", eventType: "item.completed",
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, runId: run.id, sourceKind: "runner", eventType: "item.completed",
       sourceEventId: "event", sourceInstanceId: "instance", sourceSeq: 1, payload: { kind: "agentMessage", channel: "final", text: observed.body } } } }];
 }
 
@@ -27,13 +27,13 @@ it("requires one exact visible answer and rejects duplicates, stale answers and 
 
 it("accepts item-normalized final messages but rejects contradictory payload fields", () => {
   const copy: any[] = events();
-  const payload = copy[0].payload.prpEvent.payload;
+  const payload = copy[0].payload.orpEvent.payload;
   payload.item = { type: payload.kind, channel: payload.channel, text: payload.text };
   delete payload.kind; delete payload.channel; delete payload.text;
   expect(taskReplyBelongsToRun(observed, run, "owned-agent", [], copy)).toBe(true);
   for (const change of [{ kind: "tool_call" }, { channel: "commentary" }, { text: "other reply" }]) {
-    expect(taskReplyBelongsToRun(observed, run, "owned-agent", [], [{ ...copy[0], payload: { prpEvent: {
-      ...copy[0].payload.prpEvent, payload: { ...payload, ...change },
+    expect(taskReplyBelongsToRun(observed, run, "owned-agent", [], [{ ...copy[0], payload: { orpEvent: {
+      ...copy[0].payload.orpEvent, payload: { ...payload, ...change },
     } } }])).toBe(false);
   }
 });
@@ -46,9 +46,9 @@ it("rejects a rendered finish summary with no durable final assistant message", 
     (e: ReturnType<typeof events>[number]) => { e.companyId = "other"; },
     (e: ReturnType<typeof events>[number]) => { e.agentId = "other"; },
     (e: ReturnType<typeof events>[number]) => { e.protocolSchemaVersion = 99; },
-    (e: ReturnType<typeof events>[number]) => { e.payload.prpEvent.sourceKind = "control_plane"; },
-    (e: ReturnType<typeof events>[number]) => { e.payload.prpEvent.payload.channel = "commentary"; },
-    (e: ReturnType<typeof events>[number]) => { e.payload.prpEvent.payload.text = "different reply"; },
+    (e: ReturnType<typeof events>[number]) => { e.payload.orpEvent.sourceKind = "control_plane"; },
+    (e: ReturnType<typeof events>[number]) => { e.payload.orpEvent.payload.channel = "commentary"; },
+    (e: ReturnType<typeof events>[number]) => { e.payload.orpEvent.payload.text = "different reply"; },
     (e: ReturnType<typeof events>[number]) => { e.sourceSeq = 2; },
   ];
   for (const change of changes) { const copy = events(); change(copy[0]!); expect(taskReplyBelongsToRun(observed, run, "owned-agent", [], copy)).toBe(false); }
@@ -82,7 +82,7 @@ it("binds complete Markdown content and the exact link destination despite a dec
     body: "I couldn't retrieve the pages. See QA-123.",
     content: [{ text: "I couldn't retrieve the pages. See " }, { href: "https://fixture.test/QA/issues/QA-123#document-outcome", label: "QA-123", decorated: true }, { text: "." }] };
   expect(taskReplyBelongsToRun(bubble, published, "owned-agent", [comment])).toBe(true);
-  const copy = events(); copy[0]!.payload.prpEvent.payload.text = body;
+  const copy = events(); copy[0]!.payload.orpEvent.payload.text = body;
   expect(taskReplyBelongsToRun({ ...bubble, anchor: "final-run:turn" }, run, "owned-agent", [], copy)).toBe(true);
   expect(taskReplyBelongsToRun({ ...bubble, body: "Different visible response" }, published, "owned-agent", [comment])).toBe(false);
   for (const content of [undefined, [{ text: bubble.body }], [...bubble.content!, { text: " extra" }],

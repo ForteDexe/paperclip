@@ -1,5 +1,5 @@
-import { toolActionRequests, toolCallEvents, toolInvocations } from "@paperclipai/db";
-import type { ToolActionRequest, ToolCallEvent, ToolInvocation } from "@paperclipai/shared";
+import { toolActionRequests, toolCallEvents, toolInvocations } from "@outpost/db";
+import type { ToolActionRequest, ToolCallEvent, ToolInvocation } from "@outpost/shared";
 
 export function toToolInvocation(
   row: typeof toolInvocations.$inferSelect,

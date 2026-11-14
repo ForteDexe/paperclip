@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
-import { authUsers, companyMemberships, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations } from "@paperclipai/db";
+import { authUsers, companyMemberships, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations } from "@outpost/db";
 import { heartbeatService } from "../services/heartbeat.js";
 import { releaseLapsedNativeRestartClaim } from "../services/native-runtime/native-execution-lease.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -67,7 +67,7 @@ describeEmbeddedPostgres("restart-claim preparation that outlives its claim leas
 
     preparationFault.current = { runId: f.runId, phase: "run_output", act: async () => {
       await f.db.update(heartbeatRuns).set({ runnerProfileJson: sql`coalesce(${heartbeatRuns.runnerProfileJson}, '{}'::jsonb)
-        || jsonb_build_object('nativeWorkspaceSync', jsonb_build_object('schema', 'paperclip.native-workspace-sync/v3',
+        || jsonb_build_object('nativeWorkspaceSync', jsonb_build_object('schema', 'outpost.native-workspace-sync/v3',
           'state', 'prepared', 'descriptorSha256', ${"d".repeat(64)}::text, 'baselineSha256', ${"b".repeat(64)}::text,
           'finalHostSha256', null, 'workspaceId', ${randomUUID()}::text, 'leaseId', ${randomUUID()}::text,
           'providerLeaseId', ${randomUUID()}::text, 'remoteCwd', '/work', 'resourceDisposition', 'destroy'))` })

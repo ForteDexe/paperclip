@@ -1,9 +1,9 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import type { TaskWorkspaceIntent } from "@paperclipai/shared";
+import type { TaskWorkspaceIntent } from "@outpost/shared";
 import { isGitHubHttpsRemoteUrl, type GitRemoteAuthProvider } from "./git-credentials.js";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { materializeManagedProjectWorkspace } from "./managed-repository-checkout.js";
@@ -29,7 +29,7 @@ export function recordedIsolatedRemoteSource(input: {
   const value = input.metadata?.isolatedRemoteSource;
   if (value === undefined) return null;
   const source = value as Record<string, unknown> | null;
-  if (!source || source.schema !== "paperclip.isolated-remote-source.v1"
+  if (!source || source.schema !== "outpost.isolated-remote-source.v1"
     || !input.companyId || !input.sourceIssueId || source.companyId !== input.companyId
     || source.issueId !== input.sourceIssueId || source.repoUrl !== input.repoUrl) {
     throw new Error("Recorded isolated repository source identity changed");

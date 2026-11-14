@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issueRecoveryActions, issues } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRuns, issueRecoveryActions, issues } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { currentControllerProcessStamp } from "./controller-process-identity.js";
 import { isInterruptedNativePreparation } from "./cancelled-native-startup.js";
@@ -30,11 +30,11 @@ describe("automatic recovery after a drained legacy controller", () => {
     const controllerProcess = controller === "current" ? live
       : { bootId, pid: exitedPid(), hostHash: live.hostHash, processStartedAt: new Date(Date.now() - 120_000).toISOString() };
     await db.insert(companies).values({ id: companyId, name: "Drain company", issuePrefix: `D${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner", status: "idle" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "idle" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Follow up", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, status: ending === "drained" ? "interrupted" : "failed",
       errorCode: ending === "drained" ? "server_shutdown_interrupted" : "process_lost", runtimeMode: "legacy", executionStage: "preparing",
-      contextSnapshot: { issueId }, finishedAt: new Date(), runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } }, controllerBootId: bootId, controllerProcess,
+      contextSnapshot: { issueId }, finishedAt: new Date(), runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } }, controllerBootId: bootId, controllerProcess,
       controllerLeaseExpiresAt: new Date(Date.now() + 55_000),
       resultJson: { stopReason: "interrupted", executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
     const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",

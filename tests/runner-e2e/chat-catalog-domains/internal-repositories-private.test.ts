@@ -20,9 +20,9 @@ describe("repository selected-input integration", () => {
   });
   it("uses only the selected reference while retaining actual repository discovery and cleanup guards", async () => {
     const declaration = repositoryProjectCases.find(row => row.scenarioId === "projects.add-repository")!;
-    const binding = { disposable: true, resourceIds: ["42"], credentialEnv: ["PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN"], prerequisites: { siteRepositoryId: "42", siteRepositoryFullName: "owned/site", tokenEnv: "PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN" } };
+    const binding = { disposable: true, resourceIds: ["42"], credentialEnv: ["OUTPOST_CHAT_EVAL_GITHUB_TOKEN"], prerequisites: { siteRepositoryId: "42", siteRepositoryFullName: "owned/site", tokenEnv: "OUTPOST_CHAT_EVAL_GITHUB_TOKEN" } };
     const postSensitive = vi.fn(async (path: string, _body?: unknown) => ({ id: path.endsWith("/secrets") ? "secret" : "connection" }));
-    const remove = vi.fn(async (_path: string, _options?: unknown) => {}); const read = vi.fn((name: string) => name === "PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN" ? "selected-synthetic-token" : undefined);
+    const remove = vi.fn(async (_path: string, _options?: unknown) => {}); const read = vi.fn((name: string) => name === "OUTPOST_CHAT_EVAL_GITHUB_TOKEN" ? "selected-synthetic-token" : undefined);
     const secrets: string[] = [];
     const context = { scenario: { id: declaration.scenarioId }, input: { nonce: "synthetic", fixtures: { company: { id: "company" } }, privateSecrets: secrets,
       privateInputs: { credentials: {}, read, configuration: () => ({ schemaVersion: 1, providers: { github: binding } }) }, evidence: async () => {},
@@ -30,7 +30,7 @@ describe("repository selected-input integration", () => {
     await expect(declaration.setup(context)).rejects.toThrow("independently expose each explicit disposable repository name and ID");
     expect(postSensitive.mock.calls[0]?.[1]).toMatchObject({ value: "selected-synthetic-token" });
     expect(secrets).toContain("selected-synthetic-token");
-    expect(read.mock.calls.every(([name]) => name === "PAPERCLIP_CHAT_EVAL_GITHUB_TOKEN")).toBe(true);
+    expect(read.mock.calls.every(([name]) => name === "OUTPOST_CHAT_EVAL_GITHUB_TOKEN")).toBe(true);
     expect(remove.mock.calls.map(call => call[0])).toEqual(["/api/tool-connections/connection", "/api/secrets/secret"]);
   });
 });

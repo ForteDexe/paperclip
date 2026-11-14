@@ -4,8 +4,8 @@ import { constants, existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { NativeRuntimeContextSnapshot } from "../../vendor/paperclip-runner/index.js";
-import { taskDocumentKeySchema } from "../../vendor/paperclip-runner/index.js";
+import type { NativeRuntimeContextSnapshot } from "../../vendor/outpost-runner/index.js";
+import { taskDocumentKeySchema } from "../../vendor/outpost-runner/index.js";
 import { openRunnerApiWorkspaceFile, openRunnerWorkspaceFile } from "./runner-api-files.js";
 const relativeFile = z.string().min(1).max(1000).refine(value => !value.includes("\\") && !value.includes("\0") && !path.isAbsolute(value) && value.split("/").every(part => part && part !== "." && part !== ".."), "Use a relative path without traversal");
 const documentKey = z.string().min(1).max(100).regex(new RegExp(taskDocumentKeySchema.pattern))

@@ -33,7 +33,7 @@ export function linkedQuestionBinding(input: QuestionInput) {
       && (event as Entity & { runId?: string }).runId === run.id && event.details?.interactionId === card.id && event.details?.interactionKind === "ask_user_questions"));
   if (candidates.length !== 1) return;
   const card = candidates[0]!, set = card.payload.questionSet, question = set?.questions[0];
-  if (set?.schema !== "paperclip.question_set.v1" || !set.description || !question?.id || !question.prompt) return;
+  if (set?.schema !== "outpost.question_set.v1" || !set.description || !question?.id || !question.prompt) return;
   return { origin: input.origin, pageUrl: input.pageUrl, companyPrefix: input.companyPrefix, tasks: input.tasks.map(task => ({ id: task.id, identifier: task.identifier })), sourceId: input.sourceId, anchorCommentId: human.id, interactionId: card.id, questionId: question.id,
     prompt: question.prompt, sourceRunId: run.id, leadId: input.leadId,
     payloadDigest: createHash("sha256").update(JSON.stringify(card.payload)).digest("hex") };

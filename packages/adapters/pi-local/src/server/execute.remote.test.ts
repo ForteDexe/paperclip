@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPromptContextFixture } from "@paperclipai/adapter-utils/test-fixtures/prompt-context";
+import { createPromptContextFixture } from "@outpost/adapter-utils/test-fixtures/prompt-context";
 
 const {
   runChildProcess,
@@ -48,17 +48,17 @@ const {
   syncDirectoryToSsh: vi.fn(async () => undefined),
   startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({
     env: {
-      PAPERCLIP_API_URL: "http://127.0.0.1:4310",
-      PAPERCLIP_API_KEY: "bridge-token",
-      PAPERCLIP_API_BRIDGE_MODE: "queue_v1",
+      OUTPOST_API_URL: "http://127.0.0.1:4310",
+      OUTPOST_API_KEY: "bridge-token",
+      OUTPOST_API_BRIDGE_MODE: "queue_v1",
     },
     stop: async () => {},
   })),
 }));
 
-vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/server-utils")>(
-    "@paperclipai/adapter-utils/server-utils",
+vi.mock("@outpost/adapter-utils/server-utils", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/server-utils")>(
+    "@outpost/adapter-utils/server-utils",
   );
   return {
     ...actual,
@@ -68,9 +68,9 @@ vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/ssh", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/ssh")>(
-    "@paperclipai/adapter-utils/ssh",
+vi.mock("@outpost/adapter-utils/ssh", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/ssh")>(
+    "@outpost/adapter-utils/ssh",
   );
   return {
     ...actual,
@@ -81,9 +81,9 @@ vi.mock("@paperclipai/adapter-utils/ssh", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@outpost/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/execution-target")>(
+    "@outpost/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -152,13 +152,13 @@ describe("pi remote execution", () => {
           {
             workspaceId: "workspace-1",
             cwd: workspaceDir,
-            repoUrl: "https://github.com/paperclipai/paperclip.git",
+            repoUrl: "https://github.com/paperclipai/outpost.git",
             repoRef: "main",
           },
           {
             workspaceId: "workspace-2",
             cwd: alternateWorkspaceDir,
-            repoUrl: "https://github.com/paperclipai/paperclip.git",
+            repoUrl: "https://github.com/paperclipai/outpost.git",
             repoRef: "feature/other",
           },
         ],
@@ -208,28 +208,28 @@ describe("pi remote execution", () => {
     expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/skills`);
     expect(call?.[2]).toContain("--extension");
     expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/attribution/openrouter-attribution.mjs`);
-    expect(call?.[3].env.PAPERCLIP_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
-    expect(JSON.parse(call?.[3].env.PAPERCLIP_WORKSPACES_JSON ?? "[]")).toEqual([
+    expect(call?.[3].env.OUTPOST_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
+    expect(JSON.parse(call?.[3].env.OUTPOST_WORKSPACES_JSON ?? "[]")).toEqual([
       {
         workspaceId: "workspace-1",
         cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/paperclip.git",
+        repoUrl: "https://github.com/paperclipai/outpost.git",
         repoRef: "main",
       },
       {
         workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/paperclip.git",
+        repoUrl: "https://github.com/paperclipai/outpost.git",
         repoRef: "feature/other",
       },
     ]);
-    expect(call?.[3].env.PAPERCLIP_API_URL).toBe("http://127.0.0.1:4310");
-    expect(call?.[3].env.PAPERCLIP_API_BRIDGE_MODE).toBe("queue_v1");
+    expect(call?.[3].env.OUTPOST_API_URL).toBe("http://127.0.0.1:4310");
+    expect(call?.[3].env.OUTPOST_API_BRIDGE_MODE).toBe("queue_v1");
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
     expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
-  it("ships the managed Pi agent config and repoints PI_CODING_AGENT_DIR when PAPERCLIP_PI_PROVIDERS is set", async () => {
+  it("ships the managed Pi agent config and repoints PI_CODING_AGENT_DIR when OUTPOST_PI_PROVIDERS is set", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-providers-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
@@ -264,7 +264,7 @@ describe("pi remote execution", () => {
         command: "pi",
         model: "tensorix/deepseek/deepseek-chat-v3.1",
         env: {
-          PAPERCLIP_PI_PROVIDERS: JSON.stringify(providers),
+          OUTPOST_PI_PROVIDERS: JSON.stringify(providers),
           ANTHROPIC_API_KEY: "sk-bf-REALVK",
         },
       },

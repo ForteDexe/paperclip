@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRuns } from "@outpost/db";
 import { REDACTED_EVENT_VALUE } from "../redaction.js";
 import { getSecretProvider } from "../secrets/provider-registry.js";
 import type { StoredSecretVersionMaterial } from "../secrets/types.js";
 import { credentialAccessConnectionNameSql } from "./credential-access-visibility.js";
-import { readRunFailureCause, withoutSqlStatementText } from "@paperclipai/shared";
+import { readRunFailureCause, withoutSqlStatementText } from "@outpost/shared";
 
 /**
  * A run row's `error` without SQL statement text. Rows saved before run errors

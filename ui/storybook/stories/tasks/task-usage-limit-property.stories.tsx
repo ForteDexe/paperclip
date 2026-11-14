@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Agent, ProviderRateLimitSnapshot } from "@paperclipai/shared";
+import type { Agent, ProviderRateLimitSnapshot } from "@outpost/shared";
 import { AgentIdentity } from "@/components/AgentIdentity";
 import { AgentRateLimitPropertyValue } from "@/components/AgentRateLimitGauge";
 import { IssueStatusBadge } from "@/components/StatusBadge";
@@ -14,7 +14,7 @@ const window = (id: string, label: string, shortLabel: string, windowMinutes: nu
 });
 
 const codex: ProviderRateLimitSnapshot = {
-  schema: "paperclip.provider.rate_limits.v1",
+  schema: "outpost.provider.rate_limits.v1",
   provider: "openai",
   windows: [
     window("codex.primary", "5-hour window", "5h", 300, 78, "2026-11-05T15:40:00"),
@@ -26,7 +26,7 @@ const codex: ProviderRateLimitSnapshot = {
 };
 
 const claude: ProviderRateLimitSnapshot = {
-  schema: "paperclip.provider.rate_limits.v1",
+  schema: "outpost.provider.rate_limits.v1",
   provider: "anthropic",
   windows: [
     window("claude.five_hour", "5-hour window", "5h", 300, 86, "2026-11-05T17:05:00"),

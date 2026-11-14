@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Project } from "@paperclipai/shared";
+import type { Project } from "@outpost/shared";
 import { companyProjectsQuery } from "@/lib/company-projects-query";
 
 // Sidebar star reveals with the row's own group, not the shared unnamed group.

@@ -8,13 +8,13 @@ import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { activityLog, agentApiKeys, agents, agentWakeupRequests, authUsers, boardApiKeys, companies,
-  companyMemberships, createDb, heartbeatRuns, issueComments, issues, principalPermissionGrants } from "@paperclipai/db";
-import { AGENT_INTERACTION_PERMISSION_KEYS, PERMISSION_KEYS } from "@paperclipai/shared";
+  companyMemberships, createDb, heartbeatRuns, issueComments, issues, principalPermissionGrants } from "@outpost/db";
+import { AGENT_INTERACTION_PERMISSION_KEYS, PERMISSION_KEYS } from "@outpost/shared";
 import { createApp } from "../app.js";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 
 const execute = promisify(execFile);
 
@@ -62,7 +62,7 @@ it("configures each control with the CLI against the assembled app and enforces 
       const result = await execute(process.execPath, ["--import", `${repo}cli/node_modules/tsx/dist/loader.mjs`, `${repo}cli/src/index.ts`,
         "agent", patch ? "interaction-permissions:update" : "interaction-permissions", agentId, "--api-base", base,
         "--api-key", boardKey, "--json", ...(patch ? ["--payload-json", JSON.stringify(patch)] : [])], {
-        cwd: repo, env: { ...process.env, PAPERCLIP_TELEMETRY_DISABLED: "1" }, timeout: 60000,
+        cwd: repo, env: { ...process.env, OUTPOST_TELEMETRY_DISABLED: "1" }, timeout: 60000,
       });
       return JSON.parse(result.stdout);
     };
@@ -93,7 +93,7 @@ it("configures each control with the CLI against the assembled app and enforces 
     }
     await cli(recipient, { canReceiveAssignmentsFromAgents: false });
     const runId = randomUUID();
-    await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, sender));
+    await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, sender));
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: sender, status: "running", runtimeMode: "native",
       nativeIssueId: owned!.id, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: owned!.id } });
     await db.update(issues).set({ executionRunId: runId, status: "in_progress" }).where(eq(issues.id, owned!.id));

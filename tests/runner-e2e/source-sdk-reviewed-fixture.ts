@@ -66,7 +66,7 @@ export async function prepareReviewedSdkReference(original:string,directory:stri
     await symlink(path.join(directory,"packages/shared"),path.join(scope,"shared"));
   }
   const require=createRequire(path.join(directory,"packages/plugins/sdk/package.json"));
-  const sharedEntry=await realpath(require.resolve("@paperclipai/shared"));
+  const sharedEntry=await realpath(require.resolve("@outpost/shared"));
   if(!sharedEntry.startsWith(path.join(directory,"packages/shared")+path.sep))throw new Error("SDK reference resolved a donor workspace");
   // Authenticate original compiler/parser/Zod/source pins BEFORE normal build.
   await verifySdkPublicSource(directory);

@@ -4,7 +4,7 @@ import { usePageVisibility } from "../../lib/page-visibility";
 import { liveRunEvent, mergeRunEvents } from "../../lib/live-run-event";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
-import type { HeartbeatRunEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent } from "@outpost/shared";
 import type { TranscriptEntry } from "@/adapters";
 import { heartbeatsApi } from "@/api/heartbeats";
 import { nativeRunEventsToTranscript } from "./native-run-events";
@@ -102,7 +102,7 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
     const row = liveRunEvent(event);
     if (!row) return;
     const cursor = sequence(runId);
-    const envelope = row.payload?.prpEvent;
+    const envelope = row.payload?.orpEvent;
     const hasTranscriptBody = envelope !== null && typeof envelope === "object" && !Array.isArray(envelope);
     if (!hasTranscriptBody) cursor.requireHistory(row.seq);
     if (cursor.observe(row.seq) && !gapPendingRef.current.has(runId)) {

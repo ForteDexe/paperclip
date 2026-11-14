@@ -398,7 +398,7 @@ function createDbClient(url: string, resolved: DatabaseClientOptions, owner?: ob
     ...resolved, maxConnections: LIVENESS_POOL_MAX_CONNECTIONS, applicationName: "paperclip-controller-lease",
   }, db));
   checkpointDbFactories.set(db, () => createDbClient(url, {
-    ...resolved, maxConnections: CHECKPOINT_POOL_MAX_CONNECTIONS, applicationName: "paperclip-runner-checkpoint",
+    ...resolved, maxConnections: CHECKPOINT_POOL_MAX_CONNECTIONS, applicationName: "outpost-runner-checkpoint",
   }, db));
   fileStorageDbFactories.set(db, () => createDbClient(url, {
     ...resolved, maxConnections: 2, applicationName: "paperclip-file-storage",
@@ -733,12 +733,12 @@ async function applyPendingMigrationsManually(
           }
           await runInTransaction(sql, async () => {
             await sql.unsafe('LOCK TABLE "public"."projects" IN ACCESS EXCLUSIVE MODE');
-            await sql.unsafe(`CREATE TEMP TABLE paperclip_project_environment_overlap ON COMMIT DROP AS
+            await sql.unsafe(`CREATE TEMP TABLE outpost_project_environment_overlap ON COMMIT DROP AS
               SELECT id, environment_id FROM "public"."projects" WHERE environment_id IS NOT NULL`);
             await applyMigration();
             for (const statement of splitMigrationStatements(repairContent)) await sql.unsafe(statement);
             await sql.unsafe(`UPDATE "public"."projects" AS project SET environment_id = legacy.environment_id
-              FROM pg_temp.paperclip_project_environment_overlap AS legacy WHERE project.id = legacy.id`);
+              FROM pg_temp.outpost_project_environment_overlap AS legacy WHERE project.id = legacy.id`);
             await recordMigrationHistoryEntry(sql, qualifiedTable, columnNames, repairFile, repairHash,
               folderMillisByFileName.get(repairFile) ?? Date.now());
           });

@@ -1,10 +1,10 @@
-import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
-import { withWorkspaceRestore } from "@paperclipai/adapter-utils/workspace-restore-result";
-import { cancellableSandboxStartup } from "@paperclipai/adapter-utils/acpx-engine/startup-cancellation";
+import { createProviderStoppedBoundary } from "@outpost/adapter-utils/provider-stopped-boundary";
+import { withWorkspaceRestore } from "@outpost/adapter-utils/workspace-restore-result";
+import { cancellableSandboxStartup } from "@outpost/adapter-utils/acpx-engine/startup-cancellation";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult } from "@outpost/adapter-utils";
 import {
   adapterExecutionTargetIsRemote,
   adapterExecutionTargetRemoteCwd,
@@ -19,14 +19,14 @@ import {
   resolveAdapterExecutionTargetCommandForLogs,
   resolveAdapterExecutionTargetTimeoutSec,
   runAdapterExecutionTargetProcess,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@outpost/adapter-utils/execution-target";
 import {
   asBoolean,
   asNumber,
   asString,
   asStringArray,
   buildInvocationEnvForLogs,
-  buildPaperclipEnv,
+  buildOutpostEnv,
   buildRuntimeToolsEnv,
   ensureAbsoluteDirectory,
   ensurePathInEnv,
@@ -41,10 +41,10 @@ import {
   selectInitialCommunicationGuidance,
   isPaperclipRecoveryWakePayload,
   resolveLegacyPaperclipDesiredSkillNames,
-  refreshPaperclipWorkspaceEnvForExecution,
-  DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
-  DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE,
-} from "@paperclipai/adapter-utils/server-utils";
+  refreshOutpostWorkspaceEnvForExecution,
+  DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
+  DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE,
+} from "@outpost/adapter-utils/server-utils";
 import { DEFAULT_GROK_LOCAL_MODEL } from "../index.js";
 import { copyBackGrokAuth } from "./grok-auth-copyback.js";
 import { grokHomeHasSession, grokHomeHasUsableAuth, resolveManagedGrokHomeDir, stageGrokHomeForSync } from "./grok-home.js";
@@ -66,14 +66,14 @@ function hasNonEmptyEnvValue(env: Record<string, string | undefined>, key: strin
   return typeof raw === "string" && raw.trim().length > 0;
 }
 
-function renderPaperclipEnvNote(env: Record<string, string>): string {
+function renderOutpostEnvNote(env: Record<string, string>): string {
   const paperclipKeys = Object.keys(env)
-    .filter((key) => key.startsWith("PAPERCLIP_"))
+    .filter((key) => key.startsWith("OUTPOST_"))
     .sort();
   if (paperclipKeys.length === 0) return "";
   return [
     "Outpost runtime note:",
-    `The following PAPERCLIP_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
+    `The following OUTPOST_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
     "Do not assume these variables are missing without checking your shell environment.",
     "",
     "",
@@ -81,7 +81,7 @@ function renderPaperclipEnvNote(env: Record<string, string>): string {
 }
 
 function renderApiAccessNote(env: Record<string, string>): string {
-  if (!hasNonEmptyEnvValue(env, "PAPERCLIP_API_URL") || !hasNonEmptyEnvValue(env, "PAPERCLIP_API_KEY")) return "";
+  if (!hasNonEmptyEnvValue(env, "OUTPOST_API_URL") || !hasNonEmptyEnvValue(env, "OUTPOST_API_KEY")) return "";
   return [
     "Outpost API access note:",
     "Use shell commands with curl to make Outpost API requests when needed.",
@@ -136,7 +136,7 @@ async function stageGrokProjectAssets(input: {
       rulesFilePath = input.instructionsFilePath;
       await input.onLog(
         "stdout",
-        `[paperclip] Grok workspace already contains ${instructionsTarget}; using --rules @${input.instructionsFilePath} instead of overwriting it.\n`,
+        `[outpost] Grok workspace already contains ${instructionsTarget}; using --rules @${input.instructionsFilePath} instead of overwriting it.\n`,
       );
     }
   } else {
@@ -167,7 +167,7 @@ async function stageGrokProjectAssets(input: {
       if (await pathExists(target)) {
         await input.onLog(
           "stdout",
-          `[paperclip] Grok skill target already exists at ${target}; leaving it unchanged.\n`,
+          `[outpost] Grok skill target already exists at ${target}; leaving it unchanged.\n`,
         );
         continue;
       }
@@ -258,8 +258,8 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
   const promptTemplate = asString(
     config.promptTemplate,
     context.conversationMode === true
-      ? DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE
-      : DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+      ? DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE
+      : DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
   );
   const command = asString(config.command, "grok");
   const model = asString(config.model, DEFAULT_GROK_LOCAL_MODEL).trim();
@@ -311,10 +311,10 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
   const executeTurn = async (): Promise<AdapterExecutionResult> => {
     const envConfig = parseObject(config.env);
     const env: Record<string, string> = {
-      ...buildPaperclipEnv(agent, ctx.agentIdentity),
+      ...buildOutpostEnv(agent, ctx.agentIdentity),
       ...buildRuntimeToolsEnv(ctx.runtimeTools),
     };
-    env.PAPERCLIP_RUN_ID = runId;
+    env.OUTPOST_RUN_ID = runId;
     const wakeTaskId =
       (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
       (typeof context.issueId === "string" && context.issueId.trim().length > 0 && context.issueId.trim()) ||
@@ -339,14 +339,14 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       ? context.issueIds.filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
       : [];
     const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
-    if (wakeTaskId) env.PAPERCLIP_TASK_ID = wakeTaskId;
-    if (issueWorkMode) env.PAPERCLIP_ISSUE_WORK_MODE = issueWorkMode;
-    if (wakeReason) env.PAPERCLIP_WAKE_REASON = wakeReason;
-    if (wakeCommentId) env.PAPERCLIP_WAKE_COMMENT_ID = wakeCommentId;
-    if (approvalId) env.PAPERCLIP_APPROVAL_ID = approvalId;
-    if (approvalStatus) env.PAPERCLIP_APPROVAL_STATUS = approvalStatus;
-    if (linkedIssueIds.length > 0) env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
-    refreshPaperclipWorkspaceEnvForExecution({
+    if (wakeTaskId) env.OUTPOST_TASK_ID = wakeTaskId;
+    if (issueWorkMode) env.OUTPOST_ISSUE_WORK_MODE = issueWorkMode;
+    if (wakeReason) env.OUTPOST_WAKE_REASON = wakeReason;
+    if (wakeCommentId) env.OUTPOST_WAKE_COMMENT_ID = wakeCommentId;
+    if (approvalId) env.OUTPOST_APPROVAL_ID = approvalId;
+    if (approvalStatus) env.OUTPOST_APPROVAL_STATUS = approvalStatus;
+    if (linkedIssueIds.length > 0) env.OUTPOST_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+    refreshOutpostWorkspaceEnvForExecution({
       env,
       envConfig,
       workspaceCwd: effectiveWorkspaceCwd,
@@ -360,7 +360,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       executionCwd: effectiveExecutionCwd,
     });
     if (authToken) {
-      env.PAPERCLIP_API_KEY = authToken;
+      env.OUTPOST_API_KEY = authToken;
     }
     // Held before the remote block below, so the remote lane can stage this
     // same host home into the sandbox without re-resolving it.
@@ -407,7 +407,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     if (executionTargetIsRemote) {
       await onLog(
         "stdout",
-        `[paperclip] Syncing Grok workspace to ${describeAdapterExecutionTarget(executionTarget)}.\n`,
+        `[outpost] Syncing Grok workspace to ${describeAdapterExecutionTarget(executionTarget)}.\n`,
       );
       // Stage only the credential file the remote lane needs into a curated
       // temp dir and ship THAT as the `home` asset, the same curated-snapshot
@@ -455,7 +455,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       restoreRemoteWorkspace = () =>
         preparedExecutionTargetRuntime.restoreWorkspace((line) => onLog("stdout", line));
       effectiveExecutionCwd = preparedExecutionTargetRuntime.workspaceRemoteDir ?? effectiveExecutionCwd;
-      refreshPaperclipWorkspaceEnvForExecution({
+      refreshOutpostWorkspaceEnvForExecution({
         env,
         envConfig,
         workspaceCwd: effectiveWorkspaceCwd,
@@ -510,16 +510,16 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       adapterExecutionTargetSessionMatches(runtimeRemoteExecution, runtimeExecutionTarget);
     const sessionId = canResumeSession ? runtimeSessionId : null;
     if (missingManagedSession) {
-      await onLog("stdout", "[paperclip] Selected Grok session history is unavailable. Starting a fresh session with the task handoff instead of remote subscription recovery.\n");
+      await onLog("stdout", "[outpost] Selected Grok session history is unavailable. Starting a fresh session with the task handoff instead of remote subscription recovery.\n");
     } else if (executionTargetIsRemote && runtimeSessionId && !canResumeSession) {
       await onLog(
         "stdout",
-        `[paperclip] Grok session "${runtimeSessionId}" does not match the current remote execution identity and will not be resumed in "${effectiveExecutionCwd}". Starting a fresh remote session.\n`,
+        `[outpost] Grok session "${runtimeSessionId}" does not match the current remote execution identity and will not be resumed in "${effectiveExecutionCwd}". Starting a fresh remote session.\n`,
       );
     } else if (runtimeSessionId && !canResumeSession) {
       await onLog(
         "stdout",
-        `[paperclip] Grok session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${effectiveExecutionCwd}".\n`,
+        `[outpost] Grok session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${effectiveExecutionCwd}".\n`,
       );
     }
 
@@ -548,7 +548,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       context,
     };
     const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
-    const paperclipEnvNote = renderPaperclipEnvNote(env);
+    const outpostEnvNote = renderOutpostEnvNote(env);
     const apiAccessNote = renderApiAccessNote(env);
 
     const buildArgs = (resumeSessionId: string | null, prompt: string) => {
@@ -587,7 +587,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
         attemptWakePrompt,
         attemptSections.taskContextNote,
         sessionHandoffNote,
-        paperclipEnvNote,
+        outpostEnvNote,
         apiAccessNote,
         attemptRenderedPrompt,
       ]);
@@ -600,7 +600,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
         wakePromptChars: attemptWakePrompt.length,
         taskContextChars: attemptSections.taskContextNote.length,
         sessionHandoffChars: sessionHandoffNote.length,
-        runtimeNoteChars: paperclipEnvNote.length + apiAccessNote.length,
+        runtimeNoteChars: outpostEnvNote.length + apiAccessNote.length,
         heartbeatPromptChars: attemptRenderedPrompt.length,
       };
       const args = buildArgs(resumeSessionId, prompt);
@@ -721,7 +721,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     ) {
       await onLog(
         "stdout",
-        `[paperclip] Grok resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
+        `[outpost] Grok resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
       );
       const retry = await runAttempt(null);
       return toResult(retry, true, true);
@@ -743,7 +743,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
             await providerStop.collectBeforeRestore();
           } catch {
             collectionFailed = true;
-            await onLog("stderr", `[paperclip] ${collectionFailureMessage}\n`).catch(() => undefined);
+            await onLog("stderr", `[outpost] ${collectionFailureMessage}\n`).catch(() => undefined);
           }
         }
         if (!collectionFailed) return result;
@@ -764,7 +764,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       await fs.rm(stagedGrokHomeDir, { recursive: true, force: true }).catch(async (error) => {
         await onLog(
           "stderr",
-          `[paperclip] Failed to remove staged Grok home "${stagedGrokHomeDir}": ${
+          `[outpost] Failed to remove staged Grok home "${stagedGrokHomeDir}": ${
             error instanceof Error ? error.message : String(error)
           }\n`,
         );

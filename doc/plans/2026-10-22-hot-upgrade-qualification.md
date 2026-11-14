@@ -35,7 +35,7 @@ at `858cfd1fdf621c56a8ce7615bdf5aecc9cf1bb61`.
 Tests and documentation ship with their owning behavior. Qualification defects
 are fixed in the owning earlier slice. Transcript delivery is functionally
 independent and has no migration. Browser interest never changes harness execution,
-PRP ACKs, checkpoints, accounting or canonical logs.
+ORP ACKs, checkpoints, accounting or canonical logs.
 
 The deterministic fixture links the production runner core and a scripted
 `CommandExecutor` in one process. Its counter records completed workload steps;
@@ -198,8 +198,8 @@ A/B have identical migration journals: this establishes compatible startup and
 rollback, not a nontrivial forward migration. These builds predate the final
 server claim-renewal fix, so they cannot qualify that candidate's active recovery.
 
-Private receipt locations: `paperclip-runner-e2e-k6aRaI/replacement-evidence.json`
-(short) and `paperclip-runner-e2e-EXG9cW/replacement-evidence.json` (300 seconds)
+Private receipt locations: `outpost-runner-e2e-k6aRaI/replacement-evidence.json`
+(short) and `outpost-runner-e2e-EXG9cW/replacement-evidence.json` (300 seconds)
 under the host temporary directory. Harness revisions were respectively
 `faaf31890e5ae96227bcfc0270bd5d94a92a2641` and
 `446d89245bad472abe6b5a793365004858df1e63`.
@@ -393,7 +393,7 @@ Implementation results and exact commands belong below, with their limitations.
 - The existing hosted cell defaults to SIGKILL and a 1000 ms hold, requires this
   receipt, and forbids automatic retries. Its definition version and harness
   fingerprint changed. The full hold is selectable using
-  `PAPERCLIP_RUNNER_E2E_CONTROLLER_OUTAGE_MS=300000`; SIGTERM is also selectable.
+  `OUTPOST_RUNNER_E2E_CONTROLLER_OUTAGE_MS=300000`; SIGTERM is also selectable.
 - `controller-replacement-smoke.ts` is a credential-free actual-main-server
   probe with Postgres owned by the test driver. It checks unchanged Postgres
   start time, existing HTTP data, new HTTP mutations and complete process cleanup.
@@ -414,13 +414,13 @@ Commands (run from the repository root):
 pnpm test:e2e:runner:typecheck
 pnpm test:e2e:runner:unit -- --maxWorkers=2
 node cli/node_modules/tsx/dist/cli.mjs tests/runner-e2e/controller-replacement-smoke.ts
-PAPERCLIP_TEST_CHECKPOINT_COST_REPORT=/tmp/checkpoint-cost-attempt-1.json pnpm exec vitest run server/src/services/native-runtime/native-runner-restart-recovery.integration.test.ts -t 'keeps checkpoint SQL independent' --maxWorkers=1
+OUTPOST_TEST_CHECKPOINT_COST_REPORT=/tmp/checkpoint-cost-attempt-1.json pnpm exec vitest run server/src/services/native-runtime/native-runner-restart-recovery.integration.test.ts -t 'keeps checkpoint SQL independent' --maxWorkers=1
 ```
 
 Choose a new cost-report filename for each attempt; existing evidence is never
 overwritten. Build the existing Rust fake provider after changing its fixture
-flags (`cargo build --manifest-path packages/paperclip-runner/runner/Cargo.toml
---locked -p paperclip-runner-core --bin fake-codex-app-server`). No LLM credentials
+flags (`cargo build --manifest-path packages/outpost-runner/runner/Cargo.toml
+--locked -p outpost-runner-core --bin fake-codex-app-server`). No LLM credentials
 are needed for these local probes.
 
 Initial evidence on 2026-10-22:
@@ -553,12 +553,12 @@ claim is made. Final screenshot: `/tmp/paperclip-transcript-manual-completed-202
 ### Native notification catch-up correction (2026-10-24)
 
 Review found that a consecutive native commit notification could be mistaken for
-a complete transcript row. The notification contains no PRP body. Native views
+a complete transcript row. The notification contains no ORP body. Native views
 now request canonical history through its sequence and never merge the empty
 notification over text. The 73 focused hook, projection and sequence tests pass,
 including consecutive notifications, delayed duplicates, a notification racing
 an older read, failed-read recovery and zero recurring reads for complete live
-PRP rows. These tests use the real native transcript projection. Token gates pass.
+ORP rows. These tests use the real native transcript projection. Token gates pass.
 Payload-free notifications cause event-driven history reads; this is distinct
 from the zero recurring reads during settled negotiated streaming.
 UI typecheck and the native two-view browser journey also pass after this fix

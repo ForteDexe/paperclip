@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
-import { heartbeatRuns, companySkillRepositorySnapshots as snapshots, type Db } from "@paperclipai/db";
+import { heartbeatRuns, companySkillRepositorySnapshots as snapshots, type Db } from "@outpost/db";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 import type { StorageService } from "../../storage/types.js";
 import { getStorageService } from "../../storage/index.js";
@@ -16,7 +16,7 @@ import { withRuntimeAssetUse } from "./runtime-asset-retention.js";
 import { admittedRuntimeSkills, hasUnversionedRuntimeSkillInputSql, readRuntimeSkillPreservation,
   RUNTIME_SKILL_PRESERVATION_KEY, RUNTIME_SKILL_PRESERVATION_SCHEMA, sameRuntimeSkill,
   type PreservedRuntimeSkill, type RuntimeSkillPreservation } from "./runtime-skill-preservation-reference.js";
-import type { NativeExecutionInput, NativeRuntimeAssetReference, NativeRuntimeContextSnapshot } from "../../vendor/paperclip-runner/index.js";
+import type { NativeExecutionInput, NativeRuntimeAssetReference, NativeRuntimeContextSnapshot } from "../../vendor/outpost-runner/index.js";
 
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const retainedRuntimeSkillsSql = () => and(hasUnversionedRuntimeSkillInputSql(), or(skillRunNeedsFilesSql(),
@@ -26,7 +26,7 @@ type ManifestFile = { path: string; sha256: string; mode: number; size: number }
 function manifestFiles(asset: NativeRuntimeAssetReference, text: string): ManifestFile[] {
   if (Buffer.byteLength(text) > 4 * 1024 * 1024 || hash(text) !== asset.manifestDigest) throw new Error("runtime_skill_manifest_digest_mismatch");
   const manifest = JSON.parse(text);
-  if (manifest.schema !== "paperclip.runtime-asset-manifest.v1" || manifest.digest !== asset.digest
+  if (manifest.schema !== "outpost.runtime-asset-manifest.v1" || manifest.digest !== asset.digest
     || manifest.fileCount !== asset.fileCount || manifest.totalBytes !== asset.totalBytes
     || !Array.isArray(manifest.files) || manifest.files.length !== asset.fileCount
     || manifest.files.length > 10_000 || asset.totalBytes > 64 * 1024 * 1024) throw new Error("runtime_skill_manifest_invalid");

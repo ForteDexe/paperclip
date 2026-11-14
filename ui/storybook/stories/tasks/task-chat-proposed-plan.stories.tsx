@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { IssueDocument, IssueThreadInteraction, IssueWorkMode } from "@paperclipai/shared";
+import type { IssueDocument, IssueThreadInteraction, IssueWorkMode } from "@outpost/shared";
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
 import { TaskChatComposerDock } from "@/components/task-chat/TaskChatComposerDock";
 import { TaskChatInteractionCard } from "@/components/task-chat/TaskChatInteractionCard";

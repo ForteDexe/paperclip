@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConnectToolAppResult, McpJsonImportPreview } from "@paperclipai/shared";
+import type { ConnectToolAppResult, McpJsonImportPreview } from "@outpost/shared";
 import { PasteConfigTab } from "./PasteConfigTab";
 
 const toolsApiMock = vi.hoisted(() => ({
@@ -474,7 +474,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
       authorizationUrl: "https://provider.example.test/authorize?state=imported",
     }));
     await pasteAndCheck(NOTION_PREVIEW, NOTION_CONFIG);
-    const result = oauthConnectResult("https://my.paperclip.app/connections/confirm?session=legacy");
+    const result = oauthConnectResult("https://my.outpost.app/connections/confirm?session=legacy");
     result.auth = {
       ...result.auth!,
       handoff: { kind: "paperclip_cloud", session },

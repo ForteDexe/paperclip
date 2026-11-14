@@ -17,7 +17,7 @@ import {
   issueRelations,
   issues,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -40,7 +40,7 @@ vi.mock("../services/heartbeat-run-events.js", async (importOriginal) => {
 const mockedAppendHeartbeatRunEvent = vi.mocked(appendHeartbeatRunEvent);
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_OUTPUT_WATCHDOG_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_OUTPUT_WATCHDOG_TEST_DATABASE_URL");
 const describeEmbeddedPostgres = external || embeddedPostgresSupport.supported ? describe : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {

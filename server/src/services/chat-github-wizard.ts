@@ -13,12 +13,12 @@ import {
   companyMemberships,
   toolConnections,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   GitHubAppRegistrationInput,
   GitHubAppWizardState,
   GitHubAppCloudState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { badRequest, conflict, forbidden, notFound } from "../errors.js";
 import { logActivity } from "./activity-log.js";
 import {
@@ -33,7 +33,7 @@ import {
 import { githubChatManagementService } from "./chat-github-management.js";
 import {
   createPaperclipCloudConnector,
-  paperclipCloudConnectorConfigFromEnv,
+  outpostCloudConnectorConfigFromEnv,
   type PaperclipCloudConnector,
 } from "./paperclip-cloud-connector.js";
 import { paperclipCloudConnectorEnrollmentStatus } from "./paperclip-cloud-connector-enrollment.js";
@@ -125,7 +125,7 @@ export function githubChatWizardService(
   const connector =
     options.connector ??
     (() => {
-      const config = paperclipCloudConnectorConfigFromEnv();
+      const config = outpostCloudConnectorConfigFromEnv();
       return config
         ? createPaperclipCloudConnector({ config, request: fetchImpl })
         : null;

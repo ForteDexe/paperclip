@@ -33,7 +33,7 @@ export function computerProbeReply(reply: string, receipt: Pick<SshComputerRecei
 async function prepare(ctx: ChatCatalogContext) {
   const selected = selectedRuntimeInputs(ctx, ctx.scenario.id as typeof ids[number]), v = selected.values;
   if (!sshPinnedHost({ hostname: v.hostname, port: v.port, login: v.login, knownHosts: v.knownHosts, hostKeySha256: v.hostKeySha256, allowedRemoteRoot: v.allowedRemoteRoot })
-    || v.privateKeyEnv !== "PAPERCLIP_CHAT_EVAL_SSH_PRIVATE_KEY" || (ctx.scenario.id !== "execution-environments.test-computer" && v.qualifiedHarness !== "claude_local") || !selected.resourceIds.includes(v.hostname)) throw new Error("Setup blocker: selected allowlisted disposable SSH target, pinned host key/root, explicit private key and Claude harness are required; values withheld");
+    || v.privateKeyEnv !== "OUTPOST_CHAT_EVAL_SSH_PRIVATE_KEY" || (ctx.scenario.id !== "execution-environments.test-computer" && v.qualifiedHarness !== "claude_local") || !selected.resourceIds.includes(v.hostname)) throw new Error("Setup blocker: selected allowlisted disposable SSH target, pinned host key/root, explicit private key and Claude harness are required; values withheld");
   if (!ctx.input.fixtures.company.issuePrefix) throw new Error("Owned company has no supported route prefix");
   const key = selected.reference(v.privateKeyEnv); if (!ctx.input.privateSecrets) throw new Error("Private SSH redaction sink unavailable"); ctx.input.privateSecrets.push(key);
   requests.set(ctx, { operation: "create", baseURL: ctx.input.api.baseURL, companyId: ctx.input.fixtures.company.id, companyPrefix: ctx.input.fixtures.company.issuePrefix,

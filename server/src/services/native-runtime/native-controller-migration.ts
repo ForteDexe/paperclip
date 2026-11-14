@@ -2,9 +2,9 @@ import { constants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
-import { heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import { remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
-import { captureLegacyDurablePrpCheckpoint, inspectDurablePrpCheckpointHeader, parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
+import { captureLegacyDurablePrpCheckpoint, inspectDurablePrpCheckpointHeader, parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { offlineMigrationExecutionWhere } from "../offline-migration-execution.js";
 import { findNativeSessionResumeRun, isNativeSessionId } from "./native-session-resume.js";
 import { nativeControllerMigrationDescriptor } from "./native-session-executor.js";
@@ -86,7 +86,7 @@ async function* retainedSources(db: Db, signal?: AbortSignal, concurrency = 1, i
       r.native_issue_id as "issueId", r.native_session_id as "sessionId", r.created_at as "createdAt", r.id as "lastRunId"
       from agent_task_sessions s join heartbeat_runs r on r.id = s.last_run_id
         and r.company_id = s.company_id and r.agent_id = s.agent_id
-      where s.adapter_type = 'paperclip_runner' and r.native_issue_id is not null and r.native_session_id is not null
+      where s.adapter_type = 'outpost_runner' and r.native_issue_id is not null and r.native_session_id is not null
         ${after ? sql`and s.id > ${after}::uuid` : sql``} order by s.id limit 100`);
     for (let offset = 0; offset < rows.length; offset += concurrency) {
       signal?.throwIfAborted();
@@ -215,7 +215,7 @@ async function preservedActiveCheckpoint(db: Db, selected: Selected,
     bytes = await readPrivateSource(paths.controlFile, 4096);
     marker = bytes === undefined ? null : record(JSON.parse(bytes));
   } catch { return false; }
-  if (marker !== null && (marker.schema !== "paperclip.runner.external-control-plane-state.v1"
+  if (marker !== null && (marker.schema !== "outpost.runner.external-control-plane-state.v1"
     || Object.keys(marker).sort().join(",") !== "identity,schema")) return false;
   const binding = { companyId: selected.companyId, issueId: selected.issueId, runId: source.id };
   const checkpoint = await loadNativeRunnerCheckpoint(db, binding).catch(() => null);

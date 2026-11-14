@@ -62,8 +62,8 @@ describe("genuine immutable public skill update qualification", () => {
     const summary = first.reply;
     const run = { id: "review-run", runtimeMode: "native", companyId: "company", agentId: "ceo", status: "succeeded", nativeIssueId: "source",
       contextSnapshot: { issueId: "source", commentId: "human" }, resultJson: { summary, finalizationPhase: "committed",
-        finalizationReasonCode: "conversation_turn_finished", prpRunTerminalState: "succeeded", prpTurnTerminalState: "completed",
-        nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary } } };
+        finalizationReasonCode: "conversation_turn_finished", orpRunTerminalState: "succeeded", orpTurnTerminalState: "completed",
+        nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary } } };
     Object.assign(first, { runs: [run], reply: "The complete diff is shown above. No update applied yet." });
     value.reply = `${first.reply}\nI updated the accessibility skill to the reviewed source version. The local copy is unchanged.`;
     const check = () => gradeIntegratorSkillUpdate(value).checks.find(row => row.id === "review-diff-before-update")?.passed;
@@ -130,7 +130,7 @@ it("actual review-update setup keeps the real prerequisite and then prepares the
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(url.includes(pins.oldCommit) ? bytes.old : bytes.next)));
   try {
     const f = setupFixture(false); const result = await integratorSkillUpdateCases[0]!.setup(f.ctx);
-    expect(integratorSkillUpdateCases[0]!.oracleVersion).toBe("paperclip.chat-catalog.integrator.v3");
+    expect(integratorSkillUpdateCases[0]!.oracleVersion).toBe("outpost.chat-catalog.integrator.v3");
     expect(f.prerequisite).toHaveBeenCalledOnce(); expect(saveSkillConversationContext).toHaveBeenCalledOnce(); expect(result.source).toMatchObject({ trackingRef: pins.newCommit, lastScanCommit: pins.oldCommit });
   } finally { vi.unstubAllGlobals(); }
 });

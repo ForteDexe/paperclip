@@ -18,9 +18,9 @@ import { nativeManualAdmissionHoldsExecution } from "../../../services/native-ru
 import { and, asc, eq, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { readReleaseRun, type ReleaseRun } from "./release-run-read.js";
 import { isGovernancePauseStop } from "../../../services/governance-pause-stop.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { deliveredQueuedCommentIds, EXTERNAL_CHAT_MESSAGE_WAKE_MUTATION, EXTERNAL_CHAT_MESSAGE_WAKE_REASON } from "../../../services/queued-comment-delivery.js";
-import { extractIssueReferenceIdentifiers, isUuidLike } from "@paperclipai/shared";
+import { extractIssueReferenceIdentifiers, isUuidLike } from "@outpost/shared";
 import {
   activityLog,
   agentWakeupRequests,
@@ -32,7 +32,7 @@ import {
   issueRelations,
   issues,
   nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { hasConversationContinuationPolicy } from "../../../services/conversation-continuation.js";
 import { legacyExecutionNeedsReconciliationWithEvidence } from "../../../services/legacy-execution-recovery.js";
 import {

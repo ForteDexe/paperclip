@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
 import { gradePiRestartCompletion, observePiRestartPending, runPiPendingControllerRestart } from "./pi-native-restart-flow.js";
-import { validatePrpStructuredRunResult } from "../../packages/paperclip-runner/src/protocol/replay-contract.js";
+import { validatePrpStructuredRunResult } from "../../packages/outpost-runner/src/protocol/replay-contract.js";
 
 type Row = Record<string, any>;
 vi.mock("@playwright/test", () => ({ expect: (locator: { count(): number }) => ({
@@ -9,22 +9,22 @@ vi.mock("@playwright/test", () => ({ expect: (locator: { count(): number }) => (
 }) }));
 
 function fixture(adapter = "acpx-runtime-sidecar") {
-  const questionSet = { schema: "paperclip.question_set.v1", questions: [{ id: "answer", header: "Pi native restart", prompt: "Answer", answerMode: "text", required: true }] };
-  const request = { schema: "paperclip.runtime_request.v2", requestKind: "runtime", type: "input", status: "pending", requestId: "request", turnId: "turn", itemId: "request",
+  const questionSet = { schema: "outpost.question_set.v1", questions: [{ id: "answer", header: "Pi native restart", prompt: "Answer", answerMode: "text", required: true }] };
+  const request = { schema: "outpost.runtime_request.v2", requestKind: "runtime", type: "input", status: "pending", requestId: "request", turnId: "turn", itemId: "request",
     input: questionSet, origin: { adapter, provider: "pi", method: "elicitation/create" } };
   const wrap = (eventType: string, sourceSeq: number, payload: Row): Row => ({
     companyId: "company", runId: "run", seq: sourceSeq, protocolSchemaVersion: 1, eventType,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", itemId: "request",
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", itemId: "request",
       normalizedSessionId: "session", sourceInstanceId: "runner", sourceSeq, sourceEventId: `runner:run:${sourceSeq}`, payload } },
   });
   const state = { issue: { id: "issue", companyId: "company", status: "in_progress" },
     runs: [{ id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner", processPid: 200, processGroupId: 200, processStartedAt: "2026-10-02T13:55:27.000Z" } as Row],
     interactions: [{ id: "interaction", companyId: "company", issueId: "issue", kind: "ask_user_questions", status: "pending", result: null,
-      sourceRunId: "run", continuationPolicy: "none", resolverPolicy: "human_only", idempotencyKey: "paperclip-runner-question:run:request",
+      sourceRunId: "run", continuationPolicy: "none", resolverPolicy: "human_only", idempotencyKey: "outpost-runner-question:run:request",
       payload: { runtimeRequestId: "request", questionSet } } as Row] };
   const events = [wrap("runtime_request.created", 1, { request })];
   const control = (eventType: string, sourceSeq: number, payload: Row): Row => {
-    const row = wrap(eventType, sourceSeq + 4, payload), event = row.payload.prpEvent;
+    const row = wrap(eventType, sourceSeq + 4, payload), event = row.payload.orpEvent;
     Object.assign(event, { sourceKind: "control_plane", sourceInstanceId: "runner:control", sourceSeq, sourceEventId: `runner:control:run:${sourceSeq}` });
     delete event.itemId;
     Object.assign(row, { sourceInstanceId: event.sourceInstanceId, sourceSeq, sourceEventId: event.sourceEventId });
@@ -38,9 +38,9 @@ function fixture(adapter = "acpx-runtime-sidecar") {
     if (!validated.ok) throw new Error("Fixture finish result must satisfy the actual production schema");
     const result = validated.result;
     events.push(wrap("runtime_request.resolved", 2, { requestId: "request", turnId: "turn", itemId: "request", action: "submit",
-      response: { schema: "paperclip.question_response.v1", answers: { answer: { text: answer } } } }), wrap("turn.completed", 4, { status: "completed" }),
+      response: { schema: "outpost.question_response.v1", answers: { answer: { text: answer } } } }), wrap("turn.completed", 4, { status: "completed" }),
       wrap("run.result.proposed", 3, structuredClone(result)), control("run.result.accepted", 1, { result: structuredClone(result) }),
-      control("run.terminal", 2, { schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }));
+      control("run.terminal", 2, { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }));
     return { status: "answered", value: answer };
   }
   return { state, events, request, wrap, control, finish };
@@ -59,7 +59,7 @@ function actualPendingPrefix() {
 
 it.each(["omitted", "null"])("accepts the actual pre-start submission with %s turn ID", representation => {
   const f = actualPendingPrefix();
-  if (representation === "null") f.events[0]!.payload.prpEvent.turnId = null;
+  if (representation === "null") f.events[0]!.payload.orpEvent.turnId = null;
   expect(observePiRestartPending(f.state, f.events, "company")).toMatchObject({
     runId: "run", turnId: "turn", nativeSessionId: "session", sourceInstanceId: "runner", createdSourceSeq: 195,
   });
@@ -67,34 +67,34 @@ it.each(["omitted", "null"])("accepts the actual pre-start submission with %s tu
 
 it.each([
   ["missing start", (f: ReturnType<typeof actualPendingPrefix>) => { f.events.splice(1, 1); }],
-  ["start without assigned turn", (f: ReturnType<typeof actualPendingPrefix>) => { delete f.events[1]!.payload.prpEvent.turnId; }],
-  ["start with foreign turn", (f: ReturnType<typeof actualPendingPrefix>) => { f.events[1]!.payload.prpEvent.turnId = "other"; }],
-  ["foreign submission turn", (f: ReturnType<typeof actualPendingPrefix>) => { f.events[0]!.payload.prpEvent.turnId = "other"; }],
-  ["foreign submission session", (f: ReturnType<typeof actualPendingPrefix>) => { f.events[0]!.payload.prpEvent.normalizedSessionId = "other"; }],
+  ["start without assigned turn", (f: ReturnType<typeof actualPendingPrefix>) => { delete f.events[1]!.payload.orpEvent.turnId; }],
+  ["start with foreign turn", (f: ReturnType<typeof actualPendingPrefix>) => { f.events[1]!.payload.orpEvent.turnId = "other"; }],
+  ["foreign submission turn", (f: ReturnType<typeof actualPendingPrefix>) => { f.events[0]!.payload.orpEvent.turnId = "other"; }],
+  ["foreign submission session", (f: ReturnType<typeof actualPendingPrefix>) => { f.events[0]!.payload.orpEvent.normalizedSessionId = "other"; }],
   ["foreign submission producer", (f: ReturnType<typeof actualPendingPrefix>) => {
-    Object.assign(f.events[0]!.payload.prpEvent, { sourceInstanceId: "other", sourceEventId: "other:run:6" });
+    Object.assign(f.events[0]!.payload.orpEvent, { sourceInstanceId: "other", sourceEventId: "other:run:6" });
   }],
   ["submission after start", (f: ReturnType<typeof actualPendingPrefix>) => {
     f.events[0]!.seq = 29;
-    Object.assign(f.events[0]!.payload.prpEvent, { sourceSeq: 8, sourceEventId: "runner:run:8" });
+    Object.assign(f.events[0]!.payload.orpEvent, { sourceSeq: 8, sourceEventId: "runner:run:8" });
   }],
   ["start after request", (f: ReturnType<typeof actualPendingPrefix>) => {
     f.events[1]!.seq = 223;
-    Object.assign(f.events[1]!.payload.prpEvent, { sourceSeq: 196, sourceEventId: "runner:run:196" });
+    Object.assign(f.events[1]!.payload.orpEvent, { sourceSeq: 196, sourceEventId: "runner:run:196" });
   }],
   ["duplicate submission", (f: ReturnType<typeof actualPendingPrefix>) => {
     const row = structuredClone(f.events[0]!); row.seq = 26;
-    Object.assign(row.payload.prpEvent, { sourceSeq: 7, sourceEventId: "runner:run:7" });
-    Object.assign(f.events[1]!.payload.prpEvent, { sourceSeq: 8, sourceEventId: "runner:run:8" });
+    Object.assign(row.payload.orpEvent, { sourceSeq: 7, sourceEventId: "runner:run:7" });
+    Object.assign(f.events[1]!.payload.orpEvent, { sourceSeq: 8, sourceEventId: "runner:run:8" });
     f.events.push(row);
   }],
   ["duplicate start", (f: ReturnType<typeof actualPendingPrefix>) => {
     const row = structuredClone(f.events[1]!); row.seq = 29;
-    Object.assign(row.payload.prpEvent, { sourceSeq: 8, sourceEventId: "runner:run:8" }); f.events.push(row);
+    Object.assign(row.payload.orpEvent, { sourceSeq: 8, sourceEventId: "runner:run:8" }); f.events.push(row);
   }],
   ["later unbound turn event", (f: ReturnType<typeof actualPendingPrefix>) => {
     const row = structuredClone(f.events[1]!); row.seq = 29; row.eventType = "turn.progress";
-    Object.assign(row.payload.prpEvent, { eventType: "turn.progress", turnId: null, sourceSeq: 8, sourceEventId: "runner:run:8" }); f.events.push(row);
+    Object.assign(row.payload.orpEvent, { eventType: "turn.progress", turnId: null, sourceSeq: 8, sourceEventId: "runner:run:8" }); f.events.push(row);
   }],
 ] as const)("rejects %s around an unbound submission", (_label, mutate) => {
   const f = actualPendingPrefix(); mutate(f);
@@ -127,31 +127,31 @@ it.each([
   ["missing resolution", (f: ReturnType<typeof fixture>) => { f.events.splice(1, 1); }],
   ["duplicate resolution", (f: ReturnType<typeof fixture>) => { f.events.push(structuredClone(f.events[1]!)); }],
   ["replayed creation", (f: ReturnType<typeof fixture>) => { f.events.push(f.wrap("runtime_request.created", 4, { request: f.request })); }],
-  ["cancelled callback", (f: ReturnType<typeof fixture>) => { f.events[1]!.eventType = f.events[1]!.payload.prpEvent.eventType = "runtime_request.cancelled"; }],
-  ["expired callback", (f: ReturnType<typeof fixture>) => { f.events[1]!.eventType = f.events[1]!.payload.prpEvent.eventType = "runtime_request.expired"; }],
-  ["wrong delivered answer", (f: ReturnType<typeof fixture>) => { f.events[1]!.payload.prpEvent.payload.response.answers.answer.text = "guess"; }],
+  ["cancelled callback", (f: ReturnType<typeof fixture>) => { f.events[1]!.eventType = f.events[1]!.payload.orpEvent.eventType = "runtime_request.cancelled"; }],
+  ["expired callback", (f: ReturnType<typeof fixture>) => { f.events[1]!.eventType = f.events[1]!.payload.orpEvent.eventType = "runtime_request.expired"; }],
+  ["wrong delivered answer", (f: ReturnType<typeof fixture>) => { f.events[1]!.payload.orpEvent.payload.response.answers.answer.text = "guess"; }],
   ["wrong durable answer", (f: ReturnType<typeof fixture>) => { f.state.interactions[0]!.result.answers[0].otherText = "guess"; }],
-  ["wrong response turn", (f: ReturnType<typeof fixture>) => { f.events[1]!.payload.prpEvent.payload.turnId = "other"; }],
-  ["missing resolution envelope turn", (f: ReturnType<typeof fixture>) => { delete f.events[1]!.payload.prpEvent.turnId; }],
-  ["missing resolution item", (f: ReturnType<typeof fixture>) => { delete f.events[1]!.payload.prpEvent.itemId; }],
+  ["wrong response turn", (f: ReturnType<typeof fixture>) => { f.events[1]!.payload.orpEvent.payload.turnId = "other"; }],
+  ["missing resolution envelope turn", (f: ReturnType<typeof fixture>) => { delete f.events[1]!.payload.orpEvent.turnId; }],
+  ["missing resolution item", (f: ReturnType<typeof fixture>) => { delete f.events[1]!.payload.orpEvent.itemId; }],
   ["rewritten canonical question", (f: ReturnType<typeof fixture>) => { f.request.input.questions[0]!.prompt = "Replacement prompt"; }],
-  ["new native turn", (f: ReturnType<typeof fixture>) => { f.events[2]!.payload.prpEvent.turnId = "other"; }],
-  ["failed terminal payload", (f: ReturnType<typeof fixture>) => { f.events[2]!.payload.prpEvent.payload.status = "failed"; }],
+  ["new native turn", (f: ReturnType<typeof fixture>) => { f.events[2]!.payload.orpEvent.turnId = "other"; }],
+  ["failed terminal payload", (f: ReturnType<typeof fixture>) => { f.events[2]!.payload.orpEvent.payload.status = "failed"; }],
   ["missing terminal", (f: ReturnType<typeof fixture>) => { f.events.splice(2, 1); }],
   ["duplicate terminal", (f: ReturnType<typeof fixture>) => { f.events.push(f.wrap("turn.completed", 4, {})); }],
   ["missing control-plane acceptance", (f: ReturnType<typeof fixture>) => { f.events.splice(4, 1); }],
   ["missing control-plane terminal", (f: ReturnType<typeof fixture>) => { f.events.pop(); }],
-  ["foreign control-plane source", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.prpEvent.sourceInstanceId = "other:control"; }],
-  ["foreign control-plane turn", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.prpEvent.turnId = "other"; }],
-  ["missing control-plane turn", (f: ReturnType<typeof fixture>) => { delete f.events[4]!.payload.prpEvent.turnId; }],
-  ["foreign control-plane session", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.prpEvent.normalizedSessionId = "other"; }],
+  ["foreign control-plane source", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.orpEvent.sourceInstanceId = "other:control"; }],
+  ["foreign control-plane turn", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.orpEvent.turnId = "other"; }],
+  ["missing control-plane turn", (f: ReturnType<typeof fixture>) => { delete f.events[4]!.payload.orpEvent.turnId; }],
+  ["foreign control-plane session", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.orpEvent.normalizedSessionId = "other"; }],
   ["mismatched durable control source", (f: ReturnType<typeof fixture>) => { f.events[4]!.sourceSeq = 5; }],
   ["duplicate control receipt", (f: ReturnType<typeof fixture>) => { f.events.push(structuredClone(f.events[4]!)); }],
   ["control plane impersonates a native turn", (f: ReturnType<typeof fixture>) => { f.events.push(f.control("turn.completed", 3, { status: "completed" })); }],
-  ["failed control terminal", (f: ReturnType<typeof fixture>) => { f.events[5]!.payload.prpEvent.payload.runTerminalState = "failed"; }],
-  ["unaccepted native result", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.prpEvent.payload.result.summary = "Replacement result"; }],
-  ["malformed accepted result", (f: ReturnType<typeof fixture>) => { delete f.events[4]!.payload.prpEvent.payload.result.schema; }],
-  ["runner impersonates acceptance", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.prpEvent.sourceKind = "runner"; }],
+  ["failed control terminal", (f: ReturnType<typeof fixture>) => { f.events[5]!.payload.orpEvent.payload.runTerminalState = "failed"; }],
+  ["unaccepted native result", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.orpEvent.payload.result.summary = "Replacement result"; }],
+  ["malformed accepted result", (f: ReturnType<typeof fixture>) => { delete f.events[4]!.payload.orpEvent.payload.result.schema; }],
+  ["runner impersonates acceptance", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.orpEvent.sourceKind = "runner"; }],
 ] as const)("rejects %s despite a correct workspace answer", (_label, mutate) => {
   const f = fixture(), pending = observePiRestartPending(f.state, f.events, "company"), proof = f.finish();
   mutate(f); expect(() => gradePiRestartCompletion(f.state, f.events, pending, "hidden", proof)).toThrow();

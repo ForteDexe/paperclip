@@ -3,10 +3,10 @@ import { readAiConnectionConfigurationFailure } from "./ai-connection-configurat
 import { logger } from "../middleware/logger.js";
 import { createHmac } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import { agents, companies, companySecrets, type Db } from "@paperclipai/db";
-import type { AdapterEnvironmentTestResult } from "@paperclipai/adapter-utils";
-import { ADAPTER_AUTH_MISSING_CHECK_CODE, aiRuntimeConnectionBindingSchema } from "@paperclipai/shared";
-import { isForbiddenConfigEnvKey, parseObject } from "@paperclipai/adapter-utils/server-utils";
+import { agents, companies, companySecrets, type Db } from "@outpost/db";
+import type { AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
+import { ADAPTER_AUTH_MISSING_CHECK_CODE, aiRuntimeConnectionBindingSchema } from "@outpost/shared";
+import { isForbiddenConfigEnvKey, parseObject } from "@outpost/adapter-utils/server-utils";
 import { requireServerAdapter } from "../adapters/index.js";
 import { agentEnvironmentTestService } from "./agent-environment-test.js";
 import { aiConnectionRouterService } from "./ai-connection-router.js";
@@ -50,7 +50,7 @@ export function harnessVerificationDigest(input: {
 export function assertHarnessTestPassed(result: AdapterEnvironmentTestResult) {
   const verified = result.checks.some(check => check.level === "info" &&
     (/hello_probe_(passed|succeeded)$/.test(check.code) || check.code === "ai_connection_api_key_reverified" || check.code === "copilot_metadata_verified"
-      || (result.adapterType === "paperclip_runner" && check.code === "cursor_cloud_account_ready")));
+      || (result.adapterType === "outpost_runner" && check.code === "cursor_cloud_account_ready")));
   const authenticationFailed = result.checks.some(check =>
     check.code === ADAPTER_AUTH_MISSING_CHECK_CODE || check.code === "COPILOT_AUTH_REQUIRED" || /_hello_probe_auth_required$/.test(check.code));
   const incomplete = !verified && (result.status === "warn" || result.checks.some(check => check.code.includes("hello_probe")));
@@ -77,11 +77,11 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
   async function verify(snapshot: LifecycleAgent): Promise<"complete" | "pending" | "waiting"> {
     const [agent] = await db.select().from(agents).where(and(eq(agents.id, snapshot.id), eq(agents.lifecycleVersion, snapshot.lifecycleVersion)));
     if (!agent) return "pending";
-    if (agent.adapterType === "paperclip_runner" && ["openai_dot", "grok_bot"].includes(String(agent.adapterConfig.provider))) {
+    if (agent.adapterType === "outpost_runner" && ["openai_dot", "grok_bot"].includes(String(agent.adapterConfig.provider))) {
       const binding = await dotRunnerBroker(db).bindingForAgent(agent.companyId, agent.id);
       return binding?.status === "ready" && binding.wakeVerified && binding.id === agent.adapterConfig[agent.adapterConfig.provider === "grok_bot" ? "externalBindingId" : "dotBindingId"] ? "complete" : "pending";
     }
-    if (agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "muse") {
+    if (agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "muse") {
       const binding = await museRunnerBroker(db).bindingForAgent(agent.companyId,agent.id);
       // A successful read of these external facts has no retry deadline. The
       // real confirmation/configuration producer rechecks this phase durably.
@@ -105,7 +105,7 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
     if (binding) config = { ...config, env: stripAiAuthBindings(config.env) };
     config = (await secrets.resolveAdapterConfigForRuntime(agent.companyId, config, context, { adapterType: agent.adapterType })).config;
     let runner: Record<string, unknown> | null = providerApi ? { kind: "provider_api" } : { kind: "local", version: serverVersion };
-    const environmentId = providerApi ? null : await tests.resolveAdapterTestEnvironmentId(agent.companyId, agent.defaultEnvironmentId, agent.adapterType === "paperclip_runner" && config.provider === "acpx" && config.acpxAgent === "copilot");
+    const environmentId = providerApi ? null : await tests.resolveAdapterTestEnvironmentId(agent.companyId, agent.defaultEnvironmentId, agent.adapterType === "outpost_runner" && config.provider === "acpx" && config.acpxAgent === "copilot");
     if (environmentId) {
       await tests.assertAdapterTestEnvironmentForCompany(agent.companyId, environmentId, agent.adapterType);
       const environment = await environments.getById(environmentId);
@@ -120,8 +120,8 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
         runner = null;
       }
       // Run admission refuses these agents before any lease, so verification must too.
-      const preconfiguredHome = agent.adapterType === "paperclip_runner" && config.homeMode === "preconfigured";
-      if (agent.adapterType === "paperclip_runner" && environment && (preconfiguredHome || !binding)
+      const preconfiguredHome = agent.adapterType === "outpost_runner" && config.homeMode === "preconfigured";
+      if (agent.adapterType === "outpost_runner" && environment && (preconfiguredHome || !binding)
         && await pluginEnvironmentRunnerTaskDriver(db, environment)) throw pluginRunnerAiConnectionRequiredFailure(preconfiguredHome);
       const env = Object.fromEntries(Object.entries(binding ? stripAiAuthBindings(environment?.envVars) : parseObject(environment?.envVars))
         .filter(([key]) => !isForbiddenConfigEnvKey(key)));

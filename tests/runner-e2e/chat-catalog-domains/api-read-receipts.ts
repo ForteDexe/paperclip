@@ -50,7 +50,7 @@ export function recordParams(name: string, ...values: Array<string | null | unde
 
 /**
  * Dedicated task read tools and the call_api input the server builds for them
- * (taskBridgeApiRequest in paperclip-runner-tool-authority.ts). Their saved
+ * (taskBridgeApiRequest in outpost-runner-tool-authority.ts). Their saved
  * tool_use keeps the plaintext taskId, while the result carries the same
  * redacted receipt (apiOperationId, ok, status) as call_api. Harnesses may
  * namespace the name (paperclip_get_task, mcp__paperclip__get_task).
@@ -80,7 +80,7 @@ export function apiReadStatuses(events: readonly Record<string, unknown>[], dige
   const uses = new Map<string, string>();
   const statuses: Array<{ operationId: string; ok: boolean; status: number }> = [];
   for (const row of events) {
-    const envelope = objectRecord(objectRecord(row.payload).prpEvent), item = objectRecord(objectRecord(envelope.payload).item);
+    const envelope = objectRecord(objectRecord(row.payload).orpEvent), item = objectRecord(objectRecord(envelope.payload).item);
     const run = String(row.runId ?? envelope.runId ?? "");
     if (item.type === "tool_use" && item.name === "call_api") {
       const input = objectRecord(item.input);

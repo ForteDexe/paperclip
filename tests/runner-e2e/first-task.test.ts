@@ -180,7 +180,7 @@ function rejectionRecording(): FirstTaskEvidence {
 
 function result(e = recording()): RunnerE2EResult {
   return {
-    schema: "paperclip.runner-e2e.result/v2",
+    schema: "outpost.runner-e2e.result/v2",
     suiteId: "first-task",
     executionId: `first-task.legacy-codex.local.${e.caseId}`,
     attempt: 1,
@@ -302,15 +302,15 @@ describe("first-task public result projection", () => {
     e.instructions[0].content = sentinel;
     e.instructions[0].path = `/private/${sentinel}/AGENTS.md`;
     e.runtimeSettings = {
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.6-sol", env: { OPENAI_API_KEY: sentinel }, codexHome: sentinel },
       runtimeConfig: { accountId: sentinel }, permissions: { privateTrace: sentinel },
-      onboardingRuntime: { mode: "production-wizard", originalAdapterType: "paperclip_runner", testedAdapterType: "paperclip_runner", accountId: sentinel },
+      onboardingRuntime: { mode: "production-wizard", originalAdapterType: "outpost_runner", testedAdapterType: "outpost_runner", accountId: sentinel },
       onboardingRuntimeBound: { timeoutSec: 180, maxConcurrentRuns: 1, before: { runtimeConfig: { accountId: sentinel } }, after: { runtimeConfig: { accountId: sentinel } } },
     };
     for (const checkpoint of e.checkpoints) {
       checkpoint.tasks.forEach(t => Object.assign(t, { executionState: { sessionId: sentinel }, responsibleUserId: sentinel }));
-      checkpoint.agents.forEach(a => Object.assign(a, { accountId: sentinel, metadata: { auth: sentinel }, adapterType: "paperclip_runner",
+      checkpoint.agents.forEach(a => Object.assign(a, { accountId: sentinel, metadata: { auth: sentinel }, adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", model: "gpt-5.6-sol", env: { TOKEN: sentinel }, home: sentinel } }));
       checkpoint.comments.forEach(c => Object.assign(c, { hiddenReasoning: sentinel, metadata: { sessionId: sentinel },
         ...(c.authorUserId ? { authorUserId: sentinel } : {}) }));
@@ -341,7 +341,7 @@ describe("first-task public result projection", () => {
       .toEqual(e.checks.map(c => ({ id: c.id, passed: c.passed, notReached: Boolean(c.notReached) })));
     expect(projected.matcherResults!.map(c => ({ matcher: c.matcher, passed: c.passed })))
       .toEqual(raw.matcherResults.map(c => ({ matcher: c.matcher, passed: c.passed })));
-    expect(projected.firstTask!.runtimeSettings).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" } });
+    expect(projected.firstTask!.runtimeSettings).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" } });
     expect(projected.usage).toMatchObject({ runs: [{ runId: "parent-run", usage: { inputTokens: 100, outputTokens: 20,
       cachedInputTokens: 30, costUsdExact: "0.499592800", costStatus: "estimated", accountingReceiptReady: true,
       pricingProvenance: { source: "rate_card", version: "openai-standard-2026-09-30" } } }] });
@@ -896,7 +896,7 @@ Accept the card above and I write it. This task stays in review until then.`;
     function harness(environment = "local", profile = "runner-codex") {
       const execution = runnerMatrix.find(entry => entry.task.flow === "first_task" && entry.profile.id === profile && entry.environment.id === environment)!;
       const original = {
-        id: "agent", companyId: "company", adapterType: "paperclip_runner",
+        id: "agent", companyId: "company", adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", timeoutSec: 0, model: "gpt-5.6-sol", modelReasoningEffort: "high", codexPermissionMode: "readOnly",
           env: { OPENAI_API_KEY: { type: "secret_ref", secretId: "encrypted-key", version: "latest" } }, paperclipSkillSync: { desiredSkills: ["paperclipai/paperclip/first-task"] } },
         runtimeConfig: { aiConnection: { provider: "openai", method: "api_key", mode: "responsible_user" },
@@ -1027,7 +1027,7 @@ Accept the card above and I write it. This task stays in review until then.`;
         "adapterConfig",
         "adapterType",
       ]);
-      expect(patch.adapterType).toBe("paperclip_runner");
+      expect(patch.adapterType).toBe("outpost_runner");
       expect(patch.adapterConfig).toMatchObject({
         instructionsFilePath: "/managed/AGENTS.md",
         paperclipSkillSync: original.adapterConfig.paperclipSkillSync,
@@ -1901,7 +1901,7 @@ describe("managed onboarding through the production wizard", () => {
     h.emit("platform", { ok: true, details: { platformQualificationRecorded: true, leaseId: "platform" } });
     const request = h.start("adapter");
     h.fail(request);
-    h.respond(request, { adapterType: "paperclip_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter" }] });
+    h.respond(request, { adapterType: "outpost_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter" }] });
     await stop(false);
     expect(h.fixtures.setupLeases!.map(row => row.leaseId)).toEqual(["platform", "adapter"]);
     expect(h.fixtures.setupLeaseAccountingIncomplete).toBe(true);
@@ -1914,7 +1914,7 @@ describe("managed onboarding through the production wizard", () => {
     h.emit("platform", platform);
     if (mode === "duplicate") h.emit("platform", platform);
     if (mode !== "missing-discovery") h.emit("discovery", [{ type: "codex_local", defaultRunner: "paperclip", supportedRunners: ["paperclip", "legacy"] }]);
-    h.emit("adapter", { adapterType: "paperclip_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter; providerLeaseId=private-provider" }] }, mode === "explicit-runner" ? "paperclip" : undefined);
+    h.emit("adapter", { adapterType: "outpost_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter; providerLeaseId=private-provider" }] }, mode === "explicit-runner" ? "paperclip" : undefined);
     if (mode === "success") { await stop(true); expect(h.fixtures.setupLeases!.map(row => row.leaseId)).toEqual(["platform", "adapter"]); }
     else await expect(stop(true)).rejects.toThrow();
     expect(h.fixtures.setupLeases!.some(row => row.leaseId === "unrelated")).toBe(false);
@@ -1945,7 +1945,7 @@ describe("managed onboarding through the production wizard", () => {
     const h = setupHarness();
     const stop = await observeManagedFirstTaskSetup(h.page, h.api, h.fixtures, Date.now() + 1000);
     h.emit("platform", { ok: true, details: { leaseId: "platform", platformQualificationRecorded: true } });
-    h.emit("adapter", { adapterType: "paperclip_runner", status: "fail", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter; providerLeaseId=private-provider" }] });
+    h.emit("adapter", { adapterType: "outpost_runner", status: "fail", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter; providerLeaseId=private-provider" }] });
     await stop(false);
     expect(h.fixtures.setupLeases!.map(row => row.leaseId)).toEqual(["platform", "adapter"]);
     expect(h.fixtures.setupQualification!.adapterType).toBeNull();

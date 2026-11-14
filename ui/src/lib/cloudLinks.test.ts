@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cloudAppUrl, cloudPortfolioManageUrl, cloudStackCreateUrl, cloudStackEntryUrl, tenantSignInReturnPath } from "./cloudLinks";
 
 describe("cloudLinks", () => {
-  it.each(["https://my.paperclip.app", "https://my-staging.paperclip.app", "http://cloud.localhost:3200"])(
+  it.each(["https://my.outpost.app", "https://my-staging.outpost.app", "http://cloud.localhost:3200"])(
     "renews the session through the configured Cloud origin %s", (origin) => {
       const url = new URL(cloudStackEntryUrl(`${origin}/control-plane`, "team", "/TEST/issues/TEST-1?tab=activity#comment")!);
       expect(url.origin).toBe(origin);
@@ -19,15 +19,15 @@ describe("cloudLinks", () => {
 
   it("requires complete Cloud metadata", () => {
     expect(cloudStackEntryUrl(null, "team", "/")).toBeNull();
-    expect(cloudStackEntryUrl("https://my.paperclip.app", null, "/")).toBeNull();
+    expect(cloudStackEntryUrl("https://my.outpost.app", null, "/")).toBeNull();
     expect(cloudStackEntryUrl("javascript:alert(1)", "team", "/")).toBeNull();
   });
   it("resolves stack links against the cloud origin", () => {
-    expect(cloudStackCreateUrl("https://app.paperclip.app")).toBe(
-      "https://app.paperclip.app/stacks/new",
+    expect(cloudStackCreateUrl("https://app.outpost.app")).toBe(
+      "https://app.outpost.app/stacks/new",
     );
-    expect(cloudPortfolioManageUrl("https://app.paperclip.app")).toBe(
-      "https://app.paperclip.app/orgs?manage=1",
+    expect(cloudPortfolioManageUrl("https://app.outpost.app")).toBe(
+      "https://app.outpost.app/orgs?manage=1",
     );
     expect(cloudPortfolioManageUrl(null)).toBeNull();
   });

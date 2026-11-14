@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { updateCompanyMemberWithPermissionsSchema } from "@paperclipai/shared";
+import { updateCompanyMemberWithPermissionsSchema } from "@outpost/shared";
 
 describe("access validators", () => {
   it("defaults omitted combined member grants to an empty list", () => {

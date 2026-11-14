@@ -1,4 +1,4 @@
-# Cursor Cloud on native Paperclip Runner — 2026-10-28
+# Cursor Cloud on native Outpost Runner — 2026-10-28
 
 Owner: the lead integration agent in this task; delegated owners cover the Cloud
 API client and this research/acceptance record. The lead owns integration,
@@ -52,7 +52,7 @@ these results do not establish a pass for subsequent runtime changes.
 
 | Gate | Retained live evidence |
 | --- | --- |
-| C1 Ordinary setup | Fresh Advanced → Paperclip Runner setup, saved reload and real catalog Test on `27172d6ee899`; saved trial retested on `3f4d92f3751e` |
+| C1 Ordinary setup | Fresh Advanced → Outpost Runner setup, saved reload and real catalog Test on `27172d6ee899`; saved trial retested on `3f4d92f3751e` |
 | C2 Task and C6 artifact | `cursor-cloud-local-20261028-artifact-sonnet-2`, source `b18b743cd45d`, eight strict matchers and exact registered/downloaded bytes; owned remote cleanup confirmed |
 | C3 Continuation and C5 replay | `cursor-cloud-local-20261029-followup-sonnet-11`, source `7591c52a8c32`, two runs on one owned Agent, one answered question, one injected stream cut and matching-cursor reconnect, unique ordered events, settled receipts and owned cleanup |
 | C4 Active Stop | `cursor-cloud-local-20261029-stop-sonnet-3`, source `27172d6ee899`, independently observed foreground command, ordinary UI Stop, terminal cancellation, 15-second quiet window, zero accounting debt and owned cleanup |
@@ -186,8 +186,8 @@ available. Diagnose the first divergence before another paid attempt.
 - Native Runner owns normalized events and the semantic transport. The selected
   design is a Node sidecar behind the existing Rust Codex-style facade, following
   the OpenCode pattern. A public MCP relay forwards to the sidecar-owned Unix
-  HTTP bridge, which emits `item/tool/call` through Rust and existing PRP to Core
-  authority, then returns the result. Do not add a parallel PRP command. Controlled transport checks and real tools in the recorded C2 candidate
+  HTTP bridge, which emits `item/tool/call` through Rust and existing ORP to Core
+  authority, then returns the result. Do not add a parallel ORP command. Controlled transport checks and real tools in the recorded C2 candidate
   exercised this bridge. The remaining live cells retain separate gates.
   A cloud VM cannot call the local controller's loopback address. Choose and
   record the relay's authentication, reachability, expiry, and cleanup contract
@@ -205,7 +205,7 @@ available. Diagnose the first divergence before another paid attempt.
   local stream/relay resources, and fence later effects. A local socket close or
   terminal Paperclip row alone does not prove remote work stopped.
 - Preserve legacy direct invocations, transcripts, cancellation, and finalization.
-  A direct run starts no runnerd process or PRP connection. Visiting/saving an
+  A direct run starts no runnerd process or ORP connection. Visiting/saving an
   existing agent does not change its runtime.
 - The first supported controller platform is the actual local host used for
   acceptance; record OS/architecture and installed runtime identity when tested.
@@ -290,11 +290,11 @@ the exact inspected 1.0.28 package.
 | Exact instructions on create | Cloud v1 | No digest receipt | Full inline text and submitted digest | Content bound to checkpoint | Experimental limit | Controlled serialization; C2 behavior observed | Native acknowledgment unavailable |
 | Instructions on continuation | Cloud v1 | No digest receipt | Current full revision or fixed per-turn control guidance | Active digest changes fenced | Saved current instructions | Controlled revised/unchanged-turn checks | Required C3 remains unqualified |
 | Assigned skills | Cloud v1 | Bounded text assets inline | Virtual read-only file bundle | No local path/mount assumption | Submitted instruction bundle | Controlled asset checks | Binary assets, scripts by local path and persistent directory unsupported |
-| MCP discovery/execution | Cloud v1 | Authenticated SDK discovery and real tools observed | Scoped HTTPS relay to private Unix bridge | Normal Rust/PRP semantic transport | Authorized Core receipts | C2 passed; real question observed in C3 | Required real tool result |
+| MCP discovery/execution | Cloud v1 | Authenticated SDK discovery and real tools observed | Scoped HTTPS relay to private Unix bridge | Normal Rust/ORP semantic transport | Authorized Core receipts | C2 passed; real question observed in C3 | Required real tool result |
 | MCP refresh/reconnect | Cloud v1 / SDK | Run-scoped inline configuration | Re-supply on every turn | Fresh expiring tool capability | Current source-run authority | Controlled follow-up/revocation checks | Required live C3 remains unqualified |
 | Runtime secrets | Cloud v1 | Key and scoped callback auth observed live | Bound auth key and scoped MCP headers only | Reject other selected process variables | Hosted shell secrets configured in Cursor | C1/C2 passed; controlled rejection checks | Hosted envVars unsupported |
 | Host callback tools | SDK 1.0.28 Cloud | Source-observed local only | No Cloud callbacks | Use relay | No callback claim | Unverified | Unsupported route |
-| Assistant text/boundaries | Cloud v1 | Real SSE and durable PRP rows observed | Typed SSE | Ordered canonical events | Task transcript | C2 passed | Required normal task |
+| Assistant text/boundaries | Cloud v1 | Real SSE and durable ORP rows observed | Typed SSE | Ordered canonical events | Task transcript | C2 passed | Required normal task |
 | Thinking visibility | Cloud v1 | Documented event | SSE | Existing visibility policy | Policy-controlled rendering | Unverified | Outside required cells |
 | Tool identity/arguments/results | Cloud v1 | Real tool names, statuses and bounded results observed | SSE with stable call identity | Builtin facade; Core raw-argument policy retained | Activity and semantic receipts | C2 passed; controlled projection checks | Native truncation/redaction is not lossless raw capture |
 | Tool errors/partial deltas | Cloud v1 | Running frames and argument updates observed | Bounded typed projection | Consistent repeated starts accepted | Native activity and error status | Controlled projection/Stop observer checks | No broader lossless-delta promise |
@@ -355,7 +355,7 @@ tunnel and access to the new private README-only fixture repository. Both are
 configured, and a fresh authenticated repository preflight confirms access.
 The saved product Test passed after reopening across a controller restart. An
 initial Test failure was traced to test-drive intentionally discarding ambient
-PAPERCLIP_* routing variables; saving auth.publicBaseUrl in its isolated instance
+OUTPOST_* routing variables; saving auth.publicBaseUrl in its isolated instance
 configuration supplied the callback origin. This was setup repair, with no
 production-code change or provider prompt. Task delivery retains its earlier
 pre-prompt and hosted failures alongside the passing Sonnet artifact attempt.
@@ -454,7 +454,7 @@ a request-level vendor root cause. Usage and cost remain unknown.
 Sonnet-10 on source `f7bfb75f794a567175d9938d2c8c0ad4dea4669a` reached
 first-turn success, one applied question answer, the matching canonical
 interrupted terminal and accounting-ready receipt sequence 4. The second local
-turn failed at `native_runner_prp_run_rotation_unavailable` before a second
+turn failed at `native_runner_orp_run_rotation_unavailable` before a second
 native create. One SSE cut and matching-cursor reconnect returned 200; 61 unique
 canonical events stayed ordered. The original FAIL/cleanup_failure result is
 retained with SHA-256
@@ -764,7 +764,7 @@ restored. C5 again exercised a real cut/reconnect, but no second turn completed.
 
 This is a qualification-policy mismatch, not a reason to change production
 budget enforcement. The bounded fixtures now require explicit
-`PAPERCLIP_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION=1`, upsert only their owned
+`OUTPOST_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION=1`, upsert only their owned
 company and agent monthly billed-cent policies, and verify both saved policies
 before dispatch. Each remains active with a 1,000-cent known-cost hard stop;
 unknown pricing is explicitly allowed under the user's test-spending approval.
@@ -828,7 +828,7 @@ The saved local test-drive was restarted on `abb79acfb016` and returned healthy.
 The ordinary UI retained the explicit Sonnet model and organization-secret
 reference, passed the account/catalog Test with its expected experimental
 warning, and completed Finish setup. Independent API state confirms
-`paperclip_runner`, provider `cursor_cloud`, model `claude-sonnet-4-5`,
+`outpost_runner`, provider `cursor_cloud`, model `claude-sonnet-4-5`,
 `secret_ref`, lifecycle `ready` and idle status. Setup sent no provider prompt.
 The callback-only tunnel again returned 404 for root/API and 401 for an
 unauthenticated native-run request. This validates C1's saved setup on the
@@ -936,7 +936,7 @@ Official MCP SDK discovery observed 56 tools through the exact owned callback,
 including completion, artifact discovery and registration, without invoking a
 task tool. Sonnet called the semantic tools and supplied correct file metadata.
 The downloaded and staged 24 bytes match the fixture, but Core rejected the
-absolute staged reference with `paperclip_runner_file_handoff_path_denied`.
+absolute staged reference with `outpost_runner_file_handoff_path_denied`.
 The provider stager must return a reference relative to its admitted artifact
 root; Core's existing containment, symlink and hash checks remain authoritative.
 This is an observed integration defect. Preserve the original campaign result
@@ -965,7 +965,7 @@ chat authority case, but found 21 other chat failures (2,581 passed overall).
 Diagnostics and baseline classification are in progress; the failed grade stays
 in the record.
 
-Campaign 3 (`cb5cc2493a`) reached private PRP admission, then failed session open
+Campaign 3 (`cb5cc2493a`) reached private ORP admission, then failed session open
 because the outer Runner launch allowlist omitted six private Cloud config/relay
 bindings. Its original failure is retained. The corrected regression reproduced
 the exact error through transport, sanitized spawn, Rust and the built Node
@@ -993,7 +993,7 @@ uses the actual selected private listener for internal HTTP calls, and the
 provider facade preserves native tool names, actual status and bounded/redacted
 result output. Native calls use the builtin facade without inventing MCP/process
 transport or widening raw argument logging. Six Core routing controls and real
-Rust/PRP tool projection checks passed. The official MCP SDK also completed exact
+Rust/ORP tool projection checks passed. The official MCP SDK also completed exact
 discovery and tool calls through the callback route, relay and Unix bridge.
 Returning GET 405 instead of 404 removed unsupported-stream error notifications;
 this was protocol noise, not a demonstrated cause of the failed task. Cleanup
@@ -1036,20 +1036,20 @@ candidate, retaining the original setup failure.
 The second campaign, `cursor-cloud-local-20261028-artifact-2`, used candidate
 `c011eb97cf10124b679a0c07779137db5750f320`. Fresh-agent lifecycle reached ready
 and ordinary task dispatch reached native Runner. Its first divergence was
-local PRP admission: `run.prepare` timed out, with zero control-plane connections
+local ORP admission: `run.prepare` timed out, with zero control-plane connections
 and repeated WebSocket 404/500 responses. Startup had advertised the public
 callback-only origin to the local Runner. The narrow proxy correctly refused
 that unrelated route. No Cloud checkpoint/create intent or remote ownership
 notice existed, and no owned Runner/sidecar process remained after teardown.
 The original failed result and cleanup-uncertainty grade remain retained; no
 provider prompt or vendor cost is asserted from a local running row. Correct
-the server's private PRP listener origin while retaining its public callback
+the server's private ORP listener origin while retaining its public callback
 origin, then rerun the same bounded artifact cell.
 
 The startup fix now supplies the actual private HTTP listener host and selected
-port to PRP registration. Public auth/runtime URLs retain their existing meaning;
+port to ORP registration. Public auth/runtime URLs retain their existing meaning;
 remote transports retain their separate advertised endpoints. Twenty-six focused
-runtime-origin, HTTP and PRP tests passed, and server typecheck passed. The next
+runtime-origin, HTTP and ORP tests passed, and server typecheck passed. The next
 artifact attempt must verify this boundary through the full product.
 
 A test-only replay injector is ready for C5. Its 28 controlled tests exercise the

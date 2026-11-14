@@ -31,7 +31,7 @@ export class RunnerSelectorError extends Error {}
  * CI passes the selected cell here rather than as `--id`. Every agent can read
  * another process's argv in /proc, and the cell id names the case under test.
  */
-export const RUNNER_SELECTED_ID_ENV = "PAPERCLIP_RUNNER_E2E_SELECTED_ID";
+export const RUNNER_SELECTED_ID_ENV = "OUTPOST_RUNNER_E2E_SELECTED_ID";
 
 /** Adds the environment's selected cell to the arguments and removes it from the environment. */
 export function selectorArgumentsWithEnvironment(args: readonly string[], env: NodeJS.ProcessEnv = process.env): string[] {
@@ -64,7 +64,7 @@ export function parseRunnerSelectors(
     headed: false,
     ui: false,
     debug: false,
-    maxParallel: Number(process.env.PAPERCLIP_E2E_MAX_PARALLEL ?? "1"),
+    maxParallel: Number(process.env.OUTPOST_E2E_MAX_PARALLEL ?? "1"),
     maxAutomaticRetries: 1,
   };
   for (let index = 0; index < args.length; index += 1) {

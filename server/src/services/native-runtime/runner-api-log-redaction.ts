@@ -7,7 +7,7 @@ const CASE_OPERATIONS = new Set(["create_case", "read_case", "update_case", "rea
 const SCHEMA_DENIAL_STRINGS = ["provider", "operationId", "callId", "message", "inputSchemaGuidance"];
 const SCHEMA_DENIAL_FIELDS = new Set([...SCHEMA_DENIAL_STRINGS, "code", "paperclipExecuted"]);
 
-/** Only use after the PRP event's run and source bindings have been checked. */
+/** Only use after the ORP event's run and source bindings have been checked. */
 export function redactRunnerApiEvent<T extends { eventType: string; sourceKind: string; payload: unknown }>(event: T): T {
   const payload = event.payload && typeof event.payload === "object" ? event.payload as Record<string, unknown> : {};
   // These scalar fields are authored by the runner's validation boundary, not

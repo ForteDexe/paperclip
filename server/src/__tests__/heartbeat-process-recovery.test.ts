@@ -1,7 +1,7 @@
 import { persistHeartbeatRunProcessMetadata } from "../services/heartbeat/run-lifecycle.js";
 import { BOUNDED_TRANSIENT_HEARTBEAT_RETRY_MAX_ATTEMPTS } from "../services/heartbeat/retries.js";
 import { enableRunFailureReporting } from "./helpers/run-failure-reporting.js";
-import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { createSystemRecovery } from "../services/system-recovery-state.js";
 import * as conversationContinuation from "../services/conversation-continuation.js";
 import { classifyEnvironmentCapabilities, environmentRuntimeService } from "../services/environment-runtime.js";
@@ -28,7 +28,7 @@ import { recordLegacyWorkspaceRestoreFailure, terminalizeLegacyExecution } from 
 import { issueService } from "../services/issues.js";
 import { getExecutionBlocker } from "../services/execution-blocker.js";
 import { executionProjectionForRun } from "../services/execution-projection.js";
-import { JsonRpcCallError } from "@paperclipai/plugin-sdk";
+import { JsonRpcCallError } from "@outpost/plugin-sdk";
 import { leaseFaultError } from "../services/environment-lease-fault-injection.js";
 import { taskInterruptionPresentation } from "../services/task-interruption-presentation.js";
 import { requestTaskRetry } from "../services/task-retry.js";
@@ -111,13 +111,13 @@ import {
   toolConnections,
   workAssessments,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
-import type { EnvironmentLease } from "@paperclipai/shared";
-import type { NativeExecutionInput } from "../vendor/paperclip-runner/index.js";
+import type { EnvironmentLease } from "@outpost/shared";
+import type { NativeExecutionInput } from "../vendor/outpost-runner/index.js";
 import { runningProcesses, type AdapterExecutionContext, type AdapterExecutionResult } from "../adapters/index.ts";
 import {
   resolveDefaultAgentWorkspaceDir,
@@ -128,8 +128,8 @@ import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-
 import { NativeRunnerOwnershipUnverifiedError } from "../services/native-runtime/native-runner-ownership.js";
 import { nativeCompletionSource } from "../services/native-runtime/completion-contracts.js";
 import { nativeCompletionFeedback } from "../services/native-runtime/native-completion-feedback.js";
-import type { PrpStructuredRunResult } from "../vendor/paperclip-runner/index.js";
-import { buildNativeModelEnvelope } from "@paperclipai/paperclip-runner";
+import type { PrpStructuredRunResult } from "../vendor/outpost-runner/index.js";
+import { buildNativeModelEnvelope } from "@outpost/outpost-runner";
 import {
   CHAT_CONTROL_RECOVERY_ADMISSION_KEY,
   CHAT_CONTROL_RECOVERY_STOP_CODE,
@@ -223,10 +223,10 @@ vi.mock("../services/local-service-supervisor.js", async () => {
   };
 });
 
-vi.mock("@paperclipai/shared/telemetry", async () => {
+vi.mock("@outpost/shared/telemetry", async () => {
   const actual = await vi.importActual<
-    typeof import("@paperclipai/shared/telemetry")
-  >("@paperclipai/shared/telemetry");
+    typeof import("@outpost/shared/telemetry")
+  >("@outpost/shared/telemetry");
   return {
     ...actual,
     trackAgentFirstHeartbeat: mockTrackAgentFirstHeartbeat,
@@ -264,12 +264,12 @@ import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
 import { recordNativeAttentionAssessment } from "../services/native-runtime/work-assessments.js";
 import { routeNativeAttention } from "../services/native-runtime/native-interaction-bridge.js";
-import * as paperclipRunner from "../vendor/paperclip-runner/index.js";
+import * as paperclipRunner from "../vendor/outpost-runner/index.js";
 import {
   CONTROL_PLANE_CONFORMANCE_OPEN,
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
-} from "../vendor/paperclip-runner/testing.js";
+} from "../vendor/outpost-runner/testing.js";
 import { recoveryService } from "../services/recovery/service.ts";
 import {
   readHotRestartIntent,
@@ -289,8 +289,8 @@ import { collectDispositionRepairSourceState } from "../services/recovery/dispos
 import {
   UNMANAGED_BACKGROUND_TASK_LIVENESS_REASON,
   UNMANAGED_BACKGROUND_TASK_STOP_REASON,
-} from "@paperclipai/adapter-utils/server-utils";
-const externalTestDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL?.trim();
+} from "@outpost/adapter-utils/server-utils";
+const externalTestDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL?.trim();
 const embeddedPostgresSupport = externalTestDatabaseUrl
   ? { supported: true }
   : await getEmbeddedPostgresTestSupport();
@@ -2415,13 +2415,13 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   async function seedPendingNativeFinalization(accept = true) {
-    const fixture = await seedRunFixture({ runtimeMode: "native", adapterType: "paperclip_runner", processPid: 2_000_000_000 });
+    const fixture = await seedRunFixture({ runtimeMode: "native", adapterType: "outpost_runner", processPid: 2_000_000_000 });
     const { companyId, agentId, issueId, runId } = fixture;
     const contractId = randomUUID(), runnerInstanceId = randomUUID();
     const contractSha = `finalization-contract-${runId}`;
     await db.insert(completionContracts).values({
       id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v1",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1",
       risk: "low", completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
         objective: "Keep completed work", criteria: [{ id: "objective", requirement: "Keep completed work" }] },
@@ -2716,7 +2716,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
           companyId,
           issueId,
           revision: 1,
-          schemaVersion: "paperclip.completion-contract.v1",
+          schemaVersion: "outpost.completion-contract.v1",
           policyVersion: "phase6-v1",
           risk: "low",
           completionAuthority: "agent_claim_policy",
@@ -3011,7 +3011,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(child.pid).toBeTypeOf("number");
 
     const { agentId, runId, wakeupRequestId } = await seedRunFixture({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       runtimeMode: "native",
       processPid: child.pid ?? null,
       includeIssue: false,
@@ -3055,7 +3055,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     async (coordinatorPhase) => {
       const { companyId, agentId, runId, issueId, wakeupRequestId } =
         await seedRunFixture({
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           runtimeMode: "native",
           runErrorCode: "native_execution_ownership_unverified",
         });
@@ -3206,7 +3206,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(child.pid).toBeTypeOf("number");
 
     const { companyId, runId, issueId } = await seedRunFixture({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       runtimeMode: "native",
       processPid: child.pid ?? null,
     });
@@ -3245,7 +3245,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it("does not reap a retryable native run while its same-run recovery path owns it", async () => {
     const { companyId, agentId, runId, issueId, wakeupRequestId } =
       await seedRunFixture({
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         runtimeMode: "native",
       });
     const nextAttemptAt = new Date(Date.now() + 60_000);
@@ -3291,7 +3291,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
   it("does not grant a dead native run legacy retry authority after adapter reassignment", async () => {
     const { agentId, runId } = await seedRunFixture({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       runtimeMode: "native",
       processPid: 999_999_999,
       includeIssue: false,
@@ -3520,7 +3520,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   // the adapter dispatch renewal, leaving an expired lease from another boot.
   async function seedRestartOrphanedLegacySetup(executionStage: "preparing" | "dispatching") {
     const fixture = await seedRunFixture({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       agentStatus: "idle",
       runtimeMode: "legacy",
     });
@@ -3564,7 +3564,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     ["a due monitor", { wakeReason: "issue_monitor_due" }],
   ] as const)("retries %s run whose lease this process lost before adapter dispatch", async (_label, contextSnapshot) => {
     const { companyId, runId, issueId } = await seedRunFixture({
-      adapterType: "paperclip_runner", agentStatus: "idle", runtimeMode: "legacy", contextSnapshot,
+      adapterType: "outpost_runner", agentStatus: "idle", runtimeMode: "legacy", contextSnapshot,
     });
     await db.update(heartbeatRuns).set({
       controllerBootId: controllerLeases.legacyControllerBootId,
@@ -3572,8 +3572,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       controllerLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'`,
       executionStage: "preparing",
       runnerProfileJson: {
-        adapterDispatch: { adapterType: "paperclip_runner" },
-        remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", epoch: 6, state: "prepared",
+        adapterDispatch: { adapterType: "outpost_runner" },
+        remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", epoch: 6, state: "prepared",
           leaseId: randomUUID(), providerLeaseId: randomUUID(), workspaceId: randomUUID(),
           remoteCwd: "/home/daytona/paperclip-workspace", snapshotId: randomUUID() },
       },
@@ -3600,7 +3600,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
   it("keeps a run this process dispatched held for reconciliation after its lease lapses", async () => {
     const { companyId, runId, issueId } = await seedRunFixture({
-      adapterType: "paperclip_runner", agentStatus: "idle", runtimeMode: "legacy",
+      adapterType: "outpost_runner", agentStatus: "idle", runtimeMode: "legacy",
     });
     await db.update(heartbeatRuns).set({
       controllerBootId: controllerLeases.legacyControllerBootId,
@@ -3625,7 +3625,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
   it("keeps a lost preparation from an older build without a controller stamp in the charged lane", async () => {
     const { companyId, runId } = await seedRestartOrphanedLegacySetup("preparing");
-    await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } } })
+    await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } } })
       .where(eq(heartbeatRuns.id, runId));
 
     await heartbeatService(db).reapOrphanedRuns();
@@ -3636,7 +3636,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("continues a chain whose preparations were killed twice and then interrupted again, without a Retry", async () => {
-    const { companyId, agentId, runId: firstRunId } = await seedRunFixture({ adapterType: "paperclip_runner",
+    const { companyId, agentId, runId: firstRunId } = await seedRunFixture({ adapterType: "outpost_runner",
       agentStatus: "idle", runtimeMode: "legacy" });
     const preparing = async (runId: string, owner: "killed" | "current") => {
       const live = currentControllerProcessStamp();
@@ -3644,7 +3644,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       const pid = Number(spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"],
         { encoding: "utf8" }).stdout);
       await db.update(heartbeatRuns).set({ status: "running", startedAt: new Date(), executionStage: "preparing",
-        runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } }, controllerBootId: bootId,
+        runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } }, controllerBootId: bootId,
         controllerProcess: owner === "current" ? live
           : { bootId, pid, hostHash: live.hostHash, processStartedAt: new Date(Date.now() - 120_000).toISOString() },
         controllerLeaseExpiresAt: sql`clock_timestamp() + interval '45 seconds'` }).where(eq(heartbeatRuns.id, runId));
@@ -3743,13 +3743,13 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const home = await fs.mkdtemp(
       path.join(os.tmpdir(), "paperclip-hot-restart-"),
     );
-    const previousHome = process.env.PAPERCLIP_HOME;
-    process.env.PAPERCLIP_HOME = home;
+    const previousHome = process.env.OUTPOST_HOME;
+    process.env.OUTPOST_HOME = home;
     try {
       return await fn(home);
     } finally {
-      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-      else process.env.PAPERCLIP_HOME = previousHome;
+      if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousHome;
       // Native dispatch materializes read-only runtime bundles in this owned
       // temporary home. Restore directory permissions solely for test cleanup.
       const makeDirectoriesWritable = async (
@@ -3773,7 +3773,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it.each([false, true])("settles a failed saved native descriptor without inventing files when workspace access is disabled: %s", async withoutWorkspace => {
     await withTempPaperclipHome(async () => {
       const f = await seedQueuedIssueRunFixture();
-      await db.update(agents).set({ adapterType: "paperclip_runner",
+      await db.update(agents).set({ adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
       }).where(eq(agents.id, f.agentId));
       const originalFactory = environmentOrchestrator.environmentRunOrchestrator;
@@ -3792,13 +3792,13 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
               metadata: { driver: "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: true, remoteCwd: "/work" },
             }).returning();
             leaseId = lease!.id;
-            const reference = { schema: "paperclip.native-workspace-sync/v3" as const, state: "prepared" as const,
+            const reference = { schema: "outpost.native-workspace-sync/v3" as const, state: "prepared" as const,
               descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
               workspaceId: randomUUID(), leaseId: lease!.id, providerLeaseId: lease!.providerLeaseId!, remoteCwd: "/work", resourceDisposition: "destroy" as const };
             await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issueId, nativePhase: "observed",
               driverKind: withoutWorkspace ? "grok_bot_mcp" : null,
               runnerProfileJson: { nativeWorkspaceSync: reference, ...(withoutWorkspace ? { nativeExecutionInput: {
-                schema: "paperclip.native-execution-input.v6", provider: { kind: "grok_bot" },
+                schema: "outpost.native-execution-input.v6", provider: { kind: "grok_bot" },
                 binding: { companyId: f.companyId, agentId: f.agentId, runId, issueId: f.issueId },
                 workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
               } } : {}) },
@@ -3834,7 +3834,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it("fences native selection when cancellation wins during preparation", async () => {
     await withTempPaperclipHome(async () => {
       const { agentId, issueId, runId } = await seedQueuedIssueRunFixture();
-      await db.update(agents).set({ adapterType: "paperclip_runner",
+      await db.update(agents).set({ adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
       }).where(eq(agents.id, agentId));
       const factory = vi.fn(() => { throw new Error("provider must not start"); });
@@ -3865,7 +3865,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it("does not dispatch when cancellation wins after native selection", async () => {
     await withTempPaperclipHome(async () => {
       const { agentId, issueId, runId } = await seedQueuedIssueRunFixture();
-      await db.update(agents).set({ adapterType: "paperclip_runner",
+      await db.update(agents).set({ adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
       }).where(eq(agents.id, agentId));
       await db.update(heartbeatRuns).set({ invocationSource: "automation" }).where(eq(heartbeatRuns.id, runId));
@@ -3909,7 +3909,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       await db
         .update(agents)
         .set({
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
         })
         .where(eq(agents.id, agentId));
@@ -3974,7 +3974,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-m", "Source"], { cwd, stdio: "ignore" });
       const [project] = await db.insert(projects).values({ companyId, name: "Chat source" }).returning();
       const [source] = await db.insert(projectWorkspaces).values({ companyId, projectId: project.id, name: "Source", cwd, isPrimary: true }).returning();
-      await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-luna" } }).where(eq(agents.id, agentId));
+      await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-luna" } }).where(eq(agents.id, agentId));
       await db.update(issues).set({ originKind: "chat_channel", projectWorkspaceId: source.id,
         workspaceSelection: { version: 1, source: "channel", selection: { kind: "configured_source", projectWorkspaceId: source.id, mode } },
         executionWorkspaceSettings: { mode: mode === "managed_isolated" ? "isolated_workspace" : "shared_workspace" },
@@ -4006,7 +4006,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     await withTempPaperclipHome(async () => {
       const { agentId, issueId, runId } = await seedQueuedIssueRunFixture();
       await db.update(agents).set({
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
       }).where(eq(agents.id, agentId));
       const nativeSessionBackendFactory = vi.fn(
@@ -4037,7 +4037,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       expect(input.task.prompt).toContain(description);
       expect(input.task.prompt.split(description)).toHaveLength(2);
       const modelEnvelope = buildNativeModelEnvelope(input);
-      expect(modelEnvelope.schema).toBe("paperclip.native-model-envelope.v3");
+      expect(modelEnvelope.schema).toBe("outpost.native-model-envelope.v3");
       expect(modelEnvelope.task).not.toHaveProperty("description");
       expect(modelEnvelope.task.prompt.split(description)).toHaveLength(2);
       expect(modelEnvelope.completionContract.criteria).toEqual([{
@@ -4077,7 +4077,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         completionContract: {
           id: randomUUID(),
           sha256: `sha256:${"a".repeat(64)}`,
-          schemaVersion: "paperclip.run-result.v1",
+          schemaVersion: "outpost.run-result.v1",
           contract: {
             revision: "1",
             objective: "Retain ownership",
@@ -4094,7 +4094,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       await db
         .update(agents)
         .set({
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
         })
         .where(eq(agents.id, agentId));
@@ -5105,9 +5105,9 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     await heartbeat.drainActiveRunExecutions();
   });
 
-  it("suspends native Paperclip Runner ownership on graceful restart without cancelling or creating a retry run", async () => {
+  it("suspends native Outpost Runner ownership on graceful restart without cancelling or creating a retry run", async () => {
     const { agentId, runId, issueId, wakeupRequestId } = await seedRunFixture({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       agentStatus: "running",
       runtimeMode: "native",
     });
@@ -5741,13 +5741,13 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
     await db.insert(plugins).values({
       id: pluginId,
-      pluginKey: "paperclip.kubernetes-sandbox-provider",
-      packageName: "@paperclipai/kubernetes-sandbox-provider",
+      pluginKey: "outpost.kubernetes-sandbox-provider",
+      packageName: "@outpost/kubernetes-sandbox-provider",
       version: "1.0.0",
       apiVersion: 1,
       categories: ["automation"],
       manifestJson: {
-        id: "paperclip.kubernetes-sandbox-provider",
+        id: "outpost.kubernetes-sandbox-provider",
         apiVersion: 1,
         version: "1.0.0",
         displayName: "Kubernetes Sandbox Provider",
@@ -6123,16 +6123,16 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it("classifies only the installed-but-not-ready sandbox provider plugin message as a configuration gap", () => {
     expect(
       parseSandboxProviderPluginNotReadyFailureMessage(
-        'Sandbox provider "kubernetes" is installed via plugin "paperclip.kubernetes-sandbox-provider", but that plugin is currently error.',
+        'Sandbox provider "kubernetes" is installed via plugin "outpost.kubernetes-sandbox-provider", but that plugin is currently error.',
       ),
     ).toEqual({
       provider: "kubernetes",
-      pluginKey: "paperclip.kubernetes-sandbox-provider",
+      pluginKey: "outpost.kubernetes-sandbox-provider",
       pluginStatus: "error",
     });
     expect(
       parseSandboxProviderPluginNotReadyFailureMessage(
-        'Failed to acquire lease: Sandbox provider "daytona" is installed via plugin "paperclip.daytona-sandbox-provider", but that plugin is currently upgrade_pending.',
+        'Failed to acquire lease: Sandbox provider "daytona" is installed via plugin "outpost.daytona-sandbox-provider", but that plugin is currently upgrade_pending.',
       ),
     ).toMatchObject({ pluginStatus: "upgrade_pending" });
     expect(
@@ -6143,7 +6143,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     // The transient worker-restart message keeps its retryable classification.
     expect(
       parseSandboxProviderPluginNotReadyFailureMessage(
-        'Sandbox provider "kubernetes" is installed via plugin "paperclip.kubernetes-sandbox-provider", but its worker is not running.',
+        'Sandbox provider "kubernetes" is installed via plugin "outpost.kubernetes-sandbox-provider", but its worker is not running.',
       ),
     ).toBeNull();
     // The permanent "not installed" message is a different condition.
@@ -6172,13 +6172,13 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
     await db.insert(plugins).values({
       id: pluginId,
-      pluginKey: "paperclip.kubernetes-sandbox-provider",
-      packageName: "@paperclipai/kubernetes-sandbox-provider",
+      pluginKey: "outpost.kubernetes-sandbox-provider",
+      packageName: "@outpost/kubernetes-sandbox-provider",
       version: "1.0.0",
       apiVersion: 1,
       categories: ["automation"],
       manifestJson: {
-        id: "paperclip.kubernetes-sandbox-provider",
+        id: "outpost.kubernetes-sandbox-provider",
         apiVersion: 1,
         version: "1.0.0",
         displayName: "Kubernetes Sandbox Provider",
@@ -6241,10 +6241,10 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       configurationIncomplete: {
         reason: "sandbox_provider_plugin_not_ready",
         sandboxProvider: "kubernetes",
-        pluginKey: "paperclip.kubernetes-sandbox-provider",
+        pluginKey: "outpost.kubernetes-sandbox-provider",
         pluginStatus: "error",
         fingerprint:
-          "sandbox_provider_plugin:paperclip.kubernetes-sandbox-provider:error",
+          "sandbox_provider_plugin:outpost.kubernetes-sandbox-provider:error",
       },
     });
 
@@ -6282,7 +6282,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       const rows = await selectRecoveryCommentsForIssue(issueId);
       return (
         rows.find((comment) =>
-          comment.body.includes("paperclip.kubernetes-sandbox-provider"),
+          comment.body.includes("outpost.kubernetes-sandbox-provider"),
         ) ?? null
       );
     });
@@ -6930,10 +6930,10 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const heartbeat = heartbeatService(db);
     const previousSettings = await instanceSettingsService(db).getExperimental();
     const previousPath = process.env.PATH;
-    const previousHome = process.env.PAPERCLIP_HOME;
+    const previousHome = process.env.OUTPOST_HOME;
     try {
       process.env.PATH = `${bin}${path.delimiter}${previousPath ?? ""}`;
-      process.env.PAPERCLIP_HOME = home;
+      process.env.OUTPOST_HOME = home;
       await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
       await db.insert(projects).values({ id: projectId, companyId, name: "Git connection fixture", status: "in_progress" });
       await db.insert(projectWorkspaces).values(workspaceIds.map((id, index) => ({
@@ -6987,7 +6987,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     } finally {
       await heartbeat.waitForRunExecutionDrain(runId);
       if (previousPath === undefined) delete process.env.PATH; else process.env.PATH = previousPath;
-      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+      if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
       await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: previousSettings.enableIsolatedWorkspaces });
       await fs.rm(home, { recursive: true, force: true });
     }
@@ -7003,7 +7003,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const workspaceId = randomUUID();
     const repoUrl = "git@clone-alias.example.test:team/additional.git";
     const previousPath = process.env.PATH;
-    const previousHome = process.env.PAPERCLIP_HOME;
+    const previousHome = process.env.OUTPOST_HOME;
     const heartbeat = heartbeatService(db);
     await fs.mkdir(cwd);
     await fs.mkdir(bin);
@@ -7024,7 +7024,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       `process.exit(result.status ?? 2);\n`, { mode: 0o755 });
     try {
       process.env.PATH = `${bin}${path.delimiter}${previousPath ?? ""}`;
-      process.env.PAPERCLIP_HOME = home;
+      process.env.OUTPOST_HOME = home;
       await db.insert(projects).values({ id: projectId, companyId, name: "Additional repository fixture", status: "in_progress" });
       await db.insert(projectWorkspaces).values([
         { id: workspaceId, companyId, projectId, name: "Primary", sourceType: "local_path", cwd, isPrimary: true },
@@ -7064,7 +7064,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     } finally {
       await heartbeat.waitForRunExecutionDrain(runId);
       if (previousPath === undefined) delete process.env.PATH; else process.env.PATH = previousPath;
-      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+      if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
       await fs.rm(home, { recursive: true, force: true });
     }
   });
@@ -8860,7 +8860,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     await db.insert(budgetPolicies).values({ companyId, scopeType: "company", scopeId: companyId,
       metric: "billed_cents", windowKind: "calendar_month_utc", amount: 100, reservationCents: "10.0000000", isActive: true });
     mockAdapterExecute.mockImplementationOnce(async (raw?: unknown) => {
-      const input = raw as { onUsage: (receipt: import("@paperclipai/adapter-utils").AdapterUsageCheckpoint) => Promise<void> };
+      const input = raw as { onUsage: (receipt: import("@outpost/adapter-utils").AdapterUsageCheckpoint) => Promise<void> };
       await input.onUsage({ costUsd: 0, complete: true });
       const transaction = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("Database temporarily unavailable"));
       const rename = vi.spyOn(fs, "rename").mockRejectedValueOnce(new Error("Receipt disk full"));
@@ -9790,7 +9790,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       const payload = Array.from({ length: 8192 }, () => randomUUID()).join("");
       const [run] = await db.update(heartbeatRuns).set({ resultJson: { payload } }).where(eq(heartbeatRuns.id, runId)).returning();
       await recordLegacyWorkspaceRestoreFailure(db, run, { workspaceRestoreFailure: "restore_failed" });
-      expect((await heartbeat.getRun(runId))?.resultJson?.workspaceRestoreRecovery).toEqual({ schema: "paperclip.workspace-restore-recovery.v1" });
+      expect((await heartbeat.getRun(runId))?.resultJson?.workspaceRestoreRecovery).toEqual({ schema: "outpost.workspace-restore-recovery.v1" });
       stopping = heartbeat.cancelRun(runId, "Stopped by test operator");
       await expect(stopping).resolves.toMatchObject({ status: "cancelled" });
       await heartbeat.waitForRunExecutionDrain(runId);
@@ -9799,7 +9799,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       expect(finished).toMatchObject({ status: "cancelled", resultJson: {
         lateAdapterReceipt: true,
         workspaceRestoreFailure: "restore_failed",
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [lease.id] },
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [lease.id] },
         cancellation: { expected: true },
       } });
       expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, lease.id)))[0])
@@ -12278,7 +12278,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     await db.insert(agentTaskSessions).values({
       companyId,
       agentId,
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       taskKey: issueId,
       lastRunId: runId,
       goalJson: {
@@ -13534,7 +13534,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       }
       if (mode === "native") {
         await db.update(agents).set({
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
         }).where(eq(agents.id, source.agentId));
       }
@@ -13787,7 +13787,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     await db
       .update(agents)
       .set({
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", model: "gpt-5.6-luna" },
       })
       .where(eq(agents.id, source.agentId));
@@ -14096,7 +14096,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         companyId: source.companyId,
         issueId: source.issueId,
         revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         policyVersion: "phase6-v3",
         risk: "low",
         completionAuthority: "agent_claim_policy",
@@ -15003,7 +15003,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v4",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -15051,7 +15051,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     });
     await port.completeRun({
       result: {
-        schema: "paperclip.run_result.v1",
+        schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded",
         summary,
         continuation: {
@@ -15074,7 +15074,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         artifacts: [],
       },
       terminal: {
-        schema: "paperclip.prp.terminal.v1",
+        schema: "outpost.orp.terminal.v1",
         runTerminalState: "succeeded",
         turnTerminalState: "completed",
         reportedWorkDisposition: "yielded",
@@ -16231,7 +16231,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -16277,7 +16277,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     });
     await port.completeRun({
       result: {
-        schema: "paperclip.run_result.v1",
+        schema: "outpost.run_result.v1",
         reportedWorkDisposition: "blocked",
         summary: "The current Board attachment could not be read.",
         blocker: {
@@ -16304,7 +16304,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         artifacts: [],
       },
       terminal: {
-        schema: "paperclip.prp.terminal.v1",
+        schema: "outpost.orp.terminal.v1",
         runTerminalState: "succeeded",
         turnTerminalState: "completed",
         reportedWorkDisposition: "blocked",
@@ -16605,7 +16605,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       livenessState: "advanced",
       resultJson: {
         nativeResult: {
-          schema: "paperclip.run_result.v1",
+          schema: "outpost.run_result.v1",
           reportedWorkDisposition: "blocked",
           blocker: {
             scope: "current_track",
@@ -16913,7 +16913,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     // Production binds policy/schema as well as the body; a body-only hash is not a valid contract receipt.
     expect(contractSha).not.toBe(nativeSha256(contract));
     const model = "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]";
-    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "cursor", model, acpxSessionMode: "plan", acpxPermissionMode: "approve-all" } }).where(eq(agents.id, f.agentId));
+    await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "cursor", model, acpxSessionMode: "plan", acpxPermissionMode: "approve-all" } }).where(eq(agents.id, f.agentId));
     await db.update(agentWakeupRequests).set({ status: "completed" }).where(eq(agentWakeupRequests.id, f.wakeupRequestId));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issueId, nativeSessionId: f.runId,
       completionContractId: contractId, completionContractSha256: contractSha, runnerInstanceId: instance,
@@ -16921,11 +16921,11 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         profile: paperclipRunner.resolveQualifiedAcpxProfile("cursor", model) }, session: { normalizedSessionId: f.runId },
         completionContract: { id: contractId, sha256: contractSha, contract } } } }).where(eq(heartbeatRuns.id, f.runId));
     const planId = `plan-${"a".repeat(64)}`;
-    const questionSet = { schema: "paperclip.question_set.v1", title: "Native plan", description: "Exact accepted revision", questions: [{ id: planId, prompt: "Proceed?", required: true,
+    const questionSet = { schema: "outpost.question_set.v1", title: "Native plan", description: "Exact accepted revision", questions: [{ id: planId, prompt: "Proceed?", required: true,
       answerMode: "single_select", options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }] };
     const [interaction] = await db.insert(issueThreadInteractions).values({ id: interactionId, companyId: f.companyId, issueId: f.issueId, sourceRunId: f.runId,
       createdByAgentId: f.agentId, kind: "ask_user_questions", status: "answered", continuationPolicy: "none",
-      idempotencyKey: `paperclip-runner-question:${f.runId}:request`, resolvedByUserId: "responsible-user", resolvedAt: new Date(Date.now() - 1000),
+      idempotencyKey: `outpost-runner-question:${f.runId}:request`, resolvedByUserId: "responsible-user", resolvedAt: new Date(Date.now() - 1000),
       payload: { version: 1, questions: [{ id: planId, prompt: "Proceed?", selectionMode: "single", required: true, allowOther: false, options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }], runtimeRequestId: "request", questionSet: questionSet as never }, result: { version: 1, answers: [{ questionId: planId, optionIds: ["accept"] }] } }).returning();
     const answer = buildQuestionResponseDeliveryEnvelope(interaction as never);
     const [delivery] = await db.insert(issueQuestionResponseDeliveries).values({ companyId: f.companyId, issueId: f.issueId, interactionId,
@@ -16933,21 +16933,21 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const port = new PaperclipControlPlanePort(db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId, agentId: f.agentId,
       sessionId: f.runId, completionContractId: contractId, completionContractSha256: contractSha, sourceInstanceId: instance, controlPlaneSourceInstanceId: `control-${f.runId}` });
     const events = [
-      { eventType: "runtime_request.created", payload: { request: { schema: "paperclip.runtime_request.v2", requestKind: "runtime", requestId: "request", type: "input", status: "pending", turnId: "turn", itemId: "native-plan-tool", prompt: "Review plan",
+      { eventType: "runtime_request.created", payload: { request: { schema: "outpost.runtime_request.v2", requestKind: "runtime", requestId: "request", type: "input", status: "pending", turnId: "turn", itemId: "native-plan-tool", prompt: "Review plan",
         origin: { adapter: "acpx-runtime-sidecar", provider: "cursor", method: "cursor/create_plan" }, input: questionSet } } },
-      { eventType: "tool.execution.started", payload: { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: true, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
+      { eventType: "tool.execution.started", payload: { schema: "outpost.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: true, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
       { eventType: "runtime_request.resolved", payload: { requestId: "request", turnId: "turn", action: "submit", response: answer.response } },
-      { eventType: "tool.execution.completed", payload: { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: false, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
+      { eventType: "tool.execution.completed", payload: { schema: "outpost.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: false, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
       { eventType: "turn.completed", payload: { status: "completed", error: null } },
     ];
-    for (const [index, event] of events.entries()) await port.appendEvent({ schema: "paperclip.prp.event.v1", sourceEventId: `${instance}:${sourceSequenceOffset + index + 1}`, sourceSeq: sourceSequenceOffset + index + 1,
+    for (const [index, event] of events.entries()) await port.appendEvent({ schema: "outpost.orp.event.v1", sourceEventId: `${instance}:${sourceSequenceOffset + index + 1}`, sourceSeq: sourceSequenceOffset + index + 1,
       sourceInstanceId: instance, sourceKind: "runner", runId: f.runId, normalizedSessionId: f.runId, turnId: "turn", schemaVersion: 1, priority: 0,
       emittedAt: new Date().toISOString(), ...event } as paperclipRunner.PrpEvent);
     const proof = await readNativePlanWait(db, f);
     expect(proof).not.toBeNull();
     const result = semanticFinish ? { ...proof!.result, reportedWorkDisposition: "done" as const, summary: "Explicit semantic finish wins", continuation: undefined,
       completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [{ criterionId: "objective", status: "satisfied" as const, evidenceRefs: [] }], remainingWork: [] } } : proof!.result;
-    await port.completeRun({ result, turnId: "turn", terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: result.reportedWorkDisposition } });
+    await port.completeRun({ result, turnId: "turn", terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: result.reportedWorkDisposition } });
     return { ...f, interactionId, deliveryId: delivery!.id, proof: proof! };
   }
 
@@ -16979,9 +16979,9 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       await db.update(heartbeatRuns).set({ runnerProfileJson: run!.runnerProfileJson }).where(eq(heartbeatRuns.id, f.runId));
       expect(await hasCommittedNativePlanWait(db, f)).toBe(true);
       const [tool] = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.eventType, "tool.execution.completed")));
-      const changedTool = structuredClone(tool!.payload!) as { prpEvent: { payload: { name: string } } };
-      changedTool.prpEvent.payload.name = "mutated committed tool evidence";
-      await db.update(heartbeatRunEvents).set({ payload: changedTool, sourcePayloadSha256: nativeSha256(changedTool.prpEvent) }).where(eq(heartbeatRunEvents.id, tool!.id));
+      const changedTool = structuredClone(tool!.payload!) as { orpEvent: { payload: { name: string } } };
+      changedTool.orpEvent.payload.name = "mutated committed tool evidence";
+      await db.update(heartbeatRunEvents).set({ payload: changedTool, sourcePayloadSha256: nativeSha256(changedTool.orpEvent) }).where(eq(heartbeatRunEvents.id, tool!.id));
       expect(await hasCommittedNativePlanWait(db, f)).toBe(false);
       await db.update(heartbeatRunEvents).set({ payload: tool!.payload, sourcePayloadSha256: tool!.sourcePayloadSha256 }).where(eq(heartbeatRunEvents.id, tool!.id));
       expect(await hasCommittedNativePlanWait(db, f)).toBe(true);
@@ -17002,14 +17002,14 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     // Reconstruct the persisted Cursor6 receipt format using its unchanged
     // source facts. This historical format had no tool lifecycle binding.
     const rows = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId));
-    const event = (kind: string) => (rows.find(r => r.eventType === kind)!.payload as any).prpEvent;
+    const event = (kind: string) => (rows.find(r => r.eventType === kind)!.payload as any).orpEvent;
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.id, run!.completionContractId!));
     const [interaction] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, f.interactionId));
     const [delivery] = await db.select().from(issueQuestionResponseDeliveries).where(eq(issueQuestionResponseDeliveries.id, f.deliveryId));
     profile.nativeExecutionInput.provider.cursorMode = profile.nativeExecutionInput.provider.mode;
     delete profile.nativeExecutionInput.provider.mode;
     await db.update(heartbeatRuns).set({ runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
-    const legacy = { ...f.proof.source, schema: "paperclip.native_cursor_plan_wait.v1" }; delete legacy.toolExecutionId; delete legacy.toolLifecycleSha256;
+    const legacy = { ...f.proof.source, schema: "outpost.native_cursor_plan_wait.v1" }; delete legacy.toolExecutionId; delete legacy.toolLifecycleSha256;
     legacy.authoritySha256 = nativeSha256({ admission: profile.nativeExecutionInput, contract, created: event("runtime_request.created"), resolved: event("runtime_request.resolved"), terminal: event("turn.completed"), interaction, delivery, resolvedAt: interaction!.resolvedAt!.toISOString(), acknowledgedAt: delivery!.acknowledgedAt!.toISOString() });
     const [decision] = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId));
     const [savedResult] = await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId));
@@ -17025,15 +17025,15 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(await readNativePlanWait(db, f)).toBeNull();
     expect(await hasCommittedNativePlanWait(db, f)).toBe(true);
     // Fill the reserved source prefix with genuine durable progress rows. Shift
-    // only DB ordering keys; the original PRP facts and committed receipt stay
+    // only DB ordering keys; the original ORP facts and committed receipt stay
     // byte-identical. Cursor6 never queried these rows, even above its budget.
     await db.update(heartbeatRunEvents).set({ seq: sql`${heartbeatRunEvents.seq} + ${progressCount}` }).where(eq(heartbeatRunEvents.runId, f.runId));
     const progress = Array.from({ length: progressCount }, (_, index) => {
       const seq = index + 1;
-      const prpEvent = { ...event("runtime_request.created"), sourceEventId: `${run!.runnerInstanceId}:${seq}`, sourceSeq: seq, eventType: "tool.execution.progressed",
-        payload: { schema: "paperclip.tool.execution.v1", executionId: "earlier-tool", transport: "builtin", operation: "read", status: "running" } };
-      return { companyId: f.companyId, runId: f.runId, agentId: f.agentId, seq, eventType: prpEvent.eventType, payload: { prpEvent }, sourceInstanceId: run!.runnerInstanceId,
-        sourceEventId: prpEvent.sourceEventId, sourceSeq: seq, sourcePayloadSha256: nativeSha256(prpEvent), protocolSchemaVersion: 1 };
+      const orpEvent = { ...event("runtime_request.created"), sourceEventId: `${run!.runnerInstanceId}:${seq}`, sourceSeq: seq, eventType: "tool.execution.progressed",
+        payload: { schema: "outpost.tool.execution.v1", executionId: "earlier-tool", transport: "builtin", operation: "read", status: "running" } };
+      return { companyId: f.companyId, runId: f.runId, agentId: f.agentId, seq, eventType: orpEvent.eventType, payload: { orpEvent }, sourceInstanceId: run!.runnerInstanceId,
+        sourceEventId: orpEvent.sourceEventId, sourceSeq: seq, sourcePayloadSha256: nativeSha256(orpEvent), protocolSchemaVersion: 1 };
     });
     await db.insert(heartbeatRunEvents).values(progress);
     expect(await hasCommittedNativePlanWait(db, f)).toBe(true);
@@ -17041,8 +17041,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(unchangedDecision!.decisionJson!.cursorPlanWait).toEqual(legacy);
     // Completed rows belonged to the old query. A later completion must still
     // invalidate the normal-terminal boundary rather than being filtered away.
-    const completion = { ...event("turn.completed"), sourceEventId: `${run!.runnerInstanceId}:99999`, sourceSeq: 99999, eventType: "tool.execution.completed", payload: { ...progress[0]!.payload.prpEvent.payload, status: "completed" } };
-    const [extra] = await db.insert(heartbeatRunEvents).values({ ...progress[0]!, seq: 99999, eventType: completion.eventType, payload: { prpEvent: completion }, sourceEventId: completion.sourceEventId, sourceSeq: 99999, sourcePayloadSha256: nativeSha256(completion) }).returning();
+    const completion = { ...event("turn.completed"), sourceEventId: `${run!.runnerInstanceId}:99999`, sourceSeq: 99999, eventType: "tool.execution.completed", payload: { ...progress[0]!.payload.orpEvent.payload, status: "completed" } };
+    const [extra] = await db.insert(heartbeatRunEvents).values({ ...progress[0]!, seq: 99999, eventType: completion.eventType, payload: { orpEvent: completion }, sourceEventId: completion.sourceEventId, sourceSeq: 99999, sourcePayloadSha256: nativeSha256(completion) }).returning();
     expect(await hasCommittedNativePlanWait(db, f)).toBe(false);
     await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.id, extra!.id));
     expect(await hasCommittedNativePlanWait(db, f)).toBe(true);

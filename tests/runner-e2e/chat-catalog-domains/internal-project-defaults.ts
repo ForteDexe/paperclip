@@ -30,9 +30,9 @@ export function projectReadCalls(events: unknown[], runId: string, projectId: st
   // handler (codex-session-server-requests.ts). Never parse assistant prose as proof.
   for (const value of events) {
     if (!value || typeof value !== "object") continue;
-    const row = value as { runId?: string; sourceEventId?: string; payload?: { prpEvent?: { schema?: string; runId?: string; sourceEventId?: string } } };
-    const envelope = row.payload?.prpEvent;
-    if (envelope && (envelope.schema !== "paperclip.prp.event.v1" || envelope.runId !== row.runId || envelope.sourceEventId !== row.sourceEventId)) continue;
+    const row = value as { runId?: string; sourceEventId?: string; payload?: { orpEvent?: { schema?: string; runId?: string; sourceEventId?: string } } };
+    const envelope = row.payload?.orpEvent;
+    if (envelope && (envelope.schema !== "outpost.orp.event.v1" || envelope.runId !== row.runId || envelope.sourceEventId !== row.sourceEventId)) continue;
     const event = (envelope ?? value) as { runId?: string; eventType?: string; itemId?: string; payload?: { kind?: string; item?: Record<string, unknown> } };
     if (event.runId !== runId || event.payload?.kind !== "dynamicToolCall") continue;
     const item = event.payload.item; if (!item || typeof item.id !== "string" || event.itemId !== item.id) continue;
@@ -117,7 +117,7 @@ function defaults(): ChatCatalogCase {
       throw error;
     }
   }, gradeProjectDefaults);
-  return { ...base, oracleVersion: "paperclip.chat-catalog.project-defaults.v5", expectedRunCount: 3, minimumRunCount: 3, attemptTimeoutMs: 660000, runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1 },
+  return { ...base, oracleVersion: "outpost.chat-catalog.project-defaults.v5", expectedRunCount: 3, minimumRunCount: 3, attemptTimeoutMs: 660000, runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1 },
     setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "future-worker-ready", "existing-work-actively-owned"] },
     async verifySetup(ctx, state) { const [lead, future, held, t, runs] = await Promise.all([
       ctx.input.api.get<PreparedAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`), ctx.input.api.get<PreparedAgent>(`/api/agents/${entity(state, "futureWorker").id}`), ctx.input.api.get<PreparedAgent>(`/api/agents/${entity(state, "worker").id}`),

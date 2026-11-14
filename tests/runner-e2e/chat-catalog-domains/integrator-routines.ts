@@ -98,6 +98,6 @@ export const integratorRoutinesCases: readonly ChatCatalogCase[] = [
     const created = await ctx.input.api.post<RoutineDetail>(`${root(ctx)}/routines`, { title: "Morgan's launch summary", description: "Summarize Launch without changing project tasks.", projectId: p.id, assigneeAgentId: worker.id });
     await ctx.input.api.post(`/api/routines/${created.id}/triggers`, { kind: "schedule", enabled: true, cronExpression: "0 9 * * 1-5", timezone: "America/Chicago" });
     return { project: p, worker, routine: await ctx.input.api.get<RoutineDetail>(`/api/routines/${created.id}`), originalRevisions: await ctx.input.api.get<RoutineRevision[]>(`/api/routines/${created.id}/revisions`) };
-  }, { oracleVersion: "paperclip.chat-catalog.integrator.manage-other-owner.v5", expectedRunCount: 2, minimumRunCount: 1, attemptTimeoutMs: 480_000,
+  }, { oracleVersion: "outpost.chat-catalog.integrator.manage-other-owner.v5", expectedRunCount: 2, minimumRunCount: 1, attemptTimeoutMs: 480_000,
     sourceFiles: ["chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-routines.ts", "chat-catalog-domains/run-roles.ts", "../../server/src/services/cron.ts", "chat-scenarios/routines.yaml"] }),
 ];

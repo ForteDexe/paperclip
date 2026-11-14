@@ -1,4 +1,4 @@
-import type { LiveEvent } from "@paperclipai/shared";
+import type { LiveEvent } from "@outpost/shared";
 import { publishLiveEvent } from "./live-events.js";
 import { isSafeNativeChatProgressEventType } from "./safe-native-chat-progress.js";
 
@@ -27,7 +27,7 @@ export function isChatPublicationCommitSignal(
 
 /**
  * Emit a company-scoped publication wake only after its durable source row is
- * visible. The narrow primitive input prevents a PRP payload, message, tool
+ * visible. The narrow primitive input prevents a ORP payload, message, tool
  * name, target, result, or error from crossing into the public live stream.
  */
 export function publishChatPublicationCommitSignal(input: {

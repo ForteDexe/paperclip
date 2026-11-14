@@ -1,4 +1,4 @@
-import type { PluginTracer } from "@paperclipai/plugin-sdk";
+import type { PluginTracer } from "@outpost/plugin-sdk";
 
 export type LeaseSpanName =
   | "lease.wait_for_teardown"
@@ -26,7 +26,7 @@ const LABELLED_STATES: ReadonlySet<string> = new Set([
 /** Keep provider state useful without exporting a new SDK value as free text. */
 export function leaseStateAttributes(state: unknown): Record<string, string> {
   return {
-    "paperclip.sandbox.startup.state":
+    "outpost.sandbox.startup.state":
       typeof state === "string" && LABELLED_STATES.has(state) ? state : "other",
   };
 }
@@ -45,7 +45,7 @@ export async function withLeaseSpan<T>(
   try {
     if (tracer.withSpan) {
       await tracer.withSpan(name, runOnce, {
-        "paperclip.sandbox.startup.provider": "daytona",
+        "outpost.sandbox.startup.provider": "daytona",
         ...attributes,
       });
     }

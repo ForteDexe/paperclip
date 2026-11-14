@@ -236,25 +236,25 @@ test("keeps authoritative parent and ancestor context from task markdown", () =>
 
 test("keeps current runtime identity in the user turn without repeating static API examples", () => {
   const prompt = buildPrompt(baseContext(), {
-    paperclipApiUrl: "http://paperclip.local/api",
+    paperclipApiUrl: "http://outpost.local/api",
   });
 
   expect(prompt).toContain("- Agent ID: agent-1");
   expect(prompt).toContain("- Company ID: company-1");
   expect(prompt).toContain("- Run ID: run-1");
-  expect(prompt).toContain("- API base: http://paperclip.local/api");
+  expect(prompt).toContain("- API base: http://outpost.local/api");
   expect(prompt).not.toContain("Safe multiline update pattern:");
 });
 
 test("preserves custom prompt templates while exposing runtime and wake variables", () => {
   const prompt = buildPrompt(baseContext(), {
-    paperclipApiUrl: "http://paperclip.local/api",
+    paperclipApiUrl: "http://outpost.local/api",
     promptTemplate: [
       "CUSTOM TEMPLATE",
       "agent={{agent.name}}",
       "api={{paperclipApiUrl}}",
-      "keyEnv={{paperclipApiKeyEnv}}",
-      "runEnv={{paperclipRunIdEnv}}",
+      "keyEnv={{outpostApiKeyEnv}}",
+      "runEnv={{outpostRunIdEnv}}",
       "wakePrompt={{paperclipWakePrompt}}",
       "task={{paperclipTaskMarkdown}}",
       "wakeJson={{paperclipWakeJson}}",
@@ -264,9 +264,9 @@ test("preserves custom prompt templates while exposing runtime and wake variable
 
   expect(prompt).toContain("CUSTOM TEMPLATE");
   expect(prompt).toContain("agent=Hermes Engineer");
-  expect(prompt).toContain("api=http://paperclip.local/api");
-  expect(prompt).toContain("keyEnv=PAPERCLIP_API_KEY");
-  expect(prompt).toContain("runEnv=PAPERCLIP_RUN_ID");
+  expect(prompt).toContain("api=http://outpost.local/api");
+  expect(prompt).toContain("keyEnv=OUTPOST_API_KEY");
+  expect(prompt).toContain("runEnv=OUTPOST_RUN_ID");
   expect(prompt).toContain("wakePrompt=## Paperclip Wake Payload");
   expect(prompt).toContain("task=Paperclip task context:");
   expect(prompt).toContain("wakeJson={\"reason\":\"issue_assigned\"");

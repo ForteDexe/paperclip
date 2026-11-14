@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import { heartbeatRunEvents, heartbeatRuns, type Db } from "@paperclipai/db";
-import { parseNativeExecutionInput, validatePrpEvent, type PrpTerminalState } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRunEvents, heartbeatRuns, type Db } from "@outpost/db";
+import { parseNativeExecutionInput, validatePrpEvent, type PrpTerminalState } from "../../vendor/outpost-runner/index.js";
 import { nativeSha256 } from "./canonical.js";
 import { createNativeProviderFailureObservation } from "./native-provider-failure.js";
 
@@ -28,10 +28,10 @@ async function observePersistedNativeTurnFailure(
   const [row] = await db.select().from(heartbeatRunEvents).where(and(
     eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
     eq(heartbeatRunEvents.sourceInstanceId, run.runnerInstanceId), eq(heartbeatRunEvents.eventType, "turn.failed"),
-    sql`${heartbeatRunEvents.payload}->'prpEvent'->>'turnId' = ${turnId}`,
+    sql`${heartbeatRunEvents.payload}->'orpEvent'->>'turnId' = ${turnId}`,
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
   if (!row) return null;
-  const parsed = validatePrpEvent(record(row.payload).prpEvent);
+  const parsed = validatePrpEvent(record(row.payload).orpEvent);
   if (!parsed.ok || parsed.event.runId !== run.id || parsed.event.normalizedSessionId !== run.nativeSessionId ||
       parsed.event.sourceKind !== "runner" || parsed.event.sourceInstanceId !== run.runnerInstanceId ||
       parsed.event.sourceEventId !== row.sourceEventId || parsed.event.sourceSeq !== row.sourceSeq ||

@@ -58,8 +58,8 @@ function usage() {
       "environment, so codes never appear on a command line.",
       "",
       "Examples:",
-      "  node scripts/bootstrap-npm-package.mjs @paperclipai/new-package",
-      "  node scripts/bootstrap-npm-package.mjs @paperclipai/new-package --publish",
+      "  node scripts/bootstrap-npm-package.mjs @outpost/new-package",
+      "  node scripts/bootstrap-npm-package.mjs @outpost/new-package --publish",
       "",
     ].join("\n"),
   );
@@ -127,7 +127,7 @@ export function buildPlaceholderFiles(packageName) {
     files: ["index.js"],
     repository: {
       type: "git",
-      url: "git+https://github.com/paperclipai/paperclip.git",
+      url: "git+https://github.com/paperclipai/outpost.git",
     },
     homepage: "https://github.com/paperclipai/paperclip",
     publishConfig: {

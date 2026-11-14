@@ -5,7 +5,7 @@ import {
   activityLog, agents, applyPendingMigrations, companies, companyMemberships, companySecrets,
   connectionGrants, createDb, ensurePostgresDatabase, heartbeatRuns, issues, issueThreadInteractions,
   toolAccessAuditEvents, toolActionRequests, toolApplications, toolCatalogEntries, toolConnections, toolInvocations, userSecretDeclarations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { summarizeToolValue } from "../services/tool-content-guards.js";
@@ -66,7 +66,7 @@ const providers = [
   },
 ] as const;
 type Provider = typeof providers[number];
-const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const external = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 (support.supported ? describe : describe.skip)("Deployment connector governance", () => {
@@ -75,7 +75,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   beforeAll(async () => {
     if (external) {
       const url = new URL(external);
-      if (process.env.PAPERCLIP_TEST_REUSE_DEPLOYMENT_DATABASE === "1") {
+      if (process.env.OUTPOST_TEST_REUSE_DEPLOYMENT_DATABASE === "1") {
         // Only an explicitly named synthetic fixture database may be reused.
         // Each test still creates its own company and connection identities.
         if (!/^\/deployment_connectors_[a-f0-9]{32}$/.test(url.pathname)) {
@@ -212,7 +212,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
 
     it("delivers reviewed REST actions through native assignments without admitting unsupported or inactive connections", async () => {
-      vi.stubEnv("PAPERCLIP_API_URL", "http://127.0.0.1:3100");
+      vi.stubEnv("OUTPOST_API_URL", "http://127.0.0.1:3100");
       onTestFinished(() => { vi.unstubAllEnvs(); });
       const f = await fixture(provider, true);
       await f.service.putConnectionInstalls(f.connected.connectionId, {

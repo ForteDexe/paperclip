@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { agents, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations, plugins, sandboxCreationOperations, type Db } from "@paperclipai/db";
-import type { PluginEnvironmentLease } from "@paperclipai/plugin-sdk";
+import { agents, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations, plugins, sandboxCreationOperations, type Db } from "@outpost/db";
+import type { PluginEnvironmentLease } from "@outpost/plugin-sdk";
 import { setupRunControlDatabase, callbacks, runControlPostgresSupport } from "../services/heartbeat/__tests__/run-control-fixtures.js";
 import { createHeartbeatRecovery, type HeartbeatRecoveryDependencies } from "../services/heartbeat/recovery.js";
 import { createHeartbeatRunControl } from "../services/heartbeat/run-control.js";
@@ -30,7 +30,7 @@ async function fixture(version = true, inspector = true) {
   const { company, agent } = await database.fixture();
   const companyId = company.id, agentId = agent.id, runId = randomUUID(), issueId = randomUUID();
   const pluginId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID(), taskId = randomUUID(), leaseOwner = randomUUID();
-  await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, agentId));
+  await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, agentId));
   await db.insert(issues).values({ id: issueId, companyId, title: "Recover task creation", status: "in_progress", assigneeAgentId: agentId });
   const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
     runtimeMode: "native", invocationSource: "manual", status: "running", contextSnapshot: { issueId } }).returning();

@@ -98,7 +98,7 @@ removing, or overriding adapters remains platform-managed.
 
 Automated: [adapter validation routes](../../server/src/__tests__/agent-adapter-validation-routes.test.ts) and [model refresh](../../server/src/__tests__/adapter-model-refresh-routes.test.ts) cover server behavior.
 
-Cursor Cloud keeps Legacy as its automatic default. Choose Paperclip Runner
+Cursor Cloud keeps Legacy as its automatic default. Choose Outpost Runner
 explicitly under Advanced for experimental native support on a local controller.
 Select an exact model, bind a Cursor API key, and configure the repository or
 named Cloud environment. Save/reopen and Test must retain those choices. Test
@@ -133,14 +133,14 @@ Setup selects the runner automatically, and edits preserve saved execution.
 The UI has no runner dropdown; Advanced appears only when other settings remain.
 New Codex agents default to the native runner on supported macOS or GNU/Linux
 targets; the [shared selection contract](../../packages/shared/src/agent-runner.ts)
-and [runtime prerequisites](../../packages/paperclip-runner/README.md) define the
+and [runtime prerequisites](../../packages/outpost-runner/README.md) define the
 platform/libc boundary. Windows and Alpine/musl remain Legacy. Claude follows
 its qualified rollout described above. Disabled adapters, external overrides, and selected-target
 qualification also affect availability.
 
 Choose OpenCode with the native-runner experimental flag off on a qualified
 macOS or GNU/Linux x64 target. Linux ARM64 must retain Legacy because its pinned
-OpenCode runtime is not qualified. Advanced should show Paperclip Runner as the
+OpenCode runtime is not qualified. Advanced should show Outpost Runner as the
 automatic default on qualified targets. Save an inactive draft without a model,
 resume it, select an explicit `provider/model`,
 test, finish setup, and reload. Verify the saved provider is `opencode`. Repeat
@@ -163,7 +163,7 @@ an explicit Paperclip request must give target-qualification guidance. Begin the
 ordinary task to exercise the existing lazy environment path. This live journey
 remains separate from the resolver's source controls.
 
-Managed Cloud images default to Paperclip Runner without a saved platform
+Managed Cloud images default to Outpost Runner without a saved platform
 qualification. A platform snapshot update must not change that default or
 require a separate qualification request before Test. Disabled or overridden
 adapters still restrict availability, and actual runtime startup can still fail.
@@ -269,7 +269,7 @@ revised-source live onboarding and follow-up proof.
 - Use [recovery](./recovery.md) for interrupted runs and [execution environments](./execution-environments.md) for local/SSH/sandbox differences.
 
 Native setup retirement joins owned startup before cleanup can be confirmed.
-[Transport ownership controls](../../packages/paperclip-runner/src/live/runnerd-codex-transport.test.ts)
+[Transport ownership controls](../../packages/outpost-runner/src/live/runnerd-codex-transport.test.ts)
 hold preparation or registration without launching a provider, then check bounded
 close, rejected duplicate requests, no later launch and retention of unconfirmed
 state. Readiness observes shutdown; resumed startup cannot reactivate ingress

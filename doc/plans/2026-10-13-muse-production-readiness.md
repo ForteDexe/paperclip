@@ -111,7 +111,7 @@ The native smoke fixture also passed two scripted assignments on the integrated
 candidate: document publication, structured clarification/answer consumption,
 native finalization and follow-up. Its first attempt failed because the Runner
 WebSocket resolved to a public hostname exposing only the approved Muse routes.
-The fixture was repaired using the existing `PAPERCLIP_API_URL` loopback setting;
+The fixture was repaired using the existing `OUTPOST_API_URL` loopback setting;
 no new public Runner route or provider fallback was added. A fresh ordinary run
 then passed. These remain local synthetic results, separate from personal Muse
 and managed Cloud qualification.
@@ -447,4 +447,4 @@ OAuth revocation remains immediate and final. After the full qualification deadl
 
 The Board confirmation records the retained hook ID, exact server-derived script, a SHA-256 digest of the secret-free listing observation, the observation time, and the actual operator. Do not paste raw listings, credentials, URLs, or private tool output. The server checks current Board change authority, latest binding/generation/revision and exact qualification/deadline, then atomically records flags and audit provenance. It does not call Muse, verify installation independently, stop private work, clear unknown native effects, or revive revoked credentials. Refresh is required after offline or changed connection evidence.
 
-Grader revision `paperclip.muse-qualification.v4` distinguishes authenticated worker reports from operator attestations based on a supported runtime observation. Both are reported evidence, not independent provider confirmation. Exact source provenance and post-deadline timing are required; the 24-hour duration, five-second cadence, sustained idle window, at least twenty samples, every-sample success and all stop/effect uncertainty requirements remain unchanged. Earlier report revisions and sealed campaign results remain historical.
+Grader revision `outpost.muse-qualification.v4` distinguishes authenticated worker reports from operator attestations based on a supported runtime observation. Both are reported evidence, not independent provider confirmation. Exact source provenance and post-deadline timing are required; the 24-hour duration, five-second cadence, sustained idle window, at least twenty samples, every-sample success and all stop/effect uncertainty requirements remain unchanged. Earlier report revisions and sealed campaign results remain historical.

@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { executionWorkspaceSnapshots, workspaceOperations, type Db } from "@paperclipai/db";
-import type { RemoteWorkspaceRunReference } from "@paperclipai/shared";
+import { executionWorkspaceSnapshots, workspaceOperations, type Db } from "@outpost/db";
+import type { RemoteWorkspaceRunReference } from "@outpost/shared";
 
 type Snapshot = typeof executionWorkspaceSnapshots.$inferSelect;
 
@@ -43,7 +43,7 @@ export async function verifiedWorkspaceSnapshotReuse(db: Pick<Db, "select">, inp
   if (receipt.generation <= snapshot.generation || receipt.metadata?.generation !== receipt.generation
     || !work || typeof work !== "object" || Array.isArray(work)) return null;
   const settled = work as Record<string, unknown>;
-  if (settled.schema !== "paperclip.remote-workspace-save-work.v1" || settled.unknown !== false
+  if (settled.schema !== "outpost.remote-workspace-save-work.v1" || settled.unknown !== false
     || !Array.isArray(settled.activeIds) || settled.activeIds.length !== 0
     || typeof settled.quiescedAt !== "string" || !Number.isFinite(Date.parse(settled.quiescedAt))) return null;
   return receipt.id;

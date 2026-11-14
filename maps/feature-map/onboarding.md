@@ -68,7 +68,7 @@ created first task, verify the selected agent and company, and inspect its outpu
 or explicit authentication gate. Reload both company and task.
 
 For Codex or Claude, choose the harness to prove automatic first-agent runner
-selection. On a qualified target it saves Paperclip Runner. The wizard has no
+selection. On a qualified target it saves Outpost Runner. The wizard has no
 runner dropdown or empty Advanced section. Do not switch runners after onboarding when claiming proof
 of that default. Test the selected runtime and account, then complete a bounded
 useful task and follow-up with an independently checked file artifact. Saved

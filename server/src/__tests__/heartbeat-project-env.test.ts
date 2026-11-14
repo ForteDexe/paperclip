@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LOW_TRUST_REVIEW_PRESET, buildSkillMentionHref } from "@paperclipai/shared";
+import { LOW_TRUST_REVIEW_PRESET, buildSkillMentionHref } from "@outpost/shared";
 import {
   applyRunScopedMentionedSkillKeys,
   buildReferencedProjectRunObservability,
@@ -21,9 +21,9 @@ import { resolveManagedProjectWorkspaceDir } from "../home-paths.ts";
 
 describe("resolveExecutionRunAdapterConfig", () => {
   it("strips stored task shell selectors before secret resolution and provider projection", async () => {
-    const unsafe = {BASH_ENV:"/workspace/hook.sh",ZDOTDIR:"/workspace",GH_CONFIG_DIR:"/workspace/gh",PAPERCLIP_GITHUB_LAUNCHER_DIR:"/workspace/forged"};
+    const unsafe = {BASH_ENV:"/workspace/hook.sh",ZDOTDIR:"/workspace",GH_CONFIG_DIR:"/workspace/gh",OUTPOST_GITHUB_LAUNCHER_DIR:"/workspace/forged"};
     const resolveAdapterConfigForRuntime = vi.fn(async (_companyId, config) => ({config,secretKeys:new Set(),manifest:[]}));
-    const result = await resolveExecutionRunAdapterConfig({companyId:"company-1",adapterType:"paperclip_runner",
+    const result = await resolveExecutionRunAdapterConfig({companyId:"company-1",adapterType:"outpost_runner",
       executionRunConfig:{env:{...unsafe,CUSTOM_VALUE:"allowed"}},projectEnv:null,
       secretsSvc:{resolveAdapterConfigForRuntime} as any});
     expect(resolveAdapterConfigForRuntime.mock.calls[0]?.[1]).toMatchObject({env:{CUSTOM_VALUE:"allowed"}});
@@ -44,11 +44,11 @@ describe("resolveExecutionRunAdapterConfig", () => {
   });
 
   it("captures scoped resolved task values and rejects configured markers", async () => {
-    const key = "PAPERCLIP_CONFIGURED_ENV_KEYS";
+    const key = "OUTPOST_CONFIGURED_ENV_KEYS";
     const secret = { type: "secret_ref", secretId: "pages-secret" };
     const result = await resolveExecutionRunAdapterConfig({
       companyId: "company-1", agentId: "agent-1", environmentId: "environment-1", projectId: "project-1", routineId: "routine-1",
-      executionRunConfig: { env: { PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY: secret, SHARED: "agent", [key]: '["HOST_SECRET"]' } },
+      executionRunConfig: { env: { OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY: secret, SHARED: "agent", [key]: '["HOST_SECRET"]' } },
       environmentEnv: { SHARED: "environment", [key]: '["HOST_SECRET"]' },
       projectEnv: { SHARED: "project", [key]: '["HOST_SECRET"]' },
       routineEnv: { SHARED: "routine", [key]: '["HOST_SECRET"]' },
@@ -56,7 +56,7 @@ describe("resolveExecutionRunAdapterConfig", () => {
         resolveAdapterConfigForRuntime: vi.fn(async (companyId, config) => {
           expect(companyId).toBe("company-1");
           expect(config.env[key]).toBeUndefined();
-          return { config: { ...config, env: { ...config.env, PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY: "resolved-task-secret" } }, secretKeys: new Set(["PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY"]), manifest: [] };
+          return { config: { ...config, env: { ...config.env, OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY: "resolved-task-secret" } }, secretKeys: new Set(["OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY"]), manifest: [] };
         }),
         resolveEnvBindings: vi.fn(async (companyId, env) => {
           expect(companyId).toBe("company-1");
@@ -66,7 +66,7 @@ describe("resolveExecutionRunAdapterConfig", () => {
       } as any,
     });
     expect(result.configuredTaskEnvironment).toEqual({
-      PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY: "resolved-task-secret", SHARED: "routine",
+      OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY: "resolved-task-secret", SHARED: "routine",
     });
     expect(result.resolvedConfig.env).not.toHaveProperty(key);
     expect(result.configuredTaskEnvironment).not.toHaveProperty(key);
@@ -74,7 +74,7 @@ describe("resolveExecutionRunAdapterConfig", () => {
 
   it("does not preflight or resolve legacy GitHub token bindings for managed executions", async () => {
     const assertNoGitHubBinding = (env: Record<string, unknown>) => {
-      for (const key of Object.keys(env)) if (/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|PAPERCLIP_GIT_TOKEN)$/.test(key)) {
+      for (const key of Object.keys(env)) if (/^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|OUTPOST_GIT_TOKEN)$/.test(key)) {
         throw new Error("Unavailable legacy GitHub secret must not be resolved at startup");
       }
     };
@@ -85,7 +85,7 @@ describe("resolveExecutionRunAdapterConfig", () => {
       executionRunConfig: { env: { GH_TOKEN: missing, AGENT_VALUE: "ok" } },
       environmentEnv: { GITHUB_TOKEN: missing, ENVIRONMENT_VALUE: "ok" },
       projectEnv: { GH_ENTERPRISE_TOKEN: missing, PROJECT_VALUE: "ok" },
-      routineEnv: { GITHUB_ENTERPRISE_TOKEN: missing, PAPERCLIP_GIT_TOKEN: missing, ROUTINE_VALUE: "ok" },
+      routineEnv: { GITHUB_ENTERPRISE_TOKEN: missing, OUTPOST_GIT_TOKEN: missing, ROUTINE_VALUE: "ok" },
       secretsSvc: {
         collectMissingRuntimeBindings: vi.fn(async (_companyId, env) => { assertNoGitHubBinding(env); return []; }),
         resolveAdapterConfigForRuntime: vi.fn(async (_companyId, config) => {
@@ -222,7 +222,7 @@ describe("resolveExecutionRunAdapterConfig", () => {
     });
   });
 
-  it("drops PAPERCLIP_API_KEY bindings but forwards other PAPERCLIP_-named env to resolution", async () => {
+  it("drops OUTPOST_API_KEY bindings but forwards other OUTPOST_-named env to resolution", async () => {
     const resolveAdapterConfigForRuntime = vi.fn(async (_companyId, config: Record<string, unknown>) => ({
       config: {
         ...config,
@@ -244,30 +244,30 @@ describe("resolveExecutionRunAdapterConfig", () => {
       agentId: "agent-1",
       environmentId: "environment-1",
       environmentEnv: {
-        PAPERCLIP_API_KEY: "environment-api-key",
-        PAPERCLIP_RUNNER_NETWORK_ACCESS: "enabled",
-        PAPERCLIP_RUNNER_PREPARED_HARNESS_HOME: "/environment/claude",
-        PAPERCLIP_CLOUD_PROVIDER_TOKEN_ENV: "environment-cloud",
+        OUTPOST_API_KEY: "environment-api-key",
+        OUTPOST_RUNNER_NETWORK_ACCESS: "enabled",
+        OUTPOST_RUNNER_PREPARED_HARNESS_HOME: "/environment/claude",
+        OUTPOST_CLOUD_PROVIDER_TOKEN_ENV: "environment-cloud",
         ENV_ONLY: "environment-only",
       },
       executionRunConfig: {
         env: {
-          PAPERCLIP_API_KEY: { type: "secret_ref", secretId: "secret-api-key", version: "latest" },
-          PAPERCLIP_CLOUD_PROVIDER_TOKEN_AGENT: "agent-cloud",
-          PAPERCLIP_RUNNER_PREPARED_HARNESS_HOME: "/agent/claude",
+          OUTPOST_API_KEY: { type: "secret_ref", secretId: "secret-api-key", version: "latest" },
+          OUTPOST_CLOUD_PROVIDER_TOKEN_AGENT: "agent-cloud",
+          OUTPOST_RUNNER_PREPARED_HARNESS_HOME: "/agent/claude",
           AGENT_ONLY: "agent-only",
         },
       },
       projectEnv: {
-        PAPERCLIP_API_KEY: "project-api-key",
-        paperclip_runner_prepared_harness_home: "/project/claude",
-        PAPERCLIP_CLOUD_PROVIDER_TOKEN_PROJECT: "project-cloud",
+        OUTPOST_API_KEY: "project-api-key",
+        outpost_runner_prepared_harness_home: "/project/claude",
+        OUTPOST_CLOUD_PROVIDER_TOKEN_PROJECT: "project-cloud",
         PROJECT_ONLY: "project-only",
       },
       routineEnv: {
-        PAPERCLIP_API_KEY: "routine-api-key",
-        PAPERCLIP_RUNNER_PREPARED_HARNESS_HOME: "/routine/claude",
-        PAPERCLIP_CLOUD_PROVIDER_TOKEN_ROUTINE: "routine-cloud",
+        OUTPOST_API_KEY: "routine-api-key",
+        OUTPOST_RUNNER_PREPARED_HARNESS_HOME: "/routine/claude",
+        OUTPOST_CLOUD_PROVIDER_TOKEN_ROUTINE: "routine-cloud",
         ROUTINE_ONLY: "routine-only",
       },
       routineId: "routine-1",
@@ -278,35 +278,35 @@ describe("resolveExecutionRunAdapterConfig", () => {
     });
 
     expect(resolveEnvBindings.mock.calls[0]?.[1]).toEqual({
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_ENV: "environment-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_ENV: "environment-cloud",
       ENV_ONLY: "environment-only",
     });
     expect(resolveAdapterConfigForRuntime.mock.calls[0]?.[1]).toEqual({
       env: {
-        PAPERCLIP_CLOUD_PROVIDER_TOKEN_AGENT: "agent-cloud",
+        OUTPOST_CLOUD_PROVIDER_TOKEN_AGENT: "agent-cloud",
         AGENT_ONLY: "agent-only",
       },
     });
     expect(resolveEnvBindings.mock.calls[1]?.[1]).toEqual({
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_PROJECT: "project-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_PROJECT: "project-cloud",
       PROJECT_ONLY: "project-only",
     });
     expect(resolveEnvBindings.mock.calls[2]?.[1]).toEqual({
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_ROUTINE: "routine-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_ROUTINE: "routine-cloud",
       ROUTINE_ONLY: "routine-only",
     });
     expect(result.resolvedConfig.env).toEqual({
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_ENV: "environment-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_ENV: "environment-cloud",
       ENV_ONLY: "environment-only",
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_AGENT: "agent-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_AGENT: "agent-cloud",
       AGENT_ONLY: "agent-only",
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_PROJECT: "project-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_PROJECT: "project-cloud",
       PROJECT_ONLY: "project-only",
-      PAPERCLIP_CLOUD_PROVIDER_TOKEN_ROUTINE: "routine-cloud",
+      OUTPOST_CLOUD_PROVIDER_TOKEN_ROUTINE: "routine-cloud",
       ROUTINE_ONLY: "routine-only",
     });
-    expect(JSON.stringify(result.resolvedConfig.env)).not.toContain("PAPERCLIP_API_KEY");
-    expect(JSON.stringify(result.resolvedConfig.env)).not.toContain("PAPERCLIP_RUNNER_NETWORK_ACCESS");
+    expect(JSON.stringify(result.resolvedConfig.env)).not.toContain("OUTPOST_API_KEY");
+    expect(JSON.stringify(result.resolvedConfig.env)).not.toContain("OUTPOST_RUNNER_NETWORK_ACCESS");
   });
 
   it("skips project env resolution when the project has no bindings", async () => {
@@ -661,8 +661,8 @@ describe("resolveExecutionRunAdapterConfig codex_local credential pre-dispatch g
         "utf8",
       );
     }
-    vi.stubEnv("PAPERCLIP_HOME", paperclipHome);
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default");
+    vi.stubEnv("OUTPOST_HOME", paperclipHome);
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
     vi.stubEnv("CODEX_HOME", sharedCodexHome);
     const managedAgentHome = path.join(
       paperclipHome,

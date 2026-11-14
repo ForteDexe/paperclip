@@ -12,7 +12,7 @@ import {
   issueComments,
   issues,
   plugins,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import {
   getEmbeddedPostgresTestSupport,
@@ -24,12 +24,12 @@ import {
   externalObjectService,
   type ExternalObjectResolver,
 } from "../services/external-objects.js";
-import { canonicalizeExternalObjectUrl } from "@paperclipai/shared/external-objects-server";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import { canonicalizeExternalObjectUrl } from "@outpost/shared/external-objects-server";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { createGitHubExternalObjectProvider } from "../services/github-external-object-provider.js";
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_EXTERNAL_OBJECTS_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_EXTERNAL_OBJECTS_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -1356,7 +1356,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
       .where(eq(issues.id, issueId));
 
     const manifest: PaperclipPluginManifestV1 = {
-      id: "paperclip.mock-object-provider",
+      id: "outpost.mock-object-provider",
       apiVersion: 1,
       version: "1.0.0",
       displayName: "Mock Object Provider",

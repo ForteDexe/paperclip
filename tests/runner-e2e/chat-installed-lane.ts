@@ -27,13 +27,13 @@ export async function runOwnedInstalledPreparation(name: string, args: string[],
   }
 }
 
-export const CHAT_INSTALL_CONFIG = "PAPERCLIP_CHAT_INSTALLED_SOURCE_CONFIG";
-export const CHAT_INSTALL_PLAN = "PAPERCLIP_CHAT_INSTALLED_PLAN";
-export const CHAT_INSTALL_RECEIPT = "PAPERCLIP_CHAT_OPERATOR_INSTALL_RECEIPT";
+export const CHAT_INSTALL_CONFIG = "OUTPOST_CHAT_INSTALLED_SOURCE_CONFIG";
+export const CHAT_INSTALL_PLAN = "OUTPOST_CHAT_INSTALLED_PLAN";
+export const CHAT_INSTALL_RECEIPT = "OUTPOST_CHAT_OPERATOR_INSTALL_RECEIPT";
 export const installedChatScenarioIds = ["instance-operations.update-instance", "instance-operations.provision-runtime"] as const;
 interface PublishedPin { version: string; integrity: string }
 export interface ChatInstallConfiguration { schemaVersion: 1; disposable: true; source: PublishedPin; target?: PublishedPin; piCredentialEnv?: "OPENROUTER_API_KEY" }
-export interface PublishedArtifact { package: "paperclipai" | "@paperclipai/server"; version: string; integrity: string; archiveSha512: string; entrySha256: string }
+export interface PublishedArtifact { package: "paperclipai" | "@outpost/server"; version: string; integrity: string; archiveSha512: string; entrySha256: string }
 interface InstallPlan { schemaVersion: 1; executionId: string; temporaryRoot: string; prefix: string; cli: string; serverRoot: string;
   sourceVersion: string; artifacts: PublishedArtifact[]; targetVersion?: string; targetIntegrity?: string; piCredentialEnv?: string }
 const hash = (bytes: Buffer | string, algorithm = "sha256") => createHash(algorithm).update(bytes).digest("hex");
@@ -90,7 +90,7 @@ export async function stagePublishedChatInstall(input: { execution: MatrixExecut
     return runOwnedInstalledPreparation(name, args, { cwd: root, env, timeout });
   }
   for (const pin of [config.source, ...(config.target ? [config.target] : [])]) {
-    for (const name of ["paperclipai", "@paperclipai/server"] as const) {
+    for (const name of ["paperclipai", "@outpost/server"] as const) {
       const dist = JSON.parse(await command("npm", ["view", `${name}@${pin.version}`, "dist", "--json", "--registry=https://registry.npmjs.org"], 30000));
       if (typeof dist.integrity !== "string" || !/^sha512-[A-Za-z0-9+/]+=*$/.test(dist.integrity) || !String(dist.tarball).startsWith("https://registry.npmjs.org/")
         || name === "paperclipai" && dist.integrity !== pin.integrity) throw new Error("Published source metadata differs from the exact public registry pin");
@@ -107,32 +107,32 @@ export async function stagePublishedChatInstall(input: { execution: MatrixExecut
   const cli = realpathSync(path.join(prefix, "lib/node_modules/paperclipai/dist/index.js"));
   // Resolve using the installed CLI's own public dependency graph, never the source checkout.
   const { findPackageJSON } = await import("node:module"); const { pathToFileURL } = await import("node:url");
-  const manifest = findPackageJSON("@paperclipai/server", pathToFileURL(cli));
+  const manifest = findPackageJSON("@outpost/server", pathToFileURL(cli));
   if (!manifest) throw new Error("Published CLI has no actual installed server dependency");
   const serverRoot = path.dirname(realpathSync(manifest));
   const plan: InstallPlan = { schemaVersion: 1, executionId: input.execution.id, temporaryRoot: root, prefix, cli, serverRoot,
     sourceVersion: config.source.version, artifacts, targetVersion: config.target?.version, targetIntegrity: config.target?.integrity, piCredentialEnv: config.piCredentialEnv };
   const planFile = path.join(root, "published-chat-plan.json"); writeFileSync(planFile, JSON.stringify(plan), { mode: 0o600, flag: "wx" });
   const overrides: NodeJS.ProcessEnv = { [CHAT_INSTALL_PLAN]: planFile, [CHAT_INSTALL_RECEIPT]: path.join(root, "published-chat-source.json"),
-    PAPERCLIP_RUNNER_E2E_INSTALLED_CLI: cli, PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT: serverRoot };
-  refreshInstalledChatPins({ ...input.env, ...overrides, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: root }, input.execution.id, overrides);
+    OUTPOST_RUNNER_E2E_INSTALLED_CLI: cli, OUTPOST_RUNNER_E2E_INSTALLED_SERVER_ROOT: serverRoot };
+  refreshInstalledChatPins({ ...input.env, ...overrides, OUTPOST_RUNNER_E2E_TEMP_ROOT: root }, input.execution.id, overrides);
   return overrides;
 }
 export function refreshInstalledChatPins(env: NodeJS.ProcessEnv, executionId: string, destination: NodeJS.ProcessEnv = env) {
-  const reference = env[CHAT_INSTALL_PLAN], root = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const reference = env[CHAT_INSTALL_PLAN], root = env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!reference || !root) throw new Error("Installed chat has no owned publication plan");
   const plan = privateJson(reference, root) as InstallPlan;
   if (plan.schemaVersion !== 1 || plan.executionId !== executionId || realpathSync(plan.temporaryRoot) !== realpathSync(root)
     || ![plan.cli, plan.serverRoot, plan.prefix].every(filename => realpathSync(filename).startsWith(realpathSync(root) + path.sep))) throw new Error("Installed source plan belongs to another target");
   const server = path.join(plan.serverRoot, "dist/index.js"), cliManifest = JSON.parse(readFileSync(path.resolve(plan.cli, "../../package.json"), "utf8")), serverManifest = JSON.parse(readFileSync(path.join(plan.serverRoot, "package.json"), "utf8"));
   const version = cliManifest.version;
-  if (cliManifest.name !== "paperclipai" || serverManifest.name !== "@paperclipai/server" || version !== serverManifest.version
+  if (cliManifest.name !== "paperclipai" || serverManifest.name !== "@outpost/server" || version !== serverManifest.version
     || ![plan.sourceVersion, plan.targetVersion].filter(Boolean).includes(version)) throw new Error("Installed source version is not a declared publication transition");
   const cliSha256 = hash(readFileSync(plan.cli)), serverSha256 = hash(readFileSync(server));
   if (!plan.artifacts.some(a => a.package === "paperclipai" && a.version === version && a.entrySha256 === cliSha256)
-    || !plan.artifacts.some(a => a.package === "@paperclipai/server" && a.version === version && a.entrySha256 === serverSha256)) throw new Error("Actual installed CLI/server bytes differ from their independently downloaded published tarballs");
-  destination.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256 = cliSha256;
-  destination.PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256 = serverSha256;
+    || !plan.artifacts.some(a => a.package === "@outpost/server" && a.version === version && a.entrySha256 === serverSha256)) throw new Error("Actual installed CLI/server bytes differ from their independently downloaded published tarballs");
+  destination.OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256 = cliSha256;
+  destination.OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256 = serverSha256;
   return { plan, server, version, cliSha256, serverSha256, ...installedChatTreeIdentity(plan.prefix) };
 }
 export function publishInstalledChatReceipt(env: NodeJS.ProcessEnv, executionId: string, serverPid: number) {
@@ -148,7 +148,7 @@ export function publishInstalledChatReceipt(env: NodeJS.ProcessEnv, executionId:
 }
 export function installedChatFingerprintIdentity(env: NodeJS.ProcessEnv, executionId: string) {
   const source = refreshInstalledChatPins(env, executionId);
-  const receipt = privateJson(env[CHAT_INSTALL_RECEIPT]!, env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT) as { serverPid?: number };
+  const receipt = privateJson(env[CHAT_INSTALL_RECEIPT]!, env.OUTPOST_RUNNER_E2E_TEMP_ROOT) as { serverPid?: number };
   if (!receipt.serverPid) throw new Error("Actual installed source process receipt is missing");
   const owner = execFileSync("ps", ["-p", String(receipt.serverPid), "-o", "uid=", "-o", "command="], { encoding: "utf8", timeout: 5000 }).trim();
   if (!new RegExp(`^${process.getuid?.()}\\s`).test(owner) || !owner.split(/\s+/).includes(source.plan.cli)) throw new Error("Installed receipt does not identify this user's actual CLI source process");

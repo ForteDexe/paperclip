@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { agentWakeupRequests, heartbeatRunEvents, heartbeatRuns, issueComments, issues, type Db } from "@paperclipai/db";
+import { agentWakeupRequests, heartbeatRunEvents, heartbeatRuns, issueComments, issues, type Db } from "@outpost/db";
 import type { NativeRestartRecoveryClaim } from "../native-runtime/native-restart-recovery.js";
 import { isUserCommentContinuationReason } from "../explicit-native-continuation.js";
 import { requestTaskRetry } from "../task-retry.js";
@@ -27,13 +27,13 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 /** A terminal event proves the turn ended only when the provider reported it.
  * A driver that lost its event stream records `providerTerminalObserved: false`
- * (on the event or its stored PRP source): the real outcome is unknown, and
+ * (on the event or its stored ORP source): the real outcome is unknown, and
  * another turn could repeat work that already happened. */
 export function isProvenTurnSettlement(event: { eventType: string; payload: unknown }) {
   if (!TURN_SETTLED_EVENTS.includes(event.eventType)) return false;
   const payload = asRecord(event.payload);
   return payload.providerTerminalObserved !== false &&
-    asRecord(asRecord(payload.prpEvent).payload).providerTerminalObserved !== false;
+    asRecord(asRecord(payload.orpEvent).payload).providerTerminalObserved !== false;
 }
 
 /** Any turn or tool event: the run may have done provider work that a new turn could repeat. */

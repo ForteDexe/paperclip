@@ -11,17 +11,17 @@ import {
   nativeRunFinalizations,
   nativeRunResults,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   CONTROL_PLANE_CONFORMANCE_OPEN,
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
-} from "../vendor/paperclip-runner/testing.js";
+} from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { reconcileNativeFinalizations } from "../services/native-runtime/native-finalization-reconciler.js";
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_FINALIZATION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZATION_TEST_DATABASE_URL");
 
 // Restart chaos w-20261110T044338-s20385/t03: three restarts resumed the run
 // (provider attempt 3), the resumed turn's result was accepted, and the first
@@ -48,7 +48,7 @@ describe("native finalization retry budget after restart resumes", () => {
     });
     await db.insert(completionContracts).values({
       id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {
         revision: "phase6-v1", objective: "Finalize after three resumes",

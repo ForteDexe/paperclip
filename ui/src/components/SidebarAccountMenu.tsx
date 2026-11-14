@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { Settings } from "lucide-react";
-import type { DeploymentMode } from "@paperclipai/shared";
+import type { DeploymentMode } from "@outpost/shared";
 
 import { Link } from "@/lib/router";
 import { useSidebar } from "../context/SidebarContext";

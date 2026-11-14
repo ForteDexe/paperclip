@@ -27,7 +27,7 @@ import { RESTRICTED_WORKSPACE_SOURCE_REASON } from "../workspace-source-restrict
 import { hasCommittedNativePlanWait } from "../native-runtime/native-plan-wait.js";
 import { hasCommittedNativeResponseWakeWait } from "../native-runtime/native-response-wake-wait.js";
 import { listExternalReviewWaits } from "../native-runtime/external-review-wait.js";
-import { isNativeWorkspaceExportRepairCause } from "@paperclipai/shared";
+import { isNativeWorkspaceExportRepairCause } from "@outpost/shared";
 import { pendingExternalConversationSettlement, settleSlackConversation } from "../slack-conversation-lifecycle.js";
 import { externalConversationStateSql } from "../slack-conversation-state.js";
 import { isIssueReviewPathRecoveryRun } from "./review-path-recovery.js";
@@ -59,7 +59,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   hasCommittedNativeBoardResponseWait,
   readNativeBoardResponseWaitSource,
@@ -72,7 +72,7 @@ import {
   requiresExecutionReconciliation,
   type IssueCommentMetadata,
   type IssueCommentPresentation,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   agents,
   agentTaskSessions,
@@ -98,7 +98,7 @@ import {
   routines,
   workAssessments,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { parseObject, asBoolean, asNumber } from "../../adapters/utils.js";
 import { runningProcesses } from "../../adapters/index.js";
 import {
@@ -1344,7 +1344,7 @@ export function recoveryService(
     const terminal = parseObject(envelope.terminal);
     const continuation = parseObject(result.continuation);
     if (
-      result.schema !== "paperclip.run_result.v1" ||
+      result.schema !== "outpost.run_result.v1" ||
       result.reportedWorkDisposition !== "yielded" ||
       continuation.kind !== "response_wake" ||
       !readNonEmptyString(continuation.idempotencyKey) ||
@@ -1452,9 +1452,9 @@ export function recoveryService(
       if (
         error instanceof Error &&
         [
-          "paperclip_runner_chat_attachment_binding_denied",
-          "paperclip_runner_chat_attachment_destination_denied",
-          "paperclip_runner_chat_attachment_principal_denied",
+          "outpost_runner_chat_attachment_binding_denied",
+          "outpost_runner_chat_attachment_destination_denied",
+          "outpost_runner_chat_attachment_principal_denied",
         ].includes(error.message)
       )
         return false;
@@ -1589,7 +1589,7 @@ export function recoveryService(
     const terminal = parseObject(envelope.terminal);
     const blocker = parseObject(result.blocker);
     if (
-      result.schema !== "paperclip.run_result.v1" ||
+      result.schema !== "outpost.run_result.v1" ||
       result.reportedWorkDisposition !== "blocked" ||
       terminal.runTerminalState !== "succeeded" ||
       terminal.reportedWorkDisposition !== "blocked" ||

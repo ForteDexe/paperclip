@@ -52,7 +52,7 @@ export async function captureSdkCanaryBuild(input: { repositoryRoot: string; tem
   }
   copied.sort((a, b) => a.path.localeCompare(b.path));
   const retained = await verifyRetainedSourceSdk(input.temporaryRoot, SDK_CANARY, input.sourceRevision, input.secrets, input.repositoryRoot);
-  if (retained.receipt.schema !== "paperclip.source-plugin-sdk/v2" || retained.receipt.scanAudit?.bounded !== true || retained.receipt.scanAudit.suppressedFindings !== 0
+  if (retained.receipt.schema !== "outpost.source-plugin-sdk/v2" || retained.receipt.scanAudit?.bounded !== true || retained.receipt.scanAudit.suppressedFindings !== 0
     || !Array.isArray(retained.receipt.certifiedTargets) || retained.receipt.certifiedTargets.length !== pins.certificates.length) fail();
   const files = await sdkCanaryOutputManifest(input.repositoryRoot);
   const retainedFiles = retained.files.filter(row => row.file !== "receipt.json").map(({ file, size, sha256 }) => ({ file, size, sha256 })).sort((a, b) => a.file.localeCompare(b.file));
@@ -65,7 +65,7 @@ export async function captureSdkCanaryBuild(input: { repositoryRoot: string; tem
     certificates.push({ target: expected.target, sources: certificate.sources, outputs: certificate.outputs, markerSha256: hash(marker) });
   }
   const observed: SdkCanaryBuildObservation = { sourceRevision: input.sourceRevision, inputFiles: copied.length, gitInputFiles: copied.length - 1,
-    frozenInputManifestSha256: hash(JSON.stringify({ frozenRevision: "cb31ebccf0411f3e260159b1d39e6c047a39f4e9", inputs: inputs.inputs, schema: "paperclip.sdk-diagnostic-frozen-inputs/v1" })),
+    frozenInputManifestSha256: hash(JSON.stringify({ frozenRevision: "cb31ebccf0411f3e260159b1d39e6c047a39f4e9", inputs: inputs.inputs, schema: "outpost.sdk-diagnostic-frozen-inputs/v1" })),
     copiedInputManifestSha256: hash(JSON.stringify(copied)), publicInputsFileSha256,
     helperSha256: hash(await readFile(path.join(input.repositoryRoot, "scripts/ensure-plugin-build-deps.mjs"))),
     lockSha256: source.identity.lockSha256, compilerPackageSha256: source.identity.compilerPackageSha256,
@@ -93,7 +93,7 @@ export async function withSdkCanaryPreFixture<T>(input: { execution: MatrixExecu
     || input.execution.task.id !== "plugins.use-plugin-tool" || input.execution.task.expectedRunCount !== 2 || input.execution.task.attemptTimeoutMs.local !== 480_000) fail();
   const captured = await input.capture(); assertSdkCanaryBuild(captured.build); completeFingerprint(captured.fingerprint);
   if (captured.build.sourceRevision !== input.sourceRevision) fail();
-  await input.retain({ schema: "paperclip.sdk-canary-prefixture/v1", executionId: SDK_CANARY, sourceRevision: input.sourceRevision,
+  await input.retain({ schema: "outpost.sdk-canary-prefixture/v1", executionId: SDK_CANARY, sourceRevision: input.sourceRevision,
     authenticatedMetadataSha256: pins.authenticatedMetadataSha256, build: captured.build, fingerprint: captured.fingerprint });
   fingerprints.set(input.execution, structuredClone(captured.fingerprint));
   return input.fixtures();

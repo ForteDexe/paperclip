@@ -45,7 +45,7 @@ When someone messages an agent, the reply has to start as fast as possible. Rest
 
 ### What we measure
 
-These are measured for every run and recorded in the run log. With an OTLP endpoint set, they are also emitted as spans on the existing `run.startup.step` / `paperclip.sandbox.startup.*` path in `packages/adapter-utils/src/acpx-engine/startup-timing.ts`. They are never sent to Telemetry (AGENTS.md §5.7).
+These are measured for every run and recorded in the run log. With an OTLP endpoint set, they are also emitted as spans on the existing `run.startup.step` / `outpost.sandbox.startup.*` path in `packages/adapter-utils/src/acpx-engine/startup-timing.ts`. They are never sent to Telemetry (AGENTS.md §5.7).
 
 | Metric | From | To |
 |---|---|---|
@@ -238,9 +238,9 @@ The runner stamps `generation` and `turnId` on every event. Driver and session c
 - The random waves found 20 ms–1 s windows by luck. Enumeration finds them on purpose, and it finds the windows we haven't hit yet.
 
 **Built (Phase 5).**
-- `crashPoint(name)` in `packages/shared/src/crash-points.ts`, with the named points in `crash-point-registry.ts`. `PAPERCLIP_CRASH_POINT=<name>[:<nth>]` arms one point; `NODE_ENV=production` ignores it. Disarmed, a call costs about 4 ns. In-process tests use `armCrashPointForTest`.
+- `crashPoint(name)` in `packages/shared/src/crash-points.ts`, with the named points in `crash-point-registry.ts`. `OUTPOST_CRASH_POINT=<name>[:<nth>]` arms one point; `NODE_ENV=production` ignores it. Disarmed, a call costs about 4 ns. In-process tests use `armCrashPointForTest`.
 - 20 points at the boundaries in the inventory's write-ahead table, from `sandbox.create.after_provider_before_lease` to `accounting.closure.after_commit_before_spool_unlink`. `server/src/__tests__/crash-point-call-sites.test.ts` requires a call site for each one.
-- `node scripts/crash-points.mjs [--points <glob>] [--kinds <id>] [--adapters …]` boots one instance and arms each point in turn at runtime (`PAPERCLIP_CRASH_POINT_CONTROL`). It asserts R1–R6 plus I1–I4 and I7 per point, from the Phase 1 reconciler. I6 and I8 come from the run log: a run failed by a stale-generation event, and speed-budget breaches. I5 is a known gap until restart claims record their charge decision; R3 bounds it. The manual CI run is `.github/workflows/crash-points.yml`.
+- `node scripts/crash-points.mjs [--points <glob>] [--kinds <id>] [--adapters …]` boots one instance and arms each point in turn at runtime (`OUTPOST_CRASH_POINT_CONTROL`). It asserts R1–R6 plus I1–I4 and I7 per point, from the Phase 1 reconciler. I6 and I8 come from the run log: a run failed by a stale-generation event, and speed-budget breaches. I5 is a known gap until restart claims record their charge decision; R3 bounds it. The manual CI run is `.github/workflows/crash-points.yml`.
 - First full local run (2026-11-08, 14 local points, codex A1, 11.8 min): 11 pass. Work list:
   - `workspace.finalize.after_start_before_copyback` and `…after_copyback_before_done` leave a `workspace_finalize` operation running after the run succeeded (I2 and R6, kind `native_workspace_finalize_attempt`).
   - `wake.claim.after_run_running_before_wakeup_claimed` reports I4 on a wake whose retry delivered the work: the known refusal-regex false positive, which section E removes.

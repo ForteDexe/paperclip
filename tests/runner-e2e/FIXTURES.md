@@ -520,7 +520,7 @@ Remote execution does not infer local process authority from remote PIDs.
 Only then does the browser submit previously undisclosed text. One durable
 resolution, one original successful turn and independently read exact workspace
 JSON prove delivery. A replacement run, replay, cancellation, expiry, rewritten
-request or merely reloaded browser cannot pass. Full states and PRP identities
+request or merely reloaded browser cannot pass. Full states and ORP identities
 stay in private snapshots under the existing publication allowlist.
 The local runner's unique `turn.submitted` receipt may precede assignment of the
 provider turn ID. The oracle accepts that missing ID only before the single
@@ -651,7 +651,7 @@ deterministic calibration do not constitute paid qualification.
 
 Both cases create a task through the browser and select `approve-reads` and
 `per_turn` through the public agent API before startup. They retain
-`paperclip.e2e.pi-control-pending.v1` while an exact native Pi write and its
+`outpost.e2e.pi-control-pending.v1` while an exact native Pi write and its
 permission card are pending in one run/turn/session/source. The card's native
 tool ID is joined to the canonical execution ID using the existing runnerd
 identity mapping. Pi does not emit Cursor/Copilot diagnostic notices; those
@@ -719,7 +719,7 @@ provider timeout, 300s attempt budget). `native-permission-deny-write` denies on
 exact native edit through its browser card, waits for the delivered rejection and
 failed tool, then cancels through the public run API. Its expected outcome is a
 cancelled run and an unfinished task, not successful task completion.
-The current `paperclip.e2e.copilot-denial-settlement.v4` proof separates the exact
+The current `outpost.e2e.copilot-denial-settlement.v4` proof separates the exact
 provider terminal from the audited controller Stop. It records either
 `provider_cancelled_or_interrupted` or `provider_completed_observed_before_stop`.
 The latter requires the exact terminal row to be returned by the operator API
@@ -801,7 +801,7 @@ from one explicit scalar native input path, rejects ambiguous/multiple paths,
 and checks subsequent input/location updates for changes. Durable canonical
 execution receipts must match the same run, turn, execution identity, status,
 and order; any explicit canonical target must agree. Missing or conflicting
-attestations fail qualification. PRP retains only the first location and terminal
+attestations fail qualification. ORP retains only the first location and terminal
 updates may omit it, so canonical targets alone cannot prove bootstrap ownership.
 Neither tool titles nor output text supplies path evidence.
 
@@ -830,10 +830,10 @@ intent rather than overwrite it.
 
 The current Copilot fixture invokes the ordinary cancel endpoint without supplying
 its observation UUID. It retains that UUID only as fixture correlation in
-`paperclip.e2e.copilot-pre-stop-observation.v2`. The actual API response supplies
-the server's intent and audit IDs; `paperclip.e2e.copilot-stop-acknowledgement.v1`
+`outpost.e2e.copilot-pre-stop-observation.v2`. The actual API response supplies
+the server's intent and audit IDs; `outpost.e2e.copilot-stop-acknowledgement.v1`
 binds and hashes the returned cancellation metadata, exact caller and scope.
-The final `paperclip.e2e.copilot-denial-settlement.v4` receipt verifies that same
+The final `outpost.e2e.copilot-denial-settlement.v4` receipt verifies that same
 response metadata and the observation's monotonic order. The public API's optional
 `cancellationRequestId` support is separate from this fixture correlation.
 
@@ -854,7 +854,7 @@ attempts and v3 receipts are retained without regrading.
 
 `native-active-stop` / `pending-permission-stop` has four explicit-only cells:
 Cursor and Copilot, each local and Daytona. Its `native_active_stop` flow retains
-`paperclip.e2e.native-active-stop-pending.v2` from the public API while exactly one
+`outpost.e2e.native-active-stop-pending.v2` from the public API while exactly one
 native permission remains pending, the exact controller run is running, and no
 Stop or answer marker exists. The receipt independently binds native session,
 normalized session, turn, source instance, request/tool IDs, source sequences and
@@ -878,7 +878,7 @@ both input orders. Neither policy claims the original ACP wire order of a live
 attempt. Old v1 receipts are not valid inputs to the
 new grader. Earlier paid failures retain their original definition and grade.
 
-Suite version 4 and `paperclip.e2e.native-active-stop-settlement.v2` accept only
+Suite version 4 and `outpost.e2e.native-active-stop-settlement.v2` accept only
 `pending_permission_cancelled`: the Product harness's exact
 `runtime_request.cancelled` closure (`reason: turn_terminal`, matching request,
 item and turn, no answer), then one exact `turn.cancelled` (`status: cancelled`,
@@ -900,7 +900,7 @@ retired. Local files require four fresh observations through cleanup. Daytona
 instead retains two live snapshots (baseline and pending) plus one automatic
 owned-process-retirement seal, with a continuous zero-mutation watcher and the
 same complete root/descendant journal. Since suite version 2, this is retained as
-`paperclip.e2e.native-active-stop-remote-retirement.v1`; it explicitly records
+`outpost.e2e.native-active-stop-remote-retirement.v1`; it explicitly records
 `filesystemAfterRetirementObserved:false`. The per-turn observer seals itself
 when the owned tree retires, before the sandbox is released. Reading that receipt
 later is not a fresh post-UI or post-cleanup filesystem observation. Relabeled,
@@ -941,8 +941,8 @@ the native lifecycle; its normalized input hash must also match the authority.
 Exactly one proposed body must hash to that normalized digest and equal exactly
 one accepted body; identical duplicate proposals or receipts still fail.
 
-Suite 8 writes `paperclip.e2e.copilot-semantic-completion.v2` and requires
-`paperclip.semantic_tool_receipt.v2` under `paperclip_semantic_tool_receipt_v2`.
+Suite 8 writes `outpost.e2e.copilot-semantic-completion.v2` and requires
+`outpost.semantic_tool_receipt.v2` under `paperclip_semantic_tool_receipt_v2`.
 The authority has exactly eight bounded details. An explicit null normalized
 digest is diagnostic only and cannot qualify a successful finish. Legacy v1
 receipts do not qualify fresh runs. This fixture depends on the corresponding
@@ -965,36 +965,6 @@ requester identity for scope questions, ownership history, no additional work or
 hires, and the browser-answer continuation. See [Direct blocker guidance](README.md#direct-blocker-guidance)
 for coverage boundaries and run commands.
 
-
-## Source-derived hiring template fixture
-
-The explicit `hiring-templates` suite reuses the public company/agent, personal
-managed account and browser chat fixtures. `hiringTemplateProfile` removes the
-custom instruction bundle from the ordinary profile; the real agent creation
-route selects the evaluated revision's CEO bundle. Keep its two local native
-profiles, five expected runs and 15-minute deadline stable for paired runs.
-`isManagedHiringCase` requests the account fixture and `chatNeedsApiTools`
-enables only the existing API-tool path. It adds no private fixture endpoint,
-provider fake or database write.
-
-`hiring-template-flow.ts` reads the production instructions and company skill
-files through public APIs before dispatch and verifies their hashes against the
-checkout. The public run-events API supplies paginated read evidence after
-execution. `hiring-template-scoring.ts` grades deterministic child documents,
-actual worker identity/account, reuse and source coverage independently of the
-agents' claims. `hiring-template.test.ts` calibrates production Codex/ACPX event
-shapes, wrong/missing/late reads, incorrect/default bundles, source mismatch,
-wrong hire/output, missing durable state, and an admissible historical four-file
-CEO with a long coder role.
-
-Preserve both dimensions in a comparison: `outcomePassed` describes the work;
-`comparisonStatus` describes whether the expected sources and reads were proven.
-Unprovable provider event shapes are coverage gaps. They must not become a
-passing template comparison or a claimed behavior regression. The existing
-report matcher paths carry the dimension and private final evidence carries the
-explicit status. Provider runs are separately authorized; unit results establish
-oracle calibration only. See the [suite contract](README.md#production-hiring-templates)
-for evidence, budgets, cleanup and exact IDs.
 
 Cursor native denial qualification requires one exact absolute-target command, a
 correlated browser Reject once delivered after reconnect, six independent absence

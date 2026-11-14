@@ -43,7 +43,7 @@ server as a stdio MCP process:
 3. In Outpost, open the tool app gallery, choose **Google Sheets**, and paste
    one or more Google Sheets links.
 4. Save the app connection. Outpost creates a `local_stdio` connection using
-   the `paperclip.google-sheets` template and passes the selected spreadsheet
+   the `outpost.google-sheets` template and passes the selected spreadsheet
    IDs to this server as `GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS`.
 5. Refresh the tool catalog and verify the Google Sheets tools appear for the
    connection.

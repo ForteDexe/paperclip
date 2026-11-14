@@ -137,7 +137,7 @@ export const integratorSkillStudioCases = [integratorDefinition("skills", "skill
   await ctx.input.evidence("chat-skill-studio-visible-result.json", { skillId: o.skill.id, testRunId: run.id, status: run.status, issueId: run.issueId, interactions: run.interactions, url: ctx.input.page.url() });
   await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
 }, { authentication: "human-session", queryAttachments: factualContextQueryAttachment("skill-context.md"), sourceFiles: ["chat-catalog-domains/integrator-skill-versions.ts", "../../server/src/services/chat-completion-delivery.ts", "chat-catalog-domains/integrator-skill-studio.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-scenarios/skills.yaml"],
-  oracleVersion: "paperclip.chat-catalog.skill-studio.v4", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 540_000,
+  oracleVersion: "outpost.chat-catalog.skill-studio.v4", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 540_000,
   async act(ctx, state) {
     await pollUntil({ label: "actual bounded skill Studio output", deadlineAt: Date.now() + 240_000, intervalMs: 1000,
       load: () => observeStudio(ctx, state), accept: o => studioNativeRunsComplete(o),

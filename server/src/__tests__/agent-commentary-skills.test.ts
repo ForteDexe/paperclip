@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ensureCodexSkillsInjected, listCodexSkills } from "@paperclipai/adapter-codex-local/server";
-import { listClaudeSkills } from "@paperclipai/adapter-claude-local/server";
-import { readPaperclipRuntimeSkillEntries, resolveLegacyPaperclipDesiredSkillNames } from "@paperclipai/adapter-utils/server-utils";
+import { ensureCodexSkillsInjected, listCodexSkills } from "@outpost/adapter-codex-local/server";
+import { listClaudeSkills } from "@outpost/adapter-claude-local/server";
+import { readPaperclipRuntimeSkillEntries, resolveLegacyPaperclipDesiredSkillNames } from "@outpost/adapter-utils/server-utils";
 import { prepareClaudePromptBundle } from "../../../packages/adapters/claude-local/src/server/prompt-cache.js";
 import { stageCodexHomeForSync } from "../../../packages/adapters/codex-local/src/server/codex-home.js";
 
@@ -31,7 +31,7 @@ describe("minimal default skill delivery", () => {
   it("does not mount retired feedback skills into Codex or Claude homes", async () => {
     const root = await mkdtemp(join(tmpdir(), "paperclip-commentary-skills-"));
     cleanup.push(root);
-    vi.stubEnv("PAPERCLIP_HOME", root);
+    vi.stubEnv("OUTPOST_HOME", root);
     const entries = await readPaperclipRuntimeSkillEntries({}, import.meta.dirname, [fileURLToPath(new URL("../../../skills", import.meta.url))]);
     const desiredSkillNames = resolveLegacyPaperclipDesiredSkillNames({}, entries);
     const selected = entries.filter(e => desiredSkillNames.includes(e.key));

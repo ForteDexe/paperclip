@@ -31,8 +31,8 @@ const publicJwk = {
 };
 
 const ENV = {
-  PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [publicJwk] }),
-  PAPERCLIP_CLOUD_STACK_ID: STACK_ID,
+  OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [publicJwk] }),
+  OUTPOST_CLOUD_STACK_ID: STACK_ID,
 } as NodeJS.ProcessEnv;
 
 function encodeJson(value: Record<string, unknown>) {
@@ -133,8 +133,8 @@ describe("verifyCloudControlAssertion", () => {
       aud: CLOUD_RUNTIME_IDENTITY_AUDIENCE,
       sub: STACK_ID,
       claimId: "claim-1",
-      previousOrigin: "https://pool-1.staging.paperclip.app",
-      canonicalOrigin: "https://gonzo.staging.paperclip.app",
+      previousOrigin: "https://pool-1.staging.outpost.app",
+      canonicalOrigin: "https://gonzo.staging.outpost.app",
       stackSlug: "gonzo",
       iat,
       exp: iat + 60,
@@ -157,7 +157,7 @@ describe("verifyCloudControlAssertion", () => {
       verifyCloudControlAssertion({
         compactJws: controlAssertion(),
         expectedAction: "task-drain:start",
-        env: { PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: ENV.PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS } as NodeJS.ProcessEnv,
+        env: { OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: ENV.OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS } as NodeJS.ProcessEnv,
         now: NOW,
       }),
     ).toThrow(/does not match this instance/);
@@ -191,10 +191,10 @@ describe("cloudControlMiddleware", () => {
 
   beforeEach(() => {
     resetCloudControlReplayFenceForTests();
-    savedEnv.PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS = process.env.PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS;
-    savedEnv.PAPERCLIP_CLOUD_STACK_ID = process.env.PAPERCLIP_CLOUD_STACK_ID;
-    process.env.PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS = ENV.PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS;
-    process.env.PAPERCLIP_CLOUD_STACK_ID = STACK_ID;
+    savedEnv.OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS = process.env.OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS;
+    savedEnv.OUTPOST_CLOUD_STACK_ID = process.env.OUTPOST_CLOUD_STACK_ID;
+    process.env.OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS = ENV.OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS;
+    process.env.OUTPOST_CLOUD_STACK_ID = STACK_ID;
   });
 
   afterEach(() => {

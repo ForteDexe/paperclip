@@ -2,10 +2,10 @@
 # Keep this script compatible with macOS's system Bash 3.2.
 set -euo pipefail
 
-base_cwd="${PAPERCLIP_WORKSPACE_BASE_CWD:?PAPERCLIP_WORKSPACE_BASE_CWD is required}"
-worktree_cwd="${PAPERCLIP_WORKSPACE_CWD:?PAPERCLIP_WORKSPACE_CWD is required}"
-paperclip_home="${PAPERCLIP_HOME:-$HOME/.paperclip}"
-paperclip_instance_id="${PAPERCLIP_INSTANCE_ID:-default}"
+base_cwd="${OUTPOST_WORKSPACE_BASE_CWD:?OUTPOST_WORKSPACE_BASE_CWD is required}"
+worktree_cwd="${OUTPOST_WORKSPACE_CWD:?OUTPOST_WORKSPACE_CWD is required}"
+paperclip_home="${OUTPOST_HOME:-$HOME/.paperclip}"
+paperclip_instance_id="${OUTPOST_INSTANCE_ID:-default}"
 paperclip_dir="$worktree_cwd/.paperclip"
 worktree_config_path="$paperclip_dir/config.json"
 seed_manifest_path="$paperclip_dir/seed-manifest.json"
@@ -75,7 +75,7 @@ if [[ ! -f "$worktree_config_path" ]]; then
   exit 1
 fi
 
-# The CLI derives the source from PAPERCLIP_WORKSPACE_BASE_CWD, which the control
+# The CLI derives the source from OUTPOST_WORKSPACE_BASE_CWD, which the control
 # plane injects from the registered project-workspace row. A base workspace that is
 # a plain checkout carries no instance config of its own, so name the control plane's
 # own registered instance config explicitly. The seed manifest stays diagnostic
@@ -86,9 +86,9 @@ if [[ -L "$base_cwd/.paperclip" && ! -d "$base_cwd/.paperclip" ]]; then
 fi
 source_config_args=()
 if [[ ! -e "$base_cwd/.paperclip/config.json" && ! -L "$base_cwd/.paperclip/config.json" ]]; then
-  source_config_path="${PAPERCLIP_CONFIG:-$paperclip_home/instances/$paperclip_instance_id/config.json}"
+  source_config_path="${OUTPOST_CONFIG:-$paperclip_home/instances/$paperclip_instance_id/config.json}"
   # A human may invoke this after sourcing `worktree env`, which points
-  # PAPERCLIP_CONFIG at the target. Naming the target as its own source is never
+  # OUTPOST_CONFIG at the target. Naming the target as its own source is never
   # right, so leave the source to the CLI in that case.
   if [[ "$source_config_path" != "$worktree_config_path" ]]; then
     source_config_args=(--from-config "$source_config_path")

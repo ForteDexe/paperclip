@@ -5,7 +5,7 @@ import { SpekoPhoneCallback } from "@/components/voice/SpekoPhoneCallback";
 import { deriveInitials } from "@/components/Identity";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { agentAvatarUrl } from "@/lib/agent-avatar-url";
-import { resolveAgentAppearance } from "@paperclipai/shared";
+import { resolveAgentAppearance } from "@outpost/shared";
 import { SlackTestMessageButton } from "./SlackTestMessageButton";
 import { slackConversationUrl } from "./slack/conversation-url";
 import { useAccountIdentity } from "@/api/companies-query";

@@ -1,5 +1,5 @@
 import { LiveTranscriptInterests, DISCONNECTED_TRANSCRIPT_STREAM } from "../lib/live-transcript-interests";
-import { resolveAgentAppearance, TASK_IDENTITY_CHANGED_FIELD, issueActivityChangesTaskIdentity } from "@paperclipai/shared";
+import { resolveAgentAppearance, TASK_IDENTITY_CHANGED_FIELD, issueActivityChangesTaskIdentity } from "@outpost/shared";
 import { getPageVisibility, usePageVisibility } from "../lib/page-visibility";
 import { createLiveQueryRecovery } from "../lib/live-query-recovery";
 import { isLiveReconciledQuery } from "../lib/live-reconcile";
@@ -39,7 +39,7 @@ import type {
   Issue,
   IssueComment,
   LiveEvent,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type { RunForIssue } from "../api/activity";
 import type { ActiveRunForIssue, LiveRunForIssue } from "../api/heartbeats";
 import type { CompanyUserDirectoryResponse } from "../api/access";
@@ -1758,7 +1758,7 @@ function invalidateActivityQueries(
         ) {
           // Native status decisions may materialize a review interaction in the
           // same transaction. Unlike run/activity rows, that card is not present
-          // in the streamed PRP projection, so inactive-only invalidation leaves
+          // in the streamed ORP projection, so inactive-only invalidation leaves
           // the visible task stale until a full reload.
           queryClient.invalidateQueries({
             queryKey: queryKeys.issues.interactions(ref),

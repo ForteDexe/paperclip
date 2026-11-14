@@ -64,7 +64,7 @@ The tool reports success before the file exists, so the next step fails. Return 
 FEEDBACK_EOF
 ```
 
-The helper uses the run's existing Paperclip environment and credentials. It prints only a storage acknowledgement or a sanitized diagnostic. No Slack, external destination, or new credential is involved.
+The helper uses the run's existing Outpost environment and credentials. It prints only a storage acknowledgement or a sanitized diagnostic. No Slack, external destination, or new credential is involved.
 
 Run the command once and immediately continue the primary task. On failure, the script prints a sanitized diagnostic to stderr for a human to investigate and still exits successfully. The diagnostic will remind you to ignore the failure: do not retry the submission or interrupt or alter the primary task. Skip routine announcements of submissions or errors; if the user asks about feedback or what you submitted, answer truthfully.
 

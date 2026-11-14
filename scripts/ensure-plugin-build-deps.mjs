@@ -16,7 +16,7 @@ const lockPollMs = 100;
 
 const buildTargets = [
   {
-    name: "@paperclipai/shared",
+    name: "@outpost/shared",
     output: path.join(rootDir, "packages/shared/dist/index.js"),
     completion: path.join(rootDir, "packages/shared/dist/.paperclip-build-complete"),
     sourceDir: path.join(rootDir, "packages/shared/src"),
@@ -24,7 +24,7 @@ const buildTargets = [
     dependencies: [],
   },
   {
-    name: "@paperclipai/plugin-sdk",
+    name: "@outpost/plugin-sdk",
     output: path.join(rootDir, "packages/plugins/sdk/dist/index.js"),
     completion: path.join(rootDir, "packages/plugins/sdk/dist/.paperclip-build-complete"),
     sourceDir: path.join(rootDir, "packages/plugins/sdk/src"),
@@ -148,7 +148,7 @@ function recoverAbandonedLock() {
     } else {
       return;
     }
-    console.log("[paperclip] Recovered abandoned workspace build lock.");
+    console.log("[outpost] Recovered abandoned workspace build lock.");
   } catch (error) {
     if (["ENOENT", "ENOTEMPTY", "EEXIST"].includes(error.code) || error instanceof SyntaxError) return;
     throw error;
@@ -175,7 +175,7 @@ async function acquireLock() {
         }
       }
       if (!reportedWait) {
-        console.log(`[paperclip] Waiting for another workspace build (${lockDir})...`);
+        console.log(`[outpost] Waiting for another workspace build (${lockDir})...`);
         reportedWait = true;
       }
       if (Date.now() - startedAt >= lockTimeoutMs) {
@@ -189,7 +189,7 @@ async function acquireLock() {
 }
 
 async function build(target) {
-  console.log(`[paperclip] Building ${target.name}...`);
+  console.log(`[outpost] Building ${target.name}...`);
   // A hard kill bypasses cleanup. Only a completed compile may restore this
   // marker, so recovery never trusts index.js emitted partway through a build.
   fs.rmSync(target.completion, { force: true });

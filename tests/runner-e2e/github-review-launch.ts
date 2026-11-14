@@ -21,7 +21,7 @@ import type { MatrixExecution, RunnerE2EResult } from "./types.js";
 
 export async function runGitHubReviewCampaign(input: { executions: readonly MatrixExecution[]; catalog: readonly MatrixExecution[]; configFile?: string; repositoryRoot: string; provisionRepository?: boolean }) {
   if (input.executions.length !== 1 || input.executions[0]!.task.flow !== "github_review_journey") throw new ConnectionFailure("Select exactly one GitHub review journey cell separately.");
-  if (process.env.PAPERCLIP_E2E_OPERATIONS_MANIFEST) throw new ConnectionFailure("GitHub review journey has no budgeted routing qualification");
+  if (process.env.OUTPOST_E2E_OPERATIONS_MANIFEST) throw new ConnectionFailure("GitHub review journey has no budgeted routing qualification");
   return withConnectionCampaignCancellation(async campaignSignal => {
     const deadline = new AbortController();
     const signal = AbortSignal.any([campaignSignal, deadline.signal]);
@@ -39,7 +39,7 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
     const evidence: GitHubReviewJourneyEvidence = { version: 1, setupId: "unresolved", hosting: "self-hosted", targetCommit: null, assisted: false,
       outcome: "running", phase: "configuration", dependencies: [], checkpoints: {}, cleanup: { endpoint: true, pullRequest: true, branch: true, app: true } };
     const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: input.repositoryRoot, encoding: "utf8" }).trim();
-    const result: RunnerE2EResult = { schema: "paperclip.runner-e2e.result/v2", executionId: execution.id, suiteId: execution.suite.id, suiteDefinitionHash: execution.suiteDefinitionHash,
+    const result: RunnerE2EResult = { schema: "outpost.runner-e2e.result/v2", executionId: execution.id, suiteId: execution.suite.id, suiteDefinitionHash: execution.suiteDefinitionHash,
       source: { sha, ref: "working-tree", workflowRunUrl: null }, attempt: 1, status: "failed", profileId: execution.profile.id, environmentId: execution.environment.id, caseId: execution.task.id,
       provider: execution.profile.provider, model: execution.profile.model, runtimeMode: "native", startedAt, finishedAt: startedAt, durationMs: 0, cleanup: "not_started", githubReviewJourney: evidence, screenshots: [] };
     const resources: GitHubJourneyResources = { branch: `codex/ponytail-eval-${nonce}`, appName: `Ponytail QA ${nonce}`, runIds: [] };

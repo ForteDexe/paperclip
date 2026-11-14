@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { readBuildCommit } from "../build-commit.js";
 import { loadConfig } from "../config.js";
 import { conflict, unauthorized } from "../errors.js";
@@ -19,10 +19,10 @@ export async function prepareOnlineEphemeralEnrollment(db: Db, attemptId: string
   const eligibility = await readEphemeralServerDataEligibility(db, { purpose: "startup" });
   if (!eligibility.eligible) throw conflict("Durable data migration is incomplete", { blockers: eligibility.blockers });
   const decisionSigningSecret = resolveDecisionSigningSecret({ allowCreate: false });
-  assertEphemeralServerConfig(loadConfig(), { ...process.env, PAPERCLIP_EPHEMERAL_SERVER: "true",
-    PAPERCLIP_DECISION_SIGNING_SECRET: decisionSigningSecret });
+  assertEphemeralServerConfig(loadConfig(), { ...process.env, OUTPOST_EPHEMERAL_SERVER: "true",
+    OUTPOST_DECISION_SIGNING_SECRET: decisionSigningSecret });
   const receipt = {
-    schema: "paperclip.online-ephemeral-enrollment.v1" as const,
+    schema: "outpost.online-ephemeral-enrollment.v1" as const,
     attemptId, stackId, commit, deploymentId, observedAt: new Date().toISOString(),
     ephemeralServer: ephemeralServerEnabled(),
     decisionKeyDigest: createHash("sha256").update(decisionSigningSecret).digest("hex"),

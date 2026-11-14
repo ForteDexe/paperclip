@@ -3,8 +3,8 @@ import { mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterEach, expect, it, vi } from "vitest";
-import { agents, agentTaskSessions, environmentLeases, environments, heartbeatRuns, issues, nativeHarnessBackups, nativeRunFinalizations, nativeRunResults, nativeRunnerCheckpoints } from "@paperclipai/db";
-import { captureLegacyDurablePrpCheckpoint, DurablePrpControlPlane, parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import { agents, agentTaskSessions, environmentLeases, environments, heartbeatRuns, issues, nativeHarnessBackups, nativeRunFinalizations, nativeRunResults, nativeRunnerCheckpoints } from "@outpost/db";
+import { captureLegacyDurablePrpCheckpoint, DurablePrpControlPlane, parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { describeEmbeddedPostgres, nativeRestartFixture } from "../../__tests__/helpers/native-restart.js";
 import { nativeToolContractFingerprintForTarget } from "./native-session-resume.js";
 import * as sessionResume from "./native-session-resume.js";
@@ -38,17 +38,17 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
   const environment = nativeRestartFixture();
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
   async function fixture(commandCount = 1, warm = false, modernWorkspace = false) {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "73".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "73".repeat(32));
     const f = await environment.seedRun(randomUUID());
     const { companyId, agentId, paperclipHome, runtimeRoot } = environment.current;
     const binding = { companyId, agentId, issueId: f.issueId, runId: f.runId, executionWorkspaceId: modernWorkspace ? randomUUID() : f.native.environmentLeaseId };
     const execution = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null }, binding,
+      schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null }, binding,
       task: { identifier: "MIG-1", title: "Retained work", description: null, prompt: "Continue the work.", workMode: "standard" },
       workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: f.native.normalizedSessionId, driverKind: "codex_app_server", protocolVersion: 1,
         lifecyclePolicy: warm ? { mode: "warm", idleTimeoutMs: 60_000 } : { mode: "per_turn", idleTimeoutMs: null } },
-      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Continue", criteria: [{ id: "objective", requirement: "Save work." }] } },
       credentialBindings: [], interactionResponses: [],
     });
@@ -77,14 +77,14 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
       },
     };
     const pack = resolveRemoteProviderPackAuthority({ stateDirectory: paths.root, reattach: false, binding: packBinding,
-      current: () => ({ schema: "paperclip-runner/remote-provider-pack/v1", payload,
+      current: () => ({ schema: "outpost-runner/remote-provider-pack/v1", payload,
         digest: `sha256:${createHash("sha256").update(canonicalProviderPackJson(payload)).digest("hex")}` }),
       runnerArtifact: () => ({ version: "migration-fixture", digest: `sha256:${"a".repeat(64)}` }) });
     pack.verified();
     const snapshot = { backendKind: "mock" as const, sessionId: f.native.normalizedSessionId,
       identity: { companyId, agentId, issueId: f.issueId, runId: f.runId, sessionId: f.native.normalizedSessionId } };
     const profile = { ...f.preparedProfile, nativeExecutionInput: execution, nativeToolContractFingerprint: fingerprint, sessionCheckpoint: snapshot,
-      nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v1", state: "prepared", descriptorSha256: "a".repeat(64),
+      nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v1", state: "prepared", descriptorSha256: "a".repeat(64),
         baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: binding.executionWorkspaceId, leaseId: randomUUID(),
         providerLeaseId: randomUUID(), remoteCwd: "/remote/workspace", resourceDisposition: "destroy" } };
     await f.db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(), runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
@@ -92,16 +92,16 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
     const queuedId = randomUUID();
     await f.db.insert(heartbeatRuns).values({ id: queuedId, companyId, agentId, issueId: f.issueId, status: "queued" });
     await f.db.update(issues).set({ executionRunId: queuedId }).where(eq(issues.id, f.issueId));
-    const [session] = await f.db.insert(agentTaskSessions).values({ companyId, agentId, adapterType: "paperclip_runner",
+    const [session] = await f.db.insert(agentTaskSessions).values({ companyId, agentId, adapterType: "outpost_runner",
       taskKey: f.issueId, lastRunId: f.runId }).returning();
     return { ...f, companyId, agentId, paperclipHome, runtimeRoot, paths, file, source, profile, session, queuedId, identity, snapshot };
   }
   if (scenario === "volume_free_owner") it("starts a volume-free server over controller state it wrote itself and keeps unmarked state blocked", async () => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     expect(await claimVolumeFreeControllerState(true)).toBe("claimed");
     const f = await fixture(0, true, true);
     await f.db.update(heartbeatRuns).set({ status: "running", finishedAt: null }).where(eq(heartbeatRuns.id, f.runId));
-    expect(JSON.parse(await readFile(f.file, "utf8")).schema).toBe("paperclip.runner.durable.control-plane-state.v2");
+    expect(JSON.parse(await readFile(f.file, "utf8")).schema).toBe("outpost.runner.durable.control-plane-state.v2");
     expect(await claimVolumeFreeControllerState(true)).toBe("owned");
     expect(await hasLocalNativeControllerObligations(f.db)).toBe(false);
     expect(await claimVolumeFreeControllerState(false)).toBe("released");
@@ -156,7 +156,7 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
       for (const value of [{ ...f.identity, runId: randomUUID() }, { ...f.identity, runnerInstanceId: randomUUID() },
         { ...f.identity, normalizedSessionId: randomUUID() }, { ...f.identity, environmentLeaseId: randomUUID() },
         { ...f.identity, turnId: randomUUID() }]) {
-        await writeFile(f.file, JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1", identity: value }));
+        await writeFile(f.file, JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity: value }));
         expect(await hasLocalNativeControllerObligations(f.db)).toBe(true);
       }
       await writeFile(f.file, marker);
@@ -178,7 +178,7 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
       await f.db.update(nativeRunResults).set({ schemaStatus: "rejected" }).where(eq(nativeRunResults.id, result.id));
       expect(await hasLocalNativeControllerObligations(f.db)).toBe(true);
       await f.db.update(nativeRunResults).set({ schemaStatus: "accepted" }).where(eq(nativeRunResults.id, result.id));
-      const [foreign] = await f.db.insert(agents).values({ companyId: f.companyId, name: "Foreign owner", role: "engineer", adapterType: "paperclip_runner" }).returning();
+      const [foreign] = await f.db.insert(agents).values({ companyId: f.companyId, name: "Foreign owner", role: "engineer", adapterType: "outpost_runner" }).returning();
       await f.db.update(heartbeatRuns).set({ agentId: foreign.id }).where(eq(heartbeatRuns.id, f.runId));
       expect(await hasLocalNativeControllerObligations(f.db)).toBe(true);
       await f.db.update(heartbeatRuns).set({ agentId: f.agentId }).where(eq(heartbeatRuns.id, f.runId));
@@ -205,7 +205,7 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
         processConfigDigest: null }, { runId: f.runId, runnerInstanceId: f.native.runnerInstanceId,
         normalizedSessionId: f.native.normalizedSessionId }) } }).where(eq(heartbeatRuns.id, f.runId));
     await f.db.insert(agentTaskSessions).values(Array.from({ length: 15 }, () => ({ companyId: f.companyId,
-      agentId: f.agentId, adapterType: "paperclip_runner", taskKey: randomUUID(), lastRunId: f.runId })));
+      agentId: f.agentId, adapterType: "outpost_runner", taskKey: randomUUID(), lastRunId: f.runId })));
     const original = sessionResume.findNativeSessionResumeRun;
     const originalCheckpoint = checkpointReader.hasNativeRunnerCheckpoint;
     let started = 0, finished = 0, inFlight = 0, peak = 0, fail = false;
@@ -252,7 +252,7 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
     const f = await fixture(1, false, true), controller = await currentNativeControllerIdentity();
     const binding = { companyId: f.companyId, issueId: f.issueId, runId: f.runId };
     const { nativeWorkspaceSync, ...baseProfile } = f.profile;
-    const remoteWorkspace = { schema: "paperclip.remote-workspace-run.v1", workspaceId: nativeWorkspaceSync.workspaceId,
+    const remoteWorkspace = { schema: "outpost.remote-workspace-run.v1", workspaceId: nativeWorkspaceSync.workspaceId,
       leaseId: nativeWorkspaceSync.leaseId, providerLeaseId: nativeWorkspaceSync.providerLeaseId,
       remoteCwd: nativeWorkspaceSync.remoteCwd, epoch: 1, state: "prepared", snapshotId: null };
     const profile = { ...baseProfile, sessionCheckpoint: null, remoteWorkspace };
@@ -275,7 +275,7 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
       if (scenario === "active_durable_cold") await rm(f.file);
       expect(await hasLocalNativeControllerObligations(f.db)).toBe(false);
       for (const value of [f.source, JSON.stringify({ schema: "unknown", identity: f.identity }),
-        JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1", identity: { ...f.identity, runId: randomUUID() } })]) {
+        JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity: { ...f.identity, runId: randomUUID() } })]) {
         await writeFile(f.file, value); expect(await hasLocalNativeControllerObligations(f.db)).toBe(true);
       }
       if (scenario === "active_durable_cold") await rm(f.file);
@@ -711,7 +711,7 @@ describeEmbeddedPostgres.each(["volume_free_owner", "archive_online", "archive_o
         startedAt: new Date(now - (scenario === "stale_queued" ? 30_000 : 43_000)) }).where(eq(heartbeatRuns.id, f.runId));
       await f.db.update(heartbeatRuns).set({ finishedAt: new Date(now - 40_000) }).where(eq(heartbeatRuns.id, priorId));
     }
-    const supervisor = JSON.stringify({ schema: "paperclip.native-session-supervisor.v1",
+    const supervisor = JSON.stringify({ schema: "outpost.native-session-supervisor.v1",
       configDigest: f.paths.configDigest, snapshot: priorSnapshot });
     await mkdir(dirname(f.paths.supervisorPath), { recursive: true });
     await writeFile(f.paths.supervisorPath, supervisor, { mode: 0o600 });

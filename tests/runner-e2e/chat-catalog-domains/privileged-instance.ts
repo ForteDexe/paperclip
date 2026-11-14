@@ -29,7 +29,7 @@ export function gradeRestartService(value: unknown) {
 export const privilegedInstanceCases = [{ ...privilegedDefinition("instance-operations.restart-service", "privileged-instance", {
   async setup(ctx) {
     if (ctx.input.execution.environment.id !== "local") throw new Error("Owned service restart requires the launcher's local disposable instance");
-    const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, log = process.env.PAPERCLIP_RUNNER_E2E_SERVER_LOG;
+    const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT, log = process.env.OUTPOST_RUNNER_E2E_SERVER_LOG;
     if (!root || !log) throw new Error("Owned restart control directory and supervisor log are required");
     const owned = await realpath(root), logPath = await realpath(log);
     if (!logPath.startsWith(owned + path.sep)) throw new Error("Restart log is outside the owned attempt root");
@@ -46,12 +46,12 @@ export const privilegedInstanceCases = [{ ...privilegedDefinition("instance-oper
     if (!renderedReplyBefore.trim()) throw new Error("Pre-restart reply has no visible rendered body");
     state.sourceBefore = source.id; state.runBefore = initial.runs[0]!.id;
     state.expectedRequestId = `chat-${ctx.input.nonce}`; state.restartStartedAt = Date.now();
-    const logPath = process.env.PAPERCLIP_RUNNER_E2E_SERVER_LOG!;
+    const logPath = process.env.OUTPOST_RUNNER_E2E_SERVER_LOG!;
     const beforeLogLength = (await readFile(logPath, "utf8")).length;
     // The existing operator callback stops the process, waits for HTTP to stop,
     // launches a replacement and requires its exact ready acknowledgement.
     await ctx.input.restart();
-    const receipt = JSON.parse(await readFile(runnerE2EServerControlPaths(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT!).restartAcknowledgementPath, "utf8"));
+    const receipt = JSON.parse(await readFile(runnerE2EServerControlPaths(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!).restartAcknowledgementPath, "utf8"));
     const log = (await readFile(logPath, "utf8")).slice(beforeLogLength);
     const stop = log.indexOf(`Restart request ${state.expectedRequestId}: stopping Paperclip`);
     const start = log.indexOf(`Restart request ${state.expectedRequestId}: starting Paperclip`);
@@ -69,4 +69,4 @@ export const privilegedInstanceCases = [{ ...privilegedDefinition("instance-oper
     await ctx.input.evidence("chat-catalog-owned-service-restart.json", { ...state, retainedCommentIds: after.map(row => row.id) });
   }, grade: gradeRestartService,
   async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
-}), oracleVersion: "paperclip.chat-catalog.privileged.restart-service.v2" }];
+}), oracleVersion: "outpost.chat-catalog.privileged.restart-service.v2" }];

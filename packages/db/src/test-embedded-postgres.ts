@@ -50,13 +50,13 @@ export type EmbeddedPostgresTestDatabase = {
 
 let embeddedPostgresSupportPromise: Promise<EmbeddedPostgresTestSupport> | null = null;
 
-const DEFAULT_PAPERCLIP_EMBEDDED_POSTGRES_PORT = 54329;
+const DEFAULT_OUTPOST_EMBEDDED_POSTGRES_PORT = 54329;
 
 function getReservedTestPorts(): Set<number> {
   const configuredPorts = [
-    DEFAULT_PAPERCLIP_EMBEDDED_POSTGRES_PORT,
-    Number.parseInt(process.env.PAPERCLIP_EMBEDDED_POSTGRES_PORT ?? "", 10),
-    ...String(process.env.PAPERCLIP_TEST_POSTGRES_RESERVED_PORTS ?? "")
+    DEFAULT_OUTPOST_EMBEDDED_POSTGRES_PORT,
+    Number.parseInt(process.env.OUTPOST_EMBEDDED_POSTGRES_PORT ?? "", 10),
+    ...String(process.env.OUTPOST_TEST_POSTGRES_RESERVED_PORTS ?? "")
       .split(",")
       .map((value) => Number.parseInt(value.trim(), 10)),
   ];
@@ -263,7 +263,7 @@ async function startEmbeddedPostgresWithRetry(tempDirPrefix: string): Promise<{
 // those checks reject it. Windows has no uid; its temp directory is already
 // per user, so the ownership and mode checks are skipped there.
 //
-// Set PAPERCLIP_TEST_POSTGRES_TEMPLATE=0 to bypass the cache and run the fresh
+// Set OUTPOST_TEST_POSTGRES_TEMPLATE=0 to bypass the cache and run the fresh
 // path for every suite. Any failure on the template path (root checks, build,
 // copy, start, or publish) falls back to the fresh path, so a broken cache can
 // make a suite slower but never fail it or skip it: the fresh path still
@@ -278,7 +278,7 @@ const TEMPLATE_PRUNE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export type EmbeddedPostgresStartMode = "template" | "fresh";
 
 function isTemplateCacheDisabled(): boolean {
-  return process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE === "0";
+  return process.env.OUTPOST_TEST_POSTGRES_TEMPLATE === "0";
 }
 
 function migrationsDirectory(): string {

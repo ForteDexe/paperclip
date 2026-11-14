@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ databaseFactory: vi.fn(() => { throw new Error
 vi.mock("../../../server/src/services/plugin-registry.js", () => ({ pluginRegistryService: mocks.databaseFactory }));
 vi.mock("../../../server/src/middleware/logger.js", () => { const logger = { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: () => logger }; return { logger }; });
 import { createPluginToolDispatcher } from "../../../server/src/services/plugin-tool-dispatcher.js";
-const id = "11111111-1111-4111-8111-111111111111", otherId = "22222222-2222-4222-8222-222222222222", key = "paperclip.eval-preview-calibration";
+const id = "11111111-1111-4111-8111-111111111111", otherId = "22222222-2222-4222-8222-222222222222", key = "outpost.eval-preview-calibration";
 const selection = { id, key, count: 1 as const };
 const record = (status: "ready" | "disabled" = "ready") => ({ id, pluginKey: key, status });
 function fixture(pluginKey = key, pluginId = id) {
@@ -51,10 +51,10 @@ it("rejects the correct key namespace with a foreign returned database UUID", as
 });
 it.each([
   { selected: { ...selection, id: otherId }, plugin: record() },
-  { selected: { ...selection, key: "paperclip.foreign" }, plugin: record() },
+  { selected: { ...selection, key: "outpost.foreign" }, plugin: record() },
   { selected: { ...selection, key: id }, plugin: record() },
   { selected: selection, plugin: { ...record(), id: otherId } },
-  { selected: selection, plugin: { ...record(), pluginKey: "paperclip.foreign" } },
+  { selected: selection, plugin: { ...record(), pluginKey: "outpost.foreign" } },
   { selected: selection, plugin: record("disabled") },
   { selected: { ...selection, count: 0 as const }, plugin: record() },
 ])("rejects wrong selected identity/lifecycle before an empty query could hide it: %j", async ({ selected, plugin }) => {
@@ -68,11 +68,11 @@ it.each([
   [{ pluginId: otherId, name: `${key}:preview` }],
   [{ name: `${key}:preview` }],
   [{ pluginId: id, name: `${key}:preview` }, { pluginId: id, name: `${key}:preview` }],
-  [{ pluginId: id, name: `${key}:preview` }, { pluginId: otherId, name: "paperclip.foreign:preview" }],
+  [{ pluginId: id, name: `${key}:preview` }, { pluginId: otherId, name: "outpost.foreign:preview" }],
 ])("does not accept a wrong shape, count or foreign contribution: %j", value => {
   expect(() => requirePreviewToolInventory(record(), selection, value)).toThrow("inventory");
 });
 it("permits zero only for the same installed disabled identity", () => {
   expect(requirePreviewToolInventory(record("disabled"), { ...selection, count: 0 }, [])).toEqual([]);
-  expect(() => requirePreviewToolInventory({ ...record("disabled"), pluginKey: "paperclip.foreign" }, { ...selection, count: 0 }, [])).toThrow("identity or lifecycle");
+  expect(() => requirePreviewToolInventory({ ...record("disabled"), pluginKey: "outpost.foreign" }, { ...selection, count: 0 }, [])).toThrow("identity or lifecycle");
 });

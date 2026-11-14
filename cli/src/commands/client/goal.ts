@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import type { Goal } from "@paperclipai/shared";
-import { createGoalSchema, updateGoalSchema } from "@paperclipai/shared";
+import type { Goal } from "@outpost/shared";
+import { createGoalSchema, updateGoalSchema } from "@outpost/shared";
 import {
   addCommonClientOptions,
   apiPath,

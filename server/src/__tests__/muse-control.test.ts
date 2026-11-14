@@ -1,19 +1,19 @@
-import { subscribeDatabaseWork } from "@paperclipai/db";
+import { subscribeDatabaseWork } from "@outpost/db";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import express from "express";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { activityLog, agentCommentary, documents, issueDocuments } from "@paperclipai/db";
+import { activityLog, agentCommentary, documents, issueDocuments } from "@outpost/db";
 import request from "supertest";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, authUsers, companies, companyMemberships, createDb, closeRegisteredClients, applyPendingMigrations, externalAgentHolds, heartbeatRuns, issueAccessGrants, issueComments, issues, projects, principalPermissionGrants, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens, dotAgentBindings, dotRunnerAssignments, dotRunnerOperations, museIdleReceipts, museAgentBindings as bindings, museCredentials, museInputDeliveries, museReceiverContactBuckets, museMailboxItems as mailbox, museRunnerAssignments as assignments, museRunnerOperations as operations, nativeRunFinalizations } from "@paperclipai/db";
+import { agents, agentWakeupRequests, authUsers, companies, companyMemberships, createDb, closeRegisteredClients, applyPendingMigrations, externalAgentHolds, heartbeatRuns, issueAccessGrants, issueComments, issues, projects, principalPermissionGrants, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens, dotAgentBindings, dotRunnerAssignments, dotRunnerOperations, museIdleReceipts, museAgentBindings as bindings, museCredentials, museInputDeliveries, museReceiverContactBuckets, museMailboxItems as mailbox, museRunnerAssignments as assignments, museRunnerOperations as operations, nativeRunFinalizations } from "@outpost/db";
 import { heartbeatService } from "../services/heartbeat.js";
 import { startAgentLifecycle } from "../services/agent-lifecycle.js";
 import { agentHarnessVerificationService } from "../services/agent-harness-verification.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
-import { MUSE_PUBLIC_ROUTES, MUSE_CLIENT_VERSION, type MuseCredentials } from "@paperclipai/shared";
+import { MUSE_PUBLIC_ROUTES, MUSE_CLIENT_VERSION, type MuseCredentials } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { museOAuth } from "../services/muse-oauth.js";
 import { createPublicMcpOAuth, hashMcpSecret } from "../services/public-mcp/oauth.js";
@@ -34,10 +34,10 @@ import { boardAuthService } from "../services/board-auth.js";
 import { ensureHumanRoleDefaultGrants } from "../services/principal-access-compatibility.js";
 import { subscribeCompanyLiveEvents } from "../services/live-events.js";
 import { LOW_TRUST_QUARANTINED_BODY, buildLowTrustSourceTrust, buildPromotedSourceTrust, sanitizeQuarantinedCommentForHigherTrust } from "../services/source-trust.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { documentService } from "../services/documents.js";
 import { assertNoExternalOverlap, withExternalAdmissionGuard } from "../modules/external-agents/index.js";
-import { digestPaperclipSemanticContent, externalOperationDigest, parseNativeExecutionInput, canonicalNativeRuntimeContextDigest, nativeRuntimePromptDigest, NATIVE_RUNTIME_ASSET_SCHEMA, PAPERCLIP_EXECUTION_PROMPT, PAPERCLIP_EXECUTION_PROMPT_REVISION, type ExternalProviderOperation } from "../vendor/paperclip-runner/index.js";
+import { digestPaperclipSemanticContent, externalOperationDigest, parseNativeExecutionInput, canonicalNativeRuntimeContextDigest, nativeRuntimePromptDigest, NATIVE_RUNTIME_ASSET_SCHEMA, OUTPOST_EXECUTION_PROMPT, OUTPOST_EXECUTION_PROMPT_REVISION, type ExternalProviderOperation } from "../vendor/outpost-runner/index.js";
 import { actorMiddleware } from "../middleware/auth.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -47,7 +47,7 @@ import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordin
 describe("personal Muse control plane",()=>{
   let temporary:Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>|undefined,db:ReturnType<typeof createDb>,externalDatabaseUrl:string|undefined;
   beforeAll(async()=>{
-    externalDatabaseUrl=process.env.PAPERCLIP_MUSE_CONTROL_TEST_DATABASE_URL?.trim();
+    externalDatabaseUrl=process.env.OUTPOST_MUSE_CONTROL_TEST_DATABASE_URL?.trim();
     if(externalDatabaseUrl){await applyPendingMigrations(externalDatabaseUrl);db=createDb(externalDatabaseUrl);}
     else {temporary=await startEmbeddedPostgresTestDatabase("muse-control-");db=createDb(temporary.connectionString);}
     await instanceSettingsService(db).updateExperimental({enableNativeRunner:true,enableMuse:true});
@@ -56,16 +56,16 @@ describe("personal Muse control plane",()=>{
   async function fixture(ready=true) {
     const operatorId=randomUUID();await db.insert(authUsers).values({id:operatorId,name:"Muse authorizer",email:operatorId+"@example.test",createdAt:new Date(),updatedAt:new Date()});
     const [company]=await db.insert(companies).values({name:"Muse control",issuePrefix:"MU"+operatorId.replaceAll("-","")}).returning();
-    const [agent]=await db.insert(agents).values({companyId:company.id,name:"Muse",role:"engineer",status:"active",adapterType:"paperclip_runner",adapterConfig:{provider:"muse",allowUnmeteredProvider:true,lifecycle:"per_turn"},permissions:{canCreateTasks:true}}).returning();
+    const [agent]=await db.insert(agents).values({companyId:company.id,name:"Muse",role:"engineer",status:"active",adapterType:"outpost_runner",adapterConfig:{provider:"muse",allowUnmeteredProvider:true,lifecycle:"per_turn"},permissions:{canCreateTasks:true}}).returning();
     await db.insert(companyMemberships).values([{companyId:company.id,principalType:"user",principalId:operatorId,membershipRole:"owner",status:"active"},{companyId:company.id,principalType:"agent",principalId:agent.id,membershipRole:"member",status:"active"}]);
     const ticket=randomBytes(32).toString("base64url");const [binding]=await db.insert(bindings).values({companyId:company.id,agentId:agent.id,operatorId,ticketHash:museCredentialHash(ticket),ticketExpiresAt:new Date(Date.now()+600000)}).returning();
     await db.update(agents).set({adapterConfig:{...agent.adapterConfig,museBindingId:binding.id}}).where(eq(agents.id,agent.id));
-    const identity=museIdentity(db),credentials=await identity.pair(ticket,"2"),broker=museRunnerBroker(db,{publicOrigin:"https://paperclip.example",heartbeat:{wakeup:vi.fn().mockResolvedValue(null),cancelRun:vi.fn()}});
+    const identity=museIdentity(db),credentials=await identity.pair(ticket,"2"),broker=museRunnerBroker(db,{publicOrigin:"https://outpost.example",heartbeat:{wakeup:vi.fn().mockResolvedValue(null),cancelRun:vi.fn()}});
     if(ready)await db.update(bindings).set({status:"ready",receiverContactAt:new Date(),verifiedReplyAt:new Date()}).where(eq(bindings.id,binding.id));
     return {company,agent,operatorId,binding,ticket,identity,credentials,broker,subject:await identity.authenticate(credentials.accessToken)};
   }
-  function transport(allowLegacyCredentials=false) { const app=express();app.use(museTransportRoutes(db,"https://paperclip.example",{allowLegacyCredentials}));app.use(errorHandler);return app; }
-  const oauthOrigin="https://paperclip.example",oauthResource=oauthOrigin+"/api/muse/v1",oauthCallback="https://authd.example/callback";
+  function transport(allowLegacyCredentials=false) { const app=express();app.use(museTransportRoutes(db,"https://outpost.example",{allowLegacyCredentials}));app.use(errorHandler);return app; }
+  const oauthOrigin="https://outpost.example",oauthResource=oauthOrigin+"/api/muse/v1",oauthCallback="https://authd.example/callback";
   async function oauthFixture(ready=false,authorize=true) {
     const f=await fixture(false),ticket=randomBytes(32).toString("base64url");
     // This fixture starts the production OAuth journey from an unredeemed binding.
@@ -134,22 +134,22 @@ describe("personal Muse control plane",()=>{
   function projectWriteExecution(f: Awaited<ReturnType<typeof active>>) {
     const digest="0".repeat(64),now=Date.now();
     const context={
-      prompt:{revision:PAPERCLIP_EXECUTION_PROMPT_REVISION,text:PAPERCLIP_EXECUTION_PROMPT,digest:nativeRuntimePromptDigest()},
+      prompt:{revision:OUTPOST_EXECUTION_PROMPT_REVISION,text:OUTPOST_EXECUTION_PROMPT,digest:nativeRuntimePromptDigest()},
       instructions:{entryPath:"AGENTS.md",bundle:{schema:NATIVE_RUNTIME_ASSET_SCHEMA,digest,manifestDigest:digest,rootPath:"/synthetic/muse-jwt-instructions",fileCount:1,totalBytes:4}},
       skills:[],mcp:{assignmentSetId:"none",digest,bindingId:null},
     };
     const execution=parseNativeExecutionInput({
-      schema:"paperclip.native-execution-input.v8",
+      schema:"outpost.native-execution-input.v8",
       binding:{companyId:f.company.id,agentId:f.agent.id,runId:f.runId,issueId:f.issue.id,executionWorkspaceId:randomUUID()},
       task:{identifier:f.issue.identifier??"MUSE-JWT",title:f.issue.title,description:null,prompt:"Read the current actor.",workMode:"standard"},
       provider:{kind:"muse",model:null,bridgeRevision:"muse-v1",binding:{companyId:f.company.id,agentId:f.agent.id,bindingId:f.binding.id,bindingGeneration:f.binding.generation,acceptByUnixMs:now+600000,expiresAtUnixMs:now+3600000}},
       workspace:{access:"none",cwd:null,repoUrl:null,repoRef:null,branchName:null},
       session:{normalizedSessionId:f.ref.normalizedSessionId,driverKind:"muse_external",protocolVersion:1,lifecyclePolicy:{mode:"per_turn",idleTimeoutMs:null}},
       executionMode:"default",planningContext:null,
-      completionContract:{id:randomUUID(),sha256:"sha256:"+digest,schemaVersion:"paperclip.completion-contract.v1",contract:{revision:"1",objective:"Read the actor",criteria:[{id:"actor",requirement:"Read the actor"}]}},
+      completionContract:{id:randomUUID(),sha256:"sha256:"+digest,schemaVersion:"outpost.completion-contract.v1",contract:{revision:"1",objective:"Read the actor",criteria:[{id:"actor",requirement:"Read the actor"}]}},
       runtimeContext:{...context,aggregateDigest:canonicalNativeRuntimeContextDigest(context)},interactionResponses:[],credentialBindings:[],
     });
-    if(execution.schema!=="paperclip.native-execution-input.v8")throw new Error("Muse JWT fixture is not V8");
+    if(execution.schema!=="outpost.native-execution-input.v8")throw new Error("Muse JWT fixture is not V8");
     return execution;
   }
   it.each([
@@ -161,8 +161,8 @@ describe("personal Muse control plane",()=>{
     { wait: "receipt", fault: "unchanged", replay: true },
   ] as const)("rechecks Muse project-write authority after a real $wait lock wait ($fault, replay=$replay)", async ({ wait, fault, replay }) => {
     const f = await active(await oauthFixture(true));
-    const previousSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomBytes(32).toString("hex");
+    const previousSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomBytes(32).toString("hex");
     let releaseAfterAuth = () => {}, releaseHolder = () => {};
     let holder: Promise<void> | undefined;
     let operation: Promise<{ response?: { status: number; body: Record<string, unknown> }; error?: unknown }> | undefined;
@@ -174,7 +174,7 @@ describe("personal Muse control plane",()=>{
       const execution = projectWriteExecution(f);
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, f.runId));
       await expect(f.broker.assertRunAuthority(execution)).resolves.toBeUndefined();
-      const token = createLocalAgentJwt(f.agent.id, f.company.id, "paperclip_runner", f.runId, f.operatorId, undefined, f.operatorId);
+      const token = createLocalAgentJwt(f.agent.id, f.company.id, "outpost_runner", f.runId, f.operatorId, undefined, f.operatorId);
       expect(typeof token).toBe("string");
       let armed = false, authenticated = () => {};
       let observedActor: unknown;
@@ -289,14 +289,14 @@ describe("personal Muse control plane",()=>{
       releaseAfterAuth();
       releaseHolder();
       await Promise.allSettled([holder, operation].filter(value => value !== undefined));
-      if (previousSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-      else process.env.PAPERCLIP_AGENT_JWT_SECRET = previousSecret;
+      if (previousSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+      else process.env.OUTPOST_AGENT_JWT_SECRET = previousSecret;
       await f.detach();
     }
   }, 15000);
   it("authenticates current Muse V8 JWT actors and denies changed native bindings and grants",async()=>{
-    const f=await active(await oauthFixture(true)),previousSecret=process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    process.env.PAPERCLIP_AGENT_JWT_SECRET=randomBytes(32).toString("hex");
+    const f=await active(await oauthFixture(true)),previousSecret=process.env.OUTPOST_AGENT_JWT_SECRET;
+    process.env.OUTPOST_AGENT_JWT_SECRET=randomBytes(32).toString("hex");
     try {
       await ensureHumanRoleDefaultGrants(db,{companyId:f.company.id,principalId:f.operatorId,membershipRole:"owner",grantedByUserId:f.operatorId});
       expect((await f.broker.act(f.subject,{version:1,command:"accept",assignmentId:f.assignment.id,requestId:randomUUID()})).status).toBe("accepted");
@@ -304,26 +304,26 @@ describe("personal Muse control plane",()=>{
       // scheduler admission, or runtime-asset qualification is claimed here.
       const digest="0".repeat(64),now=Date.now();
       const context={
-        prompt:{revision:PAPERCLIP_EXECUTION_PROMPT_REVISION,text:PAPERCLIP_EXECUTION_PROMPT,digest:nativeRuntimePromptDigest()},
+        prompt:{revision:OUTPOST_EXECUTION_PROMPT_REVISION,text:OUTPOST_EXECUTION_PROMPT,digest:nativeRuntimePromptDigest()},
         instructions:{entryPath:"AGENTS.md",bundle:{schema:NATIVE_RUNTIME_ASSET_SCHEMA,digest,manifestDigest:digest,rootPath:"/synthetic/muse-jwt-instructions",fileCount:1,totalBytes:4}},
         skills:[],mcp:{assignmentSetId:"none",digest,bindingId:null},
       };
       const execution=parseNativeExecutionInput({
-        schema:"paperclip.native-execution-input.v8",
+        schema:"outpost.native-execution-input.v8",
         binding:{companyId:f.company.id,agentId:f.agent.id,runId:f.runId,issueId:f.issue.id,executionWorkspaceId:randomUUID()},
         task:{identifier:f.issue.identifier??"MUSE-JWT",title:f.issue.title,description:null,prompt:"Read the current actor.",workMode:"standard"},
         provider:{kind:"muse",model:null,bridgeRevision:"muse-v1",binding:{companyId:f.company.id,agentId:f.agent.id,bindingId:f.binding.id,bindingGeneration:f.binding.generation,acceptByUnixMs:now+600000,expiresAtUnixMs:now+3600000}},
         workspace:{access:"none",cwd:null,repoUrl:null,repoRef:null,branchName:null},
         session:{normalizedSessionId:f.ref.normalizedSessionId,driverKind:"muse_external",protocolVersion:1,lifecyclePolicy:{mode:"per_turn",idleTimeoutMs:null}},
         executionMode:"default",planningContext:null,
-        completionContract:{id:randomUUID(),sha256:"sha256:"+digest,schemaVersion:"paperclip.completion-contract.v1",contract:{revision:"1",objective:"Read the actor",criteria:[{id:"actor",requirement:"Read the actor"}]}},
+        completionContract:{id:randomUUID(),sha256:"sha256:"+digest,schemaVersion:"outpost.completion-contract.v1",contract:{revision:"1",objective:"Read the actor",criteria:[{id:"actor",requirement:"Read the actor"}]}},
         runtimeContext:{...context,aggregateDigest:canonicalNativeRuntimeContextDigest(context)},interactionResponses:[],credentialBindings:[],
       });
-      if(execution.schema!=="paperclip.native-execution-input.v8")throw new Error("Muse JWT fixture is not V8");
+      if(execution.schema!=="outpost.native-execution-input.v8")throw new Error("Muse JWT fixture is not V8");
       const profile={nativeExecutionInput:execution};
       await db.update(heartbeatRuns).set({runnerProfileJson:profile}).where(eq(heartbeatRuns.id,f.runId));
       await expect(f.broker.assertRunAuthority(execution)).resolves.toBeUndefined();
-      const token=createLocalAgentJwt(f.agent.id,f.company.id,"paperclip_runner",f.runId,f.operatorId,undefined,f.operatorId);
+      const token=createLocalAgentJwt(f.agent.id,f.company.id,"outpost_runner",f.runId,f.operatorId,undefined,f.operatorId);
       expect(typeof token).toBe("string");
       const app=express();app.use(actorMiddleware(db,{deploymentMode:"authenticated",resolveSession:async()=>null}));
       app.get("/actor",(req,res)=>res.json(req.actor));app.use(errorHandler);
@@ -339,12 +339,12 @@ describe("personal Muse control plane",()=>{
       expect((await read()).status).toBe(200);
       // This remains a valid V8 shape, but names a different current run.
       const otherRun={...execution,binding:{...execution.binding,runId:randomUUID()}};
-      expect(parseNativeExecutionInput(otherRun).schema).toBe("paperclip.native-execution-input.v8");
+      expect(parseNativeExecutionInput(otherRun).schema).toBe("outpost.native-execution-input.v8");
       await db.update(heartbeatRuns).set({runnerProfileJson:{nativeExecutionInput:otherRun}}).where(eq(heartbeatRuns.id,f.runId));
       const wrongRun=await read();expect(wrongRun.status).toBe(403);expect(wrongRun.body).toEqual({error:"Muse native tool authority is unavailable"});
       await db.update(heartbeatRuns).set({runnerProfileJson:profile}).where(eq(heartbeatRuns.id,f.runId));
       expect((await read()).status).toBe(200);
-      const otherAuthorizer=createLocalAgentJwt(f.agent.id,f.company.id,"paperclip_runner",f.runId,f.operatorId,undefined,randomUUID());
+      const otherAuthorizer=createLocalAgentJwt(f.agent.id,f.company.id,"outpost_runner",f.runId,f.operatorId,undefined,randomUUID());
       expect(typeof otherAuthorizer).toBe("string");
       const wrongAuthorizer=await request(app).get("/actor").set("Authorization","Bearer "+otherAuthorizer).set("X-Paperclip-Run-Id",f.runId);
       expect(wrongAuthorizer.status).toBe(403);expect(wrongAuthorizer.body).toEqual({error:"Muse native tool authority is unavailable"});
@@ -356,7 +356,7 @@ describe("personal Muse control plane",()=>{
       expect(await db.select().from(activityLog).where(eq(activityLog.companyId,f.company.id)).orderBy(activityLog.id)).toEqual(beforeActivity);
       expect((await db.select({status:heartbeatRuns.status,runtimeMode:heartbeatRuns.runtimeMode,runnerProfileJson:heartbeatRuns.runnerProfileJson,resultJson:heartbeatRuns.resultJson}).from(heartbeatRuns).where(eq(heartbeatRuns.id,f.runId)))[0]).toMatchObject({status:"running",runtimeMode:"native",runnerProfileJson:profile,resultJson:null});
     }finally{
-      if(previousSecret===undefined)delete process.env.PAPERCLIP_AGENT_JWT_SECRET;else process.env.PAPERCLIP_AGENT_JWT_SECRET=previousSecret;
+      if(previousSecret===undefined)delete process.env.OUTPOST_AGENT_JWT_SECRET;else process.env.OUTPOST_AGENT_JWT_SECRET=previousSecret;
       await f.detach();
     }
   });
@@ -397,7 +397,7 @@ describe("personal Muse control plane",()=>{
       });
       expect(await authority.execute({...call,callId:randomUUID()})).toEqual(first);
       expect(await snapshot()).toEqual(committed);
-      await expect(authority.execute({...call,callId:randomUUID(),arguments:{...call.arguments,body:body+" changed"}})).rejects.toThrow("paperclip_runner_tool_idempotency_conflict");
+      await expect(authority.execute({...call,callId:randomUUID(),arguments:{...call.arguments,body:body+" changed"}})).rejects.toThrow("outpost_runner_tool_idempotency_conflict");
       expect(await snapshot()).toEqual(committed);
       const history=await authority.execute({tool:"get_task_history",callId:randomUUID(),arguments:{limit:50}}) as {comments:Array<{id:string,body:string,sourceTrust:unknown}>};
       expect(history.comments).toHaveLength(1);
@@ -411,7 +411,7 @@ describe("personal Muse control plane",()=>{
         ]);
         // Construct a distinct, genuinely standard read context. This is a DB
         // read fixture, not scheduler admission, a handoff, or worker release.
-        const [reader]=await db.insert(agents).values({companyId:f.company.id,name:"Standard history reader",role:"engineer",status:"active",adapterType:"paperclip_runner",adapterConfig:{provider:"codex"}}).returning();
+        const [reader]=await db.insert(agents).values({companyId:f.company.id,name:"Standard history reader",role:"engineer",status:"active",adapterType:"outpost_runner",adapterConfig:{provider:"codex"}}).returning();
         await db.insert(companyMemberships).values({companyId:f.company.id,principalType:"agent",principalId:reader.id,membershipRole:"member",status:"active"});
         const readerRunId=randomUUID();
         await db.insert(heartbeatRuns).values({id:readerRunId,companyId:f.company.id,agentId:reader.id,status:"running",runtimeMode:"native",nativeIssueId:f.issue.id,responsibleUserId:f.operatorId,contextSnapshot:{issueId:f.issue.id}});
@@ -647,7 +647,7 @@ describe("personal Muse control plane",()=>{
       release();
       const [nativeOutcome,idleOutcome]=await Promise.all([native,idle]);
       const observed=JSON.stringify({phase,nativePid,idlePid,nativeCode:(nativeOutcome.error as {cause?:{code?:string};code?:string}|undefined)?.cause?.code??(nativeOutcome.error as {code?:string}|undefined)?.code,idleCode:(idleOutcome.error as {cause?:{code?:string};code?:string}|undefined)?.cause?.code??(idleOutcome.error as {code?:string}|undefined)?.code});
-      expect(nativeOutcome.error,observed).toMatchObject({status:409,message:"paperclip_runner_reassignment_conflict: target is busy; retry after current work settles"});
+      expect(nativeOutcome.error,observed).toMatchObject({status:409,message:"outpost_runner_reassignment_conflict: target is busy; retry after current work settles"});
       expect(idleOutcome.error,observed).toBeUndefined();expect(idleOutcome.result).toMatchObject({status:"commented",issueId:target.id});
       expect(await readTarget()).toEqual(beforeTarget);expect(await readReassignments()).toEqual(beforeReassignments);
       const [afterRun]=await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id,f.runId));
@@ -1133,7 +1133,7 @@ describe("personal Muse control plane",()=>{
     expect((await db.select().from(bindings).where(eq(bindings.id,f.binding.id)))[0].workerCursor).toBe(batch.nextCursor);
   });
   it("filters current idle task visibility even with global privacy disabled",async()=>{
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE","off");const f=await fixture();
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE","off");const f=await fixture();
     const other=randomUUID();await db.insert(authUsers).values({id:other,name:"other",email:other+"@example.test",createdAt:new Date(),updatedAt:new Date()});
     const [issue]=await db.insert(issues).values({companyId:f.company.id,title:"secret",visibility:"private",responsibleUserId:other,assigneeAgentId:f.agent.id}).returning();
     expect((await f.broker.inspect(f.subject,{version:1,query:"task.list"}) as {tasks:unknown[]}).tasks).toEqual([]);
@@ -1540,7 +1540,7 @@ describe("personal Muse control plane",()=>{
   it.each([false,true])("excludes fenced historical answers from pending health while retaining stop barriers:effects=%s",async(nativeEffectsUnknown)=>{
     const f=await active();try {
       await f.broker.act(f.subject,{version:1,command:"accept",assignmentId:f.assignment.id,requestId:randomUUID()});
-      const requestId="cancelled_question",response={schema:"paperclip.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
+      const requestId="cancelled_question",response={schema:"outpost.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
       await f.port.inputAvailable({sourceEventId:randomUUID(),payload:{binding:f.ref,requestId,turnId:f.ref.turnId,inputDigest,response}});
       const [answer]=await db.select().from(museInputDeliveries).where(eq(museInputDeliveries.assignmentId,f.assignment.id));
       expect((await f.broker.bindingForAgent(f.company.id,f.agent.id))!.pendingInputs).toBe(1);
@@ -1565,7 +1565,7 @@ describe("personal Muse control plane",()=>{
   it("persists canonical input before ACK and separates client proof from exact native input",async()=>{
     const f=await active();try {
       await f.broker.act(f.subject,{version:1,command:"accept",assignmentId:f.assignment.id,requestId:randomUUID()});
-      const requestId="native_question",response={schema:"paperclip.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
+      const requestId="native_question",response={schema:"outpost.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
       await f.port.inputAvailable({sourceEventId:randomUUID(),payload:{binding:f.ref,requestId,turnId:f.ref.turnId,inputDigest,response}});
       expect(await db.select().from(museInputDeliveries).where(eq(museInputDeliveries.assignmentId,f.assignment.id))).toHaveLength(1);
       await expect(f.broker.act(f.subject,{version:1,command:"finish",assignmentId:f.assignment.id,requestId:randomUUID(),result:{}})).rejects.toThrow("input");
@@ -1914,7 +1914,7 @@ describe("personal Muse control plane",()=>{
   it.each(["prior_window","overlapping_window","unreleased_effect_hold"] as const)("retains historical pending-input qualification periods without blocking later proven idle:%s",async(kind)=>{
     const f=await active();try {
       await f.broker.act(f.subject,{version:1,command:"accept",assignmentId:f.assignment.id,requestId:randomUUID()});
-      const requestId="historical_question",response={schema:"paperclip.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
+      const requestId="historical_question",response={schema:"outpost.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
       await f.port.inputAvailable({sourceEventId:randomUUID(),payload:{binding:f.ref,requestId,turnId:f.ref.turnId,inputDigest,response}});
       if(kind==="unreleased_effect_hold")await db.insert(operations).values({companyId:f.company.id,assignmentId:f.assignment.id,requestId:randomUUID(),digest:"pending",command:{action:"tool"},status:"pending"});
       await f.port.dispatch({sourceEventId:randomUUID(),payload:{kind:"authority_revoked",binding:f.ref}});
@@ -2459,7 +2459,7 @@ describe("personal Muse control plane",()=>{
     const oauth=await oauthFixture(true),f=await active(oauth);try {
       await f.broker.act(f.subject,{version:1,command:"accept",assignmentId:f.assignment.id,requestId:randomUUID()});
       if(kind==="input") {
-        const requestId="paused_question",response={schema:"paperclip.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
+        const requestId="paused_question",response={schema:"outpost.question_response.v1",answers:[]},inputDigest=digestPaperclipSemanticContent({requestId,turnId:f.ref.turnId,response});
         await f.port.inputAvailable({sourceEventId:randomUUID(),payload:{binding:f.ref,requestId,turnId:f.ref.turnId,inputDigest,response}});
       } else {
         const state=(await f.broker.bindingForAgent(f.company.id,f.agent.id))!;
@@ -2488,7 +2488,7 @@ describe("personal Muse control plane",()=>{
       await f.broker.act(f.subject,{version:1,command:"accept",assignmentId:f.assignment.id,requestId:randomUUID()});
       const state=(await f.broker.bindingForAgent(f.company.id,f.agent.id))!;
       await f.broker.verify(f.company.id,f.agent.id,{bindingId:f.binding.id,generation:1,expectedRevision:state.revision});
-      const nativeRequestId="disabled_question",response={schema:"paperclip.question_response.v1",answers:{answer:{text:"PRIVATE pending input canary"}}};
+      const nativeRequestId="disabled_question",response={schema:"outpost.question_response.v1",answers:{answer:{text:"PRIVATE pending input canary"}}};
       const inputDigest=digestPaperclipSemanticContent({requestId:nativeRequestId,turnId:f.ref.turnId,response});
       await f.port.inputAvailable({sourceEventId:randomUUID(),payload:{binding:f.ref,requestId:nativeRequestId,turnId:f.ref.turnId,inputDigest,response}});
       await db.insert(operations).values({companyId:f.company.id,assignmentId:f.assignment.id,requestId:randomUUID(),digest:"pending",command:{action:"tool"},status:"pending"});
@@ -2516,8 +2516,8 @@ describe("personal Muse control plane",()=>{
         {query:"task.document.read",issueId:f.issue.id,key:"memo"},{query:"operation.receipt",assignmentId:f.assignment.id,requestId:f.sent[0].requestId}];
       for(const query of workQueries)expect((await request(app).post("/api/muse/v1/queries").set("Authorization",authorization).send({version:1,...query})).status).toBe(503);
       const workCommands=[{command:"accept",assignmentId:f.assignment.id},{command:"progress",assignmentId:f.assignment.id,text:"no new effect"},
-        {command:"tool",assignmentId:f.assignment.id,name:"read_task",input:{}},{command:"finish",assignmentId:f.assignment.id,result:{schema:"paperclip.run_result.v1"}},
-        {command:"request_user_input",assignmentId:f.assignment.id,nativeRequestId:"new_question",questionSet:{schema:"paperclip.question_set.v1",questions:[{id:"answer",prompt:"No new question",required:true,answerMode:"text"}]}},
+        {command:"tool",assignmentId:f.assignment.id,name:"read_task",input:{}},{command:"finish",assignmentId:f.assignment.id,result:{schema:"outpost.run_result.v1"}},
+        {command:"request_user_input",assignmentId:f.assignment.id,nativeRequestId:"new_question",questionSet:{schema:"outpost.question_set.v1",questions:[{id:"answer",prompt:"No new question",required:true,answerMode:"text"}]}},
         {command:"consume_input",assignmentId:f.assignment.id,nativeRequestId,inputDigest,continuationReceiptId:randomUUID(),continuationPersisted:true},
         {command:"challenge.confirm",nonce:"unchanged-private-challenge"},{command:"work.request",issueId:f.issue.id},
         {command:"task.comment",issueId:f.issue.id,body:"No idle effect"},{command:"task.create",title:"No idle task"}];
@@ -2994,7 +2994,7 @@ describe("personal Muse control plane",()=>{
     }finally{await f.detach();}
   });
   it("revokes a persisted Muse grant through generic connection management after a public-origin change",async()=>{
-    const f=await oauthFixture(true),otherOrigin="https://new.paperclip.example",management=createPublicMcpOAuth(db,{origin:otherOrigin,resource:otherOrigin+"/mcp/paperclip"});
+    const f=await oauthFixture(true),otherOrigin="https://new.outpost.example",management=createPublicMcpOAuth(db,{origin:otherOrigin,resource:otherOrigin+"/mcp/paperclip"});
     await instanceSettingsService(db).updateExperimental({enablePublicMcp:true});
     await management.revokeConnection(f.binding.grantId!,f.operatorId);
     expect((await db.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id,f.binding.grantId!)))[0].revokedAt).toBeInstanceOf(Date);
@@ -3024,7 +3024,7 @@ describe("personal Muse control plane",()=>{
     const consent=await personal.consent(personalId,{type:"board",source:"session",userId:f.operatorId},{decision:"approve",companyId:f.company.id,allowWrites:false}),tokens=await personal.token({grant_type:"authorization_code",client_id:client.client_id,redirect_uri:oauthCallback,resource:personal.config.resource,code:new URL(consent.redirectUrl).searchParams.get("code")!,code_verifier:verifier});
     expect((await personal.authenticate(tokens.access_token)).actor).toMatchObject({type:"board",userId:f.operatorId,isInstanceAdmin:false});
     const [personalRefresh]=await db.select().from(mcpOauthTokens).where(eq(mcpOauthTokens.tokenHash,hashMcpSecret(tokens.refresh_token!)));expect(personalRefresh.expiresAt).toBeInstanceOf(Date);
-    const [agent]=await db.insert(agents).values({companyId:f.company.id,name:"Dot",status:"active",adapterType:"paperclip_runner",adapterConfig:{provider:"openai_dot"}}).returning();const dot=createPublicMcpOAuth(db,{origin:oauthOrigin,resource:oauthOrigin+"/mcp/runner"}),dotClient=await dot.register({client_name:"Dot",redirect_uris:[oauthCallback]},randomUUID()),pairing=await dotRunnerBroker(db).createPairing({companyId:f.company.id,agentId:agent.id,operatorId:f.operatorId});
+    const [agent]=await db.insert(agents).values({companyId:f.company.id,name:"Dot",status:"active",adapterType:"outpost_runner",adapterConfig:{provider:"openai_dot"}}).returning();const dot=createPublicMcpOAuth(db,{origin:oauthOrigin,resource:oauthOrigin+"/mcp/runner"}),dotClient=await dot.register({client_name:"Dot",redirect_uris:[oauthCallback]},randomUUID()),pairing=await dotRunnerBroker(db).createPairing({companyId:f.company.id,agentId:agent.id,operatorId:f.operatorId});
     const dotId=(await dot.authorize({client_id:dotClient.client_id,redirect_uri:oauthCallback,response_type:"code",resource:dot.config.resource,scope:"paperclip:agent offline_access",code_challenge:challenge,code_challenge_method:"S256"})).split("/").at(-1)!;
     const linked=await dot.consentDotPairing(dotId,pairing.pairingCode),dotTokens=await dot.token({grant_type:"authorization_code",client_id:dotClient.client_id,redirect_uri:oauthCallback,resource:dot.config.resource,code:new URL(linked.redirectUrl).searchParams.get("code")!,code_verifier:verifier});
     expect((await dot.authenticate(dotTokens.access_token)).actor).toMatchObject({type:"agent",agentId:agent.id});const [dotRefresh]=await db.select().from(mcpOauthTokens).where(eq(mcpOauthTokens.tokenHash,hashMcpSecret(dotTokens.refresh_token!)));expect(dotRefresh.expiresAt).toBeNull();

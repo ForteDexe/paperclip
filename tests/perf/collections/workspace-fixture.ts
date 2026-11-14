@@ -22,16 +22,16 @@ export const workspaceFixturePath = "test-results/collections/workspace-fixture.
 const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "[::1]", "::1"];
 
 async function databaseUrl() {
-  let url = process.env.PAPERCLIP_COLLECTION_PERF_DATABASE_URL;
-  if (!url && process.env.PAPERCLIP_CONFIG) {
-    const config = JSON.parse(await fs.readFile(process.env.PAPERCLIP_CONFIG, "utf8"));
+  let url = process.env.OUTPOST_COLLECTION_PERF_DATABASE_URL;
+  if (!url && process.env.OUTPOST_CONFIG) {
+    const config = JSON.parse(await fs.readFile(process.env.OUTPOST_CONFIG, "utf8"));
     url = config.database.mode === "postgres" ? config.database.connectionString
       : `postgres://paperclip:paperclip@127.0.0.1:${(await fs.readFile(
         path.join(config.database.embeddedPostgresDataDir, "postmaster.pid"), "utf8")).split("\n")[3]}/paperclip`;
   }
   if (!url) {
-    throw new Error("Workspace-scale checks seed execution workspaces directly. Set PAPERCLIP_COLLECTION_PERF_DATABASE_URL "
-      + "to the disposable instance database, or PAPERCLIP_CONFIG to its config.json.");
+    throw new Error("Workspace-scale checks seed execution workspaces directly. Set OUTPOST_COLLECTION_PERF_DATABASE_URL "
+      + "to the disposable instance database, or OUTPOST_CONFIG to its config.json.");
   }
   if (!LOOPBACK_HOSTS.includes(new URL(url).hostname)) throw new Error("Workspace-scale seeding only supports a loopback database.");
   return url;

@@ -4,8 +4,8 @@
 // browser install a new worker, which — via skipWaiting + controllerchange —
 // reloads parked tabs onto the fresh bundle. Left as the literal placeholder in
 // dev, where HMR (not the worker) drives refreshes.
-const BUILD_ID = "__PAPERCLIP_BUILD_ID__";
-const OFFLINE_STYLES = "__PAPERCLIP_OFFLINE_STYLES__";
+const BUILD_ID = "__OUTPOST_BUILD_ID__";
+const OFFLINE_STYLES = "__OUTPOST_OFFLINE_STYLES__";
 // Separate this allowlisted cache from older workers that cached arbitrary URLs.
 const CACHE_NAME = `paperclip-public-assets-${BUILD_ID}`;
 const privateRequests = new Set();

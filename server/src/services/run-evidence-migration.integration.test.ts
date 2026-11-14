@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { sql } from "drizzle-orm";
-import { createDb, type Db } from "@paperclipai/db";
+import { createDb, type Db } from "@outpost/db";
 import {
   S3Client,
   CreateBucketCommand,
@@ -20,13 +20,13 @@ import { resolveExternalTestDatabaseUrl } from "../__tests__/helpers/external-te
 import { formatNativeRunLogEvent } from "./native-runtime/native-run-log-export.js";
 import { nativeSha256 } from "./native-runtime/canonical.js";
 import { createObjectByteJournal } from "./object-byte-journal.js";
-import type { PrpEvent } from "../vendor/paperclip-runner/index.js";
+import type { PrpEvent } from "../vendor/outpost-runner/index.js";
 import { compactRunLogChunk } from "./heartbeat/run-log.js";
 import { getRunLogStore, openLegacyRunLogForMigration } from "./run-log-store.js";
 import { readRecoverableRunLog } from "./native-runtime/native-run-log-recovery.js";
 
-const endpoint = process.env.PAPERCLIP_LOG_TEST_S3_ENDPOINT;
-const databaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_RUN_EVIDENCE_MIGRATION_DATABASE_URL");
+const endpoint = process.env.OUTPOST_LOG_TEST_S3_ENDPOINT;
+const databaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_RUN_EVIDENCE_MIGRATION_DATABASE_URL");
 describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and S3)", () => {
   let db: Db, client: S3Client, bucket: string, directory: string;
   const schema = `migration_${randomUUID().replaceAll("-", "")}`;
@@ -50,17 +50,17 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
       byte_count bigint not null default 0, digest text, reason text, requested_by text not null, expires_at timestamptz not null,
       deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now())`);
     directory = await fs.mkdtemp(path.join(os.tmpdir(), "evidence-migration-"));
-    vi.stubEnv("PAPERCLIP_CONFIG", path.join(directory, "config.json"));
+    vi.stubEnv("OUTPOST_CONFIG", path.join(directory, "config.json"));
     vi.stubEnv("RUN_LOG_BASE_PATH", path.join(directory, "logs"));
     vi.stubEnv("PROVIDER_TRACE_BASE_PATH", path.join(directory, "traces"));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "b".repeat(64));
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "s3");
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_ENDPOINT", endpoint!);
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_REGION", "us-east-1");
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_PREFIX", "");
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE", "true");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "b".repeat(64));
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "s3");
+    vi.stubEnv("OUTPOST_STORAGE_S3_ENDPOINT", endpoint!);
+    vi.stubEnv("OUTPOST_STORAGE_S3_REGION", "us-east-1");
+    vi.stubEnv("OUTPOST_STORAGE_S3_PREFIX", "");
+    vi.stubEnv("OUTPOST_STORAGE_S3_FORCE_PATH_STYLE", "true");
     bucket = `paperclip-migration-test-${randomUUID()}`;
-    vi.stubEnv("PAPERCLIP_STORAGE_S3_BUCKET", bucket);
+    vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", bucket);
     client = new S3Client({
       endpoint,
       region: "us-east-1",
@@ -118,10 +118,10 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
     vi.stubEnv("RUN_LOG_S3_REGION", "us-east-1");
     vi.stubEnv("RUN_LOG_S3_FORCE_PATH_STYLE", "true");
     vi.stubEnv("RUN_LOG_S3_PREFIX", "run-logs");
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "false");
+    vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
     const options = { apply: true, companyId, kinds: ["log"] as const, preserveHistoricalFiles: true };
     await expect(migrateRunEvidence(db, options)).rejects.toThrow("historical_log_archive_requires_offline_migration");
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "true");
     const active = randomUUID();
     // A different company's active execution must also block offline archival.
     await db.execute(sql`insert into heartbeat_runs(id,company_id,agent_id,status) values(${active},${randomUUID()},${randomUUID()},'running')`);
@@ -161,7 +161,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
       ["mirror", "mirror_completeness_unproven"]]) {
       expect(result.items.find(item => item.id === runs.get(name!)!.id)).toMatchObject({ state: "blocked", reason });
     }
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "false");
+    vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
     // A source that changes after it was opened cannot be published as a stable archive.
     const sourceRun = runs.get("wrong-digest")!;
     const source = await openLegacyRunLogForMigration(sourceRun.ref);
@@ -171,7 +171,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
     await expect(source.assertUnchanged()).rejects.toThrow("legacy_log_source_changed");
   });
   it("fails the offline page if new execution appears during publication, and resumes verified history", async () => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "true");
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), activeId = randomUUID();
     const logRef = `${companyId}/${agentId}/${runId}.ndjson`, bytes = "old unfinished history";
     await fs.mkdir(path.dirname(path.join(directory, "logs", logRef)), { recursive: true });
@@ -195,7 +195,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
       await db.execute(sql`delete from heartbeat_runs where id=${activeId}`);
     }
     expect((await migrateRunEvidence(db, options)).items).toEqual([]);
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "false");
+    vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
   });
   it("preserves exact historical bytes and expiry, while refusing active/missing/corrupt sources", async () => {
     const company = randomUUID(),
@@ -315,7 +315,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
         normalizedSessionId = randomUUID();
       runs.push(runId);
       const events: PrpEvent[] = [1, 2].map((sourceSeq) => ({
-        schema: "paperclip.prp.event.v1",
+        schema: "outpost.orp.event.v1",
         schemaVersion: 1,
         runId,
         sourceInstanceId,
@@ -349,7 +349,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
         values(${runId},${companyId},${agentId},'succeeded','native','local_file',${logRef},${finalized ? bytes.length : null},${finalized ? createHash("sha256").update(bytes).digest("hex") : null})`);
       for (const [index, event] of events.entries())
         await db.execute(sql`insert into heartbeat_run_events
-        values(${companyId},${runId},${index + 1},${JSON.stringify({ prpEvent: event })}::jsonb,${sourceInstanceId},${event.sourceEventId},${event.sourceSeq},${nativeSha256(event)},${event.eventType})`);
+        values(${companyId},${runId},${index + 1},${JSON.stringify({ orpEvent: event })}::jsonb,${sourceInstanceId},${event.sourceEventId},${event.sourceSeq},${nativeSha256(event)},${event.eventType})`);
     }
     const migrated = await migrateRunEvidence(db, { apply: true, companyId });
     expect(migrated.items.find((item) => item.id === runs[0])).toMatchObject({
@@ -392,7 +392,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
       const runId = randomUUID(),
         sourceInstanceId = randomUUID();
       const event: PrpEvent = {
-        schema: "paperclip.prp.event.v1",
+        schema: "outpost.orp.event.v1",
         schemaVersion: 1,
         runId,
         sourceInstanceId,
@@ -423,7 +423,7 @@ describe.skipIf(!endpoint || !databaseUrl)("run evidence migration (Postgres and
       // A similar truncated display string cannot prove a different canonical event.
       if (state === "different-source") event.payload = { text: "different source ".repeat(12_000) };
       await db.execute(sql`insert into heartbeat_run_events values(${companyId},${runId},1,
-        ${JSON.stringify({ prpEvent: event })}::jsonb,${sourceInstanceId},${event.sourceEventId},1,${nativeSha256(event)},${event.eventType})`);
+        ${JSON.stringify({ orpEvent: event })}::jsonb,${sourceInstanceId},${event.sourceEventId},1,${nativeSha256(event)},${event.eventType})`);
     }
     const result = await migrateRunEvidence(db, { apply: true, companyId });
     const finalized = runs.get("finalized")!;

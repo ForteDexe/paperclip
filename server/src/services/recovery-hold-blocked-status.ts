@@ -1,4 +1,4 @@
-import type { heartbeatRuns, issueRecoveryActions, issues } from "@paperclipai/db";
+import type { heartbeatRuns, issueRecoveryActions, issues } from "@outpost/db";
 import { nativeWorkspaceFinalizationBlockSchema } from "./native-runtime/preserved-native-result-finalization.js";
 
 const object = (value: unknown): Record<string, unknown> =>

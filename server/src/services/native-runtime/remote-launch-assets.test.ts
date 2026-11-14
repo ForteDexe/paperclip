@@ -4,10 +4,10 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createTarballFromDirectory } from "@paperclipai/adapter-utils/sandbox-managed-runtime";
+import { createTarballFromDirectory } from "@outpost/adapter-utils/sandbox-managed-runtime";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { stageRemoteLaunchAssets } from "./remote-launch-assets.js";
-import { prepareIsolatedCodexHome, releaseMaterializedNativeRuntimeSkills, resolveRunnerdCodexSkillInputs } from "../../vendor/paperclip-runner/testing.js";
+import { prepareIsolatedCodexHome, releaseMaterializedNativeRuntimeSkills, resolveRunnerdCodexSkillInputs } from "../../vendor/outpost-runner/testing.js";
 
 function deferred() {
   let resolve!: () => void;

@@ -1,6 +1,6 @@
 import { createServer, type RequestListener, type ServerOptions } from "node:http";
 import { setupPluginApiWebSocketServer } from "../realtime/plugin-api-ws.js";
-import { setupRunnerPrpWebSocketServer } from "../realtime/runner-prp-ws.js";
+import { setupRunnerPrpWebSocketServer } from "../realtime/runner-orp-ws.js";
 import { registerLocalRuntimeApiServer } from "../runtime-api.js";
 
 /** Create the HTTP listener used by both production and custom launchers. */

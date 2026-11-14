@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chatConversations, chatDeliveries, chatMessageLinks, createDb, heartbeatRuns,
-  issueComments, issues, statusDecisions, type Db } from "@paperclipai/db";
+  issueComments, issues, statusDecisions, type Db } from "@outpost/db";
 import { seedBoundChatAuthorization } from "./helpers/bound-chat-authorization.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { issueService } from "../services/issues.js";

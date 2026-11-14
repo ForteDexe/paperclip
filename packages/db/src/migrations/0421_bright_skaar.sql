@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "execution_workspace_snapshots" (
 	"generation" integer NOT NULL,
 	"epoch" integer NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
-	"format" text DEFAULT 'paperclip.remote-workspace-archive.v1' NOT NULL,
+	"format" text DEFAULT 'outpost.remote-workspace-archive.v1' NOT NULL,
 	"object_key" text,
 	"sha256" text,
 	"byte_size" bigint,

@@ -1,4 +1,4 @@
-import { checkOAuthEndpointUrl, oauthEndpointUrlRejectionMessage, type OAuthEndpointKind, type OAuthEndpointUrlRejection } from "@paperclipai/shared";
+import { checkOAuthEndpointUrl, oauthEndpointUrlRejectionMessage, type OAuthEndpointKind, type OAuthEndpointUrlRejection } from "@outpost/shared";
 import { HttpError } from "../../../errors.js";
 import { originOf, isSmokeLabOAuthUrl } from "./metadata.js";
 
@@ -34,8 +34,8 @@ export function createOAuthEndpointPolicy(allowPrivateRemoteEndpoints: () => boo
    */
   function firstPartyOrigins(candidate?: string | null): string[] {
     const configured =
-      process.env.PAPERCLIP_PUBLIC_URL?.trim() ||
-      process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL?.trim() ||
+      process.env.OUTPOST_PUBLIC_URL?.trim() ||
+      process.env.OUTPOST_AUTH_PUBLIC_BASE_URL?.trim() ||
       process.env.BETTER_AUTH_URL?.trim() ||
       process.env.BETTER_AUTH_BASE_URL?.trim() ||
       null;

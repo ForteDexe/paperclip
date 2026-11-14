@@ -7,8 +7,8 @@ import { isSafeNativeChatProgressEventType } from "./safe-native-chat-progress.j
 import { notifyChatNativeProgress } from "./chat-native-progress-notifications.js";
 import { boundRunIssueIdSql } from "./run-task-binding.js";
 import { and, asc, eq, getTableColumns, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { heartbeatRunEvents, heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
 import { nativeSha256 } from "./native-runtime/canonical.js";
 
 export const RETRY_EXHAUSTION_MESSAGE_PREFIX = "Bounded retry exhausted";
@@ -64,7 +64,7 @@ export class HeartbeatRunEventConflictError extends Error {
 }
 
 /**
- * Atomically reserve the next event sequence on the run row. Both native PRP
+ * Atomically reserve the next event sequence on the run row. Both native ORP
  * ingestion and legacy/direct-adapter writers use this allocator so the
  * database uniqueness invariant cannot turn a concurrent log/cancel/recovery
  * race into a failed run.
@@ -96,9 +96,9 @@ export async function appendHeartbeatRunEvent(
   // check. Register the scoped wake before writing it, in the same transaction.
   const projectsRecovery = ["native.process_start_requested", "native.process_identity_recorded", "native.local_process_stopped"].includes(input.eventType)
     || Boolean(input.nativeSource && ["turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"].includes(input.eventType));
-  const projectsReassessment = readNativeEventEvidenceOutcome(input.payload?.prpEvent) !== null;
+  const projectsReassessment = readNativeEventEvidenceOutcome(input.payload?.orpEvent) !== null;
   const projectsProgress = isSafeNativeChatProgressEventType(input.eventType);
-  const projectsResponse = isNativeResponseEvidence(input.eventType, input.payload?.prpEvent);
+  const projectsResponse = isNativeResponseEvidence(input.eventType, input.payload?.orpEvent);
   // Deduplicated receipts return without allocating, so they cannot carry run changes.
   if (input.runUpdate && (input.nativeSource || input.retryExhaustion)) throw new Error("heartbeat_run_event_run_update_unsupported");
   if (!input.runUpdate && !input.nativeSource && !input.retryExhaustion && !projectsProgress && !projectsResponse && !projectsReassessment && !projectsRecovery && !projectsRetention) {

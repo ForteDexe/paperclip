@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environments, instanceSettings, type Db } from "@paperclipai/db";
+import { agents, companies, createDb, environments, instanceSettings, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { fillUnsetInstanceDefault } from "../services/managed-instance-default.js";
 import { applyManagedEnvironments } from "../services/managed-environments.js";

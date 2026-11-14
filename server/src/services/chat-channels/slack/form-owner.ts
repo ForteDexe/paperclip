@@ -3,13 +3,13 @@ import { slackFormEnrollmentActionId, slackFormEnrollmentCompatibleActionIds } f
 import { acceptSlackFormRetirementLocally, transferSlackFormRetirement } from "./form-retirement-work.js";
 import { reconcileSlackFormNormalAck } from "./form-ack-work.js";
 import { HttpError } from "../../../errors.js";
-import { createPaperclipCloudConnector, paperclipCloudConnectorConfigFromEnv, PaperclipCloudConnectorError } from "../../paperclip-cloud-connector.js";
+import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv, PaperclipCloudConnectorError } from "../../paperclip-cloud-connector.js";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { chatActions, chatEndpoints, chatPublications, issueThreadInteractions, toolConnections, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, chatPublications, issueThreadInteractions, toolConnections, type Db } from "@outpost/db";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "../../delivery-work-notifications.js";
 import { resolveChatQuestionFormOpen, type ResolvedChatQuestionFormOpen } from "../../chat-question-forms.js";
-import type { IssueThreadInteraction } from "@paperclipai/shared";
+import type { IssueThreadInteraction } from "@outpost/shared";
 import { chatInteractionForm } from "../../chat-interaction-forms.js";
 import { SlackCloudReceiptError } from "./cloud-event.js";
 import { slackFormSetupRecord, parseSlackFormBinding, parseSlackFormPublicEnrollment, projectSlackIssuedFormGrant,
@@ -255,10 +255,10 @@ export async function stageSlackFormPublication(tx: Tx, publicationId: string, i
 
 
 export function createSlackFormConnectorAccess() {
-  let cached: { config: NonNullable<ReturnType<typeof paperclipCloudConnectorConfigFromEnv>>; connector: ReturnType<typeof createPaperclipCloudConnector> } | undefined;
+  let cached: { config: NonNullable<ReturnType<typeof outpostCloudConnectorConfigFromEnv>>; connector: ReturnType<typeof createPaperclipCloudConnector> } | undefined;
   const connector = () => {
-    let config: ReturnType<typeof paperclipCloudConnectorConfigFromEnv>;
-    try { config = paperclipCloudConnectorConfigFromEnv(); } catch { return null; }
+    let config: ReturnType<typeof outpostCloudConnectorConfigFromEnv>;
+    try { config = outpostCloudConnectorConfigFromEnv(); } catch { return null; }
     if (!config) { cached = undefined; return null; }
     if (!cached || !isDeepStrictEqual(cached.config, config)) cached = { config, connector: createPaperclipCloudConnector({ config }) };
     return cached.connector;

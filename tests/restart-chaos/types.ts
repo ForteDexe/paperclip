@@ -230,7 +230,7 @@ export interface ScheduledFault {
 }
 
 export interface WavePlan {
-  schema: "paperclip.restart-chaos.wave-plan/v1";
+  schema: "outpost.restart-chaos.wave-plan/v1";
   waveId: string;
   seed: number;
   createdAt: string;

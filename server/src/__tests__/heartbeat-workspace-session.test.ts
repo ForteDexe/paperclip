@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
-import type { agents } from "@paperclipai/db";
-import { sessionCodec as codexSessionCodec } from "@paperclipai/adapter-codex-local/server";
+import type { agents } from "@outpost/db";
+import { sessionCodec as codexSessionCodec } from "@outpost/adapter-codex-local/server";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import {
   applyPersistedExecutionWorkspaceConfig,
@@ -2729,7 +2729,7 @@ describe("effective run session config freshness", () => {
       const runtimeSkills = [{ key: "paperclip", runtimeName: "paperclip", versionId,
         currentVersionId: versionId, source: `${home}/packages/skill`, sourceStatus: "available" }];
       return buildSessionConfigMetadata({
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         effectiveAdapterConfig: { model: "gpt-5.4-mini", instructionsBundleMode: "managed",
           instructionsRootPath: `${home}/instructions`, instructionsFilePath: `${home}/instructions/AGENTS.md`,
           instructionsEntryFile: "AGENTS.md", paperclipRuntimeSkills: runtimeSkills },
@@ -2755,11 +2755,11 @@ describe("effective run session config freshness", () => {
     await fs.writeFile(path.join(root, "AGENTS.md"), body);
     const config = { model: "gpt-5.4-mini", instructionsBundleMode: "managed", instructionsRootPath: root,
       instructionsFilePath: path.join(root, "AGENTS.md"), instructionsEntryFile: "AGENTS.md" };
-    const before = await buildSessionConfigMetadata({ adapterType: "paperclip_runner", effectiveAdapterConfig: config });
+    const before = await buildSessionConfigMetadata({ adapterType: "outpost_runner", effectiveAdapterConfig: config });
     await fs.rm(root, { recursive: true });
     const managedInstructions = { entryFile: "AGENTS.md", contentHash: "sha256:" + createHash("sha256").update(body).digest("hex") };
     const metadata = (contentHash = managedInstructions.contentHash, model = config.model, retainManagedInstructionPaths = false) =>
-      buildSessionConfigMetadata({ adapterType: "paperclip_runner", effectiveAdapterConfig: { ...config, model },
+      buildSessionConfigMetadata({ adapterType: "outpost_runner", effectiveAdapterConfig: { ...config, model },
         managedInstructions: { ...managedInstructions, contentHash }, retainManagedInstructionPaths });
     const after = await metadata();
     const decide = (current: SessionConfigMetadata, compatible: SessionConfigMetadata[] = []) => resolveTaskSessionConfigFreshness({
@@ -3287,7 +3287,7 @@ describe("formatRuntimeWorkspaceWarningLog", () => {
   it("emits informational workspace warnings on stdout", () => {
     expect(formatRuntimeWorkspaceWarningLog("Using fallback workspace")).toEqual({
       stream: "stdout",
-      chunk: "[paperclip] Using fallback workspace\n",
+      chunk: "[outpost] Using fallback workspace\n",
     });
   });
 });
@@ -3406,7 +3406,7 @@ describe("isWorkspaceSyncConflictFailure", () => {
 
 describe("native lifecycle default and saved task sessions", () => {
   const native = (lifecycle: Record<string, unknown>) => buildSessionConfigMetadata({
-    adapterType: "paperclip_runner",
+    adapterType: "outpost_runner",
     effectiveAdapterConfig: { provider: "codex", model: "gpt-6.1-sol", codexPermissionMode: "never", ...lifecycle },
   });
 

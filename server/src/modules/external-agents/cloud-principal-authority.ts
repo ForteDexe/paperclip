@@ -4,7 +4,7 @@ import {
   getCloudRuntimeIdentity,
   verifyCloudControlAssertion,
 } from "../../services/cloud-runtime-identity.js";
-import { paperclipCloudConnectorConfigFromEnv } from "../../services/paperclip-cloud-connector.js";
+import { outpostCloudConnectorConfigFromEnv } from "../../services/paperclip-cloud-connector.js";
 
 export const dotPrincipalControlPath = "/mcp/runner/oauth/cloud-principal";
 export const dotPrincipalControlBodySchema = z
@@ -74,7 +74,7 @@ export function verifyDotPrincipalControl(
 }
 export function readDotPrincipalControlAuthority() {
   const identity = getCloudRuntimeIdentity(),
-    connector = paperclipCloudConnectorConfigFromEnv();
+    connector = outpostCloudConnectorConfigFromEnv();
   return identity && connector
     ? {
         stackId: identity.stackId,

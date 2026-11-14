@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { and, asc, desc, eq, inArray, isNull, isNotNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { companies, dotAgentBindings as bindings, dotRunnerAssignments as assignments,
-  grokBotRoutines as routines, grokBotDispatches as dispatches, mcpOauthGrants, type Db } from "@paperclipai/db";
+  grokBotRoutines as routines, grokBotDispatches as dispatches, mcpOauthGrants, type Db } from "@outpost/db";
 import { authorizeExternalBotBinding, authorizeExternalBotOperator, externalBotEnabled } from "../external-bot-authority.js";
 import { McpOAuthError, type McpPrincipal } from "../public-mcp/oauth.js";
 import { secretService } from "../secrets.js";
@@ -147,7 +147,7 @@ export function grokRoutineService(db: Db, deliver: Delivery = deliverGrokRoutin
       const [pending] = input.kind === "verify" ? await tx.select({ id: dispatches.id }).from(dispatches).where(and(eq(dispatches.routineId, routine.id), eq(dispatches.routineRevision, routine.revision), eq(dispatches.kind, "verify"), inArray(dispatches.status, ["prepared", "sending", "accepted", "unknown"]))) : [];
       if (pending) throw fail("Verification already has an outstanding delivery. Inspect it before sending another.");
       const correlationId = randomUUID();
-      const common = { schema: "paperclip.external_bot_wake.v1" as const, bindingId: binding.id, bindingGeneration: binding.generation, correlationId };
+      const common = { schema: "outpost.external_bot_wake.v1" as const, bindingId: binding.id, bindingGeneration: binding.generation, correlationId };
       const challenge = input.kind === "verify" ? randomBytes(24).toString("base64url") : null;
       const wake: GrokRoutineWake = input.kind === "verify" ? { ...common, kind: "verify", challenge: challenge! }
         : input.kind === "authority_revoked" ? { ...common, kind: "authority_revoked", assignmentId: z.uuid().parse(input.assignmentId) }

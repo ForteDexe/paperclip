@@ -2,12 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { config as loadDotenv, parse as parseEnvFileContents } from "dotenv";
-import { updateEnvFileContents, writeEnvFileAtomicallyIfChanged } from "@paperclipai/shared/env-file";
+import { updateEnvFileContents, writeEnvFileAtomicallyIfChanged } from "@outpost/shared/env-file";
 import { resolveConfigPath } from "./store.js";
 
-const JWT_SECRET_ENV_KEY = "PAPERCLIP_AGENT_JWT_SECRET";
-const TOOL_ACTION_SIGNING_SECRET_ENV_KEY = "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET";
-const PAPERCLIP_OWNED_ENV_KEY_PATTERN = /^PAPERCLIP_[A-Z0-9_]+$/;
+const JWT_SECRET_ENV_KEY = "OUTPOST_AGENT_JWT_SECRET";
+const TOOL_ACTION_SIGNING_SECRET_ENV_KEY = "OUTPOST_TOOL_ACTION_SIGNING_SECRET";
+const OUTPOST_OWNED_ENV_KEY_PATTERN = /^OUTPOST_[A-Z0-9_]+$/;
 function resolveEnvFilePath(configPath?: string) {
   return path.resolve(path.dirname(resolveConfigPath(configPath)), ".env");
 }
@@ -33,15 +33,15 @@ function emptyEnvFileContents() {
   ].join("\n");
 }
 
-function paperclipOwnedEntries(entries: Record<string, string>): Record<string, string> {
+function outpostOwnedEntries(entries: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(entries).filter(
-      ([key, value]) => PAPERCLIP_OWNED_ENV_KEY_PATTERN.test(key) && value.trim().length > 0,
+      ([key, value]) => OUTPOST_OWNED_ENV_KEY_PATTERN.test(key) && value.trim().length > 0,
     ),
   );
 }
 
-export function resolvePaperclipEnvFile(configPath?: string): string {
+export function resolveOutpostEnvFile(configPath?: string): string {
   return resolveEnvFilePath(configPath);
 }
 
@@ -49,7 +49,7 @@ export function resolveAgentJwtEnvFile(configPath?: string): string {
   return resolveEnvFilePath(configPath);
 }
 
-export function loadPaperclipEnvFile(configPath?: string): void {
+export function loadOutpostEnvFile(configPath?: string): void {
   loadAgentJwtEnvFile(resolveEnvFilePath(configPath));
 }
 
@@ -102,44 +102,44 @@ export function ensureToolActionSigningSecret(configPath?: string): { secret: st
   }
 
   const envFilePath = resolveEnvFilePath(configPath);
-  const existingFile = readPaperclipEnvEntries(envFilePath)[TOOL_ACTION_SIGNING_SECRET_ENV_KEY];
+  const existingFile = readOutpostEnvEntries(envFilePath)[TOOL_ACTION_SIGNING_SECRET_ENV_KEY];
   const secret = isNonEmpty(existingFile) ? existingFile.trim() : randomBytes(32).toString("hex");
   const created = !isNonEmpty(existingFile);
 
   if (created) {
-    mergePaperclipEnvEntries({ [TOOL_ACTION_SIGNING_SECRET_ENV_KEY]: secret }, envFilePath);
+    mergeOutpostEnvEntries({ [TOOL_ACTION_SIGNING_SECRET_ENV_KEY]: secret }, envFilePath);
   }
 
   return { secret, created };
 }
 
 export function writeAgentJwtEnv(secret: string, filePath = resolveEnvFilePath()): void {
-  mergePaperclipEnvEntries({ [JWT_SECRET_ENV_KEY]: secret }, filePath);
+  mergeOutpostEnvEntries({ [JWT_SECRET_ENV_KEY]: secret }, filePath);
 }
 
-export function readPaperclipEnvEntries(filePath = resolveEnvFilePath()): Record<string, string> {
+export function readOutpostEnvEntries(filePath = resolveEnvFilePath()): Record<string, string> {
   if (!fs.existsSync(filePath)) return {};
   return parseEnvFile(fs.readFileSync(filePath, "utf-8"));
 }
 
-export function writePaperclipEnvEntries(entries: Record<string, string>, filePath = resolveEnvFilePath()): void {
+export function writeOutpostEnvEntries(entries: Record<string, string>, filePath = resolveEnvFilePath()): void {
   const previousContents = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : null;
-  const nextContents = updateEnvFileContents(previousContents ?? emptyEnvFileContents(), paperclipOwnedEntries(entries), {
+  const nextContents = updateEnvFileContents(previousContents ?? emptyEnvFileContents(), outpostOwnedEntries(entries), {
     valueEncoding: "minimal",
   });
   writeEnvFileAtomicallyIfChanged(filePath, previousContents, nextContents);
 }
 
-export function mergePaperclipEnvEntries(
+export function mergeOutpostEnvEntries(
   entries: Record<string, string>,
   filePath = resolveEnvFilePath(),
 ): Record<string, string> {
-  const current = readPaperclipEnvEntries(filePath);
-  const managedEntries = paperclipOwnedEntries(entries);
+  const current = readOutpostEnvEntries(filePath);
+  const managedEntries = outpostOwnedEntries(entries);
   const next = {
     ...current,
     ...managedEntries,
   };
-  writePaperclipEnvEntries(managedEntries, filePath);
+  writeOutpostEnvEntries(managedEntries, filePath);
   return next;
 }

@@ -351,7 +351,7 @@ async function startDatabase() {
   if (!dockerPostgres) return startEmbeddedPostgresTestDatabase("chat-milestone-benchmark-");
   const container = `paperclip-chat-milestones-${randomUUID()}`;
   const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  docker("run", "--detach", "--rm", "--name", container, "--label", "paperclip.benchmark=chat-milestones", "--publish", "127.0.0.1::5432",
+  docker("run", "--detach", "--rm", "--name", container, "--label", "outpost.benchmark=chat-milestones", "--publish", "127.0.0.1::5432",
     "--env", "POSTGRES_USER=paperclip", "--env", "POSTGRES_PASSWORD=paperclip", "--env", "POSTGRES_DB=paperclip", "postgres:17");
   const cleanup = async () => { docker("rm", "--force", container); };
   try {

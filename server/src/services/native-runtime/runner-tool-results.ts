@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { SemanticToolOutcomeUnknownError } from "../../vendor/paperclip-runner/index.js";
+import { SemanticToolOutcomeUnknownError } from "../../vendor/outpost-runner/index.js";
 import type { RunnerApiIo } from "./runner-api-client.js";
 import { RUNNER_API_RESPONSE_MAX_BYTES } from "./runner-api-response-limits.js";
 
 export const READ_TOOL_RESULT = "read_tool_result";
-// PRP permits ~510 KiB per command after encryption framing. Measure encoded
+// ORP permits ~510 KiB per command after encryption framing. Measure encoded
 // result bytes and leave the remaining ~22 KiB for the command and tool identity.
 export const RUNNER_TOOL_RESULT_MAX_BYTES = 500_000;
 export const readToolResultSchema = z.object({

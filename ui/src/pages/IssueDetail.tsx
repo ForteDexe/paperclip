@@ -10,7 +10,7 @@ import { TaskDecisionRecord } from "@/components/TaskDecisionRecord";
 import { useAccountBoundMutation } from "@/hooks/useAccountBoundMutation";
 import { bindAccount } from "@/lib/account-scope";
 import { mergeWindowComments, useIssueHistoryWindow } from "../hooks/useIssueHistoryWindow";
-import type { IssueQueuedCommentQueue } from "@paperclipai/shared";
+import type { IssueQueuedCommentQueue } from "@outpost/shared";
 import { useTaskRunLiveUpdates } from "../context/LiveUpdatesProvider";
 import { liveRunRefetchInterval } from "../lib/live-runs-cache";
 import { useTaskRetry } from "../hooks/useTaskRetry";
@@ -407,7 +407,7 @@ import {
   type WorkspaceFileRef,
   workspaceFileRefSchema,
   isUuidLike,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { taskStatusIconProps } from "@/lib/task-status-presentation";
 
 // Stable empty array for React Query `data` defaults. A literal `= []` default
@@ -484,7 +484,7 @@ function buildPlanDecisionResponseText(
 
 const FEEDBACK_TERMS_URL =
   import.meta.env.VITE_FEEDBACK_TERMS_URL?.trim() ||
-  "https://paperclip.ing/tos";
+  "https://outpost.ing/tos";
 const ISSUE_COMMENT_AUTOLOAD_LIMIT = ISSUE_COMMENT_PAGE_SIZE * 3;
 const JUMP_TO_LATEST_MAX_COMMENT_PAGES = 10;
 function treeControlPreviewErrorCopy(error: unknown): string {
@@ -1183,7 +1183,7 @@ type IssueDetailChatTabProps = {
   retryPreparing?: boolean;
   queryIssueId?: string;
   hasLiveConnection: boolean;
-  browsers?: import("@paperclipai/shared").TaskBrowser[];
+  browsers?: import("@outpost/shared").TaskBrowser[];
   onOpenBrowser?: (browserId: string) => void;
   onOpenSkill?: (skillId: string, name: string) => void;
   issueId: string;
@@ -1535,7 +1535,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
   );
   const assigneeUsesPaperclipRunner = Boolean(
     issueAssigneeAgentId &&
-    agentMap.get(issueAssigneeAgentId)?.adapterType === "paperclip_runner",
+    agentMap.get(issueAssigneeAgentId)?.adapterType === "outpost_runner",
   );
   const liveRuntimeRun =
     resolvedActiveRun ??
@@ -1682,7 +1682,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
     [resolvedActiveRun, resolvedLiveRuns],
   );
   const currentRunAgent = interruptibleIssueRun ? agentMap.get(interruptibleIssueRun.agentId) : null;
-  const grokWork = currentRunAgent?.adapterType === "paperclip_runner" && currentRunAgent.adapterConfig.provider === "grok_bot";
+  const grokWork = currentRunAgent?.adapterType === "outpost_runner" && currentRunAgent.adapterConfig.provider === "grok_bot";
   const stopGrokWork = useMutation({
     mutationFn: (run: { id: string; agentId: string }) => grokBotApi.stop(companyId, run.agentId, run.id),
     onSettled: (_data, _error, run) => Promise.all([
@@ -1795,7 +1795,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
         });
       }
     }
-    // Same-turn steering has a durable PRP acknowledgement and a matching
+    // Same-turn steering has a durable ORP acknowledgement and a matching
     // activity fact keyed by commentId/targetRunId. Its acknowledgement time,
     // not the comment submission time, is the causal conversation slot. Use
     // only the first acknowledgement; an idempotent replay emits a diagnostic
@@ -2098,7 +2098,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
           const queuedTargetRunId =
             interaction.sourceRunId &&
             interruptibleIssueRun?.id === interaction.sourceRunId &&
-            interruptibleIssueRun.adapterType !== "paperclip_runner"
+            interruptibleIssueRun.adapterType !== "outpost_runner"
               ? interaction.sourceRunId
               : null;
           const body =
@@ -2206,9 +2206,9 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
       return targetRunId ? [{ comment, targetRunId }] : [];
     });
     const fallbackProtocol =
-      liveRuntimeRun?.adapterType === "paperclip_runner" ||
+      liveRuntimeRun?.adapterType === "outpost_runner" ||
       (!liveRuntimeRun && assigneeUsesPaperclipRunner)
-        ? "paperclip_runner_v1"
+        ? "outpost_runner_v1"
         : "legacy";
     return mergePendingIssueQueuedComments({
       issueId,
@@ -2765,7 +2765,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
                     const selectedRun = resolvedLiveRuns.find(run => run.id === runId)
                       ?? (resolvedActiveRun?.id === runId ? resolvedActiveRun : null);
                     const selectedAgent = selectedRun ? agentMap.get(selectedRun.agentId) : null;
-                    if (selectedRun && selectedAgent?.adapterType === "paperclip_runner" && selectedAgent.adapterConfig.provider === "grok_bot") {
+                    if (selectedRun && selectedAgent?.adapterType === "outpost_runner" && selectedAgent.adapterConfig.provider === "grok_bot") {
                       await stopGrokWork.mutateAsync(selectedRun).catch(() => undefined);
                     } else if (onPauseWorkRun) {
                       await onPauseWorkRun(runId).catch(() => undefined);

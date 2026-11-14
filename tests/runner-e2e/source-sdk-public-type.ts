@@ -156,6 +156,6 @@ export function createSdkArtifactScanner(repositoryRoot: string, secrets: readon
       }
       return safe;
     },
-    async audit() { const p = proof ? await proof : null; return { schema: "paperclip.source-sdk-scan/v1", suppressedFindings: 0, bounded, publicSource: p?.identity ?? null, observations: structuredClone(observations).sort((a, b) => a.pathSha256.localeCompare(b.pathSha256) || a.detector - b.detector || a.start - b.start) }; },
+    async audit() { const p = proof ? await proof : null; return { schema: "outpost.source-sdk-scan/v1", suppressedFindings: 0, bounded, publicSource: p?.identity ?? null, observations: structuredClone(observations).sort((a, b) => a.pathSha256.localeCompare(b.pathSha256) || a.detector - b.detector || a.start - b.start) }; },
   };
 }

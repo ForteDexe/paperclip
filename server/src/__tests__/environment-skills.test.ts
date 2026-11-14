@@ -3,8 +3,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, companySkills, createDb, environments, pluginCompanySettings, plugins, resourceLifecycleEvents, type Db } from "@paperclipai/db";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import { agents, companies, companySkills, createDb, environments, pluginCompanySettings, plugins, resourceLifecycleEvents, type Db } from "@outpost/db";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { environmentSkillConfig } from "../services/environment-skills.js";
@@ -37,7 +37,7 @@ describeDatabase("environment managed skills", () => {
   } });
   afterEach(() => vi.unstubAllEnvs());
   beforeEach(async () => {
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     companyId = randomUUID(); pluginId = randomUUID();
     manifest = { id: `fixture.${pluginId}`, apiVersion: 1, version: "1.0.0", displayName: "Desktop", description: "Fixture", author: "Tests", categories: ["automation"],
       capabilities: ["environment.drivers.register", "skills.managed", "agents.lifecycle.manage", "events.subscribe"],
@@ -59,7 +59,7 @@ describeDatabase("environment managed skills", () => {
     expect(selected).toMatchObject({ paperclipSkillSync: { desiredSkills: [skill.key] } });
     expect(config.paperclipSkillSync.desiredSkills).toEqual([]);
     const [env] = await db.insert(environments).values({ name: "Desktop", ...environment }).returning();
-    const [agent] = await db.insert(agents).values({ companyId, name: "Worker", adapterType: "paperclip_runner", defaultEnvironmentId: env.id,
+    const [agent] = await db.insert(agents).values({ companyId, name: "Worker", adapterType: "outpost_runner", defaultEnvironmentId: env.id,
       lifecycleRequiredPluginIds: [pluginId], adapterConfig: config }).returning();
     const state = await pluginAgentRuntimeState(db, pluginId, companyId, agent.id);
     expect(state!.skills).toEqual([expect.objectContaining({ key: skill.key, runtimeName: expect.stringMatching(/^plugin-.*-computer-use--/), versionId: expect.any(String) })]);
@@ -91,7 +91,7 @@ describeDatabase("environment managed skills", () => {
   });
   it("installs and refreshes environment skills through lifecycle reconciliation before any run", async () => {
     const [env] = await db.insert(environments).values({ name: randomUUID(), ...environment }).returning();
-    const [agent] = await db.insert(agents).values({ companyId, name: "Background worker", adapterType: "paperclip_runner", defaultEnvironmentId: env.id,
+    const [agent] = await db.insert(agents).values({ companyId, name: "Background worker", adapterType: "outpost_runner", defaultEnvironmentId: env.id,
       lifecycleRequiredPluginIds: [pluginId], adapterConfig: { paperclipSkillSync: { desiredSkills: [] } } }).returning();
     expect((await pluginAgentRuntimeState(db, pluginId, companyId, agent.id))!.skills).toEqual([]);
     const states = await Promise.all([1, 2].map(() => pluginAgentRuntimeState(db, pluginId, companyId, agent.id, undefined, true)));
@@ -123,7 +123,7 @@ describeDatabase("environment managed skills", () => {
   });
   it("queues background delivery for inherited defaults and changed environment requirements", async () => {
     const [env] = await db.insert(environments).values({ name: randomUUID(), ...environment }).returning();
-    const [agent] = await db.insert(agents).values({ companyId, name: "Inherited worker", adapterType: "paperclip_runner", lifecycleRequiredPluginIds: [pluginId] }).returning();
+    const [agent] = await db.insert(agents).values({ companyId, name: "Inherited worker", adapterType: "outpost_runner", lifecycleRequiredPluginIds: [pluginId] }).returning();
     const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.companyId, companyId), eq(resourceLifecycleEvents.resourceType, "agent_runtime")));
     let before = (await events()).length;
     await instanceSettingsService(db).update({ defaultEnvironmentId: env.id });
@@ -159,7 +159,7 @@ describeDatabase("environment managed skills", () => {
     const original = await companySkillService(db).createLocalSkill(companyId, { name, markdown: `---\nname: ${name}\n---\nCompany instructions.\n` });
     const config = { paperclipSkillSync: { desiredSkills: [original.key] } };
     const [env] = await db.insert(environments).values({ name: randomUUID(), ...environment }).returning();
-    const [agent] = await db.insert(agents).values({ companyId, name: "Conflicting worker", adapterType: "paperclip_runner", defaultEnvironmentId: env.id,
+    const [agent] = await db.insert(agents).values({ companyId, name: "Conflicting worker", adapterType: "outpost_runner", defaultEnvironmentId: env.id,
       lifecycleRequiredPluginIds: [pluginId], adapterConfig: config }).returning();
     const state = await pluginAgentRuntimeState(db, pluginId, companyId, agent.id, undefined, true);
     const key = `plugin/fixture-${pluginId}/computer-use`;

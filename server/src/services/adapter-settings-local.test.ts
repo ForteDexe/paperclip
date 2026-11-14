@@ -12,11 +12,11 @@ describe("local adapter settings compatibility", () => {
   let directory: string;
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "adapter-settings-local-"));
-    vi.stubEnv("PAPERCLIP_HOME", directory);
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", undefined);
-    vi.stubEnv("PAPERCLIP_MANAGED_CONFIG", undefined);
-    vi.stubEnv("PAPERCLIP_ADAPTERS", undefined);
-    vi.stubEnv("PAPERCLIP_ADAPTERS_FILE", undefined);
+    vi.stubEnv("OUTPOST_HOME", directory);
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
+    vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
+    vi.stubEnv("OUTPOST_ADAPTERS", undefined);
+    vi.stubEnv("OUTPOST_ADAPTERS_FILE", undefined);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -39,7 +39,7 @@ describe("local adapter settings compatibility", () => {
     setAdapterDisabled("codex_local", true);
     const file = path.join(directory, "operator-adapters.json");
     fs.writeFileSync(file, JSON.stringify([{ adapterType: "codex_local", enabled: true }]));
-    const env = { PAPERCLIP_ADAPTERS_FILE: file };
+    const env = { OUTPOST_ADAPTERS_FILE: file };
     parseAdapterRegistryEnv(env);
     const read = vi.spyOn(fs, "readFileSync");
     const service = adapterSettingsService(undefined, { runtimeEnv: env });

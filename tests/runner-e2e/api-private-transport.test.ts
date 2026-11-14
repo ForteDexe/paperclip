@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { APIRequestContext } from "@playwright/test";
 import { RunnerApi, RunnerApiHttpError } from "./api.js";
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-function fixture() { vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100"); const instrumented = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), put: vi.fn() }; const api = new RunnerApi(instrumented as unknown as APIRequestContext); api.setBrowserSession("synthetic-session-cookie-928364"); return { api, instrumented }; }
+function fixture() { vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100"); const instrumented = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), put: vi.fn() }; const api = new RunnerApi(instrumented as unknown as APIRequestContext); api.setBrowserSession("synthetic-session-cookie-928364"); return { api, instrumented }; }
 it("keeps cookie requests outside Test while preserving actual query/body/JSON and attachment bytes", async () => {
   const { api, instrumented } = fixture(); const calls: Array<{ url: string; options: RequestInit }> = [];
   vi.stubGlobal("fetch", vi.fn(async (url: URL, options: RequestInit) => { calls.push({ url: url.href, options }); return url.pathname.endsWith("/content") ? new Response(Buffer.from([0, 1, 255])) : Response.json({ actualProductValue: "unredacted-product-oracle-canary" }); }));

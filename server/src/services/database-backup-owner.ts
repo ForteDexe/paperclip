@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { formatDatabaseBackupResult, runDatabaseBackup, type BackupRetentionPolicy } from "@paperclipai/db";
+import { formatDatabaseBackupResult, runDatabaseBackup, type BackupRetentionPolicy } from "@outpost/db";
 import { conflict } from "../errors.js";
 import type { InstanceDatabaseBackupRunResult, InstanceDatabaseBackupTrigger } from "../routes/instance-database-backups.js";
 import { beginIdleTrackedWork } from "./task-admission.js";

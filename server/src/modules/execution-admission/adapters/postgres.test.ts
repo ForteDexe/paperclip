@@ -8,7 +8,7 @@ import {
   heartbeatRuns,
   projectTaskExecutionPolicies as policies,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";

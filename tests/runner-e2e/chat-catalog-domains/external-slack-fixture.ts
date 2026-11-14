@@ -190,7 +190,7 @@ export async function prepareSlackFixture(
       new URL(webhook).origin !== new URL(p.registeredWebhookOrigin!).origin
     )
       throw new Error(
-        "Setup blocker: actual server PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL must match designated registeredWebhookOrigin before any Slack operation",
+        "Setup blocker: actual server OUTPOST_CHAT_WEBHOOK_PUBLIC_URL must match designated registeredWebhookOrigin before any Slack operation",
       );
     if (options.useExistingAppCommand) {
       const current = await provider.call<{

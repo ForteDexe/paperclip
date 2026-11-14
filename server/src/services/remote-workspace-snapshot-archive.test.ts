@@ -937,7 +937,7 @@ describe("portable remote workspace archives", () => {
     await expect(fs.lstat(path.join(restored, "escape"))).rejects.toMatchObject({ code: "ENOENT" });
   });
   it("still refuses an archive that names an outside link on restore", async () => {
-    const manifest = { schema: "paperclip.remote-workspace-archive.v1", entries: [{ path: "escape", type: "symlink", target: "../outside" }] };
+    const manifest = { schema: "outpost.remote-workspace-archive.v1", entries: [{ path: "escape", type: "symlink", target: "../outside" }] };
     const bytes = Buffer.from(JSON.stringify(manifest)), length = Buffer.alloc(4); length.writeUInt32BE(bytes.length);
     const archivePath = path.join(root, "unsafe.pcws"), targetDir = path.join(root, "target");
     await fs.writeFile(archivePath, Buffer.concat([Buffer.from("PCWS1\n"), length, bytes]));
@@ -1057,7 +1057,7 @@ describe("portable remote workspace archives", () => {
     await expect(capture(linked)).rejects.toThrow("source_invalid");
   });
   it("rejects path traversal before creating a restored directory", async () => {
-    const manifest = { schema: "paperclip.remote-workspace-archive.v1", entries: [{ path: "../escape", type: "file", mode: 0o600,
+    const manifest = { schema: "outpost.remote-workspace-archive.v1", entries: [{ path: "../escape", type: "file", mode: 0o600,
       size: 0, sha256: createHash("sha256").digest("hex") }] };
     const bytes = Buffer.from(JSON.stringify(manifest)), length = Buffer.alloc(4); length.writeUInt32BE(bytes.length);
     const archivePath = path.join(root, "unsafe.pcws"), targetDir = path.join(root, "target");

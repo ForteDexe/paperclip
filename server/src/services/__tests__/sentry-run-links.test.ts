@@ -10,14 +10,14 @@ import {
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   heartbeatRuns,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "../../__tests__/helpers/embedded-postgres.js";
 import { createSentryRunLinkResolver } from "../sentry-run-links.js";
 
-const testDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const testDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = testDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 it.skipIf(!support.supported)("resolves saved task links and rejects foreign company, agent, and task identities", async () => {

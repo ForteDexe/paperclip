@@ -48,7 +48,7 @@ function verifyReceipt(receipt: string, binding: Record<string, unknown>, purpos
     const proof = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
     const seconds = Math.floor(now.getTime() / 1000);
     if (proof.v !== 1 || proof.iss !== "paperclip-cloud" || proof.aud !== `paperclip-${purpose}/v1`
-      || !env.PAPERCLIP_CLOUD_STACK_ID || proof.sub !== env.PAPERCLIP_CLOUD_STACK_ID || proof.absent !== true
+      || !env.OUTPOST_CLOUD_STACK_ID || proof.sub !== env.OUTPOST_CLOUD_STACK_ID || proof.absent !== true
       || Object.keys(binding).some(key => proof[key] !== binding[key])
       || !Number.isInteger(proof.iat) || !Number.isInteger(proof.exp) || proof.iat > seconds + 30
       || proof.exp <= seconds || proof.exp <= proof.iat || proof.exp - proof.iat > 60) return null;
@@ -86,7 +86,7 @@ async function requestReceipt(binding: Record<string, unknown>, options: {
 }): Promise<string | null> {
   const env = options.env ?? process.env;
   const context = getCloudStackContext(env);
-  const secret = env.PAPERCLIP_AUTH_SECRET ?? env.BETTER_AUTH_SECRET;
+  const secret = env.OUTPOST_AUTH_SECRET ?? env.BETTER_AUTH_SECRET;
   if (!context?.stackId || !context.primaryHost || !context.cloudOrigin || !secret?.trim()) return null;
   try {
     const origin = new URL(context.cloudOrigin);

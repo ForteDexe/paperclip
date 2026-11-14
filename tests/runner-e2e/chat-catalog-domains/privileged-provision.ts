@@ -34,7 +34,7 @@ const provision = privilegedDefinition("instance-operations.provision-runtime", 
   async setup(ctx) {
     const target = await ownedInstalledTarget(ctx), envName = target.receipt.piCredentialEnv;
     if (!envName || !ctx.input.privateInputs?.read(envName)) throw new Error("Real Pi qualification requires the explicitly declared private OpenRouter credential environment reference");
-    const vendor = path.resolve(target.server, "../vendor/paperclip-runner"), assets = path.join(vendor, "provider-assets/pi", `${process.platform}-${process.arch}`);
+    const vendor = path.resolve(target.server, "../vendor/outpost-runner"), assets = path.join(vendor, "provider-assets/pi", `${process.platform}-${process.arch}`);
     let exists = false; try { exists = (await stat(assets)).isDirectory(); } catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
     if (exists) throw new Error("Canonical provision context requires this owned release to lack Pi assets; existing assets are never removed by the fixture");
     const entry = await realpath(path.join(vendor, "cli/provision-pi.cjs"));
@@ -46,7 +46,7 @@ const provision = privilegedDefinition("instance-operations.provision-runtime", 
   async act(ctx, state) {
     const initial = await settlePrivilegedChat(ctx); state.guidance = initial.reply; const target = targets.get(ctx)!;
     await target.command(["runtime", "setup", "pi"], 900_000); state.provisionerSucceeded = true;
-    const closure = await realpath(path.resolve(target.server, "../vendor/paperclip-runner/provider-assets/pi", `${process.platform}-${process.arch}`, "native-closure.json"));
+    const closure = await realpath(path.resolve(target.server, "../vendor/outpost-runner/provider-assets/pi", `${process.platform}-${process.arch}`, "native-closure.json"));
     state.assetPathOwned = closure.startsWith(target.root + path.sep); if (!state.assetPathOwned) throw new Error("Provisioned Pi closure escapes the intended installation");
     state.nativeClosureSha256 = sha(await readFile(closure));
     // Credentials remain exclusively in the public encrypted secret boundary.
@@ -61,7 +61,7 @@ const provision = privilegedDefinition("instance-operations.provision-runtime", 
     const ready = await pollUntil({ label: "Actual release Pi worker readiness", deadlineAt: Date.now() + 90000,
       load: () => ctx.input.api.get<RuntimeAgent>(`/api/agents/${agent.id}`), accept: a => a.lifecycleState === "ready" });
     const saved = ready.adapterConfig as { provider?: string; acpxAgent?: string; model?: string };
-    state.piAgentConfigurationVerified = ready.adapterType === "paperclip_runner" && saved.provider === "acpx" && saved.acpxAgent === "pi" && saved.model === profile.model;
+    state.piAgentConfigurationVerified = ready.adapterType === "outpost_runner" && saved.provider === "acpx" && saved.acpxAgent === "pi" && saved.model === profile.model;
     for (const scope of [{ scopeType: "company", scopeId: company }, { scopeType: "agent", scopeId: agent.id }])
       await ctx.input.api.post(`/api/companies/${company}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     const marker = `Pi native qualification ${ctx.input.nonce}`;
@@ -87,5 +87,5 @@ provision.expectedRunCount = 3; provision.expectedHumanMessageCount = 2; provisi
 provision.coverageGaps = [];
 provision.installedSource = "published-global-npm";
 provision.requiredCredentials = ["OPENROUTER_API_KEY"];
-provision.sourceFiles = [...provision.sourceFiles, "chat-catalog-domains/privileged-installed.ts", "../../cli/src/commands/runtime.ts", "../../packages/paperclip-runner/scripts/provision-pi.mjs"];
+provision.sourceFiles = [...provision.sourceFiles, "chat-catalog-domains/privileged-installed.ts", "../../cli/src/commands/runtime.ts", "../../packages/outpost-runner/scripts/provision-pi.mjs"];
 export const privilegedProvisionCases = [provision];

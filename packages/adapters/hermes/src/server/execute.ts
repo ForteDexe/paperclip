@@ -25,20 +25,20 @@ import type {
   AdapterExecutionContext,
   AdapterExecutionResult,
   UsageSummary,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 
 import {
   runChildProcess,
-  buildPaperclipEnv,
+  buildOutpostEnv,
   buildRuntimeToolsEnv,
   renderTemplate,
   ensureAbsoluteDirectory,
-  DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
   joinPromptSections,
   selectPaperclipPromptSections,
   stringifyPaperclipWakePayload,
   isPaperclipRecoveryWakePayload,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 
 import {
   HERMES_CLI,
@@ -104,15 +104,15 @@ const HERMES_RUNTIME_IDENTITY_TEMPLATE = [
 const HERMES_SYSTEM_PROMPT_TEMPLATE = [
   "Outpost API guidance:",
   "- Use `curl` from the terminal for Outpost API calls; browser/web extraction tools may not reach localhost.",
-  "- Use `$PAPERCLIP_API_URL`, `$PAPERCLIP_API_KEY`, and `$PAPERCLIP_RUN_ID`; do not hard-code local ports or copy secrets into comments.",
+  "- Use `$OUTPOST_API_URL`, `$OUTPOST_API_KEY`, and `$OUTPOST_RUN_ID`; do not hard-code local ports or copy secrets into comments.",
   "- Displayed command logs may redact secrets; rely on environment variables instead of printed token values.",
-  "- Include `-H \"Authorization: Bearer $PAPERCLIP_API_KEY\"` on API requests.",
-  "- Include `-H \"X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID\"` on mutating issue requests.",
+  "- Include `-H \"Authorization: Bearer $OUTPOST_API_KEY\"` on API requests.",
+  "- Include `-H \"X-Paperclip-Run-Id: $OUTPOST_RUN_ID\"` on mutating issue requests.",
   "- For multiline comments or status updates, preserve newlines with `jq --arg` or a heredoc-fed helper rather than hand-escaping JSON.",
   "",
   "Safe multiline update pattern:",
   "```bash",
-  "api=\"${PAPERCLIP_API_URL%/}\"",
+  "api=\"${OUTPOST_API_URL%/}\"",
   "case \"$api\" in */api) ;; *) api=\"$api/api\" ;; esac",
   "",
   "body=$(cat <<'MD'",
@@ -123,14 +123,14 @@ const HERMES_SYSTEM_PROMPT_TEMPLATE = [
   "MD",
   ")",
   "jq -n --arg status done --arg comment \"$body\" '{status:$status, comment:$comment}' | \\",
-  "  curl -sS -X PATCH \"$api/issues/$PAPERCLIP_TASK_ID\" \\",
-  "    -H \"Authorization: Bearer $PAPERCLIP_API_KEY\" \\",
-  "    -H \"X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID\" \\",
+  "  curl -sS -X PATCH \"$api/issues/$OUTPOST_TASK_ID\" \\",
+  "    -H \"Authorization: Bearer $OUTPOST_API_KEY\" \\",
+  "    -H \"X-Paperclip-Run-Id: $OUTPOST_RUN_ID\" \\",
   "    -H \"Content-Type: application/json\" \\",
   "    --data-binary @-",
   "```",
   "",
-  DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
 ].join("\n");
 
 function renderConditionalSections(template: string, vars: Record<string, unknown>): string {
@@ -165,7 +165,7 @@ export function buildPrompt(
   // Build API URL — ensure it has the /api path
   let paperclipApiUrl =
     cfgString(config.paperclipApiUrl) ||
-    process.env.PAPERCLIP_API_URL ||
+    process.env.OUTPOST_API_URL ||
     "http://127.0.0.1:3100/api";
   // Ensure /api suffix
   if (!paperclipApiUrl.endsWith("/api")) {
@@ -205,8 +205,8 @@ export function buildPrompt(
     taskContextMarkdown,
     paperclipWakeJson: wakePayloadJson,
     wakePayloadJson,
-    paperclipApiKeyEnv: "PAPERCLIP_API_KEY",
-    paperclipRunIdEnv: "PAPERCLIP_RUN_ID",
+    outpostApiKeyEnv: "OUTPOST_API_KEY",
+    outpostRunIdEnv: "OUTPOST_RUN_ID",
   };
 
   const rendered = template && !isPaperclipRecoveryWakePayload(context.paperclipWake)
@@ -257,7 +257,7 @@ function cleanResponse(raw: string): string {
     .filter((line) => {
       const t = line.trim();
       if (!t) return true; // keep blank lines for paragraph separation
-      if (t.startsWith("[tool]") || t.startsWith("[hermes]") || t.startsWith("[paperclip]")) return false;
+      if (t.startsWith("[tool]") || t.startsWith("[hermes]") || t.startsWith("[outpost]")) return false;
       if (t.startsWith("session_id:")) return false;
       if (/^\[\d{4}-\d{2}-\d{2}T/.test(t)) return false;
       if (/^\[done\]\s*┊/.test(t)) return false;
@@ -443,7 +443,7 @@ export async function execute(
   const userEnvForPrompt = config.env as Record<string, unknown> | undefined;
   const promptConfig: Record<string, unknown> = { ...config };
   if (!cfgString(promptConfig.paperclipApiUrl) && userEnvForPrompt && typeof userEnvForPrompt === "object") {
-    const configuredPaperclipApiUrl = cfgEnvString(userEnvForPrompt.PAPERCLIP_API_URL);
+    const configuredPaperclipApiUrl = cfgEnvString(userEnvForPrompt.OUTPOST_API_URL);
     if (configuredPaperclipApiUrl) {
       promptConfig.paperclipApiUrl = configuredPaperclipApiUrl;
     }
@@ -500,7 +500,7 @@ export async function execute(
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     ...(userEnv && typeof userEnv === "object" ? userEnv : {}),
-    ...buildPaperclipEnv(ctx.agent, ctx.agentIdentity),
+    ...buildOutpostEnv(ctx.agent, ctx.agentIdentity),
     ...buildRuntimeToolsEnv(ctx.runtimeTools),
   };
 
@@ -515,23 +515,23 @@ export async function execute(
     }),
   ]);
 
-  if (ctx.runId) env.PAPERCLIP_RUN_ID = ctx.runId;
+  if (ctx.runId) env.OUTPOST_RUN_ID = ctx.runId;
 
-  // PAPERCLIP_API_KEY is never accepted from config — the harness-minted run
+  // OUTPOST_API_KEY is never accepted from config — the harness-minted run
   // token is the only source of Paperclip API identity.
-  delete env.PAPERCLIP_API_KEY;
+  delete env.OUTPOST_API_KEY;
   // Wake context travels in the prompt; drop both inherited and configured copies.
-  delete env.PAPERCLIP_WAKE_PAYLOAD_JSON;
-  if ((ctx as any).authToken) env.PAPERCLIP_API_KEY = (ctx as any).authToken;
+  delete env.OUTPOST_WAKE_PAYLOAD_JSON;
+  if ((ctx as any).authToken) env.OUTPOST_API_KEY = (ctx as any).authToken;
 
   // BUG FIX: Read task context from ctx.context (wake context), not ctx.config (adapter config)
   const ctxContext = (ctx as any).context || {};
   const envTaskId = cfgString(ctxContext.taskId) || cfgString(ctxContext.issueId) || cfgString(ctx.config?.taskId);
-  if (envTaskId) env.PAPERCLIP_TASK_ID = envTaskId;
+  if (envTaskId) env.OUTPOST_TASK_ID = envTaskId;
   const envWakeReason = cfgString(ctxContext.wakeReason) || cfgString(ctx.config?.wakeReason);
-  if (envWakeReason) env.PAPERCLIP_WAKE_REASON = envWakeReason;
+  if (envWakeReason) env.OUTPOST_WAKE_REASON = envWakeReason;
   const envCommentId = cfgString(ctxContext.commentId) || cfgString(ctxContext.wakeCommentId) || cfgString(ctx.config?.commentId);
-  if (envCommentId) env.PAPERCLIP_WAKE_COMMENT_ID = envCommentId;
+  if (envCommentId) env.OUTPOST_WAKE_COMMENT_ID = envCommentId;
 
   // ── Resolve working directory ──────────────────────────────────────────
   const workspace = ctx.context?.paperclipWorkspace;

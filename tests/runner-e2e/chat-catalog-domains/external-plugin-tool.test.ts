@@ -15,7 +15,7 @@ function valid() {
 
 describe("real admitted website preview contribution", () => {
   it("validates a supported page/tool package with no external credential requirement", () => {
-    const manifest = previewToolManifest("paperclip.eval-preview-owned");
+    const manifest = previewToolManifest("outpost.eval-preview-owned");
     expect(manifest.entrypoints.ui).toBe("./dist/ui");
     expect(manifest.ui?.slots?.[0]?.routePath).toMatch(/^preview-/);
     expect(manifest.tools?.[0]?.name).toBe("preview");

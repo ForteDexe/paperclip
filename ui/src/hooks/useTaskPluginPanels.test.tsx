@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Issue, LiveEvent } from "@paperclipai/shared";
+import type { Issue, LiveEvent } from "@outpost/shared";
 import { afterEach, beforeEach, expect, it, vi, type MockInstance } from "vitest";
 import { agentsApi } from "@/api/agents";
 import { environmentsApi } from "@/api/environments";
@@ -188,7 +188,7 @@ it("uses each plugin's own availability path and excludes only the failing contr
 function event(overrides: Record<string, unknown> = {}): LiveEvent {
   return { id: 1, companyId: "company", type: "heartbeat.run.event", createdAt: "2099-01-01T00:00:00.000Z",
     payload: { runId: "run", agentId: "agent", issueId: "task", eventType: "runtime.activity.recorded",
-      payload: { prpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { ...slot.taskSidePanel!.activation } } }, ...overrides } } as LiveEvent;
+      payload: { orpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { ...slot.taskSidePanel!.activation } } }, ...overrides } } as LiveEvent;
 }
 async function emit(value: LiveEvent) {
   await act(async () => { plugin.handler?.(value); });
@@ -206,7 +206,7 @@ it("does no availability polling or Launcher discovery until this run activates 
     { eventType: "runtime.activity.recorded", sourceKind: "control_plane", payload: { ...slot.taskSidePanel!.activation } },
     { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { namespace: "example.other-runtime", activityKey: "desktop.used" } },
     { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { namespace: "example.runtime", activityKey: "other.used" } },
-  ]) await emit(event({ payload: { prpEvent: native } }));
+  ]) await emit(event({ payload: { orpEvent: native } }));
   expect(get).not.toHaveBeenCalled();
   await emit(event());
   expect(get).toHaveBeenCalledTimes(1); expect(current[0]?.runId).toBe("run");
@@ -241,7 +241,7 @@ it("merges earlier panel history with a different panel activated during the rea
   history.mockReturnValueOnce(new Promise(done => { resolve = done; }));
   await render();
   expect(get).not.toHaveBeenCalled();
-  await emit(event({ payload: { prpEvent: {
+  await emit(event({ payload: { orpEvent: {
     eventType: "runtime.activity.recorded", sourceKind: "runner",
     payload: { ...second.taskSidePanel.activation },
   } } }));
@@ -380,7 +380,7 @@ it.each(["1.0.0", "2.0.0"])("requires current activity after a mapping change at
   await emit(event()); expect(current).toEqual([]); expect(get).toHaveBeenCalledTimes(1);
   plugin.healthy = true; plugin.epoch++; await render();
   expect(current).toEqual([]);
-  await emit(event({ payload: { prpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner",
+  await emit(event({ payload: { orpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner",
     payload: changed.taskSidePanel.activation } } }));
   expect(current).toEqual([{ entityId: "agent", runId: "run", slot: changed }]);
   expect(get).toHaveBeenCalledTimes(2);
@@ -413,7 +413,7 @@ it("keeps an unchanged panel active while another declaration changes and histor
   await render();
   expect(history).toHaveBeenCalledTimes(2);
   expect(current).toEqual([{ entityId: "agent", runId: "run", slot }]);
-  await emit(event({ payload: { prpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner",
+  await emit(event({ payload: { orpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner",
     payload: changed.taskSidePanel.activation } } }));
   expect(current.map(panel => panel.slot)).toEqual([slot, changed]);
   await act(async () => { resolve([]); await vi.advanceTimersByTimeAsync(30); });

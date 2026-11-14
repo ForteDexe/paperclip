@@ -2,14 +2,14 @@ import { notifyExternalConversationSettlement } from "./external-conversation-se
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   agentSessionGoalActions,
   agentTaskSessions,
   heartbeatRuns,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   RunnerGoalActionAccepted,
   RunnerGoalActionRequest,
@@ -17,8 +17,8 @@ import type {
   RunnerGoalPendingAction,
   RunnerGoalProjection,
   RunnerGoalSnapshot,
-} from "@paperclipai/shared";
-import { queueLiveRunnerPrpCommand } from "../realtime/runner-prp-ws.js";
+} from "@outpost/shared";
+import { queueLiveRunnerPrpCommand } from "../realtime/runner-orp-ws.js";
 import { dispatchLiveRunnerGoalControl } from "./runner-goal-control-broker.js";
 import { publishLiveEvent } from "./live-events.js";
 
@@ -53,7 +53,7 @@ function capabilityForAgent(agent: AgentBinding): RunnerGoalCapability {
   const config = asRecord(agent.adapterConfig) ?? {};
   const engine = typeof config.engine === "string" ? config.engine : null;
   const sessionMode = typeof config.mode === "string" ? config.mode : "persistent";
-  if (agent.adapterType === "paperclip_runner") {
+  if (agent.adapterType === "outpost_runner") {
     const provider = typeof config.provider === "string" ? config.provider : "codex";
     const acpxAgent = typeof config.acpxAgent === "string" ? config.acpxAgent : "pi";
     if (provider === "codex" || (provider === "acpx" && acpxAgent === "codex")) {
@@ -493,7 +493,7 @@ export function runnerGoalService(
     let live = false;
     const liveCompletions: Array<Promise<unknown>> = [];
     try {
-      // Runner transports can retain a durable PRP authority while their
+      // Runner transports can retain a durable ORP authority while their
       // heartbeat is suspended. That authority is resumable, but it is not a
       // live command consumer. Only use either in-memory broker when the
       // projection proves a run is currently active; otherwise the outbox
@@ -629,7 +629,7 @@ export async function isRunnerGoalActionCompleted(
   return action !== undefined;
 }
 
-/** Commits a PRP goal projection with source-epoch and sequence resurrection fences. */
+/** Commits a ORP goal projection with source-epoch and sequence resurrection fences. */
 export async function applyRunnerGoalPrpEvent(
   db: Db,
   binding: {
@@ -677,7 +677,7 @@ export async function applyRunnerGoalPrpEvent(
       eq(agentTaskSessions.taskKey, binding.issueId),
     )).limit(1).for("update");
     // runnerInstanceId is deliberately stable while a durable provider
-    // session is resumed, but each PRP run owns a fresh source sequence. Use
+    // session is resumed, but each ORP run owns a fresh source sequence. Use
     // the run as the sequence epoch so seq=1 in a successor heartbeat is not
     // mistaken for a replay from its predecessor.
     const sourceId = event.sourceInstanceId

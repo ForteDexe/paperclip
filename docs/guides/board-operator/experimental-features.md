@@ -22,7 +22,7 @@ Controls are listed alphabetically within each section. Hosting operators can hi
 controls they manage; empty developer and legacy sections are omitted. Hidden
 controls retain their configured values.
 
-On Paperclip Cloud staging (`*.staging.paperclip.app`), instance admins can
+On Paperclip Cloud staging (`*.staging.outpost.app`), instance admins can
 view and change experimental settings that Cloud has not enabled. A feature
 enabled by Cloud stays on for every managed stack, including staging, even when
 an older saved tenant value is false. Its control is locked, and attempts to

@@ -10,7 +10,7 @@ semantic-completion grace period in this benchmark.
 
 Batching only the provider queue acknowledgement for an already-durable prefix
 of at most 128 events reduced median provider-completion-to-visible-terminal
-time by 18–26%. Every individual PRP outbox save remains in place. Controller
+time by 18–26%. Every individual ORP outbox save remains in place. Controller
 event commits, wire acknowledgements, authority checks, and exact suspension
 proof are unchanged. This is isolated benchmark evidence, **not a live chat
 latency or model-quality qualification**.
@@ -50,9 +50,9 @@ can overlap, so they must not be added together as independent serial costs.
 
 Implementation and fixture:
 
-- `packages/paperclip-runner/src/live/runnerd-final-output-burst.benchmark.test.ts`
-- `packages/paperclip-runner/test/fixtures/fake-final-burst-codex-app-server.mjs`
-- Production change: `packages/paperclip-runner/runner/crates/runner-core/src/durable/runner.rs`, `poll_executor_events`.
+- `packages/outpost-runner/src/live/runnerd-final-output-burst.benchmark.test.ts`
+- `packages/outpost-runner/test/fixtures/fake-final-burst-codex-app-server.mjs`
+- Production change: `packages/outpost-runner/runner/crates/runner-core/src/durable/runner.rs`, `poll_executor_events`.
 
 Measured binary SHA-256 digests:
 
@@ -60,8 +60,8 @@ Measured binary SHA-256 digests:
 - Candidate: `8a61219d5b492b8bdff55600d25a8da818e5f66b095e68fbac40a8a9e7013370`
 
 The baseline is retained locally at
-`/tmp/paperclip-final-burst-cargo.YoIBsw/baseline-paperclip-runnerd`; the candidate
-is `/tmp/paperclip-final-burst-cargo.YoIBsw/release/paperclip-runnerd`.
+`/tmp/paperclip-final-burst-cargo.YoIBsw/baseline-outpost-runnerd`; the candidate
+is `/tmp/paperclip-final-burst-cargo.YoIBsw/release/outpost-runnerd`.
 These temporary binaries are not repository artifacts. The candidate used the
 optimized release profile in this isolated Cargo target, never the live target
 or staging script. The live staged binary retained the baseline digest after
@@ -78,14 +78,14 @@ Exact local evidence filenames, under the ignored
 These are metric exports, **not full shell/Vitest logs**. Full Vitest results
 were captured by the execution tool: baseline 103.48 s, candidate 83.97 s.
 
-Run from `packages/paperclip-runner`:
+Run from `packages/outpost-runner`:
 
 ```sh
-PAPERCLIP_FINAL_BURST_BENCHMARK=1 PAPERCLIP_FINAL_BURST_REPETITIONS=3 PAPERCLIP_FINAL_BURST_BINARY=/tmp/paperclip-final-burst-cargo.YoIBsw/baseline-paperclip-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
-PAPERCLIP_FINAL_BURST_BENCHMARK=1 PAPERCLIP_FINAL_BURST_REPETITIONS=3 PAPERCLIP_FINAL_BURST_BINARY=/tmp/paperclip-final-burst-cargo.YoIBsw/release/paperclip-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
+OUTPOST_FINAL_BURST_BENCHMARK=1 OUTPOST_FINAL_BURST_REPETITIONS=3 OUTPOST_FINAL_BURST_BINARY=/tmp/paperclip-final-burst-cargo.YoIBsw/baseline-outpost-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
+OUTPOST_FINAL_BURST_BENCHMARK=1 OUTPOST_FINAL_BURST_REPETITIONS=3 OUTPOST_FINAL_BURST_BINARY=/tmp/paperclip-final-burst-cargo.YoIBsw/release/outpost-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
 ```
 
-Without `PAPERCLIP_FINAL_BURST_BINARY`, the test selects the existing staged
+Without `OUTPOST_FINAL_BURST_BINARY`, the test selects the existing staged
 runner (or the existing debug runner if none is staged). It never builds one.
 Every invocation copies the selected binary into a private fixture directory,
 checks its SHA before and after, and uses an explicit empty Codex home and no
@@ -121,8 +121,8 @@ blocker. Runner no-emit TypeScript checking, fixture syntax, formatting, and
 files; actual benchmark executions provide the test-path verification.
 
 ```sh
-cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/paperclip-final-burst-cargo.YoIBsw -j 2 -p paperclip-runner-core --lib durable::runner::tests
-cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/paperclip-final-burst-cargo.YoIBsw -j 2 -p paperclip-runner-core --lib -- --test-threads=2
+cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/paperclip-final-burst-cargo.YoIBsw -j 2 -p outpost-runner-core --lib durable::runner::tests
+cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/paperclip-final-burst-cargo.YoIBsw -j 2 -p outpost-runner-core --lib -- --test-threads=2
 node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
 ```
 

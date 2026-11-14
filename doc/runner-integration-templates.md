@@ -1,7 +1,7 @@
 # Native Runner integration working templates
 
 Use these with the [Runner integration playbook](RUNNER-INTEGRATION-PLAYBOOK.md).
-They cover adding a harness/provider to the **new, native Paperclip Runner**.
+They cover adding a harness/provider to the **new, native Outpost Runner**.
 Legacy direct-adapter authoring and migration are outside scope; existing behavior
 is preserved through compatibility checks. The templates require no historical
 chat, private task, evidence archive, or separate private repository.

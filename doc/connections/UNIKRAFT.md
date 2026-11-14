@@ -7,7 +7,7 @@ paths. The API token stays in the instance vault. The connector does not borrow
 `unikraft login` state, `UKC_TOKEN` environment variables, or another
 connection's credential.
 
-Sign-in tokens are never reused as resource tokens; id.paperclip.ing never
+Sign-in tokens are never reused as resource tokens; id.outpost.ing never
 stores resource tokens; no connections hub on the ID service.
 
 ## Vendor

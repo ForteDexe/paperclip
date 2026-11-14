@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
-import { CursorCloudClient, type CursorCloudSseEvent } from "../../packages/paperclip-runner/src/drivers/cursor-cloud/cloud-client.js";
+import { CursorCloudClient, type CursorCloudSseEvent } from "../../packages/outpost-runner/src/drivers/cursor-cloud/cloud-client.js";
 import { cursorCloudStopTask } from "./cursor-cloud-cases.js";
 import { CursorCloudStopCommandObserver, CursorCloudStopCommandTracker, readPendingCursorCloudStopExecution } from "./cursor-cloud-stop-observation.js";
 
@@ -9,9 +9,9 @@ const filename = "cursor-cloud-after-stop-nonce.txt";
 const command = "sleep 180 && printf 'MUST_NOT_APPEAR\\n' > '/artifacts/" + filename + "'";
 const digest = createHash("sha256").update(command).digest("hex");
 const pending = { callId: "delayed-command", toolName: "run_terminal_cmd", commandSha256: digest };
-const event = (type: string, executionId: string, seq: number) => ({ runId: localRunId, seq, protocolSchemaVersion: 1, payload: { prpEvent: {
-  schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: localRunId, eventType: `tool.execution.${type}`,
-  payload: { schema: "paperclip.tool.execution.v1", executionId, transport: "builtin", name: "run_terminal_cmd", status: type === "completed" ? "succeeded" : "running" },
+const event = (type: string, executionId: string, seq: number) => ({ runId: localRunId, seq, protocolSchemaVersion: 1, payload: { orpEvent: {
+  schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: localRunId, eventType: `tool.execution.${type}`,
+  payload: { schema: "outpost.tool.execution.v1", executionId, transport: "builtin", name: "run_terminal_cmd", status: type === "completed" ? "succeeded" : "running" },
 } } });
 const native = (status: string, callId = pending.callId, requestedCommand = command): CursorCloudSseEvent => ({ event: "tool_call", data: { callId, name: pending.toolName, status, args: { command: requestedCommand } } });
 const observers: CursorCloudStopCommandObserver[] = [];
@@ -69,10 +69,10 @@ it.each(["owner", "schema", "source", "tool", "changed-repeat", "terminal"])("re
   const row = event("started", pending.callId, 1), rows = [row];
   if (reason === "owner") row.runId = "foreign";
   if (reason === "schema") row.protocolSchemaVersion = 2;
-  if (reason === "source") row.payload.prpEvent.sourceKind = "provider";
-  if (reason === "tool") row.payload.prpEvent.payload.name = "different-tool";
-  if (reason === "changed-repeat") { const changed = event("started", pending.callId, 2); changed.payload.prpEvent.payload.name = "different-tool"; rows.push(changed); }
-  if (reason === "terminal") row.payload.prpEvent.eventType = "turn.completed";
+  if (reason === "source") row.payload.orpEvent.sourceKind = "provider";
+  if (reason === "tool") row.payload.orpEvent.payload.name = "different-tool";
+  if (reason === "changed-repeat") { const changed = event("started", pending.callId, 2); changed.payload.orpEvent.payload.name = "different-tool"; rows.push(changed); }
+  if (reason === "terminal") row.payload.orpEvent.eventType = "turn.completed";
   expect(readPendingCursorCloudStopExecution(rows, localRunId, pending)).toBeUndefined();
 });
 it.each([command + " &", command.replace("180", "1"), command.replace(filename, "unrelated.txt"), "echo " + command,

@@ -12,7 +12,7 @@ import { storybookIssueLabels } from "../../fixtures/paperclipData";
 function CoordinatorTasksPreview() {
   return <DesignProposalAccess><div className="coordinator-workspace"><DesignPageShell title="Tasks"
     sidebar={<><CoordinatorSidebar /><div className="design-sidebar-account"><SidebarAccountMenu forceExpanded /></div></>}
-    sidebarStorageKey="paperclip.storybook.coordinator-sidebar-width"><CoordinatorTasks /></DesignPageShell><NewIssueDialog /></div></DesignProposalAccess>;
+    sidebarStorageKey="outpost.storybook.coordinator-sidebar-width"><CoordinatorTasks /></DesignPageShell><NewIssueDialog /></div></DesignProposalAccess>;
 }
 
 const meta = {

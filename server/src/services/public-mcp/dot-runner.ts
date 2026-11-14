@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { DotHarnessDriver } from "../../vendor/paperclip-runner/index.js";
+import type { DotHarnessDriver } from "../../vendor/outpost-runner/index.js";
 import type { McpPrincipal } from "./oauth.js";
 
 // Structural boundary works for a source-loaded lab and the built runner alike;
@@ -27,7 +27,7 @@ const tools = [
   { name: "paperclip_dot_progress", read: false, schema: z.object({ ...binding, text: z.string().trim().min(1).max(16000) }).strict(),
     description: "Report useful progress to the runner transcript. Do not echo a wakeup event or another comment. Reuse requestId on retries." },
   { name: "paperclip_dot_finish", read: false, schema: z.object({ ...binding, result: z.record(z.string(), z.unknown()) }).strict(),
-    description: "Propose a paperclip.run_result.v1 structured result to the runner. Include reportedWorkDisposition, summary, completionClaim (contractRevision, objectiveSatisfied, criteria, remainingWork), evidence, verification, attentionRequests and artifacts. Outpost owns final disposition. Do not claim unobserved usage or independent verification." },
+    description: "Propose a outpost.run_result.v1 structured result to the runner. Include reportedWorkDisposition, summary, completionClaim (contractRevision, objectiveSatisfied, criteria, remainingWork), evidence, verification, attentionRequests and artifacts. Outpost owns final disposition. Do not claim unobserved usage or independent verification." },
 ] as const;
 
 /** In-process prototype registry. Registration is a trusted host operation,

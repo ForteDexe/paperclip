@@ -15,7 +15,7 @@ import { issueTreeControlService } from "../services/issue-tree-control.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, authUsers, chatActions, environmentLeases, nativeRunFinalizations, chatEndpoints, toolApplications, toolConnections, companies, companyMemberships, costEvents, createDb, projects, reconcileDatabaseWork, heartbeatRuns, issueComments, issueRelations, issues } from "@paperclipai/db";
+import { activityLog, agents, agentWakeupRequests, authUsers, chatActions, environmentLeases, nativeRunFinalizations, chatEndpoints, toolApplications, toolConnections, companies, companyMemberships, costEvents, createDb, projects, reconcileDatabaseWork, heartbeatRuns, issueComments, issueRelations, issues } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -60,7 +60,7 @@ describe("deferred receipt durable dispatch", () => {
   const extraStops: Array<() => Promise<void>> = [];
   const lifecycleWorkers = new Set<ReturnType<typeof configureAgentLifecycle>>();
   beforeAll(async () => {
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_DEFERRED_RECEIPT_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_DEFERRED_RECEIPT_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("deferred-receipts-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
     db.$client.options.onnotice = () => {};
@@ -650,7 +650,7 @@ describe("deferred receipt durable dispatch", () => {
     await new Promise<void>(resolve => listener.listen(0, "127.0.0.1", resolve));
     extraStops.push(async () => { listener.closeAllConnections(); await new Promise<void>(resolve => listener.close(() => resolve())); });
     const port = (listener.address() as { port: number }).port;
-    const script = `fetch("http://127.0.0.1:${port}/complete", {method:"POST",body:JSON.stringify({runId:process.env.PAPERCLIP_RUN_ID})}).then(async response=>{if(!response.ok)throw new Error(await response.text());console.log("receipt-proof")}).catch(error=>{console.error(error);process.exitCode=1})`;
+    const script = `fetch("http://127.0.0.1:${port}/complete", {method:"POST",body:JSON.stringify({runId:process.env.OUTPOST_RUN_ID})}).then(async response=>{if(!response.ok)throw new Error(await response.text());console.log("receipt-proof")}).catch(error=>{console.error(error);process.exitCode=1})`;
     await db.update(agents).set({ adapterConfig: { command: process.execPath, args: ["-e", script], cwd: process.cwd() } })
       .where(eq(agents.id, f.agent.id));
     const at = Date.now();
@@ -936,7 +936,7 @@ describe("deferred receipt durable dispatch", () => {
     await db.insert(agentWakeupRequests).values([
       { id: intentId, companyId: f.companyId, agentId: f.agent.id, source: "on_demand", reason: "task_retry",
         status: "deferred_issue_execution", updatedAt: previous, payload: { issueId: f.issue.id,
-          taskRetry: { schema: "paperclip.task-retry.v1", generationId: intentId, sourceRunId: f.source.id,
+          taskRetry: { schema: "outpost.task-retry.v1", generationId: intentId, sourceRunId: f.source.id,
             actorId: f.actorId, strategy: "evaluate", chatActionId: actionId } } },
       { id: actionId, companyId: f.companyId, agentId: f.agent.id, source: "automation", status: "deferred_issue_execution",
         payload: { issueId: f.issue.id, taskRetryRequestId: intentId } },
@@ -1097,7 +1097,7 @@ describe("deferred receipt durable dispatch", () => {
         });
         await new Promise<void>(resolve => listener.listen(0, "127.0.0.1", resolve));
         const port = (listener.address() as { port: number }).port;
-        const script = `fetch("http://127.0.0.1:${port}", {method:"POST",body:process.env.PAPERCLIP_RUN_ID}).then(async response=>{if(!response.ok)throw new Error(await response.text());console.log("held-retry-proof")}).catch(error=>{console.error(error);process.exitCode=1})`;
+        const script = `fetch("http://127.0.0.1:${port}", {method:"POST",body:process.env.OUTPOST_RUN_ID}).then(async response=>{if(!response.ok)throw new Error(await response.text());console.log("held-retry-proof")}).catch(error=>{console.error(error);process.exitCode=1})`;
         await db.update(agents).set({ adapterConfig: { command: process.execPath, args: ["-e", script], cwd: process.cwd() } }).where(eq(agents.id, other.agent.id));
         await requestTaskRetry({ db, companyId: other.companyId, issueId: other.issue.id, actorId: other.actorId,
           observedRunId: other.source.id, idempotencyKey: randomUUID() });

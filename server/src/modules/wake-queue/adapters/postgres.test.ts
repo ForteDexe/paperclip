@@ -4,7 +4,7 @@ import { instanceSettingsService } from "../../../services/instance-settings.js"
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   activityLog,
   agentWakeupRequests,
@@ -19,7 +19,7 @@ import {
   issues,
   nativeRunFinalizations,
   subscribeDatabaseWork,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -39,7 +39,7 @@ import { withQueuedCommentIdsInRunContext, withQueuedCommentIdsInWakePayload } f
 // a foreign-company row is invisible to a read, and a deferred-status
 // compare-and-set that affects no row leaves no other trace. The decision
 // branching itself is proven against plain facts in `domain/policy.test.ts`.
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_WAKE_QUEUE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_WAKE_QUEUE_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -220,8 +220,8 @@ describeEmbeddedPostgres("wake-queue postgres adapter", () => {
     const wakeId = await seedDeferredWake({ companyId, agentId, issueId });
     const payload = randomBytes(512 * 1024).toString("base64");
     const evidence = { cancellation: { source: "queued_message", expected: true, initiator: { type: "system" }, reason: "Fixture", recordedAt: "2020-01-01T00:00:00Z" },
-      workspaceRestoreFailure: "restore_unsafe_archive", workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [randomUUID()] },
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId, companyId, issueId },
+      workspaceRestoreFailure: "restore_unsafe_archive", workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [randomUUID()] },
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId, companyId, issueId },
       executionCancellation: { state: "acknowledged" }, executionRecovery: { kind: "interrupted", providerStopped: true },
       configurationIncomplete: { reason: "workspace_unavailable" }, unknownFutureReceipt: { retained: true } };
     await db.update(heartbeatRuns).set({ runtimeMode,
@@ -666,7 +666,7 @@ describeEmbeddedPostgres("wake-queue postgres adapter", () => {
     const runId = await seedRun({ companyId, agentId, status: "cancelled", contextSnapshot: { issueId } });
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId, resultJson: {
       reassignmentStopRequested: true,
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId, companyId, issueId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId, companyId, issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() },
     } }).where(eq(heartbeatRuns.id, runId));
@@ -693,7 +693,7 @@ describeEmbeddedPostgres("wake-queue postgres adapter", () => {
     const runId = await seedRun({ companyId, agentId, status: "cancelled", contextSnapshot: { issueId } });
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId, resultJson: {
       reassignmentStopRequested: true,
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId, companyId, issueId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId, companyId, issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() },
     } }).where(eq(heartbeatRuns.id, runId));
@@ -732,7 +732,7 @@ describeEmbeddedPostgres("wake-queue postgres adapter", () => {
       operatorInterrupted: true, interruptionSource: "issue_comment_interrupt", interruptedIssueId: issueId,
       interruptedByActorType: "user", interruptedByActorId: "board-user",
       cancelledByActorType: "user", cancelledByUserId: "board-user",
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId, companyId, issueId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId, companyId, issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() },
     } }).where(eq(heartbeatRuns.id, runId));

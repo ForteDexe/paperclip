@@ -22,7 +22,7 @@ export function assertProviderLossSettlement(run: Row, issue: Row, events: reado
     && run.status === "failed" && run.runtimeMode === "native" && typeof run.error === "string" && run.error.length > 0
     && issue.id === pending.scope.issueId && issue.companyId === pending.scope.companyId && issue.status === "blocked"
     && run.resultJson?.nativeCancellation == null, "failure must leave the task open without claiming Stop or success");
-  const frames = events.flatMap(row => row.payload?.prpEvent ? [row.payload.prpEvent] : []);
+  const frames = events.flatMap(row => row.payload?.orpEvent ? [row.payload.orpEvent] : []);
   const closures = frames.filter(frame => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(frame.eventType)
     && frame.payload?.requestId === pending.requestId);
   fail(closures.length === 1 && ["runtime_request.cancelled", "runtime_request.expired"].includes(closures[0].eventType)
@@ -32,7 +32,7 @@ export function assertProviderLossSettlement(run: Row, issue: Row, events: reado
   fail(!frames.some(frame => frame.eventType === "turn.completed" || frame.eventType === "completion.accepted"
     || frame.eventType === "tool.execution.completed" && frame.payload?.executionId === bootstrapReadExecutionId(pending.toolCallId)
       && frame.payload?.status === "completed"), "no completion or completed mutation after loss");
-  return { schema: "paperclip.e2e.native-provider-loss.v1", requestId: pending.requestId, turnId: pending.turnId,
+  return { schema: "outpost.e2e.native-provider-loss.v1", requestId: pending.requestId, turnId: pending.turnId,
     requestClosure: closures[0].eventType, taskStillOpen: true, failedRun: true, replayAllowed: false };
 }
 

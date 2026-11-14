@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { heartbeatRuns, type Db } from "@paperclipai/db";
-import { validatePrpEvent, type PrpEvent, type NativeSession } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRuns, type Db } from "@outpost/db";
+import { validatePrpEvent, type PrpEvent, type NativeSession } from "../../vendor/outpost-runner/index.js";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 
 export async function appendNativeCredentialUpdate(db: Db, input: {
@@ -33,7 +33,7 @@ export async function appendNativeCredentialUpdate(db: Db, input: {
       eventType: event.eventType,
       stream: "system",
       level: "info",
-      payload: { prpEvent: event as unknown as Record<string, unknown> },
+      payload: { orpEvent: event as unknown as Record<string, unknown> },
       nativeSource: {
         sourceInstanceId: `${event.sourceInstanceId}:credentials`,
         sourceEventId: `credentials:${event.sourceEventId}`,

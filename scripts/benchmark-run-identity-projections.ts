@@ -31,7 +31,7 @@ try {
   await fs.writeFile(baselineFile, oldSource.replace(/from "(\.{1,2}\/[^\"]+)"/g,
     (_match, specifier: string) => `from ${JSON.stringify(fileURLToPath(new URL(specifier, moduleUrl)))}`));
   const baseline = await import(pathToFileURL(baselineFile).href) as typeof import("../server/src/services/run-identity.js");
-  const externalUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+  const externalUrl = process.env.OUTPOST_TEST_DATABASE_URL;
   if (externalUrl) {
     const parsed = new URL(externalUrl);
     assert.ok(["127.0.0.1", "localhost"].includes(parsed.hostname) && /_test$/.test(parsed.pathname),

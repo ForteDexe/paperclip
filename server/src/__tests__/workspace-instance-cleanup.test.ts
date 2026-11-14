@@ -9,7 +9,7 @@ import {
   readWorktreeInstancePointer,
   stopEmbeddedPostgresIfRunning,
 } from "../services/workspace-instance-cleanup.js";
-import type { WorkspaceOperation } from "@paperclipai/shared";
+import type { WorkspaceOperation } from "@outpost/shared";
 import type { WorkspaceOperationRecorder } from "../services/workspace-operations.js";
 
 const tempRoots = new Set<string>();
@@ -25,7 +25,7 @@ async function writeWorkspaceEnv(workspacePath: string, homeDir: string, instanc
   await fs.mkdir(envDir, { recursive: true });
   await fs.writeFile(
     path.join(envDir, ".env"),
-    `PAPERCLIP_HOME=${JSON.stringify(homeDir)}\nPAPERCLIP_INSTANCE_ID=${JSON.stringify(instanceId)}\n`,
+    `OUTPOST_HOME=${JSON.stringify(homeDir)}\nOUTPOST_INSTANCE_ID=${JSON.stringify(instanceId)}\n`,
     "utf8",
   );
 }

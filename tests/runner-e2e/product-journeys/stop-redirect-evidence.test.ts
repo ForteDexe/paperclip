@@ -9,10 +9,10 @@ const run = { id: "run", companyId: "company", agentId: "agent", nativeIssueId: 
 function event(seq: number, eventType: string, payload = {}, turnId = "turn"): Row {
   return { seq, eventType, runId: run.id, companyId: run.companyId, agentId: run.agentId,
     protocolSchemaVersion: 1, sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, eventType, runId: run.id, turnId,
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType, runId: run.id, turnId,
       sourceKind: "runner", sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq, payload: structuredClone(payload) } } };
 }
-const command = { schema: "paperclip.tool.execution.v1", executionId: "sleep", transport: "builtin", operation: "unknown",
+const command = { schema: "outpost.tool.execution.v1", executionId: "sleep", transport: "builtin", operation: "unknown",
   name: "bash", namespace: null, readOnly: false, status: "running" };
 const usage = { kind: "usage", usage: { runDeltaComplete: true, runDelta: { inputTokens: 120, outputTokens: 10 } } };
 const events = () => [event(1, "turn.started"), event(2, "item.completed", usage), event(3, "tool.execution.started", command)];
@@ -61,7 +61,7 @@ describe("Stop work and redirect admission evidence", () => {
   });
   it.each(["foreign-company", "foreign-agent", "foreign-run", "foreign-turn", "foreign-runner", "bad-source", "bad-envelope",
     "partial", "missing-count", "negative-count", "fractional-count", "placeholder-zero", "session-total", "semantic-tool", "read-only"])("rejects %s proof", kind => {
-    const rows = events(), row = rows[1]!, envelope = row.payload.prpEvent;
+    const rows = events(), row = rows[1]!, envelope = row.payload.orpEvent;
     if (kind === "foreign-company") row.companyId = "foreign";
     if (kind === "foreign-agent") row.agentId = "foreign";
     if (kind === "foreign-run") { row.runId = "foreign"; envelope.runId = "foreign"; }
@@ -75,8 +75,8 @@ describe("Stop work and redirect admission evidence", () => {
     if (kind === "fractional-count") envelope.payload.usage.runDelta.outputTokens = 1.5;
     if (kind === "placeholder-zero") envelope.payload.usage.runDelta = { inputTokens: 0, outputTokens: 0 };
     if (kind === "session-total") envelope.payload.usage.usageBasis = "session_cumulative";
-    if (kind === "semantic-tool") rows[2]!.payload.prpEvent.payload = { ...command, name: "paperclip_finish" };
-    if (kind === "read-only") rows[2]!.payload.prpEvent.payload = { ...command, readOnly: true };
+    if (kind === "semantic-tool") rows[2]!.payload.orpEvent.payload = { ...command, name: "paperclip_finish" };
+    if (kind === "read-only") rows[2]!.payload.orpEvent.payload = { ...command, readOnly: true };
     expect(activeStopWorkBoundary(run, rows)).toBeNull();
   });
   it("rejects stale usage from before the current turn, even with a live command", () => {
@@ -128,7 +128,7 @@ describe("Stop work and redirect admission evidence", () => {
       : { kind: "usage", usage: { ...usage.usage, runDeltaComplete: kind === "complete" } };
     const row = event(5, "item.completed", payload);
     row.protocolSchemaVersion = version;
-    Object.assign(row.payload.prpEvent, { schema: `paperclip.prp.event.v${version}`, schemaVersion: version });
+    Object.assign(row.payload.orpEvent, { schema: `outpost.orp.event.v${version}`, schemaVersion: version });
     expect(nativeCancellationHasNoLaterWork([...stopped, row], before())).toBe(true);
     expect(nativeWorkEvents([...stopped, row], before())).toEqual(nativeWorkEvents(stopped, before()));
   });
@@ -137,13 +137,13 @@ describe("Stop work and redirect admission evidence", () => {
     const payload = kind === "raw" ? { kind: "usage", item: { type: "usage" } }
       : { kind: "usage", usage: { ...usage.usage, runDeltaComplete: kind === "complete" } };
     const row = event(5, "item.completed", payload);
-    row.sourceInstanceId = row.payload.prpEvent.sourceInstanceId = "reconciler";
+    row.sourceInstanceId = row.payload.orpEvent.sourceInstanceId = "reconciler";
     expect(nativeCancellationHasNoLaterWork([...stopped, row], before())).toBe(true);
     expect(nativeWorkEvents([...stopped, row], before())).toEqual(nativeWorkEvents(stopped, before()));
   });
   it.each(["row-company", "row-agent", "row-run", "envelope-run", "row-instance", "envelope-instance", "missing-instance", "empty-instance",
     "source-event", "missing-source-event", "row-source-event", "source-sequence", "missing-sequence", "zero-sequence", "fractional-sequence", "source-kind"])("does not discard usage with an unbound %s", kind => {
-    const stopped = [...events(), event(4, "turn.cancelled")], row = event(5, "item.completed", usage), envelope = row.payload.prpEvent;
+    const stopped = [...events(), event(4, "turn.cancelled")], row = event(5, "item.completed", usage), envelope = row.payload.orpEvent;
     if (kind === "row-company") row.companyId = "foreign";
     if (kind === "row-agent") row.agentId = "foreign";
     if (kind === "row-run") row.runId = "foreign";
@@ -173,7 +173,7 @@ describe("Stop work and redirect admission evidence", () => {
     const stopped = [...events(), event(4, "turn.cancelled")];
     const later = [...stopped, event(5, "item.completed", usage), event(6, kind, { kind: "message", text: "continued work" }),
       event(7, "item.completed", usage)];
-    later[later.length - 2]!.sourceInstanceId = later[later.length - 2]!.payload.prpEvent.sourceInstanceId = source;
+    later[later.length - 2]!.sourceInstanceId = later[later.length - 2]!.payload.orpEvent.sourceInstanceId = source;
     expect(nativeCancellationHasNoLaterWork(later, before())).toBe(false);
     expect(nativeWorkEvents(later, before())).not.toEqual(nativeWorkEvents(stopped, before()));
   });

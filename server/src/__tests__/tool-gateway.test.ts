@@ -44,7 +44,7 @@ import {
   secretAccessEvents,
   userSecretDeclarations,
   userSecretDefinitions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { buildPaperclipRuntimeMcpServers } from "../services/heartbeat.js";
 import { resolveNativeRuntimeMcpSnapshot } from "../services/native-runtime/runtime-context.js";
 import type { PluginToolDispatcher } from "../services/plugin-tool-dispatcher.js";
@@ -66,7 +66,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 
-const externalTestDatabase = resolveExternalTestDatabaseUrl("PAPERCLIP_TOOL_GATEWAY_TEST_DATABASE_URL");
+const externalTestDatabase = resolveExternalTestDatabaseUrl("OUTPOST_TOOL_GATEWAY_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalTestDatabase ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 const testToolActionSigningSecret = "test-tool-action-signing-secret";
@@ -1643,7 +1643,7 @@ describeEmbeddedPostgres("tool gateway acceptance", () => {
     await db.insert(agentWakeupRequests).values({ id: intentId, companyId: company.id, agentId: agent.id,
       runId: run.id, source: "on_demand", reason: "task_retry", status: "coalesced",
       requestedByActorType: "user", requestedByActorId: "board",
-      payload: { issueId: issue.id, taskRetry: { schema: "paperclip.task-retry.v1",
+      payload: { issueId: issue.id, taskRetry: { schema: "outpost.task-retry.v1",
         generationId: intentId, sourceRunId: source.id, actorId: "board", strategy: "fresh_isolated_workspace" } } });
     const [uncertain] = await db.insert(toolInvocations).values({ companyId: company.id,
       issueId: issue.id, runId: source.id, agentId: agent.id, connectionId: remote.connection.id,
@@ -2660,8 +2660,8 @@ rl.on("line", (line) => {
   });
 
   it("starts with another user's personal app and requests authorization only when used", async () => {
-    const originalApiUrl = process.env.PAPERCLIP_API_URL;
-    process.env.PAPERCLIP_API_URL = "http://paperclip.example.test";
+    const originalApiUrl = process.env.OUTPOST_API_URL;
+    process.env.OUTPOST_API_URL = "http://outpost.example.test";
     const company = await createCompany(db);
     const agent = await createAgent(db, company.id);
     const { issue, run } = await createIssueAndRun(db, company.id, agent.id);
@@ -2769,8 +2769,8 @@ rl.on("line", (line) => {
         eq(toolConnections.id, connection.id),
       )).resolves.toEqual([{ healthStatus: "ok" }]);
     } finally {
-      if (originalApiUrl === undefined) delete process.env.PAPERCLIP_API_URL;
-      else process.env.PAPERCLIP_API_URL = originalApiUrl;
+      if (originalApiUrl === undefined) delete process.env.OUTPOST_API_URL;
+      else process.env.OUTPOST_API_URL = originalApiUrl;
       await fake.close();
     }
   });
@@ -6008,7 +6008,7 @@ rl.on("line", (line) => {
     const [idleSlot] = await db.select().from(toolRuntimeSlots).where(eq(toolRuntimeSlots.companyId, company.id));
     expect(idleSlot).toMatchObject({
       status: "idle",
-      commandTemplateKey: "paperclip.slow-stateful-stdio",
+      commandTemplateKey: "outpost.slow-stateful-stdio",
       healthStatus: "ok",
     });
     expect(idleSlot.metadata).toMatchObject({
@@ -6121,7 +6121,7 @@ rl.on("line", (line) => {
     }));
     const local = await createLocalStdioMcpTool(db, company.id, {
       applicationKey: "cognee", toolName: "recall",
-      connectionConfig: { templateId: "paperclip.cognee-cloud" }, credentialSecretRefs: refs,
+      connectionConfig: { templateId: "outpost.cognee-cloud" }, credentialSecretRefs: refs,
     });
     await allowAllToolsForAgent(db, company.id, agent.id);
     const bridge = vi.spyOn(cogneeBridge, "callCogneeCloud")

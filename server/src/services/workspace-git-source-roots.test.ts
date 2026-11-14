@@ -47,7 +47,7 @@ describe("Git physical source roots", () => {
     expect(localWorkspaceSourcePaths({ cwd, providerRef })).toEqual(paths);
   });
   it.each([false, true])("maps a configured directory symlink before strict Git inspection (%s)", async isGit => {
-    vi.stubEnv("PAPERCLIP_HOME", root);
+    vi.stubEnv("OUTPOST_HOME", root);
     const companyId = randomUUID(), projectId = randomUUID();
     const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
     await fs.mkdir(cwd, { recursive: true });
@@ -104,7 +104,7 @@ describe("Git physical source roots", () => {
     expect(after!.fingerprint).not.toBe(before!.fingerprint);
   });
   it.each([false, true])("maps a managed linked source and its service subdirectory to both physical owners (%s)", async nested => {
-    vi.stubEnv("PAPERCLIP_HOME", root);
+    vi.stubEnv("OUTPOST_HOME", root);
     const companyId = randomUUID(), projectId = randomUUID(), sourceIssueId = randomUUID();
     const source = await repository(path.relative(root, path.join(resolvePaperclipInstanceRoot(),
       "isolated-repository-sources", companyId, sourceIssueId, "checkout")));
@@ -118,7 +118,7 @@ describe("Git physical source roots", () => {
     expect(identities.git!.commonDirectory.path).toBe(path.join(source, ".git"));
   });
   it("rejects a physical Git source owned by another company", async () => {
-    vi.stubEnv("PAPERCLIP_HOME", root);
+    vi.stubEnv("OUTPOST_HOME", root);
     const companyId = randomUUID(), foreignCompanyId = randomUUID();
     const source = await repository(path.relative(root, path.join(resolvePaperclipInstanceRoot(),
       "isolated-repository-sources", foreignCompanyId, randomUUID(), "checkout")));
@@ -128,7 +128,7 @@ describe("Git physical source roots", () => {
     await expect(workspaceSourceIdentities(companyId, cwd)).rejects.toThrow("workspace_source_company_mismatch");
   });
   it("keeps an external borrowed store explicitly unowned", async () => {
-    vi.stubEnv("PAPERCLIP_HOME", root);
+    vi.stubEnv("OUTPOST_HOME", root);
     const companyId = randomUUID(), projectId = randomUUID(), source = await repository("external");
     const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
     await fs.mkdir(path.dirname(cwd), { recursive: true });

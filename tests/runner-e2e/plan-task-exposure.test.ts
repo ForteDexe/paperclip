@@ -6,9 +6,9 @@ function fixture(enabled = true) {
   const skillInputs = enabled ? [{ type: "skill", name: "planning", path: `/private/runtime-context-assets/bundles/${digest}/SKILL.md` }] : [];
   return { runs: [{ id: "lead-run", agentId: "lead", nativeIssueId: "parent", startedAt: "2026-10-05T00:00:00Z" }],
     evidence: [{ runId: "lead-run", events: [
-      { runId: "lead-run", eventType: "turn.submitted", payload: { prpEvent: { payload: { skillInputs } } } },
-      { runId: "lead-run", eventType: "turn.accepted", payload: { prpEvent: { turnId: "turn", payload: { turnId: "turn" } } } },
-      { runId: "lead-run", eventType: "turn.started", payload: { prpEvent: { turnId: "turn", payload: {} } } },
+      { runId: "lead-run", eventType: "turn.submitted", payload: { orpEvent: { payload: { skillInputs } } } },
+      { runId: "lead-run", eventType: "turn.accepted", payload: { orpEvent: { turnId: "turn", payload: { turnId: "turn" } } } },
+      { runId: "lead-run", eventType: "turn.started", payload: { orpEvent: { turnId: "turn", payload: {} } } },
     ] }], leadId: "lead", parentId: "parent", invocations: enabled ? [{ name: "planning", assetDigest: digest }] : [] };
 }
 
@@ -17,10 +17,10 @@ describe("planning native invocation evidence", () => {
   it.each(["missing", "wrong-run", "wrong-turn", "wrong-path", "wrong-digest", "wrong-name", "duplicate", "prose-only", "unaccepted"])("rejects %s delivery evidence", problem => {
     const value = fixture();
     const event = value.evidence[0]!.events[0]!;
-    const skills = event.payload.prpEvent.payload.skillInputs!;
+    const skills = event.payload.orpEvent.payload.skillInputs!;
     if (problem === "missing") value.evidence = [];
     if (problem === "wrong-run") event.runId = "other-run";
-    if (problem === "wrong-turn") value.evidence[0]!.events[1]!.payload.prpEvent.turnId = "other-turn";
+    if (problem === "wrong-turn") value.evidence[0]!.events[1]!.payload.orpEvent.turnId = "other-turn";
     if (problem === "wrong-path") skills[0]!.path = `/unverified/${digest}/SKILL.md`;
     if (problem === "wrong-digest") skills[0]!.path = skills[0]!.path.replace(digest, "b".repeat(64));
     if (problem === "wrong-name") skills[0]!.name = "other";

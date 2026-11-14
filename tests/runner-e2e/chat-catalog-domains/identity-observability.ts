@@ -60,7 +60,7 @@ export const observabilityIdentityCases: readonly ChatCatalogCase[] = [identityD
   const target = await collector(); collectors.set(ctx, target); ctx.input.privateSecrets.push(target.key);
   return { beforeSettings: before.settings, collectorUrl: target.url, syntheticCollector: true };
 }, gradeObservability, {
-  authentication: "human-session", oracleVersion: "paperclip.chat-catalog.agent-observability.structural.v3", expectedRunCount: 3, expectedHumanMessageCount: 3, attemptTimeoutMs: 600_000,
+  authentication: "human-session", oracleVersion: "outpost.chat-catalog.agent-observability.structural.v3", expectedRunCount: 3, expectedHumanMessageCount: 3, attemptTimeoutMs: 600_000,
   sourceFiles: ["chat-catalog-domains/identity-observability.ts", "chat-catalog-domains/identity-company-observer.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/companies.yaml"],
   async act(ctx, state) {
     await waitForCompanySettingsTurn(ctx); const target = collectors.get(ctx); if (!target) throw new Error("Owned synthetic collector is missing");

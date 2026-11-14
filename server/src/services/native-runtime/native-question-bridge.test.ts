@@ -21,9 +21,9 @@ import {
   issueThreadInteractions,
   issues,
   nativeRunFinalizations,
-} from "@paperclipai/db";
-import type { PrpEvent } from "@paperclipai/paperclip-runner";
-import { respondIssueThreadInteractionSchema } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { PrpEvent } from "@outpost/outpost-runner";
+import { respondIssueThreadInteractionSchema } from "@outpost/shared";
 
 import {
   getEmbeddedPostgresTestSupport,
@@ -49,14 +49,14 @@ import {
 import { questionResponseDeliveryService } from "../question-response-delivery.js";
 import * as questionPatternValidation from "../question-pattern-validation.js";
 import { heartbeatService } from "../heartbeat.js";
-import { DurablePrpControlPlane } from "../../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane } from "../../vendor/outpost-runner/index.js";
 import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
 import { readPendingNativeRuntimeRequest } from "./runtime-request-resolution-authority.js";
 import {
   queueRunnerPrpRuntimeRequestResolution,
   registerRunnerPrpAuthority,
   setupRunnerPrpWebSocketServer,
-} from "../../realtime/runner-prp-ws.js";
+} from "../../realtime/runner-orp-ws.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -135,7 +135,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       id: agentId,
       companyId,
       name: "Native Codex",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       status: "running",
       adapterConfig: { provider: "codex" },
       runtimeConfig: {},
@@ -171,7 +171,7 @@ describeEmbeddedPostgres("native question bridge", () => {
 
   function runtimeRequestEvent(): PrpEvent {
     return {
-      schema: "paperclip.prp.event.v1",
+      schema: "outpost.orp.event.v1",
       sourceEventId: "runtime-question-1",
       sourceSeq: 1,
       sourceInstanceId: runnerInstanceId,
@@ -186,14 +186,14 @@ describeEmbeddedPostgres("native question bridge", () => {
       emittedAt: "2026-08-25T18:00:00.000Z",
       payload: {
         request: {
-          schema: "paperclip.runtime_request.v2",
+          schema: "outpost.runtime_request.v2",
           requestKind: "runtime",
           requestId: "request-1",
           type: "input",
           status: "pending",
           prompt: "Choose a deployment color",
           input: {
-            schema: "paperclip.question_set.v1",
+            schema: "outpost.question_set.v1",
             title: "Deployment",
             questions: [{
               id: "color",
@@ -228,7 +228,7 @@ describeEmbeddedPostgres("native question bridge", () => {
 
   function permissionRequestEvent(): PrpEvent {
     return { ...runtimeRequestEvent(), payload: { request: {
-      schema: "paperclip.runtime_request.v2", requestKind: "permission_approval",
+      schema: "outpost.runtime_request.v2", requestKind: "permission_approval",
       requestId: "permission-1", turnId: "turn-1", itemId: "item-1",
       type: "permission", status: "pending", prompt: "Allow editing src/example.ts?",
       choices: [{ key: "accept", label: "Allow once" }, { key: "decline", label: "Deny" }],
@@ -254,7 +254,7 @@ describeEmbeddedPostgres("native question bridge", () => {
     expect(projection).toHaveBeenCalledOnce();
     expect(await db.select().from(issueThreadInteractions)).toHaveLength(0);
     const [persisted] = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, runId));
-    expect(persisted?.payload).toEqual({ prpEvent: event }); // task-chat's exact source, with only offered decisions
+    expect(persisted?.payload).toEqual({ orpEvent: event }); // task-chat's exact source, with only offered decisions
     expect(await port.appendEvent(event)).toMatchObject({ disposition: "duplicate" });
     const pending = await readPendingNativeRuntimeRequest(db, { companyId, runId, requestId: "permission-1" });
     expect(pending).toMatchObject({ requestKind: "permission_approval", turnId: "turn-1", resolverPolicy: "instance_admin" });
@@ -276,7 +276,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       expect(() => queueRunnerPrpRuntimeRequestResolution({ ...commandInput, actor: { ...commandInput.actor, isInstanceAdmin: false } }))
         .toThrow("native_runtime_request_resolver_denied");
       expect(() => queueRunnerPrpRuntimeRequestResolution({ ...commandInput, companyId: randomUUID() }))
-        .toThrow("runner_prp_authority_not_active");
+        .toThrow("runner_orp_authority_not_active");
       const queued = queueRunnerPrpRuntimeRequestResolution(commandInput);
       expect(queueRunnerPrpRuntimeRequestResolution(commandInput)).toEqual(queued);
       expect(authority.store.state.commands).toHaveLength(1);
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("native question bridge", () => {
     await seed();
     const event = runtimeRequestEvent();
     await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId, seq: 1,
-      eventType: event.eventType, stream: "system", level: "info", payload: { prpEvent: event } });
+      eventType: event.eventType, stream: "system", level: "info", payload: { orpEvent: event } });
     const resolve = vi.fn(async (input: any) => { await input.authorizeBeforeDispatch(); return { commandId: "live-response" }; });
     const bridge = createLocalNativeQuestionBridge({ db, binding: binding(), resolve });
     try {
@@ -333,7 +333,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       if (answered.kind !== "ask_user_questions") throw new Error("wrong question kind");
       expect(await deliverNativeQuestionResponse(db, answered)).toBe("queued");
       expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ runId, requestId: "request-1", turnId: "turn-1", commandId: `question_${cards[0]!.id}`,
-        resolution: { action: "submit", response: { schema: "paperclip.question_response.v1", answers: { color: { selectedOptionIds: ["green"] } } } },
+        resolution: { action: "submit", response: { schema: "outpost.question_response.v1", answers: { color: { selectedOptionIds: ["green"] } } } },
       }));
       await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, runId));
       await expect(resolve.mock.calls[0]![0].authorizeBeforeDispatch()).rejects.toThrow("native_question_not_pending");
@@ -356,7 +356,7 @@ describeEmbeddedPostgres("native question bridge", () => {
     try {
       await flushNativeQuestionResponses(db, runId);
       expect(queueCommand).toHaveBeenCalledWith("request.resolve", expect.objectContaining({
-        response: { schema: "paperclip.question_response.v1", answers: { url: { text: "https://example.test" } } },
+        response: { schema: "outpost.question_response.v1", answers: { url: { text: "https://example.test" } } },
       }), `question_${interaction!.id}`);
       expect(busy).not.toHaveBeenCalled();
       const [delivery] = await db.select().from(issueQuestionResponseDeliveries);
@@ -389,7 +389,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       payload: {
         runtimeRequestId: "request-1",
         supersedeOnUserComment: false,
-        questionSet: { schema: "paperclip.question_set.v1" },
+        questionSet: { schema: "outpost.question_set.v1" },
         questions: [{
           id: "color",
           selectionMode: "single",
@@ -424,7 +424,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       {
         requestId: "request-1",
         response: {
-          schema: "paperclip.question_response.v1",
+          schema: "outpost.question_response.v1",
           answers: { color: { selectedOptionIds: ["blue"] } },
         },
       },
@@ -470,7 +470,7 @@ describeEmbeddedPostgres("native question bridge", () => {
     const initialText = "  Editable draft\n漢字\n";
     const event = runtimeRequestEvent();
     const request = event.payload.request as Record<string, unknown>;
-    request.input = { schema: "paperclip.question_set.v1", questions: [{ id: "draft", prompt: "Edit", required: true, answerMode: "text", initialText }] };
+    request.input = { schema: "outpost.question_set.v1", questions: [{ id: "draft", prompt: "Edit", required: true, answerMode: "text", initialText }] };
     const interaction = await projectNativeRuntimeRequest({ db, binding: binding(), event });
     expect(interaction).toMatchObject({ status: "pending", payload: { questionSet: { questions: [{ initialText }] } } });
     const [stored] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interaction!.id));
@@ -487,7 +487,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       );
       await flushNativeQuestionResponses(db, runId);
       expect(queueCommand).toHaveBeenCalledExactlyOnceWith("request.resolve", {
-        requestId: "request-1", response: { schema: "paperclip.question_response.v1", answers: { draft: { text: edited } } },
+        requestId: "request-1", response: { schema: "outpost.question_response.v1", answers: { draft: { text: edited } } },
       }, `question_${interaction!.id}`);
     } finally { release(); }
   });
@@ -770,7 +770,7 @@ describeEmbeddedPostgres("native question bridge", () => {
       {
         requestId: "request-1",
         response: {
-          schema: "paperclip.question_response.v1",
+          schema: "outpost.question_response.v1",
           answers: { color: { selectedOptionIds: [], customText: "purple" } },
         },
       },

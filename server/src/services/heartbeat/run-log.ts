@@ -160,7 +160,7 @@ function omitCanonicalImageData(value: unknown): unknown {
  */
 export function redactCanonicalNativeRunLogChunk(chunk: string, options: CanonicalNativeLogRedaction) {
   const envelope = JSON.parse(chunk);
-  if (envelope?.type !== "paperclip.prp.event" || !envelope.event ||
+  if (envelope?.type !== "outpost.orp.event" || !envelope.event ||
     typeof envelope.event !== "object" || Array.isArray(envelope.event))
     throw new Error("invalid_canonical_native_run_log_envelope");
   const projected = redactCurrentUserValue(

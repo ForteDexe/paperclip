@@ -1,9 +1,9 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
 
 /**
  * Stable plugin ID used by host registration and namespacing.
  */
-const PLUGIN_ID = "paperclip.hello-world-example";
+const PLUGIN_ID = "outpost.hello-world-example";
 const PLUGIN_VERSION = "0.1.0";
 const DASHBOARD_WIDGET_SLOT_ID = "hello-world-dashboard-widget";
 const DASHBOARD_WIDGET_EXPORT_NAME = "HelloWorldDashboardWidget";

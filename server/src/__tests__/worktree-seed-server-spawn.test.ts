@@ -14,8 +14,8 @@ import { realizeExecutionWorkspace, resolveRuntimeProvisionCommand } from "../se
 
 const execFileAsync = promisify(execFile);
 const cleanup: string[] = [];
-const originalConfig = process.env.PAPERCLIP_CONFIG;
-const originalWorktreesDir = process.env.PAPERCLIP_WORKTREES_DIR;
+const originalConfig = process.env.OUTPOST_CONFIG;
+const originalWorktreesDir = process.env.OUTPOST_WORKTREES_DIR;
 
 async function runGit(cwd: string, args: string[]) {
   await execFileAsync("git", args, { cwd });
@@ -44,7 +44,7 @@ async function writeConfig(configPath: string, instanceId: string) {
   }, null, 2)}\n`, "utf8");
   await fs.writeFile(
     path.join(path.dirname(configPath), ".env"),
-    `PAPERCLIP_INSTANCE_ID=${instanceId}\n`,
+    `OUTPOST_INSTANCE_ID=${instanceId}\n`,
     "utf8",
   );
 }
@@ -81,10 +81,10 @@ function verifiedSeedResult() {
 }
 
 afterEach(async () => {
-  if (originalConfig === undefined) delete process.env.PAPERCLIP_CONFIG;
-  else process.env.PAPERCLIP_CONFIG = originalConfig;
-  if (originalWorktreesDir === undefined) delete process.env.PAPERCLIP_WORKTREES_DIR;
-  else process.env.PAPERCLIP_WORKTREES_DIR = originalWorktreesDir;
+  if (originalConfig === undefined) delete process.env.OUTPOST_CONFIG;
+  else process.env.OUTPOST_CONFIG = originalConfig;
+  if (originalWorktreesDir === undefined) delete process.env.OUTPOST_WORKTREES_DIR;
+  else process.env.OUTPOST_WORKTREES_DIR = originalWorktreesDir;
   for (const dir of cleanup.splice(0)) {
     await fs.rm(dir, { recursive: true, force: true });
   }
@@ -117,13 +117,13 @@ describe("managed worktree seed source through the server spawn path", () => {
           await import(${JSON.stringify(pathToFileURL(path.join(repoRoot, "server/src/config.ts")).href)});
           const repaired = dotenv.parse(fs.readFileSync(envPath));
           console.log(JSON.stringify({
-            jwt: process.env.PAPERCLIP_AGENT_JWT_SECRET === saved.PAPERCLIP_AGENT_JWT_SECRET,
-            actions: process.env.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET === saved.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET,
-            auth: process.env.BETTER_AUTH_SECRET === saved.PAPERCLIP_AGENT_JWT_SECRET,
-            savedActions: repaired.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET === saved.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET
+            jwt: process.env.OUTPOST_AGENT_JWT_SECRET === saved.OUTPOST_AGENT_JWT_SECRET,
+            actions: process.env.OUTPOST_TOOL_ACTION_SIGNING_SECRET === saved.OUTPOST_TOOL_ACTION_SIGNING_SECRET,
+            auth: process.env.BETTER_AUTH_SECRET === saved.OUTPOST_AGENT_JWT_SECRET,
+            savedActions: repaired.OUTPOST_TOOL_ACTION_SIGNING_SECRET === saved.OUTPOST_TOOL_ACTION_SIGNING_SECRET
           }));
         })();
-      `], { cwd, env: { ...process.env, PAPERCLIP_CONFIG: configPath, PAPERCLIP_AGENT_JWT_SECRET: "source-jwt", PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: "source-actions", BETTER_AUTH_SECRET: "source-auth" } });
+      `], { cwd, env: { ...process.env, OUTPOST_CONFIG: configPath, OUTPOST_AGENT_JWT_SECRET: "source-jwt", OUTPOST_TOOL_ACTION_SIGNING_SECRET: "source-actions", BETTER_AUTH_SECRET: "source-auth" } });
       expect(JSON.parse(startup.stdout.trim().split("\n").at(-1)!)).toEqual({ jwt: true, actions: true, auth: true, savedActions: true });
       const workspace = {
         baseCwd, cwd, source: "project_primary" as const, projectId: "project-1",
@@ -134,9 +134,9 @@ describe("managed worktree seed source through the server spawn path", () => {
       expect(resolveRuntimeProvisionCommand({ config: {}, workspace })).toBe("");
       expect(resolveRuntimeProvisionCommand({ config: { runtimeProvisionCommand: "./install-dependencies.sh" }, workspace }))
         .toBe("./install-dependencies.sh");
-      process.env.PAPERCLIP_WORKSPACE_BASE_CWD = baseCwd;
-      process.env.PAPERCLIP_PROJECT_WORKSPACE_ID = "project-workspace-1";
-      process.env.PAPERCLIP_SEED_EXPECTED_COMPANY_ID = "company-1";
+      process.env.OUTPOST_WORKSPACE_BASE_CWD = baseCwd;
+      process.env.OUTPOST_PROJECT_WORKSPACE_ID = "project-workspace-1";
+      process.env.OUTPOST_SEED_EXPECTED_COMPANY_ID = "company-1";
       const seedDatabase = vi.fn(async () => verifiedSeedResult());
       const inspectLegacyDatabase = vi.fn(async () => null);
       await expect(ensureWorktreeSeeded({ config: configPath }, { seedDatabase, inspectLegacyDatabase }))
@@ -146,7 +146,7 @@ describe("managed worktree seed source through the server spawn path", () => {
       const provisionScript = fileURLToPath(new URL("../../../scripts/provision-worktree-runtime.sh", import.meta.url));
       const provision = await execFileAsync("bash", [provisionScript], {
         cwd,
-        env: { ...process.env, PAPERCLIP_WORKSPACE_CWD: cwd },
+        env: { ...process.env, OUTPOST_WORKSPACE_CWD: cwd },
       });
       expect(provision.stderr).toContain("explicitly empty");
       expect(readWorktreeSeedManifest(configPath)).toBeNull();
@@ -201,7 +201,7 @@ const stateDir = path.join(cwd, ".paperclip");
 const normalized = path.basename(cwd).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^[-_]+|[-_]+$/g, "");
 const instanceId = \`${"${(normalized || \"worktree\").slice(0, 48)}"}-\${crypto.createHash("sha256").update(path.resolve(cwd)).digest("hex").slice(0, 12)}\`;
 const targetConfigPath = path.join(stateDir, "config.json");
-const instanceRoot = path.join(process.env.PAPERCLIP_WORKTREES_DIR, "instances", instanceId);
+const instanceRoot = path.join(process.env.OUTPOST_WORKTREES_DIR, "instances", instanceId);
 fs.mkdirSync(stateDir, { recursive: true });
 fs.mkdirSync(instanceRoot, { recursive: true });
 fs.writeFileSync(targetConfigPath, JSON.stringify({
@@ -223,14 +223,14 @@ fs.writeFileSync(targetConfigPath, JSON.stringify({
   },
 }, null, 2) + "\\n");
 fs.writeFileSync(path.join(stateDir, ".env"), [
-  "PAPERCLIP_HOME=" + JSON.stringify(process.env.PAPERCLIP_WORKTREES_DIR),
-  "PAPERCLIP_INSTANCE_ID=" + JSON.stringify(instanceId),
-  "PAPERCLIP_CONFIG=" + JSON.stringify(targetConfigPath),
+  "OUTPOST_HOME=" + JSON.stringify(process.env.OUTPOST_WORKTREES_DIR),
+  "OUTPOST_INSTANCE_ID=" + JSON.stringify(instanceId),
+  "OUTPOST_CONFIG=" + JSON.stringify(targetConfigPath),
   "",
 ].join("\\n"));
 fs.writeFileSync(path.join(stateDir, "seed-manifest.json"), JSON.stringify({
   version: 2,
-  source: { instanceId: "ambient-instance", configPath: process.env.PAPERCLIP_CONFIG },
+  source: { instanceId: "ambient-instance", configPath: process.env.OUTPOST_CONFIG },
   snapshotAt: null,
   seedMode: "minimal",
   migrationRevision: null,
@@ -248,8 +248,8 @@ fs.writeFileSync(path.join(stateDir, "seed-manifest.json"), JSON.stringify({
     await fs.chmod(hookPath, 0o755);
     await runGit(repoRoot, ["config", "core.hooksPath", hooksDir]);
 
-    process.env.PAPERCLIP_CONFIG = ambientConfigPath;
-    process.env.PAPERCLIP_WORKTREES_DIR = worktreeHome;
+    process.env.OUTPOST_CONFIG = ambientConfigPath;
+    process.env.OUTPOST_WORKTREES_DIR = worktreeHome;
     const workspace = await realizeExecutionWorkspace({
       base: {
         baseCwd: repoRoot,

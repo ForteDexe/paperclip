@@ -8,7 +8,7 @@ import {
   agents,
   boardApiKeys,
   heartbeatRuns,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { actorMiddleware } from "../middleware/auth.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
@@ -153,7 +153,7 @@ function craftAgentJwtWithoutResponsibleClaim(input: {
   const claimsB64 = Buffer.from(JSON.stringify(claims), "utf8").toString("base64url");
   const signingInput = `${headerB64}.${claimsB64}`;
   // Sign with the same per-instance, per-company key the server derives. The
-  // instance defaults to "default" (beforeEach clears PAPERCLIP_INSTANCE_ID),
+  // instance defaults to "default" (beforeEach clears OUTPOST_INSTANCE_ID),
   // matching the live control plane this middleware test exercises. This helper
   // only omits the responsible_user_id claim — it is not a cross-instance token.
   const signingKey = createHmac("sha256", input.secret).update(`jwt:default:${input.companyId}`).digest("hex");
@@ -162,25 +162,25 @@ function craftAgentJwtWithoutResponsibleClaim(input: {
 }
 
 describe("agent auth middleware", () => {
-  const originalSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
-  const originalTtl = process.env.PAPERCLIP_AGENT_JWT_TTL_SECONDS;
-  const originalInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+  const originalSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
+  const originalTtl = process.env.OUTPOST_AGENT_JWT_TTL_SECONDS;
+  const originalInstanceId = process.env.OUTPOST_INSTANCE_ID;
 
   beforeEach(() => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = "auth-middleware-secret";
-    process.env.PAPERCLIP_AGENT_JWT_TTL_SECONDS = "3600";
+    process.env.OUTPOST_AGENT_JWT_SECRET = "auth-middleware-secret";
+    process.env.OUTPOST_AGENT_JWT_TTL_SECONDS = "3600";
     // Pin the control-plane instance so mint/verify (and the hand-crafted
     // legacy token helper) all derive keys under the "default" live instance.
-    delete process.env.PAPERCLIP_INSTANCE_ID;
+    delete process.env.OUTPOST_INSTANCE_ID;
   });
 
   afterEach(() => {
-    if (originalSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    else process.env.PAPERCLIP_AGENT_JWT_SECRET = originalSecret;
-    if (originalTtl === undefined) delete process.env.PAPERCLIP_AGENT_JWT_TTL_SECONDS;
-    else process.env.PAPERCLIP_AGENT_JWT_TTL_SECONDS = originalTtl;
-    if (originalInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-    else process.env.PAPERCLIP_INSTANCE_ID = originalInstanceId;
+    if (originalSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+    else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret;
+    if (originalTtl === undefined) delete process.env.OUTPOST_AGENT_JWT_TTL_SECONDS;
+    else process.env.OUTPOST_AGENT_JWT_TTL_SECONDS = originalTtl;
+    if (originalInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+    else process.env.OUTPOST_INSTANCE_ID = originalInstanceId;
   });
 
   it.each([
@@ -338,7 +338,7 @@ describe("agent auth middleware", () => {
     const runId = randomUUID();
     const { db } = createDbState({ agent: { id: agentId, companyId } });
     const token = craftAgentJwtWithoutResponsibleClaim({
-      secret: process.env.PAPERCLIP_AGENT_JWT_SECRET!,
+      secret: process.env.OUTPOST_AGENT_JWT_SECRET!,
       agentId,
       companyId,
       adapterType: "codex_local",
@@ -481,7 +481,7 @@ describe("agent auth middleware", () => {
       run: { id: runId, companyId, agentId, responsibleUserId: "user-legacy" },
     });
     const token = craftAgentJwtWithoutResponsibleClaim({
-      secret: process.env.PAPERCLIP_AGENT_JWT_SECRET!,
+      secret: process.env.OUTPOST_AGENT_JWT_SECRET!,
       agentId,
       companyId,
       adapterType: "codex_local",
@@ -511,11 +511,11 @@ describe("agent auth middleware", () => {
       run: { id: runId, companyId, agentId, responsibleUserId: "user-claim" },
     });
 
-    process.env.PAPERCLIP_INSTANCE_ID = "pap-12899-worktree";
+    process.env.OUTPOST_INSTANCE_ID = "pap-12899-worktree";
     const forkToken = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-claim");
     expect(forkToken).not.toBeNull();
 
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
+    process.env.OUTPOST_INSTANCE_ID = "default";
     const app = createApp(db);
     const readRes = await request(app)
       .get(`/companies/${companyId}/issues/${issueId}`)

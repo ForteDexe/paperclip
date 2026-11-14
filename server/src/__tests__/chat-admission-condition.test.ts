@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agentWakeupRequests, agents, chatActions, chatConversations, createDb, issues, type Db } from "@paperclipai/db";
+import { agentWakeupRequests, agents, chatActions, chatConversations, createDb, issues, type Db } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { seedGitHubReviewWait } from "./helpers/github-review-wait.js";
 import { unadmittedChatWakeupCondition } from "../services/durable-chat-wakeup.js";
@@ -12,8 +12,8 @@ describe("unadmitted chat wakeup condition", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   beforeAll(async () => {
-    if (process.env.PAPERCLIP_TEST_DATABASE_URL) {
-      db = createDb(process.env.PAPERCLIP_TEST_DATABASE_URL);
+    if (process.env.OUTPOST_TEST_DATABASE_URL) {
+      db = createDb(process.env.OUTPOST_TEST_DATABASE_URL);
     } else {
       temporary = await startEmbeddedPostgresTestDatabase("chat-admission-condition-");
       db = createDb(temporary.connectionString);

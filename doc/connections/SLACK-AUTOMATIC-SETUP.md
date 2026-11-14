@@ -136,7 +136,7 @@ the browser cannot supply a manifest, scopes, or callback destination.
 - The OAuth redirect is `<canonical board origin>/api/chat-slack/oauth/callback`.
   It uses the existing authenticated board callback path and Cloud bootstrap
   checks. Keep board authentication enabled.
-- Webhook URLs use `PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL` when configured, otherwise
+- Webhook URLs use `OUTPOST_CHAT_WEBHOOK_PUBLIC_URL` when configured, otherwise
   the canonical board origin. They end in `/api/chat-webhooks/<publicId>/slack`.
   A separate webhook ingress must route signed webhook requests to the instance.
 - Avatar upload renders the assigned agent's preset PNG on the server and sends
@@ -146,7 +146,7 @@ the browser cannot supply a manifest, scopes, or callback destination.
   token stays in the Authorization header and is discarded after setup.
 - Cloud resolves its current canonical origin from its claimed runtime identity.
   Self-hosted deployments use the configured authentication public base URL
-  (`PAPERCLIP_AUTH_PUBLIC_BASE_URL` or `PAPERCLIP_PUBLIC_URL`).
+  (`OUTPOST_AUTH_PUBLIC_BASE_URL` or `OUTPOST_PUBLIC_URL`).
   Both URLs must have valid certificates and be reachable by their intended
   callers. A private Tailscale Serve address is insufficient for Slack webhooks.
 - Origin changes invalidate outstanding authorization attempts. Restore the saved

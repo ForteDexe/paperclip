@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.copilot.qualification-progress/v1",
+  "schema": "outpost.copilot.qualification-progress/v1",
   "status": "superseded-by-v20-current-grant-repair",
   "productionAdmission": "gated",
   "runtimeSourceRevision": "0c192bded19a9e000618ba21393ec0d46e7bceff",

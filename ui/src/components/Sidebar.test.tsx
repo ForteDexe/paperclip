@@ -270,7 +270,6 @@ describe("Sidebar", () => {
     expect(container.textContent).not.toContain("Workspaces");
     expect([...container.querySelectorAll("nav a")].map((a) => a.textContent?.trim())).not.toContain("Goals");
     expect(container.querySelector('[data-testid="sidebar-goals-placeholder"]')).not.toBeNull();
-    expect(container.textContent).not.toContain("Conference Room");
     expect(container.textContent).not.toContain("Pipelines");
 
     flushSync(() => {
@@ -564,37 +563,6 @@ describe("Sidebar", () => {
     expect(workSection?.textContent).toContain("Spaces");
     expect(workSection?.textContent).not.toContain("Timeline");
     expect(container.querySelector('a[href="/timeline"]')).toBeNull();
-
-    flushSync(() => {
-      root.unmount();
-    });
-  });
-
-  it("shows the Conference Room nav item when conference room chat is enabled (PAP-137)", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableIsolatedWorkspaces: false,
-      enableConferenceRoomChat: true,
-    });
-    const root = await renderSidebar();
-
-    const link = [...container.querySelectorAll("nav a")].find(
-      (anchor) => anchor.textContent?.trim() === "Conference Room",
-    );
-    expect(link?.getAttribute("href")).toBe("/board-chat");
-
-    flushSync(() => {
-      root.unmount();
-    });
-  });
-
-  it("hides the Conference Room nav item when conference room chat is off (PAP-137)", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
-      enableIsolatedWorkspaces: false,
-      enableConferenceRoomChat: false,
-    });
-    const root = await renderSidebar();
-
-    expect(container.textContent).not.toContain("Conference Room");
 
     flushSync(() => {
       root.unmount();

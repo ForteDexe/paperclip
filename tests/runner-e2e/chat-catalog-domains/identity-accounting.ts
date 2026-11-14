@@ -72,7 +72,7 @@ export interface LeadApiCall { runId: string; operationId: string; digest: strin
 export function leadApiCalls(events: readonly Record<string, unknown>[]): LeadApiCall[] {
   const uses = new Map<string, { operationId: string; digest: string }>(); const calls: LeadApiCall[] = [];
   for (const row of events) {
-    const envelope = objectRecord(objectRecord(row.payload).prpEvent), item = objectRecord(objectRecord(envelope.payload).item);
+    const envelope = objectRecord(objectRecord(row.payload).orpEvent), item = objectRecord(objectRecord(envelope.payload).item);
     const runId = String(row.runId ?? envelope.runId ?? "");
     if (item.type === "tool_use" && item.name === "call_api") {
       const input = objectRecord(item.input);
@@ -248,7 +248,7 @@ export const accountingIdentityCases: readonly ChatCatalogCase[] = [
     }
     await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: `The requested reporting week is ${weekFrom} through ${weekTo} (UTC). Launch contains imported synthetic metered-API receipt tasks ${morganReceiptTask.identifier} (Morgan) and ${rileyReceiptTask.identifier} (Riley), plus actual completed native run ${state.originalRunId} with unresolved saved usage. Imported fixture receipts are not live provider/campaign billing. Other-project and earlier-week charges must be excluded; native subscription usage/fees are separate.` });
     return { ...state, riley, morganReceiptTask, rileyReceiptTask, weekFrom, weekTo, importedReceiptIds: receipts, receiptOrigin: "public-imported-synthetic-fixture" };
-  }, gradeAccounting, { authentication: "human-session", oracleVersion: "paperclip.chat-catalog.spend-breakdown.structural.v3", sourceFiles: sources, expectedRunCount: 2, attemptTimeoutMs: 600_000, observe: observeAccounting, verifyResult: verifyAccountingLink, verifySetup: verifyUnresolvedSetup,
+  }, gradeAccounting, { authentication: "human-session", oracleVersion: "outpost.chat-catalog.spend-breakdown.structural.v3", sourceFiles: sources, expectedRunCount: 2, attemptTimeoutMs: 600_000, observe: observeAccounting, verifyResult: verifyAccountingLink, verifySetup: verifyUnresolvedSetup,
     setupPolicy: { funding: "standard", readiness: "all-ready", invariantCheckIds: ["genuine-unresolved-saved-native-usage"] } }),
   identityDefinition("budgets-costs.repair-cost-recording", async ctx => {
     try {
@@ -257,7 +257,7 @@ export const accountingIdentityCases: readonly ChatCatalogCase[] = [
       return { ...state };
     } catch (error) { const fault = accountingFaults.get(ctx.input.fixtures.company.id); accountingFaults.delete(ctx.input.fixtures.company.id); await fault?.close(); throw error; }
   }, gradeAccounting, {
-    authentication: "human-session", oracleVersion: "paperclip.chat-catalog.repair-cost-recording.structural.v4", sourceFiles: repairSources,
+    authentication: "human-session", oracleVersion: "outpost.chat-catalog.repair-cost-recording.structural.v4", sourceFiles: repairSources,
     async cleanup(ctx) { const fault = accountingFaults.get(ctx.input.fixtures.company.id); accountingFaults.delete(ctx.input.fixtures.company.id); await fault?.close(); }, expectedRunCount: 3, expectedHumanMessageCount: 2, attemptTimeoutMs: 780_000, observe: observeAccounting, verifyResult: verifyAccountingLink, verifySetup: verifyUnresolvedSetup,
     setupPolicy: { funding: "standard", readiness: "all-ready", invariantCheckIds: ["genuine-unresolved-saved-native-usage"] },
     async act(ctx, state) {

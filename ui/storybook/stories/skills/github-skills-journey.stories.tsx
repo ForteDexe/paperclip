@@ -2,7 +2,7 @@ import { userEvent, within } from "storybook/test";
 import { useEffect, useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQueryClient } from "@tanstack/react-query";
-import { CONNECTABLE_APP_DEFINITIONS } from "@paperclipai/shared";
+import { CONNECTABLE_APP_DEFINITIONS } from "@outpost/shared";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { CompanySkills } from "@/pages/CompanySkills";
@@ -44,7 +44,7 @@ export function GitHubSkillsJourney({ step = "start", packageScenario }: { step?
   useEffect(() => {
     const empty = ["start", "repository", "selection", "scanning", "saving"].includes(step);
     const cleanup = installFixtures(empty, false, { journey: true, packageScenario, scan: step === "scanning" ? "large" : undefined, saving: step === "saving", refreshed: step === "new-skills", assigned: step === "assigned" });
-    const draftKeys = ["new", SOURCE_ID].map(id => `paperclip.skill-source-draft:${COMPANY_ID}:${id}`);
+    const draftKeys = ["new", SOURCE_ID].map(id => `outpost.skill-source-draft:${COMPANY_ID}:${id}`);
     const previousDrafts = draftKeys.map(key => sessionStorage.getItem(key));
     draftKeys.forEach(key => sessionStorage.removeItem(key));
     if (step === "scanning") sessionStorage.setItem(draftKeys[0]!, JSON.stringify({ repositoryUrl: "https://github.com/acme/team-skills" }));

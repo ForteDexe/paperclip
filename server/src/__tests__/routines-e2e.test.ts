@@ -31,7 +31,7 @@ import {
   routineRuns,
   routines,
   routineTriggers,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -141,7 +141,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
 
   beforeEach(() => {
     vi.resetModules();
-    vi.doUnmock("@paperclipai/shared/telemetry");
+    vi.doUnmock("@outpost/shared/telemetry");
     vi.doUnmock("../telemetry.js");
     vi.doUnmock("../services/access.js");
     vi.doUnmock("../services/issues.js");
@@ -373,8 +373,8 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   it.each(["bearer", "hmac_sha256", "github_hmac", "none"] as const)(
     "authenticates %s HTTP deliveries, persists payloads, and enforces trigger lifecycle",
     async (signingMode) => {
-      vi.stubEnv("PAPERCLIP_API_URL", "http://localhost:3100");
-      vi.stubEnv("PAPERCLIP_IN_WORKTREE", "false");
+      vi.stubEnv("OUTPOST_API_URL", "http://localhost:3100");
+      vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
       const { companyId, agentId, projectId, userId } = await seedFixture();
       const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
       const created = await request(board).post(`/api/companies/${companyId}/routines`).send({
@@ -461,9 +461,9 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   );
 
   it("uses the normal public webhook for verified caller provenance and routine-wide receipts", async () => {
-    vi.stubEnv("PAPERCLIP_API_URL", "http://localhost:3100");
-    vi.stubEnv("PAPERCLIP_IN_WORKTREE", "false");
-    vi.stubEnv("PAPERCLIP_AGENT_JWT_SECRET", randomUUID().repeat(2));
+    vi.stubEnv("OUTPOST_API_URL", "http://localhost:3100");
+    vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
+    vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", randomUUID().repeat(2));
     const { companyId, agentId, projectId, userId } = await seedFixture();
     const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
     const created = await request(board).post(`/api/companies/${companyId}/routines`).send({
@@ -500,7 +500,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   });
 
   it("preserves the authenticated caller and upstream routine through the routine HTTP API", async () => {
-    vi.stubEnv("PAPERCLIP_AGENT_JWT_SECRET", randomUUID().repeat(2));
+    vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", randomUUID().repeat(2));
     const { companyId, agentId, projectId, userId } = await seedFixture();
     const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
     const create = (title: string) => request(board).post(`/api/companies/${companyId}/routines`)
@@ -526,8 +526,8 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   });
 
   it("keeps setup deliveries out of runs, persists test receipts, and restores removed triggers", async () => {
-    vi.stubEnv("PAPERCLIP_API_URL", "http://localhost:3100");
-    vi.stubEnv("PAPERCLIP_IN_WORKTREE", "false");
+    vi.stubEnv("OUTPOST_API_URL", "http://localhost:3100");
+    vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
     const { companyId, agentId, projectId, userId } = await seedFixture();
     const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
     const created = await request(board).post(`/api/companies/${companyId}/routines`).send({

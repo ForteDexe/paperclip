@@ -53,7 +53,7 @@ export const runtimeResumeCases = [runtimeDefinition("agents.resume-agent", asyn
     accept: row => row.lifecycleState === "paused" && row.lifecycleHolds?.includes("manual") === true });
   return { worker: paused };
 }, gradeResumeAgent, {
-  oracleVersion: "paperclip.chat-catalog.runtime-resume.v3",
+  oracleVersion: "outpost.chat-catalog.runtime-resume.v3",
   sourceFiles: ["chat-catalog-domains/runtime-resume.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "manual-pause-only"] },
   expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 540_000,

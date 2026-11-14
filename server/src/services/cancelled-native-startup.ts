@@ -2,8 +2,8 @@ import { isRetainedWorkspaceWorkerStopProof } from "./native-runtime/native-work
 import { isPreDispatchReviewWait } from "./pre-dispatch-review-wait.js";
 import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRunEvents, heartbeatRuns, issueTreeHolds, issueTreeHoldMembers, nativeRunFinalizations, nativeRunResults, type Db } from "@paperclipai/db";
-import { isUuidLike } from "@paperclipai/shared";
+import { environmentLeases, heartbeatRunEvents, heartbeatRuns, issueTreeHolds, issueTreeHoldMembers, nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
+import { isUuidLike } from "@outpost/shared";
 import { claimedAdapterType } from "./conversation-continuation.js";
 import { hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
 import { canContinueCancelledRun, readRunCancellation } from "./run-cancellation.js";
@@ -50,7 +50,7 @@ async function failedNativePreparation(db: Db, run: Run, coordinator: Coordinato
   const preparationFailure = run.errorCode === "setup_failed" || historicalRetryAncestor && run.errorCode === "adapter_failed";
   if (run.status !== "failed" || !run.finishedAt || run.runtimeMode !== "legacy" || run.runtimeModeResolvedAt
     || !preparationFailure || run.executionStage !== "preparing"
-    || claimedAdapterType(run) !== "paperclip_runner" || coordinator
+    || claimedAdapterType(run) !== "outpost_runner" || coordinator
     || recovery?.kind !== "bootstrap" || recovery.providerWorkStarted !== false
     || run.processPid || run.processGroupId || run.processStartedAt || run.sessionIdAfter
     || run.nativeIssueId || run.nativeSessionId || run.runnerProfileJson?.nativeExecutionInput != null
@@ -140,7 +140,7 @@ export function isInterruptedNativePreparationCandidate(run: Run): boolean {
     : run.errorCode === "server_shutdown_interrupted" || lostPreparation;
   return Boolean(systemInterruption && (run.status === "interrupted" || lostPreparation) && run.finishedAt
     && run.runtimeMode === "legacy" && !run.runtimeModeResolvedAt && run.executionStage === "preparing"
-    && claimedAdapterType(run) === "paperclip_runner" && !run.processPid && !run.processGroupId
+    && claimedAdapterType(run) === "outpost_runner" && !run.processPid && !run.processGroupId
     && !run.processStartedAt && !run.sessionIdAfter && !run.nativeIssueId && !run.nativeSessionId
     && run.runnerProfileJson?.nativeExecutionInput == null && recovery?.providerWorkStarted !== true);
 }
@@ -239,7 +239,7 @@ async function isCancelledUnclaimedWorkspaceWaitRetry(db: Db, run: Run): Promise
     ...[heartbeatRuns.processPid, heartbeatRuns.processGroupId, heartbeatRuns.processStartedAt,
       heartbeatRuns.nativeIssueId, heartbeatRuns.nativeSessionId, heartbeatRuns.sessionIdAfter].map(column => isNull(column)),
     noProviderOutputPredicate(),
-    sql`${heartbeatRuns.runnerProfileJson} #>> '{adapterDispatch,adapterType}' = 'paperclip_runner'`,
+    sql`${heartbeatRuns.runnerProfileJson} #>> '{adapterDispatch,adapterType}' = 'outpost_runner'`,
     sql`(${heartbeatRuns.runnerProfileJson} - 'adapterDispatch' - 'chatControlRecoveryAdmission') = '{}'::jsonb`,
     sql`${heartbeatRuns.resultJson}->'executionRecovery'->>'kind' = 'workspace_wait'`,
     sql`${heartbeatRuns.resultJson}->'executionRecovery'->'providerWorkStarted' = 'false'::jsonb`,
@@ -271,7 +271,7 @@ export async function isCancelledNativeStartup(db: Db, run: Run, coordinator: Co
   // server boot; neither a missing PID nor mutable agent settings is proof.
   const historicalBeforeSelection = run.runtimeMode === "legacy" && !run.runtimeModeResolvedAt &&
     run.executionStage === "preparing" && !run.nativeIssueId && !run.nativeSessionId && !coordinator &&
-    claimedAdapterType(run) === "paperclip_runner" && run.errorCode === "operator_interrupted" &&
+    claimedAdapterType(run) === "outpost_runner" && run.errorCode === "operator_interrupted" &&
     (run.resultJson === null || cancellation?.beforeNativeSelection === true) &&
     Boolean(run.controllerBootId && run.controllerBootId !== legacyControllerBootId &&
       run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt <= new Date());
@@ -283,7 +283,7 @@ export async function isCancelledNativeStartup(db: Db, run: Run, coordinator: Co
     !hasRequiredWorkspaceRecovery(run.resultJson));
   const unclaimedWorkspaceRetry = !coordinator && await isCancelledUnclaimedWorkspaceWaitRetry(db, run);
   const beforeSelection = beforeDispatch || unclaimedWorkspaceRetry || historicalBeforeSelection || run.runtimeMode === "legacy" && !run.runtimeModeResolvedAt &&
-    !run.nativeSessionId && !coordinator && claimedAdapterType(run) === "paperclip_runner" &&
+    !run.nativeSessionId && !coordinator && claimedAdapterType(run) === "outpost_runner" &&
     cancellation?.beforeNativeSelection === true;
   const neverClaimed = run.runtimeMode === "native" && coordinator &&
     ["observed", "terminal_failure"].includes(coordinator.phase) && coordinator.attempt === 0 &&

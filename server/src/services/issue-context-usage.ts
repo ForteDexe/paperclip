@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { heartbeatRunEvents, heartbeatRuns } from "@paperclipai/db";
-import type { IssueContextUsage } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
+import type { IssueContextUsage } from "@outpost/shared";
 
 /**
  * Recent runs of the assignee searched for its newest usage report. The
@@ -20,9 +20,9 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 /** Matches the predicate of `heartbeat_run_events_usage_item_run_idx`. */
-const usageItem = sql`${heartbeatRunEvents.eventType} = 'item.completed' and (${heartbeatRunEvents.payload} -> 'prpEvent' -> 'payload' ->> 'kind') = 'usage'`;
+const usageItem = sql`${heartbeatRunEvents.eventType} = 'item.completed' and (${heartbeatRunEvents.payload} -> 'orpEvent' -> 'payload' ->> 'kind') = 'usage'`;
 /** Matches the key expression of `heartbeat_run_events_compaction_session_idx`. */
-const sessionIdSql = sql<string | null>`(${heartbeatRunEvents.payload} -> 'prpEvent' ->> 'normalizedSessionId')`;
+const sessionIdSql = sql<string | null>`(${heartbeatRunEvents.payload} -> 'orpEvent' ->> 'normalizedSessionId')`;
 
 /**
  * Reads the most recent provider-reported context occupancy for the current
@@ -70,13 +70,13 @@ export async function issueContextUsage(
       runId: heartbeatRunEvents.runId,
       agentId: heartbeatRunEvents.agentId,
       createdAt: heartbeatRunEvents.createdAt,
-      usage: sql<unknown>`${heartbeatRunEvents.payload} -> 'prpEvent' -> 'payload' -> 'usage'`,
+      usage: sql<unknown>`${heartbeatRunEvents.payload} -> 'orpEvent' -> 'payload' -> 'usage'`,
     })
     .from(heartbeatRunEvents)
     .where(and(
       recentUsage,
       sql`${sessionIdSql} = ${sessionId}`,
-      sql`${heartbeatRunEvents.payload} -> 'prpEvent' -> 'payload' -> 'usage' ? 'context'`,
+      sql`${heartbeatRunEvents.payload} -> 'orpEvent' -> 'payload' -> 'usage' ? 'context'`,
     ))
     .orderBy(desc(heartbeatRunEvents.createdAt), desc(heartbeatRunEvents.id))
     .limit(1);
@@ -91,7 +91,7 @@ export async function issueContextUsage(
   // report one compaction through more than one notification; count each id once.
   const [compactions] = await db
     .select({
-      count: sql<number>`count(distinct coalesce(${heartbeatRunEvents.payload} -> 'prpEvent' -> 'payload' ->> 'compactionId', ${heartbeatRunEvents.id}::text))::int`,
+      count: sql<number>`count(distinct coalesce(${heartbeatRunEvents.payload} -> 'orpEvent' -> 'payload' ->> 'compactionId', ${heartbeatRunEvents.id}::text))::int`,
     })
     .from(heartbeatRunEvents)
     .where(and(

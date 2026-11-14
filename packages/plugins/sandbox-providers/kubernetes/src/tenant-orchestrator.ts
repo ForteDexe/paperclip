@@ -66,8 +66,8 @@ async function ensureNamespace(clients: KubeClients, input: EnsureTenantInput): 
           metadata: {
             name: input.namespace,
             labels: {
-              "paperclip.io/company-id": input.companyId,
-              "paperclip.io/managed-by": "paperclip-k8s-plugin",
+              "outpost.io/company-id": input.companyId,
+              "outpost.io/managed-by": "paperclip-k8s-plugin",
               "pod-security.kubernetes.io/enforce": "restricted",
               "pod-security.kubernetes.io/audit": "restricted",
               "pod-security.kubernetes.io/warn": "restricted",
@@ -95,7 +95,7 @@ async function ensureServiceAccount(clients: KubeClients, input: EnsureTenantInp
             name: SERVICE_ACCOUNT_NAME,
             namespace: input.namespace,
             annotations: input.serviceAccountAnnotations,
-            labels: { "paperclip.io/managed-by": "paperclip-k8s-plugin" },
+            labels: { "outpost.io/managed-by": "paperclip-k8s-plugin" },
           },
         },
       }),

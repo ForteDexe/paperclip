@@ -4,7 +4,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { and, eq, sql } from "drizzle-orm";
-import { closeRegisteredClients, createDb, executionWorkspaces, inspectMigrations, type Db } from "@paperclipai/db";
+import { closeRegisteredClients, createDb, executionWorkspaces, inspectMigrations, type Db } from "@outpost/db";
 import { z } from "zod";
 import { readBuildCommit } from "../build-commit.js";
 import { loadCloudBootstrapConfig, loadConfig } from "../config.js";
@@ -19,7 +19,7 @@ import { initializeNativeHarnessPrestageKey } from "./native-harness-prestage-ru
 
 const commit = z.string().regex(/^[a-f0-9]{40}$/);
 const requestSchema = z.object({
-  schema: z.literal("paperclip.online-workspace-migration.v1"),
+  schema: z.literal("outpost.online-workspace-migration.v1"),
   toolCommit: commit,
   toolRoot: z.string().min(1).max(4096),
   source: z.object({ commit, deploymentId: z.string().uuid() }).strict(),
@@ -205,7 +205,7 @@ export function onlineWorkspaceMigrationReceipt(result: unknown) {
 }
 
 export async function runOnlineWorkspaceMigrationEntry(args = process.argv.slice(2)) {
-  if (process.env.PAPERCLIP_ONLINE_WORKSPACE_MIGRATION !== "true" || args.length !== 1) {
+  if (process.env.OUTPOST_ONLINE_WORKSPACE_MIGRATION !== "true" || args.length !== 1) {
     throw new Error("online_migration_explicit_request_required");
   }
   const file = await fs.open(args[0], constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -251,10 +251,10 @@ export async function runOnlineWorkspaceMigrationEntry(args = process.argv.slice
   }
 }
 
-if (process.env.PAPERCLIP_ONLINE_WORKSPACE_MIGRATION === "true") {
+if (process.env.OUTPOST_ONLINE_WORKSPACE_MIGRATION === "true") {
   await runOnlineWorkspaceMigrationEntry().catch(error => {
     const reason = error instanceof Error && /^[a-z_]{1,120}(?::[a-z_,]{1,1000})?$/.test(error.message) ? error.message : "online_migration_failed";
-    console.error(JSON.stringify({ schema: "paperclip.online-workspace-migration.v1", state: "blocked", reason, enrollmentReady: false,
+    console.error(JSON.stringify({ schema: "outpost.online-workspace-migration.v1", state: "blocked", reason, enrollmentReady: false,
       ...(reason === "online_migration_committed_receipt_requires_reconciliation" ? { publicationMayHaveCommitted: true } : {}) }));
     process.exitCode = 1;
   });

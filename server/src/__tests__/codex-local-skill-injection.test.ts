@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ensureCodexSkillsInjected } from "@paperclipai/adapter-codex-local/server";
+import { ensureCodexSkillsInjected } from "@outpost/adapter-codex-local/server";
 
 async function makeTempDir(prefix: string): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -32,7 +32,7 @@ async function createCustomSkill(root: string, skillName: string) {
 
 describe("codex local adapter skill injection", () => {
   const paperclipKey = "paperclipai/paperclip/paperclip";
-  const createAgentKey = "paperclipai/paperclip/paperclip-create-agent";
+  const delegationKey = "outpost/outpost-delegation";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -85,7 +85,7 @@ describe("codex local adapter skill injection", () => {
     cleanupDirs.add(skillsHome);
 
     await createPaperclipRepoSkill(currentRepo, "paperclip");
-    await createPaperclipRepoSkill(currentRepo, "paperclip-create-agent");
+    await createPaperclipRepoSkill(currentRepo, "outpost-delegation");
     await createPaperclipRepoSkill(oldRepo, "paperclip");
     await fs.symlink(path.join(oldRepo, "skills", "paperclip"), path.join(skillsHome, "paperclip"));
 
@@ -103,9 +103,9 @@ describe("codex local adapter skill injection", () => {
             source: path.join(currentRepo, "skills", "paperclip"),
           },
           {
-            key: createAgentKey,
-            runtimeName: "paperclip-create-agent",
-            source: path.join(currentRepo, "skills", "paperclip-create-agent"),
+            key: delegationKey,
+            runtimeName: "outpost-delegation",
+            source: path.join(currentRepo, "skills", "outpost-delegation"),
           },
         ],
       },
@@ -114,8 +114,8 @@ describe("codex local adapter skill injection", () => {
     expect(await fs.realpath(path.join(skillsHome, "paperclip"))).toBe(
       await fs.realpath(path.join(currentRepo, "skills", "paperclip")),
     );
-    expect(await fs.realpath(path.join(skillsHome, "paperclip-create-agent"))).toBe(
-      await fs.realpath(path.join(currentRepo, "skills", "paperclip-create-agent")),
+    expect(await fs.realpath(path.join(skillsHome, "outpost-delegation"))).toBe(
+      await fs.realpath(path.join(currentRepo, "skills", "outpost-delegation")),
     );
     expect(logs).toContainEqual(
       expect.objectContaining({
@@ -126,7 +126,7 @@ describe("codex local adapter skill injection", () => {
     expect(logs).toContainEqual(
       expect.objectContaining({
         stream: "stdout",
-        chunk: expect.stringContaining('Injected Codex skill "paperclip-create-agent"'),
+        chunk: expect.stringContaining('Injected Codex skill "outpost-delegation"'),
       }),
     );
   });

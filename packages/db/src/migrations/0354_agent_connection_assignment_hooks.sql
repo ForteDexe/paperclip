@@ -60,7 +60,7 @@ BEGIN
   ) refs WHERE reference IS NOT NULL;
   FOR candidate IN SELECT a.id FROM agents a WHERE a.company_id = company
     AND a.status NOT IN ('pending_approval', 'terminated') AND (
-      (a.adapter_type <> 'paperclip_runner' AND keys && ARRAY['paperclipai/paperclip/paperclip', 'paperclipai/paperclip/complain', 'paperclipai/paperclip/suggestion-box']) OR
+      (a.adapter_type <> 'outpost_runner' AND keys && ARRAY['paperclipai/paperclip/paperclip', 'paperclipai/paperclip/complain', 'paperclipai/paperclip/suggestion-box']) OR
       EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(a.adapter_config#>'{paperclipSkillSync,desiredSkills}') = 'array'
         THEN a.adapter_config#>'{paperclipSkillSync,desiredSkills}' ELSE '[]'::jsonb END) choice
         WHERE lower(trim(CASE WHEN jsonb_typeof(choice) = 'string' THEN choice#>>'{}' ELSE choice->>'key' END)) = ANY(keys)))
@@ -74,9 +74,9 @@ $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION paperclip_invalidate_connector_agent(p_company uuid, p_agent uuid) RETURNS void
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
-DECLARE setting text := 'paperclip.runtime_agent_' || replace(p_agent::text, '-', '_'); xid text := pg_current_xact_id()::text;
+DECLARE setting text := 'outpost.runtime_agent_' || replace(p_agent::text, '-', '_'); xid text := pg_current_xact_id()::text;
 BEGIN
-  IF current_setting('paperclip.runtime_' || replace(p_company::text, '-', '_'), true) IS NOT DISTINCT FROM xid
+  IF current_setting('outpost.runtime_' || replace(p_company::text, '-', '_'), true) IS NOT DISTINCT FROM xid
     OR current_setting(setting, true) IS NOT DISTINCT FROM xid THEN RETURN; END IF;
   PERFORM paperclip_record_agent_runtime(p_company, p_agent);
   PERFORM set_config(setting, xid, true);
@@ -85,7 +85,7 @@ $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION paperclip_invalidate_connector_company(p_company uuid) RETURNS void
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
-DECLARE setting text := 'paperclip.runtime_' || replace(p_company::text, '-', '_'); xid text := pg_current_xact_id()::text; candidate uuid;
+DECLARE setting text := 'outpost.runtime_' || replace(p_company::text, '-', '_'); xid text := pg_current_xact_id()::text; candidate uuid;
 BEGIN
   IF current_setting(setting, true) IS NOT DISTINCT FROM xid THEN RETURN; END IF;
   FOR candidate IN SELECT id FROM agents WHERE company_id = p_company

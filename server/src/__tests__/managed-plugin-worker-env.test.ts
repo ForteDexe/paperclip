@@ -8,7 +8,7 @@ import { MANAGED_CONFIG_ENV_KEY } from "../services/managed-config.js";
 import { managedPluginEnabledCompanies, managedPluginWorkerEnvGrant } from "../services/managed-plugin-worker-env.js";
 
 describe("managed plugin grants", () => {
-  const pluginKey = "paperclip.daytona-sandbox-provider";
+  const pluginKey = "outpost.daytona-sandbox-provider";
   const companyId = "f0679247-e2be-5a76-adb6-6bd360e5a833";
   let root: string;
   const env = (plugins: Record<string, unknown>) => ({

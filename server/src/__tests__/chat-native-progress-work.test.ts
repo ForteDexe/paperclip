@@ -3,7 +3,7 @@ import { persistReprojectedWorkspaceDiffs, projectCodexWorkspaceDiffsFromTrace }
 import { randomUUID } from "node:crypto";
 import { eq, like, and } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { chatPublications, createDb, heartbeatRunEvents, heartbeatRuns, issues, subscribeDatabaseWork } from "@paperclipai/db";
+import { chatPublications, createDb, heartbeatRunEvents, heartbeatRuns, issues, subscribeDatabaseWork } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createChatMilestoneFixtures } from "./helpers/chat-milestone-fixtures.js";
@@ -13,10 +13,10 @@ import { nativeChatProgressWork } from "../services/chat-native-progress-work.js
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
-import type { PrpEvent } from "../vendor/paperclip-runner/index.js";
+import type { PrpEvent } from "../vendor/outpost-runner/index.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_PROGRESS_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_PROGRESS_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("native chat progress work", () => {
   let db: ReturnType<typeof createDb>;
@@ -155,7 +155,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       normalizedSessionId: sessionId, runnerSourceInstanceId: runnerId,
       completionContractRevision: "1", completionContractCriterionIds: [],
     };
-    const source: PrpEvent = { schema: "paperclip.prp.event.v1", schemaVersion: 1,
+    const source: PrpEvent = { schema: "outpost.orp.event.v1", schemaVersion: 1,
       sourceEventId: "event-1", sourceSeq: 1, sourceInstanceId: runnerId, sourceKind: "runner",
       runId, normalizedSessionId: sessionId, turnId: "turn-1", itemId: "item-1",
       eventType: "item.completed", priority: 1, emittedAt: new Date().toISOString(), payload: {},

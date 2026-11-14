@@ -47,12 +47,12 @@ async function importFreshConfigModules() {
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-config-tailnet-"));
   configPath = path.join(home, "config.json");
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_CONFIG", configPath);
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_CONFIG", configPath);
   for (const name of [
-    "PAPERCLIP_BIND", "PAPERCLIP_BIND_HOST", "PAPERCLIP_TAILNET_BIND_HOST", "HOST", "PAPERCLIP_DEPLOYMENT_MODE",
-    "PAPERCLIP_DEPLOYMENT_EXPOSURE", "PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "PAPERCLIP_MANAGED_CONFIG",
-    "PAPERCLIP_STORAGE_PROVIDER",
+    "OUTPOST_BIND", "OUTPOST_BIND_HOST", "OUTPOST_TAILNET_BIND_HOST", "HOST", "OUTPOST_DEPLOYMENT_MODE",
+    "OUTPOST_DEPLOYMENT_EXPOSURE", "OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "OUTPOST_MANAGED_CONFIG",
+    "OUTPOST_STORAGE_PROVIDER",
   ]) vi.stubEnv(name, undefined);
   tailscale.installed = true;
   tailscale.execFileSync.mockClear();
@@ -112,17 +112,17 @@ describe("tailnet bind host detection in loadConfig", () => {
     expect(tailscaleExecCount()).toBe(1);
   });
 
-  it("uses PAPERCLIP_TAILNET_BIND_HOST without tailscale and sees each change to it", async () => {
+  it("uses OUTPOST_TAILNET_BIND_HOST without tailscale and sees each change to it", async () => {
     writeServerConfig({ bind: "tailnet" });
     const { loadConfig } = await importFreshConfigModules();
 
-    vi.stubEnv("PAPERCLIP_TAILNET_BIND_HOST", "100.64.0.9");
+    vi.stubEnv("OUTPOST_TAILNET_BIND_HOST", "100.64.0.9");
     expect(loadConfig().host).toBe("100.64.0.9");
-    vi.stubEnv("PAPERCLIP_TAILNET_BIND_HOST", "100.64.0.10");
+    vi.stubEnv("OUTPOST_TAILNET_BIND_HOST", "100.64.0.10");
     expect(loadConfig().host).toBe("100.64.0.10");
     expect(tailscaleExecCount()).toBe(0);
 
-    vi.stubEnv("PAPERCLIP_TAILNET_BIND_HOST", undefined);
+    vi.stubEnv("OUTPOST_TAILNET_BIND_HOST", undefined);
     expect(loadConfig().host).toBe(DETECTED_TAILNET_ADDRESS);
     expect(loadConfig().host).toBe(DETECTED_TAILNET_ADDRESS);
     expect(tailscaleExecCount()).toBe(1);
@@ -134,10 +134,10 @@ describe("tailnet bind host detection in loadConfig", () => {
     expect(loadConfig()).toMatchObject({ bind: "lan", host: "0.0.0.0" });
     expect(tailscaleExecCount()).toBe(0);
 
-    vi.stubEnv("PAPERCLIP_BIND", "tailnet");
+    vi.stubEnv("OUTPOST_BIND", "tailnet");
     expect(loadConfig()).toMatchObject({ bind: "tailnet", host: DETECTED_TAILNET_ADDRESS });
 
-    vi.stubEnv("PAPERCLIP_BIND", undefined);
+    vi.stubEnv("OUTPOST_BIND", undefined);
     expect(loadConfig()).toMatchObject({ bind: "lan", host: "0.0.0.0" });
     writeServerConfig({ bind: "tailnet" });
     expect(loadConfig()).toMatchObject({ bind: "tailnet", host: DETECTED_TAILNET_ADDRESS });
@@ -152,12 +152,12 @@ describe("tailnet bind host detection in loadConfig", () => {
 
     for (let call = 0; call < 3; call += 1) {
       expect(() => loadConfig()).toThrow(
-        "server.bind=tailnet requires a detected Tailscale address or PAPERCLIP_TAILNET_BIND_HOST",
+        "server.bind=tailnet requires a detected Tailscale address or OUTPOST_TAILNET_BIND_HOST",
       );
     }
     expect(tailscaleExecCount()).toBe(1);
 
-    vi.stubEnv("PAPERCLIP_TAILNET_BIND_HOST", "100.64.0.9");
+    vi.stubEnv("OUTPOST_TAILNET_BIND_HOST", "100.64.0.9");
     expect(loadConfig()).toMatchObject({ bind: "tailnet", host: "100.64.0.9" });
   });
 });

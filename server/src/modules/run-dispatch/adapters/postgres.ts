@@ -18,7 +18,7 @@ import { getExecutionBlocker } from "../../../services/execution-blocker.js";
 import { validateReconstructedWorkspaceDispatch } from "../../../services/native-runtime/native-workspace-reconstruction.js";
 import { getNativeReviewAssignment } from "../../../services/native-runtime/native-review-participant.js";
 import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agentWakeupRequests,
   agents,
@@ -32,8 +32,8 @@ import {
   issues,
   nativeRunFinalizations,
   projects,
-} from "@paperclipai/db";
-import { ISSUE_DISPOSITION_REPAIR_RETRY_REASON, isUuidLike } from "@paperclipai/shared";
+} from "@outpost/db";
+import { ISSUE_DISPOSITION_REPAIR_RETRY_REASON, isUuidLike } from "@outpost/shared";
 import { withOperationAccountingTransaction } from "../../../services/accounting-transaction.js";
 import { lockBudgetAdmissionControls } from "../../../services/budget-admission-controls.js";
 import type { ActivityPublication } from "../../../services/activity-log.js";

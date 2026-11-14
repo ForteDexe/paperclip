@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TaskBrowser } from "@paperclipai/shared";
+import type { TaskBrowser } from "@outpost/shared";
 import { browserUseApi } from "@/api/browser-use";
 import { retryTransientOnly } from "@/lib/query-client";
 import { useHasCompanyLiveConnection } from "@/context/LiveUpdatesProvider";

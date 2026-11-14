@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { COPILOT_LAUNCH_ARGUMENTS } from "../../packages/paperclip-runner/src/drivers/acpx/copilot-profile.js";
+import { COPILOT_LAUNCH_ARGUMENTS } from "../../packages/outpost-runner/src/drivers/acpx/copilot-profile.js";
 import { isValidNativePrpEnvelope } from "./native-event-envelope.js";
 import { copilotEditOriginForPermission, readCopilotToolEvidence } from "./copilot-evidence.js";
 import { readCopilotContextRead } from "./copilot-context-evidence.js";
@@ -53,9 +53,9 @@ export function copilotDeathCommandDigest(argv: readonly string[]) {
 export function assertCopilotProviderDeath(input: { pending: ActiveStopPending; run: Record<string, any>; issue: Record<string, any>; events: readonly any[]; bootstrap?: BootstrapReadProof }) {
   const { pending, run, issue } = input;
   if (run.id !== pending.scope.runId || run.companyId !== pending.scope.companyId || issue.id !== pending.scope.issueId || issue.status !== "blocked" || run.nativeIssueId !== pending.scope.issueId || run.runtimeMode !== "native" || run.status !== "failed") throw new Error("Provider death requires one failed unfinished run");
-  const rows = input.events.filter(row => row.payload?.prpEvent);
-  if (!rows.length || rows.some(row => row.runId !== run.id || row.companyId !== run.companyId || !isValidNativePrpEnvelope(row.payload.prpEvent, row.protocolSchemaVersion))) throw new Error("Provider death requires canonical run evidence");
-  const events = rows.map(row => row.payload.prpEvent);
+  const rows = input.events.filter(row => row.payload?.orpEvent);
+  if (!rows.length || rows.some(row => row.runId !== run.id || row.companyId !== run.companyId || !isValidNativePrpEnvelope(row.payload.orpEvent, row.protocolSchemaVersion))) throw new Error("Provider death requires canonical run evidence");
+  const events = rows.map(row => row.payload.orpEvent);
   const expiry = events.filter(event => event.eventType === "runtime_request.expired" && event.payload?.requestId === pending.requestId && event.turnId === pending.turnId && event.normalizedSessionId === pending.normalizedSessionId);
   if (expiry.length !== 1 || events.some(event => event.eventType === "runtime_request.resolved" && event.payload?.requestId === pending.requestId) || events.some(event => event.eventType === "task.completed" || event.eventType === "turn.completed")) throw new Error("Provider death did not expire the unanswered callback");
   const allNotices = readCopilotToolEvidence(input.events, run.id);
@@ -64,8 +64,8 @@ export function assertCopilotProviderDeath(input: { pending: ActiveStopPending; 
   const context = target ? readCopilotContextRead(input.events, target, pending.scope.requireContextRead) : undefined;
   const notices = target ? copilotActionNotices(allNotices, target, input.bootstrap, context ? input.events : undefined) : allNotices;
   if (notices.filter(n => n.stage === "permission_requested").length !== 1 || notices.some(n => n.stage === "permission_delivered" && ["allow_once", "allow_always"].includes(n.outcome ?? "")) || notices.some(n => n.stage === "tool" && (n.toolCallId !== pending.toolCallId || (n.operation !== undefined && n.operation !== "edit") || n.status === "completed"))) throw new Error("Provider death replayed or completed an operation");
-  const expirySeq = rows.find(row => row.payload.prpEvent === expiry[0])!.seq;
+  const expirySeq = rows.find(row => row.payload.orpEvent === expiry[0])!.seq;
   if (allNotices.some(n => n.stage === "tool" && n.seq >= expirySeq && !(n.toolCallId === pending.toolCallId && n.operation === "edit" && n.status === "failed"))) throw new Error("Provider death executed an operation after callback expiry");
   if (!events.some(event => ["turn.failed", "turn.interrupted"].includes(event.eventType) && event.turnId === pending.turnId)) throw new Error("Provider death lacks a failed provider turn");
-  return { schema: "paperclip.e2e.copilot-provider-death.v1", runId: run.id, requestId: pending.requestId, expired: true, mutationReplay: false };
+  return { schema: "outpost.e2e.copilot-provider-death.v1", runId: run.id, requestId: pending.requestId, expired: true, mutationReplay: false };
 }

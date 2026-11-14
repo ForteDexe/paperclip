@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { AskUserQuestionsInteraction } from "@paperclipai/shared";
+import type { AskUserQuestionsInteraction } from "@outpost/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildChatQuestionFormModal,
@@ -80,7 +80,7 @@ function formFixture(configure?: (interaction: AskUserQuestionsInteraction) => v
         },
       ],
       questionSet: {
-        schema: "paperclip.question_set.v1",
+        schema: "outpost.question_set.v1",
         title: "Deployment details",
         submitLabel: "Continue",
         questions: [
@@ -156,7 +156,7 @@ function signedRequest(payload: unknown, secret = signingSecret) {
   }).toString();
   const timestamp = String(Math.floor(Date.now() / 1_000));
   const signature = `v0=${createHmac("sha256", secret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
-  return new Request("https://paperclip.test/webhooks/slack", {
+  return new Request("https://outpost.test/webhooks/slack", {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",

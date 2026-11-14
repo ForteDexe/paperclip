@@ -11,7 +11,7 @@ import {
   nativeRunFinalizations,
   nativeRunResults,
   workAssessments,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -19,7 +19,7 @@ import {
 import {
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
-} from "../../vendor/paperclip-runner/testing.js";
+} from "../../vendor/outpost-runner/testing.js";
 import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 import { commitNativeStatusDecision } from "./status-decision-committer.js";
@@ -59,7 +59,7 @@ describeEmbeddedPostgres("native finalization recovery state", () => {
     await db.insert(issues).values({ id: issueId, companyId, title: "Native recovery state fixture",
       status: "in_progress", assigneeAgentId: agentId, workMode: "standard" });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "recovery-state-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "recovery-state-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "recovery-state-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractSha256, createdByActorType: "system", createdByActorId: "test" });

@@ -1,4 +1,4 @@
-import type { heartbeatRuns } from "@paperclipai/db";
+import type { heartbeatRuns } from "@outpost/db";
 import type { StorageOutageWaitObserver } from "../../storage/storage-unavailable.js";
 import { setHeartbeatRunRuntimeStatus } from "../heartbeat-run-runtime-status.js";
 import { publishHeartbeatRunRuntimeProgress, type createHeartbeatLifecycle } from "./run-lifecycle.js";

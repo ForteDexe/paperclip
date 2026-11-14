@@ -1208,8 +1208,8 @@ export function transcriptToTaskChatItems(
       }
       case "result": {
         if (
-          entry.subtype !== "paperclip_runner_usage" &&
-          entry.subtype !== "paperclip_runner_session_usage"
+          entry.subtype !== "outpost_runner_usage" &&
+          entry.subtype !== "outpost_runner_session_usage"
         )
           break;
         const inputTokens = entry.inputTokens || 0;
@@ -1217,7 +1217,7 @@ export function transcriptToTaskChatItems(
         items.push({
           id: `${runId}:usage:${i}`,
           kind: "usage",
-          ...(entry.subtype === "paperclip_runner_session_usage"
+          ...(entry.subtype === "outpost_runner_session_usage"
             ? {
                 label: "Provider session total",
                 detail:
@@ -1393,7 +1393,7 @@ export function omitProgressRepeatedByResponseAcrossSegments(
 }
 
 /**
- * Keep the paperclip runner's expanded activity history focused on work the
+ * Keep the outpost runner's expanded activity history focused on work the
  * user can act on. The normalized transcript remains lossless; this is only a
  * presentation filter for the new-runner turn surface. Legacy adapters keep
  * their existing lifecycle and usage rows.
@@ -1491,7 +1491,7 @@ export function paperclipRunnerActivityItems(
 }
 
 /**
- * Ordered input for the Paperclip Runner task-turn timeline. This keeps the
+ * Ordered input for the Outpost Runner task-turn timeline. This keeps the
  * semantic activity filter above, but retains runtime-request lifecycles so
  * the shared projector can use each request as a phase boundary and place its
  * terminal receipt at the request's first-seen position.
@@ -2294,7 +2294,7 @@ export function buildTurnSummary(
       else if (entry.changeType === "remove") removed += 1;
     } else if (
       entry.kind === "result" &&
-      entry.subtype !== "paperclip_runner_session_usage"
+      entry.subtype !== "outpost_runner_session_usage"
     ) {
       // Session-cumulative measurements remain visible in the expanded
       // transcript, but they can include earlier runs. Only run-scoped usage

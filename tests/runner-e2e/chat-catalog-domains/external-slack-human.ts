@@ -59,14 +59,14 @@ export async function privateSlackHumanConnect(
     path.join(tmpdir(), "paperclip-slack-human-"),
   );
   try {
-    const channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL,
+    const channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL,
       requestFile = path.join(directory, "request.json");
     await writeFile(
       requestFile,
       JSON.stringify({
         ...request,
         executablePath:
-          process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
+          process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
           (channel ? undefined : chromium.executablePath()),
         channel,
       }),

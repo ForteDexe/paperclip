@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { act, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import type { CreateConfigValues } from "@paperclipai/adapter-utils";
+import type { CreateConfigValues } from "@outpost/adapter-utils";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -11,9 +11,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { CodexLocalConfigFields } from "./config-fields";
 import { buildCodexRunnerConfig } from "./config-fields";
-import { buildPaperclipRunnerConfig } from "@paperclipai/adapter-codex-local/ui";
+import { buildPaperclipRunnerConfig } from "@outpost/adapter-codex-local/ui";
 import { defaultCreateValues } from "@/components/agent-config-defaults";
-import { resolveCodexLocalCliPolicy } from "@paperclipai/adapter-codex-local";
+import { resolveCodexLocalCliPolicy } from "@outpost/adapter-codex-local";
 
 beforeAll(() => { Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); });
 
@@ -40,7 +40,7 @@ async function renderRunner(config: Record<string, unknown>, expand?: string, in
       <CodexLocalConfigFields
         mode="edit"
         isCreate={false}
-        adapterType="paperclip_runner"
+        adapterType="outpost_runner"
         values={null}
         set={null}
         config={config}
@@ -72,20 +72,20 @@ async function selectField(container: HTMLElement, label: string, value: string)
 
 async function editFields(
   mode: "create" | "edit",
-  adapterType: "codex_local" | "paperclip_runner",
+  adapterType: "codex_local" | "outpost_runner",
   inspect: (container: HTMLElement, saved: () => Record<string, unknown>) => Promise<void>,
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   let currentConfig: Record<string, unknown> = {
-    ...(adapterType === "paperclip_runner" ? { provider: "codex", lifecycleMode: "warm", idleTimeoutMs: 45_000 } : { engine: "acp", mode: "persistent", nonInteractivePermissions: "deny" }),
+    ...(adapterType === "outpost_runner" ? { provider: "codex", lifecycleMode: "warm", idleTimeoutMs: 45_000 } : { engine: "acp", mode: "persistent", nonInteractivePermissions: "deny" }),
     env: { CODEX_HOME: { type: "secret_ref", secretId: "codex-account" } },
   };
   let currentValues: CreateConfigValues = {
     ...defaultCreateValues,
     adapterType,
-    runner: adapterType === "paperclip_runner" ? "paperclip" : "legacy",
+    runner: adapterType === "outpost_runner" ? "paperclip" : "legacy",
     adapterSchemaValues: { provider: "codex" },
     envBindings: { CODEX_HOME: { type: "secret_ref", secretId: "codex-account" } },
     paperclipRunnerLifecycleMode: "warm",
@@ -108,11 +108,11 @@ async function editFields(
   try {
     await act(async () => root.render(<QueryClientProvider client={new QueryClient()}><TooltipProvider><Fixture /></TooltipProvider></QueryClientProvider>));
     await inspect(container, () => mode === "create"
-      ? adapterType === "paperclip_runner" ? buildPaperclipRunnerConfig(currentValues) : buildCodexRunnerConfig(currentValues)
+      ? adapterType === "outpost_runner" ? buildPaperclipRunnerConfig(currentValues) : buildCodexRunnerConfig(currentValues)
       : currentConfig);
     if (mode === "create") {
       expect(currentValues.adapterType).toBe(adapterType);
-      expect(currentValues.runner).toBe(adapterType === "paperclip_runner" ? "paperclip" : "legacy");
+      expect(currentValues.runner).toBe(adapterType === "outpost_runner" ? "paperclip" : "legacy");
     }
   } finally {
     await act(async () => root.unmount());
@@ -184,7 +184,7 @@ describe("Outpost Runner Codex configuration", () => {
     container.remove();
   });
   it.each(["create", "edit"] as const)("changes native lifecycle while retaining timeout and account in %s mode", async mode => {
-    await editFields(mode, "paperclip_runner", async (container, saved) => {
+    await editFields(mode, "outpost_runner", async (container, saved) => {
       expect(container.querySelector('[aria-label="Runner lifecycle"]')?.textContent).toContain("Warm session");
       expect(container.textContent).toContain("Warm idle timeout (ms)");
       const account = saved().env;

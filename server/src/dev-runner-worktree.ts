@@ -68,12 +68,12 @@ export function resolveWorktreeEnvFilePath(rootDir: string): string {
 export function applyEmptyWorktreeSigningSecrets(rootDir: string, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!existsSync(path.resolve(rootDir, ".paperclip", "seed-empty"))) return false;
   const entries = parseEnvFile(readFileSync(resolveWorktreeEnvFilePath(rootDir), "utf8"));
-  for (const key of ["PAPERCLIP_AGENT_JWT_SECRET", "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET"] as const) {
+  for (const key of ["OUTPOST_AGENT_JWT_SECRET", "OUTPOST_TOOL_ACTION_SIGNING_SECRET"] as const) {
     if (!entries[key]?.trim()) throw new Error(`Empty worktree is missing its saved ${key}. Reinitialize its configuration before starting.`);
     env[key] = entries[key];
   }
   // Better Auth otherwise prefers an inherited key over this instance's JWT key.
-  env.BETTER_AUTH_SECRET = entries.BETTER_AUTH_SECRET?.trim() || entries.PAPERCLIP_AGENT_JWT_SECRET;
+  env.BETTER_AUTH_SECRET = entries.BETTER_AUTH_SECRET?.trim() || entries.OUTPOST_AGENT_JWT_SECRET;
   return true;
 }
 
@@ -98,7 +98,7 @@ function resolveHomeAwarePath(value: string): string {
 }
 
 function resolveDefaultWorktreeHome(env: NodeJS.ProcessEnv): string {
-  return path.resolve(expandHomePrefix(env.PAPERCLIP_WORKTREES_DIR?.trim() || "~/.paperclip-worktrees"));
+  return path.resolve(expandHomePrefix(env.OUTPOST_WORKTREES_DIR?.trim() || "~/.paperclip-worktrees"));
 }
 
 function repairStaleMigratedWorktreeEnvEntries(
@@ -107,7 +107,7 @@ function repairStaleMigratedWorktreeEnvEntries(
   env: NodeJS.ProcessEnv,
 ): Record<string, string> {
   const localConfigPath = path.resolve(rootDir, ".paperclip", "config.json");
-  const configuredPath = entries.PAPERCLIP_CONFIG?.trim();
+  const configuredPath = entries.OUTPOST_CONFIG?.trim();
   if (!configuredPath) return entries;
 
   const resolvedConfiguredPath = resolveHomeAwarePath(configuredPath);
@@ -120,9 +120,9 @@ function repairStaleMigratedWorktreeEnvEntries(
   const homeDir = resolveDefaultWorktreeHome(env);
   return {
     ...entries,
-    PAPERCLIP_HOME: homeDir,
-    PAPERCLIP_CONFIG: localConfigPath,
-    PAPERCLIP_CONTEXT: path.resolve(homeDir, "context.json"),
+    OUTPOST_HOME: homeDir,
+    OUTPOST_CONFIG: localConfigPath,
+    OUTPOST_CONTEXT: path.resolve(homeDir, "context.json"),
   };
 }
 

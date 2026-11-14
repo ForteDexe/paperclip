@@ -141,7 +141,7 @@ export const appCatalogExternalCases = [
     },
     gradeQuarantinedAction,
     {
-      oracleVersion: "paperclip.chat-catalog.external.v2",
+      oracleVersion: "outpost.chat-catalog.external.v2",
       sourceFiles: [
         "chat-catalog-domains/external-app-fixture.ts",
         "../../packages/shared/src/connection-search.ts",

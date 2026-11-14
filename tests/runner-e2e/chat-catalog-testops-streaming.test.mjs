@@ -14,7 +14,7 @@ const context = { catalog: 'full', runId: '123', attempt: '1', workflowSha: 'a'.
 const caseIds = { 'tasks.create-backlog': 388, 'documents-artifacts.write-plan': 26, 'projects.project-defaults': 100 };
 const cases = fullCatalogCases.filter(row => Object.hasOwn(caseIds, row.key)).map(row => ({ ...row, caseId: caseIds[row.key],
   registeredFullName: row.aliases[0] ?? row.fullName }));
-const selection = { schema: 'paperclip.chat-completion-testops-selection/v1', ...context, projectId: 1,
+const selection = { schema: 'outpost.chat-completion-testops-selection/v1', ...context, projectId: 1,
   planId: 102, jobId: 100, launchId: 12, allureJobRunId: '77', cases };
 const digest = hash(JSON.stringify(selection)), current = cases.find(row => row.caseId === 388), runUrl = 'https://github.com/paperclipai/paperclip/actions/runs/123';
 async function fixture(t, failed = false, owned = current, runtimeContext = context, runtimeSelection = selection) {
@@ -26,9 +26,9 @@ async function fixture(t, failed = false, owned = current, runtimeContext = cont
     source: { sha: catalogTargetSha, workflowRunUrl: runUrl }, status: failed ? 'failed' : 'passed', cleanup: failed ? 'failed' : 'passed',
     runIds: failed ? [] : Array.from({ length: owned.minimumRuns }, (_, i) => `synthetic-owned-run-${i}`), matcherResults: failed ? [] : Array.from({ length: owned.checks ?? 2 }, (_, i) => ({
       matcher: { kind: 'json_path', path: `owned.check${i}`, expected: true }, passed: true })), screenshots: [] };
-  const files = new Map([['normalized-results.json', Buffer.from(JSON.stringify({ schema: 'paperclip.runner-e2e.campaign/v2',
+  const files = new Map([['normalized-results.json', Buffer.from(JSON.stringify({ schema: 'outpost.runner-e2e.campaign/v2',
     campaignId: 'gha-123-1', retries: 0, results: [original] }))], ['junit.xml', Buffer.from('<testsuite/>')]]);
-  const binding = { schema: 'paperclip.chat-completion-testops-export/v1', ...context, campaignId: 'gha-123-1',
+  const binding = { schema: 'outpost.chat-completion-testops-export/v1', ...context, campaignId: 'gha-123-1',
     executionIds: [owned.executionId], files: [...files].map(([name, bytes]) => ({ path: name, bytes: bytes.length, sha256: hash(bytes) })),
     privateEvidence: [{ executionId: owned.executionId, requiredEvidenceComplete: !failed,
       finalScreenshot: failed ? null : { sha256: 'e'.repeat(64), bytes: 24 } }] };
@@ -160,7 +160,7 @@ test('changed bundle bytes, source, selection digest and foreign case refuse bef
     await cp(f.output, path.join(bundle, 'allure'), { recursive: true });
     await writeFile(path.join(bundle, 'prepared.json'), JSON.stringify(f.prepared));
     await writeFile(path.join(receipt, 'publication.json'), JSON.stringify({ ...f.prepared,
-      schema: 'paperclip.chat-catalog-testops-case-publication/v1', exported: f.prepared.exported[0],
+      schema: 'outpost.chat-catalog-testops-case-publication/v1', exported: f.prepared.exported[0],
       verification: 'VERIFIED', results: [{ executionId: row.executionId, caseId: row.caseId, attachmentsVerified: true }] }));
   }
   const rows = await publicationSet(bundles, publications, context, selection, digest);
@@ -255,17 +255,17 @@ test('the final CLI verifies all authenticated mixed-grade publications without 
       await cp(f.output, path.join(bundle, 'allure'), { recursive: true });
       await writeFile(path.join(bundle, 'prepared.json'), JSON.stringify(f.prepared));
       await writeFile(path.join(publication, 'publication.json'), JSON.stringify({ ...f.prepared,
-        schema: 'paperclip.chat-catalog-testops-case-publication/v1', exported: f.prepared.exported[0], verification: 'VERIFIED',
+        schema: 'outpost.chat-catalog-testops-case-publication/v1', exported: f.prepared.exported[0], verification: 'VERIFIED',
         results: [{ executionId: row.executionId, caseId: row.caseId, attachmentsVerified: true }] }));
       originals.push(JSON.parse(await readFile(path.join(f.root, 'normalized-results.json'))).results[0]);
       privateEvidence.push(...JSON.parse(await readFile(path.join(f.root, 'binding.json'))).privateEvidence);
       exported.push(f.prepared.exported[0]);
     }
     if (contradiction) Object.assign(originals[0], { status: 'failed', cleanup: 'failed', runIds: [], matcherResults: [] });
-    const files = new Map([['normalized-results.json', Buffer.from(JSON.stringify({ schema: 'paperclip.runner-e2e.campaign/v2',
+    const files = new Map([['normalized-results.json', Buffer.from(JSON.stringify({ schema: 'outpost.runner-e2e.campaign/v2',
       campaignId: 'gha-123-1', retries: 0, results: originals }))], ['junit.xml', Buffer.from('<testsuite/>')]]);
     for (const [name, bytes] of files) await writeFile(path.join(merged, name), bytes);
-    await writeFile(path.join(merged, 'binding.json'), JSON.stringify({ schema: 'paperclip.chat-completion-testops-export/v1',
+    await writeFile(path.join(merged, 'binding.json'), JSON.stringify({ schema: 'outpost.chat-completion-testops-export/v1',
       ...context, campaignId: 'gha-123-1', executionIds: cases.map(row => row.executionId), privateEvidence,
       files: [...files].map(([name, bytes]) => ({ path: name, bytes: bytes.length, sha256: hash(bytes) })) }));
     const selectionRoot = path.join(base, 'chat-completion-testops-selection'); await mkdir(selectionRoot);
@@ -354,7 +354,7 @@ async function downloaded(t, selected, available = selected.cases.length, runtim
         try { prepared = JSON.parse(await readFile(path.join(bundlePath, 'prepared.json'))); }
         catch { prepared = JSON.parse(await readFile(path.join(roots.bundle, 'prepared.json'))); }
         await writeFile(path.join(destination, 'publication.json'), JSON.stringify({ ...prepared,
-          schema: 'paperclip.chat-catalog-testops-case-publication/v1', exported: prepared.exported[0], verification: 'VERIFIED',
+          schema: 'outpost.chat-catalog-testops-case-publication/v1', exported: prepared.exported[0], verification: 'VERIFIED',
           results: [{ executionId: row.executionId, caseId: row.caseId, attachmentsVerified: true }] }));
         // The unchanged real upload-case producer retains this marker on a fresh POST.
         await writeFile(path.join(destination, 'once-upload_case.json'), JSON.stringify({ stage: 'upload_case', status: 'STARTED_NO_AUTOMATIC_RESEND' }));

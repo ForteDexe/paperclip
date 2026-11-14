@@ -7,11 +7,11 @@ import { fileURLToPath } from "node:url";
 import { and, eq, sql } from "drizzle-orm";
 import express from "express";
 import request from "supertest";
-import { activityLog, agentApiKeys, agentCommentary, agents, authUsers, companies, companyMemberships, heartbeatRuns, issues, nativeRunResults, principalPermissionGrants } from "@paperclipai/db";
+import { activityLog, agentApiKeys, agentCommentary, agents, authUsers, companies, companyMemberships, heartbeatRuns, issues, nativeRunResults, principalPermissionGrants } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { submitAgentCommentary } from "../services/agent-commentary.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { isSecretSensitiveHttpRequest } from "../middleware/http-log-policy.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 import { ensureNativeCompletionContract } from "../services/native-runtime/completion-contracts.js";
@@ -24,18 +24,18 @@ import { NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS } from "../lib/agent-permissions.
 describe("internal agent commentary through both transports", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
   let home: string;
-  const oldHome = process.env.PAPERCLIP_HOME;
-  const oldSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const oldHome = process.env.OUTPOST_HOME;
+  const oldSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), "paperclip-commentary-"));
-    process.env.PAPERCLIP_HOME = home;
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_HOME = home;
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer();
   }, 90_000);
   afterAll(async () => {
     await server?.close();
-    if (oldHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = oldHome;
-    if (oldSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET; else process.env.PAPERCLIP_AGENT_JWT_SECRET = oldSecret;
+    if (oldHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = oldHome;
+    if (oldSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET; else process.env.OUTPOST_AGENT_JWT_SECRET = oldSecret;
     if (home) await rm(home, { recursive: true, force: true });
   });
   type Fixture = Awaited<ReturnType<typeof server.fixture>>;
@@ -276,7 +276,7 @@ describe("internal agent commentary through both transports", () => {
     const body = "Quotes, `backticks`, $(printf should-not-run), and emoji 😭 stay text.\n";
     async function run(apiUrl: string) {
       return new Promise<{ code: number | null; out: string; err: string }>((resolve, reject) => {
-        const child = spawn(process.execPath, [helper, "complaint", "helper-one"], { env: { ...process.env, PAPERCLIP_API_URL: apiUrl, PAPERCLIP_API_KEY: f.token, PAPERCLIP_COMPANY_ID: f.companyId, PAPERCLIP_RUN_ID: f.runId }, stdio: "pipe" });
+        const child = spawn(process.execPath, [helper, "complaint", "helper-one"], { env: { ...process.env, OUTPOST_API_URL: apiUrl, OUTPOST_API_KEY: f.token, OUTPOST_COMPANY_ID: f.companyId, OUTPOST_RUN_ID: f.runId }, stdio: "pipe" });
         let out = "", err = "";
         child.stdout.on("data", c => out += c); child.stderr.on("data", c => err += c);
         child.on("error", reject); child.on("close", code => resolve({ code, out, err }));

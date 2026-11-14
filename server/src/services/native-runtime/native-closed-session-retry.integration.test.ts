@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@paperclipai/db";
-import type { NativeExecutionInputV1 } from "@paperclipai/paperclip-runner";
+import { agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
 const provider = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("../../vendor/paperclip-runner/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../vendor/paperclip-runner/index.js")>()),
+vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../vendor/outpost-runner/index.js")>()),
   executeNativeSession: provider.execute,
 }));
 
@@ -33,7 +33,7 @@ describe("native turn start refused on a closed provider session", () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-closed-session-");
     db = createDb(temporary.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Closed session", issuePrefix: "NCS" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Claude agent", status: "active", adapterType: "paperclip_runner",
+    await db.insert(agents).values({ id: agentId, companyId, name: "Claude agent", status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", agent: "claude", model: "claude-test" } });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "member" });
   });
@@ -41,7 +41,7 @@ describe("native turn start refused on a closed provider session", () => {
 
   const refusal = (result: Record<string, unknown>) => {
     const commandResult = { commandId: "command_lab_1", commandType: "turn.start", controllerSeq: 10, result, status: "failed" };
-    return Object.defineProperty(new Error(`PRP command turn.start failed: ${JSON.stringify(commandResult)}`),
+    return Object.defineProperty(new Error(`ORP command turn.start failed: ${JSON.stringify(commandResult)}`),
       "runnerCommandResult", { value: commandResult, enumerable: false });
   };
 
@@ -59,13 +59,13 @@ describe("native turn start refused on a closed provider session", () => {
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
     const execution: NativeExecutionInputV1 = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "opencode", model: "openrouter/test-model" },
       task: { identifier: issueId, title: issue.title, description: null, prompt: "Write the brief.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: native.normalizedSessionId, driverKind: "opencode_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue, { revision: contract.revision }) },
       interactionResponses: [], credentialBindings: [],
     };

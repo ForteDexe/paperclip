@@ -1,4 +1,4 @@
-const key = Symbol.for('paperclip.slack.fixture.prewire');
+const key = Symbol.for('outpost.slack.fixture.prewire');
 if (!process[key]) {
   const net = require('node:net');
   const tls = require('node:tls');
@@ -17,7 +17,7 @@ if (!process[key]) {
       || pgPorts.has(Number(value.port))) throw new Error('Invalid exact Slack form fixture peer');
     peer = `127.0.0.1:${Number(value.port)}`;
   }
-  for (const name of ['PAPERCLIP_SLACK_TEST_DATABASE_URL', 'SLACK_EVENT_TEST_DATABASE_URL']) {
+  for (const name of ['OUTPOST_SLACK_TEST_DATABASE_URL', 'SLACK_EVENT_TEST_DATABASE_URL']) {
     if (!process.env[name]) continue;
     let url;
     try { url = new URL(process.env[name]); } catch { throw new Error('Invalid Slack fixture database target'); }

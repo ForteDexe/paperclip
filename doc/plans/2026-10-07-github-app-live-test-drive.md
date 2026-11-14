@@ -89,7 +89,7 @@ Updated 2026-10-07 after the final live retests. **The organization-owned App an
 Independent proof is saved in `live-e2e-proof.json`. The live acceptance results and remaining qualification limits are recorded at the end of this plan.
 
 - Cloud staging advertises `githubApps.version=2` and `sealed_gateway` at
-  `https://my-staging.paperclip.app/v1/connector/capabilities`. Production does
+  `https://my-staging.outpost.app/v1/connector/capabilities`. Production does
   not yet advertise this capability; this test uses staging explicitly.
 - Test server is pinned to port **3110** after a sibling dev instance acquired
   3109. The sibling was left untouched. Same company, agent, draft, and vault
@@ -130,7 +130,7 @@ Independent proof is saved in `live-e2e-proof.json`. The live acceptance results
   comment and block GIT-1. It correctly could not schedule privileged retries.
   Both CLI runs failed to load `Paperclip_connections` and `Paperclip_projects`
   MCP servers because the sandbox cannot use host localhost endpoints.
-- Switched the same bot to `paperclip_runner` / Codex / `gpt-5.4` in the same
+- Switched the same bot to `outpost_runner` / Codex / `gpt-5.4` in the same
   sandbox. Native tools use the authenticated Runner transport. GIT-2
   (`ac96bb88-2c6b-413c-8fd8-a59b26202128`) is a bounded fresh runtime smoke.
 - Native run `13cda2bc-1bf4-4e97-b3b0-f189ba4e6a0a` stopped before model work:

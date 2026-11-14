@@ -19,17 +19,17 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatActions,
   chatEndpointResources,
   chatExternalPrincipals,
   chatIdentityLinks,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatProvider,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   conflict,

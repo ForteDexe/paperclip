@@ -19,10 +19,10 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./test-embedded-postgres.js";
 
-const originalAdminUrl = process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL;
-delete process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL;
+const originalAdminUrl = process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL;
+delete process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL;
 afterAll(() => {
-  if (originalAdminUrl !== undefined) process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL = originalAdminUrl;
+  if (originalAdminUrl !== undefined) process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL = originalAdminUrl;
 });
 
 // A fake embedded-postgres constructor. It records every constructed instance so
@@ -266,15 +266,15 @@ function useScratchTmpdir(prefix: string): { scratch: string; restore(): void } 
 }
 
 describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
-  const originalTemplateSetting = process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+  const originalTemplateSetting = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
 
   afterEach(() => {
-    if (originalTemplateSetting === undefined) delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-    else process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = originalTemplateSetting;
+    if (originalTemplateSetting === undefined) delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+    else process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = originalTemplateSetting;
   });
 
   it("does not start a replacement when a copied cluster cannot stop", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-    delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+    delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     const ready = await startEmbeddedPostgresTestDatabase("paperclip-template-stop-ready-");
     await ready.cleanup();
     const { ctor, constructed } = makeFakeCtor(Number.POSITIVE_INFINITY);
@@ -298,9 +298,9 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
   it("publishes a complete template and starts suites from a copy of it", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
     // This test covers the template path, so it enables the cache even when
-    // the suite runs under PAPERCLIP_TEST_POSTGRES_TEMPLATE=0. The first
+    // the suite runs under OUTPOST_TEST_POSTGRES_TEMPLATE=0. The first
     // start then builds the template if the support probe did not.
-    delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+    delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
 
     const database = await startEmbeddedPostgresTestDatabase("paperclip-template-copy-");
     try {
@@ -348,9 +348,9 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
   });
 
   it("refreshes the template's timestamp on every reuse so idle time drives pruning", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-    delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+    delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     // Make sure a template exists before ageing it: the support probe does
-    // not publish one under PAPERCLIP_TEST_POSTGRES_TEMPLATE=0, and a name
+    // not publish one under OUTPOST_TEST_POSTGRES_TEMPLATE=0, and a name
     // filter can run this test on its own.
     resetTemplateState();
     const first = await startEmbeddedPostgresTestDatabase("paperclip-template-touch-");
@@ -374,7 +374,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
   });
 
   it("rebuilds the template when it was pruned after this process resolved it", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-    delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+    delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     const scratch = useScratchTmpdir("paperclip-template-pruned-");
     try {
       resetTemplateState();
@@ -400,8 +400,8 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
     }
   });
 
-  it("runs the fresh initdb path when PAPERCLIP_TEST_POSTGRES_TEMPLATE=0", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-    process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = "0";
+  it("runs the fresh initdb path when OUTPOST_TEST_POSTGRES_TEMPLATE=0", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
+    process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = "0";
     const database = await startEmbeddedPostgresTestDatabase("paperclip-template-bypass-");
     try {
       expect(lastStartMode()).toBe("fresh");
@@ -414,7 +414,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
   describeOnPosix("cache root safety", () => {
     it("uses fresh clusters when the cache root is not a private directory of this user", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-      delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+      delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
       const scratch = useScratchTmpdir("paperclip-template-root-");
       const warnings: string[] = [];
       const warn = console.warn;
@@ -451,7 +451,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
     });
 
     it("uses fresh clusters when the cache root path is a symbolic link", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-      delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+      delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
       const scratch = useScratchTmpdir("paperclip-template-root-");
       const warn = console.warn;
       console.warn = () => {};
@@ -483,8 +483,8 @@ describe("support probe when the template cannot be built", () => {
   });
 
   it("fails the suite when PostgreSQL cannot allocate semaphores", async () => {
-    const original = process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-    process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = "0";
+    const original = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+    process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = "0";
     const { ctor, constructed } = makeFakeCtor(Number.POSITIVE_INFINITY);
     class ExhaustedPostgres extends ctor {
       async start(): Promise<void> {
@@ -497,14 +497,14 @@ describe("support probe when the template cannot be built", () => {
       await expect(getEmbeddedPostgresTestSupport()).rejects.toThrow("could not create semaphores");
       expect(constructed).toHaveLength(1);
     } finally {
-      if (original === undefined) delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-      else process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = original;
+      if (original === undefined) delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+      else process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = original;
     }
   });
 
   it("still reports an explicitly unsupported platform as unsupported", async () => {
-    const original = process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-    process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = "0";
+    const original = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+    process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = "0";
     __setEmbeddedPostgresCtorProviderForTests(async () => {
       throw new Error('Unsupported arch "test-cpu" for platform "test-os"');
     });
@@ -515,14 +515,14 @@ describe("support probe when the template cannot be built", () => {
         reason: expect.stringContaining('Unsupported arch "test-cpu"'),
       });
     } finally {
-      if (original === undefined) delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-      else process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = original;
+      if (original === undefined) delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+      else process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = original;
     }
   });
 
   it("falls through to the fresh probe instead of reporting the host as unsupported", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
-    const originalTemplateSetting = process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-    delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
+    const originalTemplateSetting = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+    delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     const scratch = useScratchTmpdir("paperclip-template-build-fail-");
     const warnings: string[] = [];
     const warn = console.warn;
@@ -554,8 +554,8 @@ describe("support probe when the template cannot be built", () => {
     } finally {
       console.warn = warn;
       scratch.restore();
-      if (originalTemplateSetting === undefined) delete process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE;
-      else process.env.PAPERCLIP_TEST_POSTGRES_TEMPLATE = originalTemplateSetting;
+      if (originalTemplateSetting === undefined) delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
+      else process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = originalTemplateSetting;
     }
   });
 });

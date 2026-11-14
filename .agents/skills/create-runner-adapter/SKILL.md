@@ -1,7 +1,7 @@
 ---
 name: create-runner-adapter
 description: >
-  Add a new harness/provider integration to native Paperclip Runner, from
+  Add a new harness/provider integration to native Outpost Runner, from
   requirements and protocol research through implementation, packaging, and
   real end-to-end acceptance. Use for new Runner adapters; legacy direct
   adapter authoring and migration are outside this skill.
@@ -9,7 +9,7 @@ description: >
 
 # Add a native Runner adapter
 
-Use this skill to add a harness to the **new, native Paperclip Runner** execution
+Use this skill to add a harness to the **new, native Outpost Runner** execution
 system. Here, adapter means the provider translation and launch integration
 behind a Runner harness driver. Preserve existing direct adapters and historical
 records as compatibility constraints; do not route this work through their
@@ -24,7 +24,7 @@ Source links identify code to inspect, not evidence that a new integration passe
 
 If this skill was installed separately, locate the target checkout from the
 current workspace or `git rev-parse --show-toplevel`. Verify it contains
-`packages/paperclip-runner` and `tests/runner-e2e`; resolve `doc/` paths there.
+`packages/outpost-runner` and `tests/runner-e2e`; resolve `doc/` paths there.
 Follow that checkout's `AGENTS.md` and scoped rules before editing.
 
 ## Work sequence

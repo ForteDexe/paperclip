@@ -4,7 +4,7 @@ import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issues, pluginManagedResources, plugins, routineRuns, type Db } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRuns, issues, pluginManagedResources, plugins, routineRuns, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -18,7 +18,7 @@ import { createHeartbeatLifecycle, type HeartbeatLifecycleDependencies } from ".
 import { createHeartbeatRunState } from "../services/heartbeat/run-state.js";
 import { createHeartbeatRunPreparation } from "../services/heartbeat/run-preparation.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_ROUTINE_STATUS_WORK_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_ROUTINE_STATUS_WORK_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("routine execution status work with PostgreSQL", () => {
   let db: Db, temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;

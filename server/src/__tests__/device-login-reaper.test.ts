@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { AgentAdapterType } from "@paperclipai/shared";
+import type { AgentAdapterType } from "@outpost/shared";
 import {
   createDeviceLoginReaper,
   type LoginLeaseRef,

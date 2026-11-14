@@ -5,7 +5,7 @@ test.use({ trace: "retain-on-failure" });
 
 // The tenant UI and task database are real. Cloud is an external dependency:
 // simulate its entry endpoint and independent session states at the HTTP edge.
-for (const cloudOrigin of ["https://my.paperclip.app", "https://my-staging.paperclip.app"]) {
+for (const cloudOrigin of ["https://my.outpost.app", "https://my-staging.outpost.app"]) {
   for (const entry of ["auth", "task"] as const) {
     test(`Cloud recovery preserves the task (${cloudOrigin}, ${entry})`, async ({ page, request, baseURL }, testInfo) => {
       const companyResponse = await request.post("/api/companies", { data: { name: `Cloud auth ${randomUUID()}` } });

@@ -409,7 +409,7 @@ it("attributes setup at admission, preserves it during execution, and blocks mis
   const f = await fixture();
   const phasePath = path.join(path.dirname(f.file), "phase.json");
   await createEvalAttemptPhase(phasePath, identity);
-  const env = { PAPERCLIP_E2E_GATEWAY_PHASE_PATH: phasePath, PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID: identity.attemptId };
+  const env = { OUTPOST_E2E_GATEWAY_PHASE_PATH: phasePath, OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID: identity.attemptId };
   let started!: () => void, release!: () => void, calls = 0;
   const firstStarted = new Promise<void>(resolve => { started = resolve; });
   const continuation = new Promise<void>(resolve => { release = resolve; });
@@ -444,7 +444,7 @@ it("refuses missing or unreviewed attribution checkpoints before request dispatc
   expect(response.status).toBe(503);
   expect(transport).not.toHaveBeenCalled();
   expect(f.ledger.snapshot().requests).toEqual([]);
-  await expect(beginEvalAgentPhase(identity.executionId, { PAPERCLIP_E2E_GATEWAY_BASE_URL: gateway.baseUrl })).rejects.toThrow("Missing eval phase");
+  await expect(beginEvalAgentPhase(identity.executionId, { OUTPOST_E2E_GATEWAY_BASE_URL: gateway.baseUrl })).rejects.toThrow("Missing eval phase");
   await createEvalAttemptPhase(phasePath, identity);
   await expect(createEvalAttemptPhase(phasePath, identity)).rejects.toThrow();
   await writeFile(phasePath, JSON.stringify({ version: 1, ...identity, providerResponse: "private" }));

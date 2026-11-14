@@ -10,16 +10,16 @@ requested interval, in addition to same-run/provider-turn and finalization proof
 Partial fault receipts remain in the attempt's private `control/` directory on
 failure. A successful task without the fault receipt cannot qualify.
 
-Use `PAPERCLIP_RUNNER_E2E_CONTROLLER_STOP_SIGNAL=SIGTERM` for graceful shutdown,
-`PAPERCLIP_RUNNER_E2E_CONTROLLER_OUTAGE_MS=1000` for an explicit one-second
-experiment, or `PAPERCLIP_RUNNER_E2E_CONTROLLER_OUTAGE_MS=300000` for the
+Use `OUTPOST_RUNNER_E2E_CONTROLLER_STOP_SIGNAL=SIGTERM` for graceful shutdown,
+`OUTPOST_RUNNER_E2E_CONTROLLER_OUTAGE_MS=1000` for an explicit one-second
+experiment, or `OUTPOST_RUNNER_E2E_CONTROLLER_OUTAGE_MS=300000` for the
 five-minute contract. These settings are recorded; compare only matching configurations. The configured
 duration is a minimum hold after confirmed HTTP loss. Shutdown and startup add
 to total recovery time; they do not extend the runner's seven-minute grace or the
 workflow's attempt deadline. `recover-controller` permits no automatic retries.
 
 ```sh
-PAPERCLIP_RUNNER_E2E_CONTROLLER_OUTAGE_MS=300000 pnpm test:e2e:runner -- --id everyday-workflows.runner-codex.daytona.recover-controller --max-automatic-retries 0
+OUTPOST_RUNNER_E2E_CONTROLLER_OUTAGE_MS=300000 pnpm test:e2e:runner -- --id everyday-workflows.runner-codex.daytona.recover-controller --max-automatic-retries 0
 ```
 
 The credential-free wrapper smoke starts the actual main server and a separate
@@ -489,7 +489,7 @@ checks. Later final-state or cleanup observations cannot overwrite that input.
 Earlier campaign grades remain unchanged when the evaluator is corrected.
 # Upgrade qualification receipts
 
-`PAPERCLIP_RUNNER_E2E_UPGRADE_ARTIFACTS` selects frozen installed A/B artifacts
+`OUTPOST_RUNNER_E2E_UPGRADE_ARTIFACTS` selects frozen installed A/B artifacts
 and an alternating A/B/A sequence. The remote controller-recovery workflow
 executes every requested replacement on the original active run. If that run
 ends before a later fault can be injected, that boundary is unexercised; starting
@@ -504,7 +504,7 @@ the original 420-second grace, including artifact verification and startup.
 
 For a credential-free startup/migration experiment, run
 `controller-replacement-smoke.ts` with the manifest and an explicit disposable
-`PAPERCLIP_TEST_DATABASE_URL`. The driver creates and drops a unique empty
+`OUTPOST_TEST_DATABASE_URL`. The driver creates and drops a unique empty
 database; it does not change the supplied database. This smoke qualifies zero
 agent turns. The [qualification record](../../doc/plans/2026-10-22-hot-upgrade-qualification.md)
 is the acceptance ledger for exact artifacts, attempts, and remaining gates.

@@ -118,7 +118,7 @@ silently or reset the OAuth database behind a cached client registration.
 
 Use the repository's adapter, eval, PR, and release workflows when available.
 The Paperclip `create-agent-adapter` skill covers shared configuration surfaces;
-`paperclip-runner-release` coordinates a release; `test-it-for-real` validates the
+`outpost-runner-release` coordinates a release; `test-it-for-real` validates the
 actual experience. Discover their installed locations rather than assuming they
 are siblings of this skill. This skill adds external-bot-specific contracts.
 

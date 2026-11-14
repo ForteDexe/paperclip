@@ -15,7 +15,7 @@ const evidence = path.resolve(process.argv[3]);
 execFileSync('python3', [path.join(repo, '.agents/skills/verify-paperclip/scripts/doctor.py'), '--evidence-dir', evidence], { stdio: 'inherit' });
 const launch = JSON.parse(await fs.readFile(path.join(evidence, 'launch.json'), 'utf8'));
 assert.equal(new URL(launch.url).hostname, '127.0.0.1');
-const browser = await chromium.launch({ headless: true, ...(process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL ? { channel: process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL } : {}) });
+const browser = await chromium.launch({ headless: true, ...(process.env.OUTPOST_PLAYWRIGHT_CHANNEL ? { channel: process.env.OUTPOST_PLAYWRIGHT_CHANNEL } : {}) });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
 const page = await context.newPage();
 const errors = [];

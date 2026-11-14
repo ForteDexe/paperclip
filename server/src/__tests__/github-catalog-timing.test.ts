@@ -6,7 +6,7 @@ import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@open
 import {
   applyPendingMigrations, authUsers, companies, companySecrets, companyMemberships, connectionGrants, createDb,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, toolApplications, toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeConnectionCredential } from "../services/connection-credentials.js";
@@ -16,7 +16,7 @@ import type { PaperclipCloudConnector } from "../services/paperclip-cloud-connec
 import { toolAccessService } from "../services/tool-access.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
-const databaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_GITHUB_CATALOG_TEST_DATABASE_URL");
+const databaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_GITHUB_CATALOG_TEST_DATABASE_URL");
 const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("GitHub repository catalog execution timing", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -30,7 +30,7 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
     db = createDb(databaseUrl ?? temporary.connectionString, { maxConnections: 3 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   beforeEach(() => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.test");
     exporter = new InMemorySpanExporter();
     provider = new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] });

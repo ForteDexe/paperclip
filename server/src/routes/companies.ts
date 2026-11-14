@@ -3,14 +3,14 @@ import express, { Router, type NextFunction, type Request, type Response } from 
 import multer from "multer";
 import { and, count as countFn, eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Db } from "@paperclipai/db";
-import { agents as agentsTable } from "@paperclipai/db";
-import type { CompanyPortabilityImportResult } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { agents as agentsTable } from "@outpost/db";
+import type { CompanyPortabilityImportResult } from "@outpost/shared";
 import {
   MAX_ZIP_ENTRY_DECOMPRESSED_BYTES,
   MAX_ZIP_TOTAL_DECOMPRESSED_BYTES,
   readZipArchive,
-} from "@paperclipai/shared/portability-zip";
+} from "@outpost/shared/portability-zip";
 import {
   SETTINGS_OPERATOR_MANAGED_ERROR_CODE,
   companyArtifactsQuerySchema,
@@ -21,7 +21,7 @@ import {
   hidesCompanyPage,
   updateCompanyBrandingSchema,
   updateCompanySchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   COMPANY_IMPORT_TRANSFERS_ROUTE_PATH,
   companyImportTransferDeclarationSchema,
@@ -29,7 +29,7 @@ import {
   type CompanyImportTransferDeclaration,
   type CompanyImportTransferPartUploadResult,
   type CompanyImportTransferStatus,
-} from "@paperclipai/shared/company-import-transfer";
+} from "@outpost/shared/company-import-transfer";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { isUniqueViolation } from "../db-errors.js";
 import { authorizationDeniedDetails, issueReadSqlCondition } from "../services/authorization.js";
@@ -102,7 +102,7 @@ const zipPackageUpload = multer({
 const IMPORT_TRANSFER_PART_SIZE_LIMIT_BYTES = 64 * 1024 * 1024;
 
 // The declaration body and response shapes are the shared wire contract in
-// @paperclipai/shared/company-import-transfer — the browser and CLI clients
+// @outpost/shared/company-import-transfer — the browser and CLI clients
 // type against the same schemas and path builders.
 const importTransferManifestSchema = companyImportTransferDeclarationSchema;
 
@@ -528,7 +528,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
    *   provisions the company, so materializing imported companies on a
    *   managed instance is disabled unconditionally;
    * - the operator hiding the Import page (`company.import` in
-   *   `PAPERCLIP_HIDDEN_SETTINGS` → `settings_operator_managed`): hiding the
+   *   `OUTPOST_HIDDEN_SETTINGS` → `settings_operator_managed`): hiding the
    *   page also disables its API, so the hide is real rather than cosmetic.
    *
    * Export routes stay open either way — they are the tenant's

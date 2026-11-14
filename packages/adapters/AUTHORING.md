@@ -25,7 +25,7 @@ How to apply:
   has any `git remote` configured. If you need data from the previous run,
   read it from the local cwd Outpost handed you.
 - If your adapter runs the agent on a different host (ssh, sandbox, remote
-  container), use the round-trip helpers in `@paperclipai/adapter-utils`:
+  container), use the round-trip helpers in `@outpost/adapter-utils`:
   [`prepareWorkspaceForSshExecution`](../adapter-utils/src/ssh.ts) bundles the
   local cwd to the remote dir before the run, and
   [`restoreWorkspaceFromSshExecution`](../adapter-utils/src/ssh.ts) syncs

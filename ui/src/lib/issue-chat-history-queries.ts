@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { ActivityEvent, Issue, IssueComment, IssueRecentComments } from "@paperclipai/shared";
+import type { ActivityEvent, Issue, IssueComment, IssueRecentComments } from "@outpost/shared";
 import { activityApi, type RunForIssue } from "@/api/activity";
 import { heartbeatsApi } from "@/api/heartbeats";
 import { issuesApi } from "@/api/issues";

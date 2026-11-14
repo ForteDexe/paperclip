@@ -114,7 +114,7 @@ The reference is the runner's Codex app-server integration and its closed thread
 ## Evidence and packaging
 
 - [Cursor's ACP contract](https://cursor.com/docs/cli/acp) describes stdio JSON-RPC, sessions, permissions and five extensions. The pinned binary reveals additional capabilities and one material documentation discrepancy below.
-- `packages/paperclip-runner/cursor-distributions.json` pins vendor archive and complete extracted execution-closure SHA256 digests for macOS ARM64/x64 and Linux x64. All three archives were downloaded and independently inventoried (446 files on macOS, 454 on Linux). A real macOS ARM64 installation passed the materializer's full closure check.
+- `packages/outpost-runner/cursor-distributions.json` pins vendor archive and complete extracted execution-closure SHA256 digests for macOS ARM64/x64 and Linux x64. All three archives were downloaded and independently inventoried (446 files on macOS, 454 on Linux). A real macOS ARM64 installation passed the materializer's full closure check.
 - The archive is a complete runtime: bundled `node`, `index.js`, dynamically loaded numbered JavaScript chunks, native addons, workers, and assets. Pinning only the launcher or one executable does not pin its execution dependencies. The materializer rejects links/special files and overwrites, and verifies every file against the pinned closure digest.
 - `test/fixtures/cursor-acp/credential-free-probe.json` records an actual macOS ARM64 initialization and nonbillable method probes. `initialize` reports ACP v1, session load/list, HTTP/SSE MCP, image prompts, and opt-in subagent events. Audio and embedded context are false. `session/fork` and `session/resume` return method-not-found. Creating/listing a session requires authentication.
 - Static evidence comes from `5672.index.js` (ACP implementation), `8096.index.js` (ACP SDK protocol schemas), `190.index.js` (hook paths) and `index.js` (CLI/configuration), all bound by the archive and closure pins. SDK schema support alone is not counted as implemented harness capability.
@@ -158,7 +158,7 @@ the readiness report linked above; native AskQuestion remains uncertified.
 ## Wire and isolation findings
 
 The observation-only usage candidate adds `_meta.paperclipCursorUsage` to a
-prompt response. Its `paperclip.cursor.native-usage.v1` envelope contains a fresh
+prompt response. Its `outpost.cursor.native-usage.v1` envelope contains a fresh
 opaque prompt ID and separate native invocation/run observations. It allows at
 most 64 observations, 64 invocation identities and 16 KiB of JSON. Only observed,
 safe nonnegative numeric input/output/cache-read/cache-write/reasoning counters
@@ -246,7 +246,7 @@ Three real ACP stream tests prove child lifecycle/transcript preservation before
 
 ## Integrated pack and offline launch evidence
 
-The full `build-provider-pack.mjs --candidate-providers=cursor` path passed on source `25fb1b5b317e52a8ad50208d7681a1ee34bd939c` (foundation includes upstream master `18e8c121d`). It used standalone Node, pnpm 9.15.4, a fresh production deployment and the pinned vendor archive. The build checked portable Node relocation, fresh ACPX import and complete Cursor materialization. The retained manifest is `packages/paperclip-runner/test/fixtures/cursor-acp/provider-pack-darwin-arm64.json`; it contains only relative paths and digests.
+The full `build-provider-pack.mjs --candidate-providers=cursor` path passed on source `25fb1b5b317e52a8ad50208d7681a1ee34bd939c` (foundation includes upstream master `18e8c121d`). It used standalone Node, pnpm 9.15.4, a fresh production deployment and the pinned vendor archive. The build checked portable Node relocation, fresh ACPX import and complete Cursor materialization. The retained manifest is `packages/outpost-runner/test/fixtures/cursor-acp/provider-pack-darwin-arm64.json`; it contains only relative paths and digests.
 
 - Pack digest: `sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682`.
 - Cursor declaration: `sha256:c91aa592ec867071ec4457b9b7230399ce42ad918787ceed99b4b651ea5607e2`.
@@ -346,7 +346,7 @@ isolation, not an operating-system sandbox: explicitly allowed native shell
 commands still have their granted filesystem/network powers.
 
 Typed `ActionRequiredError` instances now produce a failed JSON-RPC response
-with data schema `paperclip.cursor.provider-error.v1`, kind `action_required`,
+with data schema `outpost.cursor.provider-error.v1`, kind `action_required`,
 and the closed action enum `login`, `upgrade`, `payment`, `config`, or `unknown`.
 Login and native `ConnectError` with the Unauthenticated code use ACP error
 `-32000`; other action requirements use `-32603`. Provider-private error detail
@@ -375,7 +375,7 @@ recovery, accounting, and authenticated target-platform gates.
 
 ### Frozen profile v3 build
 
-[The retained build record](../../packages/paperclip-runner/test/fixtures/cursor-acp/production-v3-offline-build.json)
+[The retained build record](../../packages/outpost-runner/test/fixtures/cursor-acp/production-v3-offline-build.json)
 identifies exact runtime source `526081b9d6c905de5e2da680e3a37c620899b380`,
 profile v3, the ARM64 portable package and matching release daemon, both lock
 hashes, the committed ACPX patch hash, and credential-free launch results.
@@ -415,7 +415,7 @@ canonical governance or custom entry instructions reached Cursor.
 The owned `paperclip-cursor-instructions-v2` patch preserves the v3 isolation and
 typed-error changes and adds the composed instructions through Cursor's native
 `LocalResourceProvider.additionalRules` path. The sandbox supplies an ephemeral,
-controller-owned `PAPERCLIP_CURSOR_INSTRUCTIONS` payload. Ambient environment
+controller-owned `OUTPOST_CURSOR_INSTRUCTIONS` payload. Ambient environment
 cannot select or replace it, and it is not persisted in ACPX's launch environment
 record. The payload binds exact UTF-8 content (maximum 32 KiB, no NUL) to SHA-256;
 it includes the already-composed governance, custom entry content and registered
@@ -440,7 +440,7 @@ reload reset authority. The adapter also asserts admission immediately after
 patch retains upstream terminal-failure diagnostics, rich interaction callbacks,
 response-delivery receipts, and Cursor child-event handling.
 
-[The v4 declaration](../../packages/paperclip-runner/test/fixtures/cursor-acp/profile-v4-identity.json)
+[The v4 declaration](../../packages/outpost-runner/test/fixtures/cursor-acp/profile-v4-identity.json)
 binds profile digest `sha256:b1440d559ebc4eef5c7a582f1c81fc153270cfbafa1731a8ee76d83713bdf61b`
 to all platform closures and ACPX patch SHA-256
 `64180c194ab841d6f4bba7e6eca5ead621c6222c9a8057e4bb2bb6f007d8bb3c`.
@@ -459,7 +459,7 @@ On ARM64 it additionally executes the exact patched new/load methods and native
 cache/RequestContext construction with explicit dependency doubles, proving the
 composed bytes and native ordering at that boundary. This is an offline source
 execution proof, not a claim that an authenticated model obeyed the instructions.
-[The retained proof](../../packages/paperclip-runner/test/fixtures/cursor-acp/instructions-v4-offline-proof.json)
+[The retained proof](../../packages/outpost-runner/test/fixtures/cursor-acp/instructions-v4-offline-proof.json)
 and `runtime-patch-offline-proof.json` record the limits.
 
 Nine new deterministic tests cover exact UTF-8 and empty instructions, ambient
@@ -511,7 +511,7 @@ availability, Plan-mode governed completion, and accepted/revised artifact flows
 remain pending Product qualification. Existing v4 paid results and macOS x64
 Rosetta build evidence remain historical and do not qualify v5.
 
-[The v5 declaration](../../packages/paperclip-runner/test/fixtures/cursor-acp/profile-v5-identity.json)
+[The v5 declaration](../../packages/outpost-runner/test/fixtures/cursor-acp/profile-v5-identity.json)
 binds digest `sha256:aa8c0b2b84786982bcd06b7634bf95be6f2bc42bb8def48a8751dc50cf739b6b`.
 Profile v5 retains the native distribution closures and instruction patch. Its
 canonical declaration adds the admitted mode policy and binds ACPX patch

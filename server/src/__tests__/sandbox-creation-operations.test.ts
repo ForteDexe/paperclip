@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, builtInManagedResources, companies, companySecretVersions, createDb, environmentLeases, environments, heartbeatRuns, issues, plugins, sandboxCreationOperations } from "@paperclipai/db";
+import { agents, builtInManagedResources, companies, companySecretVersions, createDb, environmentLeases, environments, heartbeatRuns, issues, plugins, sandboxCreationOperations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { environmentRuntimeService } from "../services/environment-runtime.js";
@@ -20,7 +20,7 @@ import { nextEnvironmentCleanupAt } from "../services/environment-cleanup-state.
 import { readProcessStartedAt } from "../services/hot-restart.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_HISTORY_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
 describe("durable sandbox creation through the runtime entry point", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
@@ -42,8 +42,8 @@ describe("durable sandbox creation through the runtime entry point", () => {
     await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", invocationSource: "manual" });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox", config: { provider: "creation-fixture", image: "fixture", reuseLease: false } });
-    await db.insert(plugins).values({ id: pluginId, pluginKey: "paperclip.creation-fixture", packageName: "creation-fixture", version: "1.0.0", apiVersion: 1,
-      status: "ready", categories: ["automation"], manifestJson: { id: "paperclip.creation-fixture", version: "1.0.0", apiVersion: 1,
+    await db.insert(plugins).values({ id: pluginId, pluginKey: "outpost.creation-fixture", packageName: "creation-fixture", version: "1.0.0", apiVersion: 1,
+      status: "ready", categories: ["automation"], manifestJson: { id: "outpost.creation-fixture", version: "1.0.0", apiVersion: 1,
       displayName: "Creation fixture", description: "Controlled remote provider", author: "Paperclip", categories: ["automation"],
       capabilities: ["environment.drivers.register"], entrypoints: { worker: "fixture.js" }, environmentDrivers: [{
         driverKey: "creation-fixture", kind: "sandbox_provider", displayName: "Fixture", creationOperationVersion: 1, configSchema: { type: "object" },
@@ -100,7 +100,7 @@ describe("durable sandbox creation through the runtime entry point", () => {
   }
   async function acquirePluginLogin(heartbeatRunId: string | null = null) {
     pluginLogin = true;
-    await db.update(environments).set({ driver: "plugin", config: { pluginKey: "paperclip.creation-fixture", driverKey: "creation-fixture", driverConfig: {} } }).where(eq(environments.id, environmentId));
+    await db.update(environments).set({ driver: "plugin", config: { pluginKey: "outpost.creation-fixture", driverKey: "creation-fixture", driverConfig: {} } }).where(eq(environments.id, environmentId));
     const [plugin] = await db.select().from(plugins).where(eq(plugins.id, pluginId));
     await db.update(plugins).set({ manifestJson: { ...plugin.manifestJson, environmentDrivers: [{ driverKey: "creation-fixture", kind: "environment_driver", displayName: "Computer", creationOperationVersion: 1, configSchema: { type: "object" } }] } }).where(eq(plugins.id, pluginId));
     return runtime().acquireRunLease({ companyId, environment: (await environmentService(db).getById(environmentId))!, heartbeatRunId,

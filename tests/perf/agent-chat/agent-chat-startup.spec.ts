@@ -101,7 +101,7 @@ test("clicking away and reopening cached questions keeps the latest reply in vie
   const question = {
     ...coordinatorTaskQuestion,
     payload: { ...coordinatorTaskQuestion.payload, questionSet: {
-      schema: "paperclip.question_set.v1", questions: [
+      schema: "outpost.question_set.v1", questions: [
         { id: "reply", prompt: "Give a reply", answerMode: "text", required: true },
       ],
     } },

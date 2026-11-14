@@ -14,7 +14,7 @@ import {
   statusDecisions,
   workAssessments,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   persistActivity,
   publishActivity,

@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { agents, agentTaskSessions, companies, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, agentTaskSessions, companies, heartbeatRuns, issues } from "@outpost/db";
 import { expect, it } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -12,24 +12,24 @@ import { issueService } from "../issues.js";
 import { instanceSettingsService } from "../instance-settings.js";
 import { closeIdleWarmNativeSessionsForRestart } from "./native-session-executor.js";
 
-it.skipIf(process.env.PAPERCLIP_LIVE_SESSION_EPOCH !== "true")("publishes a fresh live Codex session and resumes its saved file", async () => {
+it.skipIf(process.env.OUTPOST_LIVE_SESSION_EPOCH !== "true")("publishes a fresh live Codex session and resumes its saved file", async () => {
   const home = createIsolatedTestHome(), root = home.home;
-  const lifecycleMode = process.env.PAPERCLIP_LIVE_SESSION_LIFECYCLE === "per_turn" ? "per_turn" : "warm";
-  const keys = ["PAPERCLIP_HOME", "CODEX_HOME", "PAPERCLIP_API_URL", "PAPERCLIP_AGENT_JWT_SECRET", "PAPERCLIP_TELEMETRY_DISABLED"];
+  const lifecycleMode = process.env.OUTPOST_LIVE_SESSION_LIFECYCLE === "per_turn" ? "per_turn" : "warm";
+  const keys = ["OUTPOST_HOME", "CODEX_HOME", "OUTPOST_API_URL", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_TELEMETRY_DISABLED"];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
   let heartbeat: ReturnType<typeof heartbeatService> | undefined;
   try {
     const codexHome = join(root, "codex");
     await mkdir(codexHome, { mode: 0o700 });
-    await copyFile(join(process.env.PAPERCLIP_LIVE_CODEX_HOME ?? join(homedir(), ".codex"), "auth.json"), join(codexHome, "auth.json"));
+    await copyFile(join(process.env.OUTPOST_LIVE_CODEX_HOME ?? join(homedir(), ".codex"), "auth.json"), join(codexHome, "auth.json"));
     await writeFile(join(codexHome, "config.toml"), 'model_reasoning_effort = "low"\n');
     process.env.CODEX_HOME = codexHome;
-    process.env.PAPERCLIP_HOME = join(root, "instance");
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID();
-    process.env.PAPERCLIP_TELEMETRY_DISABLED = "1";
+    process.env.OUTPOST_HOME = join(root, "instance");
+    process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
+    process.env.OUTPOST_TELEMETRY_DISABLED = "1";
     server = await startRunnerApiTestServer({ deploymentMode: "local_trusted" });
-    process.env.PAPERCLIP_API_URL = server.apiUrl;
+    process.env.OUTPOST_API_URL = server.apiUrl;
     const fixture = await server.fixture({ connectionScenario: "fresh" });
     const db = server.db;
     await db.update(issues).set({ executionRunId: null, executionWorkspaceSettings: { mode: "shared_workspace" },
@@ -78,7 +78,7 @@ it.skipIf(process.env.PAPERCLIP_LIVE_SESSION_EPOCH !== "true")("publishes a fres
     expect(completed[2].providerSessionId).toBe(completed[1].providerSessionId);
     const evidence = { passed: true, model: "gpt-6.1-sol", lifecycleMode, provider: "real local Codex login", platform: `${process.platform}-${process.arch}`,
       turns: 3, freshSessionPublished: true, ordinaryFollowupResumedFreshSession: true, exactFileLines: 3, completed };
-    if (process.env.PAPERCLIP_LIVE_EVIDENCE_PATH) await writeFile(process.env.PAPERCLIP_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
+    if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
     console.log(JSON.stringify(evidence));
   } finally {
     await heartbeat?.drainActiveRunExecutions();

@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import type { BoardBootstrap } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import type { BoardBootstrap } from "@outpost/shared";
 import { boardAuthService } from "./board-auth.js";
 import { companyService } from "./companies.js";
 

@@ -8,7 +8,7 @@ import {tmpdir} from "node:os";
 import path from "node:path";
 import express from "express";
 import {eq,sql} from "drizzle-orm";
-import {applyPendingMigrations,createDb,closeRegisteredClients,closeLivenessDb,closeCheckpointDb,closeFileStorageDb,companies,authUsers,companyMemberships,issues,mcpOauthGrants,mcpOauthClients,mcpOauthDeviceRequests,mcpOauthClientChanges,mcpOauthClientMirrorState,mcpEventDeliveries,mcpEventSubscriptions,mcpMutationReceipts,activityLog} from "@paperclipai/db";
+import {applyPendingMigrations,createDb,closeRegisteredClients,closeLivenessDb,closeCheckpointDb,closeFileStorageDb,companies,authUsers,companyMemberships,issues,mcpOauthGrants,mcpOauthClients,mcpOauthDeviceRequests,mcpOauthClientChanges,mcpOauthClientMirrorState,mcpEventDeliveries,mcpEventSubscriptions,mcpMutationReceipts,activityLog} from "@outpost/db";
 import {resolveExternalTestDatabaseUrl} from "../../lib/dedicated-test-database-url.js";
 import {publicMcpIngressRoutes,publicMcpManagementRoutes} from "../../routes/public-mcp.js";
 import {issueRoutes} from "../../routes/issues.js";
@@ -32,7 +32,7 @@ import {idleWorkSnapshot} from "../task-admission.js";
 import {createStorageService} from "../../storage/service.js";
 import {createLocalDiskStorageProvider} from "../../storage/local-disk-provider.js";
 
-const databaseUrl=resolveExternalTestDatabaseUrl("PAPERCLIP_MCP_CANONICAL_TEST_DATABASE_URL");
+const databaseUrl=resolveExternalTestDatabaseUrl("OUTPOST_MCP_CANONICAL_TEST_DATABASE_URL");
 if(!databaseUrl||!process.send)throw new Error("Canonical MCP fixture requires IPC and an explicit dedicated *_test database");
 type Input={origin:string;stackId:string;companyId:string;otherCompanyId:string;userId:string;taskId:string;otherTaskId:string;browserSecret:string;cloudOrigin:string;cloudLoopback:string;callbackUrl:string;callbackLoopback:string;runtimeJwks:string;runtimeAssertion:string;connector:PaperclipCloudConnectorConfig};
 let db:ReturnType<typeof createDb>|undefined,server:Server|undefined,home:string|undefined,draining=false,queryCount=0,callbackPosts=0,unregister:(()=>void)|undefined;
@@ -90,7 +90,7 @@ async function mappedFetch(input:Parameters<typeof fetch>[0],init?:RequestInit){
 async function initialize(input:Input){
   assert.equal(process.versions.node.split(".")[0],"24","Canonical Tenant fixture requires actual Node24 before initialization or claims");
   assert.equal(db,undefined);configuration=input;home=await mkdtemp(path.join(tmpdir(),"canonical-mcp-tenant-"));
-  Object.assign(process.env,{PAPERCLIP_HOME:home,PAPERCLIP_PUBLIC_URL:input.origin,PAPERCLIP_CLOUD_STACK_ID:input.stackId,PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS:input.runtimeJwks,PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN:randomBytes(24).toString("base64url"),PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID:input.connector.instanceId,PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT:input.connector.environment,PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY:input.connector.signPrivateKey,PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY:input.connector.sealPrivateKey,PAPERCLIP_CLOUD_CONNECTOR_BASE_URL:input.connector.baseUrl,PAPERCLIP_SECRETS_MASTER_KEY:randomBytes(32).toString("base64")});
+  Object.assign(process.env,{OUTPOST_HOME:home,OUTPOST_PUBLIC_URL:input.origin,OUTPOST_CLOUD_STACK_ID:input.stackId,OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS:input.runtimeJwks,OUTPOST_CLOUD_TENANT_SERVER_TOKEN:randomBytes(24).toString("base64url"),OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID:input.connector.instanceId,OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT:input.connector.environment,OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY:input.connector.signPrivateKey,OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY:input.connector.sealPrivateKey,OUTPOST_CLOUD_CONNECTOR_BASE_URL:input.connector.baseUrl,OUTPOST_SECRETS_MASTER_KEY:randomBytes(32).toString("base64")});
   await applyPendingMigrations(databaseUrl!);db=createDb(databaseUrl!,{maxConnections:2,applicationName:"sleep2-mcp-canonical-tenant"});
   (db.$client.options as unknown as {debug:(...args:unknown[])=>void}).debug=()=>{queryCount++;};
   await db.insert(companies).values([{id:input.companyId,name:"Selected company",issuePrefix:"SELECTED"},{id:input.otherCompanyId,name:"Primary company",issuePrefix:"PRIMARY"}]);

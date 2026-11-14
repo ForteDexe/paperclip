@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
-import { environmentLeases, type Db } from "@paperclipai/db";
+import { environmentLeases, type Db } from "@outpost/db";
 import { writeEnvironmentCleanup } from "./environment-cleanup-notifications.js";
 import { pendingCleanupMetadataObjectSql } from "./environment-cleanup-state.js";
 import { holderUnchanged, ORPHANED_RUN_LEASE_FAILURE_REASON } from "./environment-run-lease-settlement.js";

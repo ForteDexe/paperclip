@@ -17,10 +17,10 @@ const names = new Set(["stage", "toolCallId", "status", "operation", "target", "
 export function readCopilotToolEvidence(rows: readonly unknown[], expectedRunId: string): CopilotToolNotice[] {
   const result: CopilotToolNotice[] = [];
   for (const row of rows) {
-    const r = rec(row), envelope = rec(rec(r.payload).prpEvent), p = rec(envelope.payload);
+    const r = rec(row), envelope = rec(rec(r.payload).orpEvent), p = rec(envelope.payload);
     if (r.eventType !== "provider.notice.recorded" || p.category !== "copilot_tool_evidence_v1") continue;
     const origin = rec(p.provenance);
-    if (p.schema !== "paperclip.provider.notice.v1" || p.scope !== "turn" || envelope.schema !== "paperclip.prp.event.v1" || envelope.sourceKind !== "runner" || envelope.eventType !== r.eventType || envelope.runId !== expectedRunId || !id(origin.sessionId) || !id(origin.turnId) || origin.turnId !== envelope.turnId || !Array.isArray(p.details) || p.details.length > 20 || !Number.isSafeInteger(r.seq)) throw new Error("Invalid Copilot evidence binding");
+    if (p.schema !== "outpost.provider.notice.v1" || p.scope !== "turn" || envelope.schema !== "outpost.orp.event.v1" || envelope.sourceKind !== "runner" || envelope.eventType !== r.eventType || envelope.runId !== expectedRunId || !id(origin.sessionId) || !id(origin.turnId) || origin.turnId !== envelope.turnId || !Array.isArray(p.details) || p.details.length > 20 || !Number.isSafeInteger(r.seq)) throw new Error("Invalid Copilot evidence binding");
     const fields: Record<string, string> = {};
     for (const detail of p.details) {
       const d = rec(detail);

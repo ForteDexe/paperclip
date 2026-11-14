@@ -1,6 +1,6 @@
 # Outpost Adapters for Hermes Agent
 
-A [Outpost](https://paperclip.ing) adapter package that lets you run [Hermes Agent](https://github.com/NousResearch/hermes-agent) as a managed employee in an Outpost company.
+A [Outpost](https://outpost.ing) adapter package that lets you run [Hermes Agent](https://github.com/NousResearch/hermes-agent) as a managed employee in an Outpost company.
 
 Hermes Agent is a full-featured AI agent by [Nous Research](https://nousresearch.com) with 30+ native tools, persistent memory, session persistence, 80+ skills, MCP support, and multi-provider model access.
 
@@ -68,7 +68,7 @@ while it is enabled:
 ```json
 [
   {
-    "packageName": "@paperclipai/hermes-paperclip-adapter",
+    "packageName": "@outpost/hermes-outpost-adapter",
     "localPath": "/absolute/path/to/paperclip/packages/adapters/hermes",
     "type": "hermes_local",
     "installedAt": "2026-06-23T00:00:00.000Z"
@@ -146,25 +146,25 @@ with `POST /v1/runs/{run_id}/stop`.
 
 ### Compatibility with the old gateway package
 
-`@paperclipai/adapter-hermes-gateway` remains as a deprecated compatibility shim
+`@outpost/adapter-hermes-gateway` remains as a deprecated compatibility shim
 for one release. It re-exports the gateway entrypoints from
-`@paperclipai/hermes-paperclip-adapter/gateway` and preserves the legacy exports
+`@outpost/hermes-outpost-adapter/gateway` and preserves the legacy exports
 for existing plugin installs. New installs and built-in Outpost registrations
-should use `@paperclipai/hermes-paperclip-adapter`; the adapter type remains
+should use `@outpost/hermes-outpost-adapter`; the adapter type remains
 `hermes_gateway`.
 
 ### Runtime API guidance
 
 Hermes receives Outpost runtime identity through environment variables:
 
-- `PAPERCLIP_API_URL`
-- `PAPERCLIP_API_KEY`
-- `PAPERCLIP_RUN_ID`
+- `OUTPOST_API_URL`
+- `OUTPOST_API_KEY`
+- `OUTPOST_RUN_ID`
 
 Prompts should reference those variables directly. Command output may redact
 secret values, so do not copy printed tokens into comments or config. Use
-`Authorization: Bearer $PAPERCLIP_API_KEY` on Outpost API requests and
-`X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID` on mutating issue requests. For
+`Authorization: Bearer $OUTPOST_API_KEY` on Outpost API requests and
+`X-Paperclip-Run-Id: $OUTPOST_RUN_ID` on mutating issue requests. For
 multiline comments or status updates, preserve newlines with a heredoc plus
 `jq --arg`.
 
@@ -177,15 +177,15 @@ the same as Outpost waking Hermes through `hermes_local` or `hermes_gateway`.
 Configure Outpost access in Hermes env/profile secrets, not prompt text:
 
 ```bash
-PAPERCLIP_API_URL=http://127.0.0.1:3100/api
-PAPERCLIP_BRIDGE_API_KEY=<task-bridge-scoped-agent-api-key>
+OUTPOST_API_URL=http://127.0.0.1:3100/api
+OUTPOST_BRIDGE_API_KEY=<task-bridge-scoped-agent-api-key>
 ```
 
 Optional env values:
 
-- `PAPERCLIP_COMPANY_ID`
-- `PAPERCLIP_AGENT_ID`
-- `PAPERCLIP_RUN_ID`
+- `OUTPOST_COMPANY_ID`
+- `OUTPOST_AGENT_ID`
+- `OUTPOST_RUN_ID`
 
 The bundled `paperclip-task-bridge` skill provides deterministic helper
 commands:
@@ -343,7 +343,7 @@ old user turns remain in history until Hermes compresses them or the session res
 Run the credential-free capture-process regression tests with:
 
 ```sh
-pnpm --filter @paperclipai/hermes-paperclip-adapter test -- src/server/execute.instructions.test.ts
+pnpm --filter @outpost/hermes-outpost-adapter test -- src/server/execute.instructions.test.ts
 ```
 
 These tests verify actual child-process arguments and environment, not provider
@@ -377,4 +377,4 @@ MIT — see [LICENSE](LICENSE)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) — The AI agent this adapter runs
 - [Outpost](https://github.com/paperclipai/paperclip) — The orchestration platform
 - [Nous Research](https://nousresearch.com) — The team behind Hermes
-- [Outpost Docs](https://docs.paperclip.ing) — Outpost documentation
+- [Outpost Docs](https://docs.outpost.ing) — Outpost documentation

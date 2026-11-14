@@ -180,8 +180,8 @@ describe("heartbeat run-log chunk formatting", () => {
 describe("complete canonical native log privacy", () => {
   it.each([false, true])("keeps structured bytes and applies complete-value secrets, images, and username masking: %s", enabled => {
     const identity = createAgentIdentityRedactor("fixture-configured-private-canary");
-    const envelope = { type: "paperclip.prp.event", event: {
-      schema: "paperclip.prp.event.v1", schemaVersion: 1, eventType: "item.delta",
+    const envelope = { type: "outpost.orp.event", event: {
+      schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: "item.delta",
       payload: { header: 'Authorization: Bearer fixture-bearer-canary', api_key: "fixture-api-canary",
         text: 'quoted "fixture-configured-private-canary" by fixture-operator',
         image: { source: { data: "A".repeat(70000), type: "base64" }, type: "image" },
@@ -208,8 +208,8 @@ describe("complete canonical native log privacy", () => {
 
   it("rejects malformed owned envelopes instead of treating them as coverage-preserving diagnostics", () => {
     const options = { redactIdentity: <T>(value: T) => value, currentUser: { enabled: false } };
-    for (const chunk of ['{"type":"paperclip.prp.event",', '{"type":"diagnostic","event":{}}',
-      '{"type":"paperclip.prp.event","event":[]}'])
+    for (const chunk of ['{"type":"outpost.orp.event",', '{"type":"diagnostic","event":{}}',
+      '{"type":"outpost.orp.event","event":[]}'])
       expect(() => redactCanonicalNativeRunLogChunk(chunk, options)).toThrow();
   });
 });
@@ -223,8 +223,8 @@ describe("run-log invitation token privacy", () => {
   const toolResult = JSON.stringify({ id: "invite-1", token, inviteUrl: `/invite/${token}`,
     acceptPath: `/api/invites/${token}/accept` });
   const options = { redactIdentity: <T>(value: T) => value, currentUser: { enabled: false } };
-  const envelope = (text: string) => JSON.stringify({ type: "paperclip.prp.event", event: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, eventType: "item.completed",
+  const envelope = (text: string) => JSON.stringify({ type: "outpost.orp.event", event: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: "item.completed",
     payload: { kind: "agentMessage", channel: "final", text },
   } });
 

@@ -73,7 +73,7 @@ it("establishes the second budget context only after first saved resume, with ex
 
 it("reads real prior bytes from the actual isolated source binding, rejecting wrong identity and escaping files", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "controller-binding-")); roots.push(root);
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root);
+  vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
   const cwd = path.join(root, "isolated-workspaces", "company", "source"); await mkdir(cwd, { recursive: true });
   await writeFile(path.join(cwd, "website.html"), "<h1>Real prior draft</h1>");
   let binding = "bound";

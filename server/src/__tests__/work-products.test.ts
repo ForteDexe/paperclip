@@ -50,7 +50,7 @@ function retentionReads(insideTransaction: () => boolean) {
 describe("workProductService", () => {
   it("extracts runner totals and enriches work-product metadata", () => {
     const summary = workProductDiffSummaryFromEventPayload({
-      schema: "paperclip.workspace.diff.v1",
+      schema: "outpost.workspace.diff.v1",
       totals: { files: 3, additions: 17, deletions: 5 },
     });
 
@@ -62,16 +62,16 @@ describe("workProductService", () => {
       deletions: 5,
     });
 
-    const prpEvent = {
-      schema: "paperclip.prp.event.v1",
+    const orpEvent = {
+      schema: "outpost.orp.event.v1",
       payload: { totals: { files: 2, additions: 9, deletions: 4 } },
     };
-    expect(workProductDiffSummaryFromEventPayload({ prpEvent })).toEqual({
+    expect(workProductDiffSummaryFromEventPayload({ orpEvent })).toEqual({
       changedFiles: 2,
       additions: 9,
       deletions: 4,
     });
-    expect(workProductDiffSummaryFromEventPayload(prpEvent)).toEqual({
+    expect(workProductDiffSummaryFromEventPayload(orpEvent)).toEqual({
       changedFiles: 2,
       additions: 9,
       deletions: 4,

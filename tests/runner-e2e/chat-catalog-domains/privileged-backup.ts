@@ -38,7 +38,7 @@ export function gradeBackupRestore(value: unknown) {
 }
 const backup = privilegedDefinition("instance-operations.backup-and-restore", "privileged-backup", {
   async setup(ctx) {
-    const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, configPath = process.env.PAPERCLIP_CONFIG;
+    const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT, configPath = process.env.OUTPOST_CONFIG;
     if (!root || !configPath || !ctx.input.privateSecrets) throw new Error("Owned backup fixture config and private redaction sink are required");
     const owned = await realpath(root), configFile = await realpath(configPath);
     if (!configFile.startsWith(owned + path.sep)) throw new Error("Backup refuses an operator config outside the owned attempt");
@@ -132,7 +132,7 @@ const backup = privilegedDefinition("instance-operations.backup-and-restore", "p
   async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
 });
 backup.attemptTimeoutMs = 600_000;
-backup.oracleVersion = "paperclip.chat-catalog.privileged.backup-and-restore.v3";
+backup.oracleVersion = "outpost.chat-catalog.privileged.backup-and-restore.v3";
 backup.expectedRunCount = 2; backup.expectedHumanMessageCount = 2;
 backup.cleanup = async ctx => { const source = privateSources.get(ctx); if (source) { await ctx.input.api.delete(`/api/agents/${ctx.input.fixtures.agent.id}/keys/${source.keyId}`); privateSources.delete(ctx); } };
 backup.sourceFiles = [...backup.sourceFiles, "chat-catalog-domains/privileged-docker-database.ts", "docker-postgres.ts", "../../packages/db/src/backup-lib.ts", "../../server/src/routes/instance-database-backups.ts"];

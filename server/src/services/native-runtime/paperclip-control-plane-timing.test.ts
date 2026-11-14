@@ -1,6 +1,6 @@
 import { expect,it,vi } from "vitest";
 import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
-import { CONTROL_PLANE_CONFORMANCE_OPEN as OPEN,CONTROL_PLANE_CONFORMANCE_RESULT as result,CONTROL_PLANE_CONFORMANCE_TERMINAL as terminal } from "../../vendor/paperclip-runner/testing.js";
+import { CONTROL_PLANE_CONFORMANCE_OPEN as OPEN,CONTROL_PLANE_CONFORMANCE_RESULT as result,CONTROL_PLANE_CONFORMANCE_TERMINAL as terminal } from "../../vendor/outpost-runner/testing.js";
 
 it.each(["inserted","replayed","failed"])("marks only a new result after transaction success (%s)",async(outcome)=>{
  let resolve!:(inserted:boolean)=>void,reject!:(error:unknown)=>void;

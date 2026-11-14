@@ -1,8 +1,8 @@
 import { notifyStatusCardEvaluation } from "./status-card-notifications.js";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { statusCards, statusCardUpdates } from "@paperclipai/db";
-import type { IssueStatus } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { statusCards, statusCardUpdates } from "@outpost/db";
+import type { IssueStatus } from "@outpost/shared";
 
 // A status-card generation run stops making progress when its task reaches one
 // of these statuses. `done`/`cancelled` are terminal; `blocked` is not, but a

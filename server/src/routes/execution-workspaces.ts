@@ -7,8 +7,8 @@ import { accessSync, constants as fsConstants, existsSync, readFileSync } from "
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { Router, type Request, type Response } from "express";
-import type { Db } from "@paperclipai/db";
-import { issues, projects, projectWorkspaces } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { issues, projects, projectWorkspaces } from "@outpost/db";
 import {
   findWorkspaceCommandDefinition,
   readRemoteWorkspaceAuthority,
@@ -19,13 +19,13 @@ import {
   executionWorkspaceSummaryIdsQuerySchema,
   executionWorkspaceSummaryPageQuerySchema,
   workspaceRuntimeControlTargetSchema,
-} from "@paperclipai/shared";
-import type { WorkspaceRuntimeDesiredState, WorkspaceRuntimeServiceStateMap } from "@paperclipai/shared";
+} from "@outpost/shared";
+import type { WorkspaceRuntimeDesiredState, WorkspaceRuntimeServiceStateMap } from "@outpost/shared";
 import {
   baseWorkspaceDeclaresInstanceConfig,
   resolveCanonicalWorktreeSeedSource,
   type CanonicalWorktreeSeedSource,
-} from "@paperclipai/shared/worktree-seed-source";
+} from "@outpost/shared/worktree-seed-source";
 import { resolvePaperclipConfigPath } from "../paths.js";
 import { validate } from "../middleware/validate.js";
 import {
@@ -773,9 +773,9 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
               cwd: baseWorkspaceCwd,
               env: {
                 ...process.env,
-                PAPERCLIP_SEED_EXPECTED_COMPANY_ID: existing.companyId,
-                PAPERCLIP_WORKSPACE_BASE_CWD: baseWorkspaceCwd,
-                PAPERCLIP_PROJECT_WORKSPACE_ID: existing.projectWorkspaceId ?? "",
+                OUTPOST_SEED_EXPECTED_COMPANY_ID: existing.companyId,
+                OUTPOST_WORKSPACE_BASE_CWD: baseWorkspaceCwd,
+                OUTPOST_PROJECT_WORKSPACE_ID: existing.projectWorkspaceId ?? "",
               },
               stdio: ["ignore", "pipe", "pipe"],
             });

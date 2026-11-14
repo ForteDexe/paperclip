@@ -8,8 +8,8 @@ import {
 
 describe("assertLegacyAgentInviteAdapterType", () => {
   it("rejects native runner for new and pending agent-invite onboarding", () => {
-    expect(() => assertLegacyAgentInviteAdapterType("paperclip_runner")).toThrow(
-      "Paperclip Runner is not available through agent invite onboarding.",
+    expect(() => assertLegacyAgentInviteAdapterType("outpost_runner")).toThrow(
+      "Outpost Runner is not available through agent invite onboarding.",
     );
     expect(() => assertLegacyAgentInviteAdapterType("claude_local")).not.toThrow();
     expect(() => assertLegacyAgentInviteAdapterType(null)).not.toThrow();
@@ -80,7 +80,7 @@ describe("mergeJoinDefaultsPayloadForReplay", () => {
         },
       },
       {
-        paperclipApiUrl: "https://paperclip.example.com",
+        paperclipApiUrl: "https://outpost.example.com",
         headers: {
           "x-openclaw-token": "new-token-1234567890",
         },
@@ -94,7 +94,7 @@ describe("mergeJoinDefaultsPayloadForReplay", () => {
     }) as Record<string, unknown>;
 
     expect(normalized.url).toBe("ws://old.example:18789");
-    expect(normalized.paperclipApiUrl).toBe("https://paperclip.example.com");
+    expect(normalized.paperclipApiUrl).toBe("https://outpost.example.com");
     expect(normalized.headers).toMatchObject({
       "x-openclaw-token": "new-token-1234567890",
       "x-custom": "keep-me",

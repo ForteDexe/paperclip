@@ -31,7 +31,7 @@ Both are discoverable through the **Company Store**.
 ```
 modules/
   observability/
-    paperclip.module.json     # manifest (required)
+    outpost.module.json     # manifest (required)
     src/
       index.ts                # entry point — exports register function
       routes.ts               # Express router
@@ -45,7 +45,7 @@ modules/
 
 Modules live in a top-level `modules/` directory. Each module is a pnpm workspace package.
 
-### Manifest (`paperclip.module.json`)
+### Manifest (`outpost.module.json`)
 
 ```json
 {
@@ -106,7 +106,7 @@ Modules live in a top-level `modules/` directory. Each module is a pnpm workspac
 
 Key fields:
 
-- **`id`**: Unique identifier, used as the npm package name suffix (`@paperclipai/mod-observability`)
+- **`id`**: Unique identifier, used as the npm package name suffix (`@outpost/mod-observability`)
 - **`slot`**: Optional exclusive category. If set, only one module with this slot can be active. Omit for modules that can coexist freely.
 - **`hooks`**: Which core events this module subscribes to. Declared upfront so the core knows what to emit.
 - **`routes.prefix`**: Mounted under `/api/modules/<prefix>`. The module owns this namespace.
@@ -120,7 +120,7 @@ Key fields:
 The module's `src/index.ts` exports a `register` function that receives the module API:
 
 ```typescript
-import type { ModuleAPI } from "@paperclipai/core";
+import type { ModuleAPI } from "@outpost/core";
 import { createRouter } from "./routes.js";
 import { onHeartbeat, onBudgetThreshold } from "./hooks.js";
 
@@ -238,7 +238,7 @@ This keeps the core fast and resilient. If you need pre-commit validation (e.g.,
 
 ```typescript
 // modules/observability/src/hooks.ts
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { tokenMetrics } from "./schema.js";
 
 export function createHeartbeatHandler(db: Db) {
@@ -315,7 +315,7 @@ Modules can reference core tables via foreign keys (e.g., `agent_id → agents.i
 On server startup:
 
 ```
-1. Scan modules/ directory for paperclip.module.json manifests
+1. Scan modules/ directory for outpost.module.json manifests
 2. Validate each manifest (JSON Schema check on configSchema, required fields)
 3. Check slot conflicts (error if two active modules claim the same slot)
 4. Topological sort by dependencies (if module A requires module B)
@@ -333,7 +333,7 @@ On server startup:
 Module config lives in the server's environment or a config file:
 
 ```jsonc
-// paperclip.config.json (or env vars)
+// outpost.config.json (or env vars)
 {
   "modules": {
     "enabled": ["observability", "revenue", "notifications"],
@@ -384,7 +384,7 @@ export const modulePages = [
   {
     path: "/observability",
     label: "Observability",
-    component: lazy(() => import("@paperclipai/mod-observability/ui")),
+    component: lazy(() => import("@outpost/mod-observability/ui")),
   },
 ];
 
@@ -393,7 +393,7 @@ export const dashboardWidgets = [
     id: "token-burn-rate",
     label: "Token Burn Rate",
     placement: "dashboard",
-    component: lazy(() => import("@paperclipai/mod-observability/ui").then(m => ({ default: m.TokenBurnRateWidget }))),
+    component: lazy(() => import("@outpost/mod-observability/ui").then(m => ({ default: m.TokenBurnRateWidget }))),
   },
 ];
 ```
@@ -579,7 +579,7 @@ The Company Store is a registry for discovering and installing modules and templ
       "id": "startup-in-a-box",
       "name": "Startup in a Box",
       "description": "5-agent startup team",
-      "url": "https://store.paperclip.ing/templates/startup-in-a-box.json",
+      "url": "https://store.outpost.ing/templates/startup-in-a-box.json",
       "tags": ["startup", "team"]
     }
   ]
@@ -629,16 +629,16 @@ pnpm paperclipai store export                  # export current company as templ
 
 ### Phase 1: Core infrastructure
 
-Add to `@paperclipai/server`:
+Add to `@outpost/server`:
 
 1. **HookBus** — Event emitter with `register()` and `emit()`, using `Promise.allSettled`
 2. **Module loader** — Scans `modules/`, validates manifests, calls `register(api)`
 3. **Module API object** — `registerRoutes()`, `on()`, `registerService()`, logger, core service access
-4. **Module config** — `paperclip.config.json` with per-module config, env var interpolation
+4. **Module config** — `outpost.config.json` with per-module config, env var interpolation
 5. **Module migration runner** — Extends `db:migrate` to discover and run module migrations
 6. **Emit hooks from core services** — Add `hookBus.emit()` calls to existing CRUD operations
 
-Add to `@paperclipai/ui`:
+Add to `@outpost/ui`:
 
 7. **Module page loader** — Reads module manifests, generates lazy routes
 8. **Dashboard widget slots** — Render module-contributed widgets on the Dashboard page
@@ -646,7 +646,7 @@ Add to `@paperclipai/ui`:
 
 Add new package:
 
-10. **`@paperclipai/module-sdk`** — TypeScript types for `ModuleAPI`, `HookEvent`, `HookHandler`, manifest schema
+10. **`@outpost/module-sdk`** — TypeScript types for `ModuleAPI`, `HookEvent`, `HookHandler`, manifest schema
 
 ### Phase 2: First module (observability)
 

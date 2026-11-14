@@ -1,6 +1,6 @@
 import { cardToBlockKit } from "@chat-adapter/slack";
 import type { AdapterPostableMessage, ActionEvent } from "chat";
-import type { SafeChatPublicationPayload } from "@paperclipai/shared";
+import type { SafeChatPublicationPayload } from "@outpost/shared";
 import { Actions, Button, Card, CardText, LinkButton, type CardElement } from "chat";
 import { isChatQuestionFormOpenActionId } from "../../chat-question-forms.js";
 

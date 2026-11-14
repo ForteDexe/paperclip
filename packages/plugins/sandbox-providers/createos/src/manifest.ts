@@ -1,7 +1,7 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const manifest: PaperclipPluginManifestV1 = {
-  id: "paperclip.createos-sandbox-provider",
+  id: "outpost.createos-sandbox-provider",
   apiVersion: 1,
   version: "0.1.0",
   displayName: "CreateOS Sandbox Provider",

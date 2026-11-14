@@ -13,9 +13,9 @@ import {
   issueComments,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
-import { DurablePrpControlPlane } from "../vendor/paperclip-runner/index.js";
+} from "@outpost/db";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { DurablePrpControlPlane } from "../vendor/outpost-runner/index.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -35,7 +35,7 @@ const expectMissingContinuationContext = async (run: () => Promise<unknown>) => 
   await expect(result).rejects.toThrow("continuation_source_context_missing");
   await expect(result).rejects.not.toBeInstanceOf(StaleExecutionContinuationError);
 };
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_EXECUTION_CONTINUATION_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_EXECUTION_CONTINUATION_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)(
   "authorized continuation context",
@@ -68,7 +68,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
           companyId,
           name: "Executor",
           role: "engineer",
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
         });
       await db
         .insert(issues)
@@ -182,7 +182,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     });
     it("carries completed work across an agent handoff using the interrupted run", async () => {
       const nextAgentId = randomUUID();
-      await db.insert(agents).values({ id: nextAgentId, companyId, name: "Replacement", role: "engineer", adapterType: "paperclip_runner" });
+      await db.insert(agents).values({ id: nextAgentId, companyId, name: "Replacement", role: "engineer", adapterType: "outpost_runner" });
       await db.update(issues).set({ assigneeAgentId: nextAgentId }).where(eq(issues.id, issueId));
       await db.update(heartbeatRuns).set({ status: "cancelled", resultJson: {
         nativeResult: { summary: "Created draft.md with three approved names." },
@@ -217,9 +217,9 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       try {
         const envelope = await build();
         const prompt = renderPaperclipWakePrompt({ executionContinuation: envelope });
-        // The encrypted PRP frame has a roughly 510 KiB plaintext budget. Keep
+        // The encrypted ORP frame has a roughly 510 KiB plaintext budget. Keep
         // repeated record bodies below that boundary with room for launch data.
-        const root = mkdtempSync(join(tmpdir(), "continuation-receipts-prp-"));
+        const root = mkdtempSync(join(tmpdir(), "continuation-receipts-orp-"));
         const core = new DurablePrpControlPlane({ stateDirectory: root,
           identity: { runnerInstanceId: "fixture-runner", environmentLeaseId: "fixture-lease", runId,
             normalizedSessionId: "fixture-session", turnId: "fixture-turn", itemId: "fixture-item" },

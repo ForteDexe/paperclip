@@ -3,7 +3,7 @@ import { z } from "zod";
 import { buildOpenApiDocument } from "../../routes/openapi.js";
 import { badRequest, notFound } from "../../errors.js";
 import { runnerApiReference } from "./runner-api-reference.js";
-import { CAPABILITY_SEMANTIC_TOOL_CATALOG } from "../../vendor/paperclip-runner/index.js";
+import { CAPABILITY_SEMANTIC_TOOL_CATALOG } from "../../vendor/outpost-runner/index.js";
 
 type Json = Record<string, any>;
 export interface RunnerApiOperation {
@@ -130,7 +130,7 @@ export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): 
   }
   for (const [path, summary, actor] of [
     ["/api/companies/{companyId}/events/ws", "Live company events WebSocket; use the existing event client", "board_or_agent"],
-    ["/api/runner/v1/connect/{runId}", "Authenticated runner PRP WebSocket; runner-owned transport", "runner"],
+    ["/api/runner/v1/connect/{runId}", "Authenticated runner ORP WebSocket; runner-owned transport", "runner"],
     ["/api/environment-custom-image-setup-sessions/{sessionId}/terminal/ws", "Image setup terminal WebSocket; use the existing terminal client", "board"],
   ]) {
     if (result.some(operation => operation.path === path)) continue;

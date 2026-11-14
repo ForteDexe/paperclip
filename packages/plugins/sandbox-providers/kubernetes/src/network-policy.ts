@@ -51,7 +51,7 @@ export function buildNetworkPolicyManifests(input: BuildNetworkPolicyInput): Rec
     metadata: {
       name: "paperclip-deny-all",
       namespace: input.namespace,
-      labels: { "paperclip.io/managed-by": "paperclip-k8s-plugin" },
+      labels: { "outpost.io/managed-by": "paperclip-k8s-plugin" },
     },
     spec: {
       podSelector: {},
@@ -64,10 +64,10 @@ export function buildNetworkPolicyManifests(input: BuildNetworkPolicyInput): Rec
     kind: "NetworkPolicy",
     metadata: {
       namespace: input.namespace,
-      labels: { "paperclip.io/managed-by": "paperclip-k8s-plugin" },
+      labels: { "outpost.io/managed-by": "paperclip-k8s-plugin" },
     },
     spec: {
-      podSelector: { matchLabels: input.podSelector ?? { "paperclip.io/role": "agent" } },
+      podSelector: { matchLabels: input.podSelector ?? { "outpost.io/role": "agent" } },
       policyTypes: ["Egress"],
       egress: [
         ...(input.includeBaseRules === false ? [] : [{

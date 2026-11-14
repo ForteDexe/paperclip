@@ -4,9 +4,9 @@ import { assertEphemeralAgentInstructions } from "./agent-instructions.js";
 import { initializeDurableAgentFiles } from "./agent-file-durability.js";
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { notifySkillVersionRetention, notifySkillVersionPinChange } from "./skill-version-retention-notifications.js";
-import { agentAppearanceSchema, randomAgentAppearance } from "@paperclipai/shared";
-import { normalizePaperclipRunnerAdapterConfig } from "@paperclipai/adapter-utils/server-utils";
-import { agents, toolConnectionInstalls, principalPermissionGrants, type Db } from "@paperclipai/db";
+import { agentAppearanceSchema, randomAgentAppearance } from "@outpost/shared";
+import { normalizePaperclipRunnerAdapterConfig } from "@outpost/adapter-utils/server-utils";
+import { agents, toolConnectionInstalls, principalPermissionGrants, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
 import { agentRecordQueries, isPlainRecord, configPatchFromApprovalPayload, normalizeRuntimeConfigForNewAgent,
@@ -60,7 +60,7 @@ export async function prepareAgentHire(db: Db, companyId: string, input: CreateA
   const providerApiDraft = options?.setupOnly === true && isProviderApiSetupDraft(profile);
   const providerApi = providerApiDraft ? null : resolveProviderApiPlacement({ agent: profile });
   if (providerApi) assertProviderApiPlacementPolicy(await instanceSettingsService(db).getGeneral());
-  if (!providerApiDraft && !providerApi && adapterType === "paperclip_runner" && !["openai_dot", "grok_bot", "muse"].includes(String(adapterConfig.provider)) &&
+  if (!providerApiDraft && !providerApi && adapterType === "outpost_runner" && !["openai_dot", "grok_bot", "muse"].includes(String(adapterConfig.provider)) &&
       (await resolveAgentRunnerTaskDriverForCompany(db, companyId, data.defaultEnvironmentId))?.warmTaskVersion === 1) {
     adapterConfig.lifecycleMode = "warm";
   }

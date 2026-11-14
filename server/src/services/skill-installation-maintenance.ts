@@ -1,8 +1,8 @@
 import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { companySkills, companySkillVersions, type Db } from "@paperclipai/db";
-import { parseFrontmatterMarkdown, type CompanySkillVersionFileInventoryEntry } from "@paperclipai/shared";
+import { companySkills, companySkillVersions, type Db } from "@outpost/db";
+import { parseFrontmatterMarkdown, type CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
 import { conflict } from "../errors.js";
 import { classifyInventoryKind, companySkillService } from "./company-skills.js";
 import { managedSkillContent } from "./managed-skill-content.js";

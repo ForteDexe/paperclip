@@ -1,7 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { activityLog, companies, companyMemberships, instanceUserRoles } from "@paperclipai/db";
+import { activityLog, companies, companyMemberships, instanceUserRoles } from "@outpost/db";
 import {
   actorMiddleware,
   humanizeCloudStackSlug,
@@ -37,11 +37,11 @@ function createDb() {
 }
 
 describe("actorMiddleware authenticated session profile", () => {
-  const originalCloudTenantToken = process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
+  const originalCloudTenantToken = process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
 
   afterEach(() => {
-    if (originalCloudTenantToken === undefined) delete process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
-    else process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = originalCloudTenantToken;
+    if (originalCloudTenantToken === undefined) delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
+    else process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = originalCloudTenantToken;
   });
 
   it("preserves the signed-in user name and email on the board actor", async () => {
@@ -79,7 +79,7 @@ describe("actorMiddleware authenticated session profile", () => {
   });
 
   it("trusts Cloud tenant identity headers and seeds board access", async () => {
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
     const inserts: Array<{ values: Record<string, unknown> }> = [];
     const db = {
       insert: vi.fn(() => {
@@ -160,7 +160,7 @@ describe("actorMiddleware authenticated session profile", () => {
   });
 
   it("lets the cloud tenant actor through assertCompanyAccess for a company it holds a membership row in", async () => {
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
     // A company created on the instance after provisioning (e.g. by a company
     // import) — the user has a real membership row, but it is not the stack's
     // seeded primary company.
@@ -238,7 +238,7 @@ describe("actorMiddleware authenticated session profile", () => {
   });
 
   it("repairs a legacy machine company name from the trusted human-name header", async () => {
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
     const updates: Array<Record<string, unknown>> = [];
     const activities: Array<Record<string, unknown>> = [];
     const insertChain = {
@@ -327,7 +327,7 @@ describe("actorMiddleware authenticated session profile", () => {
   });
 
   it("purges a stale instance_admin row so the session path stops elevating the cloud-tenant user", async () => {
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "tenant-token";
     // Simulates a deployment that previously ran the pre-hardening cloud_tenant
     // path: instance_user_roles still holds an instance_admin row for the
     // tenant user, who can also resolve a BetterAuth session for the same id.

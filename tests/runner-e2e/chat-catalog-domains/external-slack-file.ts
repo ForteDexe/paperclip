@@ -44,7 +44,7 @@ export function hasLaunchMemoFacts(body: string) {
 /** Only an actual completed native tool result can prove the input bytes were read. */
 export function observedSlackBriefRead(events: Record<string, unknown>[]) {
   return events.some((event) => {
-    const envelope = row(row(event.payload).prpEvent);
+    const envelope = row(row(event.payload).orpEvent);
     if (
       !isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion) ||
       envelope.sourceKind !== "runner" ||

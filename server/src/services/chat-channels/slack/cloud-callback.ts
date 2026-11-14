@@ -46,7 +46,7 @@ export async function receiveSlackCloudCallback(event: SlackCloudEvent, current:
       || typeof Reflect.get(actions[0], "action_id") !== "string" || !Reflect.get(actions[0], "action_id") || String(Reflect.get(actions[0], "action_id")).length > 255 || String(Reflect.get(actions[0], "action_id")).startsWith("pcf:"))
       throw new SlackCloudReceiptError("callback_trigger_owner_required", "attention");
   }
-  const request = new Request("https://paperclip.invalid/slack-cloud-ingress", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded",
+  const request = new Request("https://outpost.invalid/slack-cloud-ingress", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded",
     "x-slack-request-timestamp": packet.timestamp, "x-slack-signature": packet.signature }, body: new Uint8Array(body) });
   await deferred.run(true, () => withSlackCloudAcceptedAt(request, acceptedAt, async () => {
     const response = await handleWebhook(request);

@@ -33,7 +33,7 @@ export function identityObservation(value: unknown): IdentityObservation | undef
     && [o.tasks, o.projects, o.goals, o.activity, o.documents, o.links, o.runs, o.companies, o.agents, o.interactions].every(Array.isArray) ? o : undefined;
 }
 export function identityDefinition(scenarioId: string, setup: ChatCatalogCase["setup"], grade: ChatCatalogCase["grade"], extra: Partial<ChatCatalogCase> = {}): ChatCatalogCase {
-  const definition: ChatCatalogCase = { scenarioId, setup, grade, observe: observeIdentity, oracleVersion: "paperclip.chat-catalog.identity.v1",
+  const definition: ChatCatalogCase = { scenarioId, setup, grade, observe: observeIdentity, oracleVersion: "outpost.chat-catalog.identity.v1",
     sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", `chat-catalog-domains/identity-${scenarioId.split(".")[0]}.ts`, `chat-scenarios/${scenarioId.split(".")[0]}.yaml`],
     expectedRunCount: 1, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000,
     async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); }, ...extra };

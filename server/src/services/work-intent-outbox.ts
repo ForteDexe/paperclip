@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
-import { agentWakeupRequests, issueComments, issues, type Db } from "@paperclipai/db";
+import { agentWakeupRequests, issueComments, issues, type Db } from "@outpost/db";
 import { notifyDeferredExecutionEligibility, notifyDeferredExecutionWork, notifyDeferredWakesForIssue } from "./deferred-execution-notifications.js";
 import { withQueuedCommentIdsInWakePayload } from "./issue-queued-comment-queue.js";
 import { deliveredQueuedCommentIds } from "./queued-comment-delivery.js";

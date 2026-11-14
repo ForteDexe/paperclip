@@ -12,13 +12,13 @@ describe("Cursor Cloud native provider admission", () => {
   it("preserves the exact caller model and provider-owned remote configuration", () => {
     expect(resolvePaperclipRunnerProviderProfile(config)).toEqual({ provider: "cursor_cloud", backend: "cursor_cloud_api", model: "caller-custom-model" });
     expect(resolvePaperclipRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: { ...config, repoRef: "feature", autoCreatePR: true } })).toEqual({
-      provider: "cursor_cloud", model: "caller-custom-model", cursorCloud: { schema: "paperclip.cursor-cloud.config.v1", repos: [{ url: config.repoUrl, startingRef: "feature" }], env: { type: "cloud" }, autoCreatePR: true },
+      provider: "cursor_cloud", model: "caller-custom-model", cursorCloud: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: config.repoUrl, startingRef: "feature" }], env: { type: "cloud" }, autoCreatePR: true },
     });
   });
 
   it("reads saved legacy repository fields and rejects conflicting aliases", () => {
     expect(resolvePaperclipRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: { ...config, repoStartingRef: "legacy", runtimeEnvType: "cloud" } })).toMatchObject({ cursorCloud: { repos: [{ startingRef: "legacy" }] } });
-    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, repoStartingRef: "legacy", repoRef: "different" })).toThrow(expect.objectContaining({ code: "paperclip_runner_cursor_cloud_config_invalid" }));
+    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, repoStartingRef: "legacy", repoRef: "different" })).toThrow(expect.objectContaining({ code: "outpost_runner_cursor_cloud_config_invalid" }));
   });
 
   it.each(["plain", "secret_ref"])("rejects selected hosted secrets instead of dropping their %s binding", type => {
@@ -34,7 +34,7 @@ describe("Cursor Cloud native provider admission", () => {
   });
 
   it.each(["", undefined])("requires an explicit model (%s)", model => {
-    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, model })).toThrow(expect.objectContaining({ code: "paperclip_runner_cursor_cloud_model_required" }));
+    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, model })).toThrow(expect.objectContaining({ code: "outpost_runner_cursor_cloud_model_required" }));
   });
 
   it.each([
@@ -43,6 +43,6 @@ describe("Cursor Cloud native provider admission", () => {
     { modelReasoningEffort: "high" }, { reasoningEffort: "high" }, { effort: "high" }, { modelParams: [{ key: "reasoning", value: "high" }] }, { homeMode: "preconfigured" },
     { cursorCloudTimeoutMs: 3_600_001 }, { repoUrl: "https://user:secret@github.com/acme/repo" },
   ])("rejects unsupported or unsafe configuration %j", patch => {
-    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, ...patch })).toThrow(expect.objectContaining({ code: "paperclip_runner_cursor_cloud_config_invalid" }));
+    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, ...patch })).toThrow(expect.objectContaining({ code: "outpost_runner_cursor_cloud_config_invalid" }));
   });
 });

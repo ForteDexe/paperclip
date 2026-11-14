@@ -138,8 +138,8 @@ test.describe("Announcement placement on a new company's first task", () => {
     // The narrowest supported sidebar width on a short laptop window.
     // Classic and Coordinator workspaces persist the width under different keys.
     await page.addInitScript(() => {
-      localStorage.setItem("paperclip.sidebar.width", "208");
-      localStorage.setItem("paperclip.coordinator.sidebar-width", "208");
+      localStorage.setItem("outpost.sidebar.width", "208");
+      localStorage.setItem("outpost.coordinator.sidebar-width", "208");
     });
     const viewport = { width: 1280, height: 720 };
     await page.setViewportSize(viewport);

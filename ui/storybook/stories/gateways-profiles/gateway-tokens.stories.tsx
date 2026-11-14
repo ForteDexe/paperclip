@@ -3,13 +3,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type {
   ToolMcpGatewayToken,
   ToolMcpGatewayWithTokens,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   toolMcpGatewayAuthConfigSchema,
   toolMcpGatewayHeaderPolicySchema,
   toolMcpGatewayMetadataPolicySchema,
   toolMcpGatewayOnDemandToolsConfigSchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { expect, userEvent, within } from "storybook/test";
 import { toolsApi } from "@/api/tools";
 import { TokensPanel } from "@/pages/apps/gateways/panels/TokensPanel";

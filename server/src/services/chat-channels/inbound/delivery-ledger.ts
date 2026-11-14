@@ -9,7 +9,7 @@ import {
 import {
   chatActions,
   chatDeliveries,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 import {
   type ChatProviderLifecycleEffect,

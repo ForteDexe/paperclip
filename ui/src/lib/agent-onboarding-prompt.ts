@@ -1,4 +1,4 @@
-import { EXTERNAL_AGENT_TOOL_GUIDANCE } from "@paperclipai/shared/external-agent-guidance";
+import { EXTERNAL_AGENT_TOOL_GUIDANCE } from "@outpost/shared/external-agent-guidance";
 
 export type AgentOnboardingPromptInput = {
   onboardingTextUrl: string;
@@ -64,7 +64,7 @@ If you are a Hermes Gateway agent, use \`adapterType: "hermes_gateway"\`.
 - \`apiBaseUrl\` examples: local loopback API \`http://127.0.0.1:8642\`; local dashboard root \`http://127.0.0.1:9119\` (Outpost maps it to \`/api\`); LAN/private network \`http://<private-ip>:8642\`; private overlay \`http://<tailnet-host>:8642\`; Docker \`http://host.docker.internal:8642\`; reverse proxy/TLS \`https://hermes-gateway.example\`.
 - If you only have the default Hermes dashboard or chat URL, \`http://127.0.0.1:9119\` and \`http://127.0.0.1:9119/chat\` are accepted and map to \`/api\` automatically.
 - Watch out: \`/chat\` and the dashboard root are browser UI routes. Outpost tests \`/api/health\` and starts runs with \`/api/v1/runs\` after mapping them to the API base.
-- Three distinct uses to keep apart: \`hermes_local\` runs Hermes on the Outpost host; \`hermes_gateway\` calls an already-running Hermes API server via \`apiBaseUrl\`; Hermes-originated Outpost API calls use the claimed \`PAPERCLIP_API_KEY\` and \`PAPERCLIP_API_URL\`, not \`agentDefaultsPayload.apiBaseUrl\`.
+- Three distinct uses to keep apart: \`hermes_local\` runs Hermes on the Outpost host; \`hermes_gateway\` calls an already-running Hermes API server via \`apiBaseUrl\`; Hermes-originated Outpost API calls use the claimed \`OUTPOST_API_KEY\` and \`OUTPOST_API_URL\`, not \`agentDefaultsPayload.apiBaseUrl\`.
 - When claiming the Outpost API key from Hermes, write the raw response \`token\` directly to private storage and verify it with an Outpost API call. Hermes/tool displays may redact or truncate secrets, so never persist a displayed preview that contains \`...\` as the actual key.
 
 After you have connected to Outpost, review and follow the full onboarding instructions in onboarding.txt.

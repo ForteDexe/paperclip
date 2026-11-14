@@ -21,7 +21,7 @@ Probe a hypothetical change (the file need not actually be modified):
 
 ```sh
 node scripts/ci/vitest-impact-report.mjs \
-  --project @paperclipai/ui --file ui/src/pages/Inbox.tsx \
+  --project @outpost/ui --file ui/src/pages/Inbox.tsx \
   --output /tmp/inbox-impact.json
 ```
 
@@ -31,7 +31,7 @@ the event's base SHA, as the existing CI planner does:
 
 ```sh
 node scripts/ci/vitest-impact-report.mjs \
-  --project @paperclipai/ui --project @paperclipai/server \
+  --project @outpost/ui --project @outpost/server \
   --base BASE_SHA --output /tmp/pr-impact.json
 ```
 

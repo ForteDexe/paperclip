@@ -61,25 +61,25 @@ export function catalogTeamMembers(
   );
 }
 interface TeamInstallRuntime {
-  profileId: string; adapterType: "paperclip_runner"; provider: "opencode"; model: string; accountRef: SecretReference;
+  profileId: string; adapterType: "outpost_runner"; provider: "opencode"; model: string; accountRef: SecretReference;
 }
 export function selectedTeamInstallRuntime(ctx: ChatCatalogContext, actor: Agent) {
   const profile = ctx.input.execution.profile, config = actor.adapterConfig;
   const ref = ctx.input.fixtures.secretRefs.OPENROUTER_API_KEY;
   const bound = (config.env as Record<string, unknown> | undefined)?.OPENROUTER_API_KEY as SecretReference | undefined;
   if (profile.id !== CHAT_OPENCODE_PROFILE || profile.provider !== "opencode" || profile.model !== CHAT_OPENCODE_MODEL || profile.credential !== "OPENROUTER_API_KEY"
-    || actor.companyId !== ctx.input.fixtures.company.id || actor.adapterType !== "paperclip_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL || config.timeoutSec !== 0
+    || actor.companyId !== ctx.input.fixtures.company.id || actor.adapterType !== "outpost_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL || config.timeoutSec !== 0
     || !ref || ref.type !== "secret_ref" || !ref.secretId || ref.version !== "latest" || Object.keys(ref).sort().join() !== "secretId,type,version"
     || bound?.type !== ref.type || bound.secretId !== ref.secretId || bound.version !== ref.version)
     throw new Error("Selected team installer must use its actual configured OpenCode OpenRouter1017 account");
-  return { profileId: profile.id, adapterType: "paperclip_runner", provider: "opencode", model: profile.model, accountRef: { type: ref.type, secretId: ref.secretId, version: ref.version } } as TeamInstallRuntime;
+  return { profileId: profile.id, adapterType: "outpost_runner", provider: "opencode", model: profile.model, accountRef: { type: ref.type, secretId: ref.secretId, version: ref.version } } as TeamInstallRuntime;
 }
 export function teamInstallOverrides(team: Pick<CatalogTeam, "agentSlugs">, runtime: TeamInstallRuntime) {
   return Object.fromEntries(team.agentSlugs.map(slug => [slug, { adapterType: runtime.adapterType, adapterConfig: { provider: runtime.provider, model: runtime.model, timeoutSec: 0, lifecycleMode: "per_turn", opencodePermissionMode: "allow", env: { OPENROUTER_API_KEY: runtime.accountRef } } }]));
 }
 export function teamMemberRuntimeMatches(agent: Agent, expected: TeamInstallRuntime, companyId: string) {
   const config = agent.adapterConfig, ref = (config?.env as Record<string, unknown> | undefined)?.OPENROUTER_API_KEY as SecretReference | undefined;
-  return expected?.profileId === CHAT_OPENCODE_PROFILE && expected.adapterType === "paperclip_runner" && expected.provider === "opencode" && expected.model === CHAT_OPENCODE_MODEL
+  return expected?.profileId === CHAT_OPENCODE_PROFILE && expected.adapterType === "outpost_runner" && expected.provider === "opencode" && expected.model === CHAT_OPENCODE_MODEL
     && expected.accountRef?.type === "secret_ref" && !!expected.accountRef.secretId && expected.accountRef.version === "latest"
     && agent.companyId === companyId && agent.adapterType === expected.adapterType && config?.provider === expected.provider && config.model === expected.model && config.timeoutSec === 0
     && ref?.type === "secret_ref" && ref.secretId === expected.accountRef.secretId && ref.version === "latest";
@@ -301,7 +301,7 @@ export const teamInstallExternalCases = [
         );
       const selectedRuntime = selectedTeamInstallRuntime(ctx, actor);
       const adapterOverrides = teamInstallOverrides(team, selectedRuntime);
-      const temporaryRoot = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+      const temporaryRoot = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
       if (!temporaryRoot) throw new Error("Team runtime fixture requires its disposable attempt root");
       const catalogRuntime = await normalizeTeamRuntimeCatalog({ temporaryRoot, repositoryRoot: path.resolve(import.meta.dirname, "../../.."), team, adapters: adapterOverrides });
       team = catalogRuntime.team;
@@ -345,7 +345,7 @@ export const teamInstallExternalCases = [
     gradeTeamInstall,
     {
       authentication: "human-session",
-      oracleVersion: "paperclip.chat-catalog.team-install.v11",
+      oracleVersion: "outpost.chat-catalog.team-install.v11",
       expectedRunCount: 2,
       expectedHumanMessageCount: 2,
       attemptTimeoutMs: 480_000,

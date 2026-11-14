@@ -55,7 +55,7 @@ function containsExplicitSkillInput(value: unknown, runtimeName: string): boolea
   const eventKind = [row.eventType, row.kind, row.type, row.name]
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => entry.toLowerCase());
-  const nested = [row.payload, row.data, row.event, row.item, row.prpEvent]
+  const nested = [row.payload, row.data, row.event, row.item, row.orpEvent]
     .some((entry) => containsExplicitSkillInput(entry, runtimeName));
   const isSkillEvent = eventKind.some((kind) => /skill|resource_loaded/.test(kind));
   const isReadOrToolEvent = eventKind.some((kind) =>
@@ -156,7 +156,7 @@ export async function runContextIntegrityFlow(input: {
     checkpoints.push({ phase, issue: { id: issue!.id, status: String(issue!.status), identifier: String(issue!.identifier ?? ""), issuePrefix: String(fixtures.company.issuePrefix ?? ""), appOrigin: new URL(page.url()).origin }, comments, queuedComments, documents: detailedDocuments as Array<{ key: string; body?: string | null }>, runs, runEvents: runEvents.flat(), runLogs, assignedSkill: assignedSkill ? { key: String(desiredSkill?.key ?? assignedSkill.key ?? assignedSkill.slug), runtimeName: String(assignedSkill.slug ?? ""), versionId: desiredSkill?.versionId === assignedVersionId ? assignedVersionId : null, markdown: String(assignedSkill.markdown ?? scenario.assignedSkill?.markdown ?? "") } : undefined, skillRequestText: isAssignedSkillContext(scenario.id) ? skillRequestText : undefined, skillInvocationEvidence });
     const checks = gradeContextIntegrity({ id: scenario.id, marker: scenario.marker, comments: scenario.comments, checkpoints });
     input.observe(issue!, runs, checks);
-    await input.evidence("context-integrity.json", { schema: "paperclip.context-integrity.v1", scenario, budgetGuard, checkpoints, checks });
+    await input.evidence("context-integrity.json", { schema: "outpost.context-integrity.v1", scenario, budgetGuard, checkpoints, checks });
   }
   async function settle(before: Set<string>) {
     await pollUntil({
@@ -233,7 +233,7 @@ export async function runContextIntegrityFlow(input: {
           runs, activity: await api.get<Row[]>(`/api/issues/${issue.id}/activity`),
         });
       } catch {
-        checkoutActivity = { schema: "paperclip.checkout-activity.v1", status: "unavailable" };
+        checkoutActivity = { schema: "outpost.checkout-activity.v1", status: "unavailable" };
       }
       await input.evidence("checkout-activity.json", checkoutActivity);
     }
@@ -246,6 +246,6 @@ export async function runContextIntegrityFlow(input: {
   } finally {
     const checks = gradeContextIntegrity({ id: scenario.id, marker: scenario.marker, comments: scenario.comments, checkpoints });
     if (issue) input.observe(issue, runs, checks);
-    await input.evidence("context-integrity.json", { schema: "paperclip.context-integrity.v1", scenario, budgetGuard, checkpoints, checks });
+    await input.evidence("context-integrity.json", { schema: "outpost.context-integrity.v1", scenario, budgetGuard, checkpoints, checks });
   }
 }

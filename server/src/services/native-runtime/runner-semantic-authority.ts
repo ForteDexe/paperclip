@@ -1,4 +1,4 @@
-import { fastResponseHistoryBody } from "@paperclipai/shared";
+import { fastResponseHistoryBody } from "@outpost/shared";
 import { readTaskQuestionContext } from "../issue-question-context.js";
 import { isConversation } from "../agent-conversations.js";
 import {
@@ -8,7 +8,7 @@ import {
 } from "../source-trust.js";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   documentRevisions,
@@ -17,7 +17,7 @@ import {
   issueComments,
   issueDocuments,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   PaperclipSemanticDispatcher,
   type PaperclipJsonValue,
@@ -28,7 +28,7 @@ import {
   type PaperclipSemanticToolCall,
   type PaperclipSemanticToolDefinition,
   type PaperclipSemanticToolResult,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 
 export interface PaperclipRunnerSemanticBinding {
   readonly companyId: string;
@@ -59,7 +59,7 @@ function boundedLimit(value: unknown): number {
 
 function requiredString(value: unknown): string {
   if (typeof value !== "string" || value.length === 0 || value.length > 240) {
-    throw new Error("paperclip_runner_semantic_input_invalid");
+    throw new Error("outpost_runner_semantic_input_invalid");
   }
   return value;
 }
@@ -247,7 +247,7 @@ export class PaperclipRunnerSemanticAuthority {
                 ),
               )
               .limit(1);
-            if (!row) throw new Error("paperclip_runner_document_not_found");
+            if (!row) throw new Error("outpost_runner_document_not_found");
             return {
               value: jsonValue({ document: row }),
               references: [
@@ -302,7 +302,7 @@ export class PaperclipRunnerSemanticAuthority {
 
   async #context(requestedRunId: string): Promise<PaperclipSemanticRunContext> {
     if (requestedRunId !== this.#binding.runId) {
-      throw new Error("paperclip_runner_semantic_run_mismatch");
+      throw new Error("outpost_runner_semantic_run_mismatch");
     }
     const context = await this.#loadBoundContext();
     this.#assertActiveContext(context, false);
@@ -357,7 +357,7 @@ export class PaperclipRunnerSemanticAuthority {
         ),
       )
       .limit(1);
-    if (!row) throw new Error("paperclip_runner_semantic_binding_not_found");
+    if (!row) throw new Error("outpost_runner_semantic_binding_not_found");
     return row;
   }
 
@@ -369,7 +369,7 @@ export class PaperclipRunnerSemanticAuthority {
         (context.issue.assigneeAgentId !== this.#binding.agentId ||
           context.issue.executionRunId !== this.#binding.runId))
     ) {
-      throw new Error("paperclip_runner_semantic_binding_inactive");
+      throw new Error("outpost_runner_semantic_binding_inactive");
     }
   }
 }

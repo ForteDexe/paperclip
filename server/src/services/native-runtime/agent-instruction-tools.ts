@@ -1,7 +1,7 @@
-import type { AgentInstructionCommitReceipt } from "@paperclipai/shared";
+import type { AgentInstructionCommitReceipt } from "@outpost/shared";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, type Db } from "@paperclipai/db";
+import { agents, companies, type Db } from "@outpost/db";
 import { badRequest, notFound } from "../../errors.js";
 import { agentInstructionRevisionService } from "../agent-instruction-revisions.js";
 import { agentInstructionWorkingCopyService } from "../agent-instruction-working-copies.js";

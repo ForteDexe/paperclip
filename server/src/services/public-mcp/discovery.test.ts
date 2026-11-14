@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mcpDiscoveryDocuments, parseMcpDiscovery } from "./discovery.js";
 import { createMcpWakeAdmission, parseMcpWakeAdmission } from "./wake-admission.js";
-import { DOT_RUNNER_MCP_SCOPES, PUBLIC_MCP_SCOPES } from "@paperclipai/shared";
+import { DOT_RUNNER_MCP_SCOPES, PUBLIC_MCP_SCOPES } from "@outpost/shared";
 const snapshot = { origin: "https://tenant.example.test", authorizationOrigin: "https://browser.example.test", profiles: ["personal-mcp","dot-mcp"] as ("personal-mcp"|"dot-mcp")[] };
 describe("MCP owner discovery snapshot",()=>{
   it("preserves dedicated issuers, real scope contracts and configured browser authorization origin",()=>{

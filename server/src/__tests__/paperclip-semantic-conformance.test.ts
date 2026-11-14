@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDb } from "@paperclipai/db";
+import { createDb } from "@outpost/db";
 import {
   CAPABILITY_HIGH_RISK_SEMANTIC_VECTORS,
   CAPABILITY_SEMANTIC_CONFORMANCE_IDS,
   CapabilityMockSemanticConformanceAdapter,
   runSemanticConformanceKit,
-} from "../vendor/paperclip-runner/testing.js";
+} from "../vendor/outpost-runner/testing.js";
 
 import {
   getEmbeddedPostgresTestSupport,
@@ -18,10 +18,10 @@ import {
 } from "./helpers/paperclip-semantic-conformance.js";
 
 vi.hoisted(() => {
-  process.env.PAPERCLIP_HOME = "/tmp/paperclip-semantic-conformance-home";
-  process.env.PAPERCLIP_INSTANCE_ID = "semantic-conformance";
-  process.env.PAPERCLIP_LOG_DIR = "/tmp/paperclip-semantic-conformance-home/logs";
-  process.env.PAPERCLIP_IN_WORKTREE = "false";
+  process.env.OUTPOST_HOME = "/tmp/paperclip-semantic-conformance-home";
+  process.env.OUTPOST_INSTANCE_ID = "semantic-conformance";
+  process.env.OUTPOST_LOG_DIR = "/tmp/paperclip-semantic-conformance-home/logs";
+  process.env.OUTPOST_IN_WORKTREE = "false";
 });
 
 const embeddedSupport = await getEmbeddedPostgresTestSupport();

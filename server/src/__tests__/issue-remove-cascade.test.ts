@@ -16,7 +16,7 @@ import {
   issueReadStates,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

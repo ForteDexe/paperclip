@@ -1,4 +1,4 @@
-import type { AdapterEnvironmentCheck } from "@paperclipai/adapter-utils";
+import type { AdapterEnvironmentCheck } from "@outpost/adapter-utils";
 
 /**
  * The fixed label a Test result shows when the probe runs on the local
@@ -105,7 +105,7 @@ export function logSandboxProbeDiagnostic(
   }
   const errorClass = sanitizeErrorClassName(fields?.errorClass);
   if (errorClass) detail.errorClass = errorClass;
-  console.warn(`[paperclip] ${context}`, detail);
+  console.warn(`[outpost] ${context}`, detail);
 }
 
 /**

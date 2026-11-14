@@ -148,7 +148,7 @@ def run(expected_digest):
         if data.exists():
             shutil.rmtree(data)
         password_file.unlink()
-    receipt = {'schema': 'paperclip.initdb-infrastructure-diagnostic/v1', 'infrastructureOnly': True,
+    receipt = {'schema': 'outpost.initdb-infrastructure-diagnostic/v1', 'infrastructureOnly': True,
                'canonicalAttempts': 0, 'providerCalls': 0, 'nativeRuns': 0, 'sourceSnapshot': str(SNAPSHOT),
                'binary': str(BINARY), 'binarySha256': expected_digest, 'binaryVersion': version,
                'helperSha256': sha(__file__), 'packageVersion': json.loads((SNAPSHOT / PACKAGE / 'package.json').read_text())['version'],

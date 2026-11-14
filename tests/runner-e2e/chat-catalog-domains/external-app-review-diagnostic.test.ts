@@ -19,7 +19,7 @@ const privateCanary = "synthetic-private-content-never-export";
 async function seed(wrongSourceIssue = false): Promise<ReviewAdmissionBinding> {
   const b = Object.fromEntries(["companyId", "issueId", "agentId", "actionRequestId", "invocationId", "sourceRunId", "interactionId"].map(key => [key, randomUUID()])) as unknown as ReviewAdmissionBinding;
   await db.insert(companies).values({ id: b.companyId, name: "Read-only review observer", issuePrefix: b.companyId.slice(0, 8).toUpperCase() });
-  await db.insert(agents).values({ id: b.agentId, companyId: b.companyId, name: "Observer fixture", adapterType: "paperclip_runner" });
+  await db.insert(agents).values({ id: b.agentId, companyId: b.companyId, name: "Observer fixture", adapterType: "outpost_runner" });
   await db.insert(issues).values({ id: b.issueId, companyId: b.companyId, title: privateCanary, assigneeAgentId: b.agentId, status: "in_review" });
   const sourceIssueId = wrongSourceIssue ? randomUUID() : b.issueId;
   if (wrongSourceIssue) await db.insert(issues).values({ id: sourceIssueId, companyId: b.companyId, title: "Unrelated issue", assigneeAgentId: b.agentId });
@@ -84,12 +84,12 @@ it("uses the launcher's owned config and rejects a config outside that root", as
   try {
     await writeFile(filename, JSON.stringify({ $meta: { version: 1, updatedAt: new Date().toISOString(), source: "onboard" },
       database: { mode: "postgres", connectionString: database.connectionString }, logging: { mode: "file" }, server: {}, telemetry: {} }), { mode: 0o600 });
-    const snapshot = await observeReviewAdmission(b, { PAPERCLIP_CONFIG: filename, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: root });
+    const snapshot = await observeReviewAdmission(b, { OUTPOST_CONFIG: filename, OUTPOST_RUNNER_E2E_TEMP_ROOT: root });
     expect(snapshot).toMatchObject({ available: true, binding: b, wakes: [], runs: [] });
-    expect(await observeReviewAdmission(b, { PAPERCLIP_CONFIG: filename, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: path.join(root, "missing") }))
+    expect(await observeReviewAdmission(b, { OUTPOST_CONFIG: filename, OUTPOST_RUNNER_E2E_TEMP_ROOT: path.join(root, "missing") }))
       .toEqual({ available: false, reason: "observation_unavailable" });
     const sibling = await mkdtemp(path.join(os.tmpdir(), "review-admission-other-"));
-    try { expect(await observeReviewAdmission(b, { PAPERCLIP_CONFIG: filename, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: sibling }))
+    try { expect(await observeReviewAdmission(b, { OUTPOST_CONFIG: filename, OUTPOST_RUNNER_E2E_TEMP_ROOT: sibling }))
       .toEqual({ available: false, reason: "owned_config_unavailable" }); }
     finally { await rm(sibling, { recursive: true, force: true }); }
   } finally { await rm(root, { recursive: true, force: true }); }

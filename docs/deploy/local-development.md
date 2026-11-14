@@ -128,5 +128,5 @@ pnpm dev
 Override with environment variables:
 
 ```sh
-PAPERCLIP_HOME=/custom/path PAPERCLIP_INSTANCE_ID=dev pnpm paperclipai run
+OUTPOST_HOME=/custom/path OUTPOST_INSTANCE_ID=dev pnpm paperclipai run
 ```

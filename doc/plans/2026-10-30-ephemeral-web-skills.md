@@ -4,7 +4,7 @@
 
 Implementation is in [PR #18334](https://github.com/paperclipai/paperclip/pull/18334).
 Hosted qualification uses the owned disposable
-[test tenant](https://ephemeral-skills-qa-oct-30.test.paperclip.app), external
+[test tenant](https://ephemeral-skills-qa-oct-30.test.outpost.app), external
 Postgres, S3, and a real remote Paperclip Computer. Cloud policy reserves the
 staging domain for master; the rejected staging branch request below made no
 deployment.
@@ -89,7 +89,7 @@ handoff, and production volume removal are outside this slice.
   Owned Docker fixtures are `paperclip-skills-ephemeral-pg` (port 61006) and
   `paperclip-skills-ephemeral-s3` (port 61007). No unrelated databases changed.
 - Disposable staging tenant created through normal onboarding:
-  https://ephemeral-skills-qa-oct-30.staging.paperclip.app
+  https://ephemeral-skills-qa-oct-30.staging.outpost.app
   Agent `dfd238b5-5e5d-43ef-b34a-cb5bff2267f3` (Skills Qualification), paused.
   OpenAI API-key setup uses the explicitly authorized local credential. Candidate
   `6518b323528b2b595c5949c3ed2c57a8d2438cb6` is building under release run
@@ -125,7 +125,7 @@ handoff, and production volume removal are outside this slice.
   when the old five-second assertion expired, before the fixture began streaming.
 - The baseline image published successfully, but the deployment check rejected the
   branch with `fleet_campaign_staging_requires_master` (Cloud run `41092962684`).
-  Current Cloud policy uses `test.paperclip.app` for branch experiments. The local
+  Current Cloud policy uses `test.outpost.app` for branch experiments. The local
   Cloud checkout's older runbook missed this boundary. Qualification is moving to
   an owned disposable test tenant; the rejected request made no tenant deployment.
 - All 53 applicable CI checks passed at `0dc9a42a6f` (two skipped checks).
@@ -143,7 +143,7 @@ handoff, and production volume removal are outside this slice.
   Final project-access/process qualification is running sequentially. Server
   typecheck passed with both final fixes.
 - Correct disposable branch-test tenant:
-  https://ephemeral-skills-qa-oct-30.test.paperclip.app
+  https://ephemeral-skills-qa-oct-30.test.outpost.app
   Stack `stack-ephemeral-skills-qa-oct-30` is pinned user-managed. Baseline A
   `6518b323528b2b595c5949c3ed2c57a8d2438cb6` is confirmed serving from image
   `ghcr.io/paperclipai/paperclip:sha-6518b323528b2b595c5949c3ed2c57a8d2438cb6-cloud`.
@@ -185,7 +185,7 @@ handoff, and production volume removal are outside this slice.
   A later explicit source refresh hit the repository size limit and retained
   the installed revision. That refresh is not counted as a successful update.
 - Test-only env campaign `fleet-campaign-1793366873581` succeeded at
-  `2026-10-30T17:38:00.006Z`, changing only `PAPERCLIP_HOME` to
+  `2026-10-30T17:38:00.006Z`, changing only `OUTPOST_HOME` to
   `/tmp/ephemeral-skills-a` on `stack-ephemeral-skills-qa-oct-30`.
   Audit evidence reports one target, one key, zero removed keys, and unchanged
   Computer images. Studio reopened v6 with its supporting files afterward.
@@ -209,7 +209,7 @@ handoff, and production volume removal are outside this slice.
   with zero unresolved review threads. Hosted candidate build is run
   `41101360597`; baseline A remains deployed until it completes.
 - Provider console independently confirmed external Neon Postgres and S3 on A,
-  with `PAPERCLIP_HOME=/tmp/ephemeral-skills-a`, deployment
+  with `OUTPOST_HOME=/tmp/ephemeral-skills-a`, deployment
   `5fc05d1a-2451-465c-8a15-16b18d1e0d3d`, replica
   `f7393d02-49b6-40b9-ae94-db9181300bf4`. A temporary marker was written to
   that home so a later container can prove the predecessor's local state is absent.
@@ -253,7 +253,7 @@ handoff, and production volume removal are outside this slice.
   `d4e172e8-a861-48cc-ae9c-e2f26c8ee636`, Cloud run `41106109829`.
   B is deployment `ed70e789-22c3-4b93-93de-da61d7f30ca4`, replica
   `16fbb2e8-a7b3-4f32-a483-bc2f5c77a8ee`, with
-  `PAPERCLIP_HOME=/tmp/ephemeral-skills-b`. Local health confirmed the code SHA;
+  `OUTPOST_HOME=/tmp/ephemeral-skills-b`. Local health confirmed the code SHA;
   provider console confirmed A's home and marker absent. The unassigned fork
   opened as v2 with zero agents. Studio acknowledged a supporting-file edit to
   the primary managed skill as v7 (`durable-skill-payload-B-20261030`).

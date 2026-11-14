@@ -13,7 +13,7 @@ const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 async function context() {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "personal-receipt-"))); roots.push(root);
-  vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root); vi.stubEnv("PAPERCLIP_HOME", path.join(root, "home")); vi.stubEnv("PAPERCLIP_INSTANCE_ID", "receipt-control");
+  vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root); vi.stubEnv("OUTPOST_HOME", path.join(root, "home")); vi.stubEnv("OUTPOST_INSTANCE_ID", "receipt-control");
   return { scenario: { id: "secrets.personal-secret" }, input: { nonce: "receipt-control", execution: { environment: { id: "local" } }, fixtures: { company: { id: "company" } } } } as unknown as ChatCatalogContext;
 }
 it("mints a sanitized personal receipt only after actual key-authenticated HTTP success without legacy identity env", async () => {
@@ -28,7 +28,7 @@ it("mints a sanitized personal receipt only after actual key-authenticated HTTP 
     const f = delivery(); f.run.startedAt = startedAt; f.run.finishedAt = new Date().toISOString();
     Object.assign(f.evidence.calls[0]!, endpoint.calls[0]!);
     f.evidence.events[0]!.createdAt = f.run.finishedAt;
-    f.evidence.events[0]!.payload.prpEvent.payload.output = result.stdout;
+    f.evidence.events[0]!.payload.orpEvent.payload.output = result.stdout;
     expect(personalSecretWorkerReceipt(f.run, f.evidence, f.expected)).toMatchObject({ receiptId: output.receiptId });
     for (const [url, method, key] of [[endpoint.url, "GET", "wrong"], [endpoint.url + "/wrong", "GET", credential], [endpoint.url, "POST", credential]]) {
       const response = await fetch(url!, { method, headers: { authorization: `Bearer ${key}` } });
@@ -56,7 +56,7 @@ function delivery() {
     calls: [{ authorized: true, agentId: "", runId: "", method: "GET", pathname: "/publishing-check", status: 200,
       createdAt: "2026-11-04T00:00:05.000Z", receiptId: "a".repeat(48) }],
     events: [{ runId: "worker", companyId: "company", agentId: "morgan", seq: 1, eventType: "tool.execution.completed",
-      createdAt: "2026-11-04T00:00:06.000Z", payload: { prpEvent: { runId: "worker", eventType: "tool.execution.completed",
+      createdAt: "2026-11-04T00:00:06.000Z", payload: { orpEvent: { runId: "worker", eventType: "tool.execution.completed",
         payload: { name: "bash", status: "completed", exitCode: 0, outputTruncated: false, output } } } }] };
   return { expected, run, evidence };
 }
@@ -66,7 +66,7 @@ it("binds a receipt to successful native output and allows repeated verification
   expect(personalSecretWorkerReceipt(f.run, f.evidence, f.expected)).toBeDefined();
 });
 it.each(["wrong key", "wrong path", "wrong status", "missing receipt", "forged receipt", "replayed receipt", "foreign run", "foreign agent", "foreign task", "foreign human", "failed output", "non-tool output", "input-only receipt"])("rejects %s as personal worker proof", fault => {
-  const f = delivery(), call = f.evidence.calls[0]!, event = f.evidence.events[0]!, tool = event.payload.prpEvent.payload;
+  const f = delivery(), call = f.evidence.calls[0]!, event = f.evidence.events[0]!, tool = event.payload.orpEvent.payload;
   if (fault === "wrong key") call.authorized = false;
   if (fault === "wrong path") call.pathname = "/wrong";
   if (fault === "wrong status") call.status = 403;

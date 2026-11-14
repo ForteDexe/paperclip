@@ -1,15 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { eq, sql } from "drizzle-orm";
-import { closeRegisteredClients, createDb, heartbeatRunEvents, heartbeatRuns, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@paperclipai/db";
+import { closeRegisteredClients, createDb, heartbeatRunEvents, heartbeatRuns, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { createNativeRunLogTestTables } from "../../__tests__/helpers/native-run-log-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { canonicalProviderEventsFromCodex } from "@paperclipai/paperclip-runner";
+import { canonicalProviderEventsFromCodex } from "@outpost/outpost-runner";
 import type { RunLogHandle, RunLogStore } from "../run-log-store.js";
 import type { StorageProvider } from "../../storage/types.js";
-import { validatePrpEvent, type PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { validatePrpEvent, type PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { instanceSettingsService } from "../instance-settings.js";
 import type { CurrentUserRedactionOptions } from "../../log-redaction.js";
 import { createHeartbeatRunOutput } from "../heartbeat/run-output.js";
@@ -20,7 +20,7 @@ import { createNativeRunLogCoverageVerifier, formatNativeRunLogEvent } from "./n
 import { readRecoverableRunLog, recoverSettledNativeRunLog } from "./native-run-log-recovery.js";
 
 // Use an explicit guarded test database or a new owned embedded fixture.
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_LOG_WATERMARK_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_LOG_WATERMARK_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 function memoryProvider(): StorageProvider {
@@ -91,7 +91,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
       assertWriterAuthority: async (input) => { await input.assertWriterAuthority?.(); },
     });
     const event = (seq: number): PrpEvent => ({
-      schema: "paperclip.prp.event.v1", schemaVersion: 1,
+      schema: "outpost.orp.event.v1", schemaVersion: 1,
       runId: binding.runId, sourceInstanceId: "fixture-source", sourceEventId: `source:${seq}`,
       sourceSeq: seq, sourceKind: "runner", normalizedSessionId: "fixture-session",
       eventType: seq === 2 ? "turn.interrupted" : "item.delta", priority: 2,
@@ -102,7 +102,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
       await db.execute(sql`insert into heartbeat_run_events(company_id,run_id,agent_id,seq,event_type,
         payload,source_instance_id,source_event_id,source_seq,source_payload_sha256,protocol_schema_version)
         values(${binding.companyId},${binding.runId},${binding.agentId},${cursor},${value.eventType},
-        ${JSON.stringify({ prpEvent: value })}::jsonb,${value.sourceInstanceId},${value.sourceEventId},
+        ${JSON.stringify({ orpEvent: value })}::jsonb,${value.sourceInstanceId},${value.sourceEventId},
         ${value.sourceSeq},${nativeSha256(value)},${value.schemaVersion})`);
     };
     const settle = async (logRef: string) => {
@@ -114,7 +114,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
 
   function toolEvent(f: Awaited<ReturnType<typeof fixture>>, output: string): PrpEvent {
     return { ...f.event(1), itemId: "tool-1", priority: 1, eventType: "tool.execution.completed", payload: {
-      schema: "paperclip.tool.execution.v1", executionId: "tool-1", transport: "process",
+      schema: "outpost.tool.execution.v1", executionId: "tool-1", transport: "process",
       operation: "execute", status: "completed", output,
       outputBytes: Buffer.byteLength(output), outputTruncated: false, outputDigest: null, exitCode: 0,
     } };
@@ -196,7 +196,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     expect(() => JSON.parse(chunk)).toThrow();
     const [durable] = await db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents)
       .where(eq(heartbeatRunEvents.runId, f.binding.runId));
-    expect(JSON.stringify(durable!.payload!.prpEvent)).not.toBe(JSON.stringify(event));
+    expect(JSON.stringify(durable!.payload!.orpEvent)).not.toBe(JSON.stringify(event));
     await f.persist(f.event(2), 5);
     await f.settle(handle.logRef);
     const cold = f.store();
@@ -518,7 +518,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     for (const [index, event] of events.entries()) await f.persist(event, (index + 1) * 2);
     const [durable] = await db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents)
       .where(eq(heartbeatRunEvents.runId, f.binding.runId)).limit(1);
-    expect(JSON.stringify(durable!.payload!.prpEvent)).not.toBe(JSON.stringify(events[0]));
+    expect(JSON.stringify(durable!.payload!.orpEvent)).not.toBe(JSON.stringify(events[0]));
     await store.append(handle, { stream: "stdout", ts: "original", seq: 1, chunk: "preparation diagnostic\n" });
     for (const [index, event] of events.slice(0, 49).entries()) {
       await store.append(handle, { stream: "stdout", ts: "original", seq: index + 2,
@@ -612,7 +612,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
       await f.persist(f.event(2), 2);
       const chunk = kind === "conflicting"
         ? formatNativeRunLogEvent({ ...f.event(1), payload: { text: "different" } })
-        : kind === "malformed" ? '{"type":"paperclip.prp.event","event":broken\n'
+        : kind === "malformed" ? '{"type":"outpost.orp.event","event":broken\n'
         : formatNativeRunLogEvent(f.event(1));
       await store.append(handle, { stream: "stdout", ts: "original", seq: 1, chunk });
       if (kind === "duplicate") await store.append(handle, { stream: "stdout", ts: "original", seq: 2, chunk });

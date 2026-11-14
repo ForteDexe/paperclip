@@ -4,11 +4,11 @@ navigation: {"section":"Tasks and conversations","sectionOrder":20,"order":40}
 
 # Agent conversations and project handoff
 
-A person can hold a persistent conversation with an agent, return to its history, and hand useful work into a project or task. The gated conference-room chat is a separate conversation surface.
+A person can hold a persistent conversation with an agent, return to its history, and hand useful work into a project or task.
 
 Feature ID: `agent-chat`.
 
-Implementation: [agent chat](../../ui/src/pages/AgentChat.tsx), [chat landing](../../ui/src/pages/AgentChats.tsx), [conference room](../../ui/src/pages/BoardChat.tsx).
+Implementation: [agent chat](../../ui/src/pages/AgentChat.tsx), [chat landing](../../ui/src/pages/AgentChats.tsx).
 
 Agent access: [companion](../agent-access-map/agent-chat.md).
 
@@ -17,7 +17,6 @@ Agent access: [companion](../agent-access-map/agent-chat.md).
 - `discovery`: `agent-chat/discovery` — find an agent and reopen an accessible recent conversation.
 - `history`: `agent-chat/history` — send messages, inspect replies/files, and return to the same conversation.
 - `handoff`: `agent-chat/handoff` — create or identify a project/task from chat and follow the resulting work.
-- `conference-room`: `agent-chat/conference-room` — use the separately gated board chat without assuming parity with agent chat.
 
 ## How to get to it (user POV)
 
@@ -40,10 +39,6 @@ Coordinator answer receipts from this conversation jump to the answer bubble wit
 ### `project-handoff`
 
 Ask for project work in Agent Chat and follow its created project/task links. New tasks and accepted task suggestions default to the agent in that conversation. An explicitly requested agent or person takes precedence; no best-fit agent routing is inferred. Ordinary task creation outside chat keeps its existing assignment behavior.
-
-### `conference-room`
-
-Open `/board-chat` only when its conference-room gate is enabled.
 
 ## Driving it with Playwright and the Paperclip CLI
 
@@ -110,32 +105,11 @@ Approval of artifact quality alone must not publish it or complete the task.
 
 Coordinator task clarification: create a task with only a description. When material context is missing, native task guidance asks one focused canonical question inside that task. Its actionable form is also projected into Inbox and the originating standing chat; direct user-created tasks appear in the assigned agent’s standing chat. Answer on either surface and verify the pending card/count clear and a compact recorded answer replaces it in chat. This projection is event-refreshed and does not wake another agent merely to repeat the question. Current direct-task questions survive a chat reset; their answered receipts start at the current chat boundary. The task brief remains editable context, not another stored question. Model choice and actual resumed execution still require live verification.
 
-### `conference-room`
-
-Automated: [board chat gate](../../server/src/__tests__/board-chat-route-feature-flag.test.ts) proves route gating, not a live conversation.
-
-Preconditions for this entry point: `local_trusted` mode and an installed,
-authenticated `claude` CLI, in addition to the Conference Room flag. These are
-separate from Agent Chat's configured-agent prerequisites.
-
-Manual: Check disabled access first, enable in the disposable instance, then send and reload a conversation. Inspect the actual responding agent and persisted history; report this result separately from Agent Chat.
-
 ## Gotchas
 
 - Idle chat is not failed execution.
 - See [steering](./steering.md) for in-flight messages and [questions](./questions-and-approvals.md) for interactions.
 - An API tool test does not prove that every harness will choose the same handoff tool.
-
-### Storybook verification
-
-#### `conference-room`
-
-Capability ID: `agent-chat/conference-room`.
-
-Scope: ui
-Storybook: Conference-room flag disabled, empty/history/reply, busy and explicit failure states.
-Production: Exercise separate BoardChat route gate, local-trusted deployment and authenticated Claude CLI; send/reload real conversation with responding agent attribution.
-Sources: Source: [BoardChat.tsx](../../ui/src/pages/BoardChat.tsx), [board-chat.ts](../../server/src/routes/board-chat.ts). Tests: [BoardChat.test.tsx](../../ui/src/pages/BoardChat.test.tsx), [board-chat-route-feature-flag.test.ts](../../server/src/__tests__/board-chat-route-feature-flag.test.ts)
 
 ### Explicit output quality review (Coordinator functional slice)
 

@@ -3,15 +3,15 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionContext, AdapterInvocationMeta } from "@paperclipai/adapter-utils";
-import { runChildProcess } from "@paperclipai/adapter-utils/server-utils";
+import type { AdapterExecutionContext, AdapterInvocationMeta } from "@outpost/adapter-utils";
+import { runChildProcess } from "@outpost/adapter-utils/server-utils";
 
 // Every test in this file needs a real teardown, so the mock below delegates
 // to the actual factory by default. Only the wiring test further down reads
 // the call arguments; it does not change this behavior.
 const mockCreateWorkspaceRestoreTeardown = vi.hoisted(() => vi.fn());
 
-vi.mock("@paperclipai/adapter-utils/workspace-restore-teardown", async (importOriginal) => {
+vi.mock("@outpost/adapter-utils/workspace-restore-teardown", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   mockCreateWorkspaceRestoreTeardown.mockImplementation(
     actual.createWorkspaceRestoreTeardown as (...args: unknown[]) => unknown,
@@ -83,8 +83,8 @@ type FakeRuntimeTurn = {
 
 const tempRoots: string[] = [];
 const originalNodeVersion = process.version;
-const originalPaperclipHome = process.env.PAPERCLIP_HOME;
-const originalPaperclipInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+const originalPaperclipHome = process.env.OUTPOST_HOME;
+const originalPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
 const originalCodexHome = process.env.CODEX_HOME;
 const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
 
@@ -131,10 +131,10 @@ function setNodeVersion(version: string): void {
 
 afterEach(async () => {
   setNodeVersion(originalNodeVersion);
-  if (originalPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-  else process.env.PAPERCLIP_HOME = originalPaperclipHome;
-  if (originalPaperclipInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-  else process.env.PAPERCLIP_INSTANCE_ID = originalPaperclipInstanceId;
+  if (originalPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+  else process.env.OUTPOST_HOME = originalPaperclipHome;
+  if (originalPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+  else process.env.OUTPOST_INSTANCE_ID = originalPaperclipInstanceId;
   if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
   else process.env.CODEX_HOME = originalCodexHome;
   if (originalOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -233,8 +233,8 @@ class FakeRuntime {
 async function makeTempRoot(prefix: string) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   tempRoots.push(root);
-  process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-  process.env.PAPERCLIP_INSTANCE_ID = "test";
+  process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+  process.env.OUTPOST_INSTANCE_ID = "test";
   return root;
 }
 
@@ -467,19 +467,19 @@ describe("codex_local ACP lane", () => {
 
   it("enables workspace networking for ACP without changing other env settings", () => {
     expect(buildCodexAcpConfig({ env: { CUSTOM: "kept" } })).toMatchObject({
-      env: { CUSTOM: "kept", PAPERCLIP_CODEX_ACP_NETWORK_ACCESS: "true" },
+      env: { CUSTOM: "kept", OUTPOST_CODEX_ACP_NETWORK_ACCESS: "true" },
     });
   });
 
   it.each([
-    { env: { PAPERCLIP_CODEX_ACP_NETWORK_ACCESS: "false" } },
+    { env: { OUTPOST_CODEX_ACP_NETWORK_ACCESS: "false" } },
     { extraArgs: ["-c", "sandbox_workspace_write.network_access=false"] },
     { extraArgs: ["--config=sandbox_workspace_write.network_access=false"] },
     { args: ["-csandbox_workspace_write.network_access=false"] },
     { extraArgs: ["-c", "sandbox_workspace_write.network_access=true", "-c", "sandbox_workspace_write.network_access=false"] },
   ])("preserves explicit ACP network denial %j", (config) => {
     expect(buildCodexAcpConfig(config)).toMatchObject({
-      env: { PAPERCLIP_CODEX_ACP_NETWORK_ACCESS: "false" },
+      env: { OUTPOST_CODEX_ACP_NETWORK_ACCESS: "false" },
     });
   });
 
@@ -1353,8 +1353,8 @@ describe("codex_local ACP lane", () => {
     expect(result.exitCode).toBe(0);
     expect(mockCreateWorkspaceRestoreTeardown).toHaveBeenCalledWith(
       expect.objectContaining({
-        startMessage: "[paperclip] Restoring workspace changes and Codex auth from the sandbox.\n",
-        failurePrefix: "[paperclip] Codex ACP teardown restore/copy-back failed",
+        startMessage: "[outpost] Restoring workspace changes and Codex auth from the sandbox.\n",
+        failurePrefix: "[outpost] Codex ACP teardown restore/copy-back failed",
       }),
     );
   });
@@ -1434,7 +1434,7 @@ describe("resolveCodexAcpBillingIdentity", () => {
   it.each([["openrouter", "api_key", "openrouter"], ["custom", "api_key", "unknown"], ["local", "none", "unknown"]])("classifies managed %s/%s independently of host authentication", (kind, auth, biller) => {
     expect(resolveCodexAcpBillingIdentity({ config: {
       managedAiRouting: { kind, auth },
-      env: { OPENAI_API_KEY: "", PAPERCLIP_AI_PROVIDER_KEY: auth === "none" ? "" : "fixture" },
+      env: { OPENAI_API_KEY: "", OUTPOST_AI_PROVIDER_KEY: auth === "none" ? "" : "fixture" },
     } })).toEqual({ provider: "openai", biller, billingType: "api" });
   });
   const originalOpenAiKey = process.env.OPENAI_API_KEY;

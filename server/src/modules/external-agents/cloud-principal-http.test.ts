@@ -148,9 +148,9 @@ function fixture(ownerPresent = true) {
 }
 beforeEach(() => {
   resetCloudControlReplayFenceForTests();
-  vi.stubEnv("PAPERCLIP_CLOUD_STACK_ID", "stack");
+  vi.stubEnv("OUTPOST_CLOUD_STACK_ID", "stack");
   vi.stubEnv(
-    "PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS",
+    "OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS",
     JSON.stringify({
       keys: [
         {

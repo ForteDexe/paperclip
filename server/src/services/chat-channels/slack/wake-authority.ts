@@ -2,7 +2,7 @@ import { forbidden } from "../../../errors.js";
 import { slackMessageMeetsMentionRequirement } from "./messages.js";
 
 import type { EndpointRow } from "../runtime-types.js";
-import type { chatConversations, chatDeliveries } from "@paperclipai/db";
+import type { chatConversations, chatDeliveries } from "@outpost/db";
 
 type SlackDeliveryEvent = typeof chatDeliveries.$inferSelect["normalizedEvent"];
 

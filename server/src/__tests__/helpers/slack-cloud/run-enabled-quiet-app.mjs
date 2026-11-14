@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 if (!process.version.startsWith("v24.")) throw new Error("Slack form journey requires the current Node24 executable");
 if (process.argv.length !== 2) throw new Error("Slack form journey has one closed complete case and accepts no selectors");
-const value = process.env.PAPERCLIP_SLACK_TEST_DATABASE_URL;
+const value = process.env.OUTPOST_SLACK_TEST_DATABASE_URL;
 const cloudValue = process.env.SLACK_EVENT_TEST_DATABASE_URL;
-const fixture = new URL(value ?? "invalid:"), cloud = new URL(cloudValue ?? "invalid:"), admin = new URL(process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL ?? "invalid:");
+const fixture = new URL(value ?? "invalid:"), cloud = new URL(cloudValue ?? "invalid:"), admin = new URL(process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL ?? "invalid:");
 for (const url of [fixture, cloud, admin]) if (!["postgres:", "postgresql:"].includes(url.protocol) || url.hostname !== "127.0.0.1" || !url.port || url.search || url.hash) throw new Error("Explicit owned PG17 fixture/admin URLs required");
 if (fixture.protocol !== cloud.protocol || fixture.protocol !== admin.protocol || admin.pathname !== "/postgres"
   || !/^\/sleep2_slack_form_[a-z0-9_]+_app_test$/.test(fixture.pathname) || cloud.pathname !== fixture.pathname.replace(/_app_test$/, "_cloud_test")) throw new Error("Distinct same-grant form fixture pair required");
@@ -30,9 +30,9 @@ const require = createRequire(path.join(server,"package.json"));
 const vitest = path.join(path.dirname(require.resolve("vitest/package.json")), "vitest.mjs");
 const guard = path.join(packet, "quiet-prewire.cjs");
 const home = mkdtempSync(path.join(tmpdir(), "slack-form-journey-"));
-const env = { PATH: process.env.PATH, LANG: process.env.LANG, HOME: home, TMPDIR: home, PAPERCLIP_HOME: home,
-  NODE_ENV: "test", NODE_OPTIONS: "", SLACK_GATE_EXPECT_PRELOAD: "1", PAPERCLIP_SLACK_TEST_DATABASE_URL: value,
-  SLACK_EVENT_TEST_DATABASE_URL: cloudValue, PAPERCLIP_TEST_POSTGRES_ADMIN_URL: process.env.PAPERCLIP_TEST_POSTGRES_ADMIN_URL,
+const env = { PATH: process.env.PATH, LANG: process.env.LANG, HOME: home, TMPDIR: home, OUTPOST_HOME: home,
+  NODE_ENV: "test", NODE_OPTIONS: "", SLACK_GATE_EXPECT_PRELOAD: "1", OUTPOST_SLACK_TEST_DATABASE_URL: value,
+  SLACK_EVENT_TEST_DATABASE_URL: cloudValue, OUTPOST_TEST_POSTGRES_ADMIN_URL: process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL,
   SLACK_GATE_PROCESS_LOG: log, SLACK_FORM_JOURNEY_STATE_FILE: stateFile, SLACK_FORM_FIXTURE_PEER_ORIGIN: peer.origin, SLACK_FORM_SHORT_GATE: process.env.SLACK_FORM_SHORT_GATE, SLACK_PUBLICATION_REPORT: process.env.SLACK_PUBLICATION_REPORT };
 if (env.SLACK_FORM_SHORT_GATE !== "callback") throw new Error("One closed short gate required");
 const config = path.join(home,"short-gate.config.ts");

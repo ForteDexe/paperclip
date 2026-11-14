@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, companyMemberships, createDb, applyPendingMigrations, closeRegisteredClients, type Db } from "@paperclipai/db";
+import { agents, companies, companyMemberships, createDb, applyPendingMigrations, closeRegisteredClients, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
@@ -14,7 +14,7 @@ import { resolveExternalTestDatabaseUrl } from "../../../__tests__/helpers/exter
 
 import { aiConnectionService } from "../../../services/ai-connections.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_LIFECYCLE_VERIFICATION_RETRY_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_LIFECYCLE_VERIFICATION_RETRY_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("failed lifecycle verification retries", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -61,7 +61,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     let repaired = false;
     const runHost = vi.fn(async (agent: LifecycleAgent) => {
       if (agent.lifecycleState === "verifying" && !repaired) await aiConnectionService(db).select({
-        companyId, userId, agentId: agent.id, adapterType: "paperclip_runner", runnerProvider: "opencode",
+        companyId, userId, agentId: agent.id, adapterType: "outpost_runner", runnerProvider: "opencode",
         model: "openrouter/deepseek/deepseek-v4.1-flash-1017",
         binding: { mode: "responsible_user", provider: "openrouter", method: "api_key" },
       });
@@ -99,7 +99,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     let repaired = false;
     const runHost = vi.fn(async (agent: LifecycleAgent) => {
       if (agent.lifecycleState === "resuming" && !repaired) await aiConnectionService(db).select({ companyId, userId,
-        agentId: agent.id, adapterType: "paperclip_runner", runnerProvider: "opencode",
+        agentId: agent.id, adapterType: "outpost_runner", runnerProvider: "opencode",
         model: "openrouter/deepseek/deepseek-v4.1-flash-1017", binding: { mode: "responsible_user", provider: "openrouter", method: "api_key" } });
       return "complete" as const;
     });

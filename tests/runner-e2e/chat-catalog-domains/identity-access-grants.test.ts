@@ -86,7 +86,7 @@ describe("membership read-and-route oracle", () => {
     const o = intended(membership.scenarioId); o.state.agentMemberReadSucceeded = false; expect(membership.grade(o).passed).toBe(false);
   });
   it("reads a successful member list read only from the run's own tool result", () => {
-    const event = (status: number, op = "GET /api/companies/{companyId}/members") => ({ eventType: "item.completed", payload: { prpEvent: { payload: { item: { type: "tool_result", result: { ok: status === 200, status, apiOperationId: op } } } } } });
+    const event = (status: number, op = "GET /api/companies/{companyId}/members") => ({ eventType: "item.completed", payload: { orpEvent: { payload: { item: { type: "tool_result", result: { ok: status === 200, status, apiOperationId: op } } } } } });
     expect(memberListReadSucceeded([event(200)])).toBe(true);
     expect(memberListReadSucceeded([event(403)])).toBe(false);
     expect(memberListReadSucceeded([event(200, "GET /api/companies/{companyId}/user-directory")])).toBe(false);

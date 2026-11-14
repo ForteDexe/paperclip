@@ -1,14 +1,14 @@
 import { and, asc, desc, eq, gt, isNotNull, lte, not, or, sql } from "drizzle-orm";
 import { StringDecoder } from "node:string_decoder";
-import { heartbeatRunEvents, type Db } from "@paperclipai/db";
-import { validatePrpEvent, type PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRunEvents, type Db } from "@outpost/db";
+import { validatePrpEvent, type PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { nativeSha256 } from "./canonical.js";
 import type { RunLogHandle, RunLogStore } from "../run-log-store.js";
 import { compactRunLogChunk } from "../heartbeat/run-log.js";
 import { MAX_RUN_LOG_RECORD_BYTES } from "../run-log-record-limits.js";
 
 export function formatNativeRunLogEvent(event: PrpEvent) {
-  return `${JSON.stringify({ type: "paperclip.prp.event", event })}\n`;
+  return `${JSON.stringify({ type: "outpost.orp.event", event })}\n`;
 }
 export function nativeRunLogSourceWhere(companyId: string, runId: string) {
   return and(
@@ -66,7 +66,7 @@ async function sourcePage(
     .limit(16);
   signal?.throwIfAborted();
   return rows.map((row) => {
-    const validated = validatePrpEvent(row.payload?.prpEvent);
+    const validated = validatePrpEvent(row.payload?.orpEvent);
     if (
       !validated.ok ||
       validated.event.runId !== runId ||
@@ -149,7 +149,7 @@ function restoreCompactedEvent(chunk: string, source: unknown): unknown {
       compactRunLogChunk(restored, undefined, { redactInvitations }) === chunk)) continue;
     try {
       const envelope = JSON.parse(restored);
-      if (envelope.type === "paperclip.prp.event" && matchesPublishedEvent(source, envelope.event))
+      if (envelope.type === "outpost.orp.event" && matchesPublishedEvent(source, envelope.event))
         return envelope;
     } catch { /* Another candidate cannot make malformed evidence authoritative. */ }
   }
@@ -193,7 +193,7 @@ export function createNativeRunLogCoverageVerifier(
         let candidate;
         try { candidate = JSON.parse(form); }
         catch { continue; } // A malformed historical privacy projection proves nothing.
-        if (candidate?.type === "paperclip.prp.event" && candidate.event &&
+        if (candidate?.type === "outpost.orp.event" && candidate.event &&
           typeof candidate.event === "object" && !Array.isArray(candidate.event))
           yield candidate.event;
       }
@@ -202,7 +202,7 @@ export function createNativeRunLogCoverageVerifier(
     try {
       envelope = JSON.parse(chunk);
     } catch {
-      if (!chunk.includes('"paperclip.prp.event"')) return;
+      if (!chunk.includes('"outpost.orp.event"')) return;
       let restored;
       for await (const form of sourceForms()) {
         restored = restoreCompactedEvent(chunk, form);
@@ -211,7 +211,7 @@ export function createNativeRunLogCoverageVerifier(
       if (!restored) throw unproven();
       envelope = restored;
     }
-    if (envelope?.type !== "paperclip.prp.event") return;
+    if (envelope?.type !== "outpost.orp.event") return;
     let event: PrpEvent;
     try {
       const parsed = validatePrpEvent(envelope.event);

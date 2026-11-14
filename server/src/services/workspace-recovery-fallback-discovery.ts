@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { issueRecoveryActions } from "@paperclipai/db";
+import { issueRecoveryActions } from "@outpost/db";
 import { REMOTE_WORKSPACE_CAPTURE_POLICY_VERSION } from "./remote-workspace-snapshot-archive.js";
 import { CAPTURE_POLICY_REARM_CODES, FINISHED_COORDINATOR_PHASES, isExhaustedStopProofWait, STOP_PROOF_MAX_REARMS, STOP_PROOF_RECOVERY_KEY, STOP_PROOF_RECOVERY_SCHEMA, STOP_PROOF_WAIT_CODE,
   stopProofRearmsSpent, type SystemRecoveryState } from "./system-recovery-state.js";

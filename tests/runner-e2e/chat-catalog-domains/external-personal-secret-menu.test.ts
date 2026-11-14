@@ -1,12 +1,12 @@
 import {expect,it} from "vitest";
 import {chromium} from "@playwright/test";
 import {personalSecretSetupURL,personalSecretGuidance} from "./external-personal-secret.js";
-const origin="https://paperclip.example",chat=origin+"/RUN/chat",settings="/RUN/company/settings",secrets=settings+"/secrets",definition="6263be21-6958-4e2b-a76a-f0e20331245c";
+const origin="https://outpost.example",chat=origin+"/RUN/chat",settings="/RUN/company/settings",secrets=settings+"/secrets",definition="6263be21-6958-4e2b-a76a-f0e20331245c";
 const body=`I can't set a personal credential for you; never share it in chat. Open Settings → Secrets at \`/company/settings/secrets\`. Under My secrets, find PERSONAL_PUBLISHING_KEY (definition \`${definition}\`) and choose Set my value. Enter the publishing credential there and save.`;
 const markup=`<p>Open Settings → Secrets at <code>/company/settings/secrets</code>.</p><p>Under My secrets, find PERSONAL_PUBLISHING_KEY (definition <code>${definition}</code>) and choose Set my value.</p>`;
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("discovers the current Personal UI route independently of the5169 inline hint and rejects unbound alternatives",async()=>{
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("discovers the current Personal UI route independently of the5169 inline hint and rejects unbound alternatives",async()=>{
  expect(personalSecretGuidance(body)).toBe(true);
- const browser=await chromium.launch({headless:true,...process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
+ const browser=await chromium.launch({headless:true,...process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
  const scenarios=[
   {name:"actual-style Account navigation",accepted:true},
   {name:"delayed Account and My secrets data",accepted:true,delayed:true},

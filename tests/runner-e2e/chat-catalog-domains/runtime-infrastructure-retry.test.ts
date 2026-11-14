@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { gradeInfrastructureRetry, isHumanRetryRequest, releasedRetryListener, retriesOriginalRun } from "./runtime-infrastructure-retry.js";
 function valid() {
-  return { scenarioId: "recovery.retry-exhausted", origin: "http://paperclip.test", companyId: "company", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
+  return { scenarioId: "recovery.retry-exhausted", origin: "http://outpost.test", companyId: "company", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
     runs: [{ id: "exhausted", status: "failed" }, ...["canonical", "held", "retry", "final"].map(id => ({ id, status: "succeeded" }))],
     state: { task: { id: "website", identifier: "COM-2" }, queryRecoveryRead: true, heldRecoveryRead: true, finalRecoveryRead: true, worker: { id: "morgan" }, failure: { id: "exhausted", status: "failed", nativePhase: "terminal_failure" },
       recoveryBefore: { id: "recovery", companyId: "company", sourceIssueId: "website", kind: "active_run_watchdog", cause: "native_session_retry_exhausted", ownerType: "board", ownerAgentId: null, returnOwnerAgentId: "morgan", recoveryIssueId: null,
@@ -34,7 +34,7 @@ it("rejects absent native retry evidence", () => expect(gradeInfrastructureRetry
 it("rejects substituting a terminal model failure for actual infrastructure exhaustion", () => { const o = valid(); o.state.recoveryBefore.cause = "native_provider_model_rejected"; expect(gradeInfrastructureRetry(o).passed).toBe(false); });
 
 it("accepts the task's own Retry request as the human Retry, for this task and assignee only", () => {
-  const request = (method: string, path: string) => ({ method: () => method, url: () => `http://paperclip.test${path}` });
+  const request = (method: string, path: string) => ({ method: () => method, url: () => `http://outpost.test${path}` });
   expect(isHumanRetryRequest(request("POST", "/api/issues/website/retry"), "website", "morgan")).toBe(true);
   expect(isHumanRetryRequest(request("POST", "/api/agents/morgan/wakeup"), "website", "morgan")).toBe(true);
   expect(isHumanRetryRequest(request("POST", "/api/issues/other/retry"), "website", "morgan")).toBe(false);

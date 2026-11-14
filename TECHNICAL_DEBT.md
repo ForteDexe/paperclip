@@ -42,22 +42,17 @@ Outpost presents **Spaces**, **tasks**, **users/humans**, and a routing-only
 **default agent**. The inherited implementation still uses `Paperclip`,
 `company`, `project`, `issue`, and `board` in compatibility-critical places:
 
-- published package names and npm scopes such as `@paperclipai/*`;
-- `PAPERCLIP_*` environment variables and protocol/header identifiers;
+- published package names and npm scopes such as `@outpost/*`;
+- `OUTPOST_*` environment variables and protocol/header identifiers;
 - database tables, columns, enums, historical migrations, and API routes;
 - persisted actor kinds such as `board` and adapter kinds such as
-  `paperclip_runner`;
+  `outpost_runner`;
 - upstream links, attribution, historical plans, fixtures, and feature maps.
 
 Do not globally replace these identifiers. New user-facing and agent-facing
 copy must map them to current Outpost terms. Renaming the stored/API contracts
 requires a dedicated compatibility migration, aliases for existing clients and
 data, and restart/resume validation.
-
-The legacy `paperclip-board` and `paperclip-create-agent` skill identifiers and
-the board-chat compatibility route are also retained until their callers and
-stored skill assignments can migrate together. They must not be treated as the
-current product vocabulary or reintroduced into navigation.
 
 ## Revisit condition
 

@@ -11,7 +11,7 @@ describe("repository runtime delivery evidence", () => {
     const digest = "09a8b6d19d867b102dcb01a222d2dde7d3cb0054031af0d73ed93f3c718516a7";
     const local = { kind: "local" as const, instanceRoot: "/owned/instance", owner: { companyId: "owned-company", agentId: "owned-agent",
       driverKind: "codex_app_server", workspace: { cwd: "/owned/workspace", repoUrl: null, repoRef: null, branchName: null } } };
-    const localSessionRoot = "/owned/instance/runtime/paperclip-runner/durable-sessions/2881ee3ad02d8c09ec2af1ef786d588f92b7f25bb002b3da9ca19fa8d9331b5d";
+    const localSessionRoot = "/owned/instance/runtime/outpost-runner/durable-sessions/2881ee3ad02d8c09ec2af1ef786d588f92b7f25bb002b3da9ca19fa8d9331b5d";
     expect(repositoryRuntimeSessionRoot(local.instanceRoot, session, local.owner)).toBe(localSessionRoot);
     const localRoot = `${localSessionRoot}/codex-home/skills/architect`;
     expect(isOwnedRepositoryRuntimeRoot(localRoot, session, local)).toBe(true);
@@ -29,7 +29,7 @@ describe("repository runtime delivery evidence", () => {
     expect(isOwnedRepositoryRuntimeRoot(preparedRoot, session, { ...prepared, instanceRoot: "/foreign/instance" })).toBe(false);
     expect(isOwnedRepositoryRuntimeRoot("/owned/instance/skills/library", session, { ...local, contextSkills: { sessionId: session, roots: ["/owned/instance/skills/library"] } })).toBe(false);
     const remote = { kind: "daytona" as const, remoteCwd: "/home/daytona/workspace" };
-    const filesystem = `/home/daytona/workspace/.paperclip-runtime/paperclip-runner/sessions/${digest}/filesystem`;
+    const filesystem = `/home/daytona/workspace/.paperclip-runtime/outpost-runner/sessions/${digest}/filesystem`;
     for (const root of [`${filesystem}/context/skills/0-digest`, `${filesystem}/codex-home/skills/architect`]) {
       expect(isOwnedRepositoryRuntimeRoot(root, session, remote)).toBe(true);
       expect(isOwnedRepositoryRuntimeRoot(root, "another-session", remote)).toBe(false);

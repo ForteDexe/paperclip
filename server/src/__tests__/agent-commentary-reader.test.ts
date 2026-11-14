@@ -3,8 +3,8 @@ import { sql, eq } from "drizzle-orm";
 import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agentCommentary, agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, principalPermissionGrants } from "@paperclipai/db";
-import { agentCommentaryQuerySchema } from "@paperclipai/shared";
+import { agentCommentary, agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, principalPermissionGrants } from "@outpost/db";
+import { agentCommentaryQuerySchema } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentCommentaryReader } from "../services/agent-commentary-reader.js";
 import { agentCommentaryRoutes } from "../routes/agent-commentary.js";
@@ -177,7 +177,7 @@ describe("agent commentary browsing", () => {
   });
 
   it("applies actual task privacy to HTTP previews, counts, searches and details for commentary-authorized board users", async () => {
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     const userId = randomUUID(), ownerId = randomUUID();
     await db.insert(authUsers).values([userId, ownerId].map((id) => ({
       id, name: "Board user", email: `${id}@example.test`, emailVerified: true,

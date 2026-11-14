@@ -36,7 +36,7 @@ import { prepareSupervisorServerConfig } from "./server-config.js";
 import { installedReleaseEnvironment, installedReleaseLaunch } from "./installed-release.js";
 import {
   assertIsolatedServerEnvironment,
-  buildPaperclipServerEnvironment,
+  buildOutpostServerEnvironment,
   runnerE2EServerControlPaths,
 } from "./harness-env.js";
 
@@ -46,14 +46,14 @@ function required(name: string) {
   return value;
 }
 
-const logPath = required("PAPERCLIP_RUNNER_E2E_SERVER_LOG");
-const temporaryRoot = required("PAPERCLIP_RUNNER_E2E_TEMP_ROOT");
-const paperclipHome = required("PAPERCLIP_HOME");
-const configPath = required("PAPERCLIP_CONFIG");
-const port = required("PAPERCLIP_RUNNER_E2E_PORT");
+const logPath = required("OUTPOST_RUNNER_E2E_SERVER_LOG");
+const temporaryRoot = required("OUTPOST_RUNNER_E2E_TEMP_ROOT");
+const paperclipHome = required("OUTPOST_HOME");
+const configPath = required("OUTPOST_CONFIG");
+const port = required("OUTPOST_RUNNER_E2E_PORT");
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
 const paperclipCli = path.join(repositoryRoot, "tests/runner-e2e/server-entry.ts");
-const executionIds: string[] = JSON.parse(process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "[]");
+const executionIds: string[] = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]");
 const upgradeArtifacts = await readUpgradeArtifacts(process.env[upgradeArtifactKey]);
 let artifactIndex = 0;
 let kimiCandidateAdmission: RestartRequest["kimiCandidateAdmission"];
@@ -69,21 +69,21 @@ const {
 } = runnerE2EServerControlPaths(temporaryRoot);
 const restartTimeoutMs = 180_000;
 const gracefulStopTimeoutMs = 30_000;
-const initialCli = upgradeArtifacts?.artifacts.A.pins.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI ?? process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI;
+const initialCli = upgradeArtifacts?.artifacts.A.pins.OUTPOST_RUNNER_E2E_INSTALLED_CLI ?? process.env.OUTPOST_RUNNER_E2E_INSTALLED_CLI;
 const installedRelease = initialCli ? installedReleaseLaunch(initialCli) : null;
 const workspaceStorage = remoteWorkspaceStorageServerEnvironment({
   executions: executionIds.map(id => runnerMatrix.find(execution => execution.id === id)).filter((execution): execution is typeof runnerMatrix[number] => Boolean(execution)),
-  env: process.env, instanceId: required("PAPERCLIP_INSTANCE_ID"),
+  env: process.env, instanceId: required("OUTPOST_INSTANCE_ID"),
 });
 const servingArtifacts = new WeakMap<ChildProcess, ServingArtifact>();
 const dockerEnvironment = await dockerDatabaseSupervisorEnvironment({ temporaryRoot, env: process.env });
 const sourceEnvironment = { ...dockerEnvironment.source };
-const publicOriginReceipt = process.env[PUBLIC_ORIGIN_RECEIPT_ENV] ? await readValidatedPublicOriginReceipt({ receiptPath: required(PUBLIC_ORIGIN_RECEIPT_ENV), executionId: executionIds.length === 1 ? executionIds[0]! : "", attemptId: required("PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID"), backendOrigin: `http://127.0.0.1:${port}` }) : undefined;
-if (publicOriginReceipt && process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP !== "1") throw new Error("Owned public origin requires the exact authenticated selected case");
-for (const key of [PUBLIC_ORIGIN_RECEIPT_ENV, PUBLIC_ORIGIN_CONTROL_ENV, "PAPERCLIP_PUBLIC_URL", "PAPERCLIP_AUTH_PUBLIC_BASE_URL", "PAPERCLIP_MANAGED_RUNTIME_PUBLIC_URL", "PAPERCLIP_ALLOWED_HOSTNAMES"]) delete sourceEnvironment[key];
+const publicOriginReceipt = process.env[PUBLIC_ORIGIN_RECEIPT_ENV] ? await readValidatedPublicOriginReceipt({ receiptPath: required(PUBLIC_ORIGIN_RECEIPT_ENV), executionId: executionIds.length === 1 ? executionIds[0]! : "", attemptId: required("OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID"), backendOrigin: `http://127.0.0.1:${port}` }) : undefined;
+if (publicOriginReceipt && process.env.OUTPOST_RUNNER_E2E_PUBLIC_MCP !== "1") throw new Error("Owned public origin requires the exact authenticated selected case");
+for (const key of [PUBLIC_ORIGIN_RECEIPT_ENV, PUBLIC_ORIGIN_CONTROL_ENV, "OUTPOST_PUBLIC_URL", "OUTPOST_AUTH_PUBLIC_BASE_URL", "OUTPOST_MANAGED_RUNTIME_PUBLIC_URL", "OUTPOST_ALLOWED_HOSTNAMES"]) delete sourceEnvironment[key];
 const vaultEnvironment = await readSelectedVaultServerEnvironment({ executionIds, temporaryRoot, backendOrigin: `http://127.0.0.1:${port}`, env: process.env });
 const teamCatalogEnvironment = await teamRuntimeCatalogServerEnvironment({ executionIds, temporaryRoot, repositoryRoot });
-const serverEnvironment = buildPaperclipServerEnvironment(installedRelease
+const serverEnvironment = buildOutpostServerEnvironment(installedRelease
   ? installedReleaseEnvironment(sourceEnvironment, repositoryRoot, path.join(temporaryRoot, "provider-bin"))
   : sourceEnvironment, {
   NODE_ENV: "test",
@@ -91,41 +91,41 @@ const serverEnvironment = buildPaperclipServerEnvironment(installedRelease
   // Keep provider caches attempt-private without changing Playwright's browser
   // cache lookup in the parent process.
   XDG_CACHE_HOME: path.join(temporaryRoot, "xdg-cache"),
-  PAPERCLIP_HOME: paperclipHome,
-  PAPERCLIP_CONFIG: configPath,
-  PAPERCLIP_INSTANCE_ID: required("PAPERCLIP_INSTANCE_ID"),
-  PAPERCLIP_AGENT_JWT_SECRET: required("PAPERCLIP_AGENT_JWT_SECRET"),
-  PAPERCLIP_DECISION_SIGNING_SECRET: required(
-    "PAPERCLIP_DECISION_SIGNING_SECRET",
+  OUTPOST_HOME: paperclipHome,
+  OUTPOST_CONFIG: configPath,
+  OUTPOST_INSTANCE_ID: required("OUTPOST_INSTANCE_ID"),
+  OUTPOST_AGENT_JWT_SECRET: required("OUTPOST_AGENT_JWT_SECRET"),
+  OUTPOST_DECISION_SIGNING_SECRET: required(
+    "OUTPOST_DECISION_SIGNING_SECRET",
   ),
-  PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: required(
-    "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET",
+  OUTPOST_TOOL_ACTION_SIGNING_SECRET: required(
+    "OUTPOST_TOOL_ACTION_SIGNING_SECRET",
   ),
   BETTER_AUTH_SECRET: required("BETTER_AUTH_SECRET"),
-  PAPERCLIP_BIND: "loopback",
-  PAPERCLIP_BIND_HOST: "127.0.0.1",
-  PAPERCLIP_DEPLOYMENT_MODE: process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP === "1" ? "authenticated" : "local_trusted",
-  ...(process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP === "1" ? {
-    PAPERCLIP_PUBLIC_URL: `http://127.0.0.1:${port}`,
-    PAPERCLIP_AUTH_PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
-    PAPERCLIP_AUTH_BASE_URL_MODE: "explicit",
+  OUTPOST_BIND: "loopback",
+  OUTPOST_BIND_HOST: "127.0.0.1",
+  OUTPOST_DEPLOYMENT_MODE: process.env.OUTPOST_RUNNER_E2E_PUBLIC_MCP === "1" ? "authenticated" : "local_trusted",
+  ...(process.env.OUTPOST_RUNNER_E2E_PUBLIC_MCP === "1" ? {
+    OUTPOST_PUBLIC_URL: `http://127.0.0.1:${port}`,
+    OUTPOST_AUTH_PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
+    OUTPOST_AUTH_BASE_URL_MODE: "explicit",
     ...publicOriginServerOverrides(publicOriginReceipt),
     // Use empty provider configuration as the managed homes' seed. A local
     // operator's installed plugins, MCP connections and auth are not fixtures.
     CODEX_HOME: path.join(temporaryRoot, "provider-config", "codex"),
     CLAUDE_CONFIG_DIR: path.join(temporaryRoot, "provider-config", "claude"),
   } : {}),
-  PAPERCLIP_DEPLOYMENT_EXPOSURE: "private",
+  OUTPOST_DEPLOYMENT_EXPOSURE: "private",
   SERVE_UI: "true",
-  PAPERCLIP_STORAGE_PROVIDER: "local_disk",
-  PAPERCLIP_STORAGE_LOCAL_DIR: path.join(temporaryRoot, "storage"),
-  PAPERCLIP_SECRETS_PROVIDER: "local_encrypted",
-  PAPERCLIP_SECRETS_STRICT_MODE: "true",
-  PAPERCLIP_DB_BACKUP_ENABLED: "false",
-  PAPERCLIP_DB_BACKUP_DIR: path.join(temporaryRoot, "backups"),
+  OUTPOST_STORAGE_PROVIDER: "local_disk",
+  OUTPOST_STORAGE_LOCAL_DIR: path.join(temporaryRoot, "storage"),
+  OUTPOST_SECRETS_PROVIDER: "local_encrypted",
+  OUTPOST_SECRETS_STRICT_MODE: "true",
+  OUTPOST_DB_BACKUP_ENABLED: "false",
+  OUTPOST_DB_BACKUP_DIR: path.join(temporaryRoot, "backups"),
   // Onboarding normally opens the app after listen. Browser ownership belongs
   // to Playwright in this harness, so never create a developer desktop tab.
-  PAPERCLIP_OPEN_ON_LISTEN: "false",
+  OUTPOST_OPEN_ON_LISTEN: "false",
   ...vaultEnvironment,
   ...teamCatalogEnvironment,
   ...workspaceStorage,
@@ -149,7 +149,7 @@ await prepareSourceServerDependencies(repositoryRoot, definedServerEnvironment, 
 await Promise.all([
   mkdir(path.dirname(logPath), { recursive: true }),
   mkdir(controlDirectory, { recursive: true, mode: 0o700 }),
-  ...(process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP === "1" ? [
+  ...(process.env.OUTPOST_RUNNER_E2E_PUBLIC_MCP === "1" ? [
     mkdir(path.join(temporaryRoot, "provider-config", "codex"), { recursive: true, mode: 0o700 }),
     mkdir(path.join(temporaryRoot, "provider-config", "claude"), { recursive: true, mode: 0o700 }),
   ] : []),
@@ -166,14 +166,14 @@ let controllerDatabase: Awaited<ReturnType<typeof prepareControllerDatabase>> | 
 
 function recoverFeedbackBeforeShutdown() {
   return feedbackRecovery ??= (async () => {
-    const privateDir = process.env.PAPERCLIP_RUNNER_E2E_PRIVATE_DIR;
-    const campaignId = process.env.PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID;
-    const attemptId = process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID;
-    if (!privateDir || !campaignId || !attemptId || process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP === "1") return;
+    const privateDir = process.env.OUTPOST_RUNNER_E2E_PRIVATE_DIR;
+    const campaignId = process.env.OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID;
+    const attemptId = process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID;
+    if (!privateDir || !campaignId || !attemptId || process.env.OUTPOST_RUNNER_E2E_PUBLIC_MCP === "1") return;
     const deadlineAt = Date.now() + 5_000;
     const secrets = normalizedSecrets([...CREDENTIAL_NAMES, ...EVAL_OBSERVABILITY_SECRET_NAMES,
-      "PAPERCLIP_E2E_GATEWAY_TOKEN", "PAPERCLIP_AGENT_JWT_SECRET", "PAPERCLIP_DECISION_SIGNING_SECRET",
-      "PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET"].map(name => process.env[name]));
+      "OUTPOST_E2E_GATEWAY_TOKEN", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_DECISION_SIGNING_SECRET",
+      "OUTPOST_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET"].map(name => process.env[name]));
     for (const executionId of executionIds) {
       if (Date.now() >= deadlineAt) break;
       const execution = runnerMatrix.find(row => row.id === executionId);
@@ -233,9 +233,9 @@ async function startServer() {
   const launch = installed ? installedReleaseLaunch(installed.entry) : null;
   // The serving process must report its baked-in revision, never a test-supplied SHA.
   const environment = { ...definedServerEnvironment };
-  if (kimiCandidateAdmission) environment.PAPERCLIP_ACPX_CANDIDATE_ADMISSION = JSON.stringify(kimiCandidateAdmission);
+  if (kimiCandidateAdmission) environment.OUTPOST_ACPX_CANDIDATE_ADMISSION = JSON.stringify(kimiCandidateAdmission);
   if (upgradeArtifacts) {
-    delete environment.PAPERCLIP_BUILD_COMMIT;
+    delete environment.OUTPOST_BUILD_COMMIT;
     delete environment[upgradeArtifactKey];
     environment.GIT_CEILING_DIRECTORIES = upgradeArtifacts.artifacts[selected!].root;
   }
@@ -291,7 +291,7 @@ async function startServer() {
     void stopWithFeedback(candidate, shutdownSignal).catch(() => {});
   }
   await stopServer.watch(candidate);
-  const invitationAttemptId = process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID;
+  const invitationAttemptId = process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID;
   if (!installed && candidate.pid && invitationAttemptId) {
     invitationSourceGeneration = await publishInvitationSourceProof({ temporaryRoot, sourceRoot: repositoryRoot, apiOrigin: `http://127.0.0.1:${port}`,
       attemptId: invitationAttemptId, executionIds, pid: candidate.pid, argv: sourceArgs, spawnedAt: sourceSpawnedAt });
@@ -395,7 +395,7 @@ async function restartServer({ requestId, kimiCandidateAdmission: stagedKimiAdmi
   const previous = child;
   if (!previous) throw new Error("No Paperclip server is available to restart");
   const discardCache = async () => {
-    const cache = path.join(paperclipHome, "instances", required("PAPERCLIP_INSTANCE_ID"), "runtime", "paperclip-runner");
+    const cache = path.join(paperclipHome, "instances", required("OUTPOST_INSTANCE_ID"), "runtime", "outpost-runner");
     await retireControllerCache(cache, path.join(controlDirectory, `retired-controller-cache-${requestId}`));
     appendLog(`Restart request ${requestId}: old controller cache made unavailable\n`);
   };
@@ -473,7 +473,7 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
 }
 
 async function supervise() {
-  const executionIds: string[] = JSON.parse(process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "[]");
+  const executionIds: string[] = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]");
   if (executionIds.some(id => id.includes(".legacy-claude.local.") || /\.assistant-claude-(?:haiku|sonnet)\.local\./.test(id))) {
     definedServerEnvironment.PATH = await qualifyLegacyClaudeCli(temporaryRoot, definedServerEnvironment);
   }
@@ -524,7 +524,7 @@ async function supervise() {
 let exitCode = 0;
 let closeCursorCloudCallbackProxy: (() => Promise<void>) | undefined;
 try {
-  if (executionIds.some(id => id.startsWith("cursor-cloud."))) closeCursorCloudCallbackProxy = await startCursorCloudCallbackProxy({ port: Number(required("PAPERCLIP_CURSOR_CLOUD_CALLBACK_PORT")), appPort: Number(port) });
+  if (executionIds.some(id => id.startsWith("cursor-cloud."))) closeCursorCloudCallbackProxy = await startCursorCloudCallbackProxy({ port: Number(required("OUTPOST_CURSOR_CLOUD_CALLBACK_PORT")), appPort: Number(port) });
   await supervise();
 } catch (error) {
   exitCode = 1;

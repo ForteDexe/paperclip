@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, heartbeatRuns, issues, toolCatalogEntries, toolConnectionInstalls, toolInvocations, companies, companyMemberships, instanceSettings, createDb, toolConnections, toolPolicies, toolProfileEntries } from "@paperclipai/db";
+import { agents, heartbeatRuns, issues, toolCatalogEntries, toolConnectionInstalls, toolInvocations, companies, companyMemberships, instanceSettings, createDb, toolConnections, toolPolicies, toolProfileEntries } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { toolAccessService } from "../services/tool-access.js";
@@ -20,7 +20,7 @@ describe("remote connector lifecycle", () => {
   let keyDir: string;
   beforeAll(async () => {
     keyDir = await mkdtemp(join(tmpdir(), "mcp-connector-secrets-"));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", join(keyDir, "key"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", join(keyDir, "key"));
     fixture = await startEmbeddedPostgresTestDatabase("mcp-connectors-test-");
     db = createDb(fixture.connectionString);
   });
@@ -56,22 +56,22 @@ describe("remote connector lifecycle", () => {
     app.use((req, _res, next) => { req.actor = { type: "board", userId: actor.actorId, source: "local_implicit", isInstanceAdmin: true }; next(); });
     app.use("/api", toolAccessRoutes(db, { paperclipCloudConnector: null }));
 
-    const publicBaseUrlEnv = process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL;
-    const otherPublicUrlNames = ["BETTER_AUTH_URL", "BETTER_AUTH_BASE_URL", "PAPERCLIP_PUBLIC_URL", "PAPERCLIP_MANAGED_RUNTIME_PUBLIC_URL"] as const;
+    const publicBaseUrlEnv = process.env.OUTPOST_AUTH_PUBLIC_BASE_URL;
+    const otherPublicUrlNames = ["BETTER_AUTH_URL", "BETTER_AUTH_BASE_URL", "OUTPOST_PUBLIC_URL", "OUTPOST_MANAGED_RUNTIME_PUBLIC_URL"] as const;
     const otherPublicUrlEnv = Object.fromEntries(otherPublicUrlNames.map((name) => [name, process.env[name]]));
     try {
       for (const name of otherPublicUrlNames) process.env[name] = "";
-      process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL = "https://paperclip.example.test";
+      process.env.OUTPOST_AUTH_PUBLIC_BASE_URL = "https://outpost.example.test";
       const configured = await request(app).get(`/api/companies/${org.id}/tools/gallery`);
       expect(configured.status).toBe(200);
-      expect(configured.body.oauthCallbackUrl).toBe("https://paperclip.example.test/api/tools/oauth/callback");
+      expect(configured.body.oauthCallbackUrl).toBe("https://outpost.example.test/api/tools/oauth/callback");
 
-      process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL = "http://127.0.0.1:3105";
+      process.env.OUTPOST_AUTH_PUBLIC_BASE_URL = "http://127.0.0.1:3105";
       const configuredLoopback = await request(app).get(`/api/companies/${org.id}/tools/gallery`);
       expect(configuredLoopback.status).toBe(200);
       expect(configuredLoopback.body.oauthCallbackUrl).toBe("http://127.0.0.1:3105/api/tools/oauth/callback");
 
-      delete process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL;
+      delete process.env.OUTPOST_AUTH_PUBLIC_BASE_URL;
       const inferredLoopback = await request(app)
         .get(`/api/companies/${org.id}/tools/gallery`)
         .set("host", "127.0.0.1:3105");
@@ -80,12 +80,12 @@ describe("remote connector lifecycle", () => {
 
       const unsupported = await request(app)
         .get(`/api/companies/${org.id}/tools/gallery`)
-        .set("host", "paperclip.internal.test");
+        .set("host", "outpost.internal.test");
       expect(unsupported.status).toBe(200);
       expect(unsupported.body).not.toHaveProperty("oauthCallbackUrl");
     } finally {
-      if (publicBaseUrlEnv === undefined) delete process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL;
-      else process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL = publicBaseUrlEnv;
+      if (publicBaseUrlEnv === undefined) delete process.env.OUTPOST_AUTH_PUBLIC_BASE_URL;
+      else process.env.OUTPOST_AUTH_PUBLIC_BASE_URL = publicBaseUrlEnv;
       for (const name of otherPublicUrlNames) {
         const value = otherPublicUrlEnv[name];
         if (value === undefined) delete process.env[name];

@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { realpath, readFile } from "node:fs/promises";
 
-const cloudRoot = await realpath(process.env.PAPERCLIP_CLOUD_REPO_ROOT ?? "");
+const cloudRoot = await realpath(process.env.OUTPOST_CLOUD_REPO_ROOT ?? "");
 const cloudPackage = JSON.parse(await readFile(path.join(cloudRoot, "package.json"), "utf8"));
 assert.equal(cloudPackage.name, "@paperclip/cloud-harness");
 const { createIdleIncomingWakeCapability } = await import(pathToFileURL(path.join(cloudRoot, "dist/sleep/incoming-wake-capability.js")).href);

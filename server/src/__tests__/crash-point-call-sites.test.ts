@@ -1,11 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CRASH_POINTS } from "@paperclipai/shared/crash-points";
+import { CRASH_POINTS } from "@outpost/shared/crash-points";
 import { OWNABLE_KINDS } from "../services/recovery/ownership-registry.js";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "../../..");
-const SOURCE_ROOTS = ["server/src", "packages/paperclip-runner/src"];
+const SOURCE_ROOTS = ["server/src", "packages/outpost-runner/src"];
 // A call may pass fail-mode options after the name: crashPoint("<name>", { fail: ... }).
 const CALL = /\bcrashPoint\(\s*"([^"]+)"\s*[,)]/g;
 

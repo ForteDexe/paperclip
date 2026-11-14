@@ -63,7 +63,7 @@ import { preserveNativeFailedWorkspace } from "./native-runtime/native-failed-wo
 import { nativeRunHasNoWorkspaceAccess } from "./workspace-restore-recovery-state.js";
 import { prepareAndSelectHeartbeatRuntime } from "./heartbeat/runtime-selection.js";
 import { createHeartbeatRunCompletion } from "./heartbeat/run-completion.js";
-import { crashPoint } from "@paperclipai/shared/crash-points";
+import { crashPoint } from "@outpost/shared/crash-points";
 export {
   MAX_TURN_CONTINUATION_WAKE_REASON,
   parseSandboxProviderPluginNotReadyFailureMessage,
@@ -170,12 +170,12 @@ import {
   deriveTaskKey,
   type WakeupOptions,
   mergeCoalescedContextSnapshot,
-  PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY,
-  PAPERCLIP_HARNESS_CHECKOUT_KEY,
+  OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY,
+  OUTPOST_HARNESS_CHECKOUT_KEY,
   attestReviewedExternalChatRun,
   resolveAcceptedPlanWakeRoutingDecision,
   clearInteractionContinuationWakeContext,
-  PAPERCLIP_WAKE_PAYLOAD_KEY,
+  OUTPOST_WAKE_PAYLOAD_KEY,
   MANAGED_GITHUB_TOKEN_KEYS,
   configuredPaperclipApiBaseUrl,
   createHeartbeatRunPreparation,
@@ -293,7 +293,7 @@ import {
   prepareConversationTurn,
   settleConversationTurn,
 } from "./agent-conversations.js";
-import { withAdapterExecutionPhase } from "@paperclipai/adapter-utils/execution-phase";
+import { withAdapterExecutionPhase } from "@outpost/adapter-utils/execution-phase";
 import {
   recordNativeLocalProcessStopInTransaction,
   settleNativeRunProcess,
@@ -310,7 +310,7 @@ import {
   prepareManagedAiRuntime,
   assertManagedAiProjectAuth,
 } from "./ai-connection-runtime.js";
-import { aiConnectionBindingSchema, aiRuntimeConnectionBindingSchema, type AiConnectionRouterSelection } from "@paperclipai/shared";
+import { aiConnectionBindingSchema, aiRuntimeConnectionBindingSchema, type AiConnectionRouterSelection } from "@outpost/shared";
 import { aiConnectionRouterService, AiConnectionPoolExhausted, applyAiConnectionRouterTaskSettings } from "./ai-connection-router.js";
 import {
   getExecutionBlocker,
@@ -332,7 +332,7 @@ import { buildHeartbeatRunStatusLiveEventPayload } from "./heartbeat-run-status-
 export { buildHeartbeatRunStatusLiveEventPayload } from "./heartbeat-run-status-payload.js";
 import { StaleExecutionContinuationError } from "./execution-continuation.js";
 import { deferUndeliveredCommentsOfStaleRun } from "./heartbeat/stale-comment-continuation.js";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
 
 import {
   initializeRunIdentity,
@@ -345,7 +345,7 @@ import {
   cleanupGitHubOperationLaunchers,
   prepareGitHubExecutionEnvironment,
   startAdapterExecutionTargetPaperclipBridge,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@outpost/adapter-utils/execution-target";
 import { agentInstructionWorkingCopyService } from "./agent-instruction-working-copies.js";
 
 import fs from "node:fs/promises";
@@ -362,12 +362,12 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   CHAT_PROVIDERS,
   ISSUE_DISPOSITION_REPAIR_RETRY_REASON,
   isEnvironmentDriverSupportedForAdapter,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   agents,
   agentWakeupRequests,
@@ -379,7 +379,7 @@ import {
   nativeRunFinalizations,
   projects,
   projectWorkspaces,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { conflict, HttpError, notFound } from "../errors.js";
 
 import { logger } from "../middleware/logger.js";
@@ -403,7 +403,7 @@ import { nativeChatWorkspaceCwd } from "./native-runtime/native-chat-workspace.j
 import {
   type NativeExecutionInput,
   type NativeSessionBackend,
-} from "../vendor/paperclip-runner/index.js";
+} from "../vendor/outpost-runner/index.js";
 
 import { getRunLogStore, isRunLogStoreType } from "./run-log-store.js";
 import {
@@ -692,7 +692,7 @@ function readNonEmptyString(value: unknown): string | null {
 export function formatRuntimeWorkspaceWarningLog(warning: string) {
   return {
     stream: "stdout" as const,
-    chunk: `[paperclip] ${warning}\n`,
+    chunk: `[outpost] ${warning}\n`,
   };
 }
 
@@ -845,14 +845,14 @@ export function resolveHeartbeatSchedulingSuppression(
     "worktree_instance" | "database_restore_in_progress" | "task_drain" | null;
 } {
   if (
-    isTruthyRuntimeEnvValue(env.PAPERCLIP_IN_WORKTREE) &&
+    isTruthyRuntimeEnvValue(env.OUTPOST_IN_WORKTREE) &&
     !overrides.allowWorktreeRunExecution
   ) {
     return { suppressed: true, reason: "worktree_instance" };
   }
   if (
-    isTruthyRuntimeEnvValue(env.PAPERCLIP_DATABASE_RESTORE_IN_PROGRESS) ||
-    isTruthyRuntimeEnvValue(env.PAPERCLIP_RESTORE_IN_PROGRESS)
+    isTruthyRuntimeEnvValue(env.OUTPOST_DATABASE_RESTORE_IN_PROGRESS) ||
+    isTruthyRuntimeEnvValue(env.OUTPOST_RESTORE_IN_PROGRESS)
   ) {
     return { suppressed: true, reason: "database_restore_in_progress" };
   }
@@ -917,7 +917,7 @@ export function heartbeatService(
   });
   const runtimeEnv = options.runtimeEnv ?? process.env;
   const inWorktreeRuntime = isTruthyRuntimeEnvValue(
-    runtimeEnv.PAPERCLIP_IN_WORKTREE,
+    runtimeEnv.OUTPOST_IN_WORKTREE,
   );
   // Preview worktree instances suppress the run engine by default. Users can lift
   // that per-worktree via the `enableWorktreeRunExecution` experimental setting
@@ -947,7 +947,7 @@ export function heartbeatService(
     try {
       const activation = resolveWorktreeRunExecutionActivation(
         await instanceSettings.getExperimental(),
-        runtimeEnv.PAPERCLIP_INSTANCE_ID?.trim() || null,
+        runtimeEnv.OUTPOST_INSTANCE_ID?.trim() || null,
       );
       const cutoff = activation.armed ? new Date(activation.cutoff) : null;
       cachedWorktreeRunExecutionOverride = {
@@ -1304,7 +1304,7 @@ export function heartbeatService(
 
   const heartbeatQueue = createHeartbeatQueue(db, {
     canStartNewExternalBotWork: async agent => {
-      if (agent.adapterType !== "paperclip_runner" || agent.adapterConfig.provider !== "grok_bot") return true;
+      if (agent.adapterType !== "outpost_runner" || agent.adapterConfig.provider !== "grok_bot") return true;
       const aiConnection = aiRuntimeConnectionBindingSchema.safeParse(agent.runtimeConfig?.aiConnection);
       if (aiConnection.success && aiConnection.data.mode === "router") return true;
       return dotRunnerBroker(db).canStartNewWork(agent.companyId, agent.id,
@@ -1809,7 +1809,7 @@ export function heartbeatService(
         await dispatchNativeSessionResumptions({
           db,
           runnerInstanceId:
-            runtimeEnv.PAPERCLIP_INSTANCE_ID?.trim() || "paperclip-heartbeat",
+            runtimeEnv.OUTPOST_INSTANCE_ID?.trim() || "paperclip-heartbeat",
           runIds: [runId],
           dispatch: (claim) => {
             const execution = executeRun(claim.runId, {
@@ -2206,7 +2206,7 @@ export function heartbeatService(
       const isFailedChatRunRetry = await timePreparation("chat_retry_admission", () => authorizeFailedChatRetryExecution());
       // Never adopt a chat-execution attestation supplied in a wake payload.
       // Reviewed chat turns rebuild it from the current durable owner below.
-      delete context[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY];
+      delete context[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY];
       delete context[EXTERNAL_CHAT_QUESTION_RESPONSE_KEY];
       const providerTraceRequested =
         parseObject(context.debug).providerTrace === "raw";
@@ -2316,7 +2316,7 @@ export function heartbeatService(
               blockedState ? { blockedState } : undefined,
             );
           });
-          context[PAPERCLIP_HARNESS_CHECKOUT_KEY] = true;
+          context[OUTPOST_HARNESS_CHECKOUT_KEY] = true;
         } catch (error) {
           if (!isCheckoutConflictError(error)) throw error;
           const staleness = await runDispatch.cancelStaleQueuedRun({
@@ -2353,10 +2353,10 @@ export function heartbeatService(
             typeof context.workspaceReconstructionActionId === "string" ? ["todo"] : ["todo", "backlog", "blocked"],
             run.id,
           ));
-          context[PAPERCLIP_HARNESS_CHECKOUT_KEY] = true;
+          context[OUTPOST_HARNESS_CHECKOUT_KEY] = true;
         } catch (error) {
           if (!isCheckoutConflictError(error)) throw error;
-          context[PAPERCLIP_HARNESS_CHECKOUT_KEY] = false;
+          context[OUTPOST_HARNESS_CHECKOUT_KEY] = false;
         }
         issueContext = await timePreparation("issue_context", () => getIssueExecutionContext(agent.companyId, issueId));
       }
@@ -2389,7 +2389,7 @@ export function heartbeatService(
           },
         });
         if (!attested) throw new ReviewedChatBindingDeniedError(denialReason);
-        context[PAPERCLIP_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] = true;
+        context[OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY] = true;
       }
       const wakeCommentId = deriveCommentId(context, null);
       let issueAssigneeOverrides =
@@ -2643,12 +2643,12 @@ export function heartbeatService(
         : null;
       const savedRouterInput = parseObject(parseObject(run.runnerProfileJson).nativeExecutionInput);
       const routerHasPersistedInput = Object.keys(savedRouterInput).length > 0;
-      if (agent.adapterType === "paperclip_runner") {
+      if (agent.adapterType === "outpost_runner") {
         const homeConfig = bindHeartbeatRunnerHomeMode(config, savedRouterInput);
         if ("homeMode" in homeConfig) config = { ...config, homeMode: homeConfig.homeMode };
       }
       const persistedRouterPoolId = routerHasPersistedInput ? readNonEmptyString(parseObject(context.aiRouterSelection).poolId) : null;
-      const preconfiguredHome = agent.adapterType === "paperclip_runner" && config.homeMode === "preconfigured";
+      const preconfiguredHome = agent.adapterType === "outpost_runner" && config.homeMode === "preconfigured";
       const requestedAiBinding = preconfiguredHome ? undefined : persistedRouterPoolId ? { mode: "router" as const, connectionId: persistedRouterPoolId } : agent.runtimeConfig?.aiConnection ? aiRuntimeConnectionBindingSchema.parse(agent.runtimeConfig.aiConnection) : undefined;
       let aiBinding = requestedAiBinding?.mode === "router" ? undefined : requestedAiBinding;
       const originalAiIssueOverrides = issueAssigneeOverrides;
@@ -3121,14 +3121,14 @@ export function heartbeatService(
         // whether GitHub is configured or a credential can be acquired.
         networkAccess:
           trustPreset.kind === "standard" &&
-          process.env.PAPERCLIP_RUNNER_NETWORK_ACCESS !== "disabled",
+          process.env.OUTPOST_RUNNER_NETWORK_ACCESS !== "disabled",
       }));
       runtimeConfig = { ...runtimeConfig, env: gitExecutionEnv };
       for (const key of MANAGED_GITHUB_TOKEN_KEYS) secretKeys.add(key);
       context.githubAuthenticationMode = useHostGitHub ? "host" : "managed";
       if (!useHostGitHub && !providerApiPlacement) {
         const githubLaunchers = await timePreparation("github_launchers", () => prepareHeartbeatGitHubLaunchers({
-          native: agent.adapterType === "paperclip_runner",
+          native: agent.adapterType === "outpost_runner",
           githubConfigured: githubSelection.configured,
           agentId: agent.id,
           runId: run.id,
@@ -3146,9 +3146,9 @@ export function heartbeatService(
         }));
         githubLauncherLocation = githubLaunchers.cleanupLocation;
         runtimeConfig = { ...runtimeConfig, env: githubLaunchers.env };
-        secretKeys.add("PAPERCLIP_GITHUB_BROKER_TOKEN");
+        secretKeys.add("OUTPOST_GITHUB_BROKER_TOKEN");
       }
-      context.paperclipEnvironment = selectedEnvironment && activeEnvironmentLease ? {
+      context.outpostEnvironment = selectedEnvironment && activeEnvironmentLease ? {
         id: selectedEnvironment.id,
         name: selectedEnvironment.name,
         driver: selectedEnvironment.driver,
@@ -3258,9 +3258,9 @@ export function heartbeatService(
       // a one-time "stay on this branch" hint on non-resumed sessions.
       if (executionWorkspace.branchName) {
         const wakePayloadForWorkspace = parseObject(
-          context[PAPERCLIP_WAKE_PAYLOAD_KEY],
+          context[OUTPOST_WAKE_PAYLOAD_KEY],
         );
-        context[PAPERCLIP_WAKE_PAYLOAD_KEY] = {
+        context[OUTPOST_WAKE_PAYLOAD_KEY] = {
           ...wakePayloadForWorkspace,
           executionWorkspace: { branchName: executionWorkspace.branchName },
         };
@@ -3381,7 +3381,7 @@ export function heartbeatService(
         if (runScopedMentionedSkillKeys.length > 0) {
           await onLog(
             "stdout",
-            `[paperclip] Enabled run-scoped skills from issue mentions: ${runScopedMentionedSkillKeys.join(", ")}\n`,
+            `[outpost] Enabled run-scoped skills from issue mentions: ${runScopedMentionedSkillKeys.join(", ")}\n`,
           );
         }
         for (const warning of runtimeWorkspaceWarnings) {
@@ -3421,12 +3421,12 @@ export function heartbeatService(
           readNonEmptyString(context.goalControlRequestId) !== null ||
           context.resumeSessionGoalHeartbeat === true;
         // Compaction resumes a runner session; a direct adapter would run it as a prompt.
-        if (isContextCompactionRun(context) && agent.adapterType !== "paperclip_runner") {
-          throw new Error("context_compaction_requires_paperclip_runner");
+        if (isContextCompactionRun(context) && agent.adapterType !== "outpost_runner") {
+          throw new Error("context_compaction_requires_outpost_runner");
         }
         // Goals must use the selected durable runner, never silently convert a
         // direct adapter or let an old goal-control wake become a normal prompt.
-        if (durableGoalControlRun && agent.adapterType !== "paperclip_runner") {
+        if (durableGoalControlRun && agent.adapterType !== "outpost_runner") {
           const requestId = readNonEmptyString(context.goalControlRequestId);
           if (issueRef && requestId) {
             await failRunnerGoalAction(

@@ -2,7 +2,7 @@ import express from "express";
 import request from "supertest";
 import { fileResourceRoutes } from "../routes/file-resources.js";
 import { errorHandler } from "../middleware/index.js";
-import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { execFileSync } from "node:child_process";
@@ -11,9 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, environments, executionWorkspaces, heartbeatRuns, issues, issueAccessGrants, principalPermissionGrants, projects, projectAccessMembers, projectWorkspaces } from "@paperclipai/db";
-import { setExpensiveWorkspaceGitExecutor } from "@paperclipai/adapter-utils/git-workspace-sync";
-import { buildProjectMentionHref } from "@paperclipai/shared";
+import { agents, authUsers, companies, companyMemberships, createDb, environments, executionWorkspaces, heartbeatRuns, issues, issueAccessGrants, principalPermissionGrants, projects, projectAccessMembers, projectWorkspaces } from "@outpost/db";
+import { setExpensiveWorkspaceGitExecutor } from "@outpost/adapter-utils/git-workspace-sync";
+import { buildProjectMentionHref } from "@outpost/shared";
 import { createWorkspaceGitOperationScheduler, WorkspaceGitScanError } from "../services/workspace-git-operation-scheduler.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { heartbeatService } from "../services/heartbeat.ts";
@@ -41,8 +41,8 @@ suite("task project repository provisioning", () => {
   let heartbeat: ReturnType<typeof heartbeatService>;
   beforeAll(async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "paperclip-project-repos-"));
-    vi.stubEnv("PAPERCLIP_HOME", path.join(root, "home"));
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "false");
+    vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "false");
     database = await startEmbeddedPostgresTestDatabase("project-repositories");
     db = createDb(database.connectionString);
     await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture owner", email: "owner@example.test", createdAt: new Date(), updatedAt: new Date() });
@@ -62,7 +62,7 @@ suite("task project repository provisioning", () => {
   afterEach(async () => {
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
     setExpensiveWorkspaceGitExecutor(null);
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "false");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "false");
     await instanceSettingsService(db).updateExperimental({
       enableIsolatedWorkspaces: false,
       enableIsolatedWorkspacesByDefault: false,
@@ -72,7 +72,7 @@ suite("task project repository provisioning", () => {
   it.each(["agent", "organization"] as const)("isolates repository-free low-trust tasks while preserving reassignment and authorized referenced projects (%s policy)", async policyOwner => {
     const companyId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID();
     const referencedProjectId = randomUUID(), deniedProjectId = randomUUID();
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "true");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "true");
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
     await db.insert(companies).values({ id: companyId, name: "Email company", issuePrefix: `E${companyId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "owner" });
@@ -126,7 +126,7 @@ suite("task project repository provisioning", () => {
       expect(workspace.cwd).toContain(`/isolated-workspaces/${companyId}/${issueId}`);
       expect(execute.mock.calls.filter(([input]) => input.runId === run!.id)).toHaveLength(1);
       const call = execute.mock.calls.find(([input]) => input.runId === run!.id)![0];
-      expect(call.context.paperclipEnvironment.driver).toBe("sandbox");
+      expect(call.context.outpostEnvironment.driver).toBe("sandbox");
       expect((await sandboxHeartbeat.getRun(run!.id))?.contextSnapshot).toMatchObject({
         executionPolicy: { trustPreset: "low_trust_review", authorizationPolicy: {
           trustBoundary: { projectIds: [projectId, referencedProjectId].sort() },
@@ -281,7 +281,7 @@ suite("task project repository provisioning", () => {
       if (bindingId) expect(workspace.id).toBe(bindingId);
       bindingId = workspace.id;
       const scope = await findNativeChatWorkspaceScope(db, { companyId, agentId, issueId, instanceRoot: root,
-        adapterType: "paperclip_runner", environmentDriver: "local" });
+        adapterType: "outpost_runner", environmentDriver: "local" });
       expect(scope?.projectId).toBeNull();
     }
   }, 40_000);
@@ -464,8 +464,8 @@ suite("task project repository provisioning", () => {
   }, 30_000);
 
   it.each(["success", "provision_failure", "copy_only_provision", "occupied_target"] as const)("copies selected Git source regardless of nested private filesystem history while preserving provisioning integrity (%s)", async (scenario) => {
-    const previousPrivacyMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     try {
       if (scenario === "provision_failure") await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
       const companyId = randomUUID(), projectId = randomUUID(), privateProjectId = randomUUID();
@@ -570,7 +570,7 @@ suite("task project repository provisioning", () => {
       }
       expect(await readFile(path.join(workspace.cwd, "private/secret.txt"), "utf8")).toBe("NESTED_PRIVATE_TRACKED_BYTES");
     } finally {
-      vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", previousPrivacyMode);
+      vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", previousPrivacyMode);
     }
   }, 40_000);
 
@@ -734,8 +734,8 @@ suite("task project repository provisioning", () => {
   }, 40_000);
 
   it.each(["fresh", "existing", "occupied", "file_url", "absolute_path"] as const)("prepares an authorized configured sibling independently of private task filesystem history (%s)", async (scenario) => {
-    const previousPrivacyMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     try {
       const companyId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
       const sourceId = randomUUID(), siblingId = randomUUID(), privateIssueId = randomUUID();
@@ -833,13 +833,13 @@ suite("task project repository provisioning", () => {
           .toBe(await realpath(path.join(detachedRoot, name)));
       }
     } finally {
-      vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", previousPrivacyMode);
+      vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", previousPrivacyMode);
     }
   }, 60_000);
 
   it("checks current run identity for an unbound file-URL anchor without inheriting private filesystem history", async () => {
-    const previousPrivacyMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     try {
       const companyId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
       const sourceId = randomUUID(), privateIssueId = randomUUID();
@@ -904,7 +904,7 @@ suite("task project repository provisioning", () => {
       for (const download of [false, true]) await request(app).get(fileUrl).query({ workspace: "execution", path: "secret.txt", download }).expect(200);
       expect(await readFile(path.join(copiedCwd, "secret.txt"), "utf8")).toBe("PRIVATE_ANCHOR_COMMITTED_BYTES");
     } finally {
-      vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", previousPrivacyMode);
+      vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", previousPrivacyMode);
     }
   }, 40_000);
 

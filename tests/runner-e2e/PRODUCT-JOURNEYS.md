@@ -298,7 +298,7 @@ run must prove the blocked decision at the child's current status version.
 Parent dependency waits, pending recovery, and stale child decisions keep waiting
 within the original deadline. This failure does not satisfy any delivery check.
 The [semantic control-plane port](../../server/src/services/native-runtime/paperclip-control-plane-port.ts)
-writes `prpReportedWorkDisposition`. [Native finalization](../../server/src/services/native-runtime/native-run-finalizer.ts)
+writes `orpReportedWorkDisposition`. [Native finalization](../../server/src/services/native-runtime/native-run-finalizer.ts)
 commits the blocked decision and `statusVersionAfter` into the run's `resultJson`.
 
 The attached `ask-question` recipe requires a prepared native general agent and
@@ -315,7 +315,7 @@ The Plan, Stop and protected-action decline checks reload the owned task and bin
 unique visible reply to the final successful native run. A settled native turn
 can render its saved reply before the comments projection exists; that path also
 requires exactly one matching final assistant message in the complete durable
-event stream, with the same company, agent, run and validated PRP source. If the run
+event stream, with the same company, agent, run and validated ORP source. If the run
 has a projected selected completion comment, only that attributed comment can
 satisfy the check. A pending or suppressed comment can use the same proven native
 reply path. A finish summary by itself, an earlier turn, a progress
@@ -354,7 +354,7 @@ pending named builtin command or process execution before sending the follow-up.
 Paperclip semantic tools, including completion/block/progress calls, cannot
 satisfy this boundary even if a provider labels them builtin execute or wraps
 their names with a native prefix. Unnamed or ambiguous builtin calls fail closed.
-The observed older PRP v1 builtin `bash` shape is also supported when its
+The observed older ORP v1 builtin `bash` shape is also supported when its
 operation is `unknown` and `readOnly` is explicitly false; other unknown
 operations cannot satisfy the boundary. If all owned work settles before an
 active boundary is observed, the journey fails immediately rather than polling

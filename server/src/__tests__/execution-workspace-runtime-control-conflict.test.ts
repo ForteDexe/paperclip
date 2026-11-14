@@ -183,9 +183,9 @@ function createRegisteredRepairFixture(
   fs.mkdirSync(configDir, { recursive: true });
   fs.mkdirSync(path.dirname(sourceConfigPath), { recursive: true });
   fs.writeFileSync(sourceConfigPath, "{}\n");
-  fs.writeFileSync(path.join(path.dirname(sourceConfigPath), ".env"), "PAPERCLIP_INSTANCE_ID=repair-source\n");
+  fs.writeFileSync(path.join(path.dirname(sourceConfigPath), ".env"), "OUTPOST_INSTANCE_ID=repair-source\n");
   fs.writeFileSync(path.join(configDir, "config.json"), "{}\n");
-  fs.writeFileSync(path.join(configDir, ".env"), `PAPERCLIP_INSTANCE_ID=${targetInstanceId}\n`);
+  fs.writeFileSync(path.join(configDir, ".env"), `OUTPOST_INSTANCE_ID=${targetInstanceId}\n`);
   if (options.withCli !== false) {
     fs.mkdirSync(path.dirname(cliRunner), { recursive: true });
     fs.mkdirSync(path.dirname(cliEntry), { recursive: true });
@@ -314,7 +314,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   ] as const)("rejects remote $source $route/$action before controller file or job operations", async ({ route, action, source }) => {
     mockExecutionWorkspaceService.getById.mockResolvedValue(buildExecutionWorkspace({
       cwd: "/workspaces/remote-only", providerType: "cloud_sandbox", providerRef: "/workspaces/remote-only",
-      metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1,
+      metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1,
         snapshotId: null, source: source === "empty" ? { kind: "empty" }
           : { kind: "git", repoUrl: "https://github.com/example/work.git", ref: "main" },
         location: null, writerRunId: null, dirty: false } },
@@ -368,8 +368,8 @@ describe("execution workspace runtime control conflict and failure reconciliatio
     mockAssertCanManageExecutionWorkspaceRuntimeServices.mockResolvedValue({ actorType: "board" });
     const stale = buildExecutionWorkspace();
     mockExecutionWorkspaceService.getById.mockResolvedValueOnce(stale).mockResolvedValue(buildExecutionWorkspace(state === "migrating"
-      ? { metadata: { remoteWorkspaceMigration: { schema: "paperclip.remote-workspace-migration.v1", state: "running" } } }
-      : state === "remote" ? { metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1,
+      ? { metadata: { remoteWorkspaceMigration: { schema: "outpost.remote-workspace-migration.v1", state: "running" } } }
+      : state === "remote" ? { metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1,
         snapshotId: null, source: { kind: "empty" }, location: null, writerRunId: null, dirty: false } } }
         : { cwd: "/tmp/changed-authority" }));
     const response = await request(await createApp("board"))
@@ -488,7 +488,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
         fs.writeFileSync(attackerConfig, "{}\n");
         fs.writeFileSync(
           path.join(attackerDir, ".env"),
-          `PAPERCLIP_INSTANCE_ID=${variant === "foreign_instance" ? "foreign-source" : "repair-source"}\n`,
+          `OUTPOST_INSTANCE_ID=${variant === "foreign_instance" ? "foreign-source" : "repair-source"}\n`,
         );
         const diagnosticPath = variant === "instance_mismatch"
           ? fixture.sourceConfigPath
@@ -620,7 +620,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
         workspaceCwd: fixture.workspaceCwd,
         executionWorkspaceId,
         companyId: "company-1",
-        env: { PAPERCLIP_WORKSPACE_HANDOFF_SECRET: "test-root-secret" },
+        env: { OUTPOST_WORKSPACE_HANDOFF_SECRET: "test-root-secret" },
       })?.instanceId).toBe(recordedInstanceId);
       mockEnsurePersistedExecutionWorkspaceAvailable.mockResolvedValue({ cwd: fixture.workspaceCwd });
       mockStartRuntimeServices.mockResolvedValue([{
@@ -634,9 +634,9 @@ describe("execution workspace runtime control conflict and failure reconciliatio
           "--seed-mode", "full", "--yes", "--backup-target",
         ]));
         expect(options.env).toMatchObject({
-          PAPERCLIP_SEED_EXPECTED_COMPANY_ID: "company-1",
-          PAPERCLIP_WORKSPACE_BASE_CWD: fixture.baseCwd,
-          PAPERCLIP_PROJECT_WORKSPACE_ID: projectWorkspaceId,
+          OUTPOST_SEED_EXPECTED_COMPANY_ID: "company-1",
+          OUTPOST_WORKSPACE_BASE_CWD: fixture.baseCwd,
+          OUTPOST_PROJECT_WORKSPACE_ID: projectWorkspaceId,
         });
         const child = new EventEmitter() as EventEmitter & {
           stdout: PassThrough;

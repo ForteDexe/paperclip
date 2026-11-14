@@ -14,7 +14,7 @@ import {
   issueDocuments,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { synchronizeCompletedProviderPlan } from "../services/native-runtime/native-session-executor.js";
 import { documentService } from "../services/documents.js";
 import {
@@ -22,7 +22,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_PLAN_PROPOSAL_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_PLAN_PROPOSAL_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -82,7 +82,7 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
       turnId: "turn-1",
       eventType: "plan.proposed",
       payload: {
-        schema: "paperclip.plan.proposed.v1",
+        schema: "outpost.plan.proposed.v1",
         proposalId: "toolu_plan",
         status,
         markdown,
@@ -140,7 +140,7 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
       event: {
         sourceEventId: "checklist-1",
         eventType: "plan.updated",
-        payload: { schema: "paperclip.plan.updated.v1", planId: "turn-1", revision: 1, complete: true, steps: [{ stepId: "s1", body: "Inspect", status: "completed" }] },
+        payload: { schema: "outpost.plan.updated.v1", planId: "turn-1", revision: 1, complete: true, steps: [{ stepId: "s1", body: "Inspect", status: "completed" }] },
       },
     });
     expect(checklist).toMatchObject({ status: "synchronized", documentRevision: 1 });
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
       event: {
         sourceEventId: "checklist-1",
         eventType: "plan.updated",
-        payload: { schema: "paperclip.plan.updated.v1", planId: "turn-1", revision: 1, complete: true, steps: [{ stepId: "s1", body: "Done", status: "completed" }] },
+        payload: { schema: "outpost.plan.updated.v1", planId: "turn-1", revision: 1, complete: true, steps: [{ stepId: "s1", body: "Done", status: "completed" }] },
       },
     })).toBeNull();
     expect(await documentService(db).getIssueDocumentByKey(issueId, "plan")).toBeNull();

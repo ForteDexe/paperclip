@@ -6,7 +6,7 @@ import { recoveryService } from "./recovery/index.js";
 import { inspectWorkspaceSource } from "./workspace-source-inspection.js";
 import { appendHeartbeatRunEvent } from "./heartbeat-run-events.js";
 import { isPreDispatchExecutionWaitVerified } from "./pre-dispatch-execution-wait.js";
-import { heartbeatRunEvents, agents, approvals, budgetPolicies, costEvents, completionContracts, issueApprovals, issueTreeHolds, issueTreeHoldMembers, companies, createDb, environmentLeases, environments, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, workspaceOperations, plugins } from "@paperclipai/db";
+import { heartbeatRunEvents, agents, approvals, budgetPolicies, costEvents, completionContracts, issueApprovals, issueTreeHolds, issueTreeHoldMembers, companies, createDb, environmentLeases, environments, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, workspaceOperations, plugins } from "@outpost/db";
 import { createHeartbeatQueue, shouldDeferFollowupWakeForSameIssue, shouldQueueFollowupForRunningIssueWake } from "./heartbeat/queue.js";
 import { createHeartbeatQueueTestDependencies } from "../__tests__/helpers/heartbeat-queue.js";
 import { recordRequiredWorkspaceRestoreFailure } from "./legacy-execution-recovery.js";
@@ -29,7 +29,7 @@ import { instanceSettingsService } from "./instance-settings.js";
 import { projectTaskInterruption, taskInterruptionPresentation } from "./task-interruption-presentation.js";
 import * as nativeWorkspaceSync from "./native-runtime/native-workspace-sync.js";
 import { resumeNativeWorkspaceSync } from "./native-runtime/native-workspace-sync.js";
-import { GitShallowMetadataError } from "@paperclipai/adapter-utils/git-workspace-sync";
+import { GitShallowMetadataError } from "@outpost/adapter-utils/git-workspace-sync";
 import { readSystemRecovery, createSystemRecovery, failSystemRecovery, SystemRecoveryFailure } from "./system-recovery-state.js";
 import { updateSystemRecovery } from "./system-recovery.js";
 import { getStorageService } from "../storage/index.js";
@@ -44,8 +44,8 @@ import request from "supertest";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { resumePreservedResultFinalization } from "./preserved-result-finalization.js";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { EnvironmentLease } from "@outpost/shared";
 import { hasRemoteTerminationReceipt, remoteTerminationReceipt } from "./remote-execution-termination.js";
 import { prepareStoppedSandboxForRecovery, prepareSandboxStopAndRetain, settleStopOnlyCleanup, readStopOnlyCleanup } from "./sandbox-stop-and-retain.js";
 import { recoverRetainedWorkspace, requestWorkspaceRecovery, scheduleRecoveredWorkspaceCleanup, reconcileRetainedWorkspaces, retainedWorkspaceCandidates } from "./workspace-recovery.js";
@@ -88,7 +88,7 @@ describe("automatic retained workspace recovery", () => {
     await db.update(heartbeatRuns).set({ resultJson: {} }).where(eq(heartbeatRuns.id, f.runId));
     const contractId = randomUUID(), resultId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+      revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: "contract", createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId }).where(eq(heartbeatRuns.id, f.runId));
@@ -102,7 +102,7 @@ describe("automatic retained workspace recovery", () => {
     await db.update(issueRecoveryActions).set({ ownerType: "system", evidence: { ...priorAction.evidence,
       systemRecovery: failSystemRecovery(createSystemRecovery(f.runId),
         new SystemRecoveryFailure("source_binding_invalid", "service_required")),
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked",
         stage: "verifying_stop", attempt: 1, attemptLimit: 6, requestIds: [] },
     } }).where(eq(issueRecoveryActions.id, f.actionId));
     const request = { ...f.input, actorId: "board", idempotencyKey: randomUUID() };
@@ -171,7 +171,7 @@ describe("automatic retained workspace recovery", () => {
       id: intentId, companyId: f.companyId, agentId: source.agentId, runId: replacementId,
       source: "on_demand", triggerDetail: "manual", reason: "task_retry", status: "coalesced",
       requestedByActorType: "user", requestedByActorId: "owner-user",
-      payload: { issueId: f.issueId, taskRetry: { schema: "paperclip.task-retry.v1",
+      payload: { issueId: f.issueId, taskRetry: { schema: "outpost.task-retry.v1",
         generationId: intentId, sourceRunId: f.runId, actorId: "owner-user", strategy: "fresh_isolated_workspace" } },
     });
     const first = path.join(root, randomUUID()), next = path.join(root, randomUUID());
@@ -256,7 +256,7 @@ describe("automatic retained workspace recovery", () => {
   it("recovers a protected retained source through the assembled environment runtime", async () => {
     const f = await seed();
     await db.update(environmentLeases).set({ metadata: { ...f.lease.metadata,
-      workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", runId: f.runId },
+      workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", runId: f.runId },
       remoteExecutionTermination: remoteTerminationReceipt(f.lease, { providerLeaseId: f.providerLeaseId, state: "stopped" }),
     } }).where(eq(environmentLeases.id, f.lease.id));
     const runtime = f.input.environmentRuntime;
@@ -340,7 +340,7 @@ describe("automatic retained workspace recovery", () => {
   it.each(["same", "later"])("prepares the %s task workspace from an ordinary resumed allocation root", async kind => {
     const f = await seed("native", false);
     vi.stubEnv("DATABASE_URL", connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "62".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "62".repeat(32));
     try {
       const allocationRoot = await realpath(f.remote);
       const target = { ...targets.get(f.lease.id)!, remoteCwd: allocationRoot };
@@ -477,7 +477,7 @@ describe("automatic retained workspace recovery", () => {
         automaticRecovery: { policy: "preserve_without_replay_v1", runId: f.runId, replay: "blocked", actionOutcome: "unknown" } },
     }).where(eq(issueRecoveryActions.id, f.actionId));
     const newOwnerId = randomUUID();
-    await db.insert(agents).values({ id: newOwnerId, companyId: f.companyId, name: "Reviewer", adapterType: "paperclip_runner",
+    await db.insert(agents).values({ id: newOwnerId, companyId: f.companyId, name: "Reviewer", adapterType: "outpost_runner",
       status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
     await db.update(issues).set({ assigneeAgentId: newOwnerId, status: "in_progress" }).where(eq(issues.id, f.issueId));
     // The new owner's queued wake reached the final dispatch gate after the hold appeared.
@@ -537,7 +537,7 @@ describe("automatic retained workspace recovery", () => {
   // run settled cancelled with a file-preservation hold, and the follow-up turn
   // (the redirect comment, or the new owner's wake) was already queued.
   async function stopBeforeSessionOpen(f: Awaited<ReturnType<typeof seed>>, options: { errorCode: string; proof?: boolean }) {
-    const nativeCancellation = { schema: "paperclip.native-cancellation.v1", runId: f.runId, companyId: f.companyId,
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId,
       issueId: f.issueId, scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
       intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(), acknowledgedAt: new Date().toISOString(),
       ...(options.proof === false ? {} : { beforeProviderTurn: true }) };
@@ -589,7 +589,7 @@ describe("automatic retained workspace recovery", () => {
     const f = await seed();
     await stopBeforeSessionOpen(f, { errorCode: "issue_reassigned" });
     const newOwnerId = randomUUID();
-    await db.insert(agents).values({ id: newOwnerId, companyId: f.companyId, name: "Reviewer", adapterType: "paperclip_runner",
+    await db.insert(agents).values({ id: newOwnerId, companyId: f.companyId, name: "Reviewer", adapterType: "outpost_runner",
       status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
     await db.update(issues).set({ assigneeAgentId: newOwnerId }).where(eq(issues.id, f.issueId));
     const handoff = await queueFollowUp(f, newOwnerId);
@@ -652,7 +652,7 @@ describe("automatic retained workspace recovery", () => {
     const finishedAt = new Date(Date.now() - 60_000);
     await db.update(heartbeatRuns).set({ status: "cancelled", errorCode: "operator_interrupted", finishedAt,
       resultJson: { ...source.resultJson, operatorInterrupted: true, interruptionSource: "issue_comment_interrupt",
-        nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: f.runId, companyId: f.companyId,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId,
           issueId: f.issueId, scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged",
           dispatched: true, intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() } },
     }).where(eq(heartbeatRuns.id, f.runId));
@@ -762,7 +762,7 @@ describe("automatic retained workspace recovery", () => {
       evidence: { ...held.evidence, automaticRecovery: { policy: "preserve_without_replay_v1", runId: f.runId, replay: "blocked" } },
     }).where(eq(issueRecoveryActions.id, f.actionId));
     const newOwnerId = randomUUID();
-    await db.insert(agents).values({ id: newOwnerId, companyId: f.companyId, name: "Reviewer", adapterType: "paperclip_runner", status: "idle" });
+    await db.insert(agents).values({ id: newOwnerId, companyId: f.companyId, name: "Reviewer", adapterType: "outpost_runner", status: "idle" });
     await db.update(issues).set({ assigneeAgentId: newOwnerId, status: "in_progress" }).where(eq(issues.id, f.issueId));
     await recoverRetainedWorkspace(f.input);
     expect(readSystemRecovery((await action(f.actionId)).evidence)?.state).toBe("complete");
@@ -895,7 +895,7 @@ describe("automatic retained workspace recovery", () => {
     const f = await seed(mode.startsWith("legacy") ? "legacy" : "native", !mode.endsWith("_snapshot")), commentId = randomUUID(), queueId = randomUUID();
     if (mode === "native_snapshot") {
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
-        schema: "paperclip.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
+        schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
         baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: f.issueId,
         leaseId: f.lease.id, providerLeaseId: f.providerLeaseId, remoteCwd: f.remote, resourceDisposition: "destroy",
       } } }).where(eq(heartbeatRuns.id, f.runId));
@@ -943,7 +943,7 @@ describe("automatic retained workspace recovery", () => {
   it.each(["stopped", "unverified_stop"])("retries a recovered snapshot with sibling holds once: %s", async state => {
     const f = await seed("native", false);
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
-      schema: "paperclip.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
+      schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
       baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: f.issueId,
       leaseId: f.lease.id, providerLeaseId: f.providerLeaseId, remoteCwd: f.remote, resourceDisposition: "keep_running",
     } } }).where(eq(heartbeatRuns.id, f.runId));
@@ -1061,7 +1061,7 @@ describe("automatic retained workspace recovery", () => {
       const [additional] = await db.insert(environmentLeases).values({ ...f.lease, id: randomUUID(),
         providerLeaseId: randomUUID(), status: "pending_cleanup", cleanupStatus: "failed", releasedAt: null }).returning();
       leaseIds.push(additional.id);
-      const recovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds };
+      const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds };
       await db.update(heartbeatRuns).set({ resultJson: sql`${heartbeatRuns.resultJson} || ${JSON.stringify({ workspaceRestoreRecovery: recovery })}::jsonb` })
         .where(eq(heartbeatRuns.id, f.runId));
       await db.update(issueRecoveryActions).set({ evidence: sql`${issueRecoveryActions.evidence} || ${JSON.stringify({ workspaceRestoreRecovery: recovery })}::jsonb` })
@@ -1076,12 +1076,12 @@ describe("automatic retained workspace recovery", () => {
     const request = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId, actorId: "local-board",
       actorSource: "local_implicit", observedRunId: f.runId, idempotencyKey: randomUUID() });
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-    vi.stubEnv("PAPERCLIP_CLOUD_STACK_ID", "fixture-stack");
-    vi.stubEnv("PAPERCLIP_CLOUD_API_ORIGIN", "https://cloud.example");
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "fixture-token");
-    vi.stubEnv("PAPERCLIP_PRIMARY_HOST", "fixture.paperclip.test");
-    vi.stubEnv("PAPERCLIP_AUTH_SECRET", "fixture-auth-secret");
-    vi.stubEnv("PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{
+    vi.stubEnv("OUTPOST_CLOUD_STACK_ID", "fixture-stack");
+    vi.stubEnv("OUTPOST_CLOUD_API_ORIGIN", "https://cloud.example");
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "fixture-token");
+    vi.stubEnv("OUTPOST_PRIMARY_HOST", "fixture.outpost.test");
+    vi.stubEnv("OUTPOST_AUTH_SECRET", "fixture-auth-secret");
+    vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{
       ...publicKey.export({ format: "jwk" }), kid: "absence-test", alg: "EdDSA", use: "sig",
     }] }));
     const originalFetch = globalThis.fetch;
@@ -1387,7 +1387,7 @@ describe("automatic retained workspace recovery", () => {
       cancelledByActorType: "user", cancelledByUserId: "operator",
       cancellation: requestedRunCancellation({ cancelledByActorType: "user", cancelledByUserId: "operator" }, "Stop"),
       executionCancellation: { state: "requested", requestedAt: new Date().toISOString() },
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() },
     } }).where(eq(heartbeatRuns.id, f.runId));
@@ -1985,7 +1985,7 @@ describe("automatic retained workspace recovery", () => {
       ...original.resultJson, cancelledByActorType: "user", cancelledByUserId: "operator",
       cancellation: requestedRunCancellation({ cancelledByActorType: "user", cancelledByUserId: "operator" }, "Stop"),
       executionCancellation: { state: "requested", requestedAt: new Date().toISOString() },
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() },
     } }).where(eq(heartbeatRuns.id, f.runId));

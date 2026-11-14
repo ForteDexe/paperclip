@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq, fillPlaceholders } from "drizzle-orm";
 import { agents, chatActions, chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints,
   chatGitHubConfigurations, chatGitHubReviews, chatMessageLinks, companies, heartbeatRuns, issueComments, issues,
-  runIdentityContexts, toolApplications, toolConnections, type Db } from "@paperclipai/db";
-import { defaultGitHubReviewPolicy } from "@paperclipai/shared";
+  runIdentityContexts, toolApplications, toolConnections, type Db } from "@outpost/db";
+import { defaultGitHubReviewPolicy } from "@outpost/shared";
 
 /** Seed one published inherited review wait. With `into`, the wait is added to
  * an existing company and agent. */

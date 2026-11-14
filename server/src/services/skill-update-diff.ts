@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CompanySkillVersionFileInventoryEntry, SkillSourceUpdateDiffFile, SkillSourcePackageMode } from '@paperclipai/shared';
+import type { CompanySkillVersionFileInventoryEntry, SkillSourceUpdateDiffFile, SkillSourcePackageMode } from '@outpost/shared';
 import { unprocessable } from '../errors.js';
 import { scanGitHubSkillsWithPackageFallback, type GitHubRead, type ScannedSkillSource } from './github-skill-source.js';
 

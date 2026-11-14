@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import http from "node:http";
 import fs from "node:fs/promises";
 import os from "node:os";
-import { ensurePaperclipSkillSymlink } from "@paperclipai/adapter-utils/server-utils";
+import { ensurePaperclipSkillSymlink } from "@outpost/adapter-utils/server-utils";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -80,9 +80,9 @@ describe("paperclip issue update helper", () => {
         cwd: options.cwd,
         env: {
           ...process.env,
-          PAPERCLIP_API_URL: apiUrl,
-          PAPERCLIP_API_KEY: "test-key",
-          PAPERCLIP_RUN_ID: "test-run",
+          OUTPOST_API_URL: apiUrl,
+          OUTPOST_API_KEY: "test-key",
+          OUTPOST_RUN_ID: "test-run",
         },
         stdio: ["pipe", "pipe", "pipe"],
       });

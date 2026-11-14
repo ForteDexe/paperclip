@@ -2,12 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium, expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
-const requestedRuns = Number(process.env.PAPERCLIP_ISSUE_PERF_RUNS ?? 5);
-const CAPTURE_PROFILE = process.env.PAPERCLIP_ISSUE_PERF_PROFILE === "1";
+const requestedRuns = Number(process.env.OUTPOST_ISSUE_PERF_RUNS ?? 5);
+const CAPTURE_PROFILE = process.env.OUTPOST_ISSUE_PERF_PROFILE === "1";
 const RUNS = CAPTURE_PROFILE ? 1 : Number.isFinite(requestedRuns) ? Math.max(5, Math.floor(requestedRuns)) : 5;
 const OUTPUT_DIR = path.resolve(process.cwd(), "test-results/issue-detail-perf");
 const PAGE_READY_TIMEOUT_MS = 90_000;
-const LIST_DWELL_MS = Math.max(0, Number(process.env.PAPERCLIP_ISSUE_PERF_LIST_DWELL_MS ?? 0) || 0);
+const LIST_DWELL_MS = Math.max(0, Number(process.env.OUTPOST_ISSUE_PERF_LIST_DWELL_MS ?? 0) || 0);
 const HEADER_MEASURE = "issue-detail:navigate→header-paint";
 const CONTENT_MEASURE = "issue-detail:navigate→content-paint";
 
@@ -138,8 +138,8 @@ async function configureProfile(context: BrowserContext, page: Page, profile: Pr
 
 async function installVitalObserver(page: Page, cold: boolean, captureProfile: boolean): Promise<void> {
   await page.addInitScript(({ coldStart, captureProfile }) => {
-    if (coldStart) window.__PAPERCLIP_ISSUE_DETAIL_NAVIGATE_START__ = 0;
-    window.__PAPERCLIP_ISSUE_DETAIL_PROFILE__ = captureProfile;
+    if (coldStart) window.__OUTPOST_ISSUE_DETAIL_NAVIGATE_START__ = 0;
+    window.__OUTPOST_ISSUE_DETAIL_PROFILE__ = captureProfile;
     (window as Window & { __issuePerfLcp?: number }).__issuePerfLcp = undefined;
     try {
       new PerformanceObserver((list) => {
@@ -270,7 +270,7 @@ async function runScenario(browser: Browser, baseURL: string, seedData: Seed, pr
   }
   if (scenario.startsWith("S1")) {
     await page.evaluate(() => {
-      window.__PAPERCLIP_ISSUE_DETAIL_NAVIGATE_START__ = performance.now();
+      window.__OUTPOST_ISSUE_DETAIL_NAVIGATE_START__ = performance.now();
     });
     await page.locator("[data-inbox-issue-link]", { hasText: seedData.title }).first().click();
   } else {
@@ -350,7 +350,7 @@ function buildMarkdown(results: RunMetrics[]): string {
 test("issue-detail baseline", async ({ request, baseURL }) => {
   expect(baseURL).toBeTruthy();
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
-  const seedFile = process.env.PAPERCLIP_ISSUE_PERF_SEED_FILE;
+  const seedFile = process.env.OUTPOST_ISSUE_PERF_SEED_FILE;
   const seedData: Seed = seedFile
     ? JSON.parse(await fs.readFile(seedFile, "utf8")).seed
     : await seed(request);

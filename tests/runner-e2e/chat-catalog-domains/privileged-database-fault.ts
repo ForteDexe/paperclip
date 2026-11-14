@@ -19,7 +19,7 @@ export function ownedPostmasterStillMatches(input: { pid: number; startedAt: str
 
 /** Source-owned PG control, never an arbitrary port/PID or external database. */
 export async function prepareOwnedDatabaseFault(ctx: ChatCatalogContext) {
-  const temp = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, configPath = process.env.PAPERCLIP_CONFIG;
+  const temp = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT, configPath = process.env.OUTPOST_CONFIG;
   if (!temp || !configPath) throw new Error("Database fault requires the launcher's private owned config");
   const root = await realpath(temp), configFile = await realpath(configPath);
   if (!configFile.startsWith(root + path.sep)) throw new Error("Database fault config is outside its owned attempt");

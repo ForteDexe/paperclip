@@ -1,10 +1,10 @@
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
 import { and, eq } from "drizzle-orm";
-import { agents, type Db } from "@paperclipai/db";
+import { agents, type Db } from "@outpost/db";
 import {
   agentInteractionPermissionsSchema, resolveAgentInteractionPermissions, updateAgentInteractionPermissionsSchema,
   type AgentInteractionPermissionsPatch, type AgentInteractionPermissionsState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { conflict, forbidden, notFound } from "../errors.js";
 import { accessService } from "./access.js";
 import type { AuthorizationActor } from "./authorization.js";

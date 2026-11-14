@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { canonicalProviderEventsFromOpenCodePart } from "../../../packages/paperclip-runner/src/provider-events.js";
-import { openCodeProxyToolNotification } from "../../../packages/paperclip-runner/src/cli/opencode-proxy-events.js";
-import { validatePrpEvent } from "../../../packages/paperclip-runner/src/protocol/replay-contract.js";
+import { canonicalProviderEventsFromOpenCodePart } from "../../../packages/outpost-runner/src/provider-events.js";
+import { openCodeProxyToolNotification } from "../../../packages/outpost-runner/src/cli/opencode-proxy-events.js";
+import { validatePrpEvent } from "../../../packages/outpost-runner/src/protocol/replay-contract.js";
 import { savedSkillFixture, savedSkillReadAssignment, savedSkillReadReceipts, savedSkillReadRuntimeName } from "./saved-skill-use-evidence.js";
 
 type Row = Record<string, any>;
@@ -34,7 +34,7 @@ function observations() {
     const eventType = direct.eventType;
     return { ...binding, seq: index + 1, eventType, protocolSchemaVersion: 1,
       sourceSeq: index + 1, sourceEventId: `event-${index}`, sourceInstanceId: "runner",
-      payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner",
+      payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner",
         priority: 0, emittedAt: "2026-11-04T04:00:00.000Z",
         runId: "run", normalizedSessionId: "session", turnId: "turn", itemId: "item",
         sourceSeq: index + 1, sourceEventId: `event-${index}`, sourceInstanceId: "runner", eventType, payload } } };
@@ -45,7 +45,7 @@ type Observations = ReturnType<typeof observations>;
 const read = (value: Observations) => savedSkillReadReceipts(value.events, binding, fixture,
   savedSkillReadRuntimeName(value.skill, value.assignments, value.run),
   savedSkillReadAssignment(value.skill, value.assignments, value.run), value.run);
-const completed = (v: Observations) => v.events[1]!.payload.prpEvent.payload;
+const completed = (v: Observations) => v.events[1]!.payload.orpEvent.payload;
 function output(v: Observations, change: (text: string) => string) {
   const payload = completed(v); payload.output = change(payload.output); payload.outputBytes = Buffer.byteLength(payload.output);
 }
@@ -56,7 +56,7 @@ describe("saved-skill native OpenCode builtin loader", () => {
     expect(value.notifications[0]!.params.item).toMatchObject({ type: "builtinToolCall", tool: "skill", readOnlyHint: false });
     expect(value.notifications[0]!.params.item).not.toHaveProperty("operation");
     expect(completed(value)).toMatchObject({ operation: "unknown", readOnly: false, transport: "builtin" });
-    for (const row of value.events) expect(validatePrpEvent(row.payload.prpEvent).ok).toBe(true);
+    for (const row of value.events) expect(validatePrpEvent(row.payload.orpEvent).ok).toBe(true);
     expect(read(value)).toEqual([{ runId: "run", executionId: "load", seq: 2 }]);
   });
   it("accepts an absolute local directory with a space and its optional trailing slash", () => {
@@ -68,14 +68,14 @@ describe("saved-skill native OpenCode builtin loader", () => {
     ["missing completion", (v: Observations) => { v.events.pop(); }],
     ["duplicate start", (v: Observations) => { v.events.push(structuredClone(v.events[0]!)); }],
     ["duplicate completion", (v: Observations) => { v.events.push(structuredClone(v.events[1]!)); }],
-    ["foreign call", (v: Observations) => { v.events[0]!.payload.prpEvent.payload.executionId = "foreign"; }],
-    ["foreign run", (v: Observations) => { v.events[1]!.runId = v.events[1]!.payload.prpEvent.runId = "foreign"; }],
+    ["foreign call", (v: Observations) => { v.events[0]!.payload.orpEvent.payload.executionId = "foreign"; }],
+    ["foreign run", (v: Observations) => { v.events[1]!.runId = v.events[1]!.payload.orpEvent.runId = "foreign"; }],
     ["foreign company", (v: Observations) => { v.events[1]!.companyId = "foreign"; }],
     ["foreign agent", (v: Observations) => { v.events[1]!.agentId = "foreign"; }],
-    ["foreign runner", (v: Observations) => { v.events[1]!.sourceInstanceId = v.events[1]!.payload.prpEvent.sourceInstanceId = "foreign"; }],
-    ["foreign turn", (v: Observations) => { v.events[0]!.payload.prpEvent.turnId = "foreign"; }],
-    ["foreign session", (v: Observations) => { v.events[0]!.payload.prpEvent.normalizedSessionId = "foreign"; }],
-    ["foreign item", (v: Observations) => { v.events[0]!.payload.prpEvent.itemId = "foreign"; }],
+    ["foreign runner", (v: Observations) => { v.events[1]!.sourceInstanceId = v.events[1]!.payload.orpEvent.sourceInstanceId = "foreign"; }],
+    ["foreign turn", (v: Observations) => { v.events[0]!.payload.orpEvent.turnId = "foreign"; }],
+    ["foreign session", (v: Observations) => { v.events[0]!.payload.orpEvent.normalizedSessionId = "foreign"; }],
+    ["foreign item", (v: Observations) => { v.events[0]!.payload.orpEvent.itemId = "foreign"; }],
     ["missing session", (v: Observations) => { delete v.run.nativeSessionId; }],
     ["missing runner", (v: Observations) => { delete v.run.runnerInstanceId; }],
     ["wrong native provider", (v: Observations) => { v.run.runnerProfileJson.nativeExecutionInput.provider.kind = "codex"; }],
@@ -89,16 +89,16 @@ describe("saved-skill native OpenCode builtin loader", () => {
     ["failed load", (v: Observations) => { completed(v).status = "failed"; }],
     ["truncated load", (v: Observations) => { completed(v).outputTruncated = true; }],
     ["wrong bytes", (v: Observations) => { completed(v).outputBytes++; }],
-    ["another operation", (v: Observations) => { for (const row of v.events) row.payload.prpEvent.payload.operation = "read"; }],
+    ["another operation", (v: Observations) => { for (const row of v.events) row.payload.orpEvent.payload.operation = "read"; }],
     ["wrong completed hint", (v: Observations) => { completed(v).readOnly = true; }],
-    ["wrong started hint", (v: Observations) => { v.events[0]!.payload.prpEvent.payload.readOnly = true; }],
-    ["started target", (v: Observations) => { v.events[0]!.payload.prpEvent.payload.target = "/foreign"; }],
+    ["wrong started hint", (v: Observations) => { v.events[0]!.payload.orpEvent.payload.readOnly = true; }],
+    ["started target", (v: Observations) => { v.events[0]!.payload.orpEvent.payload.target = "/foreign"; }],
     ["completed target", (v: Observations) => { completed(v).target = "/foreign"; }],
     ["reversed row order", (v: Observations) => { v.events[0]!.seq = 3; }],
-    ["reversed source order", (v: Observations) => { v.events[0]!.sourceSeq = v.events[0]!.payload.prpEvent.sourceSeq = 3; }],
-    ["raw dynamic loader", (v: Observations) => { for (const row of v.events) row.payload.prpEvent.payload.transport = "dynamic"; }],
-    ["MCP loader", (v: Observations) => { for (const row of v.events) row.payload.prpEvent.payload.transport = "mcp"; }],
-    ["copied shell output", (v: Observations) => { for (const row of v.events) row.payload.prpEvent.payload.name = "bash"; }],
+    ["reversed source order", (v: Observations) => { v.events[0]!.sourceSeq = v.events[0]!.payload.orpEvent.sourceSeq = 3; }],
+    ["raw dynamic loader", (v: Observations) => { for (const row of v.events) row.payload.orpEvent.payload.transport = "dynamic"; }],
+    ["MCP loader", (v: Observations) => { for (const row of v.events) row.payload.orpEvent.payload.transport = "mcp"; }],
+    ["copied shell output", (v: Observations) => { for (const row of v.events) row.payload.orpEvent.payload.name = "bash"; }],
     ["foreign skill name", (v: Observations) => { output(v, text => text.replaceAll(fixture.slug, "foreign")); }],
     ["foreign heading", (v: Observations) => { output(v, text => text.replace(`# Skill: ${fixture.slug}`, "# Skill: foreign")); }],
     ["nonce only", (v: Observations) => { output(v, text => text.replace(fixture.procedure.trim(), fixture.expected.reference)); }],

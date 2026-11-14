@@ -89,7 +89,7 @@ export const runtimePrimaryCases = [runtimeDefinition("agents.choose-primary", a
   return { worker, primaryBefore, otherCompany, otherPersonBefore: await personPrimary(person, ctx.input.fixtures.company.id),
     otherCompanyBefore: await ctx.input.api.get<Primary>(endpoint(otherCompany.id)) };
 }, gradePrimary, {
-  authentication: "human-session", oracleVersion: "paperclip.chat-catalog.runtime-primary.v3",
+  authentication: "human-session", oracleVersion: "outpost.chat-catalog.runtime-primary.v3",
   sourceFiles: ["chat-catalog-domains/runtime-primary.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/agents.yaml"],
   async act(ctx, state) {
     remainingIdentityObservationBudget(ctx);

@@ -34,7 +34,7 @@ const object = (value: unknown): Row =>
     : {};
 export function observedMorganReceiptRead(events: Row[], report: Entity) {
   const rows = events.flatMap((event) => {
-    const envelope = object(event.payload).prpEvent;
+    const envelope = object(event.payload).orpEvent;
     return isValidNativePrpEnvelope(
       object(envelope),
       event.protocolSchemaVersion,
@@ -356,7 +356,7 @@ export const gatewayErrorExternalCases = [
       minimumRunCount: 3,
       expectedHumanMessageCount: 1,
       attemptTimeoutMs: 660000,
-      oracleVersion: "paperclip.chat-catalog.gateway-public-receipt.v2",
+      oracleVersion: "outpost.chat-catalog.gateway-public-receipt.v2",
       sourceFiles: [
         "chat-catalog-domains/gateway-public-receipt.ts",
         "chat-catalog-domains/external-gateway-error.ts",

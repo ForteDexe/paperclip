@@ -188,7 +188,7 @@ export async function runGitHubReviewFlow(input: {
     completedRun = review!.runId ? await api.get(`/api/heartbeat-runs/${review!.runId}`) : undefined;
     evidence.execution = { reviewId: review!.id, issueId: review!.issueId, runId: review!.runId,
       runStatus: completedRun?.status, issueStatus: issue.status, runtimeMode: completedRun?.runtimeMode,
-      environmentId: completedRun?.contextSnapshot?.paperclipEnvironment?.id,
+      environmentId: completedRun?.contextSnapshot?.outpostEnvironment?.id,
       provider: completedRun?.runnerProfileJson?.nativeExecutionInput?.provider?.kind,
       model: completedRun?.runnerProfileJson?.nativeExecutionInput?.provider?.model };
     if (completedRun && (completedRun.companyId !== company.id || completedRun.agentId !== agent.id

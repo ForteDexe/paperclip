@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import {
   agents, applyPendingMigrations, authUsers, companies, companyMemberships, createDb, instanceSettings,
   instanceUserRoles, principalPermissionGrants, resourceLifecycleEvents, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "./auth.js";
 import { errorHandler } from "./error-handler.js";
@@ -42,11 +42,11 @@ const aliasFields = ["name", "email-local", "email", "principal"] as const;
     await database?.cleanup();
   }, 60_000);
   beforeEach(() => {
-    process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "synthetic-cloud-sync-token";
+    process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "synthetic-cloud-sync-token";
   });
   afterEach(() => {
-    delete process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
-    delete process.env.PAPERCLIP_MANAGED_CONFIG;
+    delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
+    delete process.env.OUTPOST_MANAGED_CONFIG;
   });
 
   function headers(userId: string = randomUUID(), role = "owner", stackId = `stack-${randomUUID()}`) {

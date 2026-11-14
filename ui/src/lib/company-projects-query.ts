@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { Project } from "@paperclipai/shared";
+import type { Project } from "@outpost/shared";
 import { projectsApi } from "@/api/projects";
 import { queryKeys } from "@/lib/queryKeys";
 

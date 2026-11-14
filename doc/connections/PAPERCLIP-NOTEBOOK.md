@@ -8,7 +8,7 @@ pages, reader policies, deployments, and its resource-specific OAuth grants.
 
 ## Connection and rollout
 
-The curated connection uses `https://notebook.paperclip.app/mcp`. It is hidden
+The curated connection uses `https://notebook.outpost.app/mcp`. It is hidden
 behind the default-off `enablePaperclipNotebook` flag, with no Settings toggle,
 including developer mode. Operators can enable it through managed configuration
 (`features.enablePaperclipNotebook: true`); self-hosted operators can use the
@@ -42,14 +42,14 @@ The script requires a Notebook release advertising `uploadLimits` through
 `transport: "mcp"` plus `notebook_upload_chunk`. The script and these tools must
 be deployed together; this source addition does not establish that deployment.
 
-Run it only in an approved agent shell that already has `PAPERCLIP_API_URL`,
-`PAPERCLIP_API_KEY`, and `PAPERCLIP_RUN_ID`. These are the existing Paperclip run
+Run it only in an approved agent shell that already has `OUTPOST_API_URL`,
+`OUTPOST_API_KEY`, and `OUTPOST_RUN_ID`. These are the existing Paperclip run
 credentials, not Notebook credentials. It creates no login or API key. Download
 and inspect the trusted script before running it:
 
 ```sh
 curl --fail --silent --show-error --proto '=https' \
-  https://notebook.paperclip.app/client/publish.mjs \
+  https://notebook.outpost.app/client/publish.mjs \
   -o /tmp/paperclip-notebook-publish.mjs
 node /tmp/paperclip-notebook-publish.mjs ./dist \
   --connection CONNECTION_ID --title "Weekly report" \

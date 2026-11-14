@@ -10,10 +10,10 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, {
 async function fixture(provider = "cursor") {
   const root = await realpath(await mkdtemp(join(tmpdir(), "cursor-public-setup-")));
   roots.push(root);
-  await mkdir(join(root, "dist/vendor/paperclip-runner/cli"), { recursive: true });
-  await writeFile(join(root, "package.json"), JSON.stringify({ name: "@paperclipai/server" }));
+  await mkdir(join(root, "dist/vendor/outpost-runner/cli"), { recursive: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "@outpost/server" }));
   await writeFile(join(root, "dist/index.js"), "throw new Error('must not import server');");
-  const provisioner = join(root, `dist/vendor/paperclip-runner/cli/provision-${provider}.cjs`);
+  const provisioner = join(root, `dist/vendor/outpost-runner/cli/provision-${provider}.cjs`);
   await writeFile(provisioner, "fixture");
   return { root, provisioner, url: pathToFileURL(join(root, "dist/index.js")).href };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalProviderEventsFromCodex, canonicalProviderEventsFromAcpxRuntimeEvent, canonicalProviderEventsFromOpenCodePart } from "../../../packages/paperclip-runner/src/provider-events.js";
+import { canonicalProviderEventsFromCodex, canonicalProviderEventsFromAcpxRuntimeEvent, canonicalProviderEventsFromOpenCodePart } from "../../../packages/outpost-runner/src/provider-events.js";
 import { activeFollowupBoundary, activeFollowupOutcome, sameActiveFollowupBoundary } from "./active-followup-evidence.js";
 import { activeFollowupStory, observeActiveFollowupCommand } from "./active-followup-flow.js";
 import { journeyRequiredChecks } from "./success-contract.js";
@@ -10,10 +10,10 @@ const run = { id: "run", companyId: "company", agentId: "agent", issueId: "issue
 function event(seq: number, type: string, payload = {}): Record<string, any> {
   return { seq, eventType: type, runId: run.id, companyId: run.companyId, agentId: run.agentId,
     protocolSchemaVersion: 2, sourceEventId: `source-${seq}`, sourceInstanceId: "source", sourceSeq: seq,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v2", schemaVersion: 2, eventType: type, runId: run.id,
+    payload: { orpEvent: { schema: "outpost.orp.event.v2", schemaVersion: 2, eventType: type, runId: run.id,
       sourceKind: "runner", sourceEventId: `source-${seq}`, sourceInstanceId: "source", sourceSeq: seq, payload } } };
 }
-const command = { schema: "paperclip.tool.execution.v1", executionId: "wait", transport: "builtin", operation: "execute", name: "bash", status: "running" };
+const command = { schema: "outpost.tool.execution.v1", executionId: "wait", transport: "builtin", operation: "execute", name: "bash", status: "running" };
 const events = () => [event(1, "turn.started"), event(2, "tool.execution.started", command)];
 const boundary = () => activeFollowupBoundary(run, events())!;
 // Synthetic identity and filler rows; the v1 operation/transport/name/readOnly
@@ -23,7 +23,7 @@ function legacyEvents(change: Record<string, unknown> = {}): Record<string, any>
   const bind = (seq: number, sourceSeq: number, type: string, payload: Record<string, unknown>) => {
     const row = event(seq, type, payload);
     row.protocolSchemaVersion = 1; row.sourceSeq = sourceSeq;
-    Object.assign(row.payload.prpEvent, { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceSeq });
+    Object.assign(row.payload.orpEvent, { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceSeq });
     return row;
   };
   rows[70] = bind(71, 9, "turn.started", { status: "inProgress" });
@@ -56,7 +56,7 @@ describe("deployment-independent active follow-up", () => {
     for (const field of ["companyId", "agentId", "runId", "sourceEventId", "sourceInstanceId", "sourceSeq", "protocolSchemaVersion"]) {
       const rows = events(); rows[1]![field] = "wrong"; expect(activeFollowupBoundary(run, rows)).toBeNull();
     }
-    const rows = events(); rows[0]!.payload.prpEvent.sourceKind = "control_plane";
+    const rows = events(); rows[0]!.payload.orpEvent.sourceKind = "control_plane";
     expect(activeFollowupBoundary(run, rows)).toBeNull();
     for (const changed of [{ status: "succeeded" }, { runtimeMode: "legacy" }]) expect(activeFollowupBoundary({ ...run, ...changed }, events())).toBeNull();
   });
@@ -82,7 +82,7 @@ describe("deployment-independent active follow-up", () => {
     expect(activeFollowupBoundary(run, [event(1, "turn.started"), event(2, shell.eventType, shell.payload)])).toMatchObject({ runId: "run", startedSeq: 2 });
     for (const semantic of [mapped("paperclip_finish"), mapped("paperclip_block"), mapped("paperclip_report_progress"),
       mapped("paperclip_paperclip_finish"), mapped("unknown", "functions.paperclip_block:0"),
-      mapped("functions.paperclip_finish"), mapped("mcp__paperclip__paperclip_block"), mapped("paperclip.paperclip_report_progress")]) {
+      mapped("functions.paperclip_finish"), mapped("mcp__paperclip__paperclip_block"), mapped("outpost.paperclip_report_progress")]) {
       expect(semantic.payload).toMatchObject({ transport: "builtin", operation: "execute", readOnly: false, status: "running" });
       expect(activeFollowupBoundary(run, [event(1, "turn.started"), event(2, semantic.eventType, semantic.payload)])).toBeNull();
     }
@@ -102,9 +102,9 @@ describe("deployment-independent active follow-up", () => {
     }
     expect(activeFollowupBoundary(run, [events()[0]!, event(2, "tool.execution.started", { ...command, operation: "unknown", readOnly: false })])).toBeNull();
     const after = legacyEvents();
-    after.push(event(82, "tool.execution.progressed", { ...after[80]!.payload.prpEvent.payload }));
+    after.push(event(82, "tool.execution.progressed", { ...after[80]!.payload.orpEvent.payload }));
     expect(sameActiveFollowupBoundary(before!, activeFollowupBoundary(run, after))).toBe(true);
-    after.push(event(83, "tool.execution.completed", { ...after[80]!.payload.prpEvent.payload, status: "completed" }));
+    after.push(event(83, "tool.execution.completed", { ...after[80]!.payload.orpEvent.payload, status: "completed" }));
     expect(activeFollowupBoundary(run, after)).toBeNull();
   });
   it("fails promptly after owned work settles without an observed active boundary", async () => {
@@ -159,7 +159,7 @@ describe("deployment-independent active follow-up", () => {
     expect(() => parseTargetConfig({ ...config, limits: { ...config.limits, maxRuns: 1 } })).toThrow("agent_journeys_require_bounded_runs");
   });
   it("retains one-run and two-run passes only with the whole success contract", () => {
-    const result = { schema: "paperclip.runner-e2e.result/v2", executionId: "product-journeys.qa.configured-agent.daytona.followup-while-running",
+    const result = { schema: "outpost.runner-e2e.result/v2", executionId: "product-journeys.qa.configured-agent.daytona.followup-while-running",
       suiteId: "product-journeys", suiteDefinitionHash: "test", profileId: "configured-agent", environmentId: "daytona", caseId: "followup-while-running",
       provider: "opencode", model: "configured-model", runtimeMode: "native", status: "passed", cleanup: "passed", attempt: 1,
       startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z", durationMs: 1000, runIds: ["run"],

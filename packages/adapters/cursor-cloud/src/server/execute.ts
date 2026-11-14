@@ -9,13 +9,13 @@ import {
   type SDKAgent,
   type SDKMessage,
 } from "@cursor/sdk";
-import type { AdapterExecutionContext, AdapterExecutionResult, AdapterInvocationMeta } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult, AdapterInvocationMeta } from "@outpost/adapter-utils";
 import {
-  DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
-  DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE,
+  DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
+  DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE,
   asBoolean,
   asString,
-  buildPaperclipEnv,
+  buildOutpostEnv,
   buildRuntimeToolsEnv,
   isForbiddenConfigEnvKey,
   joinPromptSections,
@@ -26,7 +26,7 @@ import {
   selectInitialCommunicationGuidance,
   isPaperclipRecoveryWakePayload,
   renderTemplate,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 
 type CursorCloudSession = {
   cursorAgentId: string;
@@ -112,15 +112,15 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
     ...configEnv,
     // The selected managed cloud host is trusted with this persistent identity,
     // just like a managed local host (see doc/AGENT-IDENTITY.md).
-    ...buildPaperclipEnv(agent, ctx.agentIdentity),
+    ...buildOutpostEnv(agent, ctx.agentIdentity),
     ...buildRuntimeToolsEnv(ctx.runtimeTools),
-    PAPERCLIP_RUN_ID: runId,
+    OUTPOST_RUN_ID: runId,
   };
-  // PAPERCLIP_API_KEY is never accepted from config — the harness-minted run
+  // OUTPOST_API_KEY is never accepted from config — the harness-minted run
   // token is the only source of Paperclip API identity.
-  delete env.PAPERCLIP_API_KEY;
+  delete env.OUTPOST_API_KEY;
   // Wake context travels in the prompt; a configured copy can exceed spawn limits.
-  delete env.PAPERCLIP_WAKE_PAYLOAD_JSON;
+  delete env.OUTPOST_WAKE_PAYLOAD_JSON;
 
   const wakeTaskId = trimNullable(context.taskId) ?? trimNullable(context.issueId);
   const wakeReason = trimNullable(context.wakeReason);
@@ -132,40 +132,40 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
     : [];
   const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
 
-  if (wakeTaskId) env.PAPERCLIP_TASK_ID = wakeTaskId;
-  if (wakeReason) env.PAPERCLIP_WAKE_REASON = wakeReason;
-  if (wakeCommentId) env.PAPERCLIP_WAKE_COMMENT_ID = wakeCommentId;
-  if (approvalId) env.PAPERCLIP_APPROVAL_ID = approvalId;
-  if (approvalStatus) env.PAPERCLIP_APPROVAL_STATUS = approvalStatus;
-  if (linkedIssueIds.length > 0) env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
-  if (issueWorkMode) env.PAPERCLIP_ISSUE_WORK_MODE = issueWorkMode;
+  if (wakeTaskId) env.OUTPOST_TASK_ID = wakeTaskId;
+  if (wakeReason) env.OUTPOST_WAKE_REASON = wakeReason;
+  if (wakeCommentId) env.OUTPOST_WAKE_COMMENT_ID = wakeCommentId;
+  if (approvalId) env.OUTPOST_APPROVAL_ID = approvalId;
+  if (approvalStatus) env.OUTPOST_APPROVAL_STATUS = approvalStatus;
+  if (linkedIssueIds.length > 0) env.OUTPOST_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+  if (issueWorkMode) env.OUTPOST_ISSUE_WORK_MODE = issueWorkMode;
   if (authToken) {
-    env.PAPERCLIP_API_KEY = authToken;
+    env.OUTPOST_API_KEY = authToken;
   }
 
   // cursor_cloud runs remotely in Cursor's cloud and is intentionally not
   // issued a Paperclip run JWT (registry: supportsLocalAgentJwt=false).
-  // buildPaperclipEnv always sets PAPERCLIP_API_URL, defaulting to the local
+  // buildOutpostEnv always sets OUTPOST_API_URL, defaulting to the local
   // runtime host — which a remote worker can neither reach nor authenticate
   // against, so any agent-initiated Paperclip API call would fail with a 401
   // (or be unreachable) and add noise. When there is no usable key, drop the
   // callback wiring so cloud-side Paperclip tools degrade to a clean no-op.
   // Run results are delivered server-side via the Cursor Agent SDK (getRun /
   // wait), not through this callback, so nothing is lost.
-  if (!trimNullable(env.PAPERCLIP_API_KEY)) {
-    delete env.PAPERCLIP_API_URL;
-    delete env.PAPERCLIP_API_BRIDGE_MODE;
+  if (!trimNullable(env.OUTPOST_API_KEY)) {
+    delete env.OUTPOST_API_URL;
+    delete env.OUTPOST_API_BRIDGE_MODE;
   }
 
   const workspace = parseObject(context.paperclipWorkspace);
   const workspaceMappings: Array<[string, unknown]> = [
-    ["PAPERCLIP_WORKSPACE_CWD", workspace.cwd],
-    ["PAPERCLIP_WORKSPACE_SOURCE", workspace.source],
-    ["PAPERCLIP_WORKSPACE_ID", workspace.workspaceId],
-    ["PAPERCLIP_WORKSPACE_REPO_URL", workspace.repoUrl],
-    ["PAPERCLIP_WORKSPACE_REPO_REF", workspace.repoRef],
-    ["PAPERCLIP_WORKSPACE_BRANCH", workspace.branch],
-    ["PAPERCLIP_WORKSPACE_WORKTREE_PATH", workspace.worktreePath],
+    ["OUTPOST_WORKSPACE_CWD", workspace.cwd],
+    ["OUTPOST_WORKSPACE_SOURCE", workspace.source],
+    ["OUTPOST_WORKSPACE_ID", workspace.workspaceId],
+    ["OUTPOST_WORKSPACE_REPO_URL", workspace.repoUrl],
+    ["OUTPOST_WORKSPACE_REPO_REF", workspace.repoRef],
+    ["OUTPOST_WORKSPACE_BRANCH", workspace.branch],
+    ["OUTPOST_WORKSPACE_WORKTREE_PATH", workspace.worktreePath],
     ["AGENT_HOME", workspace.agentHome],
   ];
   for (const [key, value] of workspaceMappings) {
@@ -205,7 +205,7 @@ async function buildInstructionsPrefix(
     const reason = err instanceof Error ? err.message : String(err);
     await onLog(
       "stderr",
-      `[paperclip] Warning: could not read agent instructions file "${instructionsFilePath}": ${reason}\n`,
+      `[outpost] Warning: could not read agent instructions file "${instructionsFilePath}": ${reason}\n`,
     );
     return {
       prefix: "",
@@ -217,14 +217,14 @@ async function buildInstructionsPrefix(
   }
 }
 
-function renderPaperclipEnvNote(env: Record<string, string>): string {
+function renderOutpostEnvNote(env: Record<string, string>): string {
   const keys = Object.keys(env)
-    .filter((key) => key.startsWith("PAPERCLIP_"))
+    .filter((key) => key.startsWith("OUTPOST_"))
     .sort();
   if (keys.length === 0) return "";
   return [
     "Outpost runtime note:",
-    `The following PAPERCLIP_* environment variables are available in the cloud agent shell: ${keys.join(", ")}`,
+    `The following OUTPOST_* environment variables are available in the cloud agent shell: ${keys.join(", ")}`,
     "Use them directly instead of assuming they are absent.",
   ].join("\n");
 }
@@ -407,8 +407,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     : null);
   const canReuseSession = sessionMatches(session, envType, envName, repos);
   const promptTemplate = asString(config.promptTemplate, context.conversationMode === true
-    ? DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE
-    : DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE);
+    ? DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE
+    : DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE);
   const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
   const templateData = {
     agentId: agent.id,
@@ -433,14 +433,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     (canReuseSession && wakePrompt.length > 0) || isPaperclipRecoveryWakePayload(context.paperclipWake)
       ? ""
       : renderTemplate(promptTemplate, templateData).trim();
-  const paperclipEnvNote = renderPaperclipEnvNote(remoteEnv);
+  const outpostEnvNote = renderOutpostEnvNote(remoteEnv);
   const prompt = joinPromptSections([
     selectInitialCommunicationGuidance(context, { resumedSession: canReuseSession }),
     instructions.prefix,
     renderedBootstrapPrompt,
     wakePrompt,
     taskContextNote,
-    paperclipEnvNote,
+    outpostEnvNote,
     renderedPrompt,
   ]);
   const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();

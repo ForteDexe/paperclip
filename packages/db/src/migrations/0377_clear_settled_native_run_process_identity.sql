@@ -32,7 +32,7 @@ WHERE "run"."runtime_mode" = 'native'
         AND "lease"."released_at" IS NOT NULL
         AND "lease"."cleanup_status" = 'success'
         AND "lease"."status" IN ('released', 'expired', 'failed')
-        AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'schema' = 'paperclip.remote-termination.v1'
+        AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'schema' = 'outpost.remote-termination.v1'
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'companyId' = "lease"."company_id"::text
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'runId' = "lease"."heartbeat_run_id"::text
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'leaseId' = "lease"."id"::text

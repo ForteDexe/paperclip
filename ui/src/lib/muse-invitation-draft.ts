@@ -1,10 +1,10 @@
-import { AGENT_ROLES, type AgentRole } from "@paperclipai/shared";
+import { AGENT_ROLES, type AgentRole } from "@outpost/shared";
 
 export interface MuseInvitationDraft { name: string; role: AgentRole }
 export const emptyMuseInvitationDraft: MuseInvitationDraft = { name: "", role: "general" };
 
 function key(companyId: string, operatorId: string) {
-  return `paperclip.muse-invitation.${encodeURIComponent(companyId)}.${encodeURIComponent(operatorId)}`;
+  return `outpost.muse-invitation.${encodeURIComponent(companyId)}.${encodeURIComponent(operatorId)}`;
 }
 
 /** Only the name and role survive navigation. Pairing capabilities never enter storage. */

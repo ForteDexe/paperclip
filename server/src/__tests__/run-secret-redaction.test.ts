@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { REDACTED_EVENT_VALUE } from "../redaction.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { createRunSecretRedactionRegistry, redactRegisteredSecretValues } from "../services/run-secret-redaction.js";
 
@@ -8,7 +8,7 @@ const secret = "q2a-exact-secret-value";
 
 describe("registered run secret redaction", () => {
   it("omits host-only legacy settlement receipts from full and nested run responses", () => {
-    const proof = { schema: "paperclip.legacy-process-settlement.v1", processPid: 42 };
+    const proof = { schema: "outpost.legacy-process-settlement.v1", processPid: 42 };
     expect(redactRegisteredSecretValues({ id: "run", legacyProcessSettlement: proof,
       nested: [{ legacyProcessSettlement: proof, status: "failed" }] }, [])).toEqual({ id: "run", nested: [{ status: "failed" }] });
   });

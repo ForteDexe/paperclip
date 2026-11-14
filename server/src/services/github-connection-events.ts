@@ -9,7 +9,7 @@ import { notifyGitHubCredentialChange } from "./github-connection-notifications.
 import { notifyToolConnectionHealth } from "./tool-connection-health-notifications.js";
 import { dispatchGitHubBotCloudEvent } from "./chat-github-cloud-ingress.js";
 import { dispatchSlackCloudEvent } from "./chat-channels/slack/cloud-ingress.js";
-import { chatEndpoints } from "@paperclipai/db";
+import { chatEndpoints } from "@outpost/db";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -18,7 +18,7 @@ import {
   externalObjects,
   toolConnections,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import {
   logActivity,
@@ -27,7 +27,7 @@ import {
 } from "./activity-log.js";
 import {
   createPaperclipCloudConnector,
-  paperclipCloudConnectorConfigFromEnv,
+  outpostCloudConnectorConfigFromEnv,
   type PaperclipCloudConnector,
   type SealedConnectorEvents,
 } from "./paperclip-cloud-connector.js";
@@ -235,21 +235,21 @@ export function githubConnectionEventService(
   let nextEnrollmentDiagnosticAt = 0;
   const slackDiagnostics = new Map<string, number>();
   let configuredConnector: {
-    config: NonNullable<ReturnType<typeof paperclipCloudConnectorConfigFromEnv>>;
+    config: NonNullable<ReturnType<typeof outpostCloudConnectorConfigFromEnv>>;
     connector: PaperclipCloudConnector;
   } | undefined;
   function currentConnector() {
     if (options.connector) return options.connector;
     // Enrollment and identity replacement can happen after this owner starts.
     // Read only on an admitted pass; preserve negotiated delivery while unchanged.
-    const config = paperclipCloudConnectorConfigFromEnv(options.env);
+    const config = outpostCloudConnectorConfigFromEnv(options.env);
     if (!config) { configuredConnector = undefined; return null; }
     if (!configuredConnector || !isDeepStrictEqual(configuredConnector.config, config)) {
       configuredConnector = { config, connector: createPaperclipCloudConnector({ config }) };
     }
     return configuredConnector.connector;
   }
-  const forcePolling = (options.env ?? process.env).PAPERCLIP_GITHUB_EVENT_POLLING === "1";
+  const forcePolling = (options.env ?? process.env).OUTPOST_GITHUB_EVENT_POLLING === "1";
   let emptyPolls = 0;
   let nextSetupPollAt = 0;
   let inFlight: Promise<GitHubConnectionEventPollResult> | null = null;

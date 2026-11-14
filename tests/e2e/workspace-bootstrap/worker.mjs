@@ -6,14 +6,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 const env = process.env;
-const headers = { Authorization: `Bearer ${env.PAPERCLIP_API_KEY}`, "X-Paperclip-Run-Id": env.PAPERCLIP_RUN_ID, "Content-Type": "application/json" };
+const headers = { Authorization: `Bearer ${env.OUTPOST_API_KEY}`, "X-Paperclip-Run-Id": env.OUTPOST_RUN_ID, "Content-Type": "application/json" };
 const api = async (route, method = "GET", body) => {
-  const response = await fetch(`${env.PAPERCLIP_API_URL}/api${route}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const response = await fetch(`${env.OUTPOST_API_URL}/api${route}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   assert(response.ok, `${response.status}: ${await response.clone().text()}`);
   return response.json();
 };
-const run = await api(`/heartbeat-runs/${env.PAPERCLIP_RUN_ID}`);
-assert.equal(run.contextSnapshot.paperclipEnvironment.driver, "local");
+const run = await api(`/heartbeat-runs/${env.OUTPOST_RUN_ID}`);
+assert.equal(run.contextSnapshot.outpostEnvironment.driver, "local");
 const services = run.contextSnapshot.paperclipRuntimeServices;
 assert.equal(services.length, 1);
 assert.equal(services[0].serviceName, "fixture-web");

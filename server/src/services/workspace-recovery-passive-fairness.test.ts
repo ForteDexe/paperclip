@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { agentWakeupRequests, createDb, issueRecoveryActions, nativeRunFinalizations } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import { agentWakeupRequests, createDb, issueRecoveryActions, nativeRunFinalizations } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { nativeWorkspaceFinalizationLockKey } from "./native-runtime/native-workspace-finalization-ownership.js";
 import { readSystemRecovery } from "./system-recovery-state.js";
 import { adoptSystemRecovery } from "./system-recovery.js";
@@ -33,7 +33,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
   useWorkspaceRecoveryFixture(targets);
   beforeEach(() => {
     vi.stubEnv("DATABASE_URL", connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "63".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "63".repeat(32));
   });
   afterEach(() => { vi.unstubAllEnvs(); });
 
@@ -45,7 +45,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
       systemRecovery: { ...readSystemRecovery((await action(f.actionId)).evidence)!, revision: 3, phase: "verify_execution", state: "exhausted",
         attempts: 1, retriesUsed: 0, attemptId: randomUUID(), firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
         failure: { code: "agent_stop_unconfirmed", retryClass: "recheck_evidence", evidenceFingerprint: "9615".repeat(16) } },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
         attempt: 1, attemptLimit: 6, retryable: true, requestIds: [] } } }).where(eq(issueRecoveryActions.id, f.actionId));
     return { ...f, actionId: id };
   }
@@ -61,7 +61,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
         attemptId: randomUUID(), firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
         failure: { code: "export_interrupted", retryClass: "retry_transient", evidenceFingerprint: "9483".repeat(16),
           cause: { code: null, label: "provider_error", status: null } } },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "restoring_files",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "restoring_files",
         attempt: 6, attemptLimit: 6, retryable: true, requestIds: [] } } }).where(eq(issueRecoveryActions.id, f.actionId));
     return { ...f, actionId: id };
   }
@@ -74,7 +74,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
     await db.update(issueRecoveryActions).set({ id, status, outcome: status === "resolved" ? "blocked" : null, ownerType: "system",
       evidence: { ...prior.evidence,
         systemRecovery: { ...readSystemRecovery(prior.evidence)!, state: "complete", phase: "reconcile_effects", attempts: 1 },
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "recovered", stage: "saving_receipts",
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "recovered", stage: "saving_receipts",
           attempt: 1, attemptLimit: 6, retryable: false, requestIds: [] },
         automaticRecovery: { runId: f.runId, policy: "preserve_without_replay_v1", replay: "blocked" } } })
       .where(eq(issueRecoveryActions.id, f.actionId));

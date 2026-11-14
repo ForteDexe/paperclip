@@ -155,7 +155,7 @@ async function companionPhaseForCancelled(ctx: Parameters<typeof companionPhase>
     attributed: human.length === 1 && replies.length > 0 && profile.runnerProfileJson?.nativeExecutionInput?.task?.prompt?.includes(human[0]!.id) === true
       && replies.every(c => Date.parse(c.createdAt!) >= Date.parse(human[0]!.createdAt!)) };
 }
-feedback.oracleVersion = "paperclip.chat-catalog.feedback-bundle.v2"; feedback.expectedRunCount = 3; feedback.expectedHumanMessageCount = 2; feedback.attemptTimeoutMs = 900000;
+feedback.oracleVersion = "outpost.chat-catalog.feedback-bundle.v2"; feedback.expectedRunCount = 3; feedback.expectedHumanMessageCount = 2; feedback.attemptTimeoutMs = 900000;
 feedback.runPolicy = { kind: "terminal-counts", terminalStatusCounts: { succeeded: 2, cancelled: 1 } };
 feedback.cleanup = async (ctx, state) => { try { const pending = pendingFixtures.get(ctx);
     if (pending) { const runs = await ctx.allRuns(); for (const run of runs.filter(r => r.agentId === pending.gate.worker.id && ["queued", "running"].includes(r.status))) await ctx.input.api.post(`/api/heartbeat-runs/${run.id}/cancel`, {}); await releaseRuntimeWorker({ gate: pending.gate.gate }); pendingFixtures.delete(ctx); }

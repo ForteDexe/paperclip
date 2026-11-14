@@ -1,5 +1,5 @@
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
-import { extractAgentMentionIds } from "@paperclipai/shared";
+import { extractAgentMentionIds } from "@outpost/shared";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { updateAgentConfigurationInTransaction } from "./agent-configuration-transaction.js";
 import { createHash } from "node:crypto";
@@ -15,14 +15,14 @@ import {
   agentInstructionRevisions as revisions,
   fileStorageDb,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   AgentInstructionCommitReceipt,
   AgentInstructionDiff,
   AgentInstructionHistory,
   AgentInstructionSnapshot,
   AgentInstructionSource,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import {
   agentInstructionsBundleMode,

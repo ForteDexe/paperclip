@@ -3,19 +3,19 @@ import { mkdtemp } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, authUsers, companies, companyMemberships, executionWorkspaceRepositories, executionWorkspaces, issues, heartbeatRuns, projects, projectWorkspaces } from "@paperclipai/db";
+import { agents, authUsers, companies, companyMemberships, executionWorkspaceRepositories, executionWorkspaces, issues, heartbeatRuns, projects, projectWorkspaces } from "@outpost/db";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 import { getEmbeddedPostgresTestSupport } from "./helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("task workspace API and native semantic authority", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
-  const originalSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
-  beforeAll(async () => { process.env.PAPERCLIP_AGENT_JWT_SECRET = randomUUID(); server = await startRunnerApiTestServer(); }, 60_000);
-  afterAll(async () => { await server?.close(); if (originalSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET; else process.env.PAPERCLIP_AGENT_JWT_SECRET = originalSecret; });
+  const originalSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
+  beforeAll(async () => { process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID(); server = await startRunnerApiTestServer(); }, 60_000);
+  afterAll(async () => { await server?.close(); if (originalSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET; else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret; });
   it("prepares a repository through native JWT authority for the local board and rechecks revoked access", async () => {
     const f = await server.fixture({ disableWakeOnDemand: true });
     await server.db.insert(authUsers).values({ id: "local-board", name: "Local Board", email: "local-board@example.invalid",
@@ -30,7 +30,7 @@ const support = await getEmbeddedPostgresTestSupport();
       repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: "local-board-native" } }))
       .resolves.toMatchObject({ kind: "requires_next_admission" });
     await server.db.delete(companyMemberships).where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, "local-board")));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, "local-board");
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, "local-board");
     const denied = await fetch(`${server.apiUrl}/api/issues/${f.issueId}/workspace/repositories`, {
       method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ repository: { kind: "url", url: "https://github.com/public/other" }, requestKey: "different-sponsor" }),
@@ -48,7 +48,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await server.db.update(projects).set({ executionWorkspacePolicy: policy }).where(eq(projects.id, f.projectId));
     await server.db.update(issues).set({ executionPolicy: policy, executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
     await server.db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: policy } }).where(eq(heartbeatRuns.id, f.runId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.userId);
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.userId);
     const create = (parentId: string) => fetch(`${server.apiUrl}/api/companies/${f.companyId}/issues`, {
       method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ title: `Review child ${randomUUID()}`, parentId, projectId: f.projectId,
@@ -226,7 +226,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(page.workspaces.every(row => row.name === "🦀\\\"".repeat(4_000))).toBe(true);
     }
     expect(seen).toEqual(rows.map(row => row.id).sort());
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", f.runId, f.userId);
+    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.userId);
     const detail = await fetch(`${server.apiUrl}/api/execution-workspaces/${giantId}`, { headers: { authorization: `Bearer ${token}` } });
     expect(detail.status).toBe(200);
     expect((await detail.json()).name).toBe(giantName);

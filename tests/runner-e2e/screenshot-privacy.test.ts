@@ -19,7 +19,7 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, {
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 function result(): RunnerE2EResult {
   const e = runnerMatrix.find(row => row.suite.id === "chat-features" && row.profile.id === "runner-opencode" && row.environment.id === "local")!;
-  return { schema: "paperclip.runner-e2e.result/v2", executionId: e.id, suiteId: e.suite.id, suiteDefinitionHash: e.suiteDefinitionHash,
+  return { schema: "outpost.runner-e2e.result/v2", executionId: e.id, suiteId: e.suite.id, suiteDefinitionHash: e.suiteDefinitionHash,
     attempt: 1, status: "failed", failureClass: "candidate_failure", profileId: e.profile.id, environmentId: e.environment.id, caseId: e.task.id,
     provider: e.profile.provider, model: e.profile.model, runtimeMode: e.profile.expectedRuntimeMode, startedAt: "2026-10-28T00:00:00.000Z",
     finishedAt: "2026-10-28T00:00:01.000Z", durationMs: 1000, cleanup: "passed",

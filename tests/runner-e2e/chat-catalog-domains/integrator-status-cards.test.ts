@@ -225,10 +225,10 @@ it("classifies live and unavailable source reads by their redacted saved receipt
   expect(sourceTaskReads(read("other", 200), "source", "ACORN-1")).toEqual({ live: false, unavailable: false });
   expect(sourceTaskReads(read("other", 404), "source", "ACORN-1")).toEqual({ live: false, unavailable: false });
   // An unredacted dedicated-tool output naming the source still counts as a live read.
-  const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { prpEvent: { sourceKind: "runner", payload: { name: "paperclip_get_task", status, output } } } });
+  const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name: "paperclip_get_task", status, output } } } });
   const live = event(JSON.stringify({ text: JSON.stringify({ apiOperationId: "GET /api/issues/{id}", data: { id: "source", status: "done" } }) }));
   expect(sourceTaskReads([live], "source")).toEqual({ live: true, unavailable: false });
-  expect(sourceTaskReads([event(JSON.parse(JSON.stringify(live.payload.prpEvent.payload.output)), "running")], "source")).toEqual({ live: false, unavailable: false });
+  expect(sourceTaskReads([event(JSON.parse(JSON.stringify(live.payload.orpEvent.payload.output)), "running")], "source")).toEqual({ live: false, unavailable: false });
 });
 
 

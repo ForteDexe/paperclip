@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { request } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import express from "express";
-import { DurablePrpControlPlane } from "../vendor/paperclip-runner/index.js";
-import { registerRunnerPrpAuthority, runnerPrpWebSocketInternals } from "../realtime/runner-prp-ws.js";
+import { DurablePrpControlPlane } from "../vendor/outpost-runner/index.js";
+import { registerRunnerPrpAuthority, runnerPrpWebSocketInternals } from "../realtime/runner-orp-ws.js";
 import { LocalRuntimeApiListenerClosedError, resolveLocalRuntimeApiUrl } from "../runtime-api.js";
 import { createPaperclipHttpServer } from "./server.js";
 import { privateHostnameGuard } from "../middleware/private-hostname-guard.js";
@@ -87,9 +87,9 @@ describe("Paperclip HTTP server runner transport", () => {
   });
 
   it("refuses native endpoints before listen and after close despite advertised fallback URLs", async () => {
-    vi.stubEnv("PAPERCLIP_API_URL", "https://advertised.example.test");
-    vi.stubEnv("PAPERCLIP_LISTEN_HOST", "controller.example.test");
-    vi.stubEnv("PAPERCLIP_LISTEN_PORT", "3210");
+    vi.stubEnv("OUTPOST_API_URL", "https://advertised.example.test");
+    vi.stubEnv("OUTPOST_LISTEN_HOST", "controller.example.test");
+    vi.stubEnv("OUTPOST_LISTEN_PORT", "3210");
     const server = createPaperclipHttpServer((_req, res) => res.end("ready"), {
       apiUrl: "https://advertised.example.test",
     });
@@ -106,10 +106,10 @@ describe("Paperclip HTTP server runner transport", () => {
     }
     expect(() => resolveLocalRuntimeApiUrl()).toThrow();
     await expect(registerRunnerPrpAuthority(binding)).rejects.toThrow();
-    expect(process.env.PAPERCLIP_API_URL).toBe("https://advertised.example.test");
+    expect(process.env.OUTPOST_API_URL).toBe("https://advertised.example.test");
   });
 
-  it("uses the actual numeric bind for bearer REST and PRP without a second hostname lookup", async () => {
+  it("uses the actual numeric bind for bearer REST and ORP without a second hostname lookup", async () => {
     const hostname = "controller-bind.example.test";
     let lookups = 0;
     vi.spyOn(dns, "lookup").mockImplementation(((host, options, callback) => {
@@ -123,14 +123,14 @@ describe("Paperclip HTTP server runner transport", () => {
       if (lookups > 1) return lookedUp(Object.assign(new Error("Unexpected second DNS authority"), { code: "ENOTFOUND" }));
       lookedUp(null, [{ address: "127.0.0.1", family: 4 }]);
     }) as typeof dns.lookup);
-    vi.stubEnv("PAPERCLIP_API_URL", "https://advertised.example.test");
-    vi.stubEnv("PAPERCLIP_LISTEN_HOST", hostname);
-    vi.stubEnv("PAPERCLIP_LISTEN_PORT", "1");
+    vi.stubEnv("OUTPOST_API_URL", "https://advertised.example.test");
+    vi.stubEnv("OUTPOST_LISTEN_HOST", hostname);
+    vi.stubEnv("OUTPOST_LISTEN_PORT", "1");
     const server = createPaperclipHttpServer((req, res) => {
       res.statusCode = req.headers.authorization === "Bearer synthetic-run-token" ? 200 : 401;
       res.end("local-controller");
     }, { apiUrl: "https://advertised.example.test" });
-    const directory = await mkdtemp(join(tmpdir(), "paperclip-bound-prp-"));
+    const directory = await mkdtemp(join(tmpdir(), "paperclip-bound-orp-"));
     const runId = "00000000-0000-4000-8000-000000000780";
     const authority = new DurablePrpControlPlane({ stateDirectory: directory,
       identity: { runnerInstanceId: "bound-runner", environmentLeaseId: "bound-lease", normalizedSessionId: "bound-session", runId, turnId: "bound-turn", itemId: "bound-item" },
@@ -153,12 +153,12 @@ describe("Paperclip HTTP server runner transport", () => {
         req.once("upgrade", (res, socket) => { socket.destroy(); resolve(res.statusCode); });
         req.once("response", res => { res.resume(); resolve(res.statusCode); });
         req.once("error", reject);
-        req.setTimeout(1000, () => req.destroy(new Error("PRP upgrade unavailable")));
+        req.setTimeout(1000, () => req.destroy(new Error("ORP upgrade unavailable")));
         req.end();
       });
       expect(upgraded).toBe(101);
       expect(lookups).toBe(1);
-      expect(process.env.PAPERCLIP_API_URL).toBe("https://advertised.example.test");
+      expect(process.env.OUTPOST_API_URL).toBe("https://advertised.example.test");
     } finally {
       await registration?.release();
       await authority.stop();

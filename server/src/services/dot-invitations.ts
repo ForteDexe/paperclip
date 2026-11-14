@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
-import { activityLog, agents, companies, dotAgentBindings, type Db } from "@paperclipai/db";
+import { activityLog, agents, companies, dotAgentBindings, type Db } from "@outpost/db";
 import { agentService } from "./agents.js";
 import { createAgentLifecycle, scheduleAgentLifecycle } from "./agent-lifecycle.js";
-import { withDedicatedDbConnection } from "@paperclipai/db";
+import { withDedicatedDbConnection } from "@outpost/db";
 import { approvalService } from "./approvals.js";
 import { accessService } from "./access.js";
 import { agentInstructionsService } from "./agent-instructions.js";
@@ -20,7 +20,7 @@ export function dotInvitationService(db: Db, provider: "openai_dot" | "grok_bot"
     const rows = await database.select({ agent: agents, binding: dotAgentBindings })
       .from(agents).leftJoin(dotAgentBindings, and(eq(dotAgentBindings.agentId, agents.id), isNull(dotAgentBindings.revokedAt)))
       .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated"),
-        eq(agents.adapterType, "paperclip_runner"), sql`${agents.adapterConfig}->>'provider' = ${provider}`,
+        eq(agents.adapterType, "outpost_runner"), sql`${agents.adapterConfig}->>'provider' = ${provider}`,
         sql`((${recoverIncomplete} and ${agents.metadata}->${invitationKey}->>'operatorId' = ${operatorId}
           and ${agents.lifecycleOperation}->>'responsibleUserId' = ${operatorId}) or exists (select 1 from ${activityLog} where ${activityLog.companyId} = ${agents.companyId}
           and ${activityLog.entityId} = ${agents.id}::text and ${activityLog.entityType} = 'agent'
@@ -58,7 +58,7 @@ export function dotInvitationService(db: Db, provider: "openai_dot" | "grok_bot"
         }
         const svc = agentService(database);
         let created = existing ?? await createAgentLifecycle(database).requestHire(companyId, {
-          name: details?.name?.trim() || providerName, role: details?.role ?? "general", reportsTo: details?.reportsTo, adapterType: "paperclip_runner",
+          name: details?.name?.trim() || providerName, role: details?.role ?? "general", reportsTo: details?.reportsTo, adapterType: "outpost_runner",
           adapterConfig: { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: true,
             dotWorkspaceAccess: false, dotAttachmentAccess: false },
           runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },

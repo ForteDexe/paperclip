@@ -1,5 +1,5 @@
 import {beforeEach,describe,it,expect,vi} from "vitest";
-import type {Db} from "@paperclipai/db";
+import type {Db} from "@outpost/db";
 const current=vi.hoisted(()=>({identity:null as null|{stackId:string;canonicalOrigin:string}}));
 vi.mock("../cloud-runtime-identity.js",()=>({getCloudRuntimeIdentity:()=>current.identity}));
 vi.mock("../delivery-work-notifications.js",async importOriginal=>({...await importOriginal<typeof import("../delivery-work-notifications.js")>(),notifyDeliveryWork:vi.fn(async()=>{})}));

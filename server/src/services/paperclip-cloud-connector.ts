@@ -1,6 +1,6 @@
 import { assertMcpClientMirrorEnvelope } from "./public-mcp/client-mirror-wire.js";
 import { providerRetryAt } from "./provider-retry-after.js";
-import { SLACK_MANAGER_SCOPES, ASANA_CONNECTOR_SCOPES, isAsanaConnectorProfileId, type AsanaConnectorProfileId } from "@paperclipai/shared";
+import { SLACK_MANAGER_SCOPES, ASANA_CONNECTOR_SCOPES, isAsanaConnectorProfileId, type AsanaConnectorProfileId } from "@outpost/shared";
 import {
   createDecipheriv,
   createHash,
@@ -22,7 +22,7 @@ import {
   isGoogleWorkspaceScopeGrant,
   type GitHubConnectorProfileId,
   type GoogleWorkspaceConnectorProfileId,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   loadPaperclipCloudConnectorIdentity,
   paperclipCloudConnectorEnrollmentStatus,
@@ -35,7 +35,7 @@ export const GMAIL_CONNECTOR_SCOPES = [
 ] as const;
 export { GOOGLE_WORKSPACE_CONNECTOR_PROFILES };
 
-export type PaperclipCloudConnectorEnvironment = "development" | "test" | "staging" | "production";
+export type OutpostCloudConnectorEnvironment = "development" | "test" | "staging" | "production";
 export type PaperclipCloudConnectorOperation = "status" | "session" | "claim" | "refresh" | "revoke" | "webhook-bind" | "event-lease" | "event-ack" | "github-app" | "slack-events" | "slack-forms" | "mcp-client-mirror" | "mcp-revocation-index";
 export type PaperclipCloudConnectorProfileId = GoogleWorkspaceConnectorProfileId | GitHubConnectorProfileId | AsanaConnectorProfileId | "slack.manager" | "github.bot";
 export type PaperclipCloudConnectorProvider = "google" | "github" | "asana" | "slack";
@@ -43,7 +43,7 @@ export type PaperclipCloudConnectorProvider = "google" | "github" | "asana" | "s
 export type PaperclipCloudConnectorConfig = {
   baseUrl: string;
   instanceId: string;
-  environment: PaperclipCloudConnectorEnvironment;
+  environment: OutpostCloudConnectorEnvironment;
   signPrivateKey: string;
   sealPrivateKey: string;
 };
@@ -59,7 +59,7 @@ export type SealedConnectorCredentials = {
   subject: string;
   companyId: string;
   instanceId: string;
-  environment: PaperclipCloudConnectorEnvironment;
+  environment: OutpostCloudConnectorEnvironment;
   provider: PaperclipCloudConnectorProvider;
   profile: string;
   appSlug?: string;
@@ -72,7 +72,7 @@ export type SealedGoogleWorkspaceCredentials = SealedGmailCredentials;
 export type SealedConnectorEvents = {
   v: 1;
   instanceId: string;
-  environment: PaperclipCloudConnectorEnvironment;
+  environment: OutpostCloudConnectorEnvironment;
   leaseId: string;
   events: Array<{
     id: string;
@@ -216,21 +216,21 @@ export class PaperclipCloudConnectorError extends Error {
   }
 }
 
-export function paperclipCloudConnectorConfigFromEnv(
+export function outpostCloudConnectorConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): PaperclipCloudConnectorConfig | null {
   const localIdentity = loadPaperclipCloudConnectorIdentity();
   const legacyConfigured = [
-    env.PAPERCLIP_ID_CONNECTOR_INSTANCE_ID,
-    env.PAPERCLIP_ID_CONNECTOR_SIGN_PRIVATE_KEY,
-    env.PAPERCLIP_ID_CONNECTOR_SEAL_PRIVATE_KEY,
-    env.PAPERCLIP_ID_CONNECTOR_ENVIRONMENT,
-    env.PAPERCLIP_ID_CONNECTOR_BASE_URL,
+    env.OUTPOST_ID_CONNECTOR_INSTANCE_ID,
+    env.OUTPOST_ID_CONNECTOR_SIGN_PRIVATE_KEY,
+    env.OUTPOST_ID_CONNECTOR_SEAL_PRIVATE_KEY,
+    env.OUTPOST_ID_CONNECTOR_ENVIRONMENT,
+    env.OUTPOST_ID_CONNECTOR_BASE_URL,
   ].some((value) => Boolean(value?.trim()));
-  const managedInstanceId = env.PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID?.trim();
-  const managedSignPrivateKey = env.PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY?.trim();
-  const managedSealPrivateKey = env.PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY?.trim();
-  const managedEnvironment = env.PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT?.trim();
+  const managedInstanceId = env.OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID?.trim();
+  const managedSignPrivateKey = env.OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY?.trim();
+  const managedSealPrivateKey = env.OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY?.trim();
+  const managedEnvironment = env.OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT?.trim();
   const hasManagedIdentityOverride = [managedInstanceId, managedSignPrivateKey, managedSealPrivateKey]
     .some(Boolean);
   const localStatus = hasManagedIdentityOverride ? null : paperclipCloudConnectorEnrollmentStatus(env);
@@ -247,9 +247,9 @@ export function paperclipCloudConnectorConfigFromEnv(
   const signPrivateKey = hasManagedIdentityOverride ? managedSignPrivateKey : localIdentity!.signPrivateKey;
   const sealPrivateKey = hasManagedIdentityOverride ? managedSealPrivateKey : localIdentity!.sealPrivateKey;
   const environment = hasManagedIdentityOverride ? managedEnvironment : localIdentity!.environment;
-  const baseUrl = env.PAPERCLIP_CLOUD_CONNECTOR_BASE_URL?.trim()
+  const baseUrl = env.OUTPOST_CLOUD_CONNECTOR_BASE_URL?.trim()
     || (hasActiveLocalIdentity ? localIdentity!.brokerBaseUrl : undefined)
-    || "https://my.paperclip.app";
+    || "https://my.outpost.app";
   const values = [instanceId, signPrivateKey, sealPrivateKey, environment];
   if (values.some((value) => !value)) {
     throw new PaperclipCloudConnectorError("Outpost Cloud connector configuration is incomplete", "CONNECTOR_CONFIG_INCOMPLETE");
@@ -265,9 +265,9 @@ export function paperclipCloudConnectorConfigFromEnv(
     throw new PaperclipCloudConnectorError("Outpost Cloud connector URL is invalid", "CONNECTOR_CONFIG_INVALID");
   }
   const brokerHost = parsedBaseUrl.hostname.toLowerCase();
-  if ((brokerHost === "my.paperclip.app" && environment !== "production")
-    || (brokerHost === "test.paperclip.app" && environment !== "test")
-    || (brokerHost === "my-staging.paperclip.app" && environment !== "staging")) {
+  if ((brokerHost === "my.outpost.app" && environment !== "production")
+    || (brokerHost === "test.outpost.app" && environment !== "test")
+    || (brokerHost === "my-staging.outpost.app" && environment !== "staging")) {
     throw new PaperclipCloudConnectorError(
       "Outpost Cloud connector broker and environment do not match",
       "CONNECTOR_CONFIG_INVALID",
@@ -470,7 +470,7 @@ export function createPaperclipCloudConnector(input: {
       return response.active === true && response.githubApps?.version === 2;
     },
     async githubApp(values: { subject: string; companyId: string; binding: Record<string, unknown> }) {
-      return await call("github-app", values, { field: "binding", value: JSON.stringify(values.binding) }) as unknown as import("@paperclipai/shared").GitHubAppCloudState;
+      return await call("github-app", values, { field: "binding", value: JSON.stringify(values.binding) }) as unknown as import("@outpost/shared").GitHubAppCloudState;
     },
     async claimGitHubApp(values: { subject: string; companyId: string; claimId: string; redemptionId: string }) {
       const response = await call("claim", { ...values, profile: "github.bot" });
@@ -717,7 +717,7 @@ function parseCloudHandoff(value: unknown): { kind: "paperclip_cloud"; session: 
 }
 
 export type PaperclipCloudConnector = Omit<ReturnType<typeof createPaperclipCloudConnector>, "instanceIdentity" | "slackFormOperation"> & {
-  instanceIdentity?: () => Readonly<{ instanceId: string; environment: PaperclipCloudConnectorEnvironment }>;
+  instanceIdentity?: () => Readonly<{ instanceId: string; environment: OutpostCloudConnectorEnvironment }>;
   slackFormOperation?: ReturnType<typeof createPaperclipCloudConnector>["slackFormOperation"];
 };
 export type PaperclipCloudGoogleWorkspaceConnector = PaperclipCloudConnector;
@@ -756,12 +756,12 @@ export function invalidatePaperclipCloudConnectorCapabilities(): void {
   capabilityCache = null;
 }
 
-export async function paperclipCloudConnectorCapabilitiesFromEnv(
+export async function outpostCloudConnectorCapabilitiesFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<PaperclipCloudConnectorProfileId[]> {
   let config: PaperclipCloudConnectorConfig | null;
   try {
-    config = paperclipCloudConnectorConfigFromEnv(env);
+    config = outpostCloudConnectorConfigFromEnv(env);
   } catch (error) {
     // Gallery discovery is useful even while connector enrollment is pending or
     // local connector settings are incomplete. Treat every connector-config
@@ -860,7 +860,7 @@ function unsealEvents(
   envelope: SealedEnvelope,
   recipientPrivateKey: KeyObject,
   instanceId: string,
-  environment: PaperclipCloudConnectorEnvironment,
+  environment: OutpostCloudConnectorEnvironment,
 ): SealedConnectorEvents {
   try {
     const parsed = decryptEnvelope(envelope, recipientPrivateKey, instanceId, environment, "github", "github.code", []) as Partial<SealedConnectorEvents>;

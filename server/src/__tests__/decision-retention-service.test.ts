@@ -13,12 +13,12 @@ import {
   decisionArchiveNotificationOutbox,
   decisionRetention,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { attentionService } from "../services/attention.js";
 import { decisionRetentionService } from "../services/decision-retention.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_RETENTION_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_RETENTION_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describePg = support.supported ? describe : describe.skip;
 

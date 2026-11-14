@@ -1,4 +1,4 @@
-import type { IssueQueuedCommentEntry, IssueQueuedCommentQueue } from "@paperclipai/shared";
+import type { IssueQueuedCommentEntry, IssueQueuedCommentQueue } from "@outpost/shared";
 
 /**
  * How long a queued follow-up waits before it is steered into the live turn,
@@ -41,7 +41,7 @@ export function queuedMessageAutoSteerEligible(input: {
   const { queue, entry } = input;
   return queue.steeringDisposition === "available"
     && Boolean(queue.queueId && queue.targetRunId)
-    && queue.protocol === "paperclip_runner_v1"
+    && queue.protocol === "outpost_runner_v1"
     && entry.canEdit
     && entry.source?.kind !== "interaction"
     && !entry.source?.requiresFreshSession

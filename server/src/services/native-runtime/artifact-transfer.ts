@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { posix } from "node:path";
 import { z } from "zod";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
-import { SemanticToolOutcomeUnknownError } from "../../vendor/paperclip-runner/index.js";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
+import { SemanticToolOutcomeUnknownError } from "../../vendor/outpost-runner/index.js";
 import { RUNNER_API_MAX_BYTES } from "./runner-api-client.js";
 
 export const DOWNLOAD_ARTIFACT = "download_artifact";

@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
-import { createPromptContextFixture } from "@paperclipai/adapter-utils/test-fixtures/prompt-context";
+import type { AdapterExecutionContext } from "@outpost/adapter-utils";
+import { createPromptContextFixture } from "@outpost/adapter-utils/test-fixtures/prompt-context";
 
 // Bundles the remote-lane mock state and every mocked execution-target
 // function behind one hoisted object, so the `vi.mock` factory below (which
@@ -49,7 +49,7 @@ const {
   prepareRuntimeMock,
 } = mocks;
 
-vi.mock("@paperclipai/adapter-utils/execution-target", () => ({
+vi.mock("@outpost/adapter-utils/execution-target", () => ({
   adapterExecutionTargetIsRemote: () => mocks.state.isRemote,
   adapterExecutionTargetRemoteCwd: (_target: unknown, cwd: string) =>
     mocks.state.isRemote ? "/remote/workspace" : cwd,
@@ -188,7 +188,7 @@ describe("grok_local execute", () => {
     const result = await execute(second);
     const args = runProcessMock.mock.calls[1][3] as string[];
     expect(args[args.indexOf("--resume") + 1]).toBe("existing-session");
-    expect(runProcessMock.mock.calls[1][4].env.PAPERCLIP_RUNTIME_TOOLS_MCP_URL).toBe("https://example.test/current-tools/mcp");
+    expect(runProcessMock.mock.calls[1][4].env.OUTPOST_RUNTIME_TOOLS_MCP_URL).toBe("https://example.test/current-tools/mcp");
     expect(result.sessionParams?.sessionId).toBe("existing-session");
   });
 
@@ -459,9 +459,9 @@ describe("grok_local execute", () => {
 
     beforeEach(async () => {
       previousApiKey = process.env.XAI_API_KEY;
-      previousPaperclipHome = process.env.PAPERCLIP_HOME;
+      previousPaperclipHome = process.env.OUTPOST_HOME;
       previousGrokHome = process.env.GROK_HOME;
-      process.env.PAPERCLIP_HOME = await makeTempRoot();
+      process.env.OUTPOST_HOME = await makeTempRoot();
       delete process.env.XAI_API_KEY;
       delete process.env.GROK_HOME;
     });
@@ -469,8 +469,8 @@ describe("grok_local execute", () => {
     afterEach(() => {
       if (previousApiKey === undefined) delete process.env.XAI_API_KEY;
       else process.env.XAI_API_KEY = previousApiKey;
-      if (previousPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-      else process.env.PAPERCLIP_HOME = previousPaperclipHome;
+      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousPaperclipHome;
       if (previousGrokHome === undefined) delete process.env.GROK_HOME;
       else process.env.GROK_HOME = previousGrokHome;
     });
@@ -699,11 +699,11 @@ describe("grok_local execute", () => {
 
     beforeEach(async () => {
       previousApiKey = process.env.XAI_API_KEY;
-      previousPaperclipHome = process.env.PAPERCLIP_HOME;
+      previousPaperclipHome = process.env.OUTPOST_HOME;
       // Point the managed Grok home at a private tmp root, so staging never
       // touches a real developer or CI-host `~/.paperclip` tree.
       paperclipHomeRoot = await makeTempRoot();
-      process.env.PAPERCLIP_HOME = paperclipHomeRoot;
+      process.env.OUTPOST_HOME = paperclipHomeRoot;
       sandboxAuthFixture.bytes = null;
       sandboxAuthFixture.error = null;
     });
@@ -711,8 +711,8 @@ describe("grok_local execute", () => {
     afterEach(() => {
       if (previousApiKey === undefined) delete process.env.XAI_API_KEY;
       else process.env.XAI_API_KEY = previousApiKey;
-      if (previousPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-      else process.env.PAPERCLIP_HOME = previousPaperclipHome;
+      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousPaperclipHome;
     });
 
     async function seedHostGrokAuth(contents: string): Promise<string> {

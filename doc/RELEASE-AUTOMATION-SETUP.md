@@ -34,8 +34,8 @@ Do this for every public package that Paperclip publishes.
 At minimum that includes:
 
 - `paperclipai`
-- `@paperclipai/server`
-- `@paperclipai/ui`
+- `@outpost/server`
+- `@outpost/ui`
 - public packages under `packages/`
 
 ### 2.1. In npm, open each package settings page
@@ -368,7 +368,7 @@ Check:
 
 ## Runner verification dependency cache
 
-`release-verify.yml` runs `Verify Paperclip Runner` on two independent runners.
+`release-verify.yml` runs `Verify Outpost Runner` on two independent runners.
 The protocol lane runs `check:eval-kernel` and `check:protocol`. The Rust lane
 runs `check:runner` and `check:api-authority`. Together they retain every check
 in `check:all`; both lanes must pass before Cloud source verification or
@@ -394,7 +394,7 @@ paths in the entry. The master writer runs on the RunsOn fleet, where the
 checkout is `/home/runner/_work/paperclip/paperclip`. The trusted PR workflow
 restores the same entry read-only on GitHub-hosted runners, where the checkout
 is `/home/runner/work/paperclip/paperclip`. A `Pin the Runner Rust workspace
-path` step in both workflows links `$HOME/paperclip-runner-rust` to the Runner
+path` step in both workflows links `$HOME/outpost-runner-rust` to the Runner
 crate and passes that path to the cache action, so both layouts hash the same
 paths and the PR lanes can restore master's entry. The guard tests under
 `.github/scripts/tests/` require this step, with identical text, before every
@@ -435,11 +435,11 @@ caches are scoped to the PR and run; they cannot populate master's caches.
 
 The dependency entry leaves the Runner's own crate out, and a fresh checkout
 invalidates cargo's mtime fingerprints for workspace crates anyway, so every
-pull request build compiled `paperclip-runner-core` in release mode from
+pull request build compiled `outpost-runner-core` in release mode from
 scratch (28-49s per job on 2026-10-11) although most master commits leave its
 inputs untouched. A second, content-addressed entry holds only that crate's
 release artifacts: its fingerprints, the lib's rlib and rmeta, the
-`paperclip-runnerd` binary and their dep-info, about 70 MB. The path list and
+`outpost-runnerd` binary and their dep-info, about 70 MB. The path list and
 the key inputs live in `scripts/runner-release-crate-cache.mjs`, which both
 workflows call, and `scripts/__tests__/runner-release-crate-cache.test.mjs`
 holds the readers and the writer to them.
@@ -461,10 +461,10 @@ cargo another revision's output.
 
 The writer is the Rust lane of the same master-push verification, after its
 checks and the debug warm-up. It looks the key up first and, on a miss, runs
-`cargo clean --release -p paperclip-runner-core` and then the package's
+`cargo clean --release -p outpost-runner-core` and then the package's
 `build:binary` (the exact command the readers run) before saving, so the entry
 carries no test-profile variants. In the trusted PR workflow, the Typecheck,
-Build and Canary Dry Run jobs and the two Verify Paperclip Runner lanes that
+Build and Canary Dry Run jobs and the two Verify Outpost Runner lanes that
 build the crate (`rust` and the final vitest shard) restore the entry
 read-only right after the dependency restore. On a hit, `mark-current` sets
 the mtime of every restored artifact to now, so cargo's freshness check sees

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { recognizeLinkPreview, type LinkPreviewState } from "@paperclipai/shared";
+import { recognizeLinkPreview, type LinkPreviewState } from "@outpost/shared";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { LinkPreviewProvider } from "@/context/LinkPreviewContext";
 import { startPersistedQueryCache } from "@/lib/persisted-query-cache";

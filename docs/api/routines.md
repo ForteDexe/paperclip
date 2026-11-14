@@ -257,7 +257,7 @@ required variables return `422`; non-JSON media types return `415` and invalid
 JSON objects return `400`. Rotating a secret immediately invalidates the old one.
 
 Cloud installations use their canonical public origin for generated URLs.
-Self-hosted installations should set `PAPERCLIP_PUBLIC_URL` to their HTTPS
+Self-hosted installations should set `OUTPOST_PUBLIC_URL` to their HTTPS
 origin. The reverse proxy must forward this POST endpoint and its authorization,
 signature, timestamp, and idempotency headers without requiring a browser login.
 For local HTTPS testing, proxy an isolated test instance through Tailscale Serve;
@@ -345,4 +345,4 @@ For compatibility, API-created triggers without `setupPending: true` are immedia
 
 Trigger cards support removal with Undo. `PATCH` with `{ "archived": true }` excludes a trigger from routine detail and scheduling, and rejects its webhook deliveries. Setting `archived` back to `false` restores the same URL and credentials. `DELETE` remains the permanent deletion API.
 
-The webhook wizard and saved trigger editor warn about localhost, private-network addresses, Tailscale hostnames, and HTTP URLs without blocking setup. HTTPS does not imply public access: Tailscale Serve is private, while Funnel can expose the same hostname publicly. These warnings inspect the URL only; they do not resolve DNS or test internet reachability. Use [the HTTPS setup guide](https://docs.paperclip.ing/reference/deploy/https/) to configure public access when the sender is outside your network.
+The webhook wizard and saved trigger editor warn about localhost, private-network addresses, Tailscale hostnames, and HTTP URLs without blocking setup. HTTPS does not imply public access: Tailscale Serve is private, while Funnel can expose the same hostname publicly. These warnings inspect the URL only; they do not resolve DNS or test internet reachability. Use [the HTTPS setup guide](https://docs.outpost.ing/reference/deploy/https/) to configure public access when the sender is outside your network.

@@ -13,7 +13,7 @@ export type BoundTaskFinalReply = Awaited<ReturnType<typeof readBoundTaskFinalRe
  * is projected. Respect an explicit presentation decision when one exists. */
 export function nativeFinalReplyEvents(events: Row[], run: Row) {
   return events.flatMap(event => {
-    const envelope = event.payload?.prpEvent, payload = envelope?.payload, item = payload?.item;
+    const envelope = event.payload?.orpEvent, payload = envelope?.payload, item = payload?.item;
     if (!envelope || !Number.isSafeInteger(event.seq) || event.seq < 1 || !isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)
       || event.runId !== run.id || event.companyId !== run.companyId || event.agentId !== run.agentId
       || envelope.runId !== run.id || envelope.sourceKind !== "runner" || event.eventType !== "item.completed" || envelope.eventType !== event.eventType

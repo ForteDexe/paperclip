@@ -10,7 +10,7 @@ Use Node 24 for App, Node 22 for Cloud, and Python 3.9 or newer. Install and bui
 both checkouts through their normal repository commands first. In the companion
 Cloud checkout, `npm run build:test` must emit its own current source. App needs its
 normal workspace prerequisites and server typecheck (`pnpm --filter
-@paperclipai/server typecheck`). The runtime helper does not install dependencies,
+@outpost/server typecheck`). The runtime helper does not install dependencies,
 compile a substitute program, copy another checkout's output, or start PostgreSQL.
 
 Create one fresh, caller-owned App/Cloud test database pair on the same loopback
@@ -24,12 +24,12 @@ nor drops databases.
 Run from the App checkout with these environment variables set:
 
 ```sh
-export PAPERCLIP_CLOUD_REPO_ROOT=/path/to/owned/cloud-checkout
-export PAPERCLIP_SLACK_NODE24=/path/to/node24/bin/node
-export PAPERCLIP_SLACK_NODE22=/path/to/node22/bin/node
-export PAPERCLIP_SLACK_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/sleep2_slack_form_local_app_test
+export OUTPOST_CLOUD_REPO_ROOT=/path/to/owned/cloud-checkout
+export OUTPOST_SLACK_NODE24=/path/to/node24/bin/node
+export OUTPOST_SLACK_NODE22=/path/to/node22/bin/node
+export OUTPOST_SLACK_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/sleep2_slack_form_local_app_test
 export SLACK_EVENT_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/sleep2_slack_form_local_cloud_test
-export PAPERCLIP_TEST_POSTGRES_ADMIN_URL=postgres://paperclip@127.0.0.1:55448/postgres
+export OUTPOST_TEST_POSTGRES_ADMIN_URL=postgres://paperclip@127.0.0.1:55448/postgres
 python3 server/src/__tests__/helpers/slack-cloud/run-enabled-quiet.py /path/to/fresh-output-directory
 ```
 

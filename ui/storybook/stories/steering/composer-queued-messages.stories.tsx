@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import type { IssueQueuedCommentEntry, IssueQueuedCommentQueue } from "@paperclipai/shared";
+import type { IssueQueuedCommentEntry, IssueQueuedCommentQueue } from "@outpost/shared";
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
 import { TaskChatQueuedMessages } from "@/components/task-chat/TaskChatQueuedMessages";
 import { QUEUED_MESSAGE_AUTO_STEER_DELAY_MS } from "@/components/task-chat/queued-message-auto-steer";
@@ -180,7 +180,7 @@ const meta = {
       "notes": "Production composer and queue. ScreenshotSubmission uses static attachment receipts and controls the simulated pending, accepted or rejected save. No backend or provider runs."
     },
   },
-  args: { protocol: "paperclip_runner_v1", steeringDisposition: "available", initialEdit: false, mobile: false, autoSteer: false, screenshotSubmission: false },
+  args: { protocol: "outpost_runner_v1", steeringDisposition: "available", initialEdit: false, mobile: false, autoSteer: false, screenshotSubmission: false },
 } satisfies Meta<typeof QueuedComposer>;
 
 export default meta;

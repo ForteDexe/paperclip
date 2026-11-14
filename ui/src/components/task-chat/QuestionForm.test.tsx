@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PaperclipQuestionResponse, PaperclipQuestionSet } from "@paperclipai/adapter-utils";
+import type { PaperclipQuestionResponse, PaperclipQuestionSet } from "@outpost/adapter-utils";
 import { QuestionForm } from "./QuestionForm";
 
 vi.mock("./TaskChatRichInput", () => ({
@@ -11,7 +11,7 @@ vi.mock("./TaskChatRichInput", () => ({
 }));
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <div>{children}</div> }));
 
-const questionSet: PaperclipQuestionSet = { schema: "paperclip.question_set.v1", questions: [
+const questionSet: PaperclipQuestionSet = { schema: "outpost.question_set.v1", questions: [
   { id: "draft", prompt: "Edit the draft", required: true, answerMode: "text", initialText: "  Draft\n漢字\n" },
 ] };
 
@@ -37,7 +37,7 @@ describe("QuestionForm initial text", () => {
     expect(input().value).toBe("  Draft\n漢字\n");
     expect(submit).not.toHaveBeenCalled();
     await act(async () => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Submit answers")!.click());
-    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "paperclip.question_response.v1", answers: { draft: { text: "  Draft\n漢字\n" } } });
+    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "outpost.question_response.v1", answers: { draft: { text: "  Draft\n漢字\n" } } });
   });
   it("preserves edits through a refreshed request and reload instead of reapplying a default", async () => {
     await render(); await edit("Operator edit\n");
@@ -47,7 +47,7 @@ describe("QuestionForm initial text", () => {
     expect(submit).not.toHaveBeenCalled();
   });
   it("shows required validation without advancing or submitting after enabled Next", async () => {
-    await render({ schema: "paperclip.question_set.v1", questions: [
+    await render({ schema: "outpost.question_set.v1", questions: [
       { id: "audience", prompt: "Who is the audience?", required: true, answerMode: "text" },
       { id: "tone", prompt: "What tone should we use?", required: true, answerMode: "text" },
     ] });
@@ -92,11 +92,11 @@ describe("QuestionForm initial text", () => {
     expect(storedText("request-b")).toBe("Operator edit B");
     expect(submit).not.toHaveBeenCalled();
     await act(async () => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Submit answers")!.click());
-    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "paperclip.question_response.v1", answers: { draft: { text: "Operator edit B" } } });
+    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "outpost.question_response.v1", answers: { draft: { text: "Operator edit B" } } });
   });
 
   it("prefers an existing response and keeps text constraints on defaults", async () => {
-    await render(questionSet, { schema: "paperclip.question_response.v1", answers: { draft: { text: "Existing answer" } } });
+    await render(questionSet, { schema: "outpost.question_response.v1", answers: { draft: { text: "Existing answer" } } });
     expect(input().value).toBe("Existing answer");
     await act(async () => root.unmount()); localStorage.clear(); root = createRoot(container);
     await render({ ...questionSet, questions: [{ ...questionSet.questions[0]!, initialText: "bad", textValidation: { minLength: 5 } }] });
@@ -108,7 +108,7 @@ describe("QuestionForm initial text", () => {
   });
 
   it("only validates a short answer after Next or keyboard submit, and clears it when corrected", async () => {
-    await render({ schema: "paperclip.question_set.v1", questions: [
+    await render({ schema: "outpost.question_set.v1", questions: [
       { id: "audience", prompt: "Who is it for?", required: true, answerMode: "text", textValidation: { minLength: 2 } },
       { id: "outcome", prompt: "What outcome?", required: true, answerMode: "text", textValidation: { minLength: 2 } },
     ] });
@@ -127,7 +127,7 @@ describe("QuestionForm initial text", () => {
     expect(submit).not.toHaveBeenCalled();
     await edit("10 concepts");
     await act(async () => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Submit answers")!.click());
-    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "paperclip.question_response.v1", answers: {
+    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "outpost.question_response.v1", answers: {
       audience: { text: "millennials" }, outcome: { text: "10 concepts" },
     } });
   });

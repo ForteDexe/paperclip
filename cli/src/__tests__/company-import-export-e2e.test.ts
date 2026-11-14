@@ -13,7 +13,7 @@ import {
 } from "./helpers/embedded-postgres.js";
 import { createStoredZipArchive } from "./helpers/zip.js";
 import { removeTestHome } from "../../../tests/helpers/remove-test-home.js";
-import { PAPERCLIP_RUNTIME_INFO_FILENAME, readRuntimeInfo } from "../runtime-info.js";
+import { OUTPOST_RUNTIME_INFO_FILENAME, readRuntimeInfo } from "../runtime-info.js";
 
 const execFileAsync = promisify(execFile);
 type ServerProcess = ReturnType<typeof spawn>;
@@ -109,26 +109,26 @@ function writeTestConfig(configPath: string, tempRoot: string, port: number, con
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
-interface TestPaperclipEnv {
+interface TestOutpostEnv {
   configPath: string;
   paperclipHome: string;
   instanceId: string;
   shellHome?: string;
 }
 
-function createBasePaperclipEnv(options: TestPaperclipEnv) {
+function createBaseOutpostEnv(options: TestOutpostEnv) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("PAPERCLIP_")) {
+    if (key.startsWith("OUTPOST_")) {
       delete env[key];
     }
   }
 
-  env.PAPERCLIP_CONFIG = options.configPath;
-  env.PAPERCLIP_HOME = options.paperclipHome;
-  env.PAPERCLIP_INSTANCE_ID = options.instanceId;
-  env.PAPERCLIP_CONTEXT = path.join(options.paperclipHome, "context.json");
-  env.PAPERCLIP_AUTH_STORE = path.join(options.paperclipHome, "auth.json");
+  env.OUTPOST_CONFIG = options.configPath;
+  env.OUTPOST_HOME = options.paperclipHome;
+  env.OUTPOST_INSTANCE_ID = options.instanceId;
+  env.OUTPOST_CONTEXT = path.join(options.paperclipHome, "context.json");
+  env.OUTPOST_AUTH_STORE = path.join(options.paperclipHome, "auth.json");
   if (options.shellHome) {
     env.HOME = options.shellHome;
   }
@@ -140,9 +140,9 @@ function createServerEnv(
   configPath: string,
   port: number,
   connectionString: string,
-  options: Omit<TestPaperclipEnv, "configPath">,
+  options: Omit<TestOutpostEnv, "configPath">,
 ) {
-  const env = createBasePaperclipEnv({
+  const env = createBaseOutpostEnv({
     configPath,
     ...options,
   });
@@ -157,25 +157,25 @@ function createServerEnv(
   env.HOST = "127.0.0.1";
   env.PORT = String(port);
   env.SERVE_UI = "false";
-  env.PAPERCLIP_DB_BACKUP_ENABLED = "false";
-  env.PAPERCLIP_DECISION_SIGNING_SECRET = "company-import-export-decision-signing-secret";
+  env.OUTPOST_DB_BACKUP_ENABLED = "false";
+  env.OUTPOST_DECISION_SIGNING_SECRET = "company-import-export-decision-signing-secret";
   env.HEARTBEAT_SCHEDULER_ENABLED = "false";
-  env.PAPERCLIP_MIGRATION_AUTO_APPLY = "true";
-  env.PAPERCLIP_UI_DEV_MIDDLEWARE = "false";
+  env.OUTPOST_MIGRATION_AUTO_APPLY = "true";
+  env.OUTPOST_UI_DEV_MIDDLEWARE = "false";
 
   return env;
 }
 
-function createCliEnv(options: TestPaperclipEnv) {
-  const env = createBasePaperclipEnv(options);
+function createCliEnv(options: TestOutpostEnv) {
+  const env = createBaseOutpostEnv(options);
   delete env.DATABASE_URL;
   delete env.PORT;
   delete env.HOST;
   delete env.SERVE_UI;
-  delete env.PAPERCLIP_DB_BACKUP_ENABLED;
+  delete env.OUTPOST_DB_BACKUP_ENABLED;
   delete env.HEARTBEAT_SCHEDULER_ENABLED;
-  delete env.PAPERCLIP_MIGRATION_AUTO_APPLY;
-  delete env.PAPERCLIP_UI_DEV_MIDDLEWARE;
+  delete env.OUTPOST_MIGRATION_AUTO_APPLY;
+  delete env.OUTPOST_UI_DEV_MIDDLEWARE;
   return env;
 }
 
@@ -221,7 +221,7 @@ function isPortableAgent(agent: { metadata?: Record<string, unknown> | null }) {
 
 async function runCliJson<T>(
   args: string[],
-  opts: TestPaperclipEnv & { apiBase?: string; includeConfigArg?: boolean },
+  opts: TestOutpostEnv & { apiBase?: string; includeConfigArg?: boolean },
 ) {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const cliArgs = ["--silent", "paperclipai", ...args];
@@ -347,7 +347,7 @@ describeEmbeddedPostgres("paperclipai company import/export e2e", () => {
 
     apiBase = await waitForServer(
       paperclipInstanceId,
-      path.join(paperclipHome, "instances", paperclipInstanceId, PAPERCLIP_RUNTIME_INFO_FILENAME),
+      path.join(paperclipHome, "instances", paperclipInstanceId, OUTPOST_RUNTIME_INFO_FILENAME),
       child,
       output,
     );
@@ -480,7 +480,7 @@ describeEmbeddedPostgres("paperclipai company import/export e2e", () => {
     expect(exportResult.ok).toBe(true);
     expect(exportResult.filesWritten).toBeGreaterThan(0);
     expect(readFileSync(path.join(exportDir, "COMPANY.md"), "utf8")).toContain(sourceCompany.name);
-    expect(readFileSync(path.join(exportDir, ".paperclip.yaml"), "utf8")).toContain('schema: "paperclip/v1"');
+    expect(readFileSync(path.join(exportDir, ".outpost.yaml"), "utf8")).toContain('schema: "paperclip/v1"');
 
     const importedNew = await runCliJson<{
       company: { id: string; name: string; action: string };

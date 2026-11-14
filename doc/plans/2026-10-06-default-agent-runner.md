@@ -1039,7 +1039,7 @@ component boundaries; no new managed live proof or paid turn is claimed.
 
 Fresh review at `e79254b` verifies the preceding fixes and reports one valid
 development override edge. The common remote resolver now preserves
-`PAPERCLIP_RUNNER_BINARY` only when the measured target OS/CPU matches the
+`OUTPOST_RUNNER_BINARY` only when the measured target OS/CPU matches the
 controller. Explicit remote overrides retain priority; every selected artifact
 still requires a matching native header. Cross-target selection ignores the
 controller override. Seven new baseline failures reproduce the defect; 133
@@ -1424,7 +1424,7 @@ and an independently checked useful file plus revision.
 The real [Apple Silicon task and follow-up](http://127.0.0.1:3125/COD/issues/COD-2)
 passed at runtime source `f4abdc2cfcd779d5ad9b9c0ea8b63114c1a18a9b`.
 The ordinary picker submitted `codex_local` without a runner override and saved
-`paperclip_runner` / `codex`. Saved subscription reuse and native setup passed.
+`outpost_runner` / `codex`. Saved subscription reuse and native setup passed.
 Both task runs succeeded with driver `codex_app_server`, observed model
 `gpt-5.6-sol`, and the same provider session. Independent attachment downloads
 verified exact 61-byte and 102-byte Markdown files, including preservation of
@@ -1532,7 +1532,7 @@ and [37965658123](https://github.com/paperclipai/paperclip-cloud/actions/runs/37
 
 ## Outcome and ownership
 
-Users choose a harness. New agents use Paperclip Runner where the harness and
+Users choose a harness. New agents use Outpost Runner where the harness and
 execution target are qualified. Existing agents keep their recorded runner.
 The task owns implementation, verification, review fixes, and reviewable PRs.
 Merging and deployment require separate authorization.
@@ -1577,8 +1577,8 @@ separate database. Hosted Linux live onboarding passed at `38199ea8`; it remains
 historical proof after the lifecycle integration. UI has separate revision-bound proof.
 Attended local subscription and managed staging journeys remain unverified.
 
-New Codex agents select Paperclip Runner on qualified Linux x64 targets. Users
-choose Codex, with Paperclip Runner or Legacy runner inside Advanced. Other
+New Codex agents select Outpost Runner on qualified Linux x64 targets. Users
+choose Codex, with Outpost Runner or Legacy runner inside Advanced. Other
 harness defaults stay unchanged. Existing legacy/native agents and ordinary
 edits retain recorded execution; explicit runner changes use revisions/session
 invalidation. No database migration or permission-policy change.
@@ -1721,7 +1721,7 @@ npm. The merge and generated-lock CI stamps are recorded separately from source.
 
 The existing Linux Product E2E campaign [37950165589](https://github.com/paperclipai/paperclip/actions/runs/37950165589)
 passed its only selected case on attempt one, without a retry. The ordinary
-onboarding picker saved `paperclip_runner` / `codex`. All 13 assertions passed,
+onboarding picker saved `outpost_runner` / `codex`. All 13 assertions passed,
 including an independently checked nonce-bearing document and follow-up with
 recorded native execution and the same workspace. Four runs succeeded with
 observed model `gpt-5.6-sol`; cleanup passed. Target source is exactly `38199ea8`.
@@ -1919,7 +1919,7 @@ The human merged prerequisite #16028 at actual Core master `d67e3507b23041212fa2
 
 The human approved a separate $25 ceiling: $15 for one owned QA stack/sandbox including pool backfill, $5 for setup and at most four short task/follow-up turns, and $5 for cleanup. Zero automatic retries. The original $248.179254104 held/consumed and all original unknown and cleanup holds remain unchanged. Actual new resource cost is unknown and held within the new reservation.
 
-Ordinary authenticated staging signup created `stack-pool-7998e841ace7` at https://runner-canary-d67-qa-oct-13.staging.paperclip.app. It reached fresh first-agent onboarding with zero agents or provider turns. Its user-managed pin is verified. Initial distribution `cloud-38355190192-1` is old source and has observed schema drift; it is baseline only. Exact d67 signed standard image, source gate and signed migrator have passed. Matching private composition is building through the existing canonical workflow, without a duplicate dispatch.
+Ordinary authenticated staging signup created `stack-pool-7998e841ace7` at https://runner-canary-d67-qa-oct-13.staging.outpost.app. It reached fresh first-agent onboarding with zero agents or provider turns. Its user-managed pin is verified. Initial distribution `cloud-38355190192-1` is old source and has observed schema drift; it is baseline only. Exact d67 signed standard image, source gate and signed migrator have passed. Matching private composition is building through the existing canonical workflow, without a duplicate dispatch.
 
 The public d67 release38389963483 ended successfully but skipped native production, publication and canary onboarding. Registry canary.5 provenance binds it to old4a641d, so local acceptance remains blocked. The focused repair [PR #16149](https://github.com/paperclipai/paperclip/pull/16149), exact `ab99d3f7604cb2ac8d8a45c81276797af834e325`, adds explicit cancellation/source-result guards to the existing producer and canary smoke. Its existing contract cases reproduce two missing guards before treatment. All70 release controls and20 source-verification neighbors pass after treatment; independent source review is clear. All required hosted gates passed with fresh5/5 and actual code-owner approval. PR #16149 merged at `60bc0d5fee9a6e48db08fc016521fee3d9f57d67`; its new master-push release38395574681 is running. Concurrent master changes include Storybook indexing and verification-skill docs; npm and staging source identities remain separate. Source predicate tests support the diagnosis but do not establish actual GitHub scheduling or publication.
 
@@ -1946,7 +1946,7 @@ Ordinary local onboarding completed with the explicitly authorized OpenAI API ke
 
 The supported published API created a separate explicit-native local QA agent with the saved responsible-user OpenAI API-key binding. Real UI task [NPM-2](http://127.0.0.1:3136/NPM/issues/NPM-2) completed native runs88eeb636 and4990be3e in43/46seconds. Independent26/52-byte downloads, exact random challenges, negative newline controls, durable attachments and run-attributed work products pass. Same saved account/grant and execution workspace are recorded. A self-added200-cent monthly cap correctly paused after unpriced metered gpt-5.6-luna usage; spent0 is not proof of free use. Removing only that supplemental cap to ordinary budget0 and explicit resume caused a recorded adapter config-revision freshness reset. The second provider session is fresh, so strict same-provider-session continuity fails and is not waived. No pricing or production budget policy was changed.
 
-Fresh staging [RUN-2](https://runner-canary-d67-qa-oct-13.staging.paperclip.app/RUN/issues/RUN-2) completed native runs7d242e7b and a8e62d9c in93/73seconds at d67/cloud:38392212140:1. Independent26/52-byte downloads pass; recorded UI/PRP events show session.started then session.resumed with the same provider session and workspace. Source-bound UI proof is distinct from a direct stored-row/full-grader export, which was unavailable. Its setup green was a Legacy hello and remains excluded as native readiness proof.
+Fresh staging [RUN-2](https://runner-canary-d67-qa-oct-13.staging.outpost.app/RUN/issues/RUN-2) completed native runs7d242e7b and a8e62d9c in93/73seconds at d67/cloud:38392212140:1. Independent26/52-byte downloads pass; recorded UI/ORP events show session.started then session.resumed with the same provider session and workspace. Source-bound UI proof is distinct from a direct stored-row/full-grader export, which was unavailable. Its setup green was a Legacy hello and remains excluded as native readiness proof.
 
 Existing local Legacy full execution settings survived native enablement, an unrelated title edit and reload byte-for-byte; that control made zero provider calls. Both native QA agents are paused after four total authorized manual task/follow-up messages, zero test reruns, with normal product recovery unchanged. Local live runs are0. The installed preview remains [3136](http://127.0.0.1:3136/NPM/issues/NPM-2). Historical3125 is stopped, with its original data intact; no current safe staged source-build preflight was available and it was not restarted. Staging remains pinned/user-managed and available for inspection, with no production/default promotion.
 
@@ -2029,7 +2029,7 @@ The human selected the actual new Test environment for pre-merge acceptance. Its
 
 Remote preview38498802456 completes at exact9546, through trusted workflow definitionb8ffeb973a2a1d430efabffd755f15b6c7cf112a. The ready result matches its single request; immutable Core image digest4cba5c3546c3af3b948f0ee9c3532ada7c754491ce2d175a00164adc46698976 and exact9546 DB/shared registry archives match producer bytes/integrities. This Core preview has no standard signed-image attestation; npm SLSA structure is source/invocation-bound but cryptographic verification is not claimed. The signed execution image is a distinct artifact. No image layers or large transfer archive are downloaded locally. Terminal admission receipt: /private/tmp/current-9546-preview-preparation/TERMINAL-PREVIEW-PAIR-QUALIFICATION.json, SHA25692faae84c89e9e37e23129b6a5cd18580ed1c09517db91286afdf1445e3b5c6f.
 
-Before merge, actual master advances to875943ac83e730fd4cfbe1e1860b3f4d7bf0ac78 and GitHub reports five content conflicts. Ordinary reconciliation preserves the Codex shared exports, flag-free Codex runtime, unified harness picker/display and incoming Grok Bot exports, three-flag admission, dedicated connection and Execution/Usage summary. The shared display helper additionally preserves Grok Bot branding; it must not label that existing external provider as Paperclip Runner. Seven narrow controls extend the existing display, mounted configuration and runtime-selection suites. An initial new test expected a saved connection section from an unsaved fixture; it is corrected to the existing save-first guidance without changing production behavior. Required maps now align35areas/176 capability IDs and direct token gates pass. Incoming shared Rust/backend/protocol bytes and migration0344 are materially different:9546 artifacts/live proof remain literal, and final integrated native/package/DB qualification must be refreshed remotely. No evidence is relabeled as combined-source proof.
+Before merge, actual master advances to875943ac83e730fd4cfbe1e1860b3f4d7bf0ac78 and GitHub reports five content conflicts. Ordinary reconciliation preserves the Codex shared exports, flag-free Codex runtime, unified harness picker/display and incoming Grok Bot exports, three-flag admission, dedicated connection and Execution/Usage summary. The shared display helper additionally preserves Grok Bot branding; it must not label that existing external provider as Outpost Runner. Seven narrow controls extend the existing display, mounted configuration and runtime-selection suites. An initial new test expected a saved connection section from an unsaved fixture; it is corrected to the existing save-first guidance without changing production behavior. Required maps now align35areas/176 capability IDs and direct token gates pass. Incoming shared Rust/backend/protocol bytes and migration0344 are materially different:9546 artifacts/live proof remain literal, and final integrated native/package/DB qualification must be refreshed remotely. No evidence is relabeled as combined-source proof.
 
 The resolved composition passes226 cases across the five existing runtime/display/mounted/selection/heartbeat suites. Direct server and UI no-emit checks pass after JavaScript-only Runner SDK declaration preparation and isolated installation of the exact declared Speko0.0.13 dependency with lifecycle scripts disabled. Initial missing-dependency/stale-declaration diagnostics remain setup limitations; no production workaround or dependency/lockfile change is made. All three existing token checks and staged diff checks pass. Fresh hosted full checks/review and remote native/package qualification remain required.
 

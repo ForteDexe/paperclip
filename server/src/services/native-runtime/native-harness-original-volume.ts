@@ -9,7 +9,7 @@ import { nativeSha256 } from "./canonical.js";
 
 type FileIdentity = { dev: number; ino: number };
 export type OriginalHarnessVolumeAnchor = {
-  schema: "paperclip.native-harness-original-volume-anchor.v1";
+  schema: "outpost.native-harness-original-volume-anchor.v1";
   nonce: string;
   projectId: string; serviceId: string; environmentId: string; volumeId: string; volumeInstanceId: string;
   mountPath: string; mountIdentity: FileIdentity; instanceIdentity: FileIdentity;
@@ -69,7 +69,7 @@ async function verify(witness: ReviewedOriginalHarnessVolumeWitness) {
     const after = await handle.stat();
     if (after.ctimeMs !== before.ctimeMs || after.mtimeMs !== before.mtimeMs || after.size !== before.size) reject();
   } finally { await handle.close(); }
-  if (anchor.schema !== "paperclip.native-harness-original-volume-anchor.v1" || !digest.test(anchor.nonce)
+  if (anchor.schema !== "outpost.native-harness-original-volume-anchor.v1" || !digest.test(anchor.nonce)
     || !/^[a-f0-9]{40}$/.test(anchor.createdFrom?.commit) || !uuid.test(anchor.createdFrom?.deploymentId)
     || !digest.test(anchor.createdFrom?.providerWitnessSha256) || !Number.isFinite(Date.parse(anchor.createdAt))) reject();
   for (const key of ["projectId", "serviceId", "environmentId", "volumeId", "volumeInstanceId", "mountPath"] as const) {

@@ -15,7 +15,7 @@ import {
   issueRecoveryActions,
   issues,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { getExecutionBlocker } from "../services/execution-blocker.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -42,7 +42,7 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
     await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "RRT",
       requireBoardApprovalForNewAgents: false });
     await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
-      adapterType: "paperclip_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+      adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Sandbox", driver: "sandbox", status: "active",
       config: { provider: "fake" } });
     await db.insert(authUsers).values({ id: "local-board", name: "Local operator", email: "local-board@example.invalid",
@@ -56,7 +56,7 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
     controllerLeaseExpiresAt?: Date; recoveredSnapshotId?: string } = {}) {
     const issueId = randomUUID(), runId = randomUUID(), leaseId = randomUUID(), providerLeaseId = `sandbox-${leaseId}`;
     const finishedAt = new Date(Date.now() - 30_000);
-    const restoreRecovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] };
+    const restoreRecovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] };
     const snapshotId = randomUUID();
     await db.insert(issues).values({ id: issueId, companyId, title: "Follow-up", status: "blocked",
       assigneeAgentId: agentId, statusVersion: 5 });
@@ -65,8 +65,8 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
       executionStage: "preparing", startedAt: new Date(finishedAt.getTime() - 3_000), finishedAt, nextEventSeq: 1,
       contextSnapshot: { issueId, wakeReason: "issue_commented" },
       controllerLeaseExpiresAt: options.controllerLeaseExpiresAt ?? null,
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" },
-        remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", state: "saved", epoch: 2, leaseId, providerLeaseId,
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" },
+        remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", state: "saved", epoch: 2, leaseId, providerLeaseId,
           snapshotId, workspaceId: randomUUID(), remoteCwd: "/home/daytona/workspace" } },
       resultJson: { stopReason: "interrupted", workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: restoreRecovery,
         cancellation: { reason: "Server shutdown interrupted execution", source: options.cancellationSource ?? "shutdown",
@@ -74,7 +74,7 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
     await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, issueId, heartbeatRunId: runId,
       status: "expired", cleanupStatus: "success", leasePolicy: "reuse_by_environment", provider: "fake", providerLeaseId,
       releasedAt: new Date(finishedAt.getTime() + 2_000),
-      metadata: options.terminationReceipt === false ? {} : { remoteExecutionTermination: { schema: "paperclip.remote-termination.v1",
+      metadata: options.terminationReceipt === false ? {} : { remoteExecutionTermination: { schema: "outpost.remote-termination.v1",
         companyId, runId, leaseId, provider: "fake", providerLeaseId, state: "destroyed", confirmedAt: finishedAt.toISOString() } } });
     const holdId = randomUUID(), preservationId = randomUUID();
     await db.insert(workspaceOperations).values([
@@ -92,9 +92,9 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
         workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: restoreRecovery,
         automaticRecovery: { policy: "preserve_without_replay_v1", runId, replay: "blocked", actionOutcome: "unknown" },
         nativeBootstrapFailureBlock: { runId, previousStatus: "in_progress", statusVersion: 5 },
-        systemRecovery: { schema: "paperclip.system-recovery.v1", policyVersion: 1, sourceRunId: runId, state: "complete",
+        systemRecovery: { schema: "outpost.system-recovery.v1", policyVersion: 1, sourceRunId: runId, state: "complete",
           phase: "reconcile_effects", attempts: 1, retriesUsed: 0, preservationOperationIds: [preservationId] },
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId, status: "recovered", stage: "saving_receipts",
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId, status: "recovered", stage: "saving_receipts",
           attempt: 1, attemptLimit: 6, retryable: true, requestIds: [] } } });
     return { issueId, runId, holdId };
   }

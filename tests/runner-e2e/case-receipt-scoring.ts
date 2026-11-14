@@ -39,7 +39,7 @@ const expectedReview = (value: unknown) => keys(value, ["totalCorrect", "missing
 export function hasTaskDocumentRead(events: readonly Row[], taskId: string, key: string, requireBeforeDocumentWrite = false): boolean {
   const name = (value: unknown) => typeof value === "string" ? value.split(".").at(-1) : undefined;
   const valid = events.flatMap(event => {
-    const envelope = object(event.payload).prpEvent;
+    const envelope = object(event.payload).orpEvent;
     return envelope?.sourceKind === "runner" && isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)
       && integer(event.seq) ? [{ event, payload: object(envelope.payload) }] : [];
   });
@@ -99,7 +99,7 @@ export function hasCaseDocumentRead(events: readonly Row[], caseId: string, key:
     && Object.keys(value).every(field => receiptFields.has(field));
   const hasRedaction = (value: Row) => "apiPayloadRedacted" in value || "apiPayloadSha256" in value;
   const valid = events.flatMap(event => {
-    const envelope = object(event.payload).prpEvent;
+    const envelope = object(event.payload).orpEvent;
     return envelope?.sourceKind === "runner" && isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)
       && integer(event.seq) ? [{ event, payload: object(envelope.payload) }] : [];
   });

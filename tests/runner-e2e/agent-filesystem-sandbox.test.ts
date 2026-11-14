@@ -30,7 +30,7 @@ import { RUNNER_SELECTED_ID_ENV, parseRunnerSelectors, selectorArgumentsWithEnvi
 import { runnerMatrix } from "./catalog.js";
 
 const repositoryRoot = "/work/paperclip";
-const temporaryRoot = "/var/tmp/paperclip-runner-e2e-abc";
+const temporaryRoot = "/var/tmp/outpost-runner-e2e-abc";
 const cell = (id: string) => {
   const execution = runnerMatrix.find((candidate) => candidate.id === id);
   if (!execution) throw new Error(`missing ${id}`);
@@ -79,7 +79,7 @@ describe("agent filesystem sandbox selection", () => {
   });
 
   it("fails closed in CI when harness material sits where it cannot be hidden", () => {
-    const underShared = { ...base, temporaryRoot: "/tmp/paperclip-runner-e2e-abc", privateDir: "/tmp/paperclip-runner-e2e-abc/artifacts-private" };
+    const underShared = { ...base, temporaryRoot: "/tmp/outpost-runner-e2e-abc", privateDir: "/tmp/outpost-runner-e2e-abc/artifacts-private" };
     expect(() => agentFilesystemSandboxConfig(underShared)).toThrow(/agent_filesystem_sandbox_incomplete: .*artifacts-private/);
     expect(() => agentFilesystemSandboxConfig({ ...base, repositoryRoot: "/tmp/checkout" })).toThrow(/\/tmp\/checkout\/tests/);
   });
@@ -94,8 +94,8 @@ describe("agent filesystem sandbox selection", () => {
     const config = agentFilesystemSandboxConfig({
       ...base,
       env: { RUNNER_TEMP: "/tmp" },
-      temporaryRoot: "/tmp/paperclip-runner-e2e-abc",
-      privateDir: "/tmp/paperclip-runner-e2e-abc/artifacts-private",
+      temporaryRoot: "/tmp/outpost-runner-e2e-abc",
+      privateDir: "/tmp/outpost-runner-e2e-abc/artifacts-private",
       evidenceRoot: "/work",
     });
     expect(config).toEqual({ hidden: ["/work/paperclip/tests", "/work/paperclip/.git", "/work/paperclip/.manual-private-trusted"], required: false });
@@ -121,7 +121,7 @@ describe("agent filesystem sandbox selection", () => {
 
 describe("run-scoped runnerd sandbox", () => {
   const instanceRoot = `${temporaryRoot}/paperclip-home/instances/runner-e2e-1`;
-  const runner = `${instanceRoot}/runtime/paperclip-runner`;
+  const runner = `${instanceRoot}/runtime/outpost-runner`;
   const config = { hidden: ["/work/paperclip/tests"], required: true, instanceRoot };
 
   it("keeps the instance root in the attempt's sandbox configuration", () => {
@@ -138,7 +138,7 @@ describe("run-scoped runnerd sandbox", () => {
       "--connect-url", "ws://127.0.0.1:1/durableRecovery/connect",
       "--state-dir", `${runner}/durable-sessions/abc123/runner`,
       "--run-id", "run-1", "--session-id", "ses:own/1",
-    ], { PAPERCLIP_OPENCODE_RUNTIME_DIR: `${runner}/opencode`, PAPERCLIP_PROVIDER_TRACE_PATH: trace });
+    ], { OUTPOST_OPENCODE_RUNTIME_DIR: `${runner}/opencode`, OUTPOST_PROVIDER_TRACE_PATH: trace });
     expect(launch.hidden).toEqual([
       "/work/paperclip/tests",
       `${runner}/durable-sessions`,
@@ -159,7 +159,7 @@ describe("run-scoped runnerd sandbox", () => {
 
   it("keeps a Codex runner's own state directory and exposes nothing it was not given", () => {
     const launch = runnerdLaunchSandbox(config, ["--state-dir", `${runner}/runner/run-9`, "--run-id", "run-9"], {
-      PAPERCLIP_PROVIDER_TRACE_PATH: `${instanceRoot}/elsewhere/trace.ndjson`,
+      OUTPOST_PROVIDER_TRACE_PATH: `${instanceRoot}/elsewhere/trace.ndjson`,
     });
     expect(launch.exposed).toEqual([`${runner}/runner/run-9`]);
     // A state directory naming the shared root itself, or escaping it, exposes nothing.
@@ -177,7 +177,7 @@ describe("run-scoped runnerd sandbox", () => {
     expect(opencodeSessionDirectoryName("ses_1:x/y")).toBe("ses_1_x_y");
     expect(opencodeSessionDirectoryName("a".repeat(200))).toBe("a".repeat(120));
     expect(opencodeSessionDirectoryName("..")).toBeNull();
-    const driver = readFileSync(path.join(import.meta.dirname, "../../packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.ts"), "utf8");
+    const driver = readFileSync(path.join(import.meta.dirname, "../../packages/outpost-runner/src/drivers/opencode/opencode-server-driver.ts"), "utf8");
     const body = /export function opencodeRuntimeSessionDirectoryName\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(driver)?.[1] ?? "";
     expect(body.replace(/\s+/g, "")).toContain('.replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,120)');
   });
@@ -192,16 +192,16 @@ describe("run-scoped runnerd sandbox", () => {
       const fake = ((...args: unknown[]) => { calls.push(args); return { pid: 3 }; }) as unknown as typeof import("node:child_process").spawn;
       const spawn = wrapRunnerdSpawn(fake, { hidden: ["/work/paperclip/tests"], required: true, instanceRoot: instance }, "/usr/bin/python3");
       const state = path.join(paths.durableSessions, "scope", "runner");
-      spawn("/r/paperclip-runnerd", ["--state-dir", state, "--session-id", "own"], { env: { PAPERCLIP_PROVIDER_TRACE_PATH: trace } });
+      spawn("/r/outpost-runnerd", ["--state-dir", state, "--session-id", "own"], { env: { OUTPOST_PROVIDER_TRACE_PATH: trace } });
       expect(statSync(path.join(paths.durableSessions, "scope")).isDirectory()).toBe(true);
       expect(statSync(path.join(paths.opencode, "own")).mode & 0o777).toBe(0o700);
       expect(statSync(trace).isFile()).toBe(true);
       expect(existsSync(paths.acpx)).toBe(true);
       const args = calls[0]![1] as string[];
       expect(args).toEqual(expect.arrayContaining(["--hide", paths.durableSessions, "--expose", path.join(paths.durableSessions, "scope"), "--expose", trace]));
-      expect(args.slice(args.indexOf("--"))).toEqual(["--", "/r/paperclip-runnerd", "--state-dir", state, "--session-id", "own"]);
+      expect(args.slice(args.indexOf("--"))).toEqual(["--", "/r/outpost-runnerd", "--state-dir", state, "--session-id", "own"]);
       // Creating an exposed trace never truncates one the run already wrote.
-      const launch = runnerdLaunchSandbox({ hidden: [], required: true, instanceRoot: instance }, [], { PAPERCLIP_PROVIDER_TRACE_PATH: trace });
+      const launch = runnerdLaunchSandbox({ hidden: [], required: true, instanceRoot: instance }, [], { OUTPOST_PROVIDER_TRACE_PATH: trace });
       await writeFile(trace, "frame\n");
       prepareRunnerdLaunchSandbox(launch);
       expect(await readFile(trace, "utf8")).toBe("frame\n");
@@ -255,9 +255,9 @@ describe("selected cell outside the command line", () => {
 
 describe("runnerd launch rewriting", () => {
   it("wraps only the absolute runnerd executable and execs it with the original argv", () => {
-    const runnerd = "/work/paperclip/packages/paperclip-runner/runner/target/debug/paperclip-runnerd";
+    const runnerd = "/work/paperclip/packages/outpost-runner/runner/target/debug/outpost-runnerd";
     expect(isRunnerdLaunch(runnerd)).toBe(true);
-    expect(isRunnerdLaunch("paperclip-runnerd")).toBe(true);
+    expect(isRunnerdLaunch("outpost-runnerd")).toBe(true);
     expect(isRunnerdLaunch("/usr/bin/git")).toBe(false);
     const invocation = sandboxedInvocation({ hidden: ["/work/paperclip/tests"], required: true }, "/usr/bin/python3", runnerd, ["--run-id", "r"], {});
     expect(invocation).toEqual({
@@ -271,7 +271,7 @@ describe("runnerd launch rewriting", () => {
     const calls: unknown[][] = [];
     const fake = ((...args: unknown[]) => { calls.push(args); return { pid: 7 }; }) as unknown as typeof import("node:child_process").spawn;
     const spawn = wrapRunnerdSpawn(fake, { hidden: ["/work/paperclip/tests"], required: true }, "/usr/bin/python3");
-    const runnerd = "/work/paperclip/packages/paperclip-runner/runner/target/debug/paperclip-runnerd";
+    const runnerd = "/work/paperclip/packages/outpost-runner/runner/target/debug/outpost-runnerd";
     spawn(runnerd, ["--run-id", "r"], { cwd: "/work", env: { LC_CTYPE: "C.UTF-8" }, detached: true });
     spawn("/usr/bin/git", ["status"], { cwd: "/work" });
     expect(calls[0]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--hide", "/work/paperclip/tests", "--", runnerd, "--run-id", "r"]),
@@ -284,11 +284,11 @@ describe("runnerd launch rewriting", () => {
     const fake = (...args: unknown[]) => { calls.push(args); return { pid: 9 }; };
     const config = { hidden: ["/work/paperclip/tests"], required: true };
     const callback = () => undefined;
-    wrapRunnerdLaunch(fake, config, "/usr/bin/python3", "execFile")("paperclip-runnerd", ["--x"], { cwd: "/w" }, callback);
-    wrapRunnerdLaunch(fake, config, "/usr/bin/python3", "spawnSync")("/r/paperclip-runnerd", { cwd: "/w" });
-    expect(calls[0]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--", "paperclip-runnerd", "--x"]), { cwd: "/w" }, callback]);
-    expect(calls[1]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--", "/r/paperclip-runnerd"]), { cwd: "/w" }]);
-    expect(() => wrapRunnerdLaunch(fake, config, "/usr/bin/python3")("/r/paperclip-runnerd", [], { shell: true })).toThrow(/refusing/);
+    wrapRunnerdLaunch(fake, config, "/usr/bin/python3", "execFile")("outpost-runnerd", ["--x"], { cwd: "/w" }, callback);
+    wrapRunnerdLaunch(fake, config, "/usr/bin/python3", "spawnSync")("/r/outpost-runnerd", { cwd: "/w" });
+    expect(calls[0]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--", "outpost-runnerd", "--x"]), { cwd: "/w" }, callback]);
+    expect(calls[1]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--", "/r/outpost-runnerd"]), { cwd: "/w" }]);
+    expect(() => wrapRunnerdLaunch(fake, config, "/usr/bin/python3")("/r/outpost-runnerd", [], { shell: true })).toThrow(/refusing/);
     expect(RUNNERD_LAUNCH_APIS).toEqual(["spawn", "spawnSync", "execFile", "execFileSync"]);
   });
 
@@ -346,11 +346,11 @@ describe.skipIf(!landlock)("Landlock agent sandbox on this host", () => {
     roots.push(root);
     const repository = path.join(root, "checkout");
     await mkdir(path.join(repository, "tests", "runner-e2e", "chat-scenarios"), { recursive: true });
-    await mkdir(path.join(repository, "packages", "paperclip-runner"), { recursive: true });
+    await mkdir(path.join(repository, "packages", "outpost-runner"), { recursive: true });
     await mkdir(path.join(root, "scratch"));
     await writeFile(path.join(repository, "tests", "runner-e2e", "agent-filesystem-sandbox.ts"), "grader");
     await writeFile(path.join(repository, "tests", "runner-e2e", "chat-scenarios", "access.yaml"), "expected_outcome: secret");
-    await writeFile(path.join(repository, "packages", "paperclip-runner", "package.json"), "{}");
+    await writeFile(path.join(repository, "packages", "outpost-runner", "package.json"), "{}");
     const attempt = path.join(root, "attempt");
     await mkdir(path.join(attempt, "artifacts-private"), { recursive: true });
     await mkdir(path.join(attempt, "workspace"));

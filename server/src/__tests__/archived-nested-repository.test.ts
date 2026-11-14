@@ -25,9 +25,9 @@ function git(cwd: string, ...args: string[]) {
 
 beforeEach(async () => {
   root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "pc-archived-nested-")));
-  vi.stubEnv("PAPERCLIP_HOME", path.join(root, "home"));
-  vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default");
-  vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+  vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
+  vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
+  vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
 });
 
 afterEach(async () => {

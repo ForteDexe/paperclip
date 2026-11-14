@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, expect, it, vi } from "vitest";
-import { completionContracts, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults } from "@paperclipai/db";
+import { completionContracts, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults } from "@outpost/db";
 import { describeEmbeddedPostgres, nativeRestartFixture } from "../../__tests__/helpers/native-restart.js";
-import { DurablePrpControlPlane, parseNativeExecutionInput, QUALIFIED_ACPX_PROFILES, QUALIFIED_ACPX_VERSION, type NativeSessionBackend, type PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane, parseNativeExecutionInput, QUALIFIED_ACPX_PROFILES, QUALIFIED_ACPX_VERSION, type NativeSessionBackend, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { createNativeControllerRecovery } from "./native-controller-recovery.js";
 import { nativeRunnerCheckpointWriter } from "./native-runner-checkpoint.js";
 import { createRunnerdBackend, executePaperclipNativeSession, nativeControllerMigrationDescriptor, scopedRunnerdStateRoot } from "./native-session-executor.js";
@@ -20,14 +20,14 @@ const remoteBoundary = vi.hoisted(() => ({
   transport: vi.fn((_options: Record<string, unknown>) => ({ transport: {} })),
   packPath: "", binaryPath: "",
 }));
-vi.mock("../../vendor/paperclip-runner/index.js", async importOriginal => ({
-  ...await importOriginal<typeof import("../../vendor/paperclip-runner/index.js")>(),
+vi.mock("../../vendor/outpost-runner/index.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../../vendor/outpost-runner/index.js")>(),
   createNativeSessionBackend: remoteBoundary.backend,
   createRunnerdCodexTransport: remoteBoundary.transport,
   bundledRemoteProviderPackManifestPath: () => remoteBoundary.packPath,
   bundledRemoteRunnerBinary: () => remoteBoundary.binaryPath,
 }));
-vi.mock("./paperclip-runner-tool-authority.js", () => ({ PaperclipRunnerToolAuthority: class {
+vi.mock("./outpost-runner-tool-authority.js", () => ({ PaperclipRunnerToolAuthority: class {
   readonly binding = {};
   async definitions() { return []; }
   close() {}
@@ -42,16 +42,16 @@ describeEmbeddedPostgres("legacy harness continuation without provider-home file
     for (const policy of ["allow_replacement_after_resume_failure", "allow_replacement_after_governed_wait"] as const) {
       const observations = [];
       for (const pose of ["original", "empty"] as const) {
-        vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "61".repeat(32));
+        vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
         const f = await environment.seedRun(randomUUID());
         const { companyId, agentId, runtimeRoot } = environment.current;
         const home = await mkdtemp(join(tmpdir(), "native-harness-independence-")); homes.push(home);
-        vi.stubEnv("PAPERCLIP_HOME", home);
+        vi.stubEnv("OUTPOST_HOME", home);
         const workspaceId = randomUUID();
         const [sourceRun] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
         const [contract] = await f.db.select().from(completionContracts).where(eq(completionContracts.id, sourceRun!.completionContractId!));
         const execution = parseNativeExecutionInput({
-          schema: "paperclip.native-execution-input.v5", executionMode: "default", planningContext: null,
+          schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null,
           provider: provider === "codex" ? { kind: "codex", model: null, approvalPolicy: "never" } : { kind: "opencode", model: "fixture/model", permissionMode: "allow" },
           binding: { companyId, agentId, issueId: f.issueId, runId: f.runId, executionWorkspaceId: workspaceId },
           task: { identifier: "LHI-1", title: "Retained provider work", description: null, prompt: "Continue the saved work.", workMode: "standard" },
@@ -60,7 +60,7 @@ describeEmbeddedPostgres("legacy harness continuation without provider-home file
           completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: contract!.schemaVersion, contract: contract!.contractJson },
           runtimeContext: nativeRuntimeContextFixture(), credentialBindings: [], interactionResponses: [],
         });
-        const semanticResult = { schema: "paperclip.run_result.v1", reportedWorkDisposition: policy === "allow_replacement_after_governed_wait" ? "yielded" : "done", summary: "Prior provider result", completionClaim: { contractRevision: "1", objectiveSatisfied: policy !== "allow_replacement_after_governed_wait", criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [], ...(policy === "allow_replacement_after_governed_wait" ? { continuation: { kind: "response_wake", summary: "Continue after the answer", idempotencyKey: "fixture-answer" } } : {}) };
+        const semanticResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: policy === "allow_replacement_after_governed_wait" ? "yielded" : "done", summary: "Prior provider result", completionClaim: { contractRevision: "1", objectiveSatisfied: policy !== "allow_replacement_after_governed_wait", criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [], ...(policy === "allow_replacement_after_governed_wait" ? { continuation: { kind: "response_wake", summary: "Continue after the answer", idempotencyKey: "fixture-answer" } } : {}) };
         const snapshot: PersistedNativeSession = { backendKind: "runner", driverKind: execution.session.driverKind, sessionId: "retained-driver-session", providerSessionId: "retained-provider-session", identity: { companyId, agentId, issueId: f.issueId, runId: f.runId, sessionId: f.native.normalizedSessionId }, cursor: "0", activeTurnId: null, pendingRuntimeRequests: [], terminalTurns: [], lineage: [], semanticResult: semanticResult as never, goal: null };
         const fingerprint = nativeToolContractFingerprintForTarget("remote", provider);
         const descriptor = nativeControllerMigrationDescriptor(execution, fingerprint);
@@ -116,15 +116,15 @@ describeEmbeddedPostgres("legacy harness continuation without provider-home file
             claudeAcp: QUALIFIED_ACPX_PROFILES.claude.agentServerVersion, codexAcp: QUALIFIED_ACPX_PROFILES.codex.agentServerVersion },
           acpxProfileDigests: Object.fromEntries(["grok", "claude", "codex"].map(agent => [agent, QUALIFIED_ACPX_PROFILES[agent as "grok" | "claude" | "codex"].commandDigest])),
           distDigest: digest, artifacts, bridgeDigest: `sha256:${createHash("sha256").update(`${digest}\n${digest}\n${digest}`).digest("hex")}` };
-        const pack = { schema: "paperclip-runner/remote-provider-pack/v1", payload, digest: `sha256:${nativeSha256(payload)}` };
+        const pack = { schema: "outpost-runner/remote-provider-pack/v1", payload, digest: `sha256:${nativeSha256(payload)}` };
         remoteBoundary.packPath = join(home, "provider-pack.json"); remoteBoundary.binaryPath = join(home, "fixture-runnerd");
         const elf = Buffer.alloc(64); elf.set([0x7f, 0x45, 0x4c, 0x46, 2, 1]); elf.writeUInt16LE(62, 18);
         await writeFile(remoteBoundary.packPath, JSON.stringify(pack)); await writeFile(remoteBoundary.binaryPath, elf);
         const remoteExecute = vi.fn(async (command: { args?: string[] }) => ({ exitCode: command.args?.[1]?.includes("base64") ? 1 : 0,
           timedOut: false, stderr: "", stdout: command.args?.[0] === "--build-metadata" ? JSON.stringify({
-            schema: "paperclip-runner/runnerd-build-metadata/v1", binaryName: "paperclip-runnerd", packageName: "@paperclipai/paperclip-runner",
-            binaryContractVersion: 2, durableSessionCapabilities: ["unlimited_runtime", "connection_lease_renewal"], prpTransportModes: ["listen_ws"],
-            providerPacks: [{ root: "/opt/paperclip-runner/provider-pack", manifest: pack, immutable: true }],
+            schema: "outpost-runner/runnerd-build-metadata/v1", binaryName: "outpost-runnerd", packageName: "@outpost/outpost-runner",
+            binaryContractVersion: 2, durableSessionCapabilities: ["unlimited_runtime", "connection_lease_renewal"], orpTransportModes: ["listen_ws"],
+            providerPacks: [{ root: "/opt/outpost-runner/provider-pack", manifest: pack, immutable: true }],
           }) : command.args?.[0] === "--version" ? "codex-cli 0.160.0" : command.args?.[1] === "uname -s; uname -m" ? "Linux\nx86_64\n" : "" }));
         await createRunnerdBackend({ db: f.db, execution: current, runnerInstanceId: native.runnerInstanceId, runnerIngressAuthorized: true, runnerRemoteBinaryPath: remoteBoundary.binaryPath,
           runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", environmentId: randomUUID(), leaseId: randomUUID(),

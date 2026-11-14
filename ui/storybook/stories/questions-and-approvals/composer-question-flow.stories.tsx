@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import type { PaperclipQuestionResponse, PaperclipQuestionSet } from "@paperclipai/adapter-utils";
+import type { PaperclipQuestionResponse, PaperclipQuestionSet } from "@outpost/adapter-utils";
 import { QuestionForm, QuestionResponseSummary } from "@/components/task-chat/QuestionForm";
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
 import { Button } from "@/components/ui/button";
 
 const composerQuestions: PaperclipQuestionSet = {
-  schema: "paperclip.question_set.v1",
+  schema: "outpost.question_set.v1",
   title: "Express app — scope",
   questions: [
     {
@@ -132,7 +132,7 @@ export const AnswersSubmitted: Story = {
 
 function EditableDraftQuestion() {
   const [response, setResponse] = useState<PaperclipQuestionResponse | null>(null);
-  const questionSet: PaperclipQuestionSet = { schema: "paperclip.question_set.v1", questions: [{
+  const questionSet: PaperclipQuestionSet = { schema: "outpost.question_set.v1", questions: [{
     id: "draft", prompt: "Edit the release note", required: true, answerMode: "text",
     initialText: "Draft release note\n\nDescribe what changed and how it was verified.",
   }] };

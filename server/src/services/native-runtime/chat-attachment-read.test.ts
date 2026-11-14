@@ -31,7 +31,7 @@ import {
   issues,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createLocalDiskStorageProvider } from "../../storage/local-disk-provider.js";
@@ -39,7 +39,7 @@ import { createStorageService } from "../../storage/service.js";
 import type { StorageService } from "../../storage/types.js";
 import { issueService } from "../issues.js";
 import { NativeChatAttachmentReadScope } from "./chat-attachment-read.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const stagingControl = vi.hoisted(() => ({
   beforeStage: undefined as (() => Promise<void>) | undefined,
@@ -108,7 +108,7 @@ describe("native same-conversation historical attachment reading", () => {
       id: agentId,
       companyId,
       name: "Native chat agent",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
       runtimeConfig: {},
       status: "active",
@@ -339,7 +339,7 @@ describe("native same-conversation historical attachment reading", () => {
   }
 
   it("opens an authorized historical attachment at the Runner-local path", async () => {
-    const env = { PAPERCLIP_AGENT_JWT_SECRET: randomUUID() };
+    const env = { OUTPOST_AGENT_JWT_SECRET: randomUUID() };
     const app = express();
     app.use(runnerAttachmentDownloadRoutes(db, storage, env));
     const downloadRemoteAttachment = vi.fn(async (source: Parameters<typeof createRunnerAttachmentGrant>[1]) => {

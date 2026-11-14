@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents, budgetEvaluationWork, budgetPolicies, budgetReservations, companies, costEvents, createDb, heartbeatRuns, issues,
   nativeRunFinalizations, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { budgetService } from "../services/budgets.js";
 import { reserveRunBudget } from "../services/budget-reservations.js";
@@ -34,8 +34,8 @@ const support = await getEmbeddedPostgresTestSupport();
     const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Admission lab", issuePrefix: `A${companyId.slice(0, 5)}` });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "paperclip_runner" },
-      { id: otherAgentId, companyId, name: "Other", role: "engineer", status: "idle", adapterType: "paperclip_runner" },
+      { id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "outpost_runner" },
+      { id: otherAgentId, companyId, name: "Other", role: "engineer", status: "idle", adapterType: "outpost_runner" },
     ]);
     await db.insert(budgetPolicies).values({ companyId, scopeType: "company", scopeId: companyId, metric: "billed_cents",
       windowKind: "calendar_month_utc", amount: limit, reservationCents, notifyEnabled: false, unpricedUsagePolicy: "allow" });

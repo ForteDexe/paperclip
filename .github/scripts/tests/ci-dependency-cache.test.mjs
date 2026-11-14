@@ -74,19 +74,19 @@ test('unmodelled workspace lifecycle scripts disable materialized reuse', () => 
 test('known Copilot hooks permit caching, track their helpers, and still run on restore', () => {
   const files = { ...entries,
     'server/package.json': JSON.stringify({ scripts: { postinstall: 'node scripts/install-copilot-assets.mjs' } }),
-    'packages/paperclip-runner/package.json': JSON.stringify({ scripts: { postinstall: 'node scripts/install-copilot-assets.mjs' } }),
+    'packages/outpost-runner/package.json': JSON.stringify({ scripts: { postinstall: 'node scripts/install-copilot-assets.mjs' } }),
     'server/scripts/install-copilot-assets.mjs': 'server bootstrap',
-    'packages/paperclip-runner/scripts/install-copilot-assets.mjs': 'runner bootstrap',
-    'packages/paperclip-runner/scripts/materialize-copilot-binary.mjs': 'native materializer',
-    'packages/paperclip-runner/scripts/copilot-inner-distribution.mjs': 'closure pins',
+    'packages/outpost-runner/scripts/install-copilot-assets.mjs': 'runner bootstrap',
+    'packages/outpost-runner/scripts/materialize-copilot-binary.mjs': 'native materializer',
+    'packages/outpost-runner/scripts/copilot-inner-distribution.mjs': 'closure pins',
   };
   const compute = (input) => cachePlan({ files: Object.keys(input),
     read: file => input[file] == null ? null : Buffer.from(input[file]), scope,
-    packageDirs: ['.', 'server', 'packages/paperclip-runner'],
+    packageDirs: ['.', 'server', 'packages/outpost-runner'],
   });
   const original = compute(files);
   assert.equal(original.cacheable, true);
-  for (const file of Object.keys(files).filter(file => /^(server|packages\/paperclip-runner)\/scripts\//.test(file))) {
+  for (const file of Object.keys(files).filter(file => /^(server|packages\/outpost-runner)\/scripts\//.test(file))) {
     for (const replacement of ['changed', null]) {
       assert.notEqual(compute({ ...files, [file]: replacement }).dependencyKey, original.dependencyKey, file);
     }

@@ -10,15 +10,15 @@ import { readSecretEndpointConsumerRun, readSecretEndpointTaskBinding, secretTes
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); handlers.length = 0; for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
-  const root = await mkdtemp(path.join(tmpdir(), "secret-task-cwd-")); roots.push(root); vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root);
-  vi.stubEnv("PAPERCLIP_AGENT_JWT_SECRET", "synthetic-jwt-secret-for-unit-test"); vi.stubEnv("PAPERCLIP_INSTANCE_ID", "unit");
+  const root = await mkdtemp(path.join(tmpdir(), "secret-task-cwd-")); roots.push(root); vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
+  vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", "synthetic-jwt-secret-for-unit-test"); vi.stubEnv("OUTPOST_INSTANCE_ID", "unit");
   const cwd = path.join(await realpath(root), "task"); await mkdir(cwd);
   const runId = "11111111-1111-1111-1111-111111111111";
   const run = { id: runId, companyId: "company", agentId: "morgan", status: "running", startedAt: "2026-10-28T01:00:00Z", responsibleUserId: "user", contextSnapshot: { issueId: "task" } };
   const runs = [{ id: runId, agentId: "morgan", status: "running" }, { id: "22222222-2222-2222-2222-222222222222", agentId: "morgan", status: "succeeded" }];
   const task = { id: "task", companyId: "company", assigneeAgentId: "morgan", parentId: null as string | null, originIssueId: "source", executionWorkspaceId: "workspace" };
   const workspace = { id: "workspace", companyId: "company", cwd };
-  const agent = { id: "morgan", companyId: "company", adapterType: "paperclip_runner" };
+  const agent = { id: "morgan", companyId: "company", adapterType: "outpost_runner" };
   const privateSecrets: string[] = [];
   const get = async (url: string) => url.startsWith("/api/companies/company/heartbeat-runs") ? runs : url.startsWith("/api/heartbeat-runs/") ? run : url === "/api/agents/morgan" ? agent : url.endsWith("/workspace") ? { workspace } : task;
   const ctx = { scenario: { id: "secrets.least-scope-delivery" }, input: { nonce: "owned-test", execution: { environment: { id: "local" } }, fixtures: { company: { id: "company" } }, privateSecrets, api: { baseURL: "http://fixture.invalid", get } }, issue: () => ({ id: "source" }) } as unknown as ChatCatalogContext;
@@ -51,7 +51,7 @@ it("actual inline helper needs only the bound credential and emits sanitized sta
   const f = await fixture(), endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", { boundSecretId: "bound", unrelatedCompanyKey: "unrelated-company-key", instanceKey: "custody_probe" }, { taskBound: true });
   try {
     expect(endpoint.scriptPath).toBe(""); expect(endpoint.command).not.toContain(f.cwd); expect(endpoint.command).not.toContain("synthetic-deployment-value");
-    expect(endpoint.command).not.toMatch(/PAPERCLIP_|x-paperclip/);
+    expect(endpoint.command).not.toMatch(/OUTPOST_|x-paperclip/);
     const code = endpoint.command.slice("node --input-type=module -e '".length, -1).replace(/'\\''/g, "'");
     const output: string[] = [], requests: Array<{ headers: Record<string, string> }> = [];
     // A native runner shell: only the configured credential, no Paperclip run identity.
@@ -79,14 +79,14 @@ it("actual endpoint binds the server's running Morgan run, probes with its own a
     expect(endpoint.calls.filter(call => call.authorized)).toHaveLength(3);
     const token = bearers.at(-1)!.slice("Bearer ".length);
     const claims = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8"));
-    expect(claims).toMatchObject({ sub: "morgan", company_id: "company", run_id: f.run.id, adapter_type: "paperclip_runner", responsible_user_id: "user" });
+    expect(claims).toMatchObject({ sub: "morgan", company_id: "company", run_id: f.run.id, adapter_type: "outpost_runner", responsible_user_id: "user" });
     expect(f.privateSecrets).toContain(token);
     expect(JSON.stringify({ calls: endpoint.calls, receipts: endpoint.scopeReceipts, output })).not.toContain(token);
     expect(JSON.stringify({ calls: endpoint.calls, receipts: endpoint.scopeReceipts, output })).not.toContain("synthetic-deployment-value");
   } finally { await endpoint.close(); }
 });
 it("active-run consumer mode attributes the bound credential to the server's one running run, without shell identity headers", async () => {
-  const f = await fixture(); vi.stubEnv("PAPERCLIP_HOME", path.join(await realpath(f.root), "home"));
+  const f = await fixture(); vi.stubEnv("OUTPOST_HOME", path.join(await realpath(f.root), "home"));
   f.ctx.scenario.id = "secrets.vault-reference";
   const endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", undefined, { forbidAwsRuntimeAuthority: true, activeRunConsumer: true });
   const statuses: number[] = [];
@@ -94,7 +94,7 @@ it("active-run consumer mode attributes the bound credential to the server's one
   try {
     expect(endpoint.command).not.toContain("synthetic-deployment-value");
     const { readFile } = await import("node:fs/promises");
-    expect(await readFile(endpoint.scriptPath, "utf8")).not.toMatch(/PAPERCLIP_AGENT_ID|PAPERCLIP_RUN_ID|x-paperclip-agent|x-paperclip-run/);
+    expect(await readFile(endpoint.scriptPath, "utf8")).not.toMatch(/OUTPOST_AGENT_ID|OUTPOST_RUN_ID|x-paperclip-agent|x-paperclip-run/);
     await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(200);
     expect(endpoint.calls.at(-1)).toMatchObject({ authorized: true, agentId: "morgan", runId: f.run.id, awsAuthorityAbsent: true });
     // Forged shell headers are ignored: identity comes from the server.

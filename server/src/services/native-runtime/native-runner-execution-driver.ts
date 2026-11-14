@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { resolvePaperclipRunnerTransport, type PaperclipRunnerTransport } from "@paperclipai/adapter-utils/runner-connectivity";
-import type { RunnerExecutionDriver } from "../../vendor/paperclip-runner/index.js";
-import { registerRunnerPrpAuthority } from "../../realtime/runner-prp-ws.js";
-import { connectRunnerPrpIngress } from "../../realtime/runner-prp-outbound.js";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { resolvePaperclipRunnerTransport, type PaperclipRunnerTransport } from "@outpost/adapter-utils/runner-connectivity";
+import type { RunnerExecutionDriver } from "../../vendor/outpost-runner/index.js";
+import { registerRunnerPrpAuthority } from "../../realtime/runner-orp-ws.js";
+import { connectRunnerPrpIngress } from "../../realtime/runner-orp-outbound.js";
 import type { NativeRunTrace } from "./native-run-trace.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { nativeRunnerCheckpointRegistration } from "./native-runner-checkpoint.js";
-import { readEnvironmentRunnerIngressFailure, type PluginEnvironmentRunnerIngressFailure } from "@paperclipai/plugin-sdk";
+import { readEnvironmentRunnerIngressFailure, type PluginEnvironmentRunnerIngressFailure } from "@outpost/plugin-sdk";
 
 export class NativeRunnerIngressAcquisitionError extends Error {
   constructor(readonly failure: PluginEnvironmentRunnerIngressFailure) {
@@ -94,7 +94,7 @@ export async function prepareNativeRemoteRunner(input: RemotePreparation) {
   await input.prepareRemote(mode);
 }
 
-/** Built-in environment lifecycle. PRP commands and authentication are shared;
+/** Built-in environment lifecycle. ORP commands and authentication are shared;
  * only environment preparation, process ownership, and connection routing vary.
  */
 export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDriverInput): RunnerExecutionDriver {
@@ -139,11 +139,11 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
             });
             await input.onLog?.(
               "stderr",
-              "[paperclip-runner] transport mode=local_loopback state=connecting\n",
+              "[outpost-runner] transport mode=local_loopback state=connecting\n",
             );
             const registration = await measureNativeRunnerSpan(
               input.trace,
-              "runner.prp.route.register",
+              "runner.orp.route.register",
               () =>
                 registerRunnerPrpAuthority({
                   ...input.binding,
@@ -223,7 +223,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
 
           await input.onLog?.(
             "stderr",
-            `[paperclip-runner] transport mode=${transport.mode} state=connecting\n`,
+            `[outpost-runner] transport mode=${transport.mode} state=connecting\n`,
           );
 
           if (transport.mode === "direct_outbound") {
@@ -232,7 +232,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
               : transport.caBundlePath;
             const inbound = await measureNativeRunnerSpan(
               input.trace,
-              "runner.prp.route.register",
+              "runner.orp.route.register",
               () =>
                 registerRunnerPrpAuthority({
                   ...input.binding,
@@ -289,7 +289,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
                     onStateChange: (state, failureCode) => {
                       void input.onLog?.(
                         "stderr",
-                        `[paperclip-runner] transport mode=provider_ingress state=${state}${failureCode ? ` failure=${failureCode}` : ""}\n`,
+                        `[outpost-runner] transport mode=provider_ingress state=${state}${failureCode ? ` failure=${failureCode}` : ""}\n`,
                       );
                     },
                   });
@@ -314,7 +314,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
                     throw new Error("runner_ingress_unavailable");
                   await measureNativeRunnerSpan(
                     input.trace,
-                    "runner.prp.authenticate",
+                    "runner.orp.authenticate",
                     () => outbound!.ready,
                   );
                   await input.processIdentityReady;

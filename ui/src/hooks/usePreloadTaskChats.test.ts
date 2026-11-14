@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { inboxNavEntryTask, type InboxKeyboardNavEntry, type InboxWorkItem } from "@/lib/inbox";
 import { topRenderedNavEntryRefs, topTaskRefs } from "./usePreloadTaskChats";
 

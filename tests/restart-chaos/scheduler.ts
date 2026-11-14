@@ -155,7 +155,7 @@ function replayMasks(source: readonly string[] | undefined, added: readonly stri
 }
 
 export function planWave(waveId: string, options: WaveOptions, createdAt = new Date()): WavePlan {
-  return { schema: "paperclip.restart-chaos.wave-plan/v1", waveId, seed: options.seed,
+  return { schema: "outpost.restart-chaos.wave-plan/v1", waveId, seed: options.seed,
     createdAt: createdAt.toISOString(), options, tasks: withProviderFaultRules(planTasks(options), options)
       // `--long-turn-minutes` is part of each task's plan, so a replay keeps it.
       .map(task => options.longTurnMinutes ? { ...task, longTurnMinutes: options.longTurnMinutes } : task),
@@ -320,7 +320,7 @@ export function taskFaultSchedule(task: TaskPlan): ScheduledFault[] {
  */
 export function replayWave(source: WavePlan, ref: ReplayRef, now = Date.now(),
   overrides: Partial<Pick<WaveOptions, "pollMs" | "budgetCents" | "masks">> = {}, observed: ScheduledFault[] = []): WavePlan {
-  if (source.schema !== "paperclip.restart-chaos.wave-plan/v1") throw new Error("Unsupported wave plan schema");
+  if (source.schema !== "outpost.restart-chaos.wave-plan/v1") throw new Error("Unsupported wave plan schema");
   if (source.waveId !== ref.waveId) throw new Error(`Plan is for ${source.waveId}, not ${ref.waveId}`);
   const task = source.tasks.find(candidate => candidate.taskId === ref.taskId);
   if (!task) throw new Error(`Wave ${ref.waveId} has no task ${ref.taskId}`);

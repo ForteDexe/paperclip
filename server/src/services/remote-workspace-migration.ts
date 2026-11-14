@@ -7,8 +7,8 @@ import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import {
   companies, environmentLeases, executionWorkspaceRepositories, executionWorkspaceRuntimeLeases, executionWorkspaceSnapshots, executionWorkspaces,
   heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, projects, workspaceOperations, workspaceRuntimeServices, type Db,
-} from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceSourceSchema, type RemoteWorkspaceAuthority, type RemoteWorkspaceSource } from "@paperclipai/shared";
+} from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceSourceSchema, type RemoteWorkspaceAuthority, type RemoteWorkspaceSource } from "@outpost/shared";
 import { offlineMigrationExecutionWhere } from "./offline-migration-execution.js";
 import { inspectFinalizedWorkspaceRecoveryHold, type FinalizedWorkspaceRecoveryHold } from "./finalized-workspace-recovery-migration.js";
 import { workspaceExportCauses } from "./workspace-recovery-source.js";
@@ -31,8 +31,8 @@ import { inspectOnlineLegacyWorkspaceRecoverySource, inspectOnlineLegacyWorkspac
 import { inspectNativeWorkspaceMigration, nativeWorkspaceMigrationMarker } from "./native-runtime/native-workspace-migration.js";
 import { readGitCacheExpiration, GIT_CACHE_EXPIRATION_REASON } from "./git-workspace-restoration.js";
 
-const SCHEMA = "paperclip.remote-workspace-migration.v1";
-const SUPERSESSION = "paperclip.remote-workspace-migration-supersession.v1";
+const SCHEMA = "outpost.remote-workspace-migration.v1";
+const SUPERSESSION = "outpost.remote-workspace-migration-supersession.v1";
 const supersessionSchema = z.object({ schema: z.literal(SUPERSESSION), companyId: z.string().uuid(), workspaceId: z.string().uuid(),
   cohortId: z.string().uuid(), operationId: z.string().uuid(), supersessionId: z.string().uuid(), snapshotIds: z.array(z.string().uuid()).max(8) }).strict();
 const successorSchema = supersessionSchema.extend({ generation: z.number().int().min(1).max(2_147_483_647) });
@@ -671,7 +671,7 @@ type ValidatedPublication = NonNullable<Awaited<ReturnType<typeof validateMigrat
 
 async function publishMigration(tx: MigrationTransaction, reserved: ReservedMigration, captured: CapturedMigration, validated: ValidatedPublication) {
   const { operation, ref, nested } = captured, { workspace, uploaded, continuity } = validated;
-  const authority: RemoteWorkspaceAuthority = { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: ref.id,
+  const authority: RemoteWorkspaceAuthority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: ref.id,
     source: reserved.source, location: null, writerRunId: null, dirty: false };
   const metadata: Record<string, unknown> = { ...workspace.metadata, remoteWorkspace: authority }; delete metadata.remoteWorkspaceMigration;
   if (continuity) metadata.nativeWorkspaceMigration = nativeWorkspaceMigrationMarker(operation.id);
@@ -765,7 +765,7 @@ export async function migrateRemoteWorkspace(input: MigrationInput) {
 }
 
 const cohortSchema = z.object({
-  schema: z.literal("paperclip.remote-workspace-cohort.v1"), id: z.string().uuid(), companyId: z.string().uuid(),
+  schema: z.literal("outpost.remote-workspace-cohort.v1"), id: z.string().uuid(), companyId: z.string().uuid(),
   sourceProof: z.string().regex(/^[a-f0-9]{64}$/),
   members: z.array(z.object({ workspaceId: z.string().uuid(), operationId: z.string().uuid() }).strict()).min(1).max(32),
 }).strict();
@@ -854,7 +854,7 @@ export async function migrateRemoteWorkspaceCohort(input: {
       && operation.metadata.sourceFingerprint === marker.sourceFingerprint;
     pending.push(cohortSchema.parse(operation.metadata.cohortMigration));
   }
-  let cohort: WorkspaceMigrationCohort = pending[0] ?? { schema: "paperclip.remote-workspace-cohort.v1", id: randomUUID(), companyId,
+  let cohort: WorkspaceMigrationCohort = pending[0] ?? { schema: "outpost.remote-workspace-cohort.v1", id: randomUUID(), companyId,
     sourceProof, members: workspaceIds.map(workspaceId => ({ workspaceId, operationId: randomUUID() })) };
   const refreshSourceProof = cohort.sourceProof !== sourceProof;
   if (cohort.companyId !== companyId || refreshSourceProof && (pending.length !== workspaceIds.length || !unchangedMembers)

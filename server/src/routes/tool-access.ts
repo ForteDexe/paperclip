@@ -1,11 +1,11 @@
 import { isCrossSiteOAuthCallbackNavigation, oauthCallbackInterstitialHtml } from "../lib/oauth-browser-return.js";
-import { aiConnectionRouterPluginKey } from "@paperclipai/shared";
+import { aiConnectionRouterPluginKey } from "@outpost/shared";
 import { aiConnectionRouterService } from "../services/ai-connection-router.js";
-import { composioAppSetupSchema, composioAppsRefreshSchema, composioAppsSyncSchema, composioAppAccountSchema } from "@paperclipai/shared";
-import { aggregatorAppsSyncSchema, aggregatorAppsRefreshSchema, arcadeDiscoverySetupSchema } from "@paperclipai/shared/aggregator-apps";
+import { composioAppSetupSchema, composioAppsRefreshSchema, composioAppsSyncSchema, composioAppAccountSchema } from "@outpost/shared";
+import { aggregatorAppsSyncSchema, aggregatorAppsRefreshSchema, arcadeDiscoverySetupSchema } from "@outpost/shared/aggregator-apps";
 import { Router, type Request, type Response } from "express";
-import type { Db } from "@paperclipai/db";
-import { agents, companies, connectionGrants, issueThreadInteractions, toolConnectionInstalls } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { agents, companies, connectionGrants, issueThreadInteractions, toolConnectionInstalls } from "@outpost/db";
 import { and, eq, or } from "drizzle-orm";
 import {
   APP_STORE_DEFINITIONS,
@@ -57,7 +57,7 @@ import {
   updateToolPolicySchema,
   updateToolProfileEntrySchema,
   updateToolProfileWithEntriesSchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { filterConnectionManagementRows, filterConnectionManagementPolicies, connectionManagementGuard, requiredConnectionUserAction, connectionRequestActor, connectionRequestContext, connectionRequestUserId } from "./connection-management-authz.js";
 import { assertAgentConnectionInstallAccess, connectionManagementService } from "../services/connection-management.js";
 import { validate } from "../middleware/validate.js";
@@ -72,7 +72,7 @@ import {
   isPaperclipCloudConnectorStrategy,
   invalidatePaperclipCloudConnectorCapabilities,
   type PaperclipCloudConnector,
-  paperclipCloudConnectorCapabilitiesFromEnv,
+  outpostCloudConnectorCapabilitiesFromEnv,
 } from "../services/paperclip-cloud-connector.js";
 import { runtimeCanonicalOrigin } from "../services/cloud-runtime-identity.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -176,7 +176,7 @@ export function connectionIntentOAuthOutcomeHtml(input: {
   // authorization URL stay server-side; the opener refreshes the task from the
   // interaction id instead of trusting provider-window data.
   const message = JSON.stringify({
-    type: "paperclip.connection-intent.oauth",
+    type: "outpost.connection-intent.oauth",
     interactionId: input.interactionId,
     outcome: input.outcome,
   }).replace(/</g, "\\u003c");
@@ -202,9 +202,9 @@ export function connectionIntentOAuthOutcomeHtml(input: {
 function normalizeCloudConnectorEnrollmentReturnTo(returnTo?: string | null): string | null {
   if (!returnTo || returnTo.length > 2_048) return null;
   try {
-    const parsed = new URL(returnTo, "http://paperclip.local");
+    const parsed = new URL(returnTo, "http://outpost.local");
     if (
-      parsed.origin !== "http://paperclip.local"
+      parsed.origin !== "http://outpost.local"
       || !["/apps/connect", "/apps/chat/connect"].includes(parsed.pathname)
       || parsed.username
       || parsed.password
@@ -229,7 +229,7 @@ export function cloudConnectorEnrollmentReturnPath(issuePrefix: string, returnTo
   const companyRoot = `/${encodeURIComponent(issuePrefix)}`;
   const normalizedReturnTo = normalizeCloudConnectorEnrollmentReturnTo(returnTo);
   if (normalizedReturnTo) {
-    const parsed = new URL(normalizedReturnTo, "http://paperclip.local");
+    const parsed = new URL(normalizedReturnTo, "http://outpost.local");
     parsed.searchParams.set("cloud_connector", "enrolled");
     return `${companyRoot}${parsed.pathname}${parsed.search}`;
   }
@@ -316,12 +316,12 @@ export function toolAccessRoutes(
     const runtimeOrigin = runtimeCanonicalOrigin();
     if (runtimeOrigin) return runtimeOrigin;
     const raw = (
-      process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL?.trim()
+      process.env.OUTPOST_AUTH_PUBLIC_BASE_URL?.trim()
       || process.env.BETTER_AUTH_URL?.trim()
       || process.env.BETTER_AUTH_BASE_URL?.trim()
       || options.authPublicBaseUrl?.trim()
-      || process.env.PAPERCLIP_PUBLIC_URL?.trim()
-      || process.env.PAPERCLIP_MANAGED_RUNTIME_PUBLIC_URL?.trim()
+      || process.env.OUTPOST_PUBLIC_URL?.trim()
+      || process.env.OUTPOST_MANAGED_RUNTIME_PUBLIC_URL?.trim()
     );
     if (!raw) return null;
     try {
@@ -841,7 +841,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
     const advertisedProfiles = options.paperclipCloudConnector === undefined
-      ? await paperclipCloudConnectorCapabilitiesFromEnv()
+      ? await outpostCloudConnectorCapabilitiesFromEnv()
       : options.paperclipCloudConnector
         ? await options.paperclipCloudConnector.getCapabilities()
         : [];
@@ -873,7 +873,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
           reason: vercelConnect.enabled
             ? vercelConnect.configured
               ? null
-              : "Vercel Connect needs workload OIDC or PAPERCLIP_VERCEL_CONNECT_ACCESS_TOKEN."
+              : "Vercel Connect needs workload OIDC or OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN."
             : "Vercel Connect setup is disabled on this Outpost instance.",
         },
       },
@@ -1129,9 +1129,9 @@ function connectorEnrollmentPrincipal(req: Request): string {
       });
     }
     const returnTo = normalizeCloudConnectorEnrollmentReturnTo(pending?.returnTo);
-    if (returnTo && new URL(returnTo, "http://paperclip.local").searchParams.get("enrollment_host") === "dialog") {
+    if (returnTo && new URL(returnTo, "http://outpost.local").searchParams.get("enrollment_host") === "dialog") {
       res.set("Cache-Control", "no-store");
-      const intent = new URL(returnTo, "http://paperclip.local").searchParams.get("intent");
+      const intent = new URL(returnTo, "http://outpost.local").searchParams.get("intent");
       const parsedIntent = startToolOAuthSchema.safeParse({ interactionId: intent });
       const interactionId = parsedIntent.success ? parsedIntent.data.interactionId : undefined;
       const [interaction] = interactionId ? await db.select({ issueId: issueThreadInteractions.issueId })

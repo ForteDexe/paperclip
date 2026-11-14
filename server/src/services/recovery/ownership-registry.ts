@@ -19,8 +19,8 @@ import {
   workspaceOperations,
   workspaceRuntimeServices,
   type Db,
-} from "@paperclipai/db";
-import { EXECUTION_RECONCILIATION_CAUSES } from "@paperclipai/shared";
+} from "@outpost/db";
+import { EXECUTION_RECONCILIATION_CAUSES } from "@outpost/shared";
 import { currentControllerBootId, readControllerProcess } from "../controller-process-identity.js";
 import { isRemoteWorkspaceSaveInvocationLive } from "../remote-workspaces.js";
 import { idleAccountingSpoolPath, idleOrphanSpoolPath } from "../idle-local-work.js";

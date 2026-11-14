@@ -3,7 +3,7 @@ import { addons } from "storybook/preview-api";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { expect, userEvent, within, waitFor } from "storybook/test";
-import { CONNECTABLE_APP_DEFINITIONS, type ConnectionIntentInteraction, type ToolConnection } from "@paperclipai/shared";
+import { CONNECTABLE_APP_DEFINITIONS, type ConnectionIntentInteraction, type ToolConnection } from "@outpost/shared";
 import { ConnectionIntentInteractionBody } from "@/features/connections/ConnectionIntentInteractionBody";
 import { ConnectionSetupFlow, ConnectionSetupCompletionScreen, AccessStep, OAuthConnectStateScreen, type OAuthConnectPhase } from "@/features/connections/ConnectionSetupFlow";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -89,7 +89,7 @@ const meta: Meta = {
       if (scenario.ai && url.pathname.endsWith("/ai-connections") && init?.method === "POST") return scenario.completeError
         ? Response.json({ error: "This key could not be verified. Check it and try again." }, { status: 422 })
         : Response.json({ connectionId: aiAccount.id, grantId: aiAccount.grantId });
-      if (url.pathname.endsWith("/agents")) return Response.json([{ id: pending.payload.requestingAgentId, companyId: pending.companyId, name: pending.payload.requestingAgentName, status: "active", adapterType: "paperclip_runner", role: "researcher" }]);
+      if (url.pathname.endsWith("/agents")) return Response.json([{ id: pending.payload.requestingAgentId, companyId: pending.companyId, name: pending.payload.requestingAgentName, status: "active", adapterType: "outpost_runner", role: "researcher" }]);
       if (scenario.access && url.pathname === `/api/agents/${accessPending.payload.requestingAgentId}`) return Response.json({
         ...storybookAgents[0], id: accessPending.payload.requestingAgentId, name: accessPending.payload.requestingAgentName,
       });

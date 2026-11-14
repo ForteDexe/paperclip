@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { livenessRoutes } from "../routes/liveness.js";
 import { readinessRoutes } from "../routes/ready.js";
 import { healthRoutes } from "../routes/health.js";
@@ -21,7 +21,7 @@ function fixture(standby = false) {
   const auth = vi.fn((_req, _res, next) => next());
   const health = healthRoutes(db, {
     deploymentMode: "authenticated", deploymentExposure: "public", authReady: true,
-    companyDeletionEnabled: false, runtimeEnv: { PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "fixture-token" },
+    companyDeletionEnabled: false, runtimeEnv: { OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fixture-token" },
     isWarmStandby: () => standby,
   });
   const app = express();

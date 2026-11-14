@@ -13,21 +13,21 @@ import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.j
 import { waitForCondition } from "./helpers/native-restart-fixture.js";
 import { requestTaskRetry } from "../services/task-retry.js";
 import type { HeartbeatServiceOptions } from "../services/heartbeat.js";
-import type { NativeRunIdentity, NativeSession, PrpEvent } from "@paperclipai/paperclip-runner";
+import type { NativeRunIdentity, NativeSession, PrpEvent } from "@outpost/outpost-runner";
 import { randomUUID } from "node:crypto";
 import * as controllerProcess from "../services/controller-process-identity.js";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agents, createDb, agentWakeupRequests, authUsers, budgetReservations, companyMemberships, completionContracts, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations } from "@paperclipai/db";
+import { activityLog, agents, createDb, agentWakeupRequests, authUsers, budgetReservations, companyMemberships, completionContracts, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
-import { subscribeDatabaseWork } from "@paperclipai/db/work-signals";
+import { subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { resolveLocalRuntimeApiUrl } from "../runtime-api.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { claimNativeRestartRecoveries, classifyNativeRunnerRecoveryEvidence, currentNativeControllerIdentity } from "../services/native-runtime/native-restart-recovery.js";
-import type { NativeSessionBackend } from "@paperclipai/paperclip-runner";
+import type { NativeSessionBackend } from "@outpost/outpost-runner";
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
-import { CONTROL_PLANE_CONFORMANCE_OPEN, CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/paperclip-runner/testing.js";
+import { CONTROL_PLANE_CONFORMANCE_OPEN, CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { describeEmbeddedPostgres, nativeRestartFixture } from "./helpers/native-restart.js";
 import { currentControllerBootId, currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { createOwnershipReportState, runOwnershipReconciliationPass, settleOwnableKind, type OwnershipReport } from "../services/recovery/ownership-invariant-report.js";
@@ -1070,7 +1070,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
           async *events() {
             await started;
             const event = (sourceSeq: number, eventType: PrpEvent["eventType"], payload: Record<string, unknown>): PrpEvent => ({
-              schema: "paperclip.prp.event.v1", sourceKind: "runner", sourceInstanceId,
+              schema: "outpost.orp.event.v1", sourceKind: "runner", sourceInstanceId,
               sourceEventId: `${sourceInstanceId}:${sourceSeq}`, sourceSeq, runId: identity.runId,
               normalizedSessionId: identity.sessionId, turnId, schemaVersion: 1, priority: 0,
               emittedAt: new Date().toISOString(), eventType, payload });
@@ -1362,9 +1362,9 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     }, 60_000);
 
     it.each([false, true] as const)("keeps a correlated Stop from automatically releasing foreign ownership (ephemeral: %s)", async ephemeral => {
-      const previous = process.env.PAPERCLIP_EPHEMERAL_SERVER;
-      if (ephemeral) process.env.PAPERCLIP_EPHEMERAL_SERVER = "true";
-      else delete process.env.PAPERCLIP_EPHEMERAL_SERVER;
+      const previous = process.env.OUTPOST_EPHEMERAL_SERVER;
+      if (ephemeral) process.env.OUTPOST_EPHEMERAL_SERVER = "true";
+      else delete process.env.OUTPOST_EPHEMERAL_SERVER;
       try {
         const f = await namespaceHold(`CLAIM-CONTAINMENT-STOP-${ephemeral}`);
         const [before] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -1402,8 +1402,8 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toEqual(before);
         expect((await f.db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.action.id)))[0].status).toBe("active");
       } finally {
-        if (previous === undefined) delete process.env.PAPERCLIP_EPHEMERAL_SERVER;
-        else process.env.PAPERCLIP_EPHEMERAL_SERVER = previous;
+        if (previous === undefined) delete process.env.OUTPOST_EPHEMERAL_SERVER;
+        else process.env.OUTPOST_EPHEMERAL_SERVER = previous;
       }
     }, 60_000);
 
@@ -1494,7 +1494,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
   it("keeps an unrecorded-host lease on an ephemeral server and asks the board to confirm the stop", async () => {
     const f = await seedAcceptedResult("ACCEPTED-LEGACY-EPHEMERAL", (runner) => `${runner}:${randomUUID()}`);
     await killedController(f, deadController(null));
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     try {
       const report = await runOwnershipReconciliationPass(f.db, { kinds: acceptedRunKinds(f), state: createOwnershipReportState() });
       expect(report.kinds.find(kind => kind.kind === "native_accepted_result_lease"))
@@ -1510,7 +1510,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
   it("finalizes the accepted result after the board confirms its actual unrecorded-controller action", async () => {
     const f = await seedAcceptedResult("ACCEPTED-OPERATOR-ATTESTED", (runner) => `${runner}:${randomUUID()}`);
     await killedController(f, deadController(null));
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     try {
       const [before] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
       const report = await runOwnershipReconciliationPass(f.db, { kinds: acceptedRunKinds(f), state: createOwnershipReportState() });
@@ -1580,7 +1580,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     await killedController(f, deadController(null));
     await f.db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(Date.now() - 1_000) })
       .where(eq(nativeRunFinalizations.runId, f.runId));
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     try {
       const kind = OWNABLE_KINDS.find(candidate => candidate.id === "native_accepted_result_lease")!;
       expect(await kind.listForRuns!(f.db, [f.runId])).toEqual([]);
@@ -1742,7 +1742,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     const f = await seedAcceptedResult("FINALIZER-STALE-HOLDER", () => `native-finalizer:${randomUUID()}`);
     await heldBy(f, deadHolder(), `native-finalizer:${randomUUID()}`);
     const legacy = await seedAcceptedResult("FINALIZER-PREVIOUS-RELEASE", () => `native-finalizer:${randomUUID()}`);
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     try {
       for (const row of [f, legacy]) {
         expect(await proofOf(row, "native-finalizer")).toEqual({ owner: "fence", verdict: "alive", reason: "fence_held" });

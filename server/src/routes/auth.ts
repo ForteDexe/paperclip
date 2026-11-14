@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { authUsers } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { authUsers } from "@outpost/db";
 import {
   authSessionSchema,
   currentUserProfileSchema,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { unauthorized } from "../errors.js";
 import { resolveSentryDsns } from "../sentry-dsn.js";
 import { logger } from "../middleware/logger.js";

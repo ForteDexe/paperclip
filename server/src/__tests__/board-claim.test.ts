@@ -11,7 +11,7 @@ import {
   instanceUserRoles,
   principalPermissionGrants,
   subscribeDatabaseWork,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   claimBoardOwnership,
   getBoardClaimWarningUrl,
@@ -23,7 +23,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_BOARD_CLAIM_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_BOARD_CLAIM_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 

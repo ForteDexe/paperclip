@@ -13,7 +13,7 @@ const expectedJobs = {
   "docker.yml": ["source_verification", "publication_verification"],
   "cloud-readiness.yml": ["admission", "source_verified"],
   "cloud-migrator-artifacts.yml": [],
-  "release-verify.yml": ["typecheck", "general_tests", "serialized_tests", "runner_workflow_evals", "verify_paperclip_runner", "build"],
+  "release-verify.yml": ["typecheck", "general_tests", "serialized_tests", "runner_workflow_evals", "verify_outpost_runner", "build"],
   "runner-chaos-evals.yml": ["chaos_and_recovery"],
   "release.yml": ["plan_preview", "package_preview"],
 };

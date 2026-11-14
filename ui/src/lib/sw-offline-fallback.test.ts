@@ -36,7 +36,7 @@ function loadServiceWorkerFetchListener(overrides: {
     readFileSync(resolve(uiRoot, "public/sw.js"), "utf8"),
     readFileSync(resolve(uiRoot, "src/index.css"), "utf8"),
   )
-    .replace("__PAPERCLIP_BUILD_ID__", "fixture-production");
+    .replace("__OUTPOST_BUILD_ID__", "fixture-production");
   new Function("self", "caches", "fetch", "Response", "URL", code)(
     swSelf,
     caches,
@@ -88,7 +88,7 @@ describe("sw.js offline fallback", () => {
     expect(body).toContain("<style>");
     expect(body).toContain(".paperclip-offline");
     expect(body).toContain("<svg");
-    expect(body).not.toMatch(/__PAPERCLIP_|<link|\bsrc=/);
+    expect(body).not.toMatch(/__OUTPOST_|<link|\bsrc=/);
     expect(body).not.toContain("<html>app shell</html>");
   });
 

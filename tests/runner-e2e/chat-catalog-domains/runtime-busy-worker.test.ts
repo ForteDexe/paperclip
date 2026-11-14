@@ -8,7 +8,7 @@ import { readRuntimeTaskGate, releaseRuntimeWorker, taskBoundRuntimeGate, prepar
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
-  const root = await mkdtemp(path.join(tmpdir(), "runtime-task-gate-")); roots.push(root); vi.stubEnv("PAPERCLIP_RUNNER_E2E_TEMP_ROOT", root);
+  const root = await mkdtemp(path.join(tmpdir(), "runtime-task-gate-")); roots.push(root); vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
   const cwd = path.join(root, "isolated-workspaces", "company", "task"); await mkdir(cwd, { recursive: true });
   const task = { id: "task", companyId: "company", assigneeAgentId: "worker", executionWorkspaceId: "workspace" };
   const workspace = { id: "workspace", companyId: "company", cwd };
@@ -53,7 +53,7 @@ it("retains neutral cleanup release and refuses timeout widening", async () => {
   expect(() => taskBoundRuntimeGate("too-long", 300001)).toThrow("bounded");
 });
 it("funds source and worker before task-bound history, without exposing an agent-home script or admitting work", async () => {
-  const f = await fixture(); vi.stubEnv("PAPERCLIP_HOME", path.join(f.root, "paperclip-home")); vi.stubEnv("PAPERCLIP_INSTANCE_ID", "owned-test");
+  const f = await fixture(); vi.stubEnv("OUTPOST_HOME", path.join(f.root, "paperclip-home")); vi.stubEnv("OUTPOST_INSTANCE_ID", "owned-test");
   const funded: string[] = [];
   const ctx = { input: { nonce: "history", execution: { environment: { id: "local" } }, fixtures: { company: { id: "company" }, agent: { id: "source-agent" } },
     api: { post: async (_url: string, body: { scopeId: string; unpricedUsagePolicy: string }) => { expect(body.unpricedUsagePolicy).toBe("allow"); funded.push(body.scopeId); } } }, allRuns: async () => [] } as unknown as ChatCatalogContext;

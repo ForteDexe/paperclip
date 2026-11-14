@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { GitShallowMetadataError } from "@paperclipai/adapter-utils/git-workspace-sync";
-import type { Db } from "@paperclipai/db";
+import { GitShallowMetadataError } from "@outpost/adapter-utils/git-workspace-sync";
+import type { Db } from "@outpost/db";
 const log = vi.hoisted(() => vi.fn());
 vi.mock("../heartbeat-run-events.js", () => ({ appendHeartbeatRunEvent: log }));
 import { restoreNativeWorkspaceBestEffort } from "./native-workspace-best-effort.js";

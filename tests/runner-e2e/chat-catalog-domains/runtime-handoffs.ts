@@ -56,10 +56,10 @@ async function queryToolReads(ctx: Parameters<typeof prepareRuntimeWorkerGate>[0
       ctx.input.api.getRunObservation(`/api/heartbeat-runs/${runId}/events?afterSeq=${afterSeq}&limit=${limit}`));
     for (const read of apiReadStatuses(events as Record<string, unknown>[], digests)) if (read.ok && read.status >= 200 && read.status < 300) reads.push({ runId, name: "call_api", mentionsTask: true });
     for (const event of events) {
-      const prp = event.payload?.prpEvent as { eventType?: string; payload?: { name?: unknown; status?: unknown; output?: unknown } } | undefined;
-      if (prp?.eventType !== "tool.execution.completed" || prp.payload?.status !== "completed" || typeof prp.payload.name !== "string") continue;
-      const output = typeof prp.payload.output === "string" ? prp.payload.output : JSON.stringify(prp.payload.output ?? "");
-      reads.push({ runId, name: prp.payload.name, mentionsTask: [task.id, task.identifier].some(id => !!id && output.includes(String(id))) });
+      const orp = event.payload?.orpEvent as { eventType?: string; payload?: { name?: unknown; status?: unknown; output?: unknown } } | undefined;
+      if (orp?.eventType !== "tool.execution.completed" || orp.payload?.status !== "completed" || typeof orp.payload.name !== "string") continue;
+      const output = typeof orp.payload.output === "string" ? orp.payload.output : JSON.stringify(orp.payload.output ?? "");
+      reads.push({ runId, name: orp.payload.name, mentionsTask: [task.id, task.identifier].some(id => !!id && output.includes(String(id))) });
     }
   }
   return reads;
@@ -97,7 +97,7 @@ export const runtimeHandoffCases = [runtimeDefinition("agent-chat.track-delegate
   return { worker: prepared.worker, gate: prepared.gate, task, marker, prompt, sourceBefore: source,
     sourceId: source.id, setupRunIds: phase.runs.map(run => run.id), workerRunId: workerRun.id, workerWasReallyWaiting: true, createdFromSource: true };
 }, gradeTrackDelegatedWork, {
-  oracleVersion: "paperclip.chat-catalog.track-delegated-work.v3",
+  oracleVersion: "outpost.chat-catalog.track-delegated-work.v3",
   sourceFiles: ["chat-catalog-domains/runtime-handoffs.ts", "chat-catalog-domains/api-read-receipts.ts", "chat-catalog-domains/internal-comment-reference.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "completion-update-flow.ts", "completion-updates.ts", "run-observations.ts", "chat-scenarios/agent-chat.yaml"],
   setupHumanMessageCount: 1, expectedHumanMessageCount: 2, expectedRunCount: 4, attemptTimeoutMs: 900_000,
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "native-handoff-owner", "real-source-provenance"] },

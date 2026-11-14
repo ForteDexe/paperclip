@@ -34,7 +34,7 @@ import {
   workspaceOperations,
   workAssessments,
   statusDecisions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resumeNativeWorkspaceFinalization } from "./native-workspace-finalizer.js";
 import { reconcileNativeFinalizations } from "./native-finalization-reconciler.js";
@@ -74,7 +74,7 @@ describe("native workspace finalization recovery", () => {
       companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "native-workspace-finalizer-test-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -128,7 +128,7 @@ describe("native workspace finalization recovery", () => {
       workspaceRoot,
       "operation-logs",
     );
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-workspace-finalizer-");
     connectionString = external ?? temporary!.connectionString;
     db = createDb(connectionString, { maxConnections: 6 });
@@ -145,7 +145,7 @@ describe("native workspace finalization recovery", () => {
       id: agentId,
       companyId,
       name: "Native workspace agent",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       status: "running",
     });
     await db.insert(projects).values([
@@ -271,7 +271,7 @@ describe("native workspace finalization recovery", () => {
     const seed = await seedAbandonedCopyback();
     const reviewerId = randomUUID(), sourceRunId = randomUUID(), sourceResultId = randomUUID(), assessmentId = randomUUID();
     const decisionId = randomUUID(), interactionId = randomUUID();
-    await db.insert(agents).values({ id: reviewerId, companyId, name: "Review agent", adapterType: "paperclip_runner", status: "running" });
+    await db.insert(agents).values({ id: reviewerId, companyId, name: "Review agent", adapterType: "outpost_runner", status: "running" });
     const [actingRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, seed.runId));
     await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId, nativeIssueId: seed.issueId, runtimeMode: "native", status: "succeeded", completionContractId: actingRun.completionContractId, createdAt: new Date(actingRun.createdAt.getTime() - 60_000) });
     await db.insert(nativeRunResults).values({ id: sourceResultId, companyId, issueId: seed.issueId, runId: sourceRunId, completionContractId: actingRun.completionContractId!, serverFingerprint: sourceResultId, schemaStatus: "accepted", resultJson: {}, canonicalSha256: sourceResultId });
@@ -319,14 +319,14 @@ describe("native workspace finalization recovery", () => {
         issueId: seed.issueId, key: "plan", revisionId: randomUUID() } },
     });
     const resultJson = {
-      result: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded",
+      result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
         summary: "Wait for the existing continuation.",
         completionClaim: { contractRevision: "test", objectiveSatisfied: false, criteria: [],
           remainingWork: [{ description: "Wait for the check or plan confirmation.", blocksCompletion: true }] },
         continuation: { kind: wait === "monitor" ? "monitor" : "response_wake",
           summary: "Wait for the existing continuation.", idempotencyKey: "saved-wait" },
         evidence: [], verification: [], attentionRequests: [], artifacts: [] },
-      terminal: { schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed",
+      terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed",
         runTerminalState: "succeeded", reportedWorkDisposition: "yielded" },
     };
     await db.update(nativeRunResults).set({ resultJson }).where(eq(nativeRunResults.runId, seed.runId));

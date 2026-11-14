@@ -41,7 +41,7 @@ The `diskless` and `diskless-per-turn` cases delete both native controller
 directories after A completes, continue in a separate B process, delete those
 directories after B completes, and continue in C. They use the production source
 selector and snapshot rebinder for per-turn admission, followed by the real
-native executor. They do not inject PRP files or edit leases to produce recovery.
+native executor. They do not inject ORP files or edit leases to produce recovery.
 Warm mode verifies compatible process reuse; per-turn mode verifies the existing
 suspension and history-resume policy. These component tests preserve workspace
 and remote sandbox storage, and use one source revision in three processes.
@@ -90,8 +90,8 @@ closed. Recovery preserves the journal and the provider's existing state owner.
 Do not delete a quarantine or change database ownership to force continuation.
 
 Use a disposable Linux container with Node.js, `sh`, `tar`, `base64`, `ps`, and
-`setsid`. Build `paperclip-runnerd` and `fake-codex-app-server` from the checkout's
-`packages/paperclip-runner/runner/Cargo.toml` for that container's architecture.
+`setsid`. Build `outpost-runnerd` and `fake-codex-app-server` from the checkout's
+`packages/outpost-runner/runner/Cargo.toml` for that container's architecture.
 Keep the Linux runner binary on the host as well: the product hashes and stages
 that artifact. Put the fake provider at `/opt/continuity/fake-codex-app-server`
 inside the container. Do not put credentials in this container.
@@ -125,11 +125,11 @@ Run the test with the container name, current host port, and Linux artifact path
 
 ```sh
 NODE_EXTRA_CA_CERTS=/tmp/continuity-test.crt \
-PAPERCLIP_TEST_RUNNER_TLS_KEY=/tmp/continuity-test.key \
-PAPERCLIP_TEST_RUNNER_CONTAINER=CONTAINER \
-PAPERCLIP_TEST_RUNNER_PORT=HOST_PORT \
-PAPERCLIP_TEST_LINUX_RUNNER_BINARY=/path/to/linux/paperclip-runnerd \
-PAPERCLIP_TEST_FAKE_CODEX_WRAPPER=/tmp/continuity-fake-codex \
+OUTPOST_TEST_RUNNER_TLS_KEY=/tmp/continuity-test.key \
+OUTPOST_TEST_RUNNER_CONTAINER=CONTAINER \
+OUTPOST_TEST_RUNNER_PORT=HOST_PORT \
+OUTPOST_TEST_LINUX_RUNNER_BINARY=/path/to/linux/outpost-runnerd \
+OUTPOST_TEST_FAKE_CODEX_WRAPPER=/tmp/continuity-fake-codex \
 pnpm exec vitest run \
   server/src/services/native-runtime/native-runner-restart-recovery.integration.test.ts \
   -t 'preserves remote warm continuity' --maxWorkers=1
@@ -191,7 +191,7 @@ from work that is only in flight:
 | `ready` | `true` when the instance is not draining, the census is complete, and `handoff.blockingRuns` and `handoff.unsavedWakes` are 0. |
 
 A run is restartable only when all of this holds: the agent uses the
-`paperclip_runner` adapter; the run has no process identity, no provider session
+`outpost_runner` adapter; the run has no process identity, no provider session
 before or after, no checkpoint header and no dispatched runner task; no
 execution-start event exists (`native.process_start_requested`,
 `native.process_identity_recorded`, `adapter.invoke`, `tool.execution.started` or
@@ -364,7 +364,7 @@ it cannot reserve or repeat a filesystem write. Missing receipts remain held,
 including a receipt removed between inspection and locked replay. The real
 Postgres/filesystem integration tests lose the commit acknowledgement for both
 tools and verify one write, one audit effect, current-permission revocation and
-Stop precedence. The optional `PAPERCLIP_TEST_DATABASE_URL` test host always uses
+Stop precedence. The optional `OUTPOST_TEST_DATABASE_URL` test host always uses
 a new owned database, never its existing data.
 
 The first rollout does not extend grace already configured in an old runner.
@@ -379,7 +379,7 @@ restores the transport checkpoint, so it does not prove application startup
 discovery by itself. Build the host runner and fake provider first, then run:
 
 ```sh
-PAPERCLIP_TEST_CONTROLLER_OUTAGE_MS=300000 pnpm exec vitest run \
+OUTPOST_TEST_CONTROLLER_OUTAGE_MS=300000 pnpm exec vitest run \
   server/src/services/native-runtime/native-runner-restart-recovery.integration.test.ts \
   -t 'adopts the same runner from Postgres' --maxWorkers=1
 ```
@@ -403,12 +403,12 @@ The dedicated suite's version 6 uses the existing reusable warm environment,
 with a 15-minute provider idle window and unchanged 60/300/420-second ownership,
 outage and reconnect limits. Its prior per-turn/no-reuse measurement failed
 retained native/provider identity and remains failed. The test retires the whole
-`runtime/paperclip-runner` directory, including provider failover-backup bytes.
+`runtime/outpost-runner` directory, including provider failover-backup bytes.
 Per-turn application qualification after sandbox disposal and this disk loss
 therefore awaits the provider-backup owner's durable storage contract; logical
 native checkpoints do not replace provider history or weaken the identity oracle.
 
-The rollback reader must support both the recovery envelope and the settled PRP
+The rollback reader must support both the recovery envelope and the settled ORP
 v2 idle goal suffix. Record its actual source commit and installed tree hash.
 An older reader rejecting that journal is an unsupported rollback, not a pass.
 A backported compatibility build is a development fixture until it is released;
@@ -419,7 +419,7 @@ E2E journey provide different evidence and must retain those scope labels.
 ## Database cost qualification
 
 `scripts/benchmark-native-controller-recovery.ts` compares a pinned source
-baseline with the candidate's real PRP writer, control-plane snapshot port and
+baseline with the candidate's real ORP writer, control-plane snapshot port and
 lease renewal. It uses identical fixtures with 300 controllers and 10,000 prior
 tasks, in baseline/candidate/candidate/baseline order. `steady` distributes control
 checkpoints; `burst` aligns them every five seconds. `pilot` checks instrumentation
@@ -440,7 +440,7 @@ node --import ./cli/node_modules/tsx/dist/loader.mjs \
 ```
 
 The baseline needs the same installed dependency versions and built workspace
-packages. It supplies the baseline writer, snapshot port and PRP controller;
+packages. It supplies the baseline writer, snapshot port and ORP controller;
 the request fixtures, renewal path and pool policy are common controls. When
 running an exported tree without Git metadata, supply its exact
 `BENCH_BASELINE_REVISION`, `BENCH_CANDIDATE_REVISION` and
@@ -449,7 +449,7 @@ Use a fresh report directory for every attempt. Only new random databases are
 created; successful trial databases are dropped, and the owned template remains
 for inspection until the disposable cluster is removed.
 
-The report counts SQL across all three pools, actual snapshot/PRP transactions,
+The report counts SQL across all three pools, actual snapshot/ORP transactions,
 changed records/bytes, WAL, database CPU, sampled memory, pool admission,
 transaction latency and database request latency. Pool admission ends at
 connection assignment/BEGIN encoding; BEGIN response time is separate.
@@ -471,12 +471,12 @@ relative regression gate fails. Do not change pool limits to conceal a failure.
 ## Required native usage acceptance
 
 Built-in native remote Runner execution accepts structured accounting before
-its PRP transport ACK. `usage.reported`, turn-start, and turn-terminal facts
+its ORP transport ACK. `usage.reported`, turn-start, and turn-terminal facts
 produce immutable `run_usage_receipts` rows. The receipt stores only structured
 usage and turn identity. It does not depend on output logs or raw trace capture.
 The source UUID derives from the run and Runner identity. Provider-turn IDs and
 turn-start source facts preserve aggregation when several provider turns share
-one PRP envelope turn. Source event IDs and
+one ORP envelope turn. Source event IDs and
 sequences remain stable across receiver replacement. Repeated delivery checks
 the saved fact and does not create another receipt for the same report.
 
@@ -507,7 +507,7 @@ Run the focused PostgreSQL/Runner experiment with:
 pnpm exec vitest run server/src/services/native-runtime/native-usage-delivery.integration.test.ts --maxWorkers=1
 ```
 
-The provider fixture emits a real PRP usage report through the durable Rust
+The provider fixture emits a real ORP usage report through the durable Rust
 Runner. A PostgreSQL trigger fails receipt insertion. The test removes the first
 receiver directory, replaces its accounting owner, reconnects the same Runner,
 and independently reads the receipt and ledger. The provider is controlled;
@@ -536,7 +536,7 @@ digest. Existing unmarked Codex reports remain incomplete and unpriced in the
 new accounting path. Their budget debt remains pending for reconciliation.
 No deployed Runner artifact has been qualified by this source-only change.
 
-PRP negotiates envelope versions and the admitted Runner digest. It does not
+ORP negotiates envelope versions and the admitted Runner digest. It does not
 negotiate this usage payload field. The existing event envelope validators leave
 usage payloads open, but an old standalone usage-schema consumer rejects this
 new field. Update receivers and strict usage-schema consumers first, then
@@ -597,7 +597,7 @@ must close before a distinct parent session binds in that allocation. The child'
 accepted result stays unchanged.
 
 ```sh
-pnpm --filter @paperclipai/server exec vitest run \
+pnpm --filter @outpost/server exec vitest run \
   src/services/native-runtime/native-session-executor.test.ts \
   -t 'retires the completed child listener'
 ```

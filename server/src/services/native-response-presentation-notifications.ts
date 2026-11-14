@@ -8,7 +8,7 @@ export async function notifyNativeResponsePresentation(tx: object, scope: Native
     JSON.stringify({ companyId: scope.companyId, issueId: scope.issueId, runId: scope.runId, agentId: scope.agentId }));
 }
 
-export function isNativeResponseEvidence(eventType: string, prpEvent: unknown): boolean {
+export function isNativeResponseEvidence(eventType: string, orpEvent: unknown): boolean {
   return eventType === "run.result.accepted" || eventType === "item.completed" &&
-    readCompletedAssistantMessageCandidate({ seq: 0, prpEvent })?.channel === "final";
+    readCompletedAssistantMessageCandidate({ seq: 0, orpEvent })?.channel === "final";
 }

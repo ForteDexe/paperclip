@@ -253,7 +253,7 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
       if (Number.isFinite(createdAt) && childRuns.slice(1).every(run => Date.parse(run.createdAt) < createdAt) &&
         latest?.runtimeMode === "native" && latest.nativeIssueId === child.id && latest.contextSnapshot?.issueId === child.id &&
         latest.status === "succeeded" && latest.nativePhase === "committed" && result?.finalizationPhase === "committed" &&
-        result.prpReportedWorkDisposition === "blocked" && result.finalizationReasonCode === "current_track_blocker_waiting" &&
+        result.orpReportedWorkDisposition === "blocked" && result.finalizationReasonCode === "current_track_blocker_waiting" &&
         result.authoritativeDecision === "blocked" && result.issueStatusAfter === "blocked" &&
         Number.isSafeInteger(child.statusVersion) && result.statusVersionAfter === child.statusVersion) fail("onboarding_child_task_blocked");
     }

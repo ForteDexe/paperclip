@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { agents, dotAgentBindings, mcpOauthGrants, type Db } from "@paperclipai/db";
+import { agents, dotAgentBindings, mcpOauthGrants, type Db } from "@outpost/db";
 import { canConfigureAgentConnection } from "../modules/agent-lifecycle/index.js";
 import { accessService } from "./access.js";
 import { boardAuthService } from "./board-auth.js";
@@ -32,7 +32,7 @@ export async function authorizeExternalBotBinding(db: Db, principal: McpPrincipa
   const access = grant ? await boardAuthService(db).resolveBoardAccess(grant.userId) : null;
   const membership = access?.memberships.find(m => m.companyId === binding.companyId && m.status === "active");
   if (!access?.user || !membership || membership.membershipRole === "viewer" || !grant || grant.agentId !== binding.agentId || !agent
-      || agent.adapterType !== "paperclip_runner" || agent.adapterConfig.provider !== binding.providerKind
+      || agent.adapterType !== "outpost_runner" || agent.adapterConfig.provider !== binding.providerKind
       || ["terminated", "pending_approval"].includes(agent.status)
       || (!options.allowPaused && (requireReady ? agent.status === "paused" : !canConfigureAgentConnection(agent)))) {
     throw new McpOAuthError("access_denied", "Agent connection authority is unavailable.", 409);

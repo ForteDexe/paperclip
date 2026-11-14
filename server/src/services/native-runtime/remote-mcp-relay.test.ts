@@ -3,7 +3,7 @@ import { ClientRequest, createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import type { Socket } from "node:net";
 import { join } from "node:path";
-import { RUNNER_TOOL_SCOPE_TOKEN_HEADER } from "../../vendor/paperclip-runner/index.js";
+import { RUNNER_TOOL_SCOPE_TOKEN_HEADER } from "../../vendor/outpost-runner/index.js";
 import { createRemoteMcpRelayToken, forwardRemoteMcpRequest, registerRemoteMcpRelay, remoteMcpRelayUrl } from "./remote-mcp-relay.js";
 
 const cleanup: Array<() => void | Promise<void>> = [];

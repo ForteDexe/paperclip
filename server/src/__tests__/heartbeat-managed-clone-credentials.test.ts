@@ -18,14 +18,14 @@ let tempHome: string;
 let originalHome: string | undefined;
 
 beforeAll(async () => {
-  originalHome = process.env.PAPERCLIP_HOME;
+  originalHome = process.env.OUTPOST_HOME;
   tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-clone-"));
-  process.env.PAPERCLIP_HOME = tempHome;
+  process.env.OUTPOST_HOME = tempHome;
 });
 
 afterAll(async () => {
-  if (originalHome === undefined) delete process.env.PAPERCLIP_HOME;
-  else process.env.PAPERCLIP_HOME = originalHome;
+  if (originalHome === undefined) delete process.env.OUTPOST_HOME;
+  else process.env.OUTPOST_HOME = originalHome;
   await fs.rm(tempHome, { recursive: true, force: true });
 });
 
@@ -457,7 +457,7 @@ exit 1
 
   it("keeps the credential env alive through the sanitizer spread order", () => {
     // The clone env is `{ ...sanitize(process.env), GIT_TERMINAL_PROMPT, ...auth.env }`. The
-    // sanitizer strips every PAPERCLIP_* key, so the token env must be spread after it.
+    // sanitizer strips every OUTPOST_* key, so the token env must be spread after it.
     const invocation = buildGitAuthInvocation({
       token: "tok",
       source: "company_secret",

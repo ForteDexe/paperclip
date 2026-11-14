@@ -9,9 +9,9 @@ import type { EndpointRow } from "./runtime-types.js";
 import { chatCredentialMutationLease } from "../chat-credential-mutation-lease.js";
 
 import { slackChatRegistrationService, slackRegistrationProjection } from "../chat-slack-registration.js";
-import { chatSlackRegistrations } from "@paperclipai/db";
+import { chatSlackRegistrations } from "@outpost/db";
 
-import { defaultSlackAppConfiguration } from "@paperclipai/shared";
+import { defaultSlackAppConfiguration } from "@outpost/shared";
 import {
   randomBytes,
   randomUUID,
@@ -23,25 +23,25 @@ import {
   ne,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   agents,
   chatEndpoints,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatAdapterCapabilities,
   ChatEndpoint,
   ChatProvider,
   CreateChatEndpointInput,
   UpdateChatEndpointInput,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   isAgentStatusInvokable,
   isUuidLike,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   badRequest,

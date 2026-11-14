@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, type Db } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { findNativeSessionResumeRun } from "./native-session-resume.js";
 import { resolveNativeControllerRecovery } from "./native-controller-recovery.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_TEST_DATABASE_URL");
 const supported = Boolean(externalUrl) || (await getEmbeddedPostgresTestSupport()).supported;
 
 (supported ? describe : describe.skip)("native session resume SQL projection", () => {

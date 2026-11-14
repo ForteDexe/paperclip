@@ -133,7 +133,7 @@ export async function runCaseReceiptFlow(input: Input) {
     };
     // Persist synthetic work products and allowlisted facts, never provider prompts/sessions.
     await input.evidence("case-receipt.json", {
-      schema: "paperclip.e2e.case-receipt.v1", stage, checks, observation: publicObservation,
+      schema: "outpost.e2e.case-receipt.v1", stage, checks, observation: publicObservation,
       ...(failure instanceof Error ? { failure: { message: failure.message.slice(0, 2000) } } : {}),
     });
     return checks;

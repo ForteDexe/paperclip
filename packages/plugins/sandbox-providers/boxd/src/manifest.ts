@@ -1,6 +1,6 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
 
-const PLUGIN_ID = "paperclip.boxd-sandbox-provider";
+const PLUGIN_ID = "outpost.boxd-sandbox-provider";
 const PLUGIN_VERSION = "0.1.0";
 
 const manifest: PaperclipPluginManifestV1 = {

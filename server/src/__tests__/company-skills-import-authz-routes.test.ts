@@ -15,7 +15,7 @@ import {
   createDb,
   heartbeatRuns,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -39,15 +39,15 @@ describeEmbeddedPostgres("company skill import authorization routes", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let paperclipHome: string | null = null;
   const cleanupDirs = new Set<string>();
-  const previousAgentJwtSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
-  const previousPaperclipHome = process.env.PAPERCLIP_HOME;
-  const previousPaperclipInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+  const previousAgentJwtSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
+  const previousPaperclipHome = process.env.OUTPOST_HOME;
+  const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
 
   beforeAll(async () => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = "company-skills-import-authz-test-secret";
+    process.env.OUTPOST_AGENT_JWT_SECRET = "company-skills-import-authz-test-secret";
     paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-company-skills-import-authz-home-"));
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = "default";
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-company-skills-import-authz-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
@@ -70,12 +70,12 @@ describeEmbeddedPostgres("company skill import authorization routes", () => {
     if (paperclipHome) {
       await fs.rm(paperclipHome, { recursive: true, force: true });
     }
-    if (previousAgentJwtSecret === undefined) delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    else process.env.PAPERCLIP_AGENT_JWT_SECRET = previousAgentJwtSecret;
-    if (previousPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = previousPaperclipHome;
-    if (previousPaperclipInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-    else process.env.PAPERCLIP_INSTANCE_ID = previousPaperclipInstanceId;
+    if (previousAgentJwtSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
+    else process.env.OUTPOST_AGENT_JWT_SECRET = previousAgentJwtSecret;
+    if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = previousPaperclipHome;
+    if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+    else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
   });
 
   function authenticatedApp() {

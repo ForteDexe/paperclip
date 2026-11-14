@@ -22,9 +22,9 @@ require_cmd() {
 require_cmd curl
 require_cmd jq
 
-PAPERCLIP_API_URL="${PAPERCLIP_API_URL:-http://localhost:3100}"
-API_BASE="${PAPERCLIP_API_URL%/}/api"
-COMPANY_ID="${COMPANY_ID:-${PAPERCLIP_COMPANY_ID:-}}"
+OUTPOST_API_URL="${OUTPOST_API_URL:-http://localhost:3100}"
+API_BASE="${OUTPOST_API_URL%/}/api"
+COMPANY_ID="${COMPANY_ID:-${OUTPOST_COMPANY_ID:-}}"
 COMPANY_SELECTOR="${COMPANY_SELECTOR:-}"
 
 HERMES_AGENT_NAME="${HERMES_AGENT_NAME:-Hermes Gateway Smoke Agent}"
@@ -34,7 +34,7 @@ HERMES_GATEWAY_API_KEY="${HERMES_GATEWAY_API_KEY:-${API_SERVER_KEY:-}}"
 HERMES_GATEWAY_ALLOW_INSECURE_HTTP="${HERMES_GATEWAY_ALLOW_INSECURE_HTTP:-0}"
 HERMES_GATEWAY_SESSION_KEY_STRATEGY="${HERMES_GATEWAY_SESSION_KEY_STRATEGY:-issue}"
 HERMES_GATEWAY_TIMEOUT_SEC="${HERMES_GATEWAY_TIMEOUT_SEC:-180}"
-PAPERCLIP_API_URL_FOR_HERMES="${PAPERCLIP_API_URL_FOR_HERMES:-}"
+OUTPOST_API_URL_FOR_HERMES="${OUTPOST_API_URL_FOR_HERMES:-}"
 GATEWAY_PROBE_TIMEOUT_SEC="${GATEWAY_PROBE_TIMEOUT_SEC:-4}"
 HERMES_JOIN_OUTPUT_FILE="${HERMES_JOIN_OUTPUT_FILE:-}"
 
@@ -47,15 +47,15 @@ join request, claims the one-time Paperclip API key, and verifies the stored
 adapter config without printing raw secrets.
 
 Required:
-  PAPERCLIP_API_URL=http://127.0.0.1:3100
-  PAPERCLIP_AUTH_HEADER='Bearer <board-token>'     # or PAPERCLIP_COOKIE
+  OUTPOST_API_URL=http://127.0.0.1:3100
+  OUTPOST_AUTH_HEADER='Bearer <board-token>'     # or OUTPOST_COOKIE
   HERMES_GATEWAY_API_KEY=<API_SERVER_KEY>
 
 Common flags:
   COMPANY_ID=<uuid> or COMPANY_SELECTOR=<prefix|name|uuid>
   HERMES_GATEWAY_API_BASE_URL=http://127.0.0.1:8642
   HERMES_GATEWAY_PROBE_URL=http://127.0.0.1:8642
-  PAPERCLIP_API_URL_FOR_HERMES=http://host.docker.internal:3100
+  OUTPOST_API_URL_FOR_HERMES=http://host.docker.internal:3100
   HERMES_GATEWAY_ALLOW_INSECURE_HTTP=1             # dev-only non-loopback HTTP
   HERMES_GATEWAY_SESSION_KEY_STRATEGY=issue|agent|run|none
   HERMES_JOIN_OUTPUT_FILE=/secure/path/join-output.json
@@ -82,13 +82,13 @@ case "${1:-}" in
 esac
 
 AUTH_HEADERS=()
-if [[ -n "${PAPERCLIP_AUTH_HEADER:-}" ]]; then
-  AUTH_HEADERS+=(-H "Authorization: ${PAPERCLIP_AUTH_HEADER}")
-elif [[ -n "${PAPERCLIP_API_KEY:-}" ]]; then
-  AUTH_HEADERS+=(-H "Authorization: Bearer ${PAPERCLIP_API_KEY}")
+if [[ -n "${OUTPOST_AUTH_HEADER:-}" ]]; then
+  AUTH_HEADERS+=(-H "Authorization: ${OUTPOST_AUTH_HEADER}")
+elif [[ -n "${OUTPOST_API_KEY:-}" ]]; then
+  AUTH_HEADERS+=(-H "Authorization: Bearer ${OUTPOST_API_KEY}")
 fi
-if [[ -n "${PAPERCLIP_COOKIE:-}" ]]; then
-  AUTH_HEADERS+=(-H "Cookie: ${PAPERCLIP_COOKIE}")
+if [[ -n "${OUTPOST_COOKIE:-}" ]]; then
+  AUTH_HEADERS+=(-H "Cookie: ${OUTPOST_COOKIE}")
 fi
 
 RESPONSE_CODE=""
@@ -110,7 +110,7 @@ hash_prefix() {
 redact_text() {
   local text="$1"
   local secret
-  for secret in "${HERMES_GATEWAY_API_KEY:-}" "${CLAIM_SECRET:-}" "${AGENT_API_KEY:-}" "${PAPERCLIP_AUTH_HEADER:-}" "${PAPERCLIP_COOKIE:-}" "${PAPERCLIP_API_KEY:-}"; do
+  for secret in "${HERMES_GATEWAY_API_KEY:-}" "${CLAIM_SECRET:-}" "${AGENT_API_KEY:-}" "${OUTPOST_AUTH_HEADER:-}" "${OUTPOST_COOKIE:-}" "${OUTPOST_API_KEY:-}"; do
     if [[ -n "$secret" ]]; then
       text="${text//$secret/[redacted len=${#secret}]}"
     fi
@@ -134,7 +134,7 @@ api_request() {
   if [[ "$path" == http://* || "$path" == https://* ]]; then
     url="$path"
   elif [[ "$path" == /api/* ]]; then
-    url="${PAPERCLIP_API_URL%/}${path}"
+    url="${OUTPOST_API_URL%/}${path}"
   else
     url="${API_BASE}${path}"
   fi
@@ -174,8 +174,8 @@ fail_board_auth_required() {
 [hermes-gateway-join] ERROR: ${operation} requires board/operator auth.
 
 Provide one of:
-  PAPERCLIP_AUTH_HEADER="Bearer <board-token>"
-  PAPERCLIP_COOKIE="<board-session-cookie>"
+  OUTPOST_AUTH_HEADER="Bearer <board-token>"
+  OUTPOST_COOKIE="<board-session-cookie>"
 
 Current auth context appears insufficient (HTTP ${RESPONSE_CODE}).
 EOF
@@ -320,7 +320,7 @@ JOIN_PAYLOAD="$(jq -nc \
   --arg name "$HERMES_AGENT_NAME" \
   --arg apiBaseUrl "$HERMES_GATEWAY_API_BASE_URL" \
   --arg apiKey "$HERMES_GATEWAY_API_KEY" \
-  --arg paperclipApiUrl "$PAPERCLIP_API_URL_FOR_HERMES" \
+  --arg paperclipApiUrl "$OUTPOST_API_URL_FOR_HERMES" \
   --arg sessionKeyStrategy "$HERMES_GATEWAY_SESSION_KEY_STRATEGY" \
   --argjson timeoutSec "$HERMES_GATEWAY_TIMEOUT_SEC" \
   --argjson allowInsecure "$(if [[ "$HERMES_GATEWAY_ALLOW_INSECURE_HTTP" == "1" ]]; then echo true; else echo false; fi)" \
@@ -409,9 +409,9 @@ fi
 STORED_SESSION_STRATEGY="$(jq -r '.adapterConfig.sessionKeyStrategy // empty' <<<"$RESPONSE_BODY")"
 [[ "$STORED_SESSION_STRATEGY" == "$HERMES_GATEWAY_SESSION_KEY_STRATEGY" ]] || fail "stored sessionKeyStrategy mismatch: expected ${HERMES_GATEWAY_SESSION_KEY_STRATEGY}, got ${STORED_SESSION_STRATEGY:-<empty>}"
 
-if [[ -n "$PAPERCLIP_API_URL_FOR_HERMES" ]]; then
-  STORED_PAPERCLIP_API_URL="$(jq -r '.adapterConfig.paperclipApiUrl // empty' <<<"$RESPONSE_BODY")"
-  [[ "$STORED_PAPERCLIP_API_URL" == "$PAPERCLIP_API_URL_FOR_HERMES" || "$(strip_trailing_slash "$STORED_PAPERCLIP_API_URL")" == "$(strip_trailing_slash "$PAPERCLIP_API_URL_FOR_HERMES")" ]] \
+if [[ -n "$OUTPOST_API_URL_FOR_HERMES" ]]; then
+  STORED_OUTPOST_API_URL="$(jq -r '.adapterConfig.paperclipApiUrl // empty' <<<"$RESPONSE_BODY")"
+  [[ "$STORED_OUTPOST_API_URL" == "$OUTPOST_API_URL_FOR_HERMES" || "$(strip_trailing_slash "$STORED_OUTPOST_API_URL")" == "$(strip_trailing_slash "$OUTPOST_API_URL_FOR_HERMES")" ]] \
     || fail "stored paperclipApiUrl mismatch"
 fi
 

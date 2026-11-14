@@ -1,11 +1,11 @@
 import { channel } from "node:diagnostics_channel";
 import { mock } from "node:test";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { Socket } from "node:net";
 import { observeMaintenanceIncomingHttp } from "./incoming-http-observation.js";
 
 const realTimeout = globalThis.setTimeout, realInterval = globalThis.setInterval, clearRealInterval = globalThis.clearInterval, realNow = Date.now;
-const fakeClock = process.env.PAPERCLIP_MAINTENANCE_FAKE_CLOCK === "true";
+const fakeClock = process.env.OUTPOST_MAINTENANCE_FAKE_CLOCK === "true";
 let bootClock: ReturnType<typeof setInterval> | undefined;
 function runClock() {
   if (bootClock) clearRealInterval(bootClock);
@@ -17,12 +17,12 @@ if (fakeClock) {
   runClock();
 }
 
-if (process.env.PAPERCLIP_MAINTENANCE_GITHUB_ORIGIN) {
+if (process.env.OUTPOST_MAINTENANCE_GITHUB_ORIGIN) {
   const fetch = globalThis.fetch;
   globalThis.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input.toString());
     return fetch(url.origin === "https://api.github.com"
-      ? new URL(url.pathname + url.search, process.env.PAPERCLIP_MAINTENANCE_GITHUB_ORIGIN) : input, init);
+      ? new URL(url.pathname + url.search, process.env.OUTPOST_MAINTENANCE_GITHUB_ORIGIN) : input, init);
   };
 }
 
@@ -42,21 +42,21 @@ channel("undici:request:create").subscribe(observeRequest);
 channel("http.client.request.start").subscribe(observeRequest);
 
 let workCapture: Awaited<ReturnType<typeof import('./idle-work-capture.js')['installMaintenanceIdleWorkCapture']>> | undefined;
-let databaseCapture: ReturnType<typeof import('@paperclipai/db/response-capture')['databaseResponseCaptureFromEnv']>;
+let databaseCapture: ReturnType<typeof import('@outpost/db/response-capture')['databaseResponseCaptureFromEnv']>;
 let incomingHttp: ReturnType<typeof observeMaintenanceIncomingHttp> | undefined;
 try {
   // Must precede the announcement wrapper's first import of the real app graph.
-  if (process.env.PAPERCLIP_MAINTENANCE_IDLE_WORK_CAPTURE === '1') {
+  if (process.env.OUTPOST_MAINTENANCE_IDLE_WORK_CAPTURE === '1') {
     workCapture = await (await import('./idle-work-capture.js')).installMaintenanceIdleWorkCapture();
   }
-  const announcement = process.env.PAPERCLIP_MAINTENANCE_ANNOUNCEMENT_FIXTURE === '1'
+  const announcement = process.env.OUTPOST_MAINTENANCE_ANNOUNCEMENT_FIXTURE === '1'
     ? await (await import('./announcement-boundary.js')).installMaintenanceAnnouncementBoundary() : undefined;
   const { startServer } = await import("../../../index.js");
   const { idleWorkSnapshot, startTaskDrain, stopTaskDrain } = await import("../../../services/task-admission.js");
   const { getStartupRecoveryState } = await import("../../../startup-recovery-state.js");
   const server = await startServer();
-  if (workCapture) databaseCapture = (await import('@paperclipai/db/response-capture')).databaseResponseCaptureFromEnv();
-  const managedObservation = process.env.PAPERCLIP_MAINTENANCE_MANAGED_TENANT === '1' ? await (async () => {
+  if (workCapture) databaseCapture = (await import('@outpost/db/response-capture')).databaseResponseCaptureFromEnv();
+  const managedObservation = process.env.OUTPOST_MAINTENANCE_MANAGED_TENANT === '1' ? await (async () => {
     const { loadConfig } = await import('../../../config.js');
     const { isCloudManagedInstance } = await import('../../../services/cloud-instance.js');
     const { idleApiActivity } = await import('../../../services/idle-api-activity.js');
@@ -102,12 +102,12 @@ try {
         process.send?.({ id: message.id, kind: "chatHistory", result: await produceChatHistory(app.locals.paperclipDb) });
       } else if (message.command === "trace") {
         const { getStartupTracer } = await import("../../../instrumentation.js");
-        const span = getStartupTracer("paperclip.sleep-qualification").startSpan("sleep-qualification-stimulus");
+        const span = getStartupTracer("outpost.sleep-qualification").startSpan("sleep-qualification-stimulus");
         span.end();
         process.send?.({ id: message.id, kind: "traceEnded" });
       } else if (message.command === "createOrphanLease") {
         if (!message.orphanLease) throw new Error("Missing orphan lease fixture");
-        const { environmentLeases } = await import("@paperclipai/db");
+        const { environmentLeases } = await import("@outpost/db");
         const { writeEnvironmentCleanup } = await import("../../../services/environment-cleanup-notifications.js");
         const old = new Date(Date.now() - 6 * 60_000);
         const companyId = message.orphanLease.companyId;
@@ -136,7 +136,7 @@ try {
           // A passive flush failure must not replace the original shutdown error.
           try { databaseCapture?.flush(); } catch (error) { failures.push(error); }
           try {
-            await (await import('node:fs/promises')).writeFile((await import('node:path')).join(process.env.PAPERCLIP_HOME!, 'idle-work-capture-cleanup.json'), JSON.stringify({ before, after: workCapture.summary() }, null, 2));
+            await (await import('node:fs/promises')).writeFile((await import('node:path')).join(process.env.OUTPOST_HOME!, 'idle-work-capture-cleanup.json'), JSON.stringify({ before, after: workCapture.summary() }, null, 2));
           } catch (error) { failures.push(error); }
           finally { try { workCapture.dispose(); } catch (error) { failures.push(error); } }
           if (failures.length > 1) throw new AggregateError(failures, 'Owned shutdown and passive evidence failed');
@@ -155,9 +155,9 @@ try {
   if (workCapture) {
     try {
       // Existing bounded DB capture performs no SQL while flushing metadata.
-      databaseCapture ??= (await import('@paperclipai/db/response-capture')).databaseResponseCaptureFromEnv();
+      databaseCapture ??= (await import('@outpost/db/response-capture')).databaseResponseCaptureFromEnv();
       databaseCapture?.flush();
-      await (await import('node:fs/promises')).writeFile((await import('node:path')).join(process.env.PAPERCLIP_HOME!, 'idle-work-capture-startup-failure.json'), JSON.stringify(workCapture.summary(), null, 2));
+      await (await import('node:fs/promises')).writeFile((await import('node:path')).join(process.env.OUTPOST_HOME!, 'idle-work-capture-startup-failure.json'), JSON.stringify(workCapture.summary(), null, 2));
     } catch { console.warn('Passive startup evidence could not be persisted; original error preserved'); }
     finally { try { workCapture.dispose(); } catch { console.warn('Passive capture cleanup failed; original startup error preserved'); } }
   }

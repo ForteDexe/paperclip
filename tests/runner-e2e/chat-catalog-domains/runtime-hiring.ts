@@ -72,7 +72,7 @@ export const runtimeHiringCases = [runtimeDefinition("agents.hire-needs-approval
   return { companyRequiresApproval: true };
 }, gradeGovernedHire, {
   sourceFiles: ["chat-catalog-domains/runtime-hiring.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],
-  oracleVersion: "paperclip.chat-catalog.runtime-hiring.v3",
+  oracleVersion: "outpost.chat-catalog.runtime-hiring.v3",
   expectedHumanMessageCount: 2, expectedRunCount: 4, minimumRunCount: 2, attemptTimeoutMs: 720_000,
   async act(ctx, state) {
     const root = `/api/companies/${ctx.input.fixtures.company.id}`; const source = ctx.input.page.url();

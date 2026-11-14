@@ -7,7 +7,7 @@ import type { RunnerProfileFixture } from "./types.js";
 import { setupLiveFixtures } from "./live-fixtures.js";
 import type { RunnerApi } from "./api.js";
 import { missingTeamAccountEnvironment } from "./chat-catalog-domains/external-team-configure.js";
-const profile = { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "paperclip_runner", credential: "OPENROUTER_API_KEY" };
+const profile = { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "outpost_runner", credential: "OPENROUTER_API_KEY" };
 it("pins the new controller identity and rejects model/provider/credential substitution", () => {
   expect(reviewedChatProfile(profile)).toBe(true);
   for (const patch of [{ id: "runner-unknown" }, { provider: "codex" }, { model: "openrouter/other/model" }, { credential: "CODEX_AUTH_JSON" }, { adapterType: "opencode_local" }])

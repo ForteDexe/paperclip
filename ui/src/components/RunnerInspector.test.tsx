@@ -88,7 +88,7 @@ function traceInspection(runId: string, marker: string) {
       createdAt: "2026-08-22T12:00:00.000Z",
       expiresAt: "2026-08-23T12:00:00.000Z",
       deletedAt: null,
-      schema: "paperclip.provider_trace_metadata.v1",
+      schema: "outpost.provider_trace_metadata.v1",
     },
     entries: [
       {
@@ -187,7 +187,7 @@ describe("RunnerInspector", () => {
         createdAt: "2026-08-22T12:00:00.000Z",
         expiresAt: "2026-08-23T12:00:00.000Z",
         deletedAt: null,
-        schema: "paperclip.provider_trace_metadata.v1",
+        schema: "outpost.provider_trace_metadata.v1",
       },
       entries: [
         {
@@ -201,7 +201,7 @@ describe("RunnerInspector", () => {
       ],
     });
     revealMock.mockResolvedValue({
-      schema: "paperclip.provider_trace_frame.v1",
+      schema: "outpost.provider_trace_frame.v1",
       frameId: 1,
       timestamp: "1",
       direction: "provider_to_client",
@@ -244,7 +244,7 @@ describe("RunnerInspector", () => {
       traceInspection(requestedRunId, `${requestedRunId}-redacted`),
     );
     revealMock.mockResolvedValue({
-      schema: "paperclip.provider_trace_frame.v1",
+      schema: "outpost.provider_trace_frame.v1",
       frameId: 1,
       timestamp: "1",
       direction: "provider_to_client",
@@ -293,7 +293,7 @@ describe("RunnerInspector", () => {
   it("clears exact frames when raw-trace access is revoked while open", async () => {
     traceMock.mockResolvedValue(traceInspection("run-1", "run-1-redacted"));
     revealMock.mockResolvedValue({
-      schema: "paperclip.provider_trace_frame.v1",
+      schema: "outpost.provider_trace_frame.v1",
       frameId: 1,
       timestamp: "1",
       direction: "provider_to_client",
@@ -437,7 +437,7 @@ describe("RunnerInspector", () => {
     expect(container.textContent).not.toContain("Delete trace");
 
     pendingReveal.resolve({
-      schema: "paperclip.provider_trace_frame.v1",
+      schema: "outpost.provider_trace_frame.v1",
       frameId: 1,
       timestamp: "1",
       direction: "provider_to_client",
@@ -486,7 +486,7 @@ describe("RunnerInspector", () => {
       level: "info",
       color: null,
       message: null,
-      payload: { prpEvent: { sourceEventId: "runner:run-1:9", payload: {} } },
+      payload: { orpEvent: { sourceEventId: "runner:run-1:9", payload: {} } },
       createdAt: "2026-08-22T12:00:03.000Z",
     }]);
     traceMock.mockResolvedValue({
@@ -512,12 +512,12 @@ describe("RunnerInspector", () => {
     );
     await flush();
 
-    expect(container.textContent).toContain("frames 1–2 · 0 PRP events");
-    expect(container.textContent).toContain("frames 3–4 · 1 PRP event");
+    expect(container.textContent).toContain("frames 1–2 · 0 ORP events");
+    expect(container.textContent).toContain("frames 3–4 · 1 ORP event");
     expect(container.textContent).not.toContain("frames 1–4");
   });
 
-  it("correlates a Codex web search through every stage to canonical PRP and presentation", async () => {
+  it("correlates a Codex web search through every stage to canonical ORP and presentation", async () => {
     eventsMock.mockResolvedValue([
       {
         id: 91,
@@ -531,7 +531,7 @@ describe("RunnerInspector", () => {
         color: null,
         message: null,
         payload: {
-          prpEvent: {
+          orpEvent: {
             eventType: "research.completed",
             sourceEventId: "event_runner_000001",
             sourceSequence: 42,
@@ -556,7 +556,7 @@ describe("RunnerInspector", () => {
         createdAt: "2026-08-22T12:00:00.000Z",
         expiresAt: "2026-08-23T12:00:00.000Z",
         deletedAt: null,
-        schema: "paperclip.provider_trace_metadata.v1",
+        schema: "outpost.provider_trace_metadata.v1",
       },
       entries: [
         {
@@ -638,7 +638,7 @@ describe("RunnerInspector", () => {
           disposition: "mapped",
           emittedEventIds: ["event_runner_000001"],
           droppedFields: [],
-          reason: "Emitted canonical PRP event",
+          reason: "Emitted canonical ORP event",
         },
       ],
     });
@@ -684,7 +684,7 @@ describe("RunnerInspector disconnect handling", () => {
     level: "info",
     color: null,
     message: null,
-    payload: { prpEvent: { sourceEventId: `runner:${runId}:${seq}`, payload: {} } },
+    payload: { orpEvent: { sourceEventId: `runner:${runId}:${seq}`, payload: {} } },
     createdAt: "2026-08-22T12:00:03.000Z",
   });
 
@@ -793,7 +793,7 @@ describe("RunnerInspector disconnect handling", () => {
     expect(store.getSnapshot().status).toBe("online");
     expect(eventsMock).toHaveBeenCalledWith("run-1", 0, 1_000);
     expect(container.textContent).not.toContain("Loading run pipeline…");
-    expect(container.textContent).toContain("1 PRP event");
+    expect(container.textContent).toContain("1 ORP event");
   });
 
   it("shows readable copy for a real failure, never raw access, and retries on request", async () => {

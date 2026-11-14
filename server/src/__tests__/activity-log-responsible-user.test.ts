@@ -10,7 +10,7 @@ import {
   heartbeatRuns,
   issues,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   logActivity,
   resolveResponsibleUserIdForActivity,

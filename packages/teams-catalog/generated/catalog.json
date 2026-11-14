@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "packageName": "@paperclipai/teams-catalog",
+  "packageName": "@outpost/teams-catalog",
   "packageVersion": "0.1.0",
   "generatedAt": "2026-11-09T20:56:53.242Z",
   "teams": [
@@ -335,7 +335,7 @@
           "sha256": "36da9b22db9087340a5cf30c5bdf5072ea68bf14fd4d2a2ddd0486b4725f78fe"
         },
         {
-          "path": ".paperclip.yaml",
+          "path": ".outpost.yaml",
           "kind": "extension",
           "sizeBytes": 81,
           "sha256": "54babf05ba130ec54a143abf01581d99c0ac2936fd0d929bf0e0edd00e29d861"

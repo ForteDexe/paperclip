@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { WebSocketServer } from "ws";
-import { FAST_RESPONSE_AGENT_GUIDANCE } from "@paperclipai/shared";
+import { FAST_RESPONSE_AGENT_GUIDANCE } from "@outpost/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
@@ -30,7 +30,7 @@ import {
   nativeRunFinalizations,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { runningProcesses } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
@@ -1908,7 +1908,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
             paperclipExternalChatExecutionBound: true,
             paperclipTaskCommunicationGuidance: `## Communication in Slack\nFrozen connection preference.\n\n${FAST_RESPONSE_AGENT_GUIDANCE}`,
             paperclipExternalChatQuestionResponse: expect.objectContaining({
-              schema: "paperclip.external_chat_question_response.v1",
+              schema: "outpost.external_chat_question_response.v1",
               interactionId: answered.id,
               sourceRunId,
               sourceCommentId: sourceComment.id,
@@ -3109,7 +3109,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
     const runId = randomUUID();
     const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
     // Pin scheduling suppression off with the runtimeEnv test seam. Do not rely
-    // on the ambient PAPERCLIP_IN_WORKTREE value: startNextQueuedRunForAgent
+    // on the ambient OUTPOST_IN_WORKTREE value: startNextQueuedRunForAgent
     // no-ops under suppression and would leave the promoted wake at "queued".
     const heartbeat = heartbeatService(db, { runtimeEnv: {} });
 
@@ -3340,7 +3340,7 @@ describeEmbeddedPostgres("heartbeat comment wake batching", () => {
     const runId = randomUUID();
     const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
     // Pin scheduling suppression off with the runtimeEnv test seam. Do not rely
-    // on the ambient PAPERCLIP_IN_WORKTREE value: startNextQueuedRunForAgent
+    // on the ambient OUTPOST_IN_WORKTREE value: startNextQueuedRunForAgent
     // no-ops under suppression and would leave the promoted wake at "queued".
     const heartbeat = heartbeatService(db, { runtimeEnv: {} });
 

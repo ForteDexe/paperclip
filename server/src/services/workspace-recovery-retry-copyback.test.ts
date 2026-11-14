@@ -13,7 +13,7 @@ import { attachPreservedWorkspaceSnapshots, verifiedWorkspaceSnapshotReceipt } f
 import { requestTaskRetry } from "./task-retry.js";
 import { requestInterruptedNativeTurnRetry, requestRestartInterruptedTurnRetry } from "./heartbeat/restart-interrupted-turn.js";
 import { startTaskDrain, stopTaskDrain } from "./task-admission.js";
-import { activityLog, companies, environmentLeases, environments, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, workspaceOperations, executionWorkspaces, withDedicatedDbConnection } from "@paperclipai/db";
+import { activityLog, companies, environmentLeases, environments, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, workspaceOperations, executionWorkspaces, withDedicatedDbConnection } from "@outpost/db";
 import { readFreshWorkspaceReadiness } from "./fresh-workspace-continuation.js";
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
@@ -22,8 +22,8 @@ import request from "supertest";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { resumePreservedResultFinalization } from "./preserved-result-finalization.js";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { EnvironmentLease } from "@outpost/shared";
 import { nativeWorkspaceExportPendingForResource } from "./native-runtime/native-workspace-finalization-state.js";
 import { remoteTerminationReceipt } from "./remote-execution-termination.js";
 import { prepareStoppedSandboxForRecovery, settleStopOnlyCleanup } from "./sandbox-stop-and-retain.js";
@@ -52,7 +52,7 @@ describe("automatic retained workspace recovery", () => {
     await db.delete(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId));
     await db.update(issues).set({ conversationAgentId: original.agentId, conversationUserId: "operator",
       conversationState: "active", status: "in_review" }).where(eq(issues.id, f.issueId));
-    const nativeCancellation = { schema: "paperclip.native-cancellation.v1", runId: f.runId, companyId: f.companyId,
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId,
       issueId: f.issueId, scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: false,
       intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() };
     await db.update(heartbeatRuns).set({ status: "cancelled", errorCode: "cancelled", resultJson: {
@@ -106,7 +106,7 @@ describe("automatic retained workspace recovery", () => {
       await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId,
         agentId: original.agentId, eventType, stream: "system", level: "info", message: eventType,
         // A driver that lost its event stream ends the turn without a provider terminal.
-        ...(turn === "unproven" && eventType === "turn.failed" ? { payload: { prpEvent: { eventType, payload: { providerTerminalObserved: false } } } } : {}) });
+        ...(turn === "unproven" && eventType === "turn.failed" ? { payload: { orpEvent: { eventType, payload: { providerTerminalObserved: false } } } } : {}) });
     const claim = { kind: "reattach_remote_runner" as const, runId: f.runId, leaseOwner: `boot:1:${randomUUID()}`,
       controllerGeneration: 1, providerAttempt: 0, restartKind: "hard" as const, recoveryRequestId: null,
       remote: { providerLeaseId: f.providerLeaseId, remoteCwd: f.remote } };
@@ -201,7 +201,7 @@ describe("automatic retained workspace recovery", () => {
     if (change === "system_unowned") await db.update(heartbeatRuns).set({ responsibleUserId: null }).where(eq(heartbeatRuns.id, f.runId));
     if (change === "error") await db.update(heartbeatRuns).set({ error: "native_provider_terminal_failed" }).where(eq(heartbeatRuns.id, f.runId));
     if (change === "unrestorable") await db.update(heartbeatRuns).set({ errorCode: "native_provider_state_incompatible",
-      error: "native_session_recovery_failed: NativeRunnerResumeStateUnavailableError: PRP provider resume state is unavailable" })
+      error: "native_session_recovery_failed: NativeRunnerResumeStateUnavailableError: ORP provider resume state is unavailable" })
       .where(eq(heartbeatRuns.id, f.runId));
     const service = heartbeatService(db, { environmentRuntime: f.environmentRuntime });
     await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" });
@@ -256,7 +256,7 @@ describe("automatic retained workspace recovery", () => {
     expect(await prepareNativeWorkspaceSync({ db, companyId: f.companyId, workspaceId: f.issueId, workspaceLocalDir: f.host,
       runId, lease: lease as EnvironmentLease, target, resourceDisposition: "destroy" })).not.toBeNull();
     await writeFile(path.join(remote, "retry-work.txt"), "retry turn work\n");
-    const recovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [lease.id] };
+    const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [lease.id] };
     await db.update(heartbeatRuns).set({ resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: recovery,
       conversationContinuation: "continue_conversation_v1" } }).where(eq(heartbeatRuns.id, runId));
     await db.update(environmentLeases).set({ metadata: { ...lease.metadata,
@@ -378,7 +378,7 @@ describe("automatic retained workspace recovery", () => {
     expect(await readFile(path.join(f.host, "newer.txt"), "utf8")).toBe("newer local work\n");
     expect(await hasVerifiedWorkspaceRepair(db, await run(f.runId))).toBe(true);
     const current = await action(f.actionId);
-    expect(current.evidence.nativeSourceRetention).toMatchObject({ schema: "paperclip.native-source-retention.v1",
+    expect(current.evidence.nativeSourceRetention).toMatchObject({ schema: "outpost.native-source-retention.v1",
       sourceRunId: f.runId, requestId: f.retry.requestId, previousGeneration: f.failed });
     expect(readSystemRecovery(current.evidence)).toMatchObject({ state: "complete", intentId: f.retry.requestId });
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.lease.id)))[0])
@@ -515,7 +515,7 @@ describe("automatic retained workspace recovery", () => {
       }
       if (["already_adopted", "prior_export", "other_failure"].includes(reason)) await db.update(issueRecoveryActions).set({ evidence: {
         ...(await action(f.actionId)).evidence,
-        ...(reason === "already_adopted" ? { nativeSourceRetention: { schema: "paperclip.native-source-retention.v1" } } : {}),
+        ...(reason === "already_adopted" ? { nativeSourceRetention: { schema: "outpost.native-source-retention.v1" } } : {}),
         ...(reason === "prior_export" ? { systemRecovery: { ...f.failed, preservationOperationIds: [randomUUID()] } } : {}),
         ...(reason === "other_failure" ? { systemRecovery: { ...f.failed, failure: { ...f.failed.failure!, code: "source_unavailable" } } } : {}),
       } }).where(eq(issueRecoveryActions.id, f.actionId));
@@ -550,7 +550,7 @@ describe("automatic retained workspace recovery", () => {
 
   it.each(["retained", "removed", "child", "expired-owner", "no-descriptor"])("preserves an old sandbox after storage migration without writing its old host (%s)", async mode => {
     vi.stubEnv("DATABASE_URL", connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "63".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "63".repeat(32));
     const f = await seed("native", mode !== "no-descriptor");
     // The fixture's command runner supports native copyback; the provider
     // snapshot boundary separately needs its real-file syncOut capability.
@@ -580,7 +580,7 @@ describe("automatic retained workspace recovery", () => {
         metadata: { remoteCwd: lease.metadata!.remoteCwd as string } }));
       const source = await run(f.runId);
       await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson,
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id, secondId] },
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id, secondId] },
       } }).where(eq(heartbeatRuns.id, f.runId));
     }
     const sourceIssueId = mode === "child" ? randomUUID() : f.issueId;
@@ -594,7 +594,7 @@ describe("automatic retained workspace recovery", () => {
     if (mode === "expired-owner" || mode === "no-descriptor") await db.update(nativeRunFinalizations).set({ phase: "observed",
       leaseOwner: "stopped-old-controller", leaseExpiresAt: new Date(Date.now() - 60_000) })
       .where(eq(nativeRunFinalizations.runId, f.runId));
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "true");
     try {
       await migrateRemoteWorkspace({ db, storage: getStorageService(), companyId: f.companyId,
         workspaceId: f.issueId, apply: true, writersStopped: true });
@@ -616,7 +616,7 @@ describe("automatic retained workspace recovery", () => {
       if (mode === "no-descriptor") {
         const source = await run(f.runId);
         await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson,
-          workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id] },
+          workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] },
         } }).where(eq(heartbeatRuns.id, f.runId));
         expect(await hasVerifiedWorkspaceRepair(db, await run(f.runId))).toBe(false);
         await db.update(heartbeatRuns).set({ resultJson: source.resultJson }).where(eq(heartbeatRuns.id, f.runId));
@@ -635,7 +635,7 @@ describe("automatic retained workspace recovery", () => {
         // The parent must not receive the child's task-scoped recovery copy.
         if (mode === "child") expect(await attachPreservedWorkspaceSnapshots({ db, companyId: f.companyId, issueId: sourceIssueId,
           sourceRunIds: [f.runId], cwd: restored })).toHaveLength(0);
-        vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "false");
+        vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
         const nextRunId = randomUUID(), nextLeaseId = randomUUID(), sourceRun = await run(f.runId);
         const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
           authorType: "user", authorUserId: "operator", body: "/new" }).returning();
@@ -712,7 +712,7 @@ describe("automatic retained workspace recovery", () => {
       startedAt: new Date(), finishedAt: new Date(), errorCode: "setup_failed",
       error: "The workspace still has an unfinished writer or save operation.",
       contextSnapshot: { issueId: f.issueId, executionWorkspaceId: f.workspaceId },
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
     }).returning();
     return { ...f, stopped, preparation };
@@ -766,7 +766,7 @@ describe("automatic retained workspace recovery", () => {
     if (gate === "wrong-epoch") await db.update(heartbeatRuns).set({ runnerProfileJson: { ...source.runnerProfileJson,
       remoteWorkspace: { ...(source.runnerProfileJson!.remoteWorkspace as object), epoch: 99 } } }).where(eq(heartbeatRuns.id, f.runId));
     if (gate === "native-sync") await db.update(heartbeatRuns).set({ runnerProfileJson: { ...source.runnerProfileJson,
-      nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3" } } }).where(eq(heartbeatRuns.id, f.runId));
+      nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3" } } }).where(eq(heartbeatRuns.id, f.runId));
     if (gate === "source-binding") await db.update(environmentLeases).set({ metadata: { ...f.stopped.metadata, remoteCwd: "/other" } })
       .where(eq(environmentLeases.id, f.lease.id));
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.lease.id));
@@ -814,7 +814,7 @@ describe("automatic retained workspace recovery", () => {
 
   async function pressuredToolCache(pressure: "transfer" | "sandbox-write" = "transfer") {
     const f = await acceptedRemoteExport();
-    const runner = path.join(f.remote, ".paperclip-runtime", "paperclip-runner");
+    const runner = path.join(f.remote, ".paperclip-runtime", "outpost-runner");
     const pack = path.join(runner, "provider-pack"), sessions = path.join(runner, "sessions", "retained");
     await mkdir(path.join(pack, "node_modules"), { recursive: true });
     await mkdir(path.join(pack, "provider-assets")); await mkdir(sessions, { recursive: true });
@@ -824,13 +824,13 @@ describe("automatic retained workspace recovery", () => {
     const payload = { target: { platform: "linux", architecture: "x64" } };
     const digest = `sha256:${createHash("sha256").update(canonicalProviderPackJson(payload)).digest("hex")}`;
     await writeFile(path.join(pack, "provider-pack.json"), JSON.stringify({
-      schema: "paperclip-runner/remote-provider-pack/v1", digest, payload,
+      schema: "outpost-runner/remote-provider-pack/v1", digest, payload,
     }));
     const before = await run(f.runId);
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...before.runnerProfileJson,
-      nativeProviderPackAdmissionState: { schema: "paperclip.native-provider-pack-admission-state.v1",
+      nativeProviderPackAdmissionState: { schema: "outpost.native-provider-pack-admission-state.v1",
         state: "verified", admissionEpoch: randomUUID() },
-      nativeProviderPackAdmission: { schema: "paperclip.native-provider-pack-admission.v1", stage: "session_admitted",
+      nativeProviderPackAdmission: { schema: "outpost.native-provider-pack-admission.v1", stage: "session_admitted",
         authority: "core_verified_selection", runId: f.runId, companyId: f.companyId, agentId: before.agentId,
         providerPackDigest: digest },
     } }).where(eq(heartbeatRuns.id, f.runId));
@@ -1277,7 +1277,7 @@ describe("automatic retained workspace recovery", () => {
   it.each(["pending", "foreign", "lease", "active", "recoverable", "manifest", "symlink"])("keeps files intact when %s cache authority is unproven", async failure => {
     const f = await pressuredToolCache(), before = await run(f.runId);
     if (failure === "pending") await db.update(heartbeatRuns).set({ runnerProfileJson: { ...before.runnerProfileJson,
-      nativeProviderPackAdmissionState: { schema: "paperclip.native-provider-pack-admission-state.v1",
+      nativeProviderPackAdmissionState: { schema: "outpost.native-provider-pack-admission-state.v1",
         state: "pending", admissionEpoch: randomUUID() } } }).where(eq(heartbeatRuns.id, f.runId));
     if (failure === "foreign") await db.update(heartbeatRuns).set({ runnerProfileJson: { ...before.runnerProfileJson,
       nativeProviderPackAdmission: { ...before.runnerProfileJson!.nativeProviderPackAdmission as Record<string, unknown>,
@@ -1290,7 +1290,7 @@ describe("automatic retained workspace recovery", () => {
     if (failure === "recoverable") await db.update(nativeRunFinalizations).set({ failureDetail: { recoverable: true } })
       .where(eq(nativeRunFinalizations.runId, f.runId));
     if (failure === "manifest") await writeFile(path.join(f.pack, "provider-pack.json"), JSON.stringify({
-      schema: "paperclip-runner/remote-provider-pack/v1", digest: `sha256:${"f".repeat(64)}`, payload: {},
+      schema: "outpost-runner/remote-provider-pack/v1", digest: `sha256:${"f".repeat(64)}`, payload: {},
     }));
     if (failure === "symlink") {
       const outside = path.join(path.dirname(f.remote), "retained-installation");

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
-import { heartbeatRuns, type Db } from "@paperclipai/db";
-import { withDirectoryPublicationLock } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import { heartbeatRuns, type Db } from "@outpost/db";
+import { withDirectoryPublicationLock } from "@outpost/adapter-utils/workspace-restore-merge";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
-import { parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
+import { parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { ensureSkillCacheDirectory, skillRunNeedsFilesSql } from "../skill-version-cache.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";

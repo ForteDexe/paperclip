@@ -7,9 +7,9 @@ import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import {
   agentWakeupRequests, assets, environmentLeases, environments, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns,
   issueAttachments, issueRecoveryActions, issues, nativeRunFinalizations, statusDecisionEffects, toolInvocations, workspaceOperations, type Db,
-} from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema, type Environment, type EnvironmentLease, type ExecutionReconciliation } from "@paperclipai/shared";
-import { createTarballFromDirectory } from "@paperclipai/adapter-utils/sandbox-managed-runtime";
+} from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema, type Environment, type EnvironmentLease, type ExecutionReconciliation } from "@outpost/shared";
+import { createTarballFromDirectory } from "@outpost/adapter-utils/sandbox-managed-runtime";
 import { logger } from "../middleware/logger.js";
 import { assertWorkspaceFilePathAllowed } from "./workspace-file-resources.js";
 import { getSecretProvider } from "../secrets/provider-registry.js";
@@ -41,8 +41,8 @@ import { readWorkspaceRecovery, verifiedWorkspaceRepairReceipt } from "./workspa
  * unverified files are attached to the task when they can still be read.
  */
 export const RETAINED_SOURCE_FALLBACK_OUTCOME = "retained_source_unverifiable_continued_from_last_saved" as const;
-export const RETAINED_SOURCE_FALLBACK_SCHEMA = "paperclip.retained-source-fallback.v1" as const;
-export const SIBLING_WORKSPACE_RECOVERY_SCHEMA = "paperclip.sibling-workspace-recovery.v1" as const;
+export const RETAINED_SOURCE_FALLBACK_SCHEMA = "outpost.retained-source-fallback.v1" as const;
+export const SIBLING_WORKSPACE_RECOVERY_SCHEMA = "outpost.sibling-workspace-recovery.v1" as const;
 export const RETAINED_SOURCE_QUARANTINE_PHASE = "workspace_recovery_quarantine";
 
 const terminal = ["failed", "interrupted", "timed_out", "cancelled", "succeeded"];
@@ -210,7 +210,7 @@ async function quarantineRetainedRoot(db: Db, input: Source & { environmentRunti
   try {
     const tarball = path.join(scratch, "unverified.tar");
     try {
-      const target = await resolveEnvironmentExecutionTarget({ db, companyId: input.companyId, adapterType: "paperclip_runner",
+      const target = await resolveEnvironmentExecutionTarget({ db, companyId: input.companyId, adapterType: "outpost_runner",
         environment, leaseId: lease.id, leaseMetadata: lease.metadata, lease: lease as EnvironmentLease, environmentRuntime: input.environmentRuntime });
       if (target?.kind !== "remote" || target.transport !== "sandbox" || !target.runner) return unreadable("target_unavailable");
       await input.ownership.assertHeld();
@@ -486,7 +486,7 @@ export async function settleSiblingRecoveredHold(db: Db, input: Source) {
       // With the files saved, a no-replay hold no longer blocks the task.
       // Settling starts no turn; the run's own result decides what continues.
       evidence: { ...action.evidence, automaticRecovery: undefined,
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: run.id, status: "recovered", stage: "saving_receipts",
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: run.id, status: "recovered", stage: "saving_receipts",
           attempt: prior?.attempt ?? system.attempts, attemptLimit: prior?.attemptLimit ?? 6, requestIds: prior?.requestIds ?? [], retryable: false },
         siblingWorkspaceRecovery: { schema: SIBLING_WORKSPACE_RECOVERY_SCHEMA, receiptId, recoveryActionId: siblingActionId,
           recordedAt: now.toISOString() } },

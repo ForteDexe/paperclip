@@ -16,10 +16,10 @@ overrides:
 
 patchedDependencies:
   '@agentclientprotocol/claude-agent-acp@0.73.0':
-    hash: syoits7l7g3sthy3olttp2fv24
+    hash: reriazvcu2zhkf7a6c2t3v3xzu
     path: patches/@agentclientprotocol__claude-agent-acp@0.73.0.patch
   '@agentclientprotocol/codex-acp@1.6.2':
-    hash: 2iynuypg76nxmydiylgtffhr7e
+    hash: dtvvlg7ajv7t4ftvtphuwddzhe
     path: patches/@agentclientprotocol__codex-acp@1.6.2.patch
   '@chat-adapter/discord@4.39.0':
     hash: nywlhls7dd4npegrgax7jqdbxa
@@ -86,49 +86,49 @@ importers:
       '@clack/prompts':
         specifier: ^1.7.0
         version: 1.7.0
-      '@paperclipai/adapter-claude-local':
+      '@outpost/adapter-claude-local':
         specifier: workspace:*
         version: link:../packages/adapters/claude-local
-      '@paperclipai/adapter-codex-local':
+      '@outpost/adapter-codex-local':
         specifier: workspace:*
         version: link:../packages/adapters/codex-local
-      '@paperclipai/adapter-cursor-cloud':
+      '@outpost/adapter-cursor-cloud':
         specifier: workspace:*
         version: link:../packages/adapters/cursor-cloud
-      '@paperclipai/adapter-cursor-local':
+      '@outpost/adapter-cursor-local':
         specifier: workspace:*
         version: link:../packages/adapters/cursor-local
-      '@paperclipai/adapter-gemini-local':
+      '@outpost/adapter-gemini-local':
         specifier: workspace:*
         version: link:../packages/adapters/gemini-local
-      '@paperclipai/adapter-grok-local':
+      '@outpost/adapter-grok-local':
         specifier: workspace:*
         version: link:../packages/adapters/grok-local
-      '@paperclipai/adapter-kimi-local':
+      '@outpost/adapter-kimi-local':
         specifier: workspace:*
         version: link:../packages/adapters/kimi-local
-      '@paperclipai/adapter-openclaw-gateway':
+      '@outpost/adapter-openclaw-gateway':
         specifier: workspace:*
         version: link:../packages/adapters/openclaw-gateway
-      '@paperclipai/adapter-opencode-local':
+      '@outpost/adapter-opencode-local':
         specifier: workspace:*
         version: link:../packages/adapters/opencode-local
-      '@paperclipai/adapter-pi-local':
+      '@outpost/adapter-pi-local':
         specifier: workspace:*
         version: link:../packages/adapters/pi-local
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../packages/adapter-utils
-      '@paperclipai/db':
+      '@outpost/db':
         specifier: workspace:*
         version: link:../packages/db
-      '@paperclipai/hermes-paperclip-adapter':
+      '@outpost/hermes-outpost-adapter':
         specifier: workspace:*
         version: link:../packages/adapters/hermes
-      '@paperclipai/server':
+      '@outpost/server':
         specifier: workspace:*
         version: link:../server
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../packages/shared
       commander:
@@ -159,7 +159,7 @@ importers:
 
   packages/adapter-utils:
     dependencies:
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../shared
       acpx:
@@ -186,14 +186,14 @@ importers:
     dependencies:
       '@agentclientprotocol/claude-agent-acp':
         specifier: ^0.73.0
-        version: 0.73.0(patch_hash=syoits7l7g3sthy3olttp2fv24)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))
+        version: 0.73.0(patch_hash=reriazvcu2zhkf7a6c2t3v3xzu)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))
       '@anthropic-ai/sdk':
         specifier: 0.129.0
         version: 0.129.0(zod@4.6.7)
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../../shared
       picocolors:
@@ -211,11 +211,11 @@ importers:
     dependencies:
       '@agentclientprotocol/codex-acp':
         specifier: ^1.6.2
-        version: 1.6.2(patch_hash=2iynuypg76nxmydiylgtffhr7e)
-      '@paperclipai/adapter-utils':
+        version: 1.6.2(patch_hash=dtvvlg7ajv7t4ftvtphuwddzhe)
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../../shared
       picocolors:
@@ -234,7 +234,7 @@ importers:
       '@cursor/sdk':
         specifier: ^1.0.28
         version: 1.0.28
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -250,7 +250,7 @@ importers:
 
   packages/adapters/cursor-local:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -266,7 +266,7 @@ importers:
 
   packages/adapters/gemini-local:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -282,10 +282,10 @@ importers:
 
   packages/adapters/grok-local:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../../shared
       picocolors:
@@ -301,7 +301,7 @@ importers:
 
   packages/adapters/hermes:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -320,7 +320,7 @@ importers:
 
   packages/adapters/hermes-gateway:
     dependencies:
-      '@paperclipai/hermes-paperclip-adapter':
+      '@outpost/hermes-outpost-adapter':
         specifier: workspace:*
         version: link:../hermes
     devDependencies:
@@ -336,7 +336,7 @@ importers:
 
   packages/adapters/kimi-local:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -352,7 +352,7 @@ importers:
 
   packages/adapters/openclaw-gateway:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -374,7 +374,7 @@ importers:
 
   packages/adapters/opencode-local:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -390,7 +390,7 @@ importers:
 
   packages/adapters/pi-local:
     dependencies:
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../../adapter-utils
       picocolors:
@@ -406,7 +406,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../shared
       drizzle-orm:
@@ -481,7 +481,7 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.31.0
         version: 1.31.0(zod@4.6.7)
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -498,7 +498,7 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.4.0))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/paperclip-eval-kernel:
+  packages/outpost-eval-kernel:
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -507,14 +507,14 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  packages/paperclip-runner:
+  packages/outpost-runner:
     dependencies:
       '@agentclientprotocol/claude-agent-acp':
         specifier: 0.73.0
-        version: 0.73.0(patch_hash=syoits7l7g3sthy3olttp2fv24)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))
+        version: 0.73.0(patch_hash=reriazvcu2zhkf7a6c2t3v3xzu)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))
       '@agentclientprotocol/codex-acp':
         specifier: 1.6.2
-        version: 1.6.2(patch_hash=2iynuypg76nxmydiylgtffhr7e)
+        version: 1.6.2(patch_hash=dtvvlg7ajv7t4ftvtphuwddzhe)
       '@openai/codex':
         specifier: 0.160.0
         version: 0.160.0
@@ -550,9 +550,9 @@ importers:
         specifier: 1.0.88
         version: 1.0.88
     devDependencies:
-      '@paperclipai/paperclip-eval-kernel':
+      '@outpost/outpost-eval-kernel':
         specifier: workspace:*
-        version: link:../paperclip-eval-kernel
+        version: link:../outpost-eval-kernel
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.62.1
@@ -590,9 +590,9 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.4.0))(vite@6.4.3(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/plugins/create-paperclip-plugin:
+  packages/plugins/create-outpost-plugin:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../sdk
     devDependencies:
@@ -605,7 +605,7 @@ importers:
 
   packages/plugins/examples/plugin-authoring-smoke-example:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../../sdk
     devDependencies:
@@ -654,7 +654,7 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.1
         version: 1.2.3
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../../sdk
       codemirror:
@@ -685,7 +685,7 @@ importers:
 
   packages/plugins/examples/plugin-hello-world-example:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../../sdk
     devDependencies:
@@ -710,10 +710,10 @@ importers:
 
   packages/plugins/examples/plugin-kitchen-sink-example:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../../sdk
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../../../shared
     devDependencies:
@@ -739,9 +739,9 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  packages/plugins/paperclip-plugin-fake-sandbox:
+  packages/plugins/outpost-plugin-fake-sandbox:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../sdk
     devDependencies:
@@ -757,11 +757,11 @@ importers:
 
   packages/plugins/plugin-campfire:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../sdk
     devDependencies:
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../../shared
       '@rollup/plugin-node-resolve':
@@ -794,7 +794,7 @@ importers:
 
   packages/plugins/plugin-llm-wiki:
     devDependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../sdk
       '@rollup/plugin-node-resolve':
@@ -833,7 +833,7 @@ importers:
 
   packages/plugins/plugin-workspace-diff:
     dependencies:
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../sdk
       '@pierre/diffs':
@@ -867,7 +867,7 @@ importers:
 
   packages/plugins/sdk:
     dependencies:
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../../shared
       zod:
@@ -905,7 +905,7 @@ importers:
 
   packages/skills-catalog:
     dependencies:
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -938,10 +938,10 @@ importers:
         version: 0.5.0
       '@agentclientprotocol/claude-agent-acp':
         specifier: 0.73.0
-        version: 0.73.0(patch_hash=syoits7l7g3sthy3olttp2fv24)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))
+        version: 0.73.0(patch_hash=reriazvcu2zhkf7a6c2t3v3xzu)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))
       '@agentclientprotocol/codex-acp':
         specifier: 1.6.2
-        version: 1.6.2(patch_hash=2iynuypg76nxmydiylgtffhr7e)
+        version: 1.6.2(patch_hash=dtvvlg7ajv7t4ftvtphuwddzhe)
       '@ai-sdk/amazon-bedrock':
         specifier: 5.0.113
         version: 5.0.113(zod@4.6.7)
@@ -996,52 +996,52 @@ importers:
       '@opentelemetry/resources':
         specifier: 2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@paperclipai/adapter-claude-local':
+      '@outpost/adapter-claude-local':
         specifier: workspace:*
         version: link:../packages/adapters/claude-local
-      '@paperclipai/adapter-codex-local':
+      '@outpost/adapter-codex-local':
         specifier: workspace:*
         version: link:../packages/adapters/codex-local
-      '@paperclipai/adapter-cursor-cloud':
+      '@outpost/adapter-cursor-cloud':
         specifier: workspace:*
         version: link:../packages/adapters/cursor-cloud
-      '@paperclipai/adapter-cursor-local':
+      '@outpost/adapter-cursor-local':
         specifier: workspace:*
         version: link:../packages/adapters/cursor-local
-      '@paperclipai/adapter-gemini-local':
+      '@outpost/adapter-gemini-local':
         specifier: workspace:*
         version: link:../packages/adapters/gemini-local
-      '@paperclipai/adapter-grok-local':
+      '@outpost/adapter-grok-local':
         specifier: workspace:*
         version: link:../packages/adapters/grok-local
-      '@paperclipai/adapter-kimi-local':
+      '@outpost/adapter-kimi-local':
         specifier: workspace:*
         version: link:../packages/adapters/kimi-local
-      '@paperclipai/adapter-openclaw-gateway':
+      '@outpost/adapter-openclaw-gateway':
         specifier: workspace:*
         version: link:../packages/adapters/openclaw-gateway
-      '@paperclipai/adapter-opencode-local':
+      '@outpost/adapter-opencode-local':
         specifier: workspace:*
         version: link:../packages/adapters/opencode-local
-      '@paperclipai/adapter-pi-local':
+      '@outpost/adapter-pi-local':
         specifier: workspace:*
         version: link:../packages/adapters/pi-local
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../packages/adapter-utils
-      '@paperclipai/db':
+      '@outpost/db':
         specifier: workspace:*
         version: link:../packages/db
-      '@paperclipai/hermes-paperclip-adapter':
+      '@outpost/hermes-outpost-adapter':
         specifier: workspace:*
         version: link:../packages/adapters/hermes
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../packages/plugins/sdk
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../packages/shared
-      '@paperclipai/skills-catalog':
+      '@outpost/skills-catalog':
         specifier: workspace:*
         version: link:../packages/skills-catalog
       '@photon-ai/advanced-imessage':
@@ -1166,9 +1166,9 @@ importers:
       '@opentelemetry/sdk-trace':
         specifier: 2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@paperclipai/paperclip-runner':
+      '@outpost/outpost-runner':
         specifier: workspace:*
-        version: link:../packages/paperclip-runner
+        version: link:../packages/outpost-runner
       '@types/compression':
         specifier: ^1.8.1
         version: 1.8.1
@@ -1262,43 +1262,43 @@ importers:
       '@mdxeditor/editor':
         specifier: ^4.2.3
         version: 4.2.3(@codemirror/language@6.12.4)(@lezer/highlight@1.2.3)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@7.0.2)(yjs@13.6.32)
-      '@paperclipai/adapter-claude-local':
+      '@outpost/adapter-claude-local':
         specifier: workspace:*
         version: link:../packages/adapters/claude-local
-      '@paperclipai/adapter-codex-local':
+      '@outpost/adapter-codex-local':
         specifier: workspace:*
         version: link:../packages/adapters/codex-local
-      '@paperclipai/adapter-cursor-cloud':
+      '@outpost/adapter-cursor-cloud':
         specifier: workspace:*
         version: link:../packages/adapters/cursor-cloud
-      '@paperclipai/adapter-cursor-local':
+      '@outpost/adapter-cursor-local':
         specifier: workspace:*
         version: link:../packages/adapters/cursor-local
-      '@paperclipai/adapter-gemini-local':
+      '@outpost/adapter-gemini-local':
         specifier: workspace:*
         version: link:../packages/adapters/gemini-local
-      '@paperclipai/adapter-grok-local':
+      '@outpost/adapter-grok-local':
         specifier: workspace:*
         version: link:../packages/adapters/grok-local
-      '@paperclipai/adapter-kimi-local':
+      '@outpost/adapter-kimi-local':
         specifier: workspace:*
         version: link:../packages/adapters/kimi-local
-      '@paperclipai/adapter-openclaw-gateway':
+      '@outpost/adapter-openclaw-gateway':
         specifier: workspace:*
         version: link:../packages/adapters/openclaw-gateway
-      '@paperclipai/adapter-opencode-local':
+      '@outpost/adapter-opencode-local':
         specifier: workspace:*
         version: link:../packages/adapters/opencode-local
-      '@paperclipai/adapter-pi-local':
+      '@outpost/adapter-pi-local':
         specifier: workspace:*
         version: link:../packages/adapters/pi-local
-      '@paperclipai/adapter-utils':
+      '@outpost/adapter-utils':
         specifier: workspace:*
         version: link:../packages/adapter-utils
-      '@paperclipai/hermes-paperclip-adapter':
+      '@outpost/hermes-outpost-adapter':
         specifier: workspace:*
         version: link:../packages/adapters/hermes
-      '@paperclipai/shared':
+      '@outpost/shared':
         specifier: workspace:*
         version: link:../packages/shared
       '@radix-ui/react-slot':
@@ -1386,7 +1386,7 @@ importers:
       '@lexical/rich-text':
         specifier: 0.48.0
         version: 0.48.0(typescript@7.0.2)
-      '@paperclipai/plugin-sdk':
+      '@outpost/plugin-sdk':
         specifier: workspace:*
         version: link:../packages/plugins/sdk
       '@sentry/browser':
@@ -9515,7 +9515,7 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
-  '@agentclientprotocol/claude-agent-acp@0.73.0(patch_hash=syoits7l7g3sthy3olttp2fv24)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))':
+  '@agentclientprotocol/claude-agent-acp@0.73.0(patch_hash=reriazvcu2zhkf7a6c2t3v3xzu)(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))':
     dependencies:
       '@agentclientprotocol/sdk': 1.4.0(zod@4.4.3)
       '@anthropic-ai/claude-agent-sdk': 0.3.286(@anthropic-ai/sdk@0.129.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.31.0(zod@4.6.7))(zod@4.4.3)
@@ -9524,7 +9524,7 @@ snapshots:
       - '@anthropic-ai/sdk'
       - '@modelcontextprotocol/sdk'
 
-  '@agentclientprotocol/codex-acp@1.6.2(patch_hash=2iynuypg76nxmydiylgtffhr7e)':
+  '@agentclientprotocol/codex-acp@1.6.2(patch_hash=dtvvlg7ajv7t4ftvtphuwddzhe)':
     dependencies:
       '@agentclientprotocol/sdk': 1.4.0(zod@4.4.3)
       '@openai/codex': 0.160.0

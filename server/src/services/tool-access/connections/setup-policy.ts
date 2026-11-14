@@ -1,12 +1,12 @@
-import { getAppDefinitionForApplicationKey, isConnectorFeatureEnabled } from "@paperclipai/shared";
-import { isMemoryConnectorId } from "@paperclipai/shared";
+import { getAppDefinitionForApplicationKey, isConnectorFeatureEnabled } from "@outpost/shared";
+import { isMemoryConnectorId } from "@outpost/shared";
 import { instanceSettingsService } from "../../instance-settings.js";
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { toolApplications, toolConnections } from "@paperclipai/db";
-import { getConnectableAppDefinition } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { toolApplications, toolConnections } from "@outpost/db";
+import { getConnectableAppDefinition } from "@outpost/shared";
 import { forbidden, unprocessable } from "../../../errors.js";
-import { isRetiredComposioConnection, RETIRED_COMPOSIO_MESSAGE } from "@paperclipai/shared";
+import { isRetiredComposioConnection, RETIRED_COMPOSIO_MESSAGE } from "@outpost/shared";
 
 export function assertSupportedConnection(connection: typeof toolConnections.$inferSelect) {
   if (isRetiredComposioConnection(connection)) {

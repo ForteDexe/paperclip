@@ -1,11 +1,11 @@
 import { measureRunPhase } from "../execution-preparation-timing.js";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { environmentTaskOperationSchema, environmentTaskResultSchema, parseEnvironmentTaskResult, type PluginEnvironmentTaskOperation, type PluginEnvironmentTaskResult, type PluginEnvironmentTaskCredential } from "@paperclipai/plugin-sdk";
-import type { RunnerIngressEndpoint } from "@paperclipai/adapter-utils/runner-connectivity";
-import { RUNNER_PRP_PROTOCOL_MIN, RUNNER_PRP_PROTOCOL_MAX, type RunnerProcessHandle, type RunnerProcessLaunchSpec,
-  type DurablePrpControlPlane, type RunnerExecutionDriver, type RunnerLaunchPreparer, type DurableRecoveryIdentity, type PrpEvent } from "../../vendor/paperclip-runner/index.js";
-import { connectRunnerPrpIngress } from "../../realtime/runner-prp-outbound.js";
+import { environmentTaskOperationSchema, environmentTaskResultSchema, parseEnvironmentTaskResult, type PluginEnvironmentTaskOperation, type PluginEnvironmentTaskResult, type PluginEnvironmentTaskCredential } from "@outpost/plugin-sdk";
+import type { RunnerIngressEndpoint } from "@outpost/adapter-utils/runner-connectivity";
+import { RUNNER_ORP_PROTOCOL_MIN, RUNNER_ORP_PROTOCOL_MAX, type RunnerProcessHandle, type RunnerProcessLaunchSpec,
+  type DurablePrpControlPlane, type RunnerExecutionDriver, type RunnerLaunchPreparer, type DurableRecoveryIdentity, type PrpEvent } from "../../vendor/outpost-runner/index.js";
+import { connectRunnerPrpIngress } from "../../realtime/runner-orp-outbound.js";
 import type { NativeExecutionContext } from "./native-execution-context.js";
 
 export async function verifyPluginRunnerTaskReattachment(
@@ -18,7 +18,7 @@ export async function verifyPluginRunnerTaskReattachment(
     throw new Error("Plugin Runner is not running");
   }
   const result = environmentTaskResultSchema.parse(await task(operation));
-  if (result.kind !== "state" || result.state.schema !== "paperclip.runner.durable.state.v1"
+  if (result.kind !== "state" || result.state.schema !== "outpost.runner.durable.state.v1"
     || Object.entries(operation.identity).some(([key, value]) => result.state[key] !== value)) {
     throw new Error("Plugin Runner adoption identity mismatch");
   }
@@ -36,7 +36,7 @@ export function createPluginRunnerTaskOwner(input: {
   projectAuthCheckVersion?: 1;
   resumeFrom?: string;
   priorIdentity?: DurableRecoveryIdentity;
-  /** Current authenticated lease owner; the restored PRP identity may belong to its predecessor. */
+  /** Current authenticated lease owner; the restored ORP identity may belong to its predecessor. */
   authorityRunId?: string;
   codexSourceRecoveryVersion?: 1;
   credentialIdentity?: string;
@@ -205,7 +205,7 @@ export function createPluginRunnerTaskOwner(input: {
       ...(input.credentialIdentity ? { credentialIdentity: input.credentialIdentity } : {}),
       ...(input.accountIdentity ? { accountIdentity: input.accountIdentity } : {}),
       ...(input.credential ? { credential: input.credential } : {}),
-      runner: { protocolMin: RUNNER_PRP_PROTOCOL_MIN, protocolMax: RUNNER_PRP_PROTOCOL_MAX,
+      runner: { protocolMin: RUNNER_ORP_PROTOCOL_MIN, protocolMax: RUNNER_ORP_PROTOCOL_MAX,
         harness: input.harness,
         runnerId: native.identity.runnerInstanceId, leaseId: native.identity.environmentLeaseId,
         runId: native.identity.runId, sessionId: native.identity.normalizedSessionId,
@@ -267,7 +267,7 @@ export function createPluginRunnerTaskOwner(input: {
         const state = await readStatus();
         if (state.phase === "running" && !stopRequested) {
           markReady();
-          // PRP owns live failure detection; warm idle tasks must not keep polling Launcher.
+          // ORP owns live failure detection; warm idle tasks must not keep polling Launcher.
           if (native.lifecyclePolicy?.mode === "warm") return;
         }
         if (state.executionStopped === true) return;
@@ -331,7 +331,7 @@ export function createPluginRunnerTaskOwner(input: {
         }
         if (settlement === "settled" && stoppedState?.sessionStateAvailable === true && input.onSessionRetained) {
           const state = await readRunnerState();
-          if (state.schema !== "paperclip.runner.durable.state.v1" || state.lifecycle !== "suspended"
+          if (state.schema !== "outpost.runner.durable.state.v1" || state.lifecycle !== "suspended"
             || !preparedIdentity || Object.entries(preparedIdentity).some(([key, value]) => state[key] !== value)) {
             throw new Error("Plugin Runner suspended state identity mismatch");
           }
@@ -390,7 +390,7 @@ export function createPluginRunnerTaskOwner(input: {
       pid: null, processGroupId: null, startedAt: null,
       isAlive: async () => {
         if (!adoptionVerified) { if ((await readStatus()).executionStopped === true) return false; adoptionVerified = true; }
-        // Authenticated PRP detects disconnects; this cache never asserts termination.
+        // Authenticated ORP detects disconnects; this cache never asserts termination.
         return stoppedState === undefined;
       },
       signal: async () => { stopRequested = true; await stopAndConfirm(); return true; },

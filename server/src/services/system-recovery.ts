@@ -1,6 +1,6 @@
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, issues, heartbeatRuns, issueComments, issueRecoveryActions, type Db } from "@paperclipai/db";
+import { agents, issues, heartbeatRuns, issueComments, issueRecoveryActions, type Db } from "@outpost/db";
 import { writeExecutionControl } from "./execution-control-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { createSystemRecovery, exhaustedSystemRecoveryAction, readSystemRecovery, type SystemRecoveryState } from "./system-recovery-state.js";
@@ -25,7 +25,7 @@ export async function adoptSystemRecovery(db: Db, source: WorkspaceRecoverySourc
         'previousWorkspaceRecovery', ${issueRecoveryActions.evidence}->'workspaceRecovery',
         'systemRecovery', ${JSON.stringify(state)}::jsonb,
         'workspaceRecovery', ${JSON.stringify({
-          schema: "paperclip.workspace-recovery.v1", runId: source.runId, status: "queued",
+          schema: "outpost.workspace-recovery.v1", runId: source.runId, status: "queued",
           stage: "verifying_stop", attempt: 0, attemptLimit: 6, requestIds: [],
         })}::jsonb)`,
       updatedAt: new Date(),
@@ -62,7 +62,7 @@ export async function updateSystemRecovery(db: Db, source: WorkspaceRecoverySour
   const exhausted = next.state === "exhausted";
   const handoff = exhausted ? exhaustedSystemRecoveryAction(next, await loadActionEvidence(db, source)) : null;
   const compatibility = {
-    schema: "paperclip.workspace-recovery.v1", runId: source.runId, status,
+    schema: "outpost.workspace-recovery.v1", runId: source.runId, status,
     stage: next.phase === "verify_execution" ? "verifying_stop" : next.phase === "preserve_files" ? "restoring_files" : "saving_receipts",
     attempt: next.attempts, attemptLimit: 6, retryable: true, retryAt: next.nextAttemptAt ?? undefined,
     ...(handoff ? { message: handoff } : {}),

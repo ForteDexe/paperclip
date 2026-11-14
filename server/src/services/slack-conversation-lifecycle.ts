@@ -3,7 +3,7 @@ import { notifyAttentionRetentionWork } from "./retention-work-notifications.js"
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "./unsafe-workspace-export-notifications.js";
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
-import { chatConversations, chatEndpoints, heartbeatRuns, issueComments, issues, type Db } from "@paperclipai/db";
+import { chatConversations, chatEndpoints, heartbeatRuns, issueComments, issues, type Db } from "@outpost/db";
 import { persistActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
 
 export type ExternalConversationSettlementScope = { companyId: string; issueId?: string };

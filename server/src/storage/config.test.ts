@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { paperclipConfigSchema } from "@paperclipai/shared";
+import { paperclipConfigSchema } from "@outpost/shared";
 import { loadStorageConfig } from "./config.js";
 import { resolveRunEvidenceStorage } from "../services/run-evidence-storage.js";
 import {
@@ -30,8 +30,8 @@ const file = paperclipConfigSchema.parse({
 });
 describe("shared instance storage configuration", () => {
   it("reuses the saved Cloud storage profile after its legacy config file is gone", () => {
-    vi.stubEnv("PAPERCLIP_MANAGED_CONFIG", "");
-    vi.stubEnv("PAPERCLIP_CONFIG", "/nonexistent/legacy-config.json");
+    vi.stubEnv("OUTPOST_MANAGED_CONFIG", "");
+    vi.stubEnv("OUTPOST_CONFIG", "/nonexistent/legacy-config.json");
     for (const name of [
       "PROVIDER",
       "S3_BUCKET",
@@ -40,7 +40,7 @@ describe("shared instance storage configuration", () => {
       "S3_PREFIX",
       "S3_FORCE_PATH_STYLE",
     ])
-      vi.stubEnv(`PAPERCLIP_STORAGE_${name}`, undefined);
+      vi.stubEnv(`OUTPOST_STORAGE_${name}`, undefined);
     setCloudRuntimeConfigSnapshot({
       version: 1,
       revision: 4,
@@ -69,12 +69,12 @@ describe("shared instance storage configuration", () => {
   it("preserves environment precedence and an explicit false path-style setting", () => {
     expect(
       loadStorageConfig(file, {
-        PAPERCLIP_STORAGE_PROVIDER: "s3",
-        PAPERCLIP_STORAGE_S3_BUCKET: "stack-env",
-        PAPERCLIP_STORAGE_S3_REGION: "us-east-1",
-        PAPERCLIP_STORAGE_S3_ENDPOINT: "https://other.example.test",
-        PAPERCLIP_STORAGE_S3_PREFIX: "",
-        PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE: "false",
+        OUTPOST_STORAGE_PROVIDER: "s3",
+        OUTPOST_STORAGE_S3_BUCKET: "stack-env",
+        OUTPOST_STORAGE_S3_REGION: "us-east-1",
+        OUTPOST_STORAGE_S3_ENDPOINT: "https://other.example.test",
+        OUTPOST_STORAGE_S3_PREFIX: "",
+        OUTPOST_STORAGE_S3_FORCE_PATH_STYLE: "false",
       }),
     ).toMatchObject({
       storageProvider: "s3",

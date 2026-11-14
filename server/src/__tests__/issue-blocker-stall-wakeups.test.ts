@@ -4,14 +4,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   activityLog, agents, agentWakeupRequests, companies, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issueRelations,
   issues, type Db,
-} from "@paperclipai/db";
-import { ISSUE_BLOCKER_STALLED_WAKE_REASON } from "@paperclipai/shared";
+} from "@outpost/db";
+import { ISSUE_BLOCKER_STALLED_WAKE_REASON } from "@outpost/shared";
 import { recoveryService } from "../services/recovery/service.js";
 import { issueBlockerStalledWakeKey, listStalledDependencies, recoveryActionSweepCondition, wakeWaitersOfStalledIssues } from "../services/recovery/blocker-stall-wakeups.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_RECOVERY_ACTION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_RECOVERY_ACTION_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 // Restart chaos w-20261108T181313-s9701 t05: a child blocked on a board-owned
@@ -365,7 +365,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       runtimeMode: "native", nativeIssueId: f.child.id, status: "failed", startedAt: new Date(endedAt.getTime() - 15 * 60_000),
       finishedAt: endedAt, lastOutputAt: endedAt,
       resultJson: { failureCode: "native_workspace_sync_out_retry_exhausted", finalizationPhase: "terminal_failure" } }).returning();
-    const authority = { schema: "paperclip.remote-workspace.v1" as const, epoch: 2, snapshotId: randomUUID(),
+    const authority = { schema: "outpost.remote-workspace.v1" as const, epoch: 2, snapshotId: randomUUID(),
       source: { kind: "empty" as const }, dirty: true, writerRunId: writer.id,
       location: { leaseId: randomUUID(), providerLeaseId: randomUUID(), environmentId: randomUUID(), remoteCwd: "/home/daytona/ws" } };
     const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.parent.id,

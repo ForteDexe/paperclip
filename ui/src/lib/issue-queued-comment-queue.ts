@@ -4,7 +4,7 @@ import type {
   IssueQueuedCommentQueue,
   IssueQueuedCommentQueueState,
   IssueQueuedCommentSteeringDisposition,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type { RunForIssue } from "../api/activity";
 
 /** Presentation only. Admission has accepted these inputs, but has not consumed them. */
@@ -99,8 +99,8 @@ export function normalizeIssueQueuedCommentQueue(
     revision:
       typeof source?.revision === "string" ? source.revision : "unavailable",
     protocol:
-      source?.protocol === "paperclip_runner_v1"
-        ? "paperclip_runner_v1"
+      source?.protocol === "outpost_runner_v1"
+        ? "outpost_runner_v1"
         : "legacy",
     steeringDisposition:
       typeof disposition === "string" &&
@@ -180,7 +180,7 @@ export function mergePendingIssueQueuedComments(params: {
     protocol,
     steeringDisposition:
       (authoritativeOwnsQueue ? params.authoritativeQueue?.steeringDisposition : undefined) ??
-      (protocol === "paperclip_runner_v1" && targetRunId
+      (protocol === "outpost_runner_v1" && targetRunId
         ? "temporarily_unavailable"
         : "unsupported"),
     entries,

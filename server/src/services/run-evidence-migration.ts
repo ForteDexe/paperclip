@@ -8,7 +8,7 @@ import {
   nativeRunFinalizations,
   providerTraceRecords,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { offlineMigrationExecutionWhere } from "./offline-migration-execution.js";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { createObjectByteJournal } from "./object-byte-journal.js";
@@ -75,7 +75,7 @@ export async function migrateRunEvidence(
     if (active) throw new Error("active_execution_requires_drain");
   }
   if (preserveHistoricalFiles) {
-    if (process.env.PAPERCLIP_EPHEMERAL_MIGRATION !== "true") {
+    if (process.env.OUTPOST_EPHEMERAL_MIGRATION !== "true") {
       throw new Error("historical_log_archive_requires_offline_migration");
     }
     await assertNoActiveRuns();

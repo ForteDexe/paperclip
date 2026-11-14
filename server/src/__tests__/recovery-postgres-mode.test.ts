@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   support: vi.fn(async (): Promise<{ supported: true } | { supported: false; reason: string }> => ({ supported: true })),
   embedded: vi.fn(),
 }));
-vi.mock("@paperclipai/db", () => ({
+vi.mock("@outpost/db", () => ({
   applyPendingMigrations: mocks.migrations, closeRegisteredClients: mocks.closeRegistered, createDb: mocks.createDb,
 }));
 vi.mock("./helpers/embedded-postgres.js", () => ({
@@ -20,8 +20,8 @@ const recoveryUrl = "postgresql://paperclip@127.0.0.1:55448/recovery_modes_test"
 beforeEach(() => {
   vi.resetAllMocks();
   vi.resetModules();
-  vi.stubEnv("PAPERCLIP_TEST_DATABASE_URL", undefined);
-  vi.stubEnv("PAPERCLIP_RECOVERY_TEST_DATABASE_URL", recoveryUrl);
+  vi.stubEnv("OUTPOST_TEST_DATABASE_URL", undefined);
+  vi.stubEnv("OUTPOST_RECOVERY_TEST_DATABASE_URL", recoveryUrl);
   mocks.createDb.mockReturnValue({ $client: { unsafe: mocks.unsafe, end: mocks.end } });
 });
 afterEach(() => { vi.unstubAllEnvs(); });
@@ -48,7 +48,7 @@ it("keeps separate fixture allocations when a recovery URL belongs to another ex
 });
 
 it("uses the exact dedicated database only when the owning caller passes its explicit option", async () => {
-  vi.stubEnv("PAPERCLIP_TEST_DATABASE_URL", "postgresql://paperclip@127.0.0.1:55448/postgres");
+  vi.stubEnv("OUTPOST_TEST_DATABASE_URL", "postgresql://paperclip@127.0.0.1:55448/postgres");
   const { startRecoveryPostgres } = await import("./helpers/recovery-postgres.js");
   const fixture = await startRecoveryPostgres("owned-fixture-", { dedicatedDatabaseUrl: recoveryUrl });
   expect(fixture.connectionString).toBe(recoveryUrl);
@@ -61,7 +61,7 @@ it("uses the exact dedicated database only when the owning caller passes its exp
 
 it("retains fresh external database allocation and matching cleanup for existing non-dedicated callers", async () => {
   const admin = "postgresql://paperclip@127.0.0.1:55448/postgres";
-  vi.stubEnv("PAPERCLIP_TEST_DATABASE_URL", admin);
+  vi.stubEnv("OUTPOST_TEST_DATABASE_URL", admin);
   const { startRecoveryPostgres } = await import("./helpers/recovery-postgres.js");
   const first = await startRecoveryPostgres("first-fixture-");
   const second = await startRecoveryPostgres("second-fixture-");

@@ -1,4 +1,4 @@
-# Manual smoke test — `@paperclipai/plugin-kubernetes`
+# Manual smoke test — `@outpost/plugin-kubernetes`
 
 Manual sanity check that the plugin works end-to-end against a real
 paperclip-server instance and a real Kubernetes cluster (kind for local
@@ -30,10 +30,10 @@ In a separate terminal:
 
 ```bash
 cd /path/to/paperclip
-export PAPERCLIP_HOME=/tmp/paperclip-smoke
-export PAPERCLIP_INSTANCE_ID=smoke
-export PAPERCLIP_DEPLOYMENT_MODE=local_trusted
-pnpm --filter @paperclipai/server dev
+export OUTPOST_HOME=/tmp/paperclip-smoke
+export OUTPOST_INSTANCE_ID=smoke
+export OUTPOST_DEPLOYMENT_MODE=local_trusted
+pnpm --filter @outpost/server dev
 ```
 
 Wait for `Server listening on 127.0.0.1:3100`.
@@ -46,7 +46,7 @@ npx paperclipai plugin install \
   --api-base http://127.0.0.1:3100
 ```
 
-Expected: `✓ Installed paperclip.kubernetes-sandbox-provider v0.1.0 (ready)`.
+Expected: `✓ Installed outpost.kubernetes-sandbox-provider v0.1.0 (ready)`.
 
 ### 4. Create a company and a kubernetes sandbox environment
 

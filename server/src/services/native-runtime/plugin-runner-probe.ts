@@ -1,12 +1,12 @@
-import { resolveGrokDisableWebSearch } from "../../vendor/paperclip-runner/index.js";
+import { resolveGrokDisableWebSearch } from "../../vendor/outpost-runner/index.js";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "@paperclipai/adapter-utils";
-import { resolvePaperclipRunnerPiThinkingLevel } from "@paperclipai/adapter-utils";
-import { environmentTaskResultSchema } from "@paperclipai/plugin-sdk";
-import { NativeEnvironmentProbeCleanupError, probeNativeRunnerEnvironment, resolveClaudeEffort, resolveGrokEffort } from "../../vendor/paperclip-runner/index.js";
+import type { AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
+import { resolvePaperclipRunnerPiThinkingLevel } from "@outpost/adapter-utils";
+import { environmentTaskResultSchema } from "@outpost/plugin-sdk";
+import { NativeEnvironmentProbeCleanupError, probeNativeRunnerEnvironment, resolveClaudeEffort, resolveGrokEffort } from "../../vendor/outpost-runner/index.js";
 import { preparePluginRunnerCredentials } from "./plugin-runner-credentials.js";
 import { createPluginRunnerTaskOwner } from "./plugin-runner-task.js";
 import { resolvePaperclipRunnerProviderProfile } from "./provider-profile.js";
@@ -25,7 +25,7 @@ export async function probePluginRunnerEnvironment(context: AdapterEnvironmentTe
   const task = target.runnerTask;
   const binding = target.runnerTaskProbe;
   const runnerId = `probe-${randomUUID()}`;
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-runner-probe-")));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "outpost-runner-probe-")));
   let cleanupConfirmed = false;
   let probeStarted = false;
   try {
@@ -33,7 +33,7 @@ export async function probePluginRunnerEnvironment(context: AdapterEnvironmentTe
     if (profile.provider !== "codex" && profile.provider !== "opencode" && profile.provider !== "acpx") throw new Error("Plugin Runner setup requires a workspace harness");
     const environment = (context.config.env ?? {}) as NodeJS.ProcessEnv;
     if (!managed && (context.config.managedAiConnection || Object.values(environment).some(value => Boolean(value)))) {
-      return { adapterType: "paperclip_runner", status: "fail", testedAt,
+      return { adapterType: "outpost_runner", status: "fail", testedAt,
         checks: [{ code: "runner_account_selection_required", level: "error",
           message: "Select a saved AI account, or remove local environment overrides to test the installed account." }] };
     }
@@ -62,18 +62,18 @@ export async function probePluginRunnerEnvironment(context: AdapterEnvironmentTe
           ...(profile.acpxAgent === "claude" ? { claudeEffort: resolveClaudeEffort("claude", context.config.modelReasoningEffort ?? context.config.reasoningEffort ?? context.config.effort) } : {}),
           ...(profile.acpxAgent === "grok" ? { grokEffort: resolveGrokEffort("grok", context.config.modelReasoningEffort ?? context.config.reasoningEffort ?? context.config.effort), grokDisableWebSearch: resolveGrokDisableWebSearch("grok", context.config.disableWebSearch) } : {}),
           acpxCandidateProfile: profile.acpxAgent === "pi" ? undefined : resolveAcpxQualification({ kind: "acpx", agent: profile.acpxAgent, model: profile.model }, process.env) } : {}),
-        prpIdentity: { runnerInstanceId: runnerId, environmentLeaseId: target.leaseId, runId: binding.runId,
+        orpIdentity: { runnerInstanceId: runnerId, environmentLeaseId: target.leaseId, runId: binding.runId,
           normalizedSessionId: binding.sessionId, turnId: `turn-${binding.runId}`, itemId: `item-${binding.runId}` },
       },
       onCleanupConfirmed: async () => { rmSync(root, { recursive: true, force: true }); cleanupConfirmed = true; },
     });
-    return { adapterType: "paperclip_runner", status: "pass", testedAt,
+    return { adapterType: "outpost_runner", status: "pass", testedAt,
       checks: [{ code: "runner_hello_probe_passed", level: "info", message: `Runner verified ${result.providerDriver} with model ${result.effectiveModel}.` }] };
   } catch (error) {
     if (error instanceof NativeEnvironmentProbeCleanupError) throw error;
-    if (isRunnerRevisionMismatch(error)) return runnerRevisionMismatchTestResult("paperclip_runner", testedAt);
+    if (isRunnerRevisionMismatch(error)) return runnerRevisionMismatchTestResult("outpost_runner", testedAt);
     // Provider failures may contain credentials or private addressing.
-    return { adapterType: "paperclip_runner", status: "fail", testedAt,
+    return { adapterType: "outpost_runner", status: "fail", testedAt,
       checks: [{ code: "runner_hello_probe_failed", level: "error", message: "The selected plugin environment did not complete the Runner hello probe and confirmed cleanup. Check its runtime, account, and model access." }] };
   } finally {
     if (!probeStarted || cleanupConfirmed) rmSync(root, { recursive: true, force: true });

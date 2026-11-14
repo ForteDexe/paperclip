@@ -12,9 +12,9 @@ import { logger } from "../middleware/logger.js";
 afterEach(() => vi.restoreAllMocks());
 
 const cloudEnv = {
-  PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "tenant-secret",
-  PAPERCLIP_CLOUD_STACK_ID: "stack-current",
-  PAPERCLIP_CLOUD_API_ORIGIN: "https://cloud.example.test/control-plane",
+  OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "tenant-secret",
+  OUTPOST_CLOUD_STACK_ID: "stack-current",
+  OUTPOST_CLOUD_API_ORIGIN: "https://cloud.example.test/control-plane",
 };
 
 function cloudActor(userId: string) {
@@ -173,7 +173,7 @@ describe("GET /api/cloud/stacks", () => {
       const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
       const app = createApp({
         fetchImpl: fetch,
-        runtimeEnv: { ...cloudEnv, PAPERCLIP_CLOUD_API_ORIGIN: `http://127.0.0.1:${port}` },
+        runtimeEnv: { ...cloudEnv, OUTPOST_CLOUD_API_ORIGIN: `http://127.0.0.1:${port}` },
       });
       const response = await request(app).get("/api/cloud/stacks");
       expect(response.status).toBe(200);

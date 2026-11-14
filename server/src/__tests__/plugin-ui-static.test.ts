@@ -37,13 +37,13 @@ function createPluginPackage(source = "export default {};\n") {
 function readyPlugin(packageRoot: string) {
   mockRegistry.getById.mockResolvedValue({
     id: pluginId,
-    pluginKey: "paperclip.example",
+    pluginKey: "outpost.example",
     packageName: "paperclip-plugin-example",
     packagePath: packageRoot,
     version: "1.0.0",
     status: "ready",
     manifestJson: {
-      id: "paperclip.example",
+      id: "outpost.example",
       entrypoints: {
         ui: "./dist/ui",
       },

@@ -1,4 +1,4 @@
-import { artifactReviewDocumentKey } from "@paperclipai/shared";
+import { artifactReviewDocumentKey } from "@outpost/shared";
 import type { LabArtifact } from "../../kit";
 import { registerApiRoute } from "../../api-stub";
 import { COMPANY } from "../../fixtures";

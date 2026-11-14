@@ -442,7 +442,7 @@ Verification and failures:
   These do not claim provider execution or a full native reviewer admission test.
 - All 92 existing queue-module and wake-admission policy tests pass:
   `/tmp/sleep28-queue-module-tests.log`. The queue module now accepts the standard
-  guarded external test URL through `PAPERCLIP_QUEUE_TEST_DATABASE_URL`; its
+  guarded external test URL through `OUTPOST_QUEUE_TEST_DATABASE_URL`; its
   destructive per-case fixture reset ran only on the new isolated database
   `paperclip_sleep28_queue_claim_20261025_test`. Embedded tests remain the default.
 - Server production typecheck passes: `/tmp/sleep28-queue-producers-typecheck.log`.
@@ -530,7 +530,7 @@ Evidence and limitations:
   scheduling cases pass on a new isolated PostgreSQL database. The suite logs
   responsible-user setup denial for some existing fixture paths; this is not
   evidence of successful provider execution or full product acceptance.
-- The dependency suite now accepts guarded `PAPERCLIP_DEPENDENCY_TEST_DATABASE_URL`
+- The dependency suite now accepts guarded `OUTPOST_DEPENDENCY_TEST_DATABASE_URL`
   and removes its fixed fixture user/closes its client during teardown. Its
   existing broad cleanup must run only on a dedicated database. Initial reuse
   retained the old fixture user; a manual cleanup command used the wrong physical
@@ -631,7 +631,7 @@ Evidence:
 - `/tmp/sleep28-queued-comment-typecheck.log`: server production types pass;
   test files are outside that command. `git diff --check` passes.
 - The existing queued-comment adapter tests now accept guarded
-  `PAPERCLIP_QUEUED_COMMENT_TEST_DATABASE_URL` and close their client. Their broad
+  `OUTPOST_QUEUED_COMMENT_TEST_DATABASE_URL` and close their client. Their broad
   fixture cleanup ran only on freshly created/migrated
   `paperclip_sleep28_queued_comment_20261025_test`; embedded mode remains default.
 
@@ -679,7 +679,7 @@ Verification:
   Test files are outside that compiler configuration. `git diff --check` passed.
 
 Existing question-delivery tests now support guarded
-`PAPERCLIP_QUESTION_DELIVERY_TEST_DATABASE_URL`, retaining embedded mode by default
+`OUTPOST_QUESTION_DELIVERY_TEST_DATABASE_URL`, retaining embedded mode by default
 and closing their client. Their broad cleanup ran only on the dedicated migrated
 `paperclip_sleep28_question_delivery_20261025_test` database. Milestone fixtures
 used their separate dedicated database.
@@ -766,7 +766,7 @@ Real PostgreSQL regression evidence:
 - `/tmp/sleep28-publication-final-tests.log`: all 48 milestone and 35 error-policy
   cases passed. The three arbitration cases did not run because their embedded
   PostgreSQL setup failed after its own startup retries. That suite now supports
-  guarded `PAPERCLIP_ARBITRATION_TEST_DATABASE_URL`, closes its client, and uses
+  guarded `OUTPOST_ARBITRATION_TEST_DATABASE_URL`, closes its client, and uses
   unique company prefixes. `/tmp/sleep28-arbitration-tests.log` shows all three
   pass against dedicated `paperclip_sleep28_arbitration_20261025_test`.
 - `/tmp/sleep28-publication-acceptance.log`: four existing chat integration cases
@@ -967,7 +967,7 @@ also lineage inputs; their broader writer audit remains required separately.
 No provider execution, signing policy or request ownership changed.
 
 `chat-run-milestone-governed-work.test.ts` is a separate cohesive suite using
-`PAPERCLIP_MILESTONE_GOVERNED_TEST_DATABASE_URL`, currently the dedicated migrated
+`OUTPOST_MILESTONE_GOVERNED_TEST_DATABASE_URL`, currently the dedicated migrated
 `paperclip_sleep28_governed_worker_20261025_test` database. It reuses only the
 company/chat fixture helper; worker startup, clock, settlement and quiet assertions
 remain explicit. Cleanup is company-scoped and runs after worker shutdown.
@@ -993,7 +993,7 @@ remain explicit. Cleanup is company-scoped and runs after worker shutdown.
   unit cases on separate isolated PostgreSQL databases.
 - `/tmp/sleep28-tool-review-acceptance.log`: all 109 existing tool-gateway cases
   pass on newly migrated `paperclip_sleep28_tool_review_20261025_test`, selected
-  through its existing PAPERCLIP_TOOL_REVIEW_TEST_DATABASE_URL guard.
+  through its existing OUTPOST_TOOL_REVIEW_TEST_DATABASE_URL guard.
 - `/tmp/sleep28-governed-typecheck.log`: production server typecheck passes;
   it excludes tests. `git diff --check` passes.
 
@@ -1590,7 +1590,7 @@ locks and transaction. No production transaction contract changed.
 
 The project suite initially skipped all 30 cases because embedded PostgreSQL was
 unavailable. It now supports the existing validated external-test-database option
-through `PAPERCLIP_PROJECT_GIT_TEST_DATABASE_URL` and closes that pool. Use a fresh
+through `OUTPOST_PROJECT_GIT_TEST_DATABASE_URL` and closes that pool. Use a fresh
 disposable database per run: the suite seeds fixed A/B user IDs. Reusing the red
 run's database caused a duplicate-user setup failure; a new database resolved
 that fixture setup issue without changing product behavior. All 25 credential

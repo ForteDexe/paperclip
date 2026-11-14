@@ -2,7 +2,7 @@ import { withRuntimeAssetUse } from "./runtime-asset-retention.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import type { NativeRuntimeAssetReference } from "../../vendor/paperclip-runner/index.js";
+import type { NativeRuntimeAssetReference } from "../../vendor/outpost-runner/index.js";
 import { verifyFileManifest, type FileManifestEntry } from "../file-manifest-cache.js";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 

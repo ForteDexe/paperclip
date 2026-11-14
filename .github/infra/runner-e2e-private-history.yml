@@ -71,7 +71,7 @@ Resources:
   PrivateHistoryRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: paperclip-runner-e2e-private-history-github
+      RoleName: outpost-runner-e2e-private-history-github
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'

@@ -38,13 +38,13 @@ export async function privatePublicSignIn(
   try {
     const request = path.join(directory, "request.json"),
       storagePath = path.join(directory, "storage.json");
-    const channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL;
+    const channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
     await writeFile(
       request,
       JSON.stringify({
         ...input,
         executablePath:
-          process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
+          process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ??
           (channel ? undefined : chromium.executablePath()),
         channel,
       }),

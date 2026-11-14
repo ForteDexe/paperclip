@@ -4,7 +4,7 @@ import {
 } from "./paperclip-cloud-connector-enrollment.js";
 import {
   createPaperclipCloudConnector,
-  paperclipCloudConnectorConfigFromEnv,
+  outpostCloudConnectorConfigFromEnv,
 } from "./paperclip-cloud-connector.js";
 
 export async function reconcilePaperclipCloudConnectorEnrollmentStatus(
@@ -13,7 +13,7 @@ export async function reconcilePaperclipCloudConnectorEnrollmentStatus(
 ): Promise<PaperclipCloudConnectorEnrollmentStatus> {
   const local = paperclipCloudConnectorEnrollmentStatus(env);
   if (!local.configured) return local;
-  const config = paperclipCloudConnectorConfigFromEnv(env);
+  const config = outpostCloudConnectorConfigFromEnv(env);
   if (!config) return { ...local, configured: false, status: "not_configured" };
   try {
     const status = await createPaperclipCloudConnector({ config, request }).getInstanceStatus();

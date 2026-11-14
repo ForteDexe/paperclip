@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 
 const { ensureAdapterExecutionTargetCommandResolvable, runAdapterExecutionTargetProcess } = vi.hoisted(() => ({
   ensureAdapterExecutionTargetCommandResolvable: vi.fn(async () => {}),
@@ -17,9 +17,9 @@ const { ensureAdapterExecutionTargetCommandResolvable, runAdapterExecutionTarget
   })),
 }));
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@outpost/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/execution-target")>(
+    "@outpost/adapter-utils/execution-target",
   );
   return { ...actual, ensureAdapterExecutionTargetCommandResolvable, runAdapterExecutionTargetProcess };
 });
@@ -32,8 +32,8 @@ describe("codex ACP lane model CLI floor", () => {
   beforeEach(async () => {
     cwd = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-version-"));
     vi.stubEnv("CODEX_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-home-")));
-    vi.stubEnv("PAPERCLIP_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-instance-")));
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default");
+    vi.stubEnv("OUTPOST_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-instance-")));
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
   });
 
   afterEach(async () => {
@@ -112,7 +112,7 @@ describe("codex ACP lane model CLI floor", () => {
           OPENAI_API_KEY: "sk-test",
           PATH: "/opt/codex-0.160.0/bin:/usr/local/bin:/usr/bin",
           CODEX_HOME: "/remote/codex-home",
-          PAPERCLIP_CODEX_ACP_NETWORK_ACCESS: false,
+          OUTPOST_CODEX_ACP_NETWORK_ACCESS: false,
         },
       },
       executionTarget: sandboxTarget(),

@@ -10,7 +10,7 @@ import {
   issueComments,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 import { readUnreadSteeredMessages } from "./unread-steered-messages.js";
 import { queuedInteractionSteeringBody } from "../queued-interaction-response.js";
@@ -53,7 +53,7 @@ describeEmbeddedPostgres("unread steered messages", () => {
     await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: prefix, requireBoardApprovalForNewAgents: false });
     await db.insert(agents).values({
       id: agentId, companyId, name: "Codex", role: "engineer", status: "running",
-      adapterType: "paperclip_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {},
+      adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {},
     });
     const issueId = await seedIssue(companyId, agentId, 1, prefix);
     const otherIssueId = await seedIssue(companyId, agentId, 2, prefix);
@@ -71,7 +71,7 @@ describeEmbeddedPostgres("unread steered messages", () => {
     let seq = 0;
     const event = (eventType: string, turnId: string, kind: string | null, itemId?: string, validated = true) => ({
       companyId, runId, agentId, seq: ++seq, eventType, sourceEventId: validated ? randomUUID() : null,
-      payload: { prpEvent: { turnId, ...(itemId ? { itemId } : {}), payload: kind ? { kind } : {} } },
+      payload: { orpEvent: { turnId, ...(itemId ? { itemId } : {}), payload: kind ? { kind } : {} } },
     });
     await db.insert(heartbeatRunEvents).values([
       event("item.started", "t1", "userMessage", "t1:input"),

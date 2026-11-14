@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, environments, principalPermissionGrants, activityLog, instanceSettings, builtInManagedResources, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { agents, authUsers, companies, companyMemberships, createDb, environments, principalPermissionGrants, activityLog, instanceSettings, builtInManagedResources, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { grantsForHumanRole } from "../services/company-member-roles.js";
 import { agentRoutes } from "../routes/agents.js";
@@ -74,7 +74,7 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
     expect(probe).toHaveBeenCalledTimes(1);
   });
   it("lets the owner requalify an existing native runner's saved computer without changing its configuration", async () => {
-    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "opencode", model: "example/model" } })
+    await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: "example/model" } })
       .where(eq(agents.id, agentId));
     const before = await db.select().from(agents).where(eq(agents.id, agentId));
     const response = await qualify();
@@ -88,7 +88,7 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
   });
 
   it("reuses a current native snapshot proof without invalidating it or allocating another probe", async () => {
-    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "opencode" } }).where(eq(agents.id, agentId));
+    await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode" } }).where(eq(agents.id, agentId));
     const config = { provider: "daytona", snapshot: "managed-snapshot", reuseLease: false };
     const fingerprint = fingerprintEnvironmentSandboxProviderConfig(config);
     const saved = (await environmentService(db).getById(environmentId))!;
@@ -108,7 +108,7 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
   });
 
   it.each(["revoked", "changed-computer", "foreign-computer"])("keeps native saved-computer qualification closed for %s authority", async state => {
-    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "opencode" } }).where(eq(agents.id, agentId));
+    await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode" } }).where(eq(agents.id, agentId));
     if (state === "revoked") await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, userId));
     if (state === "changed-computer") await db.update(agents).set({ defaultEnvironmentId: null }).where(eq(agents.id, agentId));
     if (state === "foreign-computer") {

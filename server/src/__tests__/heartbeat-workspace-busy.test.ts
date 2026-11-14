@@ -28,7 +28,7 @@ import {
   issues,
   projects,
   projectWorkspaces,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -59,14 +59,14 @@ vi.mock("../sentry.js", async (importOriginal) => ({
 }));
 
 // Exercise the real SSH lease and heartbeat paths without connecting to a host.
-vi.mock("@paperclipai/adapter-utils/ssh", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@paperclipai/adapter-utils/ssh")>(),
+vi.mock("@outpost/adapter-utils/ssh", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@outpost/adapter-utils/ssh")>(),
   ensureSshWorkspaceReady: async (config: { remoteWorkspacePath: string }) => ({
     remoteCwd: config.remoteWorkspacePath,
   }),
 }));
 
-const externalTestDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL?.trim();
+const externalTestDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL?.trim();
 const embeddedPostgresSupport = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 const WORKSPACE_BUSY_TEST_ADAPTER = "workspace_busy_test";
@@ -518,7 +518,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
   it.each(["any", "invalid"])("refuses local fallback when Kubernetes is required but bootstrap mode is %s", async (mode) => {
     const fixture = await seedWorkspaceFixture({ agentEnvironmentDriver: "local" });
-    vi.stubEnv("PAPERCLIP_EXECUTION_MODE", mode);
+    vi.stubEnv("OUTPOST_EXECUTION_MODE", mode);
     await instanceSettingsService(db).updateGeneral({ executionMode: "kubernetes" });
 
     const run = await heartbeat.invoke(fixture.agentId, "assignment", { issueId: fixture.issueId }, "system");
@@ -535,12 +535,12 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
   it("lazily provisions the required Kubernetes environment before applying workspace contention", async () => {
     const fixture = await seedWorkspaceFixture({ agentEnvironmentDriver: "local" });
-    for (const key of Object.keys(process.env).filter(key => key.startsWith("PAPERCLIP_K8S_"))) {
+    for (const key of Object.keys(process.env).filter(key => key.startsWith("OUTPOST_K8S_"))) {
       vi.stubEnv(key, undefined);
     }
-    vi.stubEnv("PAPERCLIP_EXECUTION_MODE", "kubernetes");
-    vi.stubEnv("PAPERCLIP_K8S_IN_CLUSTER", "true");
-    vi.stubEnv("PAPERCLIP_K8S_BACKEND", "job");
+    vi.stubEnv("OUTPOST_EXECUTION_MODE", "kubernetes");
+    vi.stubEnv("OUTPOST_K8S_IN_CLUSTER", "true");
+    vi.stubEnv("OUTPOST_K8S_BACKEND", "job");
     await instanceSettingsService(db).updateGeneral({ executionMode: "kubernetes" });
 
     const run = await heartbeat.invoke(fixture.agentId, "assignment", { issueId: fixture.issueId }, "system");

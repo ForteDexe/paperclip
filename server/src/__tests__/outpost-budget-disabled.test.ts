@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 import { registerBudgetEnforcementWork } from "../services/budget-enforcement-worker.js";
 import {

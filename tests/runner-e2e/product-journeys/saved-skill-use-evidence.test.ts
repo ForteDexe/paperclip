@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { canonicalProviderEventsFromOpenCodePart } from "../../../packages/paperclip-runner/src/provider-events.js";
+import { canonicalProviderEventsFromOpenCodePart } from "../../../packages/outpost-runner/src/provider-events.js";
 import { savedSkillDocumentAttributed, savedSkillFixture, savedSkillReadAssignment, savedSkillReadReceipts, savedSkillReadRuntimeName, savedSkillResultMatches, savedSkillSourceMatches } from "./saved-skill-use-evidence.js";
 
 type Row = Record<string, any>;
@@ -9,11 +9,11 @@ const binding = { companyId: "company", agentId: "agent", issueId: "issue", runI
 const assignment = { key: `company/${binding.companyId}/${fixture.slug}`, versionId: "version" };
 function native(seq: number, eventType: string, payload: Row): Row {
   return { ...binding, seq, eventType, protocolSchemaVersion: 1, sourceSeq: seq, sourceInstanceId: "runner-instance", sourceEventId: `event-${seq}`,
-    payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: binding.runId,
+    payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: binding.runId,
       sourceSeq: seq, sourceInstanceId: "runner-instance", sourceEventId: `event-${seq}`, turnId: "turn", eventType, payload } } };
 }
 function readEvents(): Row[] {
-  const payload = { schema: "paperclip.tool.execution.v1", executionId: "read-skill", name: "read", operation: "read",
+  const payload = { schema: "outpost.tool.execution.v1", executionId: "read-skill", name: "read", operation: "read",
     transport: "builtin", readOnly: true, target: `/workspace/.agents/skills/${fixture.slug}/SKILL.md` };
   return [native(1, "tool.execution.started", { ...payload, status: "running" }),
     native(2, "tool.execution.completed", { ...payload, status: "completed", output: fixture.markdown, outputBytes: Buffer.byteLength(fixture.markdown), outputTruncated: false })];
@@ -24,8 +24,8 @@ function wrappedReadEvents(): Row[] {
     + fixture.markdown.trimEnd().split("\n").map((line, index) => `${index + 1}: ${line}`).join("\n")
     + "\n(End of file - total 12 lines)\n</content>";
   const events = readEvents();
-  for (const row of events) Object.assign(row.payload.prpEvent.payload, { operation: "unknown", target: null });
-  Object.assign(events[1]!.payload.prpEvent.payload, { output, outputBytes: Buffer.byteLength(output) });
+  for (const row of events) Object.assign(row.payload.orpEvent.payload, { operation: "unknown", target: null });
+  Object.assign(events[1]!.payload.orpEvent.payload, { output, outputBytes: Buffer.byteLength(output) });
   return events;
 }
 function assignedReadEvents(): Row[] {
@@ -34,13 +34,13 @@ function assignedReadEvents(): Row[] {
     byteSize: Buffer.byteLength(fixture.markdown), nextOffset: null };
   const output = JSON.stringify({ type: "inputText", text: JSON.stringify(result) });
   const events = readEvents();
-  for (const row of events) Object.assign(row.payload.prpEvent.payload,
+  for (const row of events) Object.assign(row.payload.orpEvent.payload,
     { name: "paperclip_read_assigned_skill", operation: "unknown", target: null });
-  Object.assign(events[1]!.payload.prpEvent.payload, { output, outputBytes: Buffer.byteLength(output) });
+  Object.assign(events[1]!.payload.orpEvent.payload, { output, outputBytes: Buffer.byteLength(output) });
   return events;
 }
 function changeAssignedResult(events: Row[], change: (value: Row) => void) {
-  const payload = events[1]!.payload.prpEvent.payload, wrapper = JSON.parse(payload.output), result = JSON.parse(wrapper.text);
+  const payload = events[1]!.payload.orpEvent.payload, wrapper = JSON.parse(payload.output), result = JSON.parse(wrapper.text);
   change(result); wrapper.text = JSON.stringify(result); payload.output = JSON.stringify(wrapper);
 }
 function source() {
@@ -104,19 +104,19 @@ describe("saved skill use evidence", () => {
     const changes: Array<(events: Row[]) => void> = [
       e => { e.splice(0, 1); }, e => { e.pop(); }, e => { e[1].runId = "foreign"; },
       e => { e[1].companyId = "foreign"; }, e => { e[1].agentId = "foreign"; },
-      e => { e[1].payload.prpEvent.runId = "foreign"; }, e => { e[1].payload.prpEvent.sourceKind = "provider"; },
+      e => { e[1].payload.orpEvent.runId = "foreign"; }, e => { e[1].payload.orpEvent.sourceKind = "provider"; },
       e => { e[1].sourceInstanceId = "foreign"; }, e => { e[1].sourceSeq += 1; },
-      e => { e[1].payload.prpEvent.turnId = "foreign"; }, e => { e[1].payload.prpEvent.payload.status = "failed"; },
-      e => { for (const row of e) delete row.payload.prpEvent.turnId; },
-      e => { e[1].payload.prpEvent.payload.outputBytes = 0; }, e => { e[1].payload.prpEvent.payload.outputTruncated = true; },
-      e => { delete e[1].payload.prpEvent.payload.outputTruncated; },
-      e => { e[1].payload.prpEvent.payload.output = "I read the skill and followed it."; },
-      e => { for (const row of e) row.payload.prpEvent.payload.target = `/workspace/other/${fixture.slug}/../SKILL.md`; },
-      e => { for (const row of e) row.payload.prpEvent.payload.target = "/workspace/other-skill/SKILL.md"; },
-      e => { for (const row of e) row.payload.prpEvent.payload.target = null; },
-      e => { for (const row of e) Object.assign(row.payload.prpEvent.payload, { name: "bash", operation: "execute", transport: "process" }); },
-      e => { e[1].payload.prpEvent.payload.executionId = "other-read"; },
-      e => { e[1].payload.prpEvent.eventType = e[1].eventType = "item.completed"; },
+      e => { e[1].payload.orpEvent.turnId = "foreign"; }, e => { e[1].payload.orpEvent.payload.status = "failed"; },
+      e => { for (const row of e) delete row.payload.orpEvent.turnId; },
+      e => { e[1].payload.orpEvent.payload.outputBytes = 0; }, e => { e[1].payload.orpEvent.payload.outputTruncated = true; },
+      e => { delete e[1].payload.orpEvent.payload.outputTruncated; },
+      e => { e[1].payload.orpEvent.payload.output = "I read the skill and followed it."; },
+      e => { for (const row of e) row.payload.orpEvent.payload.target = `/workspace/other/${fixture.slug}/../SKILL.md`; },
+      e => { for (const row of e) row.payload.orpEvent.payload.target = "/workspace/other-skill/SKILL.md"; },
+      e => { for (const row of e) row.payload.orpEvent.payload.target = null; },
+      e => { for (const row of e) Object.assign(row.payload.orpEvent.payload, { name: "bash", operation: "execute", transport: "process" }); },
+      e => { e[1].payload.orpEvent.payload.executionId = "other-read"; },
+      e => { e[1].payload.orpEvent.eventType = e[1].eventType = "item.completed"; },
     ];
     for (const change of changes) {
       const wrong = readEvents(); change(wrong);
@@ -179,50 +179,50 @@ describe("saved skill use evidence", () => {
     ["partial procedure", (e: Row[]) => changeAssignedResult(e, r => { r.text = fixture.expected.reference; })],
     ["changed full source", (e: Row[]) => changeAssignedResult(e, r => { r.text += "extra source"; })],
     ["semantic failure with copied source", (e: Row[]) => changeAssignedResult(e, r => { r.outcome = "failed"; r.code = "runner_skill_not_assigned"; })],
-    ["shell copied receipt", (e: Row[]) => { for (const row of e) row.payload.prpEvent.payload.name = "bash"; }],
-    ["another first-party tool", (e: Row[]) => { for (const row of e) row.payload.prpEvent.payload.name = "paperclip_read_document"; }],
-    ["non-builtin transport", (e: Row[]) => { for (const row of e) row.payload.prpEvent.payload.transport = "process"; }],
-    ["mutating operation", (e: Row[]) => { for (const row of e) row.payload.prpEvent.payload.operation = "edit"; }],
-    ["not read only", (e: Row[]) => { e[1]!.payload.prpEvent.payload.readOnly = false; }],
-    ["start not read only", (e: Row[]) => { e[0]!.payload.prpEvent.payload.readOnly = false; }],
-    ["failed completion", (e: Row[]) => { e[1]!.payload.prpEvent.payload.status = "failed"; }],
-    ["truncated completion", (e: Row[]) => { e[1]!.payload.prpEvent.payload.outputTruncated = true; }],
+    ["shell copied receipt", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.name = "bash"; }],
+    ["another first-party tool", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.name = "paperclip_read_document"; }],
+    ["non-builtin transport", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.transport = "process"; }],
+    ["mutating operation", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.operation = "edit"; }],
+    ["not read only", (e: Row[]) => { e[1]!.payload.orpEvent.payload.readOnly = false; }],
+    ["start not read only", (e: Row[]) => { e[0]!.payload.orpEvent.payload.readOnly = false; }],
+    ["failed completion", (e: Row[]) => { e[1]!.payload.orpEvent.payload.status = "failed"; }],
+    ["truncated completion", (e: Row[]) => { e[1]!.payload.orpEvent.payload.outputTruncated = true; }],
     ["missing start", (e: Row[]) => { e.splice(0, 1); }],
-    ["call mismatch", (e: Row[]) => { e[0]!.payload.prpEvent.payload.executionId = "another-call"; }],
-    ["foreign runner", (e: Row[]) => { e[0]!.sourceInstanceId = e[0]!.payload.prpEvent.sourceInstanceId = "another-runner"; }],
-    ["foreign run", (e: Row[]) => { e[1]!.runId = e[1]!.payload.prpEvent.runId = "another-run"; }],
+    ["call mismatch", (e: Row[]) => { e[0]!.payload.orpEvent.payload.executionId = "another-call"; }],
+    ["foreign runner", (e: Row[]) => { e[0]!.sourceInstanceId = e[0]!.payload.orpEvent.sourceInstanceId = "another-runner"; }],
+    ["foreign run", (e: Row[]) => { e[1]!.runId = e[1]!.payload.orpEvent.runId = "another-run"; }],
     ["foreign company", (e: Row[]) => { e[1]!.companyId = "another-company"; }],
-    ["foreign turn", (e: Row[]) => { e[1]!.payload.prpEvent.turnId = "another-turn"; }],
-    ["invalid wrapper", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = fixture.markdown; }],
-    ["wrong wrapper type", (e: Row[]) => { const p = e[1]!.payload.prpEvent.payload; p.output = p.output.replace("inputText", "outputText"); }],
+    ["foreign turn", (e: Row[]) => { e[1]!.payload.orpEvent.turnId = "another-turn"; }],
+    ["invalid wrapper", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = fixture.markdown; }],
+    ["wrong wrapper type", (e: Row[]) => { const p = e[1]!.payload.orpEvent.payload; p.output = p.output.replace("inputText", "outputText"); }],
   ] as const)("rejects a first-party assigned-skill receipt with %s", (_label, mutate) => {
     const events = assignedReadEvents(); mutate(events);
     const completed = events.find(row => row.eventType === "tool.execution.completed")!;
-    completed.payload.prpEvent.payload.outputBytes = Buffer.byteLength(completed.payload.prpEvent.payload.output);
+    completed.payload.orpEvent.payload.outputBytes = Buffer.byteLength(completed.payload.orpEvent.payload.output);
     expect(savedSkillReadReceipts(events, binding, fixture, runtimeName, assignment)).toEqual([]);
   });
   it.each([
-    ["foreign path", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = e[1]!.payload.prpEvent.payload.output.replace(runtimeName, "foreign"); }],
-    ["relative path", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = e[1]!.payload.prpEvent.payload.output.replace("/workspace/", "workspace/"); }],
-    ["path traversal", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = e[1]!.payload.prpEvent.payload.output.replace("/workspace/", "/workspace/../"); }],
-    ["wrong file type", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = e[1]!.payload.prpEvent.payload.output.replace("<type>file</type>", "<type>directory</type>"); }],
-    ["missing wrapper", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = fixture.procedure; }],
-    ["partial procedure", (e: Row[]) => { e[1]!.payload.prpEvent.payload.output = e[1]!.payload.prpEvent.payload.output.replace("Do not create other tasks or deliverables.", ""); }],
-    ["copied shell output", (e: Row[]) => { for (const row of e) row.payload.prpEvent.payload.name = "bash"; }],
-    ["execute operation", (e: Row[]) => { for (const row of e) row.payload.prpEvent.payload.operation = "execute"; }],
-    ["not read only", (e: Row[]) => { e[1]!.payload.prpEvent.payload.readOnly = false; }],
-    ["start not read only", (e: Row[]) => { e[0]!.payload.prpEvent.payload.readOnly = false; }],
-    ["failed read", (e: Row[]) => { e[1]!.payload.prpEvent.payload.status = "failed"; }],
-    ["truncated read", (e: Row[]) => { e[1]!.payload.prpEvent.payload.outputTruncated = true; }],
+    ["foreign path", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = e[1]!.payload.orpEvent.payload.output.replace(runtimeName, "foreign"); }],
+    ["relative path", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = e[1]!.payload.orpEvent.payload.output.replace("/workspace/", "workspace/"); }],
+    ["path traversal", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = e[1]!.payload.orpEvent.payload.output.replace("/workspace/", "/workspace/../"); }],
+    ["wrong file type", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = e[1]!.payload.orpEvent.payload.output.replace("<type>file</type>", "<type>directory</type>"); }],
+    ["missing wrapper", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = fixture.procedure; }],
+    ["partial procedure", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = e[1]!.payload.orpEvent.payload.output.replace("Do not create other tasks or deliverables.", ""); }],
+    ["copied shell output", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.name = "bash"; }],
+    ["execute operation", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.operation = "execute"; }],
+    ["not read only", (e: Row[]) => { e[1]!.payload.orpEvent.payload.readOnly = false; }],
+    ["start not read only", (e: Row[]) => { e[0]!.payload.orpEvent.payload.readOnly = false; }],
+    ["failed read", (e: Row[]) => { e[1]!.payload.orpEvent.payload.status = "failed"; }],
+    ["truncated read", (e: Row[]) => { e[1]!.payload.orpEvent.payload.outputTruncated = true; }],
     ["missing start", (e: Row[]) => { e.shift(); }],
-    ["call mismatch", (e: Row[]) => { e[0]!.payload.prpEvent.payload.executionId = "another-call"; }],
-    ["foreign runner", (e: Row[]) => { e[0]!.sourceInstanceId = e[0]!.payload.prpEvent.sourceInstanceId = "another-runner"; }],
-    ["foreign run", (e: Row[]) => { e[1]!.runId = e[1]!.payload.prpEvent.runId = "another-run"; }],
-    ["foreign turn", (e: Row[]) => { e[1]!.payload.prpEvent.turnId = "another-turn"; }],
+    ["call mismatch", (e: Row[]) => { e[0]!.payload.orpEvent.payload.executionId = "another-call"; }],
+    ["foreign runner", (e: Row[]) => { e[0]!.sourceInstanceId = e[0]!.payload.orpEvent.sourceInstanceId = "another-runner"; }],
+    ["foreign run", (e: Row[]) => { e[1]!.runId = e[1]!.payload.orpEvent.runId = "another-run"; }],
+    ["foreign turn", (e: Row[]) => { e[1]!.payload.orpEvent.turnId = "another-turn"; }],
   ] as const)("rejects a wrapped native read with %s", (_label, mutate) => {
     const events = wrappedReadEvents(); mutate(events);
     const completed = events.find(row => row.eventType === "tool.execution.completed")!;
-    completed.payload.prpEvent.payload.outputBytes = Buffer.byteLength(completed.payload.prpEvent.payload.output);
+    completed.payload.orpEvent.payload.outputBytes = Buffer.byteLength(completed.payload.orpEvent.payload.output);
     expect(savedSkillReadReceipts(events, binding, fixture, runtimeName)).toEqual([]);
   });
   it("requires both API and admitted native input to bind the same immutable skill runtime name", () => {
@@ -266,18 +266,18 @@ describe("saved skill use evidence", () => {
     });
     expect(savedSkillReadReceipts(events, binding, fixture)).toHaveLength(1);
     for (const output of [fixture.procedure, `<skill_content name="other-skill">\n${fixture.procedure}\n</skill_content>`]) {
-      const wrong = structuredClone(events); wrong[1]!.payload.prpEvent.payload.output = output;
-      wrong[1]!.payload.prpEvent.payload.outputBytes = Buffer.byteLength(output);
+      const wrong = structuredClone(events); wrong[1]!.payload.orpEvent.payload.output = output;
+      wrong[1]!.payload.orpEvent.payload.outputBytes = Buffer.byteLength(output);
       expect(savedSkillReadReceipts(wrong, binding, fixture)).toEqual([]);
     }
   });
   it("allows known file-reader line prefixes without treating partial output as a complete read", () => {
     const events = readEvents();
-    events[1]!.payload.prpEvent.payload.output = fixture.markdown.split("\n").map((line, i) => `${i + 1}: ${line}`).join("\n");
-    events[1]!.payload.prpEvent.payload.outputBytes = Buffer.byteLength(events[1]!.payload.prpEvent.payload.output);
+    events[1]!.payload.orpEvent.payload.output = fixture.markdown.split("\n").map((line, i) => `${i + 1}: ${line}`).join("\n");
+    events[1]!.payload.orpEvent.payload.outputBytes = Buffer.byteLength(events[1]!.payload.orpEvent.payload.output);
     expect(savedSkillReadReceipts(events, binding, fixture)).toHaveLength(1);
-    events[1]!.payload.prpEvent.payload.output = fixture.expected.reference;
-    events[1]!.payload.prpEvent.payload.outputBytes = Buffer.byteLength(fixture.expected.reference);
+    events[1]!.payload.orpEvent.payload.output = fixture.expected.reference;
+    events[1]!.payload.orpEvent.payload.outputBytes = Buffer.byteLength(fixture.expected.reference);
     expect(savedSkillReadReceipts(events, binding, fixture)).toEqual([]);
   });
   it("requires the exact derived result and a saved revision authored by this run", () => {

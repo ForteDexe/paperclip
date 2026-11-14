@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { heartbeatRuns, issueThreadInteractions, issues, statusDecisions, type Db } from "@paperclipai/db";
+import { heartbeatRuns, issueThreadInteractions, issues, statusDecisions, type Db } from "@outpost/db";
 import { ordinaryQuestionCondition } from "../issue-question-context.js";
 import { enqueueWake } from "./status-decision-committer.js";
 

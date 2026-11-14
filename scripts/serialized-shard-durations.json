@@ -45,7 +45,6 @@
     "server/src/__tests__/authz-company-access.test.ts": 1265,
     "server/src/__tests__/authz-existence-oracle-guard.test.ts": 100,
     "server/src/__tests__/authz-secret-context.test.ts": 1282,
-    "server/src/__tests__/board-chat-route-feature-flag.test.ts": 881,
     "server/src/__tests__/bootstrap-claim-routes.test.ts": 3293,
     "server/src/__tests__/browser-use-route-scope.test.ts": 3223,
     "server/src/__tests__/built-in-agent-routes.test.ts": 6590,

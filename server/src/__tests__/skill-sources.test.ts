@@ -2,7 +2,7 @@ import * as recovery from '../services/skill-package-recovery.js';
 import { skillPackageStore, skillPackagePaths } from '../services/skill-package-store.js';
 import { getStorageService } from '../storage/index.js';
 import { resolveExternalTestDatabaseUrl } from './helpers/external-test-database.js';
-import { applyPendingMigrations } from '@paperclipai/db';
+import { applyPendingMigrations } from '@outpost/db';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -10,7 +10,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { agents, folders, companySkillSources, companySkillSourceEntries, companies, companySkills, companySkillVersions, companySkillRepositorySnapshots, resourceLifecycleEvents, createDb } from '@paperclipai/db';
+import { agents, folders, companySkillSources, companySkillSourceEntries, companies, companySkills, companySkillVersions, companySkillRepositorySnapshots, resourceLifecycleEvents, createDb } from '@outpost/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from './helpers/embedded-postgres.js';
 import { unprocessable } from '../errors.js';
@@ -20,13 +20,13 @@ import { companySkillService } from '../services/company-skills.js';
 import { skillFileBytes } from '../services/skill-snapshot.js';
 import { deleteCompany } from '../services/company-deletion.js';
 
-const externalUrl = resolveExternalTestDatabaseUrl('PAPERCLIP_SKILL_SOURCES_TEST_DATABASE_URL');
+const externalUrl = resolveExternalTestDatabaseUrl('OUTPOST_SKILL_SOURCES_TEST_DATABASE_URL');
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)('skill source persistence', () => {
   let testDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let home: string;
-  const originalHome = process.env.PAPERCLIP_HOME;
+  const originalHome = process.env.OUTPOST_HOME;
   const companyId = randomUUID();
   const sha = 'a'.repeat(40);
   const md = (name: string) => `---\nname: ${name}\ndescription: Example\n---\nDo useful work.\n`;
@@ -34,19 +34,19 @@ describe.skipIf(!support.supported)('skill source persistence', () => {
   let files: Record<string, string | Buffer> = initial;
   let commit = sha;
   const context: SkillSourceContext = { actor: { type: 'user', userId: 'board' }, read: () => githubFixture(files, { 'deep/one/scripts/run.sh': '100755', 'shared/check.sh': '100755' }, commit), authorize: async () => {}, audit: async () => {} };
-  const previousPackageStorage = process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED;
+  const previousPackageStorage = process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED;
   beforeAll(async () => {
-    process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED = "true";
+    process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = "true";
     if (externalUrl) await applyPendingMigrations(externalUrl);
     else testDb = await startEmbeddedPostgresTestDatabase('paperclip-skill-sources-');
     db = createDb(externalUrl ?? testDb.connectionString, { maxConnections: 4 });
-    home = await fs.mkdtemp(path.join(os.tmpdir(), 'paperclip-source-test-')); process.env.PAPERCLIP_HOME = home;
+    home = await fs.mkdtemp(path.join(os.tmpdir(), 'paperclip-source-test-')); process.env.OUTPOST_HOME = home;
     await db.insert(companies).values({ id: companyId, name: 'Skills', issuePrefix: 'SKL' });
   }, 30000);
   afterAll(async () => {
-    if (previousPackageStorage === undefined) delete process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED;
-    else process.env.PAPERCLIP_SKILL_PACKAGE_STORAGE_ENABLED = previousPackageStorage;
-    if (originalHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = originalHome;
+    if (previousPackageStorage === undefined) delete process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED;
+    else process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = previousPackageStorage;
+    if (originalHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = originalHome;
     await db?.$client.end({ timeout: 1 });
     await testDb?.cleanup(); if (home) await fs.rm(home, { recursive: true, force: true });
   });
@@ -70,7 +70,7 @@ describe.skipIf(!support.supported)('skill source persistence', () => {
     const created = await skillSourceService(db).create(companyId, { repositoryUrl: 'https://github.com/acme/skills', trackingRef: 'main', commitSha: sha, selectedPaths: Object.keys(originals) }, sourceContext);
     const selected = await Promise.all(created.source.entries.map(entry => companySkillService(db).getById(companyId, entry.skillId!)));
     const second = selected.find(skill => skill!.name === 'b')!;
-    const [agent] = await db.insert(agents).values({ companyId, name: 'Uses both skills', adapterType: 'paperclip_runner', adapterConfig: { paperclipSkillSync: { desiredSkills: selected.map(skill => skill!.key) } } }).returning();
+    const [agent] = await db.insert(agents).values({ companyId, name: 'Uses both skills', adapterType: 'outpost_runner', adapterConfig: { paperclipSkillSync: { desiredSkills: selected.map(skill => skill!.key) } } }).returning();
     const sourceDb = createDb(externalUrl ?? testDb.connectionString, { maxConnections: 1 });
     const versionDb = createDb(externalUrl ?? testDb.connectionString, { maxConnections: 1 });
     const [backend] = await sourceDb.execute(sql`SELECT pg_backend_pid() AS pid`);

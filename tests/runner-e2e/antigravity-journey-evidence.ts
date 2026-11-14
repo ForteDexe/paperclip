@@ -77,7 +77,7 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
 }): AntigravityJourneyTurnEvidence {
   const r = input.run, result = rec(r.resultJson), profile = rec(r.runnerProfileJson), checkpoint = rec(profile.sessionCheckpoint);
   const native = rec(profile.nativeExecutionInput), provider = rec(native.provider), binding = rec(native.binding);
-  const connection = rec(rec(r.contextSnapshot).aiConnection), environment = rec(rec(r.contextSnapshot).paperclipEnvironment);
+  const connection = rec(rec(r.contextSnapshot).aiConnection), environment = rec(rec(r.contextSnapshot).outpostEnvironment);
   const identity = rec(checkpoint.providerIdentity), a = input.attachment;
   requireProof(id(r.id) && !input.afterRunIds.includes(r.id) && r.companyId === input.companyId && r.agentId === input.agentId
     && r.issueId === input.issueId && r.status === "succeeded" && r.runtimeMode === "native"
@@ -94,7 +94,7 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
   requireProof(input.issue.id === input.issueId && input.issue.companyId === input.companyId && input.issue.assigneeAgentId === input.agentId
     && input.issue.status === "done" && result.finalizationPhase === "committed" && result.authoritativeDecision === "done"
     && result.issueStatusAfter === "done" && result.workspaceFinalizeStatus === "succeeded" && id(result.assessmentId) && id(result.decisionId)
-    && rec(result.nativeResult).schema === "paperclip.run_result.v1" && rec(result.nativeTerminal).runTerminalState === "succeeded", "committed_done");
+    && rec(result.nativeResult).schema === "outpost.run_result.v1" && rec(result.nativeTerminal).runTerminalState === "succeeded", "committed_done");
   const expectedSha = hash(input.expectedBytes);
   requireProof(input.expectedBytes.length > 0 && input.expectedBytes.length <= 4096 && id(a.id) && a.companyId === input.companyId
     && a.issueId === input.issueId && a.createdByAgentId === input.agentId && a.originatingRunId === r.id
@@ -110,7 +110,7 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
   const tools: Array<{ event: Row; payload: Row; seq: number }> = [];
   const accepted: Array<{ event: Row; seq: number }> = [], terminals: Array<{ event: Row; seq: number }> = [];
   for (const row of input.events) {
-    const event = rec(rec(row.payload).prpEvent);
+    const event = rec(rec(row.payload).orpEvent);
     if (!Object.keys(event).length) continue;
     requireProof(row.companyId === input.companyId && row.runId === r.id && event.runId === r.id
       && isValidNativePrpEnvelope(event, row.protocolSchemaVersion) && row.eventType === event.eventType
@@ -240,7 +240,7 @@ export async function verifyAntigravityJourneyTurn(input: TurnScope & {
         const issue = await input.api.get<Row>(`/api/issues/${input.issueId}`);
         const attachments = await input.api.get<Row[]>(`/api/issues/${input.issueId}/attachments`);
         const matching = attachments.filter(a => a.originatingRunId === run.id && a.originalFilename === "antigravity-proof.txt");
-        const leaseId = rec(rec(run.contextSnapshot).paperclipEnvironment).leaseId;
+        const leaseId = rec(rec(run.contextSnapshot).outpostEnvironment).leaseId;
         requireProof(id(leaseId), "lease_identity");
         const lease = await input.api.get<Row>(`/api/environment-leases/${leaseId}`);
         if (issue.status === "done" && lease.status === "released" && processes.live.length === 0) {

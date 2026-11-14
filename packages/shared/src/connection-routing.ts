@@ -342,7 +342,7 @@ export function aggregatorProviderQuestion(
 /** Native question form, preserving the exact saved-answer authorization contract. */
 export function aggregatorProviderQuestionSet(question: AskUserQuestionsQuestion): PaperclipQuestionSetPayload {
   return {
-    schema: "paperclip.question_set.v1",
+    schema: "outpost.question_set.v1",
     questions: [{
       id: question.id,
       prompt: question.prompt,

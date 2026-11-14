@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, decisions, decisionTargetIssues, heartbeatRuns, issues, issueThreadInteractions } from "@paperclipai/db";
+import { agents, companies, createDb, decisions, decisionTargetIssues, heartbeatRuns, issues, issueThreadInteractions } from "@outpost/db";
 import { decisionHistoryService, decodeDecisionHistoryCursor, decisionHistoryHref, decisionHistoryTarget, itemVerdictsHistoryLabel } from "../services/decision-history.js";
 import { documentService } from "../services/documents.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -114,7 +114,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("paginates both sources without losing answered questions; filters before limiting; isolates companies and private tasks", async () => {
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     const companyId = randomUUID(), otherCompanyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), hiddenId = randomUUID(), otherIssueId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values([{ id: companyId, name: "History", issuePrefix: "HIS" }, { id: otherCompanyId, name: "Other", issuePrefix: "OTH" }]);
     await db.insert(agents).values({ id: agentId, companyId, name: "Writer", role: "engineer", adapterType: "codex_local" });

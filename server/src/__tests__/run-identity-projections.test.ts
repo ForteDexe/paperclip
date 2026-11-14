@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { applyPendingMigrations, createDb, heartbeatRuns, issues, type Db } from "@paperclipai/db";
+import { applyPendingMigrations, createDb, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { captureIdentityQueries, seedIdentityProjection, type IdentityQuery } from "./helpers/run-identity-projection-fixture.js";
 import { captureRunIdentity } from "../services/run-identity.js";
 import { projectToolContext } from "../services/project-tool-context.js";
 import { boundRunIssueId } from "../services/run-task-binding.js";
 
-const externalDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const externalDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const scopes = ["identity", "task_authorization", "token_broker"] as const;
 (support.supported ? describe : describe.skip)("operation identity read projections", () => {

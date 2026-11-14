@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { agents, documents, heartbeatRuns, issueComments, issueDocuments, issues, issueThreadInteractions, type Db } from "@paperclipai/db";
-import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@paperclipai/shared";
+import { agents, documents, heartbeatRuns, issueComments, issueDocuments, issues, issueThreadInteractions, type Db } from "@outpost/db";
+import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@outpost/shared";
 import { badRequest, forbidden } from "../errors.js";
 import { readPersistedConfirmationDecision } from "./confirmation-decision.js";
 

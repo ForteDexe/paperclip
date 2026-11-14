@@ -2,13 +2,13 @@ import { collectSecretRefPaths, isUuidSecretRef, parseSecretRefBindingObject, re
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, lte, or, sql } from "drizzle-orm";
 import { currentControllerProcess } from "./controller-process-identity.js";
-import { companies, environments, heartbeatRuns, sandboxCreationOperations, type Db } from "@paperclipai/db";
-import { readEnvironmentCreationCleanupError, type PluginEnvironmentLease, type PluginEnvironmentLeaseObservation } from "@paperclipai/plugin-sdk";
+import { companies, environments, heartbeatRuns, sandboxCreationOperations, type Db } from "@outpost/db";
+import { readEnvironmentCreationCleanupError, type PluginEnvironmentLease, type PluginEnvironmentLeaseObservation } from "@outpost/plugin-sdk";
 import { assertEnvironmentCompanyBinding, environmentService } from "./environments.js";
 import { ENVIRONMENT_CLEANUP_RETRY_MS, recoverableSandboxCreationCondition } from "./environment-cleanup-state.js";
 import { logger } from "../middleware/logger.js";
 import { notifyEnvironmentCleanup, writeEnvironmentCleanup } from "./environment-cleanup-notifications.js";
-import { crashPoint } from "@paperclipai/shared/crash-points";
+import { crashPoint } from "@outpost/shared/crash-points";
 
 export type SandboxCreationOperation = typeof sandboxCreationOperations.$inferSelect;
 

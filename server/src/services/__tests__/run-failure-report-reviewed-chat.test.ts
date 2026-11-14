@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRuns } from "@paperclipai/db";
+import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -15,7 +15,7 @@ vi.mock("../../sentry.js", () => ({
 import { reportRunFailure } from "../run-failure-report.js";
 import { REVIEWED_CHAT_BINDING_NOT_READY } from "../reviewed-chat-binding-diagnostics.js";
 
-const testDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const testDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 const embeddedPostgresSupport = testDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -42,7 +42,7 @@ describeEmbeddedPostgres("reportRunFailure reviewed chat setup waits", () => {
       ["PATH", "HOME", "USER", "USERNAME", "LOGNAME", "USERPROFILE", "TMPDIR", "TEMP", "TMP"]
         .flatMap((key) => inheritedEnv[key] === undefined ? [] : [[key, inheritedEnv[key]]]),
     );
-    process.env.PAPERCLIP_SENTRY_RUN_FAILURES = "unexpected";
+    process.env.OUTPOST_SENTRY_RUN_FAILURES = "unexpected";
     companyId = randomUUID();
     agentId = randomUUID();
     await db.insert(companies).values({
@@ -58,7 +58,7 @@ describeEmbeddedPostgres("reportRunFailure reviewed chat setup waits", () => {
       name: "ReviewBot",
       role: "engineer",
       status: "active",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: {},
       runtimeConfig: {},
       permissions: {},
@@ -103,7 +103,7 @@ describeEmbeddedPostgres("reportRunFailure reviewed chat setup waits", () => {
     await reportRunFailure(db, run, { phase: "setup", reviewedChatRetry: "pending" });
     await reportRunFailure(db, run, { phase: "setup", reviewedChatRetry: "scheduled" });
     // The setup path reports once more with its decision, so a pending write stays local in every mode.
-    vi.stubEnv("PAPERCLIP_SENTRY_RUN_FAILURES", "all");
+    vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
     await reportRunFailure(db, run, { phase: "setup", reviewedChatRetry: "pending" });
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
@@ -114,7 +114,7 @@ describeEmbeddedPostgres("reportRunFailure reviewed chat setup waits", () => {
     ["every run failure is reported", {}, "scheduled", "all"],
     ["the run failed for another reason", { errorCode: "setup_failed" }, "scheduled", "unexpected"],
   ] as const)("reports a reviewed chat setup failure when %s", async (_label, overrides, reviewedChatRetry, mode) => {
-    vi.stubEnv("PAPERCLIP_SENTRY_RUN_FAILURES", mode);
+    vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", mode);
     const run = reviewedChatWaitRun(overrides);
     await reportRunFailure(db, run, { phase: "setup", ...(reviewedChatRetry ? { reviewedChatRetry } : {}) });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();

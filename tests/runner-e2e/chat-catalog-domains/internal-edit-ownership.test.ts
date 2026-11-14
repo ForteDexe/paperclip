@@ -17,7 +17,7 @@ function graceful() {
   const o = valid(); o.currentTask.priority = "high"; o.currentTask.assigneeAgentId = "morgan"; o.currentTask.executionRunId = ""; o.currentTask.checkoutRunId = "";
   const query = "Make it high priority and assign Morgan."; Object.assign(o.state, { canonicalEditQuery: query });
   const comments = [{ id: "q1", body: query, createdAt: "2026-10-27T08:00:00Z" }, { id: "q2", body: query, createdAt: "2026-10-27T08:02:00Z" }];
-  Object.assign(o.runs[1]!, { status: "cancelled", errorCode: "issue_reassigned", contextSnapshot: { issueId: "task" }, resultJson: { reassignmentStopConfirmed: true, nativeCancellation: { schema: "paperclip.native-cancellation.v1", dispatchState: "acknowledged", runId: "riley-run", issueId: "task", companyId: "company", acknowledgedAt: "2026-10-27T08:02:02Z" } } });
+  Object.assign(o.runs[1]!, { status: "cancelled", errorCode: "issue_reassigned", contextSnapshot: { issueId: "task" }, resultJson: { reassignmentStopConfirmed: true, nativeCancellation: { schema: "outpost.native-cancellation.v1", dispatchState: "acknowledged", runId: "riley-run", issueId: "task", companyId: "company", acknowledgedAt: "2026-10-27T08:02:02Z" } } });
   Object.assign(o.runs[2]!, { contextSnapshot: { issueId: "source", wakeCommentId: "q2" } });
   o.activity.push({ id: "reassigned", companyId: "company", actorType: "agent", actorId: "ceo", action: "issue.reassigned", entityId: "task", agentId: "ceo", runId: "second", createdAt: "2026-10-27T08:02:03Z", details: { changed: true, previousAssigneeAgentId: "riley", assigneeAgentId: "morgan" } } as Entity,
     { id: "final-priority", companyId: "company", actorType: "agent", actorId: "ceo", action: "issue.updated", entityId: "task", agentId: "ceo", runId: "second", createdAt: "2026-10-27T08:02:04Z", details: { priority: "high" } } as Entity);
@@ -50,9 +50,9 @@ describe("property edit execution-boundary conditional calibration", () => {
   });
   it("requires a real denial receipt instead of inferring denial from a stoppable checkout", () => { const o = valid(); o.assignmentDenials = []; expect(grade(o).passed).toBe(false); });
   it("binds genuine ownership-conflict results to exact native task/assignee/call and rejects postcommit accounting errors", () => {
-    const outer = (id: string, eventType: string, item: Record<string, unknown>) => ({ runId: "second", sourceEventId: id, payload: { prpEvent: { schema: "paperclip.prp.event.v1", sourceEventId: id, runId: "second", eventType, itemId: "call", payload: { kind: "dynamicToolCall", item } } } });
+    const outer = (id: string, eventType: string, item: Record<string, unknown>) => ({ runId: "second", sourceEventId: id, payload: { orpEvent: { schema: "outpost.orp.event.v1", sourceEventId: id, runId: "second", eventType, itemId: "call", payload: { kind: "dynamicToolCall", item } } } });
     const events = [outer("input", "item.started", { id: "call", type: "tool_use", name: "reassign_task", input: { taskId: "task", assigneeActorId: "morgan" } }), outer("result", "item.completed", { id: "call", tool_use_id: "call", type: "tool_result", is_error: true, error: "Cannot stop the owned checkout safely" })];
     expect(assignmentDenials(events, "second", "task", "morgan")).toHaveLength(1); expect(assignmentDenials(events, "second", "wrong", "morgan")).toEqual([]);
-    events[1]!.payload.prpEvent.payload.item.error = "New work must wait while a native run recovers its unfinished accounting."; expect(assignmentDenials(events, "second", "task", "morgan")).toEqual([]);
+    events[1]!.payload.orpEvent.payload.item.error = "New work must wait while a native run recovers its unfinished accounting."; expect(assignmentDenials(events, "second", "task", "morgan")).toEqual([]);
   });
 });

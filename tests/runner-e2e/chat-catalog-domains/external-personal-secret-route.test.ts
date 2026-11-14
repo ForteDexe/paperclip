@@ -1,10 +1,10 @@
 import {expect,it} from "vitest";
 import {chromium} from "@playwright/test";
 import {personalSecretSetupURL} from "./external-personal-secret.js";
-const origin="https://paperclip.example",path="/RUN/company/settings/secrets",definition="current-definition";
+const origin="https://outpost.example",path="/RUN/company/settings/secrets",definition="current-definition";
 const body=`Open \`${path}?definition=${definition}\` → My secrets → PERSONAL_PUBLISHING_KEY → Set my value, then save. Please don't paste the key in chat. Morgan's PUBLISHING_API_KEY runtime reference is already configured.`;
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("admits the visible own-definition route from4716 and rejects unbound or unsafe routes",async()=>{
- const browser=await chromium.launch({headless:true,...process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("admits the visible own-definition route from4716 and rejects unbound or unsafe routes",async()=>{
+ const browser=await chromium.launch({headless:true,...process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
  const render=async(text:string,html?:string)=>page.setContent(`<article id="comment-native"><p>Personal credential setup</p>${html??`<code>${text}</code>`}</article>`);
  try{
   await page.setContent(`<div style="height:100px;overflow-x:hidden;overflow-y:auto"><article id="comment-native"><code>${path+"?definition="+definition}</code><div style="height:1500px">Long reply</div></article></div>`);

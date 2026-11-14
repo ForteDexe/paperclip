@@ -59,8 +59,8 @@ function layer(digest: string, entries: Entry[]): LayerSource {
   return { digest, open: async function* () { for (let offset = 0; offset < bytes.length; offset += 333) yield bytes.subarray(offset, offset + 333); } };
 }
 
-const RUNNERD = "usr/local/bin/paperclip-runnerd";
-const PACK = "opt/paperclip-runner/provider-pack";
+const RUNNERD = "usr/local/bin/outpost-runnerd";
+const PACK = "opt/outpost-runner/provider-pack";
 const directories: string[] = [];
 async function outDir() { const directory = await mkdtemp(path.join(os.tmpdir(), "chaos-layers-")); directories.push(directory); return directory; }
 afterEach(async () => { await Promise.all(directories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))); });
@@ -139,8 +139,8 @@ describe("extractFromLayers", () => {
     const out = await outDir();
     await expect(extractFromLayers([
       layer("base", [{ path: RUNNERD, type: "file", content: "r" }, { path: `${PACK}/provider-pack.json`, type: "file", content: "{}" }]),
-      layer("top", [{ path: "usr/local/bin/.wh.paperclip-runnerd", type: "file", content: "" }]),
-    ], [RUNNERD, PACK], out)).rejects.toThrow(/paperclip-runnerd was not found/);
+      layer("top", [{ path: "usr/local/bin/.wh.outpost-runnerd", type: "file", content: "" }]),
+    ], [RUNNERD, PACK], out)).rejects.toThrow(/outpost-runnerd was not found/);
   });
 
   it("a whiteout does not hide entries of its own layer", async () => {
@@ -178,8 +178,8 @@ describe("extractFromLayers", () => {
     const out = await outDir();
     await expect(extractFromLayers([
       layer("base", [{ path: RUNNERD, type: "file", content: "r" }, { path: `${PACK}/provider-pack.json`, type: "file", content: "{}" }]),
-      layer("top", [{ path: "opt/paperclip-runner", type: "symlink", target: "/elsewhere" }]),
-    ], [RUNNERD, PACK], out)).rejects.toThrow(/replaces parent directory \/opt\/paperclip-runner/);
+      layer("top", [{ path: "opt/outpost-runner", type: "symlink", target: "/elsewhere" }]),
+    ], [RUNNERD, PACK], out)).rejects.toThrow(/replaces parent directory \/opt\/outpost-runner/);
   });
 });
 
@@ -270,14 +270,14 @@ describe("prepareDaytonaImageArtifacts with a shared cache", () => {
     const source = path.join(root, "image");
     await mkdir(source, { recursive: true });
     const elf = Buffer.alloc(64); elf.writeUInt32BE(0x7f454c46, 0); elf[4] = 2; elf[5] = 1; elf.writeUInt16LE(62, 18);
-    const pack = JSON.stringify({ schema: "paperclip-runner/remote-provider-pack/v1", digest: `sha256:${"b".repeat(64)}`,
+    const pack = JSON.stringify({ schema: "outpost-runner/remote-provider-pack/v1", digest: `sha256:${"b".repeat(64)}`,
       payload: { runnerSourceRevision: revision } });
     const layerBytes = tar([
       { path: RUNNERD, type: "file", content: elf.toString("latin1"), mode: 0o755 },
       { path: `${PACK}/provider-pack.json`, type: "file", content: pack },
     ]);
     const config = Buffer.from(JSON.stringify({ os: "linux", architecture: "amd64",
-      config: { Labels: { "io.paperclip.runner.content-id": "c".repeat(64), "org.opencontainers.image.revision": revision } } }));
+      config: { Labels: { "io.outpost.runner.content-id": "c".repeat(64), "org.opencontainers.image.revision": revision } } }));
     await writeFile(path.join(source, sha(layerBytes)), layerBytes);
     await writeFile(path.join(source, sha(config)), config);
     await writeFile(path.join(source, "manifest.json"), JSON.stringify({ config: { digest: `sha256:${sha(config)}` },

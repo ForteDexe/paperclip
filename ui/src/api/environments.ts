@@ -2,7 +2,7 @@ import type {
   Environment,
   EnvironmentCapabilities,
   EnvironmentProbeResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { api, type RequestOptions } from "./client";
 
 function companyIdQuery(companyId: string): string {

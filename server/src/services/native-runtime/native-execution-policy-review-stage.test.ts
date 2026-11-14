@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agentWakeupRequests, agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issueThreadInteractions, issueWorkProducts, issues, statusDecisions } from "@paperclipai/db";
+import { agentWakeupRequests, agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issueThreadInteractions, issueWorkProducts, issues, statusDecisions } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { completionReviewStageEntry } from "../issue-execution-policy.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
@@ -9,8 +9,8 @@ import { issueThreadInteractionService } from "../issue-thread-interactions.js";
 import { gateDoneOnConfiguredReview, supersedeStaleOwnerCompletion, type NativeStatusDecision } from "./status-arbiter.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/paperclip-runner/testing.js";
-import type { PrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
+import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("native completion with a configured review stage", () => {
@@ -28,8 +28,8 @@ describe.skipIf(!support.supported)("native completion with a configured review 
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const reviewerId = `reviewer-${randomUUID()}`, reviewerAgentId = randomUUID(), stageId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Review stage", issuePrefix: `R${companyId.slice(0, 7)}` });
-    await db.insert(agents).values([{ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner", status: "active" },
-      { id: reviewerAgentId, companyId, name: "Reviewer", adapterType: "paperclip_runner", status: "active" }]);
+    await db.insert(agents).values([{ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" },
+      { id: reviewerAgentId, companyId, name: "Reviewer", adapterType: "outpost_runner", status: "active" }]);
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: reviewerId, status: "active", membershipRole: "operator" });
     const participant = options.stage === "agent" ? { id: randomUUID(), type: "agent", agentId: reviewerAgentId } : { id: randomUUID(), type: "user", userId: reviewerId };
     const nextCheckAt = new Date(Date.now() + 3_600_000);
@@ -46,7 +46,7 @@ describe.skipIf(!support.supported)("native completion with a configured review 
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const contractId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID(), contractSha256 = `contract-${runId}`;
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "standalone-v1", objective: "Build the site", criteria: [{ id: "objective", requirement: "Build the site" }] },
       canonicalSha256: contractSha256, createdByActorType: "system", createdByActorId: "test" });

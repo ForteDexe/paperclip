@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   agents, authUsers, companies, companyMemberships, connectionGrants, createDb,
   executionWorkspaceRepositories, executionWorkspaces, heartbeatRuns, issues, toolApplications, toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { RepositoryCatalogUnavailableError } from "../services/repository-catalog-unavailable-error.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { taskRepositoryRelativePath } from "../services/execution-workspace-repositories.js";
@@ -38,9 +38,9 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
 
   beforeAll(async () => {
     root = await realpath(await mkdtemp(path.join(tmpdir(), "repository-catalog-recovery-")));
-    vi.stubEnv("PAPERCLIP_HOME", path.join(root, "home"));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "01234567890123456789012345678901");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     temporary = await startRecoveryPostgres("repository-catalog-recovery-");
     db = createDb(temporary.connectionString);
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });

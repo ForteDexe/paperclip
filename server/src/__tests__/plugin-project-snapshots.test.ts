@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHostClientHandlers, type HostServices } from "../../../packages/plugins/sdk/src/host-client-factory.js";
-import type { PluginCapability } from "@paperclipai/shared";
+import type { PluginCapability } from "@outpost/shared";
 
 const companyId = "00000000-0000-4000-8000-000000000001";
 const otherCompany = "00000000-0000-4000-8000-000000000002";

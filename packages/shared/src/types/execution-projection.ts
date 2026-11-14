@@ -94,7 +94,7 @@ export interface ExecutionReconciliation {
   /** Operator evidence bound to this failed run; required after workspace restore failure. */
   workspaceRepairEvidence?: string;
   workspaceReconstruction?: {
-    schema: "paperclip.workspace-reconstruction.v1";
+    schema: "outpost.workspace-reconstruction.v1";
     leaseId: string;
     resultId: string;
     descriptorSha256: string;
@@ -108,7 +108,7 @@ export interface ExecutionReconciliation {
    * never applied; when readable they are attached to the task, unverified.
    */
   retainedSourceFallback?: {
-    schema: "paperclip.retained-source-fallback.v1";
+    schema: "outpost.retained-source-fallback.v1";
     outcome: "retained_source_unverifiable_continued_from_last_saved";
     workspaceId: string;
     abandonedEpoch: number;

@@ -18,7 +18,7 @@ import {
   agents,
   companies,
   toolCatalogEntries,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   BROWSER_USE_IDLE_MS,
   type BrowserUseControl,
@@ -28,7 +28,7 @@ import {
   centsToUnits,
   unitsToCents,
   usdToUnits,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   browserUseClient,
   BrowserUseError,

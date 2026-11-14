@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { createRunnerProviderLaunch, runnerLaunchRequirementsDigest, type RunnerProviderLaunchRequirements } from "@paperclipai/paperclip-runner";
+import { createRunnerProviderLaunch, runnerLaunchRequirementsDigest, type RunnerProviderLaunchRequirements } from "@outpost/outpost-runner";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { eq } from "drizzle-orm";
-import { environmentLeases, environments, heartbeatRuns, nativeRunFinalizations } from "@paperclipai/db";
+import { environmentLeases, environments, heartbeatRuns, nativeRunFinalizations } from "@outpost/db";
 import { beforeAll, expect, vi } from "vitest";
 import {
   createRunnerdCodexTransport,
@@ -14,8 +14,8 @@ import {
   readRunnerdArtifactBinding,
   type RunnerProcessHandle,
   type RunnerProcessLaunchSpec,
-} from "../../vendor/paperclip-runner/index.js";
-import { registerRunnerPrpAuthority } from "../../realtime/runner-prp-ws.js";
+} from "../../vendor/outpost-runner/index.js";
+import { registerRunnerPrpAuthority } from "../../realtime/runner-orp-ws.js";
 import { readProcessStartedAt } from "../hot-restart.js";
 import { loadNativeRunnerCheckpoint, registerNativeRunnerCheckpoint, restoreNativeRunnerCheckpoint } from "./native-runner-checkpoint.js";
 import { REMOTE_RUNNER_RECONNECT_GRACE_MS } from "./native-runner-recovery-contract.js";
@@ -44,7 +44,7 @@ describeEmbeddedPostgres("native runner restart recovery: diskless", () => {
     const controllerRoot = resolve(runtimeRoot, `${fixture.runId}-controller`);
     const sandboxRoot = resolve(runtimeRoot, `${fixture.runId}-sandbox`);
     const binding = { companyId, issueId: fixture.issueId, runId: fixture.runId };
-    const outageMs = Number(process.env.PAPERCLIP_TEST_CONTROLLER_OUTAGE_MS ?? 1000);
+    const outageMs = Number(process.env.OUTPOST_TEST_CONTROLLER_OUTAGE_MS ?? 1000);
     if (!Number.isFinite(outageMs) || outageMs < 0 || outageMs > 300_000) throw new Error("Invalid controller outage duration");
     await mkdir(sandboxRoot, { recursive: true });
     await mkdir(resolve(sandboxRoot, "filesystem/codex-home"), { recursive: true });
@@ -63,7 +63,7 @@ describeEmbeddedPostgres("native runner restart recovery: diskless", () => {
     }).where(eq(nativeRunFinalizations.runId, fixture.runId));
     const options = {
       ...transportOptions(fixture, controllerRoot),
-      ...(preparedTask ? { prpIdentity: { ...transportOptions(fixture, controllerRoot).prpIdentity, environmentLeaseId: taskLeaseId } } : {}),
+      ...(preparedTask ? { orpIdentity: { ...transportOptions(fixture, controllerRoot).orpIdentity, environmentLeaseId: taskLeaseId } } : {}),
       runnerStateDirectory: resolve(sandboxRoot, "runner"),
       runnerFilesystemRoot: resolve(sandboxRoot, "filesystem"),
       runnerReconnectGraceMs: REMOTE_RUNNER_RECONNECT_GRACE_MS,
@@ -112,7 +112,7 @@ describeEmbeddedPostgres("native runner restart recovery: diskless", () => {
         .some(([, value]) => JSON.parse(value).eventType === "item.delta")).toBe(false);
       await fixture.db.update(heartbeatRuns).set({ processPid: runnerPid, processStartedAt: new Date(startedAt),
         runnerProfileJson: { ...fixture.preparedProfile,
-          ...(!preparedTask ? { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v1", state: "prepared",
+          ...(!preparedTask ? { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v1", state: "prepared",
             descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64),
             workspaceId: "workspace", leaseId: "lease", providerLeaseId: "sandbox", remoteCwd: sandboxRoot } } : {}),
           sessionCheckpoint: { identity: { ...binding, agentId, sessionId: fixture.native.normalizedSessionId },
@@ -159,7 +159,7 @@ describeEmbeddedPostgres("native runner restart recovery: diskless", () => {
       expect(await readProcessStartedAt(runnerPid)).toBe(startedAt);
       expect(duplicateLauncher).not.toHaveBeenCalled();
       expect(prepareLaunch).not.toHaveBeenCalled();
-      if (preparedTask) expect(authorizeRunnerAdoption).toHaveBeenCalledExactlyOnceWith("provider-owned-configuration", options.prpIdentity);
+      if (preparedTask) expect(authorizeRunnerAdoption).toHaveBeenCalledExactlyOnceWith("provider-owned-configuration", options.orpIdentity);
       const calls = await readFile(resolve(sandboxRoot, "calls.log"), "utf8");
       expect(calls.match(/^turn\/start$/gm)).toHaveLength(1);
       expect(calls.match(/^turn\/steer$/gm)).toHaveLength(1);

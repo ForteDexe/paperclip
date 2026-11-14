@@ -20,8 +20,8 @@ import { fileURLToPath } from 'node:url';
 import { publicInstallClosure, publicRegistryDependencies } from './public-install-closure.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const cache = process.env.PAPERCLIP_PUBLIC_INSTALL_NPM_CACHE;
-assert.ok(cache, 'Set PAPERCLIP_PUBLIC_INSTALL_NPM_CACHE to the cache directory the verifier will use');
+const cache = process.env.OUTPOST_PUBLIC_INSTALL_NPM_CACHE;
+assert.ok(cache, 'Set OUTPOST_PUBLIC_INSTALL_NPM_CACHE to the cache directory the verifier will use');
 mkdirSync(cache, { recursive: true });
 const started = performance.now();
 const scratch = mkdtempSync(join(tmpdir(), 'paperclip-public-install-warm-'));
@@ -31,7 +31,7 @@ try {
   execFileSync('npm', ['install', '--ignore-scripts', '--omit=dev', '--no-audit', '--no-fund', '--no-package-lock'], {
     cwd: scratch, stdio: 'inherit', env: { ...process.env, npm_config_cache: cache, npm_config_update_notifier: 'false' },
   });
-  console.log(JSON.stringify({ schema: 'paperclip.public-npm-install.cache-warm.v1', dependencyCount: Object.keys(dependencies).length + Object.keys(optionalDependencies).length, warm_ms: Math.round(performance.now() - started) }));
+  console.log(JSON.stringify({ schema: 'outpost.public-npm-install.cache-warm.v1', dependencyCount: Object.keys(dependencies).length + Object.keys(optionalDependencies).length, warm_ms: Math.round(performance.now() - started) }));
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

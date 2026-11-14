@@ -324,7 +324,7 @@ so recomputing an identity after cleanup never requires the raw credential file.
 
 Only `instance-operations.update-instance` and `instance-operations.provision-runtime`
 can declare `installedSource: "published-global-npm"`. They require private0600
-`PAPERCLIP_CHAT_INSTALLED_SOURCE_CONFIG` with schemaVersion1, disposable true,
+`OUTPOST_CHAT_INSTALLED_SOURCE_CONFIG` with schemaVersion1, disposable true,
 `source: {version, integrity}`, and optional distinct `target: {version, integrity}`.
 Provision additionally names `piCredentialEnv: "OPENROUTER_API_KEY"` and declares
 that selected private credential. These are exact semver/sha512 pins, never a local

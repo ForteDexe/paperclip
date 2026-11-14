@@ -51,7 +51,7 @@ it("finds the saved comment in a native prompt raw or JSON-escaped, and only wit
 });
 it("finds the saved comment when a continuation envelope nests the events JSON as a string", () => {
   const comment = { id: "c-1", body: "Add a \"Contact\" section.\n\n- nav link" };
-  const prompt = JSON.stringify({ schema: "paperclip.native-continuation.v1", events: JSON.stringify({ messages: [{ id: "c-1", body: comment.body }, { id: "c-2", body: "Done." }] }) });
+  const prompt = JSON.stringify({ schema: "outpost.native-continuation.v1", events: JSON.stringify({ messages: [{ id: "c-1", body: comment.body }, { id: "c-2", body: "Done." }] }) });
   expect(prompt.includes(comment.body) || prompt.includes(JSON.stringify(comment.body).slice(1, -1))).toBe(false);
   expect(promptCarriesComment(prompt, comment)).toBe(true);
   expect(promptCarriesComment(JSON.stringify({ events: JSON.stringify({ messages: [{ id: "c-1", body: "Add a section." }] }) }), comment)).toBe(false);

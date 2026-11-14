@@ -4,18 +4,18 @@ import {
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import {
   localIntegrityBoundaryGolden as fixture,
   localIntegrityEventsFor as eventsFor,
-} from "../../../packages/paperclip-runner/test-support/local-integrity-boundary-golden.js";
+} from "../../../packages/outpost-runner/test-support/local-integrity-boundary-golden.js";
 
 import { redactEventPayload } from "../redaction.js";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
-import { validatePrpEvent } from "../vendor/paperclip-runner/index.js";
+import { validatePrpEvent } from "../vendor/outpost-runner/index.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -77,7 +77,7 @@ describeEmbeddedPostgres(
               eventType: event.eventType,
               stream: "system",
               level: "info",
-              payload: { prpEvent: event },
+              payload: { orpEvent: event },
               nativeSource: {
                 sourceInstanceId: event.sourceInstanceId,
                 sourceEventId: event.sourceEventId,
@@ -106,7 +106,7 @@ describeEmbeddedPostgres(
             payload: redactEventPayload(row.payload),
           }));
           for (const [index, apiEvent] of apiEvents.entries()) {
-            const envelope = apiEvent.payload?.prpEvent as Record<
+            const envelope = apiEvent.payload?.orpEvent as Record<
               string,
               unknown
             >;
@@ -130,7 +130,7 @@ describeEmbeddedPostgres(
 
           const payloadBySourceId = new Map(
             apiEvents.map((event) => {
-              const envelope = event.payload?.prpEvent as Record<
+              const envelope = event.payload?.orpEvent as Record<
                 string,
                 unknown
               >;
@@ -157,7 +157,7 @@ describeEmbeddedPostgres(
           expect(payloadBySourceId.get("question-created")).toMatchObject({
             request: {
               requestId: fixture.expected.questionRequestId,
-              input: { schema: "paperclip.question_set.v1" },
+              input: { schema: "outpost.question_set.v1" },
             },
           });
         }

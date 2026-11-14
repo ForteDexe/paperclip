@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { heartbeatRunEvents } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRunEvents } from "@outpost/db";
 import { PROCESS_START_REQUESTED } from "../native-local-process-stop.js";
 
 /**
@@ -88,7 +88,7 @@ export async function readProviderAttemptOutcome(
   tx: Pick<Db, "select">,
   input: { runId: string; sinceSeq: number; adoptedProviderWork?: boolean },
 ): Promise<ProviderAttemptOutcome> {
-  const workTurnId = sql`${heartbeatRunEvents.payload} -> 'prpEvent' ->> 'turnId'`;
+  const workTurnId = sql`${heartbeatRunEvents.payload} -> 'orpEvent' ->> 'turnId'`;
   const acceptedFrom = input.adoptedProviderWork ? 0 : input.sinceSeq;
   const [work] = await tx
     .select({ seq: heartbeatRunEvents.seq })
@@ -97,13 +97,13 @@ export async function readProviderAttemptOutcome(
       eq(heartbeatRunEvents.runId, input.runId),
       gt(heartbeatRunEvents.seq, input.sinceSeq),
       inArray(heartbeatRunEvents.eventType, [...PROVIDER_PROGRESS_EVENT_TYPES]),
-      sql`coalesce(${heartbeatRunEvents.payload} -> 'prpEvent' -> 'payload' ->> 'kind', '') <> 'usage'`,
+      sql`coalesce(${heartbeatRunEvents.payload} -> 'orpEvent' -> 'payload' ->> 'kind', '') <> 'usage'`,
       // The inner alias hides the table name, so unqualified outer references
       // below resolve to the outer completed-work row.
       sql`exists (select 1 from ${heartbeatRunEvents} as accepted_turn where accepted_turn.run_id = ${input.runId}
         and accepted_turn.seq > ${acceptedFrom} and accepted_turn.seq < ${heartbeatRunEvents.seq}
         and accepted_turn.event_type in (${sql.join(PROVIDER_TURN_ACCEPTED_EVENT_TYPES.map(type => sql`${type}`), sql`, `)})
-        and accepted_turn.payload -> 'prpEvent' ->> 'turnId' = ${workTurnId})`,
+        and accepted_turn.payload -> 'orpEvent' ->> 'turnId' = ${workTurnId})`,
     ))
     .limit(1);
   if (work) return "provider_progressed";

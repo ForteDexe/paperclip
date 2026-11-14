@@ -30,7 +30,7 @@ The process owner supplies the Runner artifact and process lifecycle.
 The result contains a configuration ID, a requirements digest, and a provider
 descriptor. The transport checks Core's selected profile and policy before
 registration and launch. Core still supplies authorized tools and completion
-criteria through PRP. A failed preparation does not enable a fallback launch.
+criteria through ORP. A failed preparation does not enable a fallback launch.
 
 ### Codex probe policy
 
@@ -58,7 +58,7 @@ not supply one. The backend uses `workingDirectoryAuthority:
   substitute a controller-local or temporary directory.
 
 `remote_runner` remains the mode in which Core assigns the remote directory
-through `PAPERCLIP_WORKSPACE_CWD`.
+through `OUTPOST_WORKSPACE_CWD`.
 
 The transport saves the exact requirements and prepared configuration in its
 private `launch-preparation.json` file. The file holds at most two records.

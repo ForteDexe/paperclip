@@ -5,8 +5,8 @@ recipe, not a requirement for local or self-hosted verification.
 
 ## Known testing setup
 
-- `https://test.paperclip.app` is the testing Cloud portal. The persistent tenant
-  is `https://qa.test.paperclip.app`. Keep testing distinct from staging and
+- `https://test.outpost.app` is the testing Cloud portal. The persistent tenant
+  is `https://qa.test.outpost.app`. Keep testing distinct from staging and
   production, including operator origins and secret namespaces.
 - AgentMail supplies `qa@paperclipbots.com`. The custom `paperclipbots.com` domain
   is admitted for testing sign-up. Verify admission through the actual customer

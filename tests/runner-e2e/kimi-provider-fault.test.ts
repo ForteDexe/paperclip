@@ -12,7 +12,7 @@ const binding = { companyId: "company", environmentId: "environment", runId: "ru
 const hash = `sha256:${"a".repeat(64)}`;
 function receipt() {
   const contract = kimiFaultRuntimeContract("linux-x64");
-  return { schema: "paperclip.e2e.kimi-provider-death.v1", binding, runtimeEnvironmentLeaseId: "workspace-id", target, ancestry: [target, parent, root],
+  return { schema: "outpost.e2e.kimi-provider-death.v1", binding, runtimeEnvironmentLeaseId: "workspace-id", target, ancestry: [target, parent, root],
     ...contract, entrypointSha256: hash, guardSha256: hash, bootstrapSha256: hash,
     entrypointAttribution: "pinned_native_bootstrap_parent", originalChildArgvAvailable: false, observedChildTitle: "kimi-code",
     signalled: true, signal: "SIGKILL", targetKind: "kimi_native_child", workerSignalled: false };

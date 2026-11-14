@@ -57,7 +57,7 @@ describe("DF1 control file", () => {
     root = await mkdtemp(path.join(os.tmpdir(), "df1-seam-"));
     const receiptPath = path.join(root, "receipts.jsonl");
     const seam = await DiskFullFaultSeam.install({ root, receiptPath });
-    expect(seam.serverEnvironment).toEqual({ PAPERCLIP_DISK_FULL_FAULT_CONTROL: seam.controlPath, PAPERCLIP_DISK_FULL_FAULT_RECEIPT: receiptPath });
+    expect(seam.serverEnvironment).toEqual({ OUTPOST_DISK_FULL_FAULT_CONTROL: seam.controlPath, OUTPOST_DISK_FULL_FAULT_RECEIPT: receiptPath });
     expect(await readFile(seam.controlPath, "utf8")).toBe("");
     await Promise.all([seam.arm("issue-1"), seam.arm("issue-2")]);
     expect(await readFile(seam.controlPath, "utf8")).toBe("issue-1\nissue-2\n");

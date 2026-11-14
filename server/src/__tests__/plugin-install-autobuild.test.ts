@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDb, plugins } from "@paperclipai/db";
+import { createDb, plugins } from "@outpost/db";
 import {
   ensureLocalPluginBuilt,
   pluginLoader,
@@ -61,8 +61,8 @@ async function createBundledPluginFixture(
   options: { rootDir?: string; buildDistImmediately?: boolean } = {},
 ): Promise<FixturePlugin> {
   const slug = `plugin-autobuild-${nameSuffix}-${randomUUID().slice(0, 8)}`;
-  const packageName = `@paperclipai/${slug}`;
-  const pluginKey = `paperclip.${slug.replace(/^plugin-/, "").replace(/-/g, "_")}`;
+  const packageName = `@outpost/${slug}`;
+  const pluginKey = `outpost.${slug.replace(/^plugin-/, "").replace(/-/g, "_")}`;
   const packageRoot = path.join(options.rootDir ?? repoPluginRoot, slug);
   const distDir = path.join(packageRoot, "dist");
   const isStandaloneFixture = (options.rootDir ?? repoPluginRoot) === standaloneRepoPluginRoot;
@@ -184,7 +184,7 @@ describe("ensureLocalPluginBuilt", () => {
     await ensureLocalPluginBuilt(
       packageRoot,
       {
-        name: "@paperclipai/plugin-outside",
+        name: "@outpost/plugin-outside",
         paperclipPlugin: {
           manifest: "./dist/manifest.js",
           worker: "./dist/worker.js",
@@ -196,7 +196,7 @@ describe("ensureLocalPluginBuilt", () => {
     expect(execStub).not.toHaveBeenCalled();
   });
 
-  it("skips auto-build when PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD=1", async () => {
+  it("skips auto-build when OUTPOST_DISABLE_PLUGIN_AUTOBUILD=1", async () => {
     const fixture = await createBundledPluginFixture("skip");
     cleanupPaths.add(fixture.packageRoot);
 
@@ -205,7 +205,7 @@ describe("ensureLocalPluginBuilt", () => {
       fixture.packageRoot,
       JSON.parse(await readFile(path.join(fixture.packageRoot, "package.json"), "utf8")) as Record<string, unknown>,
       {
-        processEnv: { PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD: "1" },
+        processEnv: { OUTPOST_DISABLE_PLUGIN_AUTOBUILD: "1" },
         execFileAsyncImpl: execStub,
       },
     );
@@ -300,7 +300,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
       await rm(cleanupPath, { recursive: true, force: true });
     }
     cleanupPaths.clear();
-    delete process.env["PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD"];
+    delete process.env["OUTPOST_DISABLE_PLUGIN_AUTOBUILD"];
   });
 
   afterAll(async () => {
@@ -372,7 +372,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
   }, 60_000);
 
   it("returns the manual build command when auto-build is disabled and dist is missing", async () => {
-    process.env["PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD"] = "1";
+    process.env["OUTPOST_DISABLE_PLUGIN_AUTOBUILD"] = "1";
     const fixture = await createBundledPluginFixture("disabled");
     cleanupPaths.add(fixture.packageRoot);
     const app = await createInstallApp(db);
@@ -389,7 +389,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
   }, 20_000);
 
   it("returns the standalone bootstrap command when auto-build is disabled for sandbox-provider plugins", async () => {
-    process.env["PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD"] = "1";
+    process.env["OUTPOST_DISABLE_PLUGIN_AUTOBUILD"] = "1";
     const fixture = await createBundledPluginFixture("standalone-disabled", { rootDir: standaloneRepoPluginRoot });
     cleanupPaths.add(fixture.packageRoot);
     const app = await createInstallApp(db);

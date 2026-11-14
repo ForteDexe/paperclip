@@ -4,7 +4,7 @@ import type { RunnerApi } from "./api.js";
 import { collectAttemptFeedback, emptyFeedbackSummary, feedbackReview, observeFeedbackInvocations, summarizeCampaignFeedback, FEEDBACK_COLLECTION_LIMITS, type FeedbackEvidence } from "./feedback.js";
 import { runCleanupWithObservers } from "./cleanup-verification.js";
 import { isHistoricalBundlePathAllowed } from "./history-publish.js";
-import { canonicalProviderEventsFromOpenCodePart } from "../../packages/paperclip-runner/src/provider-events.js";
+import { canonicalProviderEventsFromOpenCodePart } from "../../packages/outpost-runner/src/provider-events.js";
 
 function entry(id: string, body = "Please preserve the original tool error."): AgentCommentaryDetail {
   return { id, kind: "complaint", preview: body.slice(0, 280), body,
@@ -12,7 +12,7 @@ function entry(id: string, body = "Please preserve the original tool error."): A
 }
 const api = (read: (path: string) => unknown | Promise<unknown>) => ({ get: async <T>(path: string) => await read(path) as T }) as Pick<RunnerApi, "get">;
 const event = (seq: number, eventType: string, payload: unknown, runId = "run") => ({ seq, eventType,
-  payload: { prpEvent: { runId, sourceKind: "runner", eventType, payload } } });
+  payload: { orpEvent: { runId, sourceKind: "runner", eventType, payload } } });
 
 it("collects full paginated company feedback, including feedback outside the selected task, and checkpoints it", async () => {
   const entries = Array.from({ length: 101 }, (_, i) => ({ ...entry(String(i), "a".repeat(300)), runId: `child-${i}` }));
@@ -69,7 +69,7 @@ it("retains partial bodies and failed submissions without inventing persistence 
 
 it("binds native invocations to their run, ignores prose, and recognizes compatibility receipts", () => {
   const events = [
-    event(1, "item.started", { kind: "tool_call", item: { type: "tool_call", id: "call", name: "paperclip.submit_complaint" } }),
+    event(1, "item.started", { kind: "tool_call", item: { type: "tool_call", id: "call", name: "outpost.submit_complaint" } }),
     event(2, "item.completed", { kind: "tool_result", item: { type: "tool_result", id: "call", status: "completed", isError: true } }),
     event(3, "tool.execution.started", { name: "submit_suggestion", executionId: "foreign" }, "foreign-run"),
     event(4, "item.completed", { item: { type: "agentMessage", text: "I used submit_complaint" } }),
@@ -110,7 +110,7 @@ function workspaceDeferral(): Record<string, unknown> {
     runtimeModeResolvedAt: null, processStartedAt: null, processPid: null, processStartTicks: null,
     runnerInstanceId: null, nativeSessionId: null, sessionIdAfter: null, lastOutputSeq: 0, costUsd: null,
     usageJson: { ledgerScope: { issueId: "child" } },
-    runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+    runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
     resultJson: {
       executionRecovery: { kind: "workspace_wait", providerWorkStarted: false },
       cancellation: { source: "control_plane", expected: true, initiator: { type: "system" } },

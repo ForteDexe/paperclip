@@ -1,6 +1,6 @@
 import { classifyChatPublicationError } from "../../chat-publication-errors.js";
 import { and, eq } from "drizzle-orm";
-import { chatActions, type Db } from "@paperclipai/db";
+import { chatActions, type Db } from "@outpost/db";
 import type { CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
 import type { ResolvedChatQuestionFormOpen } from "../../chat-question-forms.js";
 import { SlackCloudReceiptError } from "./cloud-event.js";

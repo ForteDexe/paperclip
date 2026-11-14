@@ -50,7 +50,7 @@ export async function createScopedNetworkEgressPolicy(input: {
       egressAllowFqdns: input.grant.allowFqdns,
       egressAllowCidrs: input.grant.allowCidrs,
       name,
-      endpointSelector: { "paperclip.io/run-id": input.runId },
+      endpointSelector: { "outpost.io/run-id": input.runId },
       includeBaseRules: false,
       ownerReferences: [input.ownerReference],
     });
@@ -68,7 +68,7 @@ export async function createScopedNetworkEgressPolicy(input: {
       egressAllowFqdns: input.grant.allowFqdns,
       egressAllowCidrs: input.grant.allowCidrs,
       name,
-      podSelector: { "paperclip.io/run-id": input.runId },
+      podSelector: { "outpost.io/run-id": input.runId },
       includeBaseRules: false,
       ownerReferences: [input.ownerReference],
     });

@@ -17,8 +17,8 @@ import {
   issues,
   issueWorkProducts,
   projects,
-} from "@paperclipai/db";
-import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
+} from "@outpost/db";
+import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -406,8 +406,8 @@ describeEmbeddedPostgres("companyArtifactsService", () => {
   });
 
   it("lists only artifacts on tasks the caller can read", async () => {
-    const previousMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    const previousMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
       const { companyId, issueId } = await seedArtifacts();
       await db.update(issues).set({ visibility: "private", privacyRootIssueId: sql`${issues.id}`, responsibleUserId: "owner-user" })
@@ -436,8 +436,8 @@ describeEmbeddedPostgres("companyArtifactsService", () => {
       }
       expect((await list("owner-user", `groupBy=task&groupIssueId=${issueId}`)).body.selectedGroup).toMatchObject({ issue: { id: issueId } });
     } finally {
-      if (previousMode === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-      else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousMode;
+      if (previousMode === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+      else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousMode;
     }
   });
 

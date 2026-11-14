@@ -132,7 +132,7 @@ test("trusted policy commands work with both current and pre-profile checkouts",
         mkdirSync(path.join(directory, "scripts"));
         symlinkSync(fileURLToPath(new URL("../../../scripts/ci-profile", import.meta.url)), path.join(directory, "scripts/ci-profile"));
       }
-      const env = { ...process.env, GITHUB_ENV: path.join(directory, "env"), PAPERCLIP_CI_PROFILE: "false" };
+      const env = { ...process.env, GITHUB_ENV: path.join(directory, "env"), OUTPOST_CI_PROFILE: "false" };
       delete env.NODE_TEST_CONTEXT;
       const result = spawnSync("bash", ["-c", `${script}\nsource "$GITHUB_ENV"\nnode "$CI_NODE_TEST" probe.test.cjs`], {
         cwd: directory, env, encoding: "utf8",
@@ -328,9 +328,9 @@ test("workflow exporter runs trusted code and keeps keys out of the PR jobs", ()
   assert.deepEqual(JSON.parse(boundedScan.stdout), [[false, false], [true, true], [true, true], [false, false], [true, true], [true, true]]);
   assert.equal(secretReference(pr), false);
   assertNoPrWorkflowCredentials(pr);
-  assert.match(pr, /if: always\(\) && env.PAPERCLIP_CI_PROFILE == 'true'/);
-  assert.doesNotMatch(pr, /PAPERCLIP_CI_PROFILE:.*labels/);
-  assert.equal(pr.match(/PAPERCLIP_CI_PROFILE: \$\{\{ needs.gate.outputs.profile_ci \}\}/g).length, 11);
+  assert.match(pr, /if: always\(\) && env.OUTPOST_CI_PROFILE == 'true'/);
+  assert.doesNotMatch(pr, /OUTPOST_CI_PROFILE:.*labels/);
+  assert.equal(pr.match(/OUTPOST_CI_PROFILE: \$\{\{ needs.gate.outputs.profile_ci \}\}/g).length, 11);
   // upload-artifact excludes files inside dot-directories by default. Keep
   // this opt-in scoped to timing NDJSON, never the workspace or other secrets.
   assert.equal(pr.match(/path: \.ci-profile\/\*\.ndjson\n {10}include-hidden-files: true/g).length, 11);

@@ -38,7 +38,7 @@ export const connectionSetupExternalCases = [definition("connection-setup.notion
   if (!session.user?.id) throw new Error("Notion decline requires the actual signed-in person");
   return { connectedBeforeDecline: current.connections.length, personId: session.user.id };
 }, gradeConnectionDecline, {
-  oracleVersion: "paperclip.chat-catalog.external.notion-declined.v2", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 1, attemptTimeoutMs: 420_000,
+  oracleVersion: "outpost.chat-catalog.external.notion-declined.v2", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 1, attemptTimeoutMs: 420_000,
   sourceFiles: ["chat-catalog-domains/external-connection-setup.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "../../ui/src/features/connections/ConnectionIntentInteractionBody.tsx", "../../ui/src/api/connection-intents.ts", "chat-scenarios/connection-setup.yaml"],
   async act(ctx, state) {
     const cards = await pollUntil({ label: "addressed Notion connection request", deadlineAt: Date.now() + 150_000,

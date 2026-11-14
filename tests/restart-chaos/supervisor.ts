@@ -24,7 +24,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { prepareControllerDatabase } from "../runner-e2e/controller-database.js";
 import { CONTROLLER_READY_BY_MS, replaceController, type ControllerOutageReceipt } from "../runner-e2e/controller-outage.js";
 import {
-  assertIsolatedServerEnvironment, buildPaperclipServerEnvironment, buildRunnerE2EProcessEnvironment,
+  assertIsolatedServerEnvironment, buildOutpostServerEnvironment, buildRunnerE2EProcessEnvironment,
   resolvePaperclipRunnerBinaryForHarness,
 } from "../runner-e2e/harness-env.js";
 import { reserveRunnerE2EServerPort } from "../runner-e2e/ports.js";
@@ -74,20 +74,20 @@ export function crashLoopShouldFire(target: (typeof CRASH_LOOP_TARGETS)[number],
 }
 
 /**
- * Agents reach the server at PAPERCLIP_API_URL. An explicit value wins over the URL the server
+ * Agents reach the server at OUTPOST_API_URL. An explicit value wins over the URL the server
  * derives from its public URL (a developer's .paperclip/.env or shell can name a tailnet origin
  * that serves a different instance). Pin this wave's own loopback origin so an agent's key for
  * the temporary instance is only ever sent to that instance.
  */
-export function waveServerUrlEnvironment(port: number): { PAPERCLIP_API_URL: string } {
-  return { PAPERCLIP_API_URL: `http://127.0.0.1:${port}` };
+export function waveServerUrlEnvironment(port: number): { OUTPOST_API_URL: string } {
+  return { OUTPOST_API_URL: `http://127.0.0.1:${port}` };
 }
 
 export interface SupervisorPaths { temporaryRoot: string; home: string; configPath: string; serverLogPath: string }
 
 /**
  * Crash-point suite: every server spawn reads its armed point from the control
- * file at each hit (PAPERCLIP_CRASH_POINT_CONTROL), so one booted server serves
+ * file at each hit (OUTPOST_CRASH_POINT_CONTROL), so one booted server serves
  * many points. The supervisor writes "<token> <name>[:<nth>]" to arm a point
  * and empties the file to disarm, including before a crash's replacement starts.
  */
@@ -117,7 +117,7 @@ const secret = () => randomBytes(48).toString("base64url");
 async function prepareProviderPath(repositoryRoot: string, temporaryRoot: string, inherited: string | undefined) {
   const toolBin = path.join(temporaryRoot, "provider-bin");
   await mkdir(toolBin, { recursive: true });
-  const runnerRequire = createRequire(path.join(repositoryRoot, "packages/paperclip-runner/package.json"));
+  const runnerRequire = createRequire(path.join(repositoryRoot, "packages/outpost-runner/package.json"));
   const codexAcp = runnerRequire.resolve("@agentclientprotocol/codex-acp/package.json");
   const codexPackage = createRequire(codexAcp).resolve("@openai/codex/package.json");
   const manifest = JSON.parse(await readFile(codexPackage, "utf8")) as { bin?: string | Record<string, string> };
@@ -126,7 +126,7 @@ async function prepareProviderPath(repositoryRoot: string, temporaryRoot: string
   // A K15 with a fresh home or an overlap prepares the environment again: replace the link.
   await rm(path.join(toolBin, "codex"), { force: true });
   await symlink(path.resolve(path.dirname(codexPackage), codexBin), path.join(toolBin, "codex"));
-  return [toolBin, path.join(repositoryRoot, "packages/paperclip-runner/node_modules/.bin"), inherited].filter(Boolean).join(path.delimiter);
+  return [toolBin, path.join(repositoryRoot, "packages/outpost-runner/node_modules/.bin"), inherited].filter(Boolean).join(path.delimiter);
 }
 
 export class ChaosSupervisor {
@@ -186,8 +186,8 @@ export class ChaosSupervisor {
   /** CR1–CR3 waves: sandbox captures and the provider kill (class-r.ts). */
   classR: ClassRHooks | null = null;
   /** Wave secrets, kept across a K14 switch as an in-place upgrade keeps its configuration. */
-  private readonly secrets = { PAPERCLIP_AGENT_JWT_SECRET: secret(), PAPERCLIP_DECISION_SIGNING_SECRET: secret(),
-    PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: secret(), BETTER_AUTH_SECRET: secret() };
+  private readonly secrets = { OUTPOST_AGENT_JWT_SECRET: secret(), OUTPOST_DECISION_SIGNING_SECRET: secret(),
+    OUTPOST_TOOL_ACTION_SIGNING_SECRET: secret(), BETTER_AUTH_SECRET: secret() };
 
   private constructor(readonly repositoryRoot: string, readonly port: number, readonly paths: SupervisorPaths,
     private readonly timeline: Timeline, upgradeFrom: string | null, redeployWaveId: string | null) {
@@ -266,34 +266,34 @@ export class ChaosSupervisor {
     const source = {
       ...buildRunnerE2EProcessEnvironment(process.env, []),
       PATH: await prepareProviderPath(root, providerRoot, process.env.PATH),
-      PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: "[]",
-      PAPERCLIP_RUNNER_BINARY: runnerBinary,
-      PAPERCLIP_VITE_CACHE_DIR: path.join(temporaryRoot, "vite-cache"),
+      OUTPOST_RUNNER_E2E_EXECUTION_IDS: "[]",
+      OUTPOST_RUNNER_BINARY: runnerBinary,
+      OUTPOST_VITE_CACHE_DIR: path.join(temporaryRoot, "vite-cache"),
     };
     const overrides = {
       NODE_ENV: "test", PORT: String(this.backendPort), XDG_CACHE_HOME: path.join(temporaryRoot, "xdg-cache"),
-      PAPERCLIP_HOME: home, PAPERCLIP_CONFIG: configPath, PAPERCLIP_INSTANCE_ID: "default",
+      OUTPOST_HOME: home, OUTPOST_CONFIG: configPath, OUTPOST_INSTANCE_ID: "default",
       ...this.secrets,
-      PAPERCLIP_BIND: "loopback", PAPERCLIP_BIND_HOST: "127.0.0.1", PAPERCLIP_DEPLOYMENT_MODE: "local_trusted",
-      PAPERCLIP_DEPLOYMENT_EXPOSURE: "private", SERVE_UI: "true", PAPERCLIP_STORAGE_PROVIDER: "local_disk",
-      PAPERCLIP_STORAGE_LOCAL_DIR: path.join(temporaryRoot, "storage"), PAPERCLIP_SECRETS_PROVIDER: "local_encrypted",
-      PAPERCLIP_SECRETS_STRICT_MODE: "true", PAPERCLIP_DB_BACKUP_ENABLED: "false",
-      PAPERCLIP_DB_BACKUP_DIR: path.join(temporaryRoot, "backups"), PAPERCLIP_OPEN_ON_LISTEN: "false",
+      OUTPOST_BIND: "loopback", OUTPOST_BIND_HOST: "127.0.0.1", OUTPOST_DEPLOYMENT_MODE: "local_trusted",
+      OUTPOST_DEPLOYMENT_EXPOSURE: "private", SERVE_UI: "true", OUTPOST_STORAGE_PROVIDER: "local_disk",
+      OUTPOST_STORAGE_LOCAL_DIR: path.join(temporaryRoot, "storage"), OUTPOST_SECRETS_PROVIDER: "local_encrypted",
+      OUTPOST_SECRETS_STRICT_MODE: "true", OUTPOST_DB_BACKUP_ENABLED: "false",
+      OUTPOST_DB_BACKUP_DIR: path.join(temporaryRoot, "backups"), OUTPOST_OPEN_ON_LISTEN: "false",
       // The server loads a .paperclip/.env found above its cwd without overriding
       // set values. A worktree-initialized checkout's file sets
-      // PAPERCLIP_IN_WORKTREE=true, which suppresses all scheduling: no run starts.
-      PAPERCLIP_IN_WORKTREE: "false",
+      // OUTPOST_IN_WORKTREE=true, which suppresses all scheduling: no run starts.
+      OUTPOST_IN_WORKTREE: "false",
       ...waveServerUrlEnvironment(this.port),
       ...extraEnvironment,
       // K15: the generation's emulated host name and Railway deployment identity; the volume is the instance home.
       ...(this.redeploy ? redeployEnvironment(this.redeploy.identity, this.deployShape.freshHome ? null : home) : {}),
     };
     const ephemeral = this.ephemeralServer ? await ephemeralServerEnvironment({ configPath: this.paths.configPath, temporaryRoot: this.paths.temporaryRoot, extraEnvironment }) : null;
-    const environment = buildPaperclipServerEnvironment(source, { ...overrides, ...ephemeral });
-    const workspaceStorage = extraEnvironment.PAPERCLIP_STORAGE_PROVIDER === "s3"
-      ? Object.fromEntries(Object.entries(extraEnvironment).filter(([key]) => key.startsWith("PAPERCLIP_STORAGE_"))) : undefined;
+    const environment = buildOutpostServerEnvironment(source, { ...overrides, ...ephemeral });
+    const workspaceStorage = extraEnvironment.OUTPOST_STORAGE_PROVIDER === "s3"
+      ? Object.fromEntries(Object.entries(extraEnvironment).filter(([key]) => key.startsWith("OUTPOST_STORAGE_"))) : undefined;
     assertIsolatedServerEnvironment(environment, { temporaryRoot, paperclipHome: home, configPath, ...(workspaceStorage ? { workspaceStorage } : {}),
-      ...(ephemeral ? { generatedSecretsMasterKey: ephemeral.PAPERCLIP_SECRETS_MASTER_KEY } : {}) });
+      ...(ephemeral ? { generatedSecretsMasterKey: ephemeral.OUTPOST_SECRETS_MASTER_KEY } : {}) });
     this.environment = Object.fromEntries(Object.entries(environment).filter((entry): entry is [string, string] => entry[1] !== undefined));
     await prepareSourceServerDependencies(root, this.environment, false);
   }
@@ -303,8 +303,8 @@ export class ChaosSupervisor {
     const root = this.serverRoot;
     const entry = path.join(root, "tests/runner-e2e/server-entry.ts");
     const control = this.crashPointControl;
-    const env = control ? { ...this.environment, PAPERCLIP_CRASH_POINT_CONTROL: control.controlPath,
-      PAPERCLIP_CRASH_POINT_RECEIPT: control.receiptPath } : this.environment;
+    const env = control ? { ...this.environment, OUTPOST_CRASH_POINT_CONTROL: control.controlPath,
+      OUTPOST_CRASH_POINT_RECEIPT: control.receiptPath } : this.environment;
     const args = runnerE2ETypeScriptProcessArgs(root, entry, ["onboard", "--yes", "--run"]);
     // K15 waves: the emulated host name of the serving deploy generation (redeploy.ts).
     const child = spawn(process.execPath, this.redeploy ? redeployNodeArgs(args) : args,

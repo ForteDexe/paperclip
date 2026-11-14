@@ -297,7 +297,7 @@ it("rejects wrong owner/run/reference/custody, overgrant, missing delivery and l
 it("validates the genuine finite lifecycle package and requires exact public resume identity", () => {
   expect(
     pluginManifestV1Schema.safeParse(
-      custodyManifest("paperclip.eval-custody-control"),
+      custodyManifest("outpost.eval-custody-control"),
     ).success,
   ).toBe(true);
   const o = valid(),

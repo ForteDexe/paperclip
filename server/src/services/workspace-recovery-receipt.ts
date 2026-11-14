@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql, type AnyColumn, type SQL } from "drizzle-orm";
-import { executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issueRecoveryActions, workspaceOperations, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema, type ExecutionBlocker } from "@paperclipai/shared";
+import { executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issueRecoveryActions, workspaceOperations, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema, type ExecutionBlocker } from "@outpost/shared";
 import { z } from "zod";
 import { readNativeWorkspaceSyncReference, type NativeWorkspaceSyncReference } from "./native-runtime/native-workspace-sync.js";
 import { readMigratedLegacyWorkspaceSource } from "./legacy-workspace-recovery-migration.js";
@@ -10,7 +10,7 @@ import { verifiedWorkspaceSnapshotReuse } from "./remote-workspace-snapshot-reus
 import { isAbandonedPreparedRemoteWorkspace } from "./remote-workspace-abandoned-preparation.js";
 
 export const workspaceRecoverySchema = z.object({
-  schema: z.literal("paperclip.workspace-recovery.v1"),
+  schema: z.literal("outpost.workspace-recovery.v1"),
   runId: z.string().guid(),
   status: z.enum(["queued", "recovering", "blocked", "recovered"]),
   stage: z.enum(["verifying_stop", "restoring_files", "saving_receipts"]),
@@ -32,11 +32,11 @@ export function completedWorkspaceRecoveryCondition(runId: string | AnyColumn | 
   const operationIds = sql`case when jsonb_typeof(${issueRecoveryActions.evidence}#>'{systemRecovery,preservationOperationIds}') = 'array'
     then ${issueRecoveryActions.evidence}#>'{systemRecovery,preservationOperationIds}' else '[]'::jsonb end`;
   return and(
-    sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,schema}' = 'paperclip.system-recovery.v1'`,
+    sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,schema}' = 'outpost.system-recovery.v1'`,
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,policyVersion}' = '1'`,
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,sourceRunId}' = ${runId}::text`,
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,state}' = 'complete'`,
-    sql`${issueRecoveryActions.evidence}#>>'{workspaceRecovery,schema}' = 'paperclip.workspace-recovery.v1'`,
+    sql`${issueRecoveryActions.evidence}#>>'{workspaceRecovery,schema}' = 'outpost.workspace-recovery.v1'`,
     sql`${issueRecoveryActions.evidence}#>>'{workspaceRecovery,runId}' = ${runId}::text`,
     sql`${issueRecoveryActions.evidence}#>>'{workspaceRecovery,status}' = 'recovered'`,
     sql`jsonb_array_length(${operationIds}) > 0`,

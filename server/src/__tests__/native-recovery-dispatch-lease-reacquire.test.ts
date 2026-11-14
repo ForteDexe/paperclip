@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents, budgetPolicies, budgetReservations, companies, costEvents, createDb, environmentLeases, heartbeatRuns, issues,
   nativeRunFinalizations, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { recheckRunBudgetReservationInTransaction, reserveRunBudget } from "../services/budget-reservations.js";
 import { currentNativeControllerIdentity, type NativeControllerIdentity } from "../services/native-runtime/native-restart-recovery.js";
@@ -38,7 +38,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const companyId = randomUUID(), agentId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Time jump", issuePrefix: `T${companyId.slice(0, 4)}`.toUpperCase() });
     await db.insert(agents).values({ id: agentId, companyId, name: "Codex", role: "engineer", status: "idle",
-      adapterType: "paperclip_runner" });
+      adapterType: "outpost_runner" });
     const [issue] = await db.insert(issues).values({ companyId, title: "Resumed task", status: "in_progress",
       assigneeAgentId: agentId }).returning();
     const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "assignment",

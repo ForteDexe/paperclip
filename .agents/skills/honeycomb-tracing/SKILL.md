@@ -63,7 +63,7 @@ Telemetry privacy review. Preserve the endpoint gate and no-operation behavior.
    node -e 'console.log(require("node:crypto").createHash("sha256").update(process.argv[1]).digest("hex").slice(0, 12))' "$RUN_ID"
    ```
 
-   Filter `paperclip.task.run.run_id` to that 12-character lowercase hash and
+   Filter `outpost.task.run.run_id` to that 12-character lowercase hash and
    `service.name` to the observed service. Start with the run's absolute time
    window. The product link defaults to the last seven days; widen it for older
    runs. Group `COUNT` by `trace.trace_id` to discover matching traces.

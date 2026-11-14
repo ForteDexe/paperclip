@@ -3,7 +3,7 @@ const healthId = "chat-setup-health.runner-opencode.local.setup-only";
 const endpoint = "https://openrouter.ai/api/v1/key";
 type Code = "recognized" | "auth-rejected" | "provider-unavailable" | "http-rejected" | "invalid-response" | "request-failed" | "prerequisite-missing";
 export interface SetupCredentialReceipt {
-  schema: "paperclip.setup-health-credential/v1"; code: Code; httpStatus: number | null;
+  schema: "outpost.setup-health-credential/v1"; code: Code; httpStatus: number | null;
   recognized: boolean; expired: boolean | null; budgetAvailable: boolean | null;
 }
 /** A single Node fetch outside Playwright request tracing; raw response/errors never leave this function. */
@@ -11,7 +11,7 @@ export async function checkSetupHealthCredential(input: {
   executionId: string; provider: string; model: string | undefined; credential: string | undefined;
   env: NodeJS.ProcessEnv; platform?: string; secrets: string[]; fetch?: typeof fetch; now?: number;
 }): Promise<SetupCredentialReceipt> {
-  const receipt: SetupCredentialReceipt = { schema: "paperclip.setup-health-credential/v1", code: "prerequisite-missing", httpStatus: null, recognized: false, expired: null, budgetAvailable: null };
+  const receipt: SetupCredentialReceipt = { schema: "outpost.setup-health-credential/v1", code: "prerequisite-missing", httpStatus: null, recognized: false, expired: null, budgetAvailable: null };
   if (input.executionId !== healthId || input.provider !== "opencode" || input.model !== CHAT_OPENCODE_MODEL
     || (input.platform ?? process.platform) !== "linux" || input.env.GITHUB_ACTIONS !== "true"
     || input.env.GITHUB_REPOSITORY !== "paperclipai/paperclip" || input.env.GITHUB_REF !== "refs/heads/master"

@@ -1,5 +1,5 @@
-import { toolApplications, toolCatalogEntries, toolConnections, type Db } from "@paperclipai/db";
-import type { CreateToolProfileEntryForProfile } from "@paperclipai/shared";
+import { toolApplications, toolCatalogEntries, toolConnections, type Db } from "@outpost/db";
+import type { CreateToolProfileEntryForProfile } from "@outpost/shared";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { badRequest, notFound, unprocessable } from "../errors.js";
 

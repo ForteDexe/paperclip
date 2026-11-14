@@ -3,8 +3,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { canonicalProviderEventsFromOpenCodePart } from "../../../packages/paperclip-runner/src/provider-events.js";
-import { createPrpSemanticToolInputEnvelope, createPrpSemanticToolResultEnvelope } from "../../../packages/paperclip-runner/src/protocol/semantic-tool-receipts.js";
+import { canonicalProviderEventsFromOpenCodePart } from "../../../packages/outpost-runner/src/provider-events.js";
+import { createPrpSemanticToolInputEnvelope, createPrpSemanticToolResultEnvelope } from "../../../packages/outpost-runner/src/protocol/semantic-tool-receipts.js";
 import { parseFrontmatterMarkdown } from "../../../packages/shared/src/frontmatter.js";
 import { agentSkillSyncSchema } from "../../../packages/shared/src/validators/adapter-skills.js";
 import { createTaskThroughUi } from "../user-actions.js";
@@ -71,7 +71,7 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
       if (route === "/api/heartbeat-runs/run") return change("run", { id: "run", companyId: "company", agentId: "agent", issueId: "issue",
         status: "succeeded", runtimeMode: "native", nativePhase: "committed", resultJson: null,
         runnerInstanceId: "instance", nativeSessionId: "session",
-        contextSnapshot: { paperclipEnvironment: { id: "environment" }, skillSelectionSnapshot: true, skillVersions: { [skill.key]: "version" } },
+        contextSnapshot: { outpostEnvironment: { id: "environment" }, skillSelectionSnapshot: true, skillVersions: { [skill.key]: "version" } },
         runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "model" },
           runtimeContext: { skills: [{ key: skill.key, versionId: "version", runtimeName: `${fixture.slug}--0123456789` }] } } } });
       if (route.startsWith("/api/heartbeat-runs/run/events?")) {
@@ -87,8 +87,8 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
             retryable: false, authorizationBoundary: "active_task", operationReceiptId: "operation_load" })];
           return semantic.map((value, i) => change("event", { runId: "run", companyId: "company", agentId: "agent",
             seq: i + 1, sourceSeq: i + 1, sourceEventId: `event-${i}`, sourceInstanceId: "instance", protocolSchemaVersion: 1,
-            eventType: `semantic_tool.${value.phase}`, payload: { prpEvent: { ...correlation,
-              schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceSeq: i + 1,
+            eventType: `semantic_tool.${value.phase}`, payload: { orpEvent: { ...correlation,
+              schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceSeq: i + 1,
               sourceEventId: `event-${i}`, sourceInstanceId: "instance", eventType: `semantic_tool.${value.phase}`,
               payload: { semantic_tool: value } } } }));
         }
@@ -112,7 +112,7 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
           }
           return change("event", { runId: "run", companyId: "company", agentId: "agent", seq: i + 1, eventType: p.eventType,
             sourceEventId: `event-${i}`, sourceInstanceId: "instance", sourceSeq: i + 1, protocolSchemaVersion: 1,
-            payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn",
+            payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn",
               eventType: p.eventType, sourceEventId: `event-${i}`, sourceInstanceId: "instance", sourceSeq: i + 1, payload: p.payload } } });
         });
       }
@@ -280,7 +280,7 @@ describe("saved skill journey orchestration", () => {
   it("rejects another skill's complete native output even when the receipt document would be correct", async () => {
     const f = await setup((kind, row) => {
       if (kind === "event" && row.eventType === "tool.execution.completed") {
-        const payload = row.payload.prpEvent.payload;
+        const payload = row.payload.orpEvent.payload;
         payload.output = payload.output.replace(/<skill_content name="[^"]+">/, '<skill_content name="foreign">');
         payload.outputBytes = Buffer.byteLength(payload.output);
       }

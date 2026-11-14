@@ -128,7 +128,7 @@ describe("enrichPromotedWakeContext", () => {
       reason: "task_retry",
       source: "on_demand",
       triggerDetail: "manual",
-      payload: { issueId: "issue-1", taskRetry: { schema: "paperclip.task-retry.v1" } },
+      payload: { issueId: "issue-1", taskRetry: { schema: "outpost.task-retry.v1" } },
     });
     expect(payloadOnly.contextSnapshot).toMatchObject({
       issueId: "issue-1", taskId: "issue-1", taskKey: "issue-1", wakeReason: "task_retry",

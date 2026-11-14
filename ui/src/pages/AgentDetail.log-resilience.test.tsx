@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { HeartbeatRun } from "@paperclipai/shared";
+import type { HeartbeatRun } from "@outpost/shared";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
 import { ConnectivityProvider, createConnectivityStore, type ConnectivityStore } from "../lib/connectivity";

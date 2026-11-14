@@ -1,5 +1,5 @@
-import { toolApplications, toolCatalogEntries, toolConnections, toolProfileBindings, toolProfileEntries, toolProfiles } from "@paperclipai/db";
-import type { ToolProfile, ToolProfileBinding, ToolProfileEntry, ToolProfileNewToolReviewItem, ToolProfileSummary, ToolProfileWithDetails } from "@paperclipai/shared";
+import { toolApplications, toolCatalogEntries, toolConnections, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
+import type { ToolProfile, ToolProfileBinding, ToolProfileEntry, ToolProfileNewToolReviewItem, ToolProfileSummary, ToolProfileWithDetails } from "@outpost/shared";
 
 export function toProfile(row: typeof toolProfiles.$inferSelect): ToolProfile {
   return {

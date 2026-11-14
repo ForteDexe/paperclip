@@ -2,7 +2,7 @@
 
 ## Scope and provenance
 
-The live qualification agent remains Paperclip Runner → Codex →
+The live qualification agent remains Outpost Runner → Codex →
 `gpt-5.6-luna`. The earlier real Slack, GitHub, Discord, and Telegram text
 samples completed in 13.472–16.467 seconds from send to provider acknowledgement.
 Those are historical samples, not measurements of the changes in this document.
@@ -143,13 +143,13 @@ The guarded local `upstream-live-upgrade.ts` helper and its logs remain alongsid
 that directory. The portable-backup precision discrepancy was not patched as
 part of this chat integration.
 
-`pnpm --filter @paperclipai/server build` passed, including the full native runner
+`pnpm --filter @outpost/server build` passed, including the full native runner
 build, protocol/contract checks and binary staging. The package and vendored
 runner binaries share SHA256
 `f7c1273cce29e521e820ad947d657e500da28477f563053148e764cdfb3730cd`.
 The restarted server reports `2026.831.0+413.git.26b6df7c1` at
 `http://127.0.0.1:3103`; its log is `server-native-checkpoint-16.log`.
-Maya remains `paperclip_runner`, provider `codex`, model `gpt-5.6-luna`.
+Maya remains `outpost_runner`, provider `codex`, model `gpt-5.6-luna`.
 
 The staged Rust-backed Codex transport suite passed **71/71** in
 `upstream-runner-staged-driver-03.log`, including cold restoration with a changed
@@ -218,7 +218,7 @@ after the last submitted marker, including the first run's remaining work.
 The Discord failure is a real checkpoint-selection defect, not a transport or
 quota success: a pre-bootstrap retry reused normalized session
 `5e8168d9-e0ce-4c4b-8b4c-2da16e862880` without the saved checkpoint, then attempted
-fresh startup against an older suspended run's durable directory. The strict PRP
+fresh startup against an older suspended run's durable directory. The strict ORP
 identity guard rejected it. The directory and prior checkpoint were retained;
 no live DB state or provider history was deleted to force a green result.
 This finding requires a code fix and live retest before Discord sign-off.
@@ -310,7 +310,7 @@ prevent the conflicting claim.
 
 Commit `062cfcacc` is pushed and deployed on the isolated live instance. Health
 reports that exact revision, startup recovery ready, and the agent remains
-`paperclip_runner` / `codex` / `gpt-5.6-luna`. No credentials were regenerated.
+`outpost_runner` / `codex` / `gpt-5.6-luna`. No credentials were regenerated.
 The new follow-up in the original Discord conversation succeeded as run
 `b9fc4be1-3a22-44c8-9198-4527fc8b90c4`: native execution took **12.85 s** and
 the final publication followed **0.75 s** later. Its new normalized session is
@@ -434,7 +434,7 @@ reports `2026.831.0+419.git.205c0ca99`. Deterministic browser coverage also pass
 **9/9** in 2.7 minutes (`chat-ui-root-hardening-01.log`). This is supporting
 fixture coverage, separate from the signed-in provider journeys below.
 
-Maya's runtime settings visibly select **Paperclip Runner → Codex →
+Maya's runtime settings visibly select **Outpost Runner → Codex →
 `gpt-5.6-luna`**, with automatic isolated permissions and turn-by-turn lifecycle.
 The actual native run/model records agree. No Terra substitution was made.
 
@@ -468,7 +468,7 @@ The actual native run/model records agree. No Terra substitution was made.
   problem. macOS then slept from 04:49:57 to 05:05:00 (903 seconds). Timeout
   cleanup durably interrupted the provider turn, but recovery at 05:06 retained
   its stale active-turn checkpoint and waited without progress. Rust provider
-  state and authenticated PRP event 89 both record the exact interruption;
+  state and authenticated ORP event 89 both record the exact interruption;
   there was no second active task execution. This wall time is not a valid Luna
   latency sample. The driver recovery and attempt-local timing defects are
   being corrected, not counted as a successful recovery.
@@ -541,7 +541,7 @@ of full production readiness should omit this remaining race.
 ### Live follow-up qualification on `9c2c65ed3` (September 8, 05:33 UTC)
 
 The server reported this exact clean revision after startup at 05:29:53 UTC.
-Maya's runtime settings still showed `paperclip_runner`, Codex, and
+Maya's runtime settings still showed `outpost_runner`, Codex, and
 `gpt-5.6-luna`; no fallback to Terra was made. The frozen native matrix passed
 **1,371/1,371**, 36 files, 161.29 seconds
 (`native-followup-root-tests-02.log`). Full chat integration passed
@@ -1035,7 +1035,7 @@ human reviews remain pending with no resolution timestamp. An independent check
 of actual Codex `turn_context.model` events confirms `gpt-5.6-luna` in all four
 source/continuation runs, not merely in the agent's configured model.
 
-The Telegram answer run page shows **PAPERCLIP RUNNER openai / gpt-5.6-luna**,
+The Telegram answer run page shows **OUTPOST RUNNER openai / gpt-5.6-luna**,
 the canonical **Amber** result and 51 events. Its Runner Inspector works with
 raw provider capture **off**, exposing canonical events and persisted
 presentation decisions privately in Paperclip. External chats received the
@@ -1401,7 +1401,7 @@ the current answer were checked beyond the deterministic test results.
 ### Live Slack cancellation and Discord DM isolation — 2026-09-08
 
 These tests used the deployed `78a7e668e` server and the same Maya E2E
-`paperclip_runner` agent configured with `gpt-5.6-luna`; both new Discord
+`outpost_runner` agent configured with `gpt-5.6-luna`; both new Discord
 runs and both Slack runs use `codex_app_server`. No model substitution,
 provider API shortcut, or direct database mutation was used.
 
@@ -1569,7 +1569,7 @@ webhook proxy remain running.
 
 ### Busy-thread follow-up qualification — 2026-09-08
 
-The live Maya configuration was re-read: `paperclip_runner`, model
+The live Maya configuration was re-read: `outpost_runner`, model
 `gpt-5.6-luna`; actual new runs use `codex_app_server`. No legacy adapter or
 Terra substitution was used. On the running `27c6dc4f8` code, a Slack picnic
 request was sent at 10:11:51.174Z and a replacement request at 10:11:58.362Z
@@ -1719,7 +1719,7 @@ at 10:31:20.672Z, **15.890s** end to end. Its working message
 `1788863466.965279` was updated in place, once; final publication
 `35675ea4-14cc-454f-9ba6-9490eb255462` took **346ms** from creation to
 published settlement. All these real runs use `codex_app_server`; Maya's
-persisted adapter/model remain `paperclip_runner` / `gpt-5.6-luna`.
+persisted adapter/model remain `outpost_runner` / `gpt-5.6-luna`.
 
 The fresh deterministic browser suite passed **9/9** on isolated port 3199.
 No external provider account was accessed by that Playwright suite.
@@ -1729,7 +1729,7 @@ The Discord plant-swap answer visibly rendered ordinary prose as “token
 [REDACTED]”; this is being checked against the credential redactor rather
 than accepting corrupted user-facing text. Also, review of the new wakeup
 bridge confirmed the normal committed-final path emits its signal, but
-native PRP progress events enter through a different durable port and still
+native ORP progress events enter through a different durable port and still
 depend on polling. A short observed publication interval is not proof that
 those progress updates were event-triggered. Neither finding is hidden by
 the passing consecutive-turn test.
@@ -1770,7 +1770,7 @@ Independent inspection confirms this binary-upgrade retest resumed the same
 rollout context, and closed with the exact new run identity suspended and its
 drain/suspend commands completed. No fresh continuity hold was introduced.
 
-Commit `04315aea1` closes the native progress signal gap. The PRP port emits
+Commit `04315aea1` closes the native progress signal gap. The ORP port emits
 only fixed event types and company/issue/run/agent/sequence identifiers after
 its event row commits. Duplicate replays and unsupported event types do not
 signal. Recovered final presentation emits only after its authorized comment
@@ -1822,7 +1822,7 @@ a separate cadence-limited progress phase.
 Actual rollout contexts for all three clean-build runs confirm
 `gpt-5.6-luna` and `codex_app_server`. All four active provider endpoints
 (Slack, Discord, Telegram, GitHub) remain assigned to Maya's
-`paperclip_runner` / Luna configuration. Terra was not substituted.
+`outpost_runner` / Luna configuration. Terra was not substituted.
 GitHub's App delivery settings still show the six-digit Confirm access gate;
 the pending private-image delivery is not declared qualified. Teams Developer
 Portal still shows its Microsoft sign-in gate. These provider gates and the

@@ -57,7 +57,7 @@ export const runtimeTaskCoordinationCases = [runtimeDefinition("task-coordinatio
   const p = await project(ctx); const website = await task(ctx, "Website", p.id);
   const design = await task(ctx, "Design", p.id, { blockedByIssueIds: [website.id] });
   return { project: p, task: website, design };
-}, gradeDependencyCycle, { oracleVersion: "paperclip.chat-catalog.runtime.v3", observe: observeDependencies, async verifyResult(ctx, state) {
+}, gradeDependencyCycle, { oracleVersion: "outpost.chat-catalog.runtime.v3", observe: observeDependencies, async verifyResult(ctx, state) {
   const source = ctx.input.page.url();
   for (const row of [state.task as Entity, state.design as Entity]) {
     await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${row.identifier ?? row.id}`, { waitUntil: "domcontentloaded" });

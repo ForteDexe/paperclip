@@ -29,8 +29,8 @@ export async function createPerRunSecret(clients: KubeClients, input: CreatePerR
         name: input.secretName,
         namespace: input.namespace,
         labels: {
-          "paperclip.io/run-id": input.runId,
-          "paperclip.io/managed-by": "paperclip-k8s-plugin",
+          "outpost.io/run-id": input.runId,
+          "outpost.io/managed-by": "paperclip-k8s-plugin",
         },
         ownerReferences: [
           {

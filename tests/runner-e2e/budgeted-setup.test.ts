@@ -17,8 +17,8 @@ async function fixture() {
   const directory = await mkdtemp(path.join(tmpdir(), "budgeted-setup-"));
   const file = path.join(directory, "phase.json");
   await createEvalAttemptPhase(file, identity);
-  return { directory, file, env: { PAPERCLIP_E2E_GATEWAY_BASE_URL: "http://127.0.0.1:12345",
-    PAPERCLIP_E2E_GATEWAY_PHASE_PATH: file, PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID: identity.attemptId } };
+  return { directory, file, env: { OUTPOST_E2E_GATEWAY_BASE_URL: "http://127.0.0.1:12345",
+    OUTPOST_E2E_GATEWAY_PHASE_PATH: file, OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID: identity.attemptId } };
 }
 
 it("keeps asynchronous hello probes in setup until the same agent is ready", async () => {

@@ -34,7 +34,7 @@ describe("scoped network egress", () => {
       namespace: "paperclip-acme",
       body: expect.objectContaining({
         metadata: expect.objectContaining({ name: "pc-workload-egress" }),
-        spec: expect.objectContaining({ podSelector: { matchLabels: { "paperclip.io/run-id": "run-123" } } }),
+        spec: expect.objectContaining({ podSelector: { matchLabels: { "outpost.io/run-id": "run-123" } } }),
       }),
     }));
   });

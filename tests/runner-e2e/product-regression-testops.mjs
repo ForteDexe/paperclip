@@ -27,7 +27,7 @@ export const productRegressionCases = [
 ].map(([id, suite, name, profile = 'runner-codex']) => Object.freeze({
   id, suite, name, profile,
   model: suite === 'task-workspaces' ? 'openrouter/deepseek/deepseek-v4-flash-0731' : 'gpt-6.1-sol',
-  fullName: `paperclip.Product E2E.${suite}.${name}`,
+  fullName: `outpost.Product E2E.${suite}.${name}`,
   executionId: `${suite}.${profile}.local.${name}`,
   plan: 'product-regression', environment: 'local',
 }));
@@ -60,7 +60,7 @@ export const productReportingMatcherKinds = ['message_exact', 'message_contains'
   'file_contains', 'artifact_exists', 'artifact_exact', 'json_path', 'json_schema'];
 const failureClasses = ['candidate_failure', 'provider_variance', 'transient_infrastructure', 'permanent_infrastructure',
   'secret_leak', 'cleanup_failure', 'setup_blocked'];
-export const endpoint = 'https://paperclip.testops.cloud';
+export const endpoint = 'https://outpost.testops.cloud';
 export const workflowUrl = 'https://github.com/paperclipai/paperclip/actions/workflows/runner-full-stack-e2e.yml';
 // Official GitHub/Allure job metadata uses these exact aliases for workflow
 // 343807492, independently read from GitHub's workflow API before registration.
@@ -95,7 +95,7 @@ export function selectProductRegression(plan, manual = 'all', fromTestOps = fals
 }
 
 export function validateSelection(value, env, plans = testOpsPlans()) {
-  if (value?.schema !== 'paperclip.product-regression-testops-selection/v1'
+  if (value?.schema !== 'outpost.product-regression-testops-selection/v1'
       || value.runId !== env.GITHUB_RUN_ID || value.attempt !== env.GITHUB_RUN_ATTEMPT
       || value.workflowSha !== env.GITHUB_SHA || !/^[a-f0-9]{40}$/.test(value.workflowSha)
       || value.targetSha !== env.SOURCE_SHA || !/^[a-f0-9]{40}$/.test(value.targetSha)
@@ -111,7 +111,7 @@ export function projectProductResults(campaign, selection, sourceSha) {
   const planKey = selection.cases?.[0]?.plan;
   if (!Object.hasOwn(testOpsPlanDetails, planKey) || selection.cases.some(row => row.plan !== planKey
       || !['local', 'daytona'].includes(row.environment))) fail('selection_binding');
-  if (campaign && (campaign.schema !== 'paperclip.runner-e2e.campaign/v2'
+  if (campaign && (campaign.schema !== 'outpost.runner-e2e.campaign/v2'
       || campaign.campaignId !== `gha-${selection.runId}-${selection.attempt}` || campaign.source?.sha !== sourceSha
       || !Array.isArray(campaign.results) || !Array.isArray(campaign.expected)
       || JSON.stringify([...campaign.expected].sort()) !== JSON.stringify(selection.cases.map(row => row.executionId).sort()))) fail('report_binding');
@@ -155,7 +155,7 @@ export function projectProductResults(campaign, selection, sourceSha) {
       const infrastructure = !result || ['permanent_infrastructure', 'transient_infrastructure', 'setup_blocked'].includes(result.failureClass);
       const status = passed ? 'passed' : infrastructure ? 'broken' : 'failed';
       const provenance = {
-        schema: 'paperclip.product-regression-testops-result/v1', caseId: selected.id,
+        schema: 'outpost.product-regression-testops-result/v1', caseId: selected.id,
         executionId: selected.executionId, workflowRunId: selection.runId, workflowAttempt: selection.attempt,
         workflowSha: selection.workflowSha, sourceSha, status, originalStatus: result?.status ?? null,
         attempt: result?.attempt ?? null, cleanup: result?.cleanup ?? 'not_started',

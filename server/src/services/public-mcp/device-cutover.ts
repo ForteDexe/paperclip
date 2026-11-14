@@ -1,6 +1,6 @@
 import { DELIVERY_QUEUES,notifyDeliveryWork } from "../delivery-work-notifications.js";
 import { eq,sql } from "drizzle-orm";
-import { mcpOauthClientMirrorState as state,type Db } from "@paperclipai/db";
+import { mcpOauthClientMirrorState as state,type Db } from "@outpost/db";
 import { getCloudRuntimeIdentity } from "../cloud-runtime-identity.js";
 import { mcpClientMirrorGeneration,mcpClientMirrorReceiptSchema,type McpClientMirrorReceipt } from "./client-mirror-contract.js";
 

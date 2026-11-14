@@ -8,7 +8,7 @@ import { redactRunnerApiEvent } from "../../../server/src/services/native-runtim
 export function savedCall(input: Record<string, unknown>, status: number, itemId = "7", runId = "run-1", data: unknown = { id: "response-body" }, tool = "call_api", operationId = input.operationId): Record<string, unknown>[] {
   const row = (eventType: string, item: Record<string, unknown>) => {
     const event = redactRunnerApiEvent({ eventType, sourceKind: "runner", payload: { item } });
-    return { runId, eventType, payload: { prpEvent: { runId, sourceKind: "runner", payload: event.payload } } };
+    return { runId, eventType, payload: { orpEvent: { runId, sourceKind: "runner", payload: event.payload } } };
   };
   return [
     row("item.started", { id: itemId, name: tool, type: "tool_use", input }),

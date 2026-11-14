@@ -1,6 +1,6 @@
 import { and, eq, inArray, like, or, sql } from "drizzle-orm";
-import { executionWorkspaces, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, workspaceOperations, type Db } from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { executionWorkspaces, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, workspaceOperations, type Db } from "@outpost/db";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import type { OwnerProof } from "../owner-proof.js";
 import { abandonUnverifiedRemoteWorkspaceEpoch } from "../remote-workspace-epoch-abandonment.js";
 import { releaseUnchangedRemoteWorkspaceWriterById } from "../remote-workspaces.js";

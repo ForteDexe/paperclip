@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { deflateSync } from "node:zlib";
 import net from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import {
   captureRemoteWorkspaceArchive,
   cleanupRemoteWorkspaceArchive,
@@ -368,7 +368,7 @@ fs.unlinkSync(${JSON.stringify(postPublish)});throw Error('published_interrupted
     const captured = await captureRemoteWorkspaceArchive({ target: remote, remoteCwd: workspace, operationId: randomUUID() });
     try {
       const root = path.join(scratch, "retired"), runtime = path.join(root, ".paperclip-runtime");
-      const session = path.join(runtime, "paperclip-runner", "sessions", "parent", "runner");
+      const session = path.join(runtime, "outpost-runner", "sessions", "parent", "runner");
       await fs.mkdir(session, { recursive: true });
       await fs.writeFile(path.join(session, "runner-state.json"), "{\"lifecycle\":\"suspended\"}");
       await fs.writeFile(path.join(runtime, "workspace-ready.json"), JSON.stringify({ preparationIdentity: "f".repeat(64) }));
@@ -413,7 +413,7 @@ fs.unlinkSync(${JSON.stringify(postPublish)});throw Error('published_interrupted
       expect(await fs.lstat(path.join(root, "stale.md")).catch(() => null)).toBeNull();
       expect(await fs.lstat(path.join(root, "locked")).catch(() => null)).toBeNull();
       expect(await fs.readFile(path.join(session, "runner-state.json"), "utf8")).toBe("{\"lifecycle\":\"suspended\"}");
-      expect(await fs.readdir(runtime)).toEqual(expect.arrayContaining(["paperclip-runner", "workspace-restored.json"]));
+      expect(await fs.readdir(runtime)).toEqual(expect.arrayContaining(["outpost-runner", "workspace-restored.json"]));
       expect(await fs.lstat(path.join(runtime, "workspace-ready.json")).catch(() => null)).toBeNull();
       expect(await fs.lstat(path.join(runtime, "workspace-snapshots")).catch(() => null)).toBeNull();
       await fs.chmod(root, 0o750);
@@ -449,7 +449,7 @@ fs.unlinkSync(${JSON.stringify(flag)});throw Error('cleanup_interrupted');}retur
       await expect(fs.access(path.join(runtime, "workspace-ready.json"))).rejects.toMatchObject({ code: "ENOENT" });
       const interrupted = JSON.parse(await fs.readFile(path.join(runtime, "workspace-restored.json"), "utf8"));
       expect(interrupted.identity).toBeUndefined();
-      expect(interrupted).toMatchObject({ schema: "paperclip.workspace-restore-pending.v1", root,
+      expect(interrupted).toMatchObject({ schema: "outpost.workspace-restore-pending.v1", root,
         pendingIdentity: input.restorationIdentity, manifestDigest: captured.manifestDigest, inPlaceMode: 0o700 });
       if (identityMode === "same") {
         await fs.writeFile(path.join(runtime, "workspace-restored.json"), JSON.stringify({ ...interrupted, root: root + "-foreign" }));
@@ -464,7 +464,7 @@ fs.unlinkSync(${JSON.stringify(flag)});throw Error('cleanup_interrupted');}retur
       }
       await restoreRemoteWorkspaceDirectory(next);
       expect(JSON.parse(await fs.readFile(path.join(runtime, "workspace-restored.json"), "utf8")))
-        .toEqual({ schema: "paperclip.workspace-restored.v1", root, restorationEpoch: next.restorationEpoch, identity: next.restorationIdentity, manifestDigest: captured.manifestDigest });
+        .toEqual({ schema: "outpost.workspace-restored.v1", root, restorationEpoch: next.restorationEpoch, identity: next.restorationIdentity, manifestDigest: captured.manifestDigest });
       expect((await fs.stat(root)).mode & 0o777).toBe(0o700);
       expect(await fs.readFile(path.join(root, "saved.txt"), "utf8")).toBe("verified saved work");
       await fs.writeFile(path.join(root, "saved.txt"), "new governed work"); await restoreRemoteWorkspaceDirectory(next);
@@ -942,8 +942,8 @@ require('node:module').syncBuiltinESMExports();`);
 
     async function retainedRoot(root: string) {
       const runtime = path.join(root, ".paperclip-runtime");
-      await fs.mkdir(path.join(runtime, "paperclip-runner"), { recursive: true });
-      await fs.writeFile(path.join(runtime, "paperclip-runner", "runner-state.json"), "{\"lifecycle\":\"suspended\"}");
+      await fs.mkdir(path.join(runtime, "outpost-runner"), { recursive: true });
+      await fs.writeFile(path.join(runtime, "outpost-runner", "runner-state.json"), "{\"lifecycle\":\"suspended\"}");
       await fs.writeFile(path.join(runtime, "workspace-ready.json"), JSON.stringify({ preparationIdentity: "f".repeat(64) }));
       await fs.mkdir(path.join(root, "nested"));
       for (let index = 0; index < 4; index++) await fs.writeFile(path.join(root, "nested", `old-${index}.bin`), randomBytes(MiB));
@@ -959,7 +959,7 @@ require('node:module').syncBuiltinESMExports();`);
           manifestDigest: captured.manifestDigest, restorationIdentity: "5".repeat(64), restorationEpoch: 1, replaceRetiredRoot: true });
         await expectRestored(root, files);
         expect(await fs.lstat(path.join(root, "nested", "old-0.bin")).catch(() => null)).toBeNull();
-        expect(await fs.readFile(path.join(root, ".paperclip-runtime", "paperclip-runner", "runner-state.json"), "utf8"))
+        expect(await fs.readFile(path.join(root, ".paperclip-runtime", "outpost-runner", "runner-state.json"), "utf8"))
           .toBe("{\"lifecycle\":\"suspended\"}");
       } finally { await captured.cleanup(); }
     });
@@ -1001,7 +1001,7 @@ return result};`);
         expect((await fs.lstat(path.join(root, ".paperclip-runtime", "workspace-ready.json"))).isFile()).toBe(true);
         await restoreRemoteWorkspaceDirectory(input);
         await expectRestored(root, files);
-        expect(await fs.readFile(path.join(root, ".paperclip-runtime", "paperclip-runner", "runner-state.json"), "utf8"))
+        expect(await fs.readFile(path.join(root, ".paperclip-runtime", "outpost-runner", "runner-state.json"), "utf8"))
           .toBe("{\"lifecycle\":\"suspended\"}");
         expect((await fs.readdir(disk)).filter(name => name.includes(".restoring-") || name.startsWith("workspace-root.retired-"))).toEqual([]);
       } finally { await captured.cleanup(); }
@@ -1952,11 +1952,11 @@ return result};`);
     const globalConfig = path.join(scratch, "synthetic-gitconfig");
     const sentinel = path.join(scratch, "filter-received-credential");
     await git(origin, "config", "--file", globalConfig, "filter.synthetic-probe.smudge",
-      `sh -c 'printf %s "$PAPERCLIP_GIT_TOKEN" > "${sentinel}"; cat'`);
+      `sh -c 'printf %s "$OUTPOST_GIT_TOKEN" > "${sentinel}"; cat'`);
     const calibration = path.join(scratch, "filter-calibration");
     await git(scratch, "clone", "--no-hardlinks", "--", origin, calibration);
     await exec("git", ["-C", calibration, "checkout", "--detach", "HEAD~1"], {
-      env: { PATH: process.env.PATH, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: "1", PAPERCLIP_GIT_TOKEN: "SYNTHETIC_ONLY" },
+      env: { PATH: process.env.PATH, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: "1", OUTPOST_GIT_TOKEN: "SYNTHETIC_ONLY" },
     });
     expect(await fs.readFile(sentinel, "utf8")).toBe("SYNTHETIC_ONLY");
     await fs.rm(sentinel);
@@ -1966,7 +1966,7 @@ return result};`);
     await prepareRemoteWorkspaceDirectory({ target: remote, remoteCwd: path.join(workspace, "clone"),
       preparationIdentity: createHash("sha256").update("synthetic-filter-preparation").digest("hex"),
       source: { kind: "git", repoUrl: origin, ref: "HEAD~1" },
-      resolveGitAuth: async () => ({ configArgs: [], env: { PAPERCLIP_GIT_TOKEN: "SYNTHETIC_ONLY" },
+      resolveGitAuth: async () => ({ configArgs: [], env: { OUTPOST_GIT_TOKEN: "SYNTHETIC_ONLY" },
         source: "company_secret", secretName: "SYNTHETIC_FIXTURE" }) });
     expect(await fs.readFile(path.join(workspace, "clone", "source.txt"), "utf8")).toBe("initial synthetic source\n");
     expect(await fs.lstat(sentinel).catch(() => null)).toBeNull();

@@ -56,7 +56,7 @@ export const wizardIdentityBoundaryCases: readonly IdentityBoundaryCase[] = ["on
   scenarioId, journeyKind: "browser-boundary", boundaryTarget: scenarioId === "onboarding.new-instance" ? "empty-installed-target" : "authenticated-harness",
   ...(scenarioId === "onboarding.new-instance" ? {} : { authentication: "human-session" as const }),
   requiredCredentials: [scenarioId === "onboarding.choose-first-runtime" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"],
-  sourceFiles: sources, oracleVersion: "paperclip.chat-catalog.identity.v1", expectedRunCount: 0, expectedHumanMessageCount: 0, turnTimeoutMs: 180_000, attemptTimeoutMs: 600_000,
+  sourceFiles: sources, oracleVersion: "outpost.chat-catalog.identity.v1", expectedRunCount: 0, expectedHumanMessageCount: 0, turnTimeoutMs: 180_000, attemptTimeoutMs: 600_000,
   grade: value => gradeWizardBoundary(value, scenarioId),
   async run(ctx) {
     const credentialName = scenarioId === "onboarding.choose-first-runtime" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
@@ -67,7 +67,7 @@ export const wizardIdentityBoundaryCases: readonly IdentityBoundaryCase[] = ["on
     }
     ctx.privateSecrets.push(credential); const browser = ctx.page.context().browser(); if (!browser) throw new Error("Public wizard requires a real browser");
     if (scenarioId === "onboarding.new-instance") {
-      const cli = process.env.PAPERCLIP_CHAT_BOUNDARY_CLI; const digest = process.env.PAPERCLIP_CHAT_BOUNDARY_CLI_SHA256;
+      const cli = process.env.OUTPOST_CHAT_BOUNDARY_CLI; const digest = process.env.OUTPOST_CHAT_BOUNDARY_CLI_SHA256;
       if (!cli || !digest) throw new Error("Setup blocker: empty target requires the actual installed CLI and declared immutable identity pins");
       await mkdir(ctx.privateDir, { recursive: true, mode: 0o700 }); let wizard: WizardReceipt | undefined;
       const installation = await runEmptyInstallationBoundary({ browser, installedCli: cli, expectedCliSha256: digest, expectedCliVersion: installedReleaseLaunch(cli).version,

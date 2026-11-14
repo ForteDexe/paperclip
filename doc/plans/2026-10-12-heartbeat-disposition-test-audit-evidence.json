@@ -1393,13 +1393,13 @@
         4388,
         4444
       ],
-      "name": "suspends native Paperclip Runner ownership on graceful restart without cancelling or creating a retry run",
+      "name": "suspends native Outpost Runner ownership on graceful restart without cancelling or creating a retry run",
       "kind": "ordinary",
       "sourceSHA256": "25aea5766be0f0cae6be0240010610349c96f7f9472b6ad3bcb1d2d50232fa93",
       "runtimeCaseCount": 1,
       "runtimeCases": [
         {
-          "title": "suspends native Paperclip Runner ownership on graceful restart without cancelling or creating a retry run",
+          "title": "suspends native Outpost Runner ownership on graceful restart without cancelling or creating a retry run",
           "status": "passed"
         }
       ],

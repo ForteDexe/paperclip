@@ -7,10 +7,10 @@ import express from "express";
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { agents, agentTaskSessions, agentWakeupRequests, authUsers, companies, companyMemberships, companySecretVersions, createDb, heartbeatRuns,
-  issues, issueWorkProducts, nativeRunResults } from "@paperclipai/db";
+  issues, issueWorkProducts, nativeRunResults } from "@outpost/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { NativeExecutionInput, NativeSession, NativeSessionBackend, PrpEvent } from "../../vendor/paperclip-runner/index.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/paperclip-runner/testing.js";
+import type { NativeExecutionInput, NativeSession, NativeSessionBackend, PrpEvent } from "../../vendor/outpost-runner/index.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
 import { nativeRestartFixture } from "../../__tests__/helpers/native-restart-fixture.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { getRecoveryPostgresSupport } from "../../__tests__/helpers/recovery-postgres-fixture.js";
@@ -23,7 +23,7 @@ import { errorHandler } from "../../middleware/index.js";
 import { readIdleSleepSafety } from "../idle-sleep-safety.js";
 import { closeIdleWarmNativeSessionsForRestart, readNativeSessionIdleWork } from "./native-session-executor.js";
 
-const dedicatedDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_RECOVERY_TEST_DATABASE_URL");
+const dedicatedDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_RECOVERY_TEST_DATABASE_URL");
 const recoveryOptions = { dedicatedDatabaseUrl };
 const recoverySupport = await getRecoveryPostgresSupport(recoveryOptions);
 const describeRecoveryPostgres = recoverySupport.supported ? describe : describe.skip;
@@ -38,7 +38,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
   it("retires a completed warm owner and resumes saved work through an ordinary authorized comment", async () => {
     const { companyId, agentId, runtimeRoot, temporary } = fixture.current;
     vi.stubEnv("DATABASE_URL", temporary.connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "89".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "89".repeat(32));
     const db = createDb(temporary.connectionString, { maxConnections: 2 });
     expect(db.$client.options.max).toBe(2);
     if (dedicatedDatabaseUrl) expect(db.$client.options.database).toBe(new URL(dedicatedDatabaseUrl).pathname.slice(1));
@@ -83,12 +83,12 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
           async *events() {
             await started;
             const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, identity.runId));
-            yield { schema: "paperclip.prp.event.v1", sourceEventId: `${identity.runId}:usage`, sourceSeq: 1,
+            yield { schema: "outpost.orp.event.v1", sourceEventId: `${identity.runId}:usage`, sourceSeq: 1,
               sourceInstanceId: run.runnerInstanceId!, sourceKind: "runner", runId: identity.runId,
               normalizedSessionId: identity.sessionId, turnId, eventType: "item.completed", schemaVersion: 1,
               priority: 0, emittedAt: new Date().toISOString(), payload: { kind: "usage", usage: {
                 runDelta: { inputTokens: 1, outputTokens: 1 }, runDeltaComplete: true } } } satisfies PrpEvent;
-            yield { schema: "paperclip.prp.event.v1", sourceEventId: `${identity.runId}:terminal`, sourceSeq: 2,
+            yield { schema: "outpost.orp.event.v1", sourceEventId: `${identity.runId}:terminal`, sourceSeq: 2,
               sourceInstanceId: run.runnerInstanceId!, sourceKind: "runner", runId: identity.runId,
               normalizedSessionId: identity.sessionId, turnId, eventType: "turn.completed", schemaVersion: 1,
               priority: 0, emittedAt: new Date().toISOString(), payload: {} } satisfies PrpEvent;

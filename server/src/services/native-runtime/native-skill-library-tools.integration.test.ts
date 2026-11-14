@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, companySkills, companySkillVersions, companySkillSources, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, companies, companySkills, companySkillVersions, companySkillSources, heartbeatRuns, issues } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
-import { createDb } from "@paperclipai/db";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { createDb } from "@outpost/db";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { skillPackagePaths, skillPackageStore } from "../skill-package-store.js";
 import { withSkillVersionCacheLock } from "../skill-version-cache.js";
 import { getStorageService } from "../../storage/index.js";
@@ -19,9 +19,9 @@ describe("native company skill discovery", () => {
   let home: string;
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), "native-skill-library-"));
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "local_disk");
-    vi.stubEnv("PAPERCLIP_STORAGE_LOCAL_DIR", join(home, "objects"));
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "local_disk");
+    vi.stubEnv("OUTPOST_STORAGE_LOCAL_DIR", join(home, "objects"));
     temporary = await startRecoveryPostgres("native-skill-library-");
     db = createDb(temporary.connectionString);
   }, 60_000);
@@ -33,7 +33,7 @@ describe("native company skill discovery", () => {
   async function fixture() {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Skill library", issuePrefix: `S${companyId.slice(0, 8)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reviewer", adapterType: "paperclip_runner", status: "active", adapterConfig: { provider: "codex" } });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Reviewer", adapterType: "outpost_runner", status: "active", adapterConfig: { provider: "codex" } });
     await db.insert(issues).values({ id: issueId, companyId, title: "Review", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native", invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId, skillVersions: {} } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));

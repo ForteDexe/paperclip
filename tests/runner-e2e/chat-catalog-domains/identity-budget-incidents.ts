@@ -93,7 +93,7 @@ export const budgetIncidentIdentityCases: readonly ChatCatalogCase[] = ["budgets
   await ctx.input.api.patch(`/api/issues/${source.id}`, { description: `Morgan's unfinished website task is ${t.identifier}. Its actual recorded hard budget incident is ${incident.id}; the receipt is an imported synthetic accounting fixture, not live model-provider billing. ${manual.name} is separately manually paused. The person must choose any new amount through the board control; do not assume task completion or bypass a hold.` });
   return { worker, manual, task: t, project: p, incident, importedReceiptId: receipt.id, receiptOrigin: "public-imported-synthetic-fixture", beforeWorker: await ctx.input.api.get<PausedAgent>(`/api/agents/${worker.id}`) };
 }, gradeBudgetIncident, {
-  sourceFiles: sources, authentication: "human-session", oracleVersion: `paperclip.chat-catalog.identity.${scenarioId.split(".")[1]}.v3`, setupPolicy: { funding: "preserve-scenario", readiness: "preserve-scenario", invariantCheckIds: ["real-budget-and-manual-holds"] },
+  sourceFiles: sources, authentication: "human-session", oracleVersion: `outpost.chat-catalog.identity.${scenarioId.split(".")[1]}.v3`, setupPolicy: { funding: "preserve-scenario", readiness: "preserve-scenario", invariantCheckIds: ["real-budget-and-manual-holds"] },
   async verifySetup(ctx, state) {
     const c = checks(); const rows = await Promise.all([entity(state, "worker").id, entity(state, "manual").id].map(id => ctx.input.api.get<PausedAgent>(`/api/agents/${id}`)));
     const budget = await ctx.input.api.get<BudgetOverview>(`/api/companies/${ctx.input.fixtures.company.id}/budgets/overview`);

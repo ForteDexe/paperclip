@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { captureDirectorySnapshot, directorySnapshotSha256, serializeDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { agentWakeupRequests, heartbeatRunEvents, companyObservability, issueRecoveryActions, agents, authUsers, companyMemberships, companies, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, executionWorkspaces, executionWorkspaceRepositoryAccess, heartbeatRuns, issues, issueAccessGrants, nativeRunFinalizations, plugins, projects, projectWorkspaces, workspaceOperations, type Db } from "@paperclipai/db";
+import { captureDirectorySnapshot, directorySnapshotSha256, serializeDirectorySnapshot } from "@outpost/adapter-utils/workspace-restore-merge";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { agentWakeupRequests, heartbeatRunEvents, companyObservability, issueRecoveryActions, agents, authUsers, companyMemberships, companies, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, executionWorkspaces, executionWorkspaceRepositoryAccess, heartbeatRuns, issues, issueAccessGrants, nativeRunFinalizations, plugins, projects, projectWorkspaces, workspaceOperations, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -31,7 +31,7 @@ import { readFreshWorkspaceReadiness } from "../fresh-workspace-continuation.js"
 import { createSystemRecovery } from "../system-recovery-state.js";
 import { isolatedRemoteSourcePath } from "../isolated-remote-workspace-source.js";
 import { cleanupExecutionWorkspaceArtifacts } from "../workspace-runtime.js";
-import { buildProjectMentionHref, readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { buildProjectMentionHref, readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { migrateRemoteWorkspace } from "../remote-workspace-migration.js";
 import { trace } from "@opentelemetry/api";
 import { effectiveProjectWorkspacePolicy } from "../project-workspace-provider.js";
@@ -48,21 +48,21 @@ import { withWorkspaceSourceLocks } from "../workspace-source-lock.js";
 import { resolveManagedProjectWorkspaceDir } from "../../home-paths.js";
 
 const execFile = promisify(execFileCallback);
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_WORKSPACE_PREPARATION_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_PREPARATION_TEST_DATABASE_URL");
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
 describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace preparation boundary", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   let home: string;
-  const persistenceKeys = ["PAPERCLIP_EPHEMERAL_SERVER", "DATABASE_URL", "PAPERCLIP_STORAGE_PROVIDER", "PAPERCLIP_SECRETS_MASTER_KEY", "PAPERCLIP_SECRETS_MASTER_KEY_FILE"];
+  const persistenceKeys = ["OUTPOST_EPHEMERAL_SERVER", "DATABASE_URL", "OUTPOST_STORAGE_PROVIDER", "OUTPOST_SECRETS_MASTER_KEY", "OUTPOST_SECRETS_MASTER_KEY_FILE"];
   let persistenceBefore = new Map<string, string | undefined>();
   const configureRemotePersistence = () => Object.assign(process.env, { DATABASE_URL: database.connectionString,
-    PAPERCLIP_STORAGE_PROVIDER: "s3", PAPERCLIP_SECRETS_MASTER_KEY: "remote-workspace-preparation-fixture" });
+    OUTPOST_STORAGE_PROVIDER: "s3", OUTPOST_SECRETS_MASTER_KEY: "remote-workspace-preparation-fixture" });
 
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), "paperclip-workspace-preparation-"));
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     const external = externalDatabaseUrl;
     if (external) await applyPendingMigrations(external);
     database = external ? { connectionString: external, cleanup: async () => {} }
@@ -154,9 +154,9 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     expect(prepared).toBe(true);
   });
   it.each([false, true])("places Cursor Cloud in its provider API without a Computer under managed-only policy (ephemeral: %s)", async ephemeral => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", String(ephemeral));
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", String(ephemeral));
     const { input, source, issue, run } = await fixture();
-    input.agent = { ...input.agent, adapterType: "paperclip_runner", adapterConfig: {
+    input.agent = { ...input.agent, adapterType: "outpost_runner", adapterConfig: {
       provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification",
     } };
     await db.update(agents).set({ adapterType: input.agent.adapterType, adapterConfig: input.agent.adapterConfig }).where(eq(agents.id, input.agent.id));
@@ -205,7 +205,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   });
   it.each(["unconfigured", "operator-disabled"] as const)("auto-enrollment keeps %s native sandboxes on their existing host path", async mode => {
     const { input, source, envOrchestrator } = await fixture();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -213,7 +213,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       configureRemotePersistence();
       input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = false;
     } else {
-      Object.assign(process.env, { DATABASE_URL: database.connectionString, PAPERCLIP_STORAGE_PROVIDER: "local_disk" });
+      Object.assign(process.env, { DATABASE_URL: database.connectionString, OUTPOST_STORAGE_PROVIDER: "local_disk" });
     }
     const resolve = vi.spyOn(input.services, "resolveWorkspaceForRun").mockRejectedValue(new Error("host authority retained"));
     const acquire = vi.spyOn(envOrchestrator, "acquireForRun");
@@ -234,7 +234,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     input.reuse.existingExecutionWorkspace = toExecutionWorkspace(workspace);
     input.reuse.reusableExistingExecutionWorkspace = toExecutionWorkspace(workspace);
     input.reuse.requestedShouldReuseExisting = true;
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -263,8 +263,8 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       driver: "sandbox", status: "active", config: { provider: "daytona" } }).returning();
     const environment = { ...input.environment.localEnvironment, id: savedEnvironment.id,
       driver: "sandbox" as const, config: { provider: "daytona" } };
-    await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, input.agent.id));
-    input.agent.adapterType = "paperclip_runner";
+    await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, input.agent.id));
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = await environmentService(db).getById(environment.id);
     input.environment.selectedEnvironmentId = environment.id;
     expect(input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled).toBe(true);
@@ -306,9 +306,9 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       expect(args.persistedExecutionWorkspace).toMatchObject({ cwd: expect.stringMatching(/^\/workspaces\//) });
       throw new Error("reached remote acquisition");
     });
-    const configured = { DATABASE_URL: database.connectionString, PAPERCLIP_STORAGE_PROVIDER: "s3",
-      PAPERCLIP_SECRETS_MASTER_KEY: "remote-workspace-preparation-fixture",
-      PAPERCLIP_EPHEMERAL_SERVER: "ephemeral" in scenario ? "true" : "false" };
+    const configured = { DATABASE_URL: database.connectionString, OUTPOST_STORAGE_PROVIDER: "s3",
+      OUTPOST_SECRETS_MASTER_KEY: "remote-workspace-preparation-fixture",
+      OUTPOST_EPHEMERAL_SERVER: "ephemeral" in scenario ? "true" : "false" };
     const previous = new Map(Object.keys(configured).map(key => [key, process.env[key]]));
     Object.assign(process.env, configured);
     try {
@@ -372,7 +372,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   it.each(["recovery_action", "user_retry"] as const)("keeps the admitted remote workspace when the same native Retry run restarts (%s)", async receiptKind => {
     const { input, issue, envOrchestrator } = await fixture();
     configureRemotePersistence();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.policy.requestedExecutionWorkspaceMode = "agent_default";
@@ -417,7 +417,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     await db.insert(agentWakeupRequests).values({ id: retryIntentId, companyId: issue.companyId,
       agentId: input.agent.id, reason: "task_retry", source: "on_demand", status: "coalesced",
       requestedByActorType: "user", requestedByActorId: "workspace-owner",
-      runId: input.run.id, payload: { issueId: issue.id, taskRetry: { schema: "paperclip.task-retry.v1",
+      runId: input.run.id, payload: { issueId: issue.id, taskRetry: { schema: "outpost.task-retry.v1",
         generationId: retryIntentId, sourceRunId, actorId: "workspace-owner", strategy: "fresh_isolated_workspace" } } });
     const readiness = { mode: "fresh_isolated_workspace" as const, retryIntentId, sourceRunId, retainedSourceIds: [] };
     if (receiptKind === "recovery_action") await db.insert(issueRecoveryActions).values({ companyId: issue.companyId, sourceIssueId: issue.id,
@@ -463,7 +463,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       nativeExecutionInput: { ...admittedInput,
         binding: { ...admittedInput.binding, executionWorkspaceId: "opaque-controller" },
         provider: { kind: "cursor_cloud", model: "explicit-cloud-model",
-          cursorCloud: { schema: "paperclip.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/fixture" }] } },
+          cursorCloud: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/fixture" }] } },
         session: { ...admittedInput.session, driverKind: "cursor_cloud_api" },
       },
     } })).toBeNull();
@@ -474,8 +474,8 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   async function inheritedRemoteFixture(mode: "isolated_workspace" | "operator_branch") {
     const { input, issue, envOrchestrator } = await fixture();
     configureRemotePersistence();
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "71".repeat(32);
-    input.agent.adapterType = "paperclip_runner";
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "71".repeat(32);
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.policy.requestedExecutionWorkspaceMode = mode;
@@ -484,7 +484,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       projectWorkspaceId: issue.projectWorkspaceId, title: "Still running coordinator", assigneeAgentId: input.agent.id }).returning();
     const [writer] = await db.insert(heartbeatRuns).values({ companyId: issue.companyId, agentId: input.agent.id,
       nativeIssueId: parent.id, runtimeMode: "native", status: "running", startedAt: new Date(), lastOutputAt: new Date() }).returning();
-    const authority = { schema: "paperclip.remote-workspace.v1" as const, epoch: 3,
+    const authority = { schema: "outpost.remote-workspace.v1" as const, epoch: 3,
       snapshotId: randomUUID(), source: { kind: "empty" as const }, location: null, writerRunId: writer.id, dirty: true };
     const [workspace] = await db.insert(executionWorkspaces).values({ companyId: issue.companyId,
       sourceIssueId: parent.id, projectId: issue.projectId, projectWorkspaceId: issue.projectWorkspaceId,
@@ -570,7 +570,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   it("rejects automatic Core services before remote reservation or acquisition", async () => {
     const { input, envOrchestrator } = await fixture();
     configureRemotePersistence();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -588,16 +588,16 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it.each([false, true])("configured local folders retain host authority only on durable servers (ephemeral=%s)", async ephemeral => {
     const { input, envOrchestrator } = await fixture();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
     const acquire = vi.spyOn(envOrchestrator, "acquireForRun");
     configureRemotePersistence();
     const resolve = vi.spyOn(input.services, "resolveWorkspaceForRun").mockRejectedValue(new Error("local folder retained"));
-    process.env.PAPERCLIP_EPHEMERAL_SERVER = String(ephemeral);
+    process.env.OUTPOST_EPHEMERAL_SERVER = String(ephemeral);
     await expect(prepareHeartbeatWorkspace(db, input)).rejects.toThrow(ephemeral
-      ? "Volume-free servers require native Paperclip Runner execution with remote workspace storage." : "local folder retained");
+      ? "Volume-free servers require native Outpost Runner execution with remote workspace storage." : "local folder retained");
     if (ephemeral) expect(resolve).not.toHaveBeenCalled();
     else expect(resolve).toHaveBeenCalledOnce();
     expect(await db.select().from(executionWorkspaces)).toHaveLength(0);
@@ -613,8 +613,8 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       input.task.issueRef = { ...issue, projectId: null, projectWorkspaceId: null };
       input.task.context = { issueId: issue.id };
       input.config.mergedConfig = { cwd: source };
-      await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, input.agent.id));
-      input.agent.adapterType = "paperclip_runner";
+      await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, input.agent.id));
+      input.agent.adapterType = "outpost_runner";
       const [savedEnvironment] = await db.insert(environments).values({ name: `Configured cwd ${randomUUID()}`,
         driver: "sandbox", status: "active", config: { provider: "daytona" } }).returning();
       input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
@@ -632,7 +632,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
         const [workspace] = await db.insert(executionWorkspaces).values({ id: enrolledId, companyId: issue.companyId,
           sourceIssueId: issue.id, name: "Existing remote workspace", cwd: `/workspaces/${enrolledId}`,
           providerType: "cloud_sandbox", strategyType: "project_primary", mode: "shared_workspace", status: "active",
-          metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null,
+          metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null,
             source: { kind: "empty" }, location: null, writerRunId: null, dirty: false } } }).returning();
         await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issue.id));
         input.task.issueRef.executionWorkspaceId = workspace.id;
@@ -663,7 +663,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   it.each(["path", "file-url"] as const)("resumes an imported %s Git source from saved authority after its host files disappear", async sourceKind => {
     const { input, source, issue, envOrchestrator } = await fixture();
     configureRemotePersistence();
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "72".repeat(32);
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "72".repeat(32);
     const upstream = join(home, `import-upstream-${randomUUID()}`);
     await execFile("git", ["clone", "--bare", source, upstream]);
     const repoUrl = sourceKind === "path" ? upstream : pathToFileURL(upstream).href;
@@ -676,14 +676,14 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       providerType: "local_fs", strategyType: "project_primary", mode: "shared_workspace", status: "active" }).returning();
     await db.update(issues).set({ executionWorkspaceId: original.id }).where(eq(issues.id, issue.id));
     const storage = createStorageService(createLocalDiskStorageProvider(join(home, `import-objects-${randomUUID()}`)));
-    const migrationBefore = process.env.PAPERCLIP_EPHEMERAL_MIGRATION;
-    process.env.PAPERCLIP_EPHEMERAL_MIGRATION = "true";
+    const migrationBefore = process.env.OUTPOST_EPHEMERAL_MIGRATION;
+    process.env.OUTPOST_EPHEMERAL_MIGRATION = "true";
     try {
       await expect(migrateRemoteWorkspace({ db, storage, companyId: issue.companyId, workspaceId: original.id,
         apply: true, writersStopped: true })).resolves.toMatchObject({ applied: true });
     } finally {
-      if (migrationBefore === undefined) delete process.env.PAPERCLIP_EPHEMERAL_MIGRATION;
-      else process.env.PAPERCLIP_EPHEMERAL_MIGRATION = migrationBefore;
+      if (migrationBefore === undefined) delete process.env.OUTPOST_EPHEMERAL_MIGRATION;
+      else process.env.OUTPOST_EPHEMERAL_MIGRATION = migrationBefore;
     }
     const [imported] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, original.id));
     const saved = readRemoteWorkspaceAuthority(imported.metadata)!;
@@ -695,8 +695,8 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     const [next] = await db.insert(heartbeatRuns).values({ companyId: issue.companyId, agentId: input.agent.id,
       issueId: issue.id, scopeKind: "issue", status: "running", runtimeMode: "legacy" }).returning();
     input.run = next;
-    await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, input.agent.id));
-    input.agent.adapterType = "paperclip_runner";
+    await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, input.agent.id));
+    input.agent.adapterType = "outpost_runner";
     const [environment] = await db.insert(environments).values({ name: `Imported source ${randomUUID()}`,
       driver: "sandbox", status: "active", config: { provider: "daytona" } }).returning();
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
@@ -732,7 +732,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   it.each(["file:///tmp/repository", "/tmp/repository", "../repository", "C:\\work\\repository", "C:repository"])(
     "auto-enrollment leaves local repository source %s on the host authority", async repoUrl => {
       const { input, issue, envOrchestrator } = await fixture();
-      input.agent.adapterType = "paperclip_runner";
+      input.agent.adapterType = "outpost_runner";
       input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
         driver: "sandbox", config: { provider: "daytona" } };
       input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -752,7 +752,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     "rejects malformed or unsupported repository source %s without a host fallback", async repoUrl => {
       const { input, issue, envOrchestrator } = await fixture();
       configureRemotePersistence();
-      input.agent.adapterType = "paperclip_runner";
+      input.agent.adapterType = "outpost_runner";
       input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
         driver: "sandbox", config: { provider: "daytona" } };
       await db.update(projectWorkspaces).set({ cwd: null, sourceType: "git", repoUrl })
@@ -770,7 +770,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   it("does not turn an unauthorized configured-source selection into a host fallback", async () => {
     const { input, envOrchestrator } = await fixture();
     configureRemotePersistence();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.task.workspaceSelection = { version: 1, source: "explicit",
@@ -785,7 +785,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   it.each(["source", "effective-policy"] as const)("keeps plugin repository ownership via %s out of automatic Core enrollment", async ownership => {
     const { input, issue, envOrchestrator } = await fixture();
     configureRemotePersistence();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     if (ownership === "effective-policy") input.policy.projectExecutionWorkspacePolicy = {
@@ -804,7 +804,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     const { input, envOrchestrator } = await fixture();
     configureRemotePersistence();
     input.policy.useIsolatedTaskDirectory = true;
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -825,7 +825,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     // The admission snapshot may predate the operator starting the import.
     input.reuse.existingExecutionWorkspace = toExecutionWorkspace({ ...workspace, metadata: {} });
     if (remote) {
-      input.agent.adapterType = "paperclip_runner";
+      input.agent.adapterType = "outpost_runner";
       input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
         driver: "sandbox", config: { provider: "daytona" } };
       input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -852,7 +852,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     const sentinel = join(project.codebase.managedFolder, "unselected-project-files.txt");
     await writeFile(sentinel, "Unselected project files\n");
     configureRemotePersistence();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.policy.requestedExecutionWorkspaceMode = "agent_default";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
@@ -878,12 +878,12 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it("reserves editable task copies for referenced projects before acquiring the remote environment", async () => {
     const { input, source, issue, envOrchestrator } = await fixture();
-    const previous = new Map(["PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE"]
+    const previous = new Map(["OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE"]
       .map(key => [key, process.env[key]]));
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "true");
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "true");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
     configureRemotePersistence();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -923,7 +923,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     input.run.runtimeMode = "native";
     configureRemotePersistence();
     input.policy.useIsolatedTaskDirectory = true;
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment,
       driver: "sandbox", config: { provider: "daytona" } };
     input.environment.resolvedInstanceSettings.experimental.remoteWorkspaceStorageEnabled = true;
@@ -1059,7 +1059,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
         displayName: "Tasks", description: "Tasks", author: "Test", categories: ["workspace"],
         capabilities: ["environment.drivers.register"], entrypoints: { worker: "./worker.js" },
         environmentDrivers: [{ driverKey: "tasks", displayName: "Task VM", configSchema: { type: "object" }, supportsTasks: true, freshWorkspaceVersion: 1 }] } });
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     if (!project) {
       input.task.issueRef = { ...input.task.issueRef!, projectId: null, projectWorkspaceId: null };
       input.task.context = { issueId: issue.id };
@@ -1096,7 +1096,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
         capabilities: ["environment.drivers.register"], entrypoints: { worker: "./worker.js" },
         environmentDrivers: [{ driverKey: "tasks", displayName: "Task VM", configSchema: { type: "object" }, supportsTasks: true, freshWorkspaceVersion: 1 }] } });
     const environment = await environmentService(db).create({ name: `Task computer ${issue.id}`, driver: "plugin", status: "active", envVars: {}, config: { pluginKey, driverKey: "tasks" } });
-    input.agent = { ...input.agent, adapterType: "paperclip_runner", defaultEnvironmentId: environment.id };
+    input.agent = { ...input.agent, adapterType: "outpost_runner", defaultEnvironmentId: environment.id };
     input.environment.selectedEnvironmentForConfig = await environmentService(db).getById(environment.id);
     input.policy.requestedExecutionWorkspaceMode = input.policy.effectiveExecutionWorkspaceMode = "isolated_workspace";
     input.task.freshWorkspace = { mode: "fresh_isolated_workspace", retryIntentId: input.run.id, sourceRunId: input.run.id, retainedSourceIds: [] };
@@ -1472,7 +1472,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       issue: { id: issue.id, identifier: issue.identifier, title: issue.title, description: null, workMode: "standard" },
       taskPrompt: "Continue admitted task", normalizedSessionId: null,
       workspace: { id: workspaceId, cwd, repoUrl: null, repoRef: null, branchName: null },
-      completionContract: { id: input.run.id, sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+      completionContract: { id: input.run.id, sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
         contract: { revision: "1", objective: "Continue admitted task", criteria: [{ id: "objective", requirement: "Finish" }] } },
       runtimeContext: nativeRuntimeContextFixture(),
     });
@@ -1487,7 +1487,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it.each(["muse", "openai_dot", "grok_bot"] as const)("uses private %s controller storage without rebinding task files or preparing repositories", async provider => {
     const { input, issue } = await fixture();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.config.mergedConfig = { provider, cwd: "/task/source/must-not-be-read", workspaceStrategy: { type: "git_worktree" } };
     input.reuse.isDotRun = true;
     const resolve = vi.spyOn(input.services, "resolveWorkspaceForRun").mockRejectedValue(new Error("Task files must not be adopted"));
@@ -1509,7 +1509,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
         issue: { id: issue.id, identifier: null, title: issue.title, description: null, workMode: "standard" },
         taskPrompt: "Preserve the admitted controller", normalizedSessionId: input.run.id,
         workspace: { id: input.run.id, cwd: result.executionWorkspace.cwd, repoUrl: null, repoRef: null, branchName: null },
-        completionContract: { id: input.run.id, sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+        completionContract: { id: input.run.id, sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
           contract: { revision: "1", objective: "Preserve the controller", criteria: [{ id: "objective", requirement: "Preserve the original checkpoint path" }] } },
         runtimeContext: nativeRuntimeContextFixture(),
       });
@@ -1576,7 +1576,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
         "heartbeat.prepare.workspace_project_repositories",
       ]));
       for (const span of spans) {
-        expect(Object.keys(span.attributes)).toEqual(["paperclip.task.run.run_id"]);
+        expect(Object.keys(span.attributes)).toEqual(["outpost.task.run.run_id"]);
         expect(JSON.stringify(span.attributes)).not.toContain(source);
       }
     } finally {
@@ -1588,7 +1588,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it("prepares, reuses, and reopens a selected source containing an inaccessible private worktree", async () => {
     const { input, source, issue } = await fixture(true);
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     const [privateIssue] = await db.insert(issues).values({ companyId: issue.companyId,
       title: "Private historical task", visibility: "private", projectId: issue.projectId }).returning();
     const privateCwd = join(source, "private-work");
@@ -1656,7 +1656,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it("keeps a plugin workspace ledger across runs without preparing Core repositories", async () => {
     const { input, issue, envOrchestrator, source } = await fixture();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment, driver: "plugin" };
     const guestOnly = join(home, "guest-only", issue.projectId!);
     await db.update(projectWorkspaces).set({ cwd: guestOnly }).where(eq(projectWorkspaces.id, issue.projectWorkspaceId!));
@@ -1692,7 +1692,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it.each(["services", "fresh"] as const)("rejects unsupported %s before plugin workspace preparation or acquisition", async mode => {
     const { input, envOrchestrator } = await fixture();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment, driver: "plugin" };
     if (mode === "services") input.config.mergedConfig.workspaceRuntime = { services: [{ name: "preview", command: "must-not-run-on-core" }] };
     else input.task.freshWorkspace = { mode: "fresh_isolated_workspace", retryIntentId: input.run.id,
@@ -1708,7 +1708,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it("admits the metadata-only agent-default strategy for a plugin workspace", async () => {
     const { input, envOrchestrator } = await fixture();
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment, driver: "plugin" };
     input.policy.requestedExecutionWorkspaceMode = "agent_default";
     input.policy.effectiveExecutionWorkspaceMode = "agent_default";
@@ -1721,7 +1721,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it("rejects Core Git worktree preparation for a plugin-owned workspace", async () => {
     const { input, envOrchestrator } = await fixture(true);
-    input.agent.adapterType = "paperclip_runner";
+    input.agent.adapterType = "outpost_runner";
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment, driver: "plugin" };
     const acquire = vi.spyOn(envOrchestrator, "acquireForRun");
     await expect(prepareHeartbeatWorkspace(db, input)).rejects.toMatchObject({
@@ -1732,9 +1732,9 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
 
   it.each([true, false])("forwards only authorized plugin project IDs without staging (remote enabled: %s)", async enabled => {
     const { input, issue, envOrchestrator } = await fixture();
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "true");
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", String(enabled));
-    input.agent = { ...input.agent, adapterType: "paperclip_runner" };
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "true");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", String(enabled));
+    input.agent = { ...input.agent, adapterType: "outpost_runner" };
     input.environment.selectedEnvironmentForConfig = { ...input.environment.localEnvironment, driver: "plugin" };
     const [readable, privateProject] = await db.insert(projects).values([
       { companyId: issue.companyId, name: "Readable reference" },
@@ -1757,8 +1757,8 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       await expect(access(unavailableCwd)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       acquire.mockRestore();
-      vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "true");
-      vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
+      vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "true");
+      vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
     }
   });
 
@@ -1791,8 +1791,8 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   });
 
   it("rejects a configured sibling copy when its source disappears before publication", async () => {
-    const previousPrivacyMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     try {
       const { input, source, issue } = await fixture();
       const sibling = source + "-private-sibling";
@@ -1829,7 +1829,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
       await db.delete(issueAccessGrants).where(eq(issueAccessGrants.issueId, privateIssue.id));
 
     } finally {
-      vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", previousPrivacyMode);
+      vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", previousPrivacyMode);
     }
   });
 
@@ -1966,7 +1966,7 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     if (descriptor !== "absent") {
       const baseline = await captureDirectorySnapshot(admittedRoot);
       const reference = await nativeWorkspaceSyncInternals.writeDescriptor({
-        schema: "paperclip.native-workspace-sync/v1", state: "prepared",
+        schema: "outpost.native-workspace-sync/v1", state: "prepared",
         binding: { companyId: issue.companyId, runId: input.run.id, workspaceId: first.persistedExecutionWorkspace!.id,
           leaseId: "admitted-lease", providerLeaseId: "admitted-provider", localCwd: admittedRoot, remoteCwd },
         baseline: serializeDirectorySnapshot(baseline), baselineSha256: directorySnapshotSha256(baseline),
@@ -2092,9 +2092,9 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
   function retiredInheritedRunner(input: Awaited<ReturnType<typeof fixture>>["input"]) {
     const location = { leaseId: randomUUID(), providerLeaseId: "retained-sandbox", remoteCwd: "/retained" };
     input.run.runnerProfileJson = { ...(input.run.runnerProfileJson ?? {}),
-      remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", workspaceId: randomUUID(), epoch: 2,
+      remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", workspaceId: randomUUID(), epoch: 2,
         state: "saved", snapshotId: randomUUID(), ...location },
-      nativeInheritedRunnerRetirement: { schema: "paperclip.native-inherited-runner-retirement.v1",
+      nativeInheritedRunnerRetirement: { schema: "outpost.native-inherited-runner-retirement.v1",
         predecessorRunId: randomUUID(), retainedSandbox: location } };
     input.reuse.runOptions = { nativeLeaseOwner: "resume-owner" };
     return location;
@@ -2134,10 +2134,10 @@ describe.skipIf(!support.supported && !externalDatabaseUrl)("heartbeat workspace
     const { input, envOrchestrator } = await fixture();
     const location = { leaseId: randomUUID(), providerLeaseId: "retained-sync-sandbox", remoteCwd: "/retained-sync" };
     input.run.runnerProfileJson = { ...(input.run.runnerProfileJson ?? {}),
-      nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared", workspaceId: randomUUID(),
+      nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared", workspaceId: randomUUID(),
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         resourceDisposition: "destroy", ...location },
-      nativeInheritedRunnerRetirement: { schema: "paperclip.native-inherited-runner-retirement.v1",
+      nativeInheritedRunnerRetirement: { schema: "outpost.native-inherited-runner-retirement.v1",
         predecessorRunId: randomUUID(), retainedSandbox: location } };
     input.reuse.runOptions = { nativeLeaseOwner: "resume-owner" };
     const reached = new Error("Reached the retained sync sandbox");

@@ -1,8 +1,8 @@
-import { aiConnectionBindingSchema, type Agent } from "@paperclipai/shared";
+import { aiConnectionBindingSchema, type Agent } from "@outpost/shared";
 
 /** Task overrides must discover models through the assignee's saved connection. */
 export function copilotTaskModelCatalogOptions(agent: Agent | null | undefined) {
-  if (agent?.adapterType !== "paperclip_runner"
+  if (agent?.adapterType !== "outpost_runner"
     || agent.adapterConfig.provider !== "acpx"
     || agent.adapterConfig.acpxAgent !== "copilot") return undefined;
   return {

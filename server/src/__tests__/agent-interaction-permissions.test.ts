@@ -17,8 +17,8 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { activityLog, agents, authUsers, companies, companyMemberships, createDb, closeFileStorageDb, principalPermissionGrants,
   issues, issueComments, toolApplications, toolConnections, toolConnectionInstalls, toolProfiles, toolProfileBindings, toolMcpGateways,
-  EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
-import { AGENT_INTERACTION_PERMISSION_KEYS, resolveAgentInteractionPermissions } from "@paperclipai/shared";
+  EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { AGENT_INTERACTION_PERMISSION_KEYS, resolveAgentInteractionPermissions } from "@outpost/shared";
 import { agentInteractionPermissionRoutes } from "../routes/agent-interaction-permissions.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -33,7 +33,7 @@ describe("individual agent interaction permissions", () => {
   let storageHome: string;
   beforeAll(async () => {
     storageHome = await mkdtemp(join(tmpdir(), "interaction-permissions-home-"));
-    vi.stubEnv("PAPERCLIP_HOME", storageHome);
+    vi.stubEnv("OUTPOST_HOME", storageHome);
     database = await startEmbeddedPostgresTestDatabase("agent-interaction-permissions-");
     db = createDb(database.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -144,7 +144,7 @@ describe("individual agent interaction permissions", () => {
       const result = await execute(process.execPath, ["--import", `${repo}cli/node_modules/tsx/dist/loader.mjs`, `${repo}cli/src/index.ts`,
         "agent", command, f.agentId, "--api-base", `http://127.0.0.1:${address.port}`, "--api-key", "fixture-board-token", "--json",
         ...(payload ? ["--payload-json", JSON.stringify(payload)] : [])], {
-        cwd: repo, env: { ...process.env, PAPERCLIP_TELEMETRY_DISABLED: "1" }, timeout: 60000,
+        cwd: repo, env: { ...process.env, OUTPOST_TELEMETRY_DISABLED: "1" }, timeout: 60000,
       });
       return JSON.parse(result.stdout);
     };
@@ -219,7 +219,7 @@ describe("individual agent interaction permissions", () => {
       "COMPANY.md": '---\nschema: "agentcompanies/v1"\nname: "Imported"\n---\n',
       "tasks/work/TASK.md": '---\nname: "Imported task"\nassignee: "peer"\n---\nInitial instructions.',
       "tasks/work/doc.md": "Initial document.",
-      ".paperclip.yaml": 'schemaVersion: 7\ntasks:\n  work:\n    status: todo\n    comments:\n      - body: "Historical comment"\n        authorType: system\n    documents:\n      - key: spec\n        title: Specification\n        format: markdown\n        path: tasks/work/doc.md\n',
+      ".outpost.yaml": 'schemaVersion: 7\ntasks:\n  work:\n    status: todo\n    comments:\n      - body: "Historical comment"\n        authorType: system\n    documents:\n      - key: spec\n        title: Specification\n        format: markdown\n        path: tasks/work/doc.md\n',
     };
     const input = { source: { type: "inline" as const, files }, include: { company: false, agents: false, projects: false, issues: true },
       target: { mode: "existing_company" as const, companyId: f.companyId }, collisionStrategy: "skip" as const };
@@ -244,7 +244,7 @@ describe("individual agent interaction permissions", () => {
     ]);
     files["tasks/work/TASK.md"] = '---\nname: "Unassigned imported task"\n---\nInitial instructions.';
     files["agents/new-peer/AGENTS.md"] = '---\nname: "New Peer"\nrole: engineer\n---\nInitial instructions.';
-    files[".paperclip.yaml"] += 'agents:\n  new-peer:\n    adapterType: claude_local\n';
+    files[".outpost.yaml"] += 'agents:\n  new-peer:\n    adapterType: claude_local\n';
     const created = await companyPortabilityService(db).importBundle({ ...input, adapterOverrides: { "new-peer": { adapterType: "claude_local" } }, include: { ...input.include, agents: true },
       target: { mode: "new_company", newCompanyName: "Agent imported company" } }, null, options);
     expect(created.warnings.filter(warning => warning.includes("materialize"))).toEqual([]);

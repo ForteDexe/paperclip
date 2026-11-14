@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { announcementManifestSchema, isAnnouncementEligible } from "../../packages/shared/src/announcements.js";
 import { runnerExecutionById } from "./catalog.js";
 import { CHAT_ANNOUNCEMENT_FEED_URL, CHAT_ANNOUNCEMENT_MANIFEST, CHAT_ANNOUNCEMENT_SCENARIO } from "./chat-announcement-fixture.js";
-import { buildPaperclipServerEnvironment, buildRunnerE2EProcessEnvironment } from "./harness-env.js";
+import { buildOutpostServerEnvironment, buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 import type { ChatCatalogContext } from "./chat-catalog-contract.js";
 import { navigationBoundaryIdentityCases } from "./chat-catalog-domains/identity-navigation-boundaries.js";
 
@@ -10,21 +10,21 @@ describe("singleton announcement fixture admission", () => {
   const selected = runnerExecutionById(`chat-features.runner-opencode.local.${CHAT_ANNOUNCEMENT_SCENARIO}`);
   const unrelated = runnerExecutionById("chat-features.runner-opencode.local.skills.author-skill");
   it("the actual process and server boundaries admit only the selected public staging feed", () => {
-    const source = { PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false", PAPERCLIP_ANNOUNCEMENTS_FEED_URL: "https://ambient.invalid/private-feed" };
+    const source = { OUTPOST_ANNOUNCEMENTS_ENABLED: "false", OUTPOST_ANNOUNCEMENTS_FEED_URL: "https://ambient.invalid/private-feed" };
     const process = buildRunnerE2EProcessEnvironment(source, [selected]);
-    const server = buildPaperclipServerEnvironment(process);
-    expect(server.PAPERCLIP_ANNOUNCEMENTS_ENABLED).toBe("true");
-    expect(server.PAPERCLIP_ANNOUNCEMENTS_FEED_URL).toBe(CHAT_ANNOUNCEMENT_FEED_URL);
-    expect(source.PAPERCLIP_ANNOUNCEMENTS_FEED_URL).toBe("https://ambient.invalid/private-feed");
-    const url = new URL(server.PAPERCLIP_ANNOUNCEMENTS_FEED_URL!);
+    const server = buildOutpostServerEnvironment(process);
+    expect(server.OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("true");
+    expect(server.OUTPOST_ANNOUNCEMENTS_FEED_URL).toBe(CHAT_ANNOUNCEMENT_FEED_URL);
+    expect(source.OUTPOST_ANNOUNCEMENTS_FEED_URL).toBe("https://ambient.invalid/private-feed");
+    const url = new URL(server.OUTPOST_ANNOUNCEMENTS_FEED_URL!);
     expect(url.protocol).toBe("https:"); expect(url.username + url.password + url.search + url.hash).toBe("");
     expect(url.pathname).toContain("/announcements/staging/chat-dismissal-eval-");
     expect(url.pathname).not.toBe("/announcements/v1/current.json");
   });
   it.each(["unrelated", "mixed", "empty", "wrong suite"])("keeps announcements disabled for %s selections", selection => {
     const executions = selection === "unrelated" ? [unrelated] : selection === "mixed" ? [selected, unrelated] : selection === "wrong suite" ? [{ ...selected, suite: { ...selected.suite, id: "other" } }] : [];
-    const process = buildRunnerE2EProcessEnvironment({ PAPERCLIP_ANNOUNCEMENTS_ENABLED: "true" }, executions);
-    expect(buildPaperclipServerEnvironment(process).PAPERCLIP_ANNOUNCEMENTS_ENABLED).toBe("false");
+    const process = buildRunnerE2EProcessEnvironment({ OUTPOST_ANNOUNCEMENTS_ENABLED: "true" }, executions);
+    expect(buildOutpostServerEnvironment(process).OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("false");
   });
   it("uses a valid public synthetic publication without expiry or product-version tricks", () => {
     const manifest = announcementManifestSchema.parse(CHAT_ANNOUNCEMENT_MANIFEST);

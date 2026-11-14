@@ -23,8 +23,8 @@ import {
   issueDocuments,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
-import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
+} from "@outpost/db";
+import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -64,7 +64,7 @@ vi.mock("../adapters/index.ts", async () => {
   };
 });
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_STALE_QUEUE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_STALE_QUEUE_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -157,7 +157,7 @@ describeEmbeddedPostgres("heartbeat stale queued-run invalidation", () => {
     else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-stale-queue-");
     db = createDb(external ?? tempDb!.connectionString);
     heartbeat = heartbeatService(db, {
-      runtimeEnv: { ...process.env, PAPERCLIP_IN_WORKTREE: "false" },
+      runtimeEnv: { ...process.env, OUTPOST_IN_WORKTREE: "false" },
       beforeResolvedInteractionContinuationDispatchCheck: async (input) => {
         await beforeContinuationDispatchCheck?.(input);
       },
@@ -294,7 +294,7 @@ describeEmbeddedPostgres("heartbeat stale queued-run invalidation", () => {
     expect((await heartbeat.reconcileStrandedAssignedIssues()).escalated).toBe(0);
     expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0]).toMatchObject({ status: "todo", assigneeAgentId: agentId });
     await db.update(agents).set({ status: "idle", lifecycleState: "ready" }).where(eq(agents.id, agentId));
-    const recovered = heartbeatService(db, { runtimeEnv: { ...process.env, PAPERCLIP_IN_WORKTREE: "false" } });
+    const recovered = heartbeatService(db, { runtimeEnv: { ...process.env, OUTPOST_IN_WORKTREE: "false" } });
     await recovered.resumeQueuedRuns();
     await recovered.drainActiveRunExecutions();
     expect(countExecuteCallsForRun(run!.id)).toBe(1);
@@ -398,7 +398,7 @@ describeEmbeddedPostgres("heartbeat stale queued-run invalidation", () => {
         return row;
       } };
     });
-    const recovered = heartbeatService(db, { runtimeEnv: { ...process.env, PAPERCLIP_IN_WORKTREE: "false" } });
+    const recovered = heartbeatService(db, { runtimeEnv: { ...process.env, OUTPOST_IN_WORKTREE: "false" } });
     try {
       await recovered.resumeQueuedRuns();
       await entered.promise;

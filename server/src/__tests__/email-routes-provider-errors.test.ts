@@ -1,6 +1,6 @@
 import express from "express";
 import request from "supertest";
-import { agents, type Db } from "@paperclipai/db";
+import { agents, type Db } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 import { forbidden } from "../errors.js";
 import { errorHandler } from "../middleware/error-handler.js";

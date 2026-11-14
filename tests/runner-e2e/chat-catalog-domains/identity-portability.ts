@@ -60,7 +60,7 @@ const sources = ["chat-catalog-domains/identity-portability.ts", "chat-catalog-d
 const packageFiles = {
   "COMPANY.md": '---\nschema: "agentcompanies/v1"\nname: "Synthetic Website Team"\nincludes:\n  - agents/morgan/AGENTS.md\n---\n\nA synthetic import-preview package; no external service is contacted.\n',
   "agents/morgan/AGENTS.md": "---\nname: Morgan\nslug: morgan\nkind: agent\nrole: engineer\n---\n\n# Morgan\nA package employee for local website drafting. Do not overwrite an existing employee.\n",
-  ".paperclip.yaml": "schema: paperclip/v1\nagents:\n  morgan:\n    adapter:\n      type: process\n      config:\n        command: node\n        args: ['-e', 'process.exit(0)']\n    runtime:\n      heartbeat:\n        enabled: false\n",
+  ".outpost.yaml": "schema: paperclip/v1\nagents:\n  morgan:\n    adapter:\n      type: process\n      config:\n        command: node\n        args: ['-e', 'process.exit(0)']\n    runtime:\n      heartbeat:\n        enabled: false\n",
 };
 export const portabilityIdentityCases: readonly ChatCatalogCase[] = [
   identityDefinition("companies.export-company", async ctx => {
@@ -74,7 +74,7 @@ export const portabilityIdentityCases: readonly ChatCatalogCase[] = [
     const skill = await ctx.input.api.post<Entity>(`${root}/skills`, { name: "Launch checklist", slug: "launch-checklist", description: "A portable accessible launch review checklist.", markdown: "---\nname: launch-checklist\ndescription: Review a website launch.\n---\n\n# Launch checklist\nCheck headings, keyboard navigation and business contact details.\n", sharingScope: "company" });
     return { sourceId: source.id, project: p, skill, originalAgentName: ctx.input.fixtures.agent.name, secretKey, secretName, syntheticPrivateValueCreated: true };
   }, gradePortability, {
-    authentication: "human-session", sourceFiles: sources, oracleVersion: "paperclip.chat-catalog.identity.export-company.v2",
+    authentication: "human-session", sourceFiles: sources, oracleVersion: "outpost.chat-catalog.identity.export-company.v2",
     async act(ctx, state) {
       await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); state.agentExportPermissionStatus = await probeAgentPermission(ctx, `/api/companies/${ctx.input.fixtures.company.id}/exports/preview`, "POST", { include: { company: true, agents: true, projects: true, skills: true, issues: false } });
       const attachments = await ctx.input.api.get<IssueAttachment[]>(`/api/issues/${ctx.issue()!.id}/attachments`);
@@ -110,7 +110,7 @@ export const portabilityIdentityCases: readonly ChatCatalogCase[] = [
     return { sourceId: source.id, existing, existingConfiguration, sourcePackage, packageAttachment, actualPackageAttached: true,
       beforeAgentIds: (await ctx.input.api.get<Entity[]>(`/api/companies/${ctx.input.fixtures.company.id}/agents`)).map(row => row.id) };
   }, gradePortability, {
-    authentication: "human-session", sourceFiles: sources, oracleVersion: "paperclip.chat-catalog.identity.import-preview.v2", queryAttachments: [{ stateKey: "packageAttachment", filename: "company-package.json" }], expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 420_000,
+    authentication: "human-session", sourceFiles: sources, oracleVersion: "outpost.chat-catalog.identity.import-preview.v2", queryAttachments: [{ stateKey: "packageAttachment", filename: "company-package.json" }], expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 420_000,
     async act(ctx, state) {
       await waitForReply(ctx); const root = `/api/companies/${ctx.input.fixtures.company.id}`;
       const current = await ctx.input.api.get<Entity[]>(`${root}/agents`); state.beforeChoiceUnchanged = JSON.stringify(current.map(row => row.id).sort()) === JSON.stringify([...(state.beforeAgentIds as string[])].sort())

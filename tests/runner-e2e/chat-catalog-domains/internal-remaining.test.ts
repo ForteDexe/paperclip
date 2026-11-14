@@ -58,9 +58,9 @@ it("accepts consumed supported same-project API reads without requiring a partic
   const events = [{ runId: "new", eventType: "item.started", itemId: "read-p", payload: { kind: "dynamicToolCall", item: { type: "tool_use", id: "read-p", name: "call_api", input: { operationId: "GET /api/projects/{id}", apiPayloadRedacted: true, apiPayloadSha256: digest } } } },
     { runId: "new", eventType: "item.completed", itemId: "read-p", payload: { kind: "dynamicToolCall", item: { type: "tool_result", id: "read-p", tool_use_id: "read-p", result: { apiOperationId: "GET /api/projects/{id}", ok: true, status: 200 } } } }];
   Object.assign(o, { futureProjectReads: projectReadCalls(events, "new", "p") }); expect(gradeProjectDefaults(o).passed).toBe(true);
-  const stored = events.map((event, index) => ({ runId: "new", sourceEventId: `source-${index}`, payload: { prpEvent: { ...event, schema: "paperclip.prp.event.v1", sourceEventId: `source-${index}` } } }));
+  const stored = events.map((event, index) => ({ runId: "new", sourceEventId: `source-${index}`, payload: { orpEvent: { ...event, schema: "outpost.orp.event.v1", sourceEventId: `source-${index}` } } }));
   expect(projectReadCalls(stored, "new", "p")).toEqual(projectReadCalls(events, "new", "p"));
-  stored[0]!.payload.prpEvent.sourceEventId = "foreign-event"; expect(projectReadCalls(stored, "new", "p")).toEqual([]);
+  stored[0]!.payload.orpEvent.sourceEventId = "foreign-event"; expect(projectReadCalls(stored, "new", "p")).toEqual([]);
   expect(projectReadCalls(events, "new", "another-project")).toEqual([]); expect(projectReadCalls(events, "another-run", "p")).toEqual([]);
   events[1]!.itemId = "other-call"; expect(projectReadCalls(events, "new", "p")).toEqual([]);
   expect(projectReadCalls([{ runId: "new", eventType: "item.completed", payload: { kind: "agentMessage", text: JSON.stringify(events) } }], "new", "p")).toEqual([]);
@@ -93,7 +93,7 @@ function routine() {
   o.activity = [{ id: "edit", entityId: r.id, action: "routine.updated", createdAt: "2026-10-25T23:40:10Z", actorType: "user", actorId: "person" }];
   o.links = ["/RUN/routines/routine"]; o.reply = "This morning's 08:42 run failed: Morgan blocked its task because the launch-readiness document is missing.";
   const failed = { id: "rr-failed", routineId: r.id, source: "schedule", status: "failed", triggeredAt: "2026-10-25T23:42:00Z", linkedIssueId: "task", failureReason: "Execution issue blocked" };
-  const read = { eventType: "tool.execution.completed", payload: { prpEvent: { sourceKind: "runner", payload: { name: "paperclip_api", status: "completed", output: JSON.stringify({ recentRuns: [failed] }) } } } };
+  const read = { eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name: "paperclip_api", status: "completed", output: JSON.stringify({ recentRuns: [failed] }) } } } };
   return { ...o, routine: r, routineRuns: [failed] as any[], executionTask: { id: "task", identifier: "RUN-1", status: "blocked" }, leadEvents: [read] as any[], observedAt: "2026-10-25T23:50:00Z" };
 }
 it("picks a real timezone where the evaluation clock reads 08:xx in every season", () => {
@@ -106,8 +106,8 @@ it("does not grade the reply wording", () => { for (const reply of ["Nothing use
 it("accepts a redacted call_api read of the routine runs and a link to the blocked execution task", () => {
   const o = routine(); o.links = ["/RUN/issues/RUN-1"];
   const call = (input: Record<string, unknown>, status = 200) => [
-    { eventType: "item.started", payload: { prpEvent: { sourceKind: "runner", payload: { item: { id: "7", type: "tool_use", name: "call_api", input: { data: "***REDACTED***", operationId: input.operationId, apiPayloadRedacted: true, apiPayloadSha256: callApiInputDigest(input) } } } } } },
-    { eventType: "item.completed", payload: { prpEvent: { sourceKind: "runner", payload: { item: { type: "tool_result", tool_use_id: "7", result: { ok: status === 200, status, data: "***REDACTED***", apiOperationId: input.operationId } } } } } }] as any[];
+    { eventType: "item.started", payload: { orpEvent: { sourceKind: "runner", payload: { item: { id: "7", type: "tool_use", name: "call_api", input: { data: "***REDACTED***", operationId: input.operationId, apiPayloadRedacted: true, apiPayloadSha256: callApiInputDigest(input) } } } } } },
+    { eventType: "item.completed", payload: { orpEvent: { sourceKind: "runner", payload: { item: { type: "tool_result", tool_use_id: "7", result: { ok: status === 200, status, data: "***REDACTED***", apiOperationId: input.operationId } } } } } }] as any[];
   o.leadEvents = call({ operationId: "GET /api/companies/{companyId}/routines", pathParams: { companyId: "company" } });
   expect(gradeRoutineAudit(o).passed).toBe(true);
   for (const input of [{ operationId: "GET /api/routines/{id}/runs", pathParams: { id: "routine" } }, { operationId: "GET /api/routines/{id}", pathParams: { id: "routine" } },
@@ -131,7 +131,7 @@ it("rejects another company, a succeeded morning run or an unblocked task", () =
   const fixed = routine(); fixed.executionTask.status = "todo"; expect(gradeRoutineAudit(fixed).passed).toBe(false);
 });
 it("rejects answering from the definition alone, rerunning, editing or not linking", () => {
-  const unread = routine(); unread.leadEvents = [{ eventType: "tool.execution.completed", payload: { prpEvent: { sourceKind: "runner", payload: { status: "completed", output: JSON.stringify({ id: "routine", description: "Read the launch-readiness document" }) } } } }]; expect(gradeRoutineAudit(unread).passed).toBe(false);
+  const unread = routine(); unread.leadEvents = [{ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { status: "completed", output: JSON.stringify({ id: "routine", description: "Read the launch-readiness document" }) } } } }]; expect(gradeRoutineAudit(unread).passed).toBe(false);
   const started = routine(); started.leadEvents[0].eventType = "tool.execution.started"; expect(gradeRoutineAudit(started).passed).toBe(false);
   const rerun = routine(); rerun.routineRuns.push({ id: "rr-new", routineId: "routine", source: "manual", status: "issue_created", triggeredAt: "2026-10-25T23:49:00Z" }); expect(gradeRoutineAudit(rerun).passed).toBe(false);
   const edited = routine(); edited.routine = { ...edited.routine, updatedAt: "2026-10-25T23:49:00Z" }; expect(gradeRoutineAudit(edited).passed).toBe(false);

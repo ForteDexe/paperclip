@@ -1,4 +1,4 @@
-import { parseNativeExecutionInput } from "../vendor/paperclip-runner/index.js";
+import { parseNativeExecutionInput } from "../vendor/outpost-runner/index.js";
 import { readNativeWorkspaceMigration, migratedNativeExecutionCwd, canRestoreMigratedNativeSession } from "./native-runtime/native-workspace-migration.js";
 import { buildNativeHarnessBackupManifest, verifyNativeHarnessBackup } from "./native-runtime/native-session-executor.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -14,10 +14,10 @@ import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { activityLog, agents, agentTaskSessions, agentWakeupRequests, applyPendingMigrations, closeRegisteredClients, companies, createDb, environmentLeases, environments,
-  subscribeDatabaseWork, executionWorkspaceRepositories, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issueThreadInteractions, issues, livenessDb, nativeRunFinalizations, projects, projectWorkspaces, workspaceOperations } from "@paperclipai/db";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
-import { buildProjectMentionHref, type Environment, type EnvironmentLease } from "@paperclipai/shared";
+  subscribeDatabaseWork, executionWorkspaceRepositories, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issueThreadInteractions, issues, livenessDb, nativeRunFinalizations, projects, projectWorkspaces, workspaceOperations } from "@outpost/db";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
+import { buildProjectMentionHref, type Environment, type EnvironmentLease } from "@outpost/shared";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 import { createS3StorageProvider } from "../storage/s3-provider.js";
@@ -55,10 +55,10 @@ import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import { createSystemRecovery } from "./system-recovery-state.js";
 
 const exec = promisify(execFile);
-let databaseUrl = process.env.PAPERCLIP_REMOTE_WORKSPACE_TEST_DATABASE_URL;
+let databaseUrl = process.env.OUTPOST_REMOTE_WORKSPACE_TEST_DATABASE_URL;
 if (databaseUrl && !/^remote_workspace_[a-z_]*test$/.test(new URL(databaseUrl).pathname.slice(1))) throw new Error("Disposable workspace database required");
 const suite = databaseUrl || recoveryPostgresSupport.supported ? describe : describe.skip;
-const s3Bucket = process.env.PAPERCLIP_REMOTE_WORKSPACE_TEST_S3_BUCKET;
+const s3Bucket = process.env.OUTPOST_REMOTE_WORKSPACE_TEST_S3_BUCKET;
 if (s3Bucket && !s3Bucket.startsWith("paperclip-workspace-")) throw new Error("Disposable workspace S3 bucket required");
 
 suite("remote workspace lifecycle with real Postgres and independent filesystem execution", () => {
@@ -77,13 +77,13 @@ suite("remote workspace lifecycle with real Postgres and independent filesystem 
     finally { await temporary?.cleanup(); }
   });
   beforeEach(async () => {
-    vi.stubEnv("DATABASE_URL", databaseUrl!); vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "62".repeat(32));
+    vi.stubEnv("DATABASE_URL", databaseUrl!); vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "62".repeat(32));
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "pc-remote-workspace-lifecycle-")));
     storage = s3Bucket ? createStorageService(createS3StorageProvider({ bucket: s3Bucket, region: "us-east-1", prefix: "lifecycle-tests" }))
       : { ...createStorageService(createLocalDiskStorageProvider(path.join(root, "objects"))), provider: "s3" };
     ids = Object.fromEntries(["company", "agent", "issue", "run", "environment", "lease"].map(key => [key, randomUUID()])) as typeof ids;
     await db.insert(companies).values({ id: ids.company, name: "Disposable remote workspace proof", issuePrefix: "RWP" });
-    await db.insert(agents).values({ id: ids.agent, companyId: ids.company, name: "Native worker", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: ids.agent, companyId: ids.company, name: "Native worker", adapterType: "outpost_runner" });
     await db.insert(environments).values({ id: ids.environment, name: `Independent filesystem execution ${ids.environment}`, driver: "sandbox", config: {} });
     await db.insert(issues).values({ id: ids.issue, companyId: ids.company, title: "Use a remote workspace", status: "in_progress", assigneeAgentId: ids.agent });
     await db.insert(heartbeatRuns).values({ id: ids.run, companyId: ids.company, agentId: ids.agent, nativeIssueId: ids.issue,
@@ -98,7 +98,7 @@ suite("remote workspace lifecycle with real Postgres and independent filesystem 
       ? (row.metadata.uploads as { objectKey: string }[]).map(item => item.objectKey) : [])].filter((value): value is string => !!value))) {
       await storage.deleteObject(ids.company, key);
     }
-    if (temporary && process.env.PAPERCLIP_TEST_HISTORICAL_LISTENER === "1") await db.transaction(async tx => {
+    if (temporary && process.env.OUTPOST_TEST_HISTORICAL_LISTENER === "1") await db.transaction(async tx => {
       await tx.execute(sql`select set_config('client_min_messages', 'warning', true)`);
       await tx.execute(sql`TRUNCATE companies CASCADE`);
     });
@@ -301,8 +301,8 @@ suite("remote workspace lifecycle with real Postgres and independent filesystem 
     });
 
   it.each(["initial", "follow-up"] as const)("edits and cold-restores both an anchor and a referenced project's task copy (%s attachment)", async attachment => {
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC", "true");
-    vi.stubEnv("PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "true");
+    vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
     const origins = path.join(root, "origins"); await fs.mkdir(origins);
     const git = (cwd: string, ...args: string[]) => exec("git", ["-C", cwd,
       "-c", "user.name=Task copies", "-c", "user.email=copies@example.invalid", ...args]);
@@ -577,7 +577,7 @@ require('node:module').syncBuiltinESMExports();`);
     await fs.writeFile(path.join(prepared.remoteRoot, "plan.md"), "parent plan\n");
     // The parent's retained native session keeps its runner state beside the
     // workspace files. Snapshots exclude it; it belongs to this sandbox.
-    const runnerStateDirectory = path.join(prepared.remoteRoot, ".paperclip-runtime", "paperclip-runner", "sessions",
+    const runnerStateDirectory = path.join(prepared.remoteRoot, ".paperclip-runtime", "outpost-runner", "sessions",
       createHash("sha256").update("parent-session").digest("hex"), "runner");
     const runnerState = { lifecycle: "suspended", outbox: [], pendingTerminalDelivery: null, runId: ids.run };
     await fs.mkdir(runnerStateDirectory, { recursive: true });
@@ -622,7 +622,7 @@ require('node:module').syncBuiltinESMExports();`);
       await db.insert(workspaceOperations).values({ companyId: ids.company, executionWorkspaceId: reserved.id, heartbeatRunId: ids.run,
         issueId: ids.issue, phase: "remote_workspace_snapshot", status: mode === "unsettled save" ? "running" : "succeeded",
         metadata: { epoch: 1, boundary: "checkpoint", generation: 99,
-          saveWork: { schema: "paperclip.remote-workspace-save-work.v1", activeIds: [], unknown: false, quiescedAt: new Date().toISOString() },
+          saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds: [], unknown: false, quiescedAt: new Date().toISOString() },
           exportCleanup: { ...readRemoteWorkspaceAuthority(prepared.workspace.metadata)!.location, state: "cleaned" } } });
     }
     if (mode === "later allocation") {
@@ -665,7 +665,7 @@ require('node:module').syncBuiltinESMExports();`);
     // Only the new restore receipt identifies the root; the retired preparation receipt is gone.
     expect(await fs.lstat(path.join(restored.remoteRoot, ".paperclip-runtime", "workspace-ready.json")).catch(() => null)).toBeNull();
     expect(JSON.parse(await fs.readFile(path.join(restored.remoteRoot, ".paperclip-runtime", "workspace-restored.json"), "utf8")))
-      .toMatchObject({ schema: "paperclip.workspace-restored.v1", root: restored.remoteRoot,
+      .toMatchObject({ schema: "outpost.workspace-restored.v1", root: restored.remoteRoot,
         restorationEpoch: readRemoteWorkspaceAuthority(restored.workspace.metadata)!.epoch,
         identity: expect.stringMatching(/^[a-f0-9]{64}$/) });
     // A lost reply repeats the same preparation without replacing the restored root again.
@@ -693,25 +693,25 @@ require('node:module').syncBuiltinESMExports();`);
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", name: "Retained session",
       cwd: original, providerRef: original }).returning();
     const sessionId = randomUUID(), runnerInstanceId = randomUUID();
-    const execution = parseNativeExecutionInput({ schema: "paperclip.native-execution-input.v1",
+    const execution = parseNativeExecutionInput({ schema: "outpost.native-execution-input.v1",
       provider: { kind: "codex", model: null }, binding: { companyId: ids.company, agentId: ids.agent,
         issueId: ids.issue, runId: ids.run, executionWorkspaceId: local.id },
       task: { identifier: "RWP-1", title: "Retained work", description: null, prompt: "Continue.", workMode: "standard" },
       workspace: { cwd: original, repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: sessionId, driverKind: "codex_app_server", protocolVersion: 1,
         lifecyclePolicy: { mode: scenario === "warm" ? "warm" : "per_turn", idleTimeoutMs: scenario === "warm" ? 120000 : null } },
-      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: randomUUID(), sha256: "fixture", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Continue", criteria: [{ id: "objective", requirement: "Save work." }] } },
       credentialBindings: [], interactionResponses: [],
     });
-    if (execution.schema !== "paperclip.native-execution-input.v1") throw new Error("Unexpected fixture schema");
+    if (execution.schema !== "outpost.native-execution-input.v1") throw new Error("Unexpected fixture schema");
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), nativeSessionId: sessionId,
       runnerInstanceId, runnerProfileJson: { nativeExecutionInput: execution, sessionCheckpoint: { sessionId }, nativeWorkspaceSync: {
-        schema: "paperclip.native-workspace-sync/v3", state: "finalized", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64),
+        schema: "outpost.native-workspace-sync/v3", state: "finalized", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64),
         finalHostSha256: "c".repeat(64), workspaceId: local.id, leaseId: ids.lease, providerLeaseId: `allocation-${ids.lease}`,
         remoteCwd: remote.remoteCwd, resourceDisposition: "destroy",
       } } }).where(eq(heartbeatRuns.id, ids.run));
-    await db.insert(agentTaskSessions).values({ companyId: ids.company, agentId: ids.agent, adapterType: "paperclip_runner",
+    await db.insert(agentTaskSessions).values({ companyId: ids.company, agentId: ids.agent, adapterType: "outpost_runner",
       taskKey: ids.issue, lastRunId: ids.run });
     await db.update(issues).set({ executionWorkspaceId: local.id }).where(eq(issues.id, ids.issue));
     const backupRoot = path.join(root, "private-state"), current = path.join(backupRoot, "failover-backups", "current");
@@ -750,7 +750,7 @@ require('node:module').syncBuiltinESMExports();`);
 
     if (scenario === "forged-receipt") {
       await db.update(executionWorkspaces).set({ metadata: { ...reserved.metadata,
-        nativeWorkspaceMigration: { schema: "paperclip.native-workspace-migration.v1", operationId: randomUUID() } } }).where(eq(executionWorkspaces.id, local.id));
+        nativeWorkspaceMigration: { schema: "outpost.native-workspace-migration.v1", operationId: randomUUID() } } }).where(eq(executionWorkspaces.id, local.id));
       await expect(prepareRemoteWorkspace(preparation)).rejects.toThrow("native_workspace_migration_receipt_invalid"); return;
     }
     if (scenario === "occupied") {
@@ -809,13 +809,13 @@ require('node:module').syncBuiltinESMExports();`);
         executionWorkspaceId: local.id, requestedByIssueId: ids.issue, repoUrl, repositoryIdentity: repoUrl,
         relativePath, requestedRef: "HEAD", requestKey: "pending-request", requestKeys: ["pending-request"],
         state, failureCode: state === "needs_repair" ? "repository_preparation_failed" : null }).returning();
-      vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "true");
+      vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "true");
       await migrateRemoteWorkspace({ db, storage, companyId: ids.company, workspaceId: local.id, apply: true, writersStopped: true });
       expect(readRemoteWorkspaceAuthority((await workspace(local.id)).metadata)!.source).toEqual({ kind: "empty" });
       expect(await db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.id, repository.id)))
         .toEqual([repository]);
       await fs.rm(original, { recursive: true });
-      vi.stubEnv("PAPERCLIP_EPHEMERAL_MIGRATION", "false");
+      vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
       const nextRun = randomUUID(), nextLease = randomUUID();
       await db.insert(heartbeatRuns).values({ id: nextRun, companyId: ids.company, agentId: ids.agent, nativeIssueId: ids.issue,
         responsibleUserId: "local-board", runtimeMode: "native", status: "running" });
@@ -1134,7 +1134,7 @@ require('node:module').syncBuiltinESMExports();`);
       eq(workspaceOperations.heartbeatRunId, nextRun), eq(workspaceOperations.phase, "remote_workspace_restore")));
     expect(operation).toMatchObject({ status: "succeeded", metadata: { exportCleanup: { ...location, state: "pending" } } });
     // The restore records where it spent its time and the storage requests it sent.
-    expect(operation?.metadata?.restoreTiming).toMatchObject({ schema: "paperclip.remote-workspace-restore-timing.v1",
+    expect(operation?.metadata?.restoreTiming).toMatchObject({ schema: "outpost.remote-workspace-restore-timing.v1",
       downloadMs: expect.any(Number), decryptMs: expect.any(Number), plaintextVerifyMs: expect.any(Number), publishMs: expect.any(Number),
       bytes: expect.any(Number), requests: expect.objectContaining({ requests: expect.any(Number) }) });
     await fs.writeFile(path.join(restored.remoteRoot, "saved.txt"), "later agent edits\n");
@@ -1278,7 +1278,7 @@ require('node:module').syncBuiltinESMExports();`);
       eq(workspaceOperations.executionWorkspaceId, reserved.id), eq(workspaceOperations.phase, "remote_workspace_snapshot"),
       sql`${workspaceOperations.metadata}->>'boundary' = 'final'`))).map(save => save.metadata?.saveTiming);
     const duration = expect.any(Number), archive = { byteSize: expect.any(Number), entries: expect.any(Number) };
-    expect(await finalTiming()).toEqual([{ schema: "paperclip.remote-workspace-save-timing.v1", outcome: "failed", totalMs: duration,
+    expect(await finalTiming()).toEqual([{ schema: "outpost.remote-workspace-save-timing.v1", outcome: "failed", totalMs: duration,
       captureMs: duration, transferMs: duration, verifyMs: duration, ...archive, storage: expect.objectContaining({ requests: expect.any(Object) }),
       at: expect.any(String) }]);
     const beforeSuccess = await workspace(reserved.id);
@@ -1290,7 +1290,7 @@ require('node:module').syncBuiltinESMExports();`);
     await expect(saveRemoteWorkspace({ db, storage, workspace: beforeSuccess, runId: ids.run,
       lease: prepared.lease, target: first, assertOwned: async () => undefined })).resolves.toMatchObject({ snapshotId: saved.snapshotId });
     expect(await finalTiming()).toEqual([succeededTiming]);
-    expect(await finalTiming()).toEqual([{ schema: "paperclip.remote-workspace-save-timing.v1", outcome: "succeeded", totalMs: duration,
+    expect(await finalTiming()).toEqual([{ schema: "outpost.remote-workspace-save-timing.v1", outcome: "succeeded", totalMs: duration,
       captureMs: duration, transferMs: duration, verifyMs: duration, uploadMs: duration, publishMs: duration, ...archive,
       storage: expect.objectContaining({ encryptMs: duration, digestMs: duration, putMs: duration, verifyMs: duration,
         bytes: expect.any(Number), requests: expect.any(Object) }),
@@ -1406,7 +1406,7 @@ require('node:module').syncBuiltinESMExports();`);
     expect(originalMetadata).toEqual(poisoned!.metadata);
     expect(saveWork).toMatchObject({ activeIds: [], unknown: true, quiescedAt: expect.any(String) });
     // The refused invocation records only its own failed duration; it never captured or uploaded.
-    expect(saveTiming).toEqual({ schema: "paperclip.remote-workspace-save-timing.v1", outcome: "failed",
+    expect(saveTiming).toEqual({ schema: "outpost.remote-workspace-save-timing.v1", outcome: "failed",
       totalMs: expect.any(Number), at: expect.any(String) });
     expect(Number.isFinite(Date.parse((saveWork as { quiescedAt: string }).quiescedAt))).toBe(true);
     expect(await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.sourceOperationId, poisoned!.id)))
@@ -1578,7 +1578,7 @@ require('node:module').syncBuiltinESMExports();`);
     expect(failed).toMatchObject({ runtimeMode: "legacy", status: "failed", runnerProfileJson: {
       remoteWorkspace: { state: "prepared", snapshotId: null, workspaceId: reserved.id },
     }, resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-      schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [ids.lease],
+      schema: "outpost.workspace-restore-recovery.v1", leaseIds: [ids.lease],
     } } });
     expect(failed?.runnerProfileJson).not.toHaveProperty("nativeExecutionInput");
     expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, ids.run))).toHaveLength(0);
@@ -1769,19 +1769,19 @@ require('node:module').syncBuiltinESMExports();`);
 
   it("preserves enrolled workspaces after disabling enrollment and rejects a legacy writer", async () => {
     const reserved = await reserve({ kind: "empty" });
-    expect(shouldUseRemoteWorkspaces({ adapterType: "paperclip_runner", environmentDriver: "sandbox", experimentalEnabled: false, existingWorkspace: reserved })).toBe(true);
+    expect(shouldUseRemoteWorkspaces({ adapterType: "outpost_runner", environmentDriver: "sandbox", experimentalEnabled: false, existingWorkspace: reserved })).toBe(true);
     expect(() => shouldUseRemoteWorkspaces({ adapterType: "codex_local", environmentDriver: "sandbox", experimentalEnabled: false, existingWorkspace: reserved })).toThrow("native sandbox");
   });
 
   it("keeps enrollment conditional while enrolled authority fails closed when persistence disappears", async () => {
-    const candidate = { adapterType: "paperclip_runner", environmentDriver: "sandbox", experimentalEnabled: true };
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "s3");
+    const candidate = { adapterType: "outpost_runner", environmentDriver: "sandbox", experimentalEnabled: true };
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "s3");
     expect(shouldUseRemoteWorkspaces(candidate)).toBe(true);
     expect(shouldUseRemoteWorkspaces({ ...candidate, experimentalEnabled: false })).toBe(false);
     expect(shouldUseRemoteWorkspaces({ ...candidate, existingWorkspace: { metadata: {} } })).toBe(false);
     const reserved = await reserve({ kind: "empty" });
     const before = (await workspace(reserved.id)).metadata;
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "local_disk");
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "local_disk");
     expect(shouldUseRemoteWorkspaces(candidate)).toBe(false);
     expect(shouldUseRemoteWorkspaces({ ...candidate, existingWorkspace: reserved })).toBe(true);
     const localStorage = createStorageService(createLocalDiskStorageProvider(path.join(root, "local-only")));
@@ -1790,13 +1790,13 @@ require('node:module').syncBuiltinESMExports();`);
       projectId: null, projectWorkspaceId: null, existingWorkspaceId: reserved.id, source: { kind: "empty" } }))
       .rejects.toMatchObject({ details: { code: "remote_workspace_persistence_unavailable" } });
     expect((await workspace(reserved.id)).metadata).toEqual(before);
-    vi.stubEnv("PAPERCLIP_STORAGE_PROVIDER", "s3");
+    vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "s3");
     vi.stubEnv("DATABASE_URL", "");
     expect(shouldUseRemoteWorkspaces(candidate)).toBe(false);
     expect(shouldUseRemoteWorkspaces({ ...candidate, existingWorkspace: reserved })).toBe(true);
     vi.stubEnv("DATABASE_URL", databaseUrl!);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", path.join(root, "missing-stable-key"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", path.join(root, "missing-stable-key"));
     expect(shouldUseRemoteWorkspaces(candidate)).toBe(false);
     expect(shouldUseRemoteWorkspaces({ ...candidate, existingWorkspace: reserved })).toBe(true);
   });
@@ -1878,7 +1878,7 @@ require('node:module').syncBuiltinESMExports();`);
   it.each(["saved", "dirty", "unsaved", "foreign_snapshot", "delete_requested", "deletion_race", "controller_claim_race", "stale_epoch", "unconfirmed_stop", "unknown_action", "historical_listener_guard", "historical_listener_provider_event", "historical_listener_checkpoint", "historical_listener_resumed", "historical_listener_other_message", "historical_listener_cancelled", "historical_listener_prior_session", "historical_listener_unconfirmed_stop", "historical_listener_dirty", "historical_listener_stale_block", "historical_listener_unknown_event", "historical_listener_budget", "historical_listener_bad_preservation", "historical_listener_absent", "historical_listener_later_candidate", "historical_listener_late_proof", "historical_listener_lock_timeout", "historical_listener_late_interaction", "historical_listener_interaction_paused", "historical_listener_own_question"] as const)(
     "checks durable remote work at the native safe-replacement decision (%s)", async kind => {
       const historicalListener = kind.startsWith("historical_listener_");
-      const processAcceptance = kind === "historical_listener_guard" && process.env.PAPERCLIP_TEST_HISTORICAL_LISTENER === "1";
+      const processAcceptance = kind === "historical_listener_guard" && process.env.OUTPOST_TEST_HISTORICAL_LISTENER === "1";
       const scenario = kind === "historical_listener_late_proof" ? "dirty" : kind === "historical_listener_unconfirmed_stop" ? "unconfirmed_stop"
         : kind === "historical_listener_dirty" ? "dirty" : historicalListener ? "saved" : kind;
       const shouldSchedule = scenario === "saved" && (!historicalListener || ["historical_listener_guard", "historical_listener_later_candidate", "historical_listener_lock_timeout"].includes(kind));
@@ -1943,10 +1943,10 @@ require('node:module').syncBuiltinESMExports();`);
         await db.insert(issueRecoveryActions).values({ id: actionId, companyId: ids.company, sourceIssueId: ids.issue,
           kind: "active_run_watchdog", cause: "native_continuation_requires_reconciliation", ownerType: "system", status: "resolved", outcome: "blocked",
           fingerprint: `native-workspace:${ids.run}`, evidence: { runId: ids.run,
-            workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [ids.lease] },
+            workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [ids.lease] },
             automaticRecovery: { replay: "blocked" }, continuationDelivery: "invalidated",
             systemRecovery: { ...createSystemRecovery(ids.run), state: "complete", preservationOperationIds: [preservationId] },
-            workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: ids.run, status: "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] },
+            workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: ids.run, status: "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] },
           }, nextAction: "Files were preserved without replay." });
         await db.insert(workspaceOperations).values([{ id: preservationId, companyId: ids.company, heartbeatRunId: ids.run, issueId: ids.issue,
           executionWorkspaceId: reserved.id, phase: "workspace_recovery", status: kind === "historical_listener_bad_preservation" ? "failed" : "succeeded", startedAt: new Date(),

@@ -1,17 +1,17 @@
-import { subscribeDatabaseWork } from "@paperclipai/db";
+import { subscribeDatabaseWork } from "@outpost/db";
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, authUsers, companyMemberships, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions } from "@paperclipai/db";
-import { issueExecutionMonitorPolicySchema, PROVIDER_QUOTA_MONITOR_SERVICE_NAME } from "@paperclipai/shared";
+import { activityLog, agents, agentWakeupRequests, authUsers, companyMemberships, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions } from "@outpost/db";
+import { issueExecutionMonitorPolicySchema, PROVIDER_QUOTA_MONITOR_SERVICE_NAME } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { buildIssueMonitorTriggeredPatch, normalizeIssueExecutionPolicy } from "../issue-execution-policy.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 import * as monitorDelivery from "./native-monitor-delivery.js";
-import type { PrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -31,7 +31,7 @@ describeEmbeddedPostgres("native task monitors", () => {
   async function fixture() {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Monitors", issuePrefix: `M${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner", status: "active" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Deferred check", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
@@ -213,7 +213,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     expect(await value.call({ taskId: targetId, idempotencyKey: "other", monitor: value.monitor })).toMatchObject({ taskId: targetId });
     await expect(value.call({ taskId: other.issueId, idempotencyKey: "foreign", monitor: value.monitor })).rejects.toThrow("Task not found");
     const otherAgent = randomUUID();
-    await db.insert(agents).values({ id: otherAgent, companyId: value.companyId, name: "Other", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: otherAgent, companyId: value.companyId, name: "Other", adapterType: "outpost_runner" });
     await db.update(issues).set({ assigneeAgentId: otherAgent }).where(eq(issues.id, targetId));
     await expect(value.call({ taskId: targetId, idempotencyKey: "other", monitor: value.monitor })).rejects.toThrow();
   });
@@ -239,7 +239,7 @@ describeEmbeddedPostgres("native task monitors", () => {
   it("accepts unfinished monitor waits only after scheduling the current task", async () => {
     const value = await fixture();
     const result: PrpStructuredRunResult = {
-      schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded", summary: "I will compare the next run.",
+      schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "I will compare the next run.",
       completionClaim: { contractRevision: "test", objectiveSatisfied: false, criteria: [], remainingWork: [{ description: "Compare next run", blocksCompletion: true }] },
       continuation: { kind: "monitor", summary: "Wait for the scheduled check", idempotencyKey: "wait" },
       evidence: [], verification: [], attentionRequests: [], artifacts: [],
@@ -281,20 +281,20 @@ describeEmbeddedPostgres("native task monitors", () => {
     const contractId = randomUUID(), resultId = randomUUID(), successorId = randomUUID();
     await db.insert(completionContracts).values({
       id: contractId, companyId: value.companyId, issueId: value.issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", criteria: [] }, canonicalSha256: randomUUID(),
       createdByActorType: "system", createdByActorId: "test",
     });
     const resultJson = {
       result: {
-        schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded", summary: "Continue in the selected workspace.",
+        schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "Continue in the selected workspace.",
         completionClaim: { contractRevision: "test", objectiveSatisfied: false, criteria: [],
           remainingWork: [{ description: "Measure the archive", blocksCompletion: true }] },
         continuation: { kind: "monitor", summary: "Wait for the saved check", idempotencyKey: "provider-selected-key" },
         evidence: [], verification: [], attentionRequests: [], artifacts: [],
       },
-      terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" },
+      terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" },
     };
     await db.update(heartbeatRuns).set({ status: "succeeded", completionContractId: contractId })
       .where(eq(heartbeatRuns.id, value.runId));
@@ -309,7 +309,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     });
     const successorAgentId = state === "other_agent" ? randomUUID() : value.agentId;
     if (state === "other_agent") await db.insert(agents).values({
-      id: successorAgentId, companyId: value.companyId, name: "Another agent", adapterType: "paperclip_runner",
+      id: successorAgentId, companyId: value.companyId, name: "Another agent", adapterType: "outpost_runner",
     });
     await db.insert(heartbeatRuns).values({
       id: successorId, companyId: value.companyId, agentId: successorAgentId,

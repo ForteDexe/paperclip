@@ -17,8 +17,8 @@ import type { MatrixExecution } from "./types.js";
  * The product server itself stays unrestricted because it loads its E2E entry
  * from the harness.
  */
-export const AGENT_FILESYSTEM_SANDBOX_ENV = "PAPERCLIP_RUNNER_E2E_AGENT_FS_SANDBOX";
-export const RUNNERD_EXECUTABLE_NAME = "paperclip-runnerd";
+export const AGENT_FILESYSTEM_SANDBOX_ENV = "OUTPOST_RUNNER_E2E_AGENT_FS_SANDBOX";
+export const RUNNERD_EXECUTABLE_NAME = "outpost-runnerd";
 
 export interface AgentFilesystemSandboxConfig {
   hidden: string[];
@@ -165,7 +165,7 @@ export function opencodeSessionDirectoryName(normalizedSessionId: string) {
 
 /** The attempt instance's directories that hold every run's state. */
 export function instanceRunStatePaths(instanceRoot: string) {
-  const runner = path.join(instanceRoot, "runtime", "paperclip-runner");
+  const runner = path.join(instanceRoot, "runtime", "outpost-runner");
   return {
     durableSessions: path.join(runner, "durable-sessions"),
     runnerStates: path.join(runner, "runner"),
@@ -213,7 +213,7 @@ export function runnerdLaunchSandbox(config: AgentFilesystemSandboxConfig, args:
     }
   }
   const sessionId = flagValue(args, "--session-id");
-  const configuredOpencode = env.PAPERCLIP_OPENCODE_RUNTIME_DIR?.trim();
+  const configuredOpencode = env.OUTPOST_OPENCODE_RUNTIME_DIR?.trim();
   const opencodeRoots = [paths.opencode, ...(configuredOpencode && path.isAbsolute(configuredOpencode) ? [path.resolve(configuredOpencode)] : [])];
   for (const root of opencodeRoots) {
     if (root !== paths.opencode && (within(root, paths.durableSessions) || within(root, paths.runnerStates))) continue;
@@ -221,7 +221,7 @@ export function runnerdLaunchSandbox(config: AgentFilesystemSandboxConfig, args:
     const name = sessionId ? opencodeSessionDirectoryName(sessionId) : null;
     if (name) expose(path.join(root, name));
   }
-  const trace = env.PAPERCLIP_PROVIDER_TRACE_PATH?.trim();
+  const trace = env.OUTPOST_PROVIDER_TRACE_PATH?.trim();
   if (trace && path.isAbsolute(trace) && path.dirname(path.resolve(trace)) === paths.providerTraces) expose(path.resolve(trace), true);
   return launch;
 }
@@ -333,7 +333,7 @@ export function probeAgentFilesystemSandbox(
     "-c", script, "sh",
     path.join(harness, "agent-filesystem-sandbox.ts"),
     harness,
-    path.join(repositoryRoot, "packages", "paperclip-runner", "package.json"),
+    path.join(repositoryRoot, "packages", "outpost-runner", "package.json"),
     playwrightCache,
     ...config.hidden,
   ], env);
@@ -404,7 +404,7 @@ export function probeRunScopedSandbox(
     for (const file of Object.values(fixtures)) write(file);
     const ownTrace = path.join(paths.providerTraces, "own-run.ndjson");
     const launch = runnerdLaunchSandbox({ ...config, instanceRoot: instance },
-      ["--state-dir", ownState, "--session-id", "own-session"], { PAPERCLIP_PROVIDER_TRACE_PATH: ownTrace });
+      ["--state-dir", ownState, "--session-id", "own-session"], { OUTPOST_PROVIDER_TRACE_PATH: ownTrace });
     prepareRunnerdLaunchSandbox(launch);
     const checks = [
       ["otherDurableSession", "read", fixtures.otherDurableSession],

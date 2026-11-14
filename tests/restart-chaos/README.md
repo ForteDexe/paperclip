@@ -3,7 +3,7 @@
 Plan: [`doc/plans/2026-11-06-control-plane-restart-chaos.md`](../../doc/plans/2026-11-06-control-plane-restart-chaos.md).
 
 A script, not an LLM. It starts an isolated Paperclip control plane (temporary
-`PAPERCLIP_HOME`, wrapper-owned embedded Postgres, its own port), seeds a
+`OUTPOST_HOME`, wrapper-owned embedded Postgres, its own port), seeds a
 "Chaos Lab" company, launches real agent tasks, kills or restarts the control
 plane during those tasks, and grades every task on R1–R6 plus a deterministic
 T-oracle.
@@ -12,7 +12,7 @@ T-oracle.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --filter @paperclipai/paperclip-runner run build:runner-binaries   # native runner (debug)
+pnpm --filter @outpost/outpost-runner run build:runner-binaries   # native runner (debug)
 set -a; source ~/.secrets; set +a                                   # provider keys, process env only
 node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
   --adapters codex,claude,opencode --concurrency 4 --tasks 8 --faults K1,K2,K4 --seed 42
@@ -36,7 +36,7 @@ Each wave's temporary instance (embedded Postgres, workspaces, often 5–13 GB) 
 deleted when the wave ends, pass or fail, including after an interrupt. Evidence
 is already copied into `results/`. Use `--keep` to inspect the instance itself.
 A kept instance, or one whose processes could not be stopped, gets a
-`.paperclip-runner-e2e-kept.json` marker; creating the next runner E2E or chaos instance removes marked instances older
+`.outpost-runner-e2e-kept.json` marker; creating the next runner E2E or chaos instance removes marked instances older
 than 6 hours whose Postgres is no longer running and that no live process still
 references. An instance whose Daytona cleanup is still pending keeps its database
 as the owner of that cleanup and never expires. Unmarked directories are never
@@ -332,7 +332,7 @@ Limits:
 
 - The Daytona sandboxes and remote runners survive, as they do on staging.
 - Local runners are stopped with the server's process tree.
-- The cloud stop-proof service (`PAPERCLIP_CLOUD_*`) is not emulated, so stop
+- The cloud stop-proof service (`OUTPOST_CLOUD_*`) is not emulated, so stop
   proofs that need it stay unsupported, as on any self-hosted Railway deploy.
 - K15 does not combine with MS1–MS3, because a second server would run in the
   real host's process space.
@@ -448,7 +448,7 @@ and the R1–R6 grading rules already exist.
 | CR2 | SIGKILL of the provider process only, inside the task's sandbox. The Runner stays alive. | `--cr2-hold-seconds <n>`, 0–600. Default 0: the controller stays up. With a hold, a K15 redeploy holds the controller down, and the kill happens right after the stop. |
 | CR3 | SIGSTOP of the server's Daytona plugin worker and its children. Every plugin RPC, including `environmentExecute`, stalls. There is no deploy. | `--cr3-stall-seconds <n>`, 41–600. Default 45. |
 
-- CR2 kills only the processes under the run's `paperclip-runnerd` whose arguments match the adapter's
+- CR2 kills only the processes under the run's `outpost-runnerd` whose arguments match the adapter's
   provider command. For Claude (ACPX) that is `--output-format stream-json`. For OpenCode it is
   `serve --hostname 127.0.0.1 --port`. The Runner is found by the run id in its listen path.
 - CR2 is the only class R action that changes anything in a sandbox. It runs one fixed script, only in
@@ -491,7 +491,7 @@ deletes a sandbox. An archived or stopped sandbox is recorded by its state alone
 
 | Wave | Cell | Result |
 | --- | --- | --- |
-| `w-20261111T192658-s5201` | W2 re-wake, `--faults K0 --daytona-warm`, Codex, 10 tasks | `runner_remote_process_identity_unavailable` twice, with no fault. The follow-up run launched a new runnerd on the warm session state. That runnerd stopped itself: `paperclip-runnerd: controller sequence must be contiguous: expected 13, received 11`. The new controller's journal ended before the predecessor's `runner.drain` and `runner.suspend` (seq 11 and 12). |
+| `w-20261111T192658-s5201` | W2 re-wake, `--faults K0 --daytona-warm`, Codex, 10 tasks | `runner_remote_process_identity_unavailable` twice, with no fault. The follow-up run launched a new runnerd on the warm session state. That runnerd stopped itself: `outpost-runnerd: controller sequence must be contiguous: expected 13, received 11`. The new controller's journal ended before the predecessor's `runner.drain` and `runner.suspend` (seq 11 and 12). |
 | `w-20261111T202055-s9502` | CR1 75 s and CR2, OpenCode and Claude | No refusal. The Runner survived every outage. A killed provider failed the turn with a clear code: Claude `ACP agent reported a terminal connection failure`, OpenCode `opencode_server_exited`. |
 | `w-20261111T204144-s9503` | CR1 360 s twice, OpenCode and Claude | No refusal. The Runner and the provider survived both outages. |
 | `w-20261111T210055-s9504` | CR3 45 s, OpenCode and Claude | Not the staging code, a separate failure. `runnerd process supervision failed: RPC call "environmentExecute" timed out after 40000ms` failed the run as `notification_transport_failed`. The close path suspended a healthy Runner (`lifecycle: suspended`, no stderr). Retry worked. |
@@ -507,10 +507,10 @@ Cloud servers run volume-free (`ephemeral-server-contract.ts`): agent files, run
 storage, secrets use one stable master key, and remote agent directories are disposable copies whose collection and
 cleanup take the per-agent Postgres operation lock. Every other wave runs the volume-backed mode, so those paths,
 including the `directory-lock` recovery step, are never reached there. `--ephemeral-server` gives every server of the
-wave `PAPERCLIP_EPHEMERAL_SERVER`, `PAPERCLIP_DURABLE_AGENT_FILES` and `PAPERCLIP_SHARED_UI_ASSETS`, the wave's
-Postgres as `PAPERCLIP_DATABASE_LISTEN_URL`, a stable `PAPERCLIP_SECRETS_MASTER_KEY` (also written to the config's
+wave `OUTPOST_EPHEMERAL_SERVER`, `OUTPOST_DURABLE_AGENT_FILES` and `OUTPOST_SHARED_UI_ASSETS`, the wave's
+Postgres as `OUTPOST_DATABASE_LISTEN_URL`, a stable `OUTPOST_SECRETS_MASTER_KEY` (also written to the config's
 key file inside the wave's temporary root; `assertIsolatedServerEnvironment` admits that one generated key and still
-refuses an inherited key or `PAPERCLIP_SECRETS_MASTER_KEY_FILE`) and `RUN_LOG_S3_*` in the wave's object store. It needs
+refuses an inherited key or `OUTPOST_SECRETS_MASTER_KEY_FILE`) and `RUN_LOG_S3_*` in the wave's object store. It needs
 `--storage s3` and `--env daytona` (a local workspace blocks a volume-free server) and does not combine with K14. Workloads with the fixture repository (B1, B5,
 F1, R1) are a `local_path` project source, which a volume-free server refuses: they are dropped from the default
 workloads and refused when listed.
@@ -529,10 +529,10 @@ Staging's volume-free shape (wave `w-20261111T230537-s6402`) showed a reused war
 was still held by another Runner. The new Runner wrote `runner-state.json` (`lifecycle: connecting`), failed with
 `runner_ingress_bind_conflict` and exited before `session.open`, so it never wrote its provider state. The same-run
 bootstrap retry then found that partial session root and failed with `runner_harness_state_mismatch: resumed_unavailable`.
-`--runner-bind-fault` gives every server of the wave `PAPERCLIP_TEST_RUNNER_BIND_FAULT=first_launch` (honoured only
+`--runner-bind-fault` gives every server of the wave `OUTPOST_TEST_RUNNER_BIND_FAULT=first_launch` (honoured only
 with `NODE_ENV=test`): before a run's first Runner launch on that server, a short-lived process in the sandbox holds
 the Runner's listen port for 15 s. The server waits until that listener has bound the port and writes
-`[paperclip-runner] test bind fault armed on port <n>` (or `failed`) to the run log, so a wave can count the runs that
+`[outpost-runner] test bind fault armed on port <n>` (or `failed`) to the run log, so a wave can count the runs that
 really took this path. Every run then takes it once per server generation, and the run must still finish without
 Retry. It needs `--env daytona`.
 
@@ -574,7 +574,7 @@ ends saved-work recovery at once with cause `sandbox_disk_full` and offers a Ret
 
 A full disk cannot be made on demand, so DF1 uses a test-only hook in the server
 (`server/src/services/sandbox-disk-full-fault.ts`). The harness starts its server with
-`PAPERCLIP_DISK_FULL_FAULT_CONTROL=<file>` and `PAPERCLIP_DISK_FULL_FAULT_RECEIPT=<wave>/disk-full-faults.jsonl`.
+`OUTPOST_DISK_FULL_FAULT_CONTROL=<file>` and `OUTPOST_DISK_FULL_FAULT_RECEIPT=<wave>/disk-full-faults.jsonl`.
 The hook reads the variable once at startup and ignores it when `NODE_ENV=production`. Without it the
 hook is one comparison and the save uses its own target.
 
@@ -620,7 +620,7 @@ Lease acquisition fails before any provider call, in the shapes staging recorded
 on 2026-11-11: Daytona's acquisition deadline ("lease acquisition timed out;
 allocation cleanup is pending") and a failed database query. The server seam
 `server/src/services/environment-lease-fault-injection.ts` (test mode only) reads
-`PAPERCLIP_CHAOS_LEASE_FAULT_CONTROL` and fails each task's first N acquisitions.
+`OUTPOST_CHAOS_LEASE_FAULT_CONTROL` and fails each task's first N acquisitions.
 It runs on a local instance; no sandbox provider is needed. One fault per wave.
 
 | Fault | Shape | Pass |
@@ -688,7 +688,7 @@ node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
   --storage s3 --storage-faults ST1,ST2,ST3
 ```
 
-`--storage s3` runs the server the way cloud mode does: `PAPERCLIP_STORAGE_PROVIDER=s3`, so run logs
+`--storage s3` runs the server the way cloud mode does: `OUTPOST_STORAGE_PROVIDER=s3`, so run logs
 and provider traces use the `s3_segments` backend and attachments, artifacts and other stored files go
 to object storage. The store is a loopback MinIO (`RELEASE.2025-04-22T22-12-26Z`, built from source at
 `~/.cache/paperclip/tools/minio/minio` or `RESTART_CHAOS_MINIO_BIN`) with its data under the instance
@@ -799,7 +799,7 @@ node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env daytona
   --adapters codex,claude --tasks 3 --concurrency 2 --faults K1 --seed 11
 ```
 
-`PAPERCLIP_E2E_DAYTONA_IMAGE` can replace `--daytona-image`. B5 is local-only
+`OUTPOST_E2E_DAYTONA_IMAGE` can replace `--daytona-image`. B5 is local-only
 (its oracle reads the live workspace, which is inside the sandbox).
 
 **vCPU budget.** The Daytona org is shared with the live Cloud fleet. Chaos
@@ -817,8 +817,8 @@ future mutating path cannot act on fleet sandboxes either. Cleanup goes only
 through Paperclip, by deleting the wave's own environment.
 
 **Image matching.** The controller needs the image's own Linux amd64
-`/usr/local/bin/paperclip-runnerd` (`PAPERCLIP_RUNNER_REMOTE_BINARY_PATH`) and
-`/opt/paperclip-runner/provider-pack/` (`PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH`).
+`/usr/local/bin/outpost-runnerd` (`OUTPOST_RUNNER_REMOTE_BINARY_PATH`) and
+`/opt/outpost-runner/provider-pack/` (`OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH`).
 `daytona-image.ts` gets them without a daemon: `skopeo copy --override-os linux
 --override-arch amd64 docker://<image> dir:<cache>`, then walks the layers from
 top to bottom (honouring `.wh.` and `.wh..wh..opq` whiteouts), extracts only
@@ -843,7 +843,7 @@ task finishes with no Retry and no run ends with
 `native_provider_artifacts_admission_unverified`. The timeline records
 `daytona_pack_mismatch`.
 
-Before starting, the harness compares the image's `io.paperclip.runner.content-id`
+Before starting, the harness compares the image's `io.outpost.runner.content-id`
 label with the content ID of this checkout (`pnpm test:e2e:runner:image-id`,
 which hashes every runner input) and refuses to run on a mismatch. To get an
 image for the current master, dispatch a narrow image build and reject its paid
@@ -1101,7 +1101,7 @@ node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env daytona
 ```
 
 SR1U is SR1 where the parked owner's stop stays unconfirmed even when forced. The harness boots the
-server with `PAPERCLIP_TEST_WARM_RETIREMENT_FAULT=unconfirmed` (test instrumentation, armed only when
+server with `OUTPOST_TEST_WARM_RETIREMENT_FAULT=unconfirmed` (test instrumentation, armed only when
 `NODE_ENV=test`, as in the harness server), so every retirement of a warm sandbox owner fails. This is the staging shape
 where a follow-up failed with `Controller journal drain timed out` or `runner did not durably suspend
 before checkpoint` before any provider work and nothing ever restarted the task. The follow-up must
@@ -1181,7 +1181,7 @@ another task's fault) does not fail the step again. `nth`
 
 | Step | Crash point | Error thrown | Environments |
 | --- | --- | --- | --- |
-| `runnerd-start` | `native.process_start.after_requested_before_spawn` | `spawn paperclip-runnerd EAGAIN` | local, Daytona |
+| `runnerd-start` | `native.process_start.after_requested_before_spawn` | `spawn outpost-runnerd EAGAIN` | local, Daytona |
 | `teardown` | `environment.teardown.after_claim_before_destroy` | `sandbox teardown incomplete: provider destroy did not finish` | Daytona |
 | `directory-lock` | `agent_directory.operation_lock.before_acquire` | `Agent directory operation is already active` (409) | Daytona |
 
@@ -1431,7 +1431,7 @@ when the board decides after a day, and the approved subtask must exist exactly 
 **Limits.**
 - Local only. On Daytona the remote runner is not under the server, so it cannot be frozen.
 - Agent JWT expiry is not covered. Native runs mint a token per tool call, so a short
-  `PAPERCLIP_AGENT_JWT_TTL_SECONDS` tests nothing there.
+  `OUTPOST_AGENT_JWT_TTL_SECONDS` tests nothing there.
 - The fixed 1-hour runtime-tools token is not covered either.
 - Times kept outside Postgres are not aged: in-memory timers and the runner's own state files.
   Neither are times inside `text` columns or HMACs computed over a time.
@@ -1636,7 +1636,7 @@ re-arms the task's own triggered faults instead of using their offsets.
 - Faults are serialized; each one hits every task running at that moment.
 - A `todo` or `in_progress` task with no live run and no named wait is not a rest. The observer keeps watching it until it resumes or passes the R5 stall limit.
 - R5 also fails a run that stays `running` with no live evidence (no new run event, `lastUsefulActionAt` or `execution.lastConfirmedActivityAt`, and no start) for more than 3 minutes after the server is ready. A `running` status alone is not proof of life. A quiet run is still live while a tool it started has not ended (for example a 4-minute `bench.sh`) or while its recorded local runner process still runs with the same PID and start time.
-- The wave fingerprints the checkout and `packages/paperclip-runner/dist` at start and after every fault. A build, install or branch switch during a wave would make later restarts run different code, so it fails the wave as a harness error (`worktree_changed_mid_wave`). The baseline is taken after the harness's own setup (preflight rebuilds provider entrypoints) and covers the tracked diff, untracked file contents, the runner `dist` and the runnerd binary. Build before the wave, never during it.
+- The wave fingerprints the checkout and `packages/outpost-runner/dist` at start and after every fault. A build, install or branch switch during a wave would make later restarts run different code, so it fails the wave as a harness error (`worktree_changed_mid_wave`). The baseline is taken after the harness's own setup (preflight rebuilds provider entrypoints) and covers the tracked diff, untracked file contents, the runner `dist` and the runnerd binary. Build before the wave, never during it.
 - `faults.json` and `task-faults.json` (each task's launch time and the faults that crossed it) are written after every fault, so `--replay` of a task in an interrupted or wedged wave, or a storm task, re-fires the faults that crossed it at the same offsets.
 - A fault that fails to complete fails the wave as a harness error (exit 2), even when recovery brings the server back.
 
@@ -1662,7 +1662,7 @@ registry entry lists), plus `--daytona-image`, `--daytona-cpu`, `--budget-cents`
 
 The suite runs one wave, `main.ts --crash-point <a>:<nth>,<b>:<nth>,...`:
 
-1. One isolated control plane boots once, with `PAPERCLIP_CRASH_POINT_CONTROL`
+1. One isolated control plane boots once, with `OUTPOST_CRASH_POINT_CONTROL`
    set to an empty control file (nothing armed) and without the Vite UI.
 2. For each point in turn: invariants are read as a baseline, the harness
    arms the point by writing `<token> <name>:<nth>` to the control file, and
@@ -1710,7 +1710,7 @@ workload or `--nth` that does) and `harness_error`. Exit code 0, 1, 3 and 2.
 **Daytona points.** Six points are reachable only with `--env daytona`
 (`node scripts/crash-points.mjs --list --env daytona`). The run needs
 `DAYTONA_API_KEY` and an image matching this checkout (`--daytona-image` or
-`PAPERCLIP_E2E_DAYTONA_IMAGE`; see "Daytona" above), and refuses to start
+`OUTPOST_E2E_DAYTONA_IMAGE`; see "Daytona" above), and refuses to start
 without them. A plain codex task reaches both `sandbox.create.*` points and
 both `environment.teardown.*` points (a native run releases its sandbox through
 teardown). `environment.lease_release.after_provider_before_lease` (the plain
@@ -1737,8 +1737,8 @@ and grades only (no server logs).
    it, the ownable kind ids it affects and the invariants at risk.
 2. Call `crashPoint("<name>")` at the gap: after the first durable write (or
    outside effect) returns and before the next one starts. Server code imports
-   `crashPoint` from `@paperclipai/shared/crash-points`. Controller code in
-   `packages/paperclip-runner` uses `src/crash-point.ts` (add the name to its
+   `crashPoint` from `@outpost/shared/crash-points`. Controller code in
+   `packages/outpost-runner` uses `src/crash-point.ts` (add the name to its
    union too). Do not put a point inside a transaction; the gap is between
    commits.
 3. `server/src/__tests__/crash-point-call-sites.test.ts` fails until every
@@ -1751,7 +1751,7 @@ throws once instead of killing the server. An optional `pid=<n>` binds the line 
 (`crashPoint("<name>", { fail: () => conflict("...") })`). `--fail-recovery-step` uses it.
 
 Disarmed, a point costs one comparison (about 4 ns), and the arming variables
-(`PAPERCLIP_CRASH_POINT`, `PAPERCLIP_CRASH_POINT_CONTROL`) are ignored under
+(`OUTPOST_CRASH_POINT`, `OUTPOST_CRASH_POINT_CONTROL`) are ignored under
 `NODE_ENV=production`, so points may sit on the path before `turn.start`.
 In-process tests use `armCrashPointForTest("<name>:<nth>")`, which throws
 `CrashPointReached` at the hit instead of killing the test runner.

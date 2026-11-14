@@ -3,9 +3,9 @@ import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agentWakeupRequests, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { activityLog, agentWakeupRequests, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { getExecutionBlocker } from "./execution-blocker.js";
 import { REMOTE_WORKSPACE_CAPTURE_POLICY_VERSION } from "./remote-workspace-snapshot-archive.js";
 import { readSystemRecovery } from "./system-recovery-state.js";
@@ -27,7 +27,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
   useWorkspaceRecoveryFixture(targets);
   beforeEach(() => {
     vi.stubEnv("DATABASE_URL", connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "63".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "63".repeat(32));
   });
   afterEach(() => { vi.unstubAllEnvs(); });
 
@@ -63,7 +63,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
         attemptId: randomUUID(), firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
         failure: { code: "export_interrupted", retryClass: "retry_transient", evidenceFingerprint: "9".repeat(64),
           cause: { code: null, label: "provider_error", status: null } } },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "restoring_files",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "restoring_files",
         attempt: 6, attemptLimit: 6, retryable: true, message: nextAction, requestIds: [] } } })
       .where(eq(issueRecoveryActions.id, f.actionId));
     return f;
@@ -83,7 +83,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     expect(state).toMatchObject({ state: "complete", capturePolicyVersion: REMOTE_WORKSPACE_CAPTURE_POLICY_VERSION });
     expect(state.preservationOperationIds.length).toBeGreaterThan(0);
     expect(readWorkspaceRecovery(settled.evidence)?.status).toBe("recovered");
-    expect(settled.evidence.capturePolicyRecovery).toMatchObject({ schema: "paperclip.capture-policy-recovery.v1",
+    expect(settled.evidence.capturePolicyRecovery).toMatchObject({ schema: "outpost.capture-policy-recovery.v1",
       policyVersion: REMOTE_WORKSPACE_CAPTURE_POLICY_VERSION });
     expect(settled.ownerType).toBe("system");
     expect(String(settled.nextAction)).not.toMatch(adminText);
@@ -113,7 +113,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
   async function stagingIncident(failureBlock: boolean) {
     const f = await exhaustedCaptureHold();
     const exportHold = await action(f.actionId);
-    const recovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id] };
+    const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] };
     const source = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!;
     await db.update(heartbeatRuns).set({ errorCode: "native_workspace_sync_out_retry_exhausted",
       error: "Saving the workspace failed after 3 attempts. The agent's result is kept; follow the run's recovery action to repair the workspace. "
@@ -126,7 +126,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     await db.update(issueRecoveryActions).set({ kind: "active_run_watchdog", returnOwnerAgentId: source.agentId, maxAttempts: 3,
       evidence: { ...exportHold.evidence, coordinatorAttempt: 1, originalFailureCode: "native_workspace_sync_out_failed",
         systemRecoveryActiveAt: Date.now() - 50 * 60_000, workspaceFinalizeAttempt: 3, previousWorkspaceRecovery: null,
-        historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId: f.runId, leaseIds: [f.lease.id] } } })
+        historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: f.runId, leaseIds: [f.lease.id] } } })
       .where(eq(issueRecoveryActions.id, f.actionId));
     const exhausted = readSystemRecovery((await action(f.actionId)).evidence)!;
     const [task] = await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issueId)).returning();
@@ -145,7 +145,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
         // Rows of the same release that recorded the Blocked status their run's
         // failure set, and the historical source an older adoption named.
         ...(failureBlock ? { nativeFailureBlock: { runId: f.runId, statusVersion: Number(task.statusVersion) },
-          historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId: f.runId, leaseIds: [f.lease.id] } } : {}) } });
+          historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: f.runId, leaseIds: [f.lease.id] } } : {}) } });
     // The user's "try again" comment waits for the task to be free.
     const [waiting] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: source.agentId, source: "on_demand",
       reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "operator",
@@ -220,7 +220,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     const exportHold = await action(f.actionId);
     const source = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!;
     await db.update(issueRecoveryActions).set({ evidence: { ...exportHold.evidence, workspaceFinalizationBlock: {
-      schema: "paperclip.native-workspace-finalization-block.v1", runId: f.runId, agentId: source.agentId, issueId: f.issueId,
+      schema: "outpost.native-workspace-finalization-block.v1", runId: f.runId, agentId: source.agentId, issueId: f.issueId,
       companyId: f.companyId, resultId: f.resultId, contractId: source.completionContractId, resultSha256: "5".repeat(64),
       contractSha256: "0".repeat(64), statusVersion: 7, priorDecisionId: null, identityContextId: randomUUID(),
       responsibleUserId: "board" } } }).where(eq(issueRecoveryActions.id, f.actionId));

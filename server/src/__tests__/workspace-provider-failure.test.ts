@@ -13,7 +13,7 @@ import {
   startWorkerRpcHost,
   WORKSPACE_OPERATION_FAILURE_REASONS,
   type JsonRpcResponse,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 import { HttpError } from "../errors.js";
 import { findPluginWorkerUnavailableError, PluginWorkerUnavailableError } from "../services/plugin-worker-unavailable-error.js";
 import { findWorkspaceProviderFailure, workspaceProviderCallFailure } from "../services/workspace-provider-failure.js";

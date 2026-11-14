@@ -2,10 +2,10 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { open } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
-import { runSetupTokenLogin } from "@paperclipai/adapter-claude-local/server";
-import { runDeviceLogin } from "@paperclipai/adapter-codex-local/server";
-import { ensureCommandResolvable, resolveCommandForLogs } from "@paperclipai/adapter-utils/server-utils";
-import { resolveCodexCommand, startAntigravityBrowserLogin } from "../vendor/paperclip-runner/index.js";
+import { runSetupTokenLogin } from "@outpost/adapter-claude-local/server";
+import { runDeviceLogin } from "@outpost/adapter-codex-local/server";
+import { ensureCommandResolvable, resolveCommandForLogs } from "@outpost/adapter-utils/server-utils";
+import { resolveCodexCommand, startAntigravityBrowserLogin } from "../vendor/outpost-runner/index.js";
 
 export type LocalBrowserLoginState = {
   authorizationUrl?: string;

@@ -28,8 +28,8 @@ import {
   issues,
   nativeRunFinalizations,
   projects,
-} from "@paperclipai/db";
-import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
+} from "@outpost/db";
+import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -49,7 +49,7 @@ import { costService } from "../../../services/costs.js";
 // feeds the mapped facts back through the real gate to prove the wiring
 // produces the same suppression a caller would have seen before this module
 // existed.
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_RUN_DISPATCH_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_RUN_DISPATCH_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -906,7 +906,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       }).where(eq(nativeRunFinalizations.runId, f.runId));
       await db.update(heartbeatRuns).set({ resultJson: mode === "fresh" ? {} : {
         startupCancellation: { beforeNativeSelection: false, errorCode: "cancelled", requestedAt: new Date().toISOString() },
-        nativeCancellation: { schema: "paperclip.native-cancellation.v1", companyId: f.companyId, runId: f.runId,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId: f.companyId, runId: f.runId,
           issueId: mode === "foreign-intent" ? randomUUID() : f.issueId, scope: "run", reasonCode: "cancellation_run_only",
           intentId: `native-cancellation:${randomUUID()}`, intentAuditId: mode === "missing-audit" ? randomUUID() : intentAuditId,
           dispatchState: "pending", dispatched: false, effects: ["release_run_resources"] },

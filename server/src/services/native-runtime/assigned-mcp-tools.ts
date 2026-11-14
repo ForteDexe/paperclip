@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { deduplicateToolDescriptors, ToolGatewayHttpError, type ToolGatewayDescriptor, type ToolGatewayService } from "../tool-gateway.js";
 
 type WorkMode = "standard" | "planning" | "ask" | "skill_test";
@@ -107,7 +107,7 @@ export async function createAssignedMcpTools(input: {
   const permits = (tool: ToolGatewayDescriptor, mode: WorkMode = input.workMode ?? "standard") => mode === "standard" || tool.risk === "read";
   // OpenCode's HTTP bridge returns at most 64K JSON characters. Leave room
   // for the envelope and for JSON escaping when returning a schema chunk.
-  // Other harnesses retain the larger PRP page and chunk budgets.
+  // Other harnesses retain the larger ORP page and chunk budgets.
   const searchPageBytes = input.delivery === "on_demand" ? 32 * 1024 : SEARCH_PAGE_BYTES;
   const schemaChunkCharacters = input.delivery === "on_demand" ? 16 * 1024 : SCHEMA_CHUNK_CHARACTERS;
 
@@ -201,7 +201,7 @@ export async function createAssignedMcpTools(input: {
       }
       const descriptor = tools.get(name);
       if (!descriptor) throw new Error("assigned_mcp_tool_unknown");
-      if (!permits(descriptor) || !permits(descriptor, currentWorkMode)) throw new Error("paperclip_runner_tool_mode_denied");
+      if (!permits(descriptor) || !permits(descriptor, currentWorkMode)) throw new Error("outpost_runner_tool_mode_denied");
       // Reauthorize through the existing gateway on every call. Discovery is
       // not a grant: revocation, policy, approval, and audit remain server-owned.
       const result = await input.gateway.executeTool({
@@ -214,7 +214,7 @@ export async function createAssignedMcpTools(input: {
         throw new Error("assigned_mcp_tool_execution_incomplete");
       }
       // The gateway normally throws provider errors. Keep a malformed or older
-      // provider response from being reported as successful through PRP.
+      // provider response from being reported as successful through ORP.
       if (result.result && typeof result.result === "object" && "isError" in result.result && result.result.isError === true) {
         throw new ToolGatewayHttpError(502, "The assigned tool returned an error.", "tool_error");
       }

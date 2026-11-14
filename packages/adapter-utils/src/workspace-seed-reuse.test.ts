@@ -54,7 +54,7 @@ it.each([
 ])("reuses company seed content and restores branch identity ($nested, $secondBranch)", async ({ nested, secondBranch }) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-shared seed-'"));
   roots.push(root);
-  vi.stubEnv("PAPERCLIP_HOME", path.join(root, "home"));
+  vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
   const source = path.join(root, "source");
   const repositories = nested ? ["", ".paperclip-repositories/backend"] : [""];
   for (const relative of repositories) {
@@ -212,7 +212,7 @@ it("separates shared seeds when file contents, Git head, origin or repository la
 it.each([false, true])("awaits restored-index work before inbound preparation completes (failure=%s)", async failure => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-index-barrier-"));
   roots.push(root);
-  vi.stubEnv("PAPERCLIP_HOME", path.join(root, "home"));
+  vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
   const host = path.join(root, "host"), remote = path.join(root, "remote");
   await fs.mkdir(host);
   await git(host, "init", "-q", "-b", "main");

@@ -802,7 +802,7 @@ agents, persist uploads or establish backend behavior.
 ### Local integration sandbox
 
 The development app can opt into **Design proposals only** with
-`VITE_PAPERCLIP_DESIGN_SANDBOX=true`. The bottom-right **Design proposals: On/Off**
+`VITE_OUTPOST_DESIGN_SANDBOX=true`. The bottom-right **Design proposals: On/Off**
 control persists a local comparison preference. Production builds and development
 instances without this environment switch cannot activate it through browser
 storage. This experiment does not enable other Storybook explorations.
@@ -818,7 +818,7 @@ the existing sidebar, Tasks surface and menu appearance.
 
 The resizable contextual pane uses `--design-page-aside-width` for its default
 and double-click reset while the proposal is on (currently 320px). Sandbox
-widths use separate `paperclip.design-proposal.properties-pane-width.*` storage
+widths use separate `outpost.design-proposal.properties-pane-width.*` storage
 keys, so toggling off retains the ordinary 434px task-detail default and its
 saved widths. This adapts the existing task-detail pane; it does not replace its
 production content or maximize behavior with the layout-story fixtures.
@@ -875,13 +875,13 @@ Use the worktree-local isolated config and database. For a desktop visual review
 without building the agent runner, the documented direct API/UI dev path is:
 
 ```sh
-PAPERCLIP_CONFIG="$PWD/.paperclip/config.json" \
-PAPERCLIP_HOME="$PWD/.paperclip-local" \
-PAPERCLIP_INSTANCE_ID=design-system-sandbox \
-PAPERCLIP_UI_DEV_MIDDLEWARE=true \
-VITE_PAPERCLIP_DESIGN_SANDBOX=true \
+OUTPOST_CONFIG="$PWD/.paperclip/config.json" \
+OUTPOST_HOME="$PWD/.paperclip-local" \
+OUTPOST_INSTANCE_ID=design-system-sandbox \
+OUTPOST_UI_DEV_MIDDLEWARE=true \
+VITE_OUTPOST_DESIGN_SANDBOX=true \
 HEARTBEAT_SCHEDULER_ENABLED=false \
-PAPERCLIP_TELEMETRY_DISABLED=1 \
+OUTPOST_TELEMETRY_DISABLED=1 \
 pnpm dev:server
 ```
 

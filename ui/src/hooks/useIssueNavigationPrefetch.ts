@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { FocusEvent, MouseEvent, PointerEvent, TouchEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { prefetchIssueDetailForNavigation } from "@/lib/issueDetailCache";
 
 /** How long a hover rests on a task link before its full chat history is warmed. */

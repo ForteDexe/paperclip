@@ -8,8 +8,8 @@ import {
   createDb,
   pluginManagedResources,
   plugins,
-} from "@paperclipai/db";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -37,7 +37,7 @@ function issuePrefix(id: string) {
 
 function manifest(): PaperclipPluginManifestV1 {
   return {
-    id: "paperclip.managed-skills-test",
+    id: "outpost.managed-skills-test",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Managed Skills Test",
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("plugin-managed skills", () => {
     await db.insert(plugins).values({
       id: pluginId,
       pluginKey: pluginManifest.id,
-      packageName: "@paperclipai/plugin-managed-skills-test",
+      packageName: "@outpost/plugin-managed-skills-test",
       version: pluginManifest.version,
       apiVersion: pluginManifest.apiVersion,
       categories: pluginManifest.categories,

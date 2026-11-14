@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ENVIRONMENT_LEASE_POLICIES, WORKSPACE_SOURCE_VERIFICATION_REASONS,
-  type WorkspaceSourceVerificationFailure } from "@paperclipai/shared";
+  type WorkspaceSourceVerificationFailure } from "@outpost/shared";
 import { REMOTE_WORKSPACE_CAPTURE_POLICY_VERSION } from "./remote-workspace-snapshot-archive.js";
 
 export const SYSTEM_RECOVERY_POLICY_VERSION = 1;
@@ -46,7 +46,7 @@ export const recoveryFailureCauseSchema = z.object({
 export type RecoveryFailureCause = z.infer<typeof recoveryFailureCauseSchema>;
 
 export const systemRecoverySchema = z.object({
-  schema: z.literal("paperclip.system-recovery.v1"),
+  schema: z.literal("outpost.system-recovery.v1"),
   policyVersion: z.literal(SYSTEM_RECOVERY_POLICY_VERSION),
   sourceRunId: z.string().uuid(),
   revision: z.number().int().nonnegative(),
@@ -84,7 +84,7 @@ export function readSystemRecovery(evidence: Record<string, unknown> | null | un
 /** New generations require new intent or one-time policy adoption, never a sweep. */
 export function createSystemRecovery(sourceRunId: string, intentId: string | null = null): SystemRecoveryState {
   return {
-    schema: "paperclip.system-recovery.v1", policyVersion: SYSTEM_RECOVERY_POLICY_VERSION,
+    schema: "outpost.system-recovery.v1", policyVersion: SYSTEM_RECOVERY_POLICY_VERSION,
     sourceRunId, revision: 0, generationId: intentId ?? randomUUID(), intentId,
     phase: "verify_execution", state: "scheduled", attemptId: null, attempts: 0, retriesUsed: 0,
     firstFailureAt: null, nextAttemptAt: null, deadlineAt: null, providerCooldownAt: null, failure: null,
@@ -140,7 +140,7 @@ export function failSystemRecovery(
  * generation carries the current version, so the retry is bounded per policy.
  */
 export const CAPTURE_POLICY_RECOVERY_KEY = "capturePolicyRecovery";
-export const CAPTURE_POLICY_RECOVERY_SCHEMA = "paperclip.capture-policy-recovery.v1";
+export const CAPTURE_POLICY_RECOVERY_SCHEMA = "outpost.capture-policy-recovery.v1";
 // Capture refusals surface as export_interrupted. archive_unsafe names a restore
 // refusal, which the capture policy does not change, so it is not re-armed.
 export const CAPTURE_POLICY_REARM_CODES = ["export_interrupted"] as const;
@@ -159,7 +159,7 @@ export function isCapturePolicyRearmable(state: Pick<SystemRecoveryState, "state
  * save with the unsaved files attached, like a refused source.
  */
 export const STOP_PROOF_RECOVERY_KEY = "stopProofRecovery";
-export const STOP_PROOF_RECOVERY_SCHEMA = "paperclip.stop-proof-recovery.v1";
+export const STOP_PROOF_RECOVERY_SCHEMA = "outpost.stop-proof-recovery.v1";
 export const STOP_PROOF_MAX_REARMS = 4;
 export const STOP_PROOF_WAIT_CODE = "agent_stop_unconfirmed";
 /** Coordinator phases after which no finalizer or provider work runs under the coordinator. */

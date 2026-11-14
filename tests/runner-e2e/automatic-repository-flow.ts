@@ -70,7 +70,7 @@ export async function runAutomaticRepositoryFlow(input: {
       input.observe(issue, runs, checks);
       await input.evidence("api-state.json", automaticRepositoryApiState(phase, issue, runs, checks));
     }
-    await input.evidence("automatic-repository.json", { schema: "paperclip.e2e.automatic-repository.v1", phase, observation, checks,
+    await input.evidence("automatic-repository.json", { schema: "outpost.e2e.automatic-repository.v1", phase, observation, checks,
       runs: runs.map(run => ({ id: run.id, status: run.status, nativePhase: run.nativePhase, source: run.contextSnapshot?.source,
         finalizationReason: run.resultJson?.finalizationReasonCode, startedAt: run.startedAt, finishedAt: run.finishedAt })) });
   }

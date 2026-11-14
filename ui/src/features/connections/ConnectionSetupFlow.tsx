@@ -3,12 +3,12 @@ import { readOAuthWindowOutcome } from "@/lib/oauthWindowOutcome";
 import { bindAccount } from "@/lib/account-scope";
 import { StepHeader } from "./ConnectionSetupHeader";
 import { GoogleWorkspaceServicesDialog } from "./GoogleWorkspaceServices";
-import type { GoogleWorkspaceServiceSelection } from "@paperclipai/shared";
+import type { GoogleWorkspaceServiceSelection } from "@outpost/shared";
 export { StepHeader } from "./ConnectionSetupHeader";
 import { ConnectionInstructionsEditor } from "./ConnectionInstructions";
-import { connectionInstructionsConfig, defaultConnectionAgentInstructions, type ConnectionAgentInstructions } from "@paperclipai/shared";
+import { connectionInstructionsConfig, defaultConnectionAgentInstructions, type ConnectionAgentInstructions } from "@outpost/shared";
 import { RemoteMcpProductionSetup } from "./remote-mcp/RemoteMcpProductionSetup";
-import { findAggregatorApp } from "@paperclipai/shared/aggregator-app-catalog";
+import { findAggregatorApp } from "@outpost/shared/aggregator-app-catalog";
 import { useMemoryConnectorsEnabled } from "@/hooks/useMemoryConnectorsEnabled";
 import { useConnectorAvailability } from "@/hooks/useConnectorAvailability";
 import { AiConnectionCredentialStep } from "@/components/ai-connections/AiConnectionCredentialStep";
@@ -44,7 +44,7 @@ import type {
   ToolConnectionCredentialSource,
   ToolConnectionCreateCapabilities,
   ToolOAuthStartResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   aiConnectionMetadataSchema,
   isRemoteMcpConnectorId,
@@ -60,7 +60,7 @@ import {
   getAvailableConnectionMethods,
   getRecommendedConnectionMethod,
   isGoogleWorkspaceConnectorProfileId,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { useNavigate, useParams, useSearchParams } from "@/lib/router";
 import { useCompany } from "@/context/CompanyContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
@@ -127,7 +127,7 @@ type EnrollmentAccessState = {
 };
 
 function enrollmentAccessStorageKey(appKey: string): string {
-  return `paperclip.connector-enrollment-access:${appKey}`;
+  return `outpost.connector-enrollment-access:${appKey}`;
 }
 
 function validEnrollmentAccessState(value: unknown): value is EnrollmentAccessState {
@@ -541,7 +541,7 @@ export function readConnectionIntentOAuthOutcome(
     outcome?: unknown;
   };
   if (
-    message.type !== "paperclip.connection-intent.oauth"
+    message.type !== "outpost.connection-intent.oauth"
     || message.interactionId !== interactionId
   ) return null;
   return message.outcome === "connected"
@@ -558,7 +558,7 @@ export interface ConnectionSetupFlowProps {
   connectionSettings?: ReactNode;
   additionalSettingsValid?: boolean;
   upstreamServiceName?: string;
-  aiConnection?: import("@paperclipai/shared").AiConnectionBinding | Pick<import("@paperclipai/shared").AiConnectionBinding, "provider" | "method" | "mode">;
+  aiConnection?: import("@outpost/shared").AiConnectionBinding | Pick<import("@outpost/shared").AiConnectionBinding, "provider" | "method" | "mode">;
   /** A company service requires a company-owned credential. Existing grants are never broadened. */
   requiredAiOwnership?: "shared";
   /** Provider-specific authentication inside the existing access/setup shell. Undefined retains the standard credential form. */
@@ -570,7 +570,7 @@ export interface ConnectionSetupFlowProps {
   requestedAgentId?: string;
   /** Task requester must be included without restricting the audience to it. */
   requiredAgentId?: string;
-  setupAccess?: import("@paperclipai/shared").ConnectionIntentInteraction["payload"]["setupAccess"];
+  setupAccess?: import("@outpost/shared").ConnectionIntentInteraction["payload"]["setupAccess"];
   interactionId?: string;
   forceNewConnection?: boolean;
   existingConnections?: ConnectionIntentSetupConnection[];

@@ -8,10 +8,10 @@ const mocks = vi.hoisted(() => ({
   scaffoldPluginProject: vi.fn((options: { outputDir: string }) => options.outputDir),
 }));
 
-vi.mock("../../../packages/plugins/create-paperclip-plugin/src/index.js", async () => {
+vi.mock("../../../packages/plugins/create-outpost-plugin/src/index.js", async () => {
   const actual =
-    await vi.importActual<typeof import("../../../packages/plugins/create-paperclip-plugin/src/index.js")>(
-      "../../../packages/plugins/create-paperclip-plugin/src/index.js",
+    await vi.importActual<typeof import("../../../packages/plugins/create-outpost-plugin/src/index.js")>(
+      "../../../packages/plugins/create-outpost-plugin/src/index.js",
     );
   return {
     ...actual,
@@ -222,6 +222,6 @@ describe("plugin target diagnostics", () => {
 
     expect(rendered).toContain("unreachable");
     expect(rendered).toContain("--api-base");
-    expect(rendered).toContain("PAPERCLIP_API_URL");
+    expect(rendered).toContain("OUTPOST_API_URL");
   });
 });

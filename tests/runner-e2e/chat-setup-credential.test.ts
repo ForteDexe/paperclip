@@ -18,7 +18,7 @@ it("registers before exactly one fixed read-only request and retains closed reco
   });
   const receipt = await checkSetupHealthCredential({ ...i, fetch });
   expect(fetch).toHaveBeenCalledTimes(1);
-  expect(receipt).toEqual({ schema: "paperclip.setup-health-credential/v1", code: "recognized", httpStatus: 200, recognized: true, expired: false, budgetAvailable: true });
+  expect(receipt).toEqual({ schema: "outpost.setup-health-credential/v1", code: "recognized", httpStatus: 200, recognized: true, expired: false, budgetAvailable: true });
   expect(JSON.stringify(receipt)).not.toMatch(/synthetic|private-|123\.45|26\.55|150|label|workspace/);
 });
 it.each([401, 403, 429, 500])("does not parse or retain HTTP%s body and never retries", async status => {

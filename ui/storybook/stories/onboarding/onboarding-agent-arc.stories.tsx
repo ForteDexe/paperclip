@@ -644,7 +644,7 @@ function installCodexPlatformFixture(outcome: CodexPlatformFixtureOutcome) {
         defaultRunner: qualified && outcome === "native" ? "paperclip" : "legacy",
         supportedRunners: qualified && outcome === "native" ? ["paperclip", "legacy"] : ["legacy"],
       } : adapter);
-      return Response.json([...adapters, { type: "paperclip_runner", loaded: true, disabled: false, source: "builtin", label: "Paperclip Runner", modelsCount: 0 }]);
+      return Response.json([...adapters, { type: "outpost_runner", loaded: true, disabled: false, source: "builtin", label: "Outpost Runner", modelsCount: 0 }]);
     }
     if (url.pathname === "/api/environments/environment-storybook-sandbox/probe" && method === "POST") {
       receipt.calls.push("platform");
@@ -661,14 +661,14 @@ function installCodexPlatformFixture(outcome: CodexPlatformFixtureOutcome) {
       receipt.testRequests.push(await payload());
       const response = await previous(input, init);
       const result = await response.json();
-      return Response.json({ ...result, adapterType: outcome === "native" && qualified ? "paperclip_runner" : "codex_local" });
+      return Response.json({ ...result, adapterType: outcome === "native" && qualified ? "outpost_runner" : "codex_local" });
     }
     if (url.pathname === `/api/companies/${STORYBOOK_COMPANY_ID}/agent-hires` && method === "POST") {
       receipt.calls.push("hire");
       const request = await payload();
       receipt.hireRequests.push(request);
       const native = outcome === "native" && qualified;
-      receipt.createdAdapterType = native ? "paperclip_runner" : "codex_local";
+      receipt.createdAdapterType = native ? "outpost_runner" : "codex_local";
       const adapterConfig = request.adapterConfig as Record<string, unknown>;
       return Response.json({ agent: { ...storybookHiredAgent, ...request, adapterType: receipt.createdAdapterType,
         adapterConfig: { ...adapterConfig, ...(native ? { provider: "codex" } : {}) } }, approval: null });
@@ -714,7 +714,7 @@ function managedCodexQualificationStory(outcome: CodexPlatformFixtureOutcome): S
         await expect(receipt.testRequests[0]).not.toHaveProperty("runner");
         await expect(receipt.testRequests[0]).toHaveProperty("environmentId", "environment-storybook-sandbox");
         await expect(receipt.hireRequests[0]).not.toHaveProperty("runner");
-        await expect(receipt.createdAdapterType).toBe(outcome === "native" ? "paperclip_runner" : "codex_local");
+        await expect(receipt.createdAdapterType).toBe(outcome === "native" ? "outpost_runner" : "codex_local");
       }
     },
   };

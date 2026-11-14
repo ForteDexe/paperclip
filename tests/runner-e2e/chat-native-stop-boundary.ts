@@ -17,7 +17,7 @@ export function nativeStopPendingReceiptMatches(input: { receipt: NativeStopBoun
     // Production intent ids are `native-cancellation:<uuid>` (native-cancellation-request.ts).
     && typeof r.intentId === "string" && /^native-cancellation:[a-f0-9-]{36}$/i.test(r.intentId)
     && Number.isFinite(Date.parse(r.intentRecordedAt)) && input.setupRunIds.includes(r.runId) && run.id === r.runId && run.companyId === input.companyId && run.nativeIssueId === r.issueId
-    && r.issueId === input.sourceIssueId && run.agentId === input.assignedAgentId && run.runtimeMode === "native" && run.status === "running" && intent?.schema === "paperclip.native-cancellation.v1" && intent.companyId === input.companyId && intent.runId === r.runId && intent.issueId === r.issueId
+    && r.issueId === input.sourceIssueId && run.agentId === input.assignedAgentId && run.runtimeMode === "native" && run.status === "running" && intent?.schema === "outpost.native-cancellation.v1" && intent.companyId === input.companyId && intent.runId === r.runId && intent.issueId === r.issueId
     && intent.intentId === r.intentId && intent.recordedAt === r.intentRecordedAt && intent.scope === "run" && intent.dispatchState === "pending" && intent.dispatched === false && intent.acknowledgedAt == null;
 }
 export async function prepareNativeStopCanonicalBoundary(ctx: ChatCatalogContext, implementation: ChatCatalogCase, state: Record<string, unknown>, canonicalQuery: string, setup: ChatCatalogSetupBoundary) {

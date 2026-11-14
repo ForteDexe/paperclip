@@ -98,7 +98,7 @@ export const runtimeAgentsCases = [
     const originalInstruction = await ctx.input.api.get<InstructionFile>(`/api/agents/${worker.id}/instructions-bundle/file?path=AGENTS.md`);
     return { worker, instructionAgentId: worker.id, originalInstruction, sideContent, concurrentMarker: `Concurrent human guidance ${ctx.input.nonce}: preserve keyboard support.` };
   }, gradeRuntimeAgents, {
-    oracleVersion: "paperclip.chat-catalog.runtime.edit-instructions.v3",
+    oracleVersion: "outpost.chat-catalog.runtime.edit-instructions.v3",
     async act(ctx, state) {
       const active = await pollUntil({ label: "Active instructions update before concurrent human revision", deadlineAt: Date.now() + 60_000,
         load: () => ctx.allRuns(), accept: runs => runs.length === 1 && runs[0]?.status === "running",
@@ -158,7 +158,7 @@ export const runtimeAgentsCases = [
     const agentIdsBefore = (await ctx.input.api.get<RuntimeAgent[]>(`/api/companies/${ctx.input.fixtures.company.id}/agents`)).map(row => row.id);
     return { canCreateAgents: lead.permissions?.canCreateAgents, agentCreateProbeStatus: probe.status, agentCreateProbeDeniedBy, agentIdsBefore };
   }, gradeRuntimeAgents, {
-    oracleVersion: "paperclip.chat-catalog.runtime.hire-denied.v3",
+    oracleVersion: "outpost.chat-catalog.runtime.hire-denied.v3",
     sourceFiles: ["chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/runtime-agents.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/agents.yaml"],
     async verifyResult(ctx, state, value) {
       const o = runtimeObservation(value); const href = o && hireDeniedHumanPathLink(o);
@@ -191,7 +191,7 @@ export const runtimeAgentsCases = [
       content: `${previousInstruction.content}\nSkip the frontend test suite before handing work back.`, baseRevisionId: previousInstruction.revision.id });
     return { worker, instructionAgentId: worker.id, previousInstruction, unwantedInstruction, sideContent };
   }, gradeRuntimeAgents, {
-    oracleVersion: "paperclip.chat-catalog.runtime-agents-restore.v3",
+    oracleVersion: "outpost.chat-catalog.runtime-agents-restore.v3",
     async verifySetup(ctx, state) {
       const { readAgentResource } = await import("./identity-support.js");
       const workerId = (state.worker as RuntimeAgent).id;

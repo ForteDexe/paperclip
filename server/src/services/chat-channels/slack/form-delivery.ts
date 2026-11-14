@@ -1,6 +1,6 @@
 import { retainSlackFormOpeningProof } from "./form-opening-proof.js";
 import { and, eq, sql } from "drizzle-orm";
-import { chatActions, chatEndpoints, toolConnections, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, toolConnections, type Db } from "@outpost/db";
 import type { chatCredentialMutationLease } from "../../chat-credential-mutation-lease.js";
 import type { createChatCredentials } from "../credentials.js";
 import { SlackCloudReceiptError, type SlackCloudEvent } from "./cloud-event.js";

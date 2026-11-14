@@ -13,8 +13,8 @@ import type {
   PluginSpan,
   PluginSyncFileMapping,
   PluginSyncOperation,
-} from "@paperclipai/plugin-sdk";
-import { recordEnvironmentSyncError, withEnvironmentSyncTransferStep } from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
+import { recordEnvironmentSyncError, withEnvironmentSyncTransferStep } from "@outpost/plugin-sdk";
 import { getPluginTracer } from "./plugin.js";
 import { streamSandboxArchive } from "./archive-stream.js";
 
@@ -23,7 +23,7 @@ const execFileAsync = promisify(execFile);
 // The span-attribute names. They mirror the host span-attribute contract by
 // value. The plugin ships bundled, so it stays free of the host packages and
 // repeats these strings; the host re-clamps a provider span by these exact keys.
-const SPAN_ATTR_PREFIX = "paperclip.sandbox.startup.";
+const SPAN_ATTR_PREFIX = "outpost.sandbox.startup.";
 const SPAN_ATTR = {
   provider: `${SPAN_ATTR_PREFIX}provider`,
   packWallMs: `${SPAN_ATTR_PREFIX}pack.wall_ms`,
@@ -511,12 +511,12 @@ const ZSTD_COMPRESSION_LEVEL = 3;
 /** Marker the mkdir+probe command echoes to sandbox stdout when the sandbox
  * has a `zstd` binary on `PATH`. An absent or unexpected answer fails closed
  * (no compression), per the design's fallback rules. */
-const ZSTD_PROBE_MARKER = "PAPERCLIP_ZSTD_AVAILABLE";
+const ZSTD_PROBE_MARKER = "OUTPOST_ZSTD_AVAILABLE";
 
 /** Marker for a `gzip` binary on `PATH`. The Daytona runner image ships gzip
  * but no zstd, so gzip is the fallback codec there; without it every remote
  * turn uploaded the whole uncompressed workspace seed. */
-const GZIP_PROBE_MARKER = "PAPERCLIP_GZIP_AVAILABLE";
+const GZIP_PROBE_MARKER = "OUTPOST_GZIP_AVAILABLE";
 
 /** gzip level for the fallback codec: level 1 compresses a 220 MB repository
  * tar to about 70 MB in about 1.3 s; higher levels cost far more CPU for little

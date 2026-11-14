@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, heartbeatRuns } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRuns } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "../../../__tests__/helpers/full-database-response-capture.js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -31,7 +31,7 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
   it("omits native bulk at the driver boundary and preserves the complete legacy fallback", async () => {
     const bulk = randomBytes(128 * 1024).toString("base64");
     const context = { issueId: randomUUID(), opaqueFutureContext: { savedInput: "keep this input" }, explicitUserContinuation: true };
-    const evidence = { nativeCancellation: { schema: "paperclip.native-cancellation.v1", acknowledged: true }, unknownFutureReceipt: [true, null, 42] };
+    const evidence = { nativeCancellation: { schema: "outpost.native-cancellation.v1", acknowledged: true }, unknownFutureReceipt: [true, null, 42] };
     const [before] = await db.insert(heartbeatRuns).values({
       companyId, agentId, runtimeMode: "native", status: "running", contextSnapshot: context,
       runnerProfileJson: { nativeExecutionInput: { savedInput: bulk } }, stdoutExcerpt: bulk, stderrExcerpt: bulk,
@@ -51,7 +51,7 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
       expect(native.run).not.toHaveProperty("stdoutExcerpt");
       expect(native.run).not.toHaveProperty("stderrExcerpt");
     } finally { capture.flush(); }
-    const summary = events.find(event => event.event === "paperclip.test_db_response_capture.summary.v1")!;
+    const summary = events.find(event => event.event === "outpost.test_db_response_capture.summary.v1")!;
     expect(summary.completedQueries).toBe(1);
     expect(summary.responseValueBytes).toBeLessThan(8192);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, before.id)))[0]).toEqual(before);
@@ -88,9 +88,9 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
       paperclipWake: { savedTask: bulk }, paperclipWakeComment: bulk, paperclipTaskMarkdown: bulk,
       paperclipTaskMarkdownCompact: bulk, paperclipTaskMarkdownAssignment: bulk,
       paperclipTaskMarkdownAssignmentCompact: bulk, paperclipWorkspace: { files: bulk },
-      paperclipEnvironment: { input: bulk }, paperclipContinuationSummary: bulk,
+      outpostEnvironment: { input: bulk }, paperclipContinuationSummary: bulk,
     };
-    const evidence = { nativeCancellation: { schema: "paperclip.native-cancellation.v1", dispatched: true },
+    const evidence = { nativeCancellation: { schema: "outpost.native-cancellation.v1", dispatched: true },
       executionCancellation: { state: "acknowledged" }, workspaceRestoreRecovery: { leaseIds: [randomUUID()] },
       configurationIncomplete: { reason: "secret_binding_missing" }, unknownFutureReceipt: { retained: true } };
     const [before] = await db.insert(heartbeatRuns).values({ companyId, agentId, runtimeMode: "native",
@@ -102,7 +102,7 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
     let selected: Awaited<ReturnType<typeof readReleaseRun>>;
     try { selected = await db.transaction(tx => readReleaseRun(tx as unknown as typeof db, { companyId, runId: before.id })); }
     finally { capture.flush(); }
-    const summary = events.find(event => event.event === "paperclip.test_db_response_capture.summary.v1")!;
+    const summary = events.find(event => event.event === "outpost.test_db_response_capture.summary.v1")!;
     expect(summary.completedQueries).toBe(1);
     expect(summary.responseValueBytes).toBeLessThan(8192);
     expect(selected!.run?.contextSnapshot).toEqual(context);

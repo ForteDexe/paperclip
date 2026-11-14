@@ -21,7 +21,7 @@ import {
   nativeRunFinalizations,
   sandboxCreationOperations,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { currentControllerBootId, currentProcessSpaceHash } from "../services/controller-process-identity.js";
@@ -36,12 +36,12 @@ import {
 } from "../services/recovery/ownership-invariant-report.js";
 import { OWNABLE_KINDS } from "../services/recovery/ownership-registry.js";
 import { trackRemoteWorkspaceSaveInvocationForTests } from "../services/remote-workspaces.js";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { preparedRemoteWorkspaceSource } from "../services/remote-workspace-lifecycle.js";
 import { readRemoteWorkspaceWriterHold } from "../services/remote-workspace-writer-hold.js";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_HISTORY_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 const kindReport = (report: OwnershipReport, kind: string) => report.kinds.find(entry => entry.kind === kind)!;
@@ -62,7 +62,7 @@ describe("report-only ownership reconciliation", () => {
     // Spool kinds read the instance root; never let a test read a real instance.
     home = await mkdtemp(join(tmpdir(), "ownership-report-home-"));
     orphanSpool = join(home, "orphan-spool");
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("SANDBOX_ORPHAN_CLEANUP_SPOOL_DIR", orphanSpool);
     if (!external) database = await startEmbeddedPostgresTestDatabase("ownership-reconciliation-");
     db = createDb(external ?? database!.connectionString, { maxConnections: 4, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
@@ -231,12 +231,12 @@ describe("report-only ownership reconciliation", () => {
     const report = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(), record: false });
     expect(kindReport(report, "native_executor_claim")).toMatchObject({ inProgress: 2,
       verdicts: { gone: 1, unprovable: 1 }, reasons: { pid_dead: 1, process_space_unrecorded: 1 } });
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     try {
       const ephemeral = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(), record: false });
       expect(kindReport(ephemeral, "native_executor_claim")).toMatchObject({ inProgress: 2,
         verdicts: { gone: 1, unprovable: 1 }, reasons: { pid_dead: 1, process_space_unrecorded: 1 } });
-    } finally { vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", ""); }
+    } finally { vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", ""); }
   });
 
   it("settles a claimed wake whose run finished without settling it, and only that one", async () => {
@@ -380,7 +380,7 @@ describe("report-only ownership reconciliation", () => {
       ...(status === "running" ? {} : { finishedAt: minutesAgo(2) }) });
     const runs = { failed: randomUUID(), live: randomUUID() };
     await db.insert(heartbeatRuns).values([run(runs.failed, "failed"), run(runs.live, "running")]);
-    const quiesced = { schema: "paperclip.remote-workspace-save-work.v1", activeIds: [], unknown: false, quiescedAt: minutesAgo(30).toISOString() };
+    const quiesced = { schema: "outpost.remote-workspace-save-work.v1", activeIds: [], unknown: false, quiescedAt: minutesAgo(30).toISOString() };
     const liveInvocation = randomUUID();
     const ops = { abandoned: randomUUID(), pendingAbandoned: randomUUID(), liveRun: randomUUID(), activeInvocation: randomUUID(),
       unknownWork: randomUUID(), notQuiesced: randomUUID(), invalidWork: randomUUID() };
@@ -428,7 +428,7 @@ describe("report-only ownership reconciliation", () => {
     const op = (id: string, runId: string, owners: Record<string, unknown> | undefined, activeIds = [randomUUID()]) => ({
       id, companyId, heartbeatRunId: runId, phase: "remote_workspace_snapshot", status: "running",
       metadata: { epoch: 1, boundary: "initial", generation: 1, exportCleanup: { state: "pending" },
-        saveWork: { schema: "paperclip.remote-workspace-save-work.v1", activeIds, unknown: false, quiescedAt: null,
+        saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds, unknown: false, quiescedAt: null,
           ...(owners ? { owners: Object.fromEntries(activeIds.map((invocation, index) => [invocation, Object.values(owners)[index]])
             .filter(([, stamp]) => stamp !== undefined)) } : {}) } } });
     const twoIds = [randomUUID(), randomUUID()], selfInvocation = randomUUID();
@@ -475,7 +475,7 @@ describe("report-only ownership reconciliation", () => {
     const workspaceFor = Object.fromEntries(Object.keys(runs).map(name => [name, randomUUID()])) as Record<keyof typeof runs, string>;
     await db.insert(executionWorkspaces).values(Object.entries(runs).map(([name, writerRunId]) => ({
       id: workspaceFor[name as keyof typeof runs], companyId, mode: "isolated_workspace", strategyType: "test", name,
-      metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null,
+      metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null,
         source: { kind: "git", repoUrl: "https://example.invalid/repo.git", ref: null }, dirty: true, writerRunId,
         location: { environmentId: randomUUID(), leaseId: randomUUID(), providerLeaseId: "sandbox-1", remoteCwd: "/workspace/root" } } },
     })));
@@ -504,11 +504,11 @@ describe("report-only ownership reconciliation", () => {
     const location = { environmentId: environment.id, leaseId, providerLeaseId: `sandbox-${randomUUID()}`, remoteCwd: "/workspace/task" };
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, status: "failed", invocationSource: "manual",
       executionStage: "preparing", finishedAt: minutesAgo(2), errorCode: "process_lost", contextSnapshot: { issueId },
-      runnerProfileJson: { remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", workspaceId, leaseId,
+      runnerProfileJson: { remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId,
         providerLeaseId: location.providerLeaseId, remoteCwd: location.remoteCwd, epoch: 1, state: "prepared", snapshotId: null } } });
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: "isolated_workspace",
       strategyType: "test", name: "Remote task workspace",
-      metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null,
+      metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null,
         source: { kind: "git", repoUrl: "https://example.invalid/repo.git", ref: null }, dirty: true, writerRunId: runId, location } } });
     const [lease] = await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId: environment.id, issueId,
       heartbeatRunId: runId, executionWorkspaceId: workspaceId, status: "active", leasePolicy: "ephemeral", provider: "daytona",
@@ -542,17 +542,17 @@ describe("report-only ownership reconciliation", () => {
       return { id: s.runId, companyId, agentId, status: "failed", invocationSource: "manual", executionStage: "preparing",
         finishedAt: minutesAgo(2), errorCode: "process_lost",
         ...(name === "processStarted" ? { processPid: 4_194_303 } : {}),
-        runnerProfileJson: { remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", workspaceId: s.workspaceId,
+        runnerProfileJson: { remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", workspaceId: s.workspaceId,
           leaseId: s.leaseId, providerLeaseId: s.providerLeaseId, remoteCwd: remoteCwd(name), epoch: 2, state: "prepared", snapshotId } } };
     }));
     await db.insert(executionWorkspaces).values(cases.map(name => {
       const s = setup[name];
       const baseline = name === "noBaseline" ? {}
-        : { remoteWorkspaceUnchangedBaseline: { schema: "paperclip.remote-workspace-unchanged-baseline.v1",
+        : { remoteWorkspaceUnchangedBaseline: { schema: "outpost.remote-workspace-unchanged-baseline.v1",
           epoch: name === "otherEpochBaseline" ? 1 : 2, runId: s.runId, snapshotId,
           ...(name === "releasedBaseline" ? { releasedAt: minutesAgo(5).toISOString() } : {}) } };
       return { id: s.workspaceId, companyId, mode: "isolated_workspace", strategyType: "test", name,
-        metadata: { ...baseline, remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 2, snapshotId,
+        metadata: { ...baseline, remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId,
           source: { kind: "git", repoUrl: "https://example.invalid/repo.git", ref: null }, dirty: true, writerRunId: s.runId,
           location: { environmentId: randomUUID(), leaseId: s.leaseId, providerLeaseId: s.providerLeaseId, remoteCwd: remoteCwd(name) } } } };
     }));
@@ -772,10 +772,10 @@ describe("report-only ownership reconciliation", () => {
     const personClosed = await closedTask("user");
     await db.insert(heartbeatRunEvents).values([
       { companyId, runId: steered.runId, agentId, seq: 1, eventType: "item.completed", stream: "system", level: "info",
-        sourceEventId: randomUUID(), payload: { prpEvent: { itemId: `provider-item-9f2:steer:${steered.commentId}`,
+        sourceEventId: randomUUID(), payload: { orpEvent: { itemId: `provider-item-9f2:steer:${steered.commentId}`,
           payload: { kind: "steering_acknowledgement" } } } },
       { companyId, runId: goalSteered.runId, agentId, seq: 1, eventType: "item.started", stream: "system", level: "info",
-        sourceEventId: randomUUID(), payload: { prpEvent: { itemId: "msg_provider_generated_7c1",
+        sourceEventId: randomUUID(), payload: { orpEvent: { itemId: "msg_provider_generated_7c1",
           payload: { kind: "userMessage", commandId: `goal_comment_${goalSteered.commentId}` } } } },
     ]);
     const report = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(), record: false });
@@ -811,7 +811,7 @@ describe("report-only ownership reconciliation", () => {
     };
     const steerEvent = (runId: string, commentId: string, eventType: string, createdAt: Date) => ({ companyId, runId, agentId,
       seq: 1, eventType, stream: "system", level: "info", sourceEventId: randomUUID(), createdAt,
-      payload: { prpEvent: { itemId: `provider:steer:${commentId}`, payload: { kind: "steering_acknowledgement" } } } });
+      payload: { orpEvent: { itemId: `provider:steer:${commentId}`, payload: { kind: "steering_acknowledgement" } } } });
     const lostNative = await task("lost, native prior run", [{ binding: "native", startedAt: minutesAgo(10), finishedAt: minutesAgo(9) }], minutesAgo(8));
     const lostContext = await task("lost, legacy prior run", [{ binding: "context", startedAt: minutesAgo(10), finishedAt: minutesAgo(9) }], minutesAgo(7));
     await task("no run at all", [], minutesAgo(8));

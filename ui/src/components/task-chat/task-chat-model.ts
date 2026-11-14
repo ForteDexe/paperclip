@@ -25,11 +25,11 @@ import type {
   DecisionHistoryItem,
   ConversationTaskHandoff,
   AttentionItem,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type {
   PaperclipQuestionResponse,
   PaperclipQuestionSet,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 
 export type { PaperclipQuestionResponse, PaperclipQuestionSet };
 

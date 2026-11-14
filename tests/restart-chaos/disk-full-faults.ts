@@ -4,7 +4,7 @@
  *
  * A genuinely full disk cannot be made on demand, so the server carries a test-only hook
  * (server/src/services/sandbox-disk-full-fault.ts). The harness starts its server with
- * PAPERCLIP_DISK_FULL_FAULT_CONTROL pointing at a file it owns. While a task's issue id is in
+ * OUTPOST_DISK_FULL_FAULT_CONTROL pointing at a file it owns. While a task's issue id is in
  * that file, each final workspace save of that task gets the answer a full sandbox gives: the
  * capture command exits 1 with the product's disk-full message, and the provider download fails
  * with "No space left on device". Everything after that is the product's own handling.
@@ -102,7 +102,7 @@ export class DiskFullFaultSeam {
   }
 
   get serverEnvironment(): Record<string, string> {
-    return { PAPERCLIP_DISK_FULL_FAULT_CONTROL: this.controlPath, PAPERCLIP_DISK_FULL_FAULT_RECEIPT: this.receiptPath };
+    return { OUTPOST_DISK_FULL_FAULT_CONTROL: this.controlPath, OUTPOST_DISK_FULL_FAULT_RECEIPT: this.receiptPath };
   }
 
   arm(issueId: string): Promise<void> { this.armed.add(issueId); return this.write(); }

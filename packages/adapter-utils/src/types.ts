@@ -6,7 +6,7 @@ import type { SshRemoteExecutionSpec } from "./ssh.js";
 import type { AdapterExecutionTarget } from "./execution-target.js";
 import type { RuntimeStatusSink } from "./runtime-progress.js";
 import type { AdapterExecutionPhaseSink } from "./execution-phase.js";
-import type { ExecutionContinuationEnvelope, NativeFinalizationResult } from "@paperclipai/shared";
+import type { ExecutionContinuationEnvelope, NativeFinalizationResult } from "@outpost/shared";
 
 export interface AdapterAgent {
   id: string;
@@ -684,7 +684,7 @@ export interface PaperclipQuestion {
 }
 
 export interface PaperclipQuestionSet {
-  schema: "paperclip.question_set.v1";
+  schema: "outpost.question_set.v1";
   title?: string;
   description?: string;
   submitLabel?: string;
@@ -692,12 +692,12 @@ export interface PaperclipQuestionSet {
 }
 
 export interface PaperclipQuestionResponse {
-  schema: "paperclip.question_response.v1";
+  schema: "outpost.question_response.v1";
   answers: Record<string, { selectedOptionIds?: string[]; text?: string; customText?: string }>;
 }
 
 /**
- * Canonical facts about one tool execution (from `paperclip.tool.execution.v1`).
+ * Canonical facts about one tool execution (from `outpost.tool.execution.v1`).
  * When present on a `tool_call`, it is authoritative and replaces earlier
  * values for the same `toolUseId`; a later lifecycle event may refine it.
  */

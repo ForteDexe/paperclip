@@ -74,6 +74,6 @@ const performance = privilegedDefinition("developer-labs.long-thread-performance
   }, grade: gradeLongThreadPerformance,
   async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
 });
-performance.oracleVersion = "paperclip.chat-catalog.privileged.long-thread-performance.v3"; performance.expectedRunCount = 2; performance.expectedHumanMessageCount = 2; performance.attemptTimeoutMs = 600_000;
+performance.oracleVersion = "outpost.chat-catalog.privileged.long-thread-performance.v3"; performance.expectedRunCount = 2; performance.expectedHumanMessageCount = 2; performance.attemptTimeoutMs = 600_000;
 performance.sourceFiles = [...performance.sourceFiles, "../../ui/src/pages/IssueChatLongThreadPerf.tsx", "../../ui/src/fixtures/issueChatLongThreadFixture.ts"];
 export const privilegedPerformanceCases = [performance];

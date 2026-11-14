@@ -1,4 +1,4 @@
-import type { InstanceExperimentalSettings } from "@paperclipai/shared";
+import type { InstanceExperimentalSettings } from "@outpost/shared";
 
 export function resolveStreamlinedUiEnabled(
   settings:

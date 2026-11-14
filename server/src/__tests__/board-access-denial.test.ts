@@ -118,15 +118,15 @@ describe("board-only denial", () => {
   });
 
   it("does not link plugin settings while the operator hides plugin management", async () => {
-    const previous = process.env.PAPERCLIP_HIDDEN_SETTINGS;
-    process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.plugins";
+    const previous = process.env.OUTPOST_HIDDEN_SETTINGS;
+    process.env.OUTPOST_HIDDEN_SETTINGS = "instance.plugins";
     try {
       const res = await request(createApp(agentActor)).post(`/api/plugins/${AGENT_ID}/config`).expect(403);
       expect(res.body.remediation).toContain("this denial is final");
       expect(res.body.remediation).not.toContain("/instance/plugins");
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_HIDDEN_SETTINGS;
-      else process.env.PAPERCLIP_HIDDEN_SETTINGS = previous;
+      if (previous === undefined) delete process.env.OUTPOST_HIDDEN_SETTINGS;
+      else process.env.OUTPOST_HIDDEN_SETTINGS = previous;
     }
   });
 
@@ -140,28 +140,28 @@ describe("board-only denial", () => {
   });
 
   it("does not link environment settings while the operator hides them", async () => {
-    const previous = process.env.PAPERCLIP_HIDDEN_SETTINGS;
-    process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.environments";
+    const previous = process.env.OUTPOST_HIDDEN_SETTINGS;
+    process.env.OUTPOST_HIDDEN_SETTINGS = "instance.environments";
     try {
       const res = await request(createApp(agentActor)).get(`/api/companies/${COMPANY_ID}/environments`).expect(403);
       expect(res.body.remediation).toContain("this denial is final");
       expect(res.body.remediation).not.toContain("/instance/environments");
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_HIDDEN_SETTINGS;
-      else process.env.PAPERCLIP_HIDDEN_SETTINGS = previous;
+      if (previous === undefined) delete process.env.OUTPOST_HIDDEN_SETTINGS;
+      else process.env.OUTPOST_HIDDEN_SETTINGS = previous;
     }
   });
 
   it("does not link Experimental settings while the operator hides that page", async () => {
-    const previous = process.env.PAPERCLIP_HIDDEN_SETTINGS;
-    process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.experimental";
+    const previous = process.env.OUTPOST_HIDDEN_SETTINGS;
+    process.env.OUTPOST_HIDDEN_SETTINGS = "instance.experimental";
     try {
       const res = await request(createApp(agentActor)).patch("/api/instance/settings/experimental").expect(403);
       expect(res.body.remediation).toContain("this denial is final");
       expect(res.body.remediation).not.toContain("/instance/experimental");
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_HIDDEN_SETTINGS;
-      else process.env.PAPERCLIP_HIDDEN_SETTINGS = previous;
+      if (previous === undefined) delete process.env.OUTPOST_HIDDEN_SETTINGS;
+      else process.env.OUTPOST_HIDDEN_SETTINGS = previous;
     }
   });
 

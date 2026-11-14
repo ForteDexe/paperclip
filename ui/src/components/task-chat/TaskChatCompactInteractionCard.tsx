@@ -23,11 +23,11 @@ import {
   Search,
   X,
 } from "lucide-react";
-import type { IssueDocument } from "@paperclipai/shared";
+import type { IssueDocument } from "@outpost/shared";
 import type {
   PaperclipQuestionResponse,
   PaperclipQuestionSet,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 import { InteractionPreparationNotice } from "@/components/InteractionPreparationNotice";
 import { IssueThreadInteractionCard } from "@/components/IssueThreadInteractionCard";
 import { ToolActionAuditHashCopy } from "@/components/ToolActionAuditHashCopy";
@@ -687,7 +687,7 @@ function questionSetForInteraction(
 ): PaperclipQuestionSet {
   if (interaction.payload.questionSet) return interaction.payload.questionSet;
   return {
-    schema: "paperclip.question_set.v1",
+    schema: "outpost.question_set.v1",
     ...(interaction.title ? { title: interaction.title } : {}),
     ...(interaction.payload.submitLabel
       ? { submitLabel: interaction.payload.submitLabel }
@@ -734,7 +734,7 @@ function questionResponseForInteraction(
 ): PaperclipQuestionResponse | null {
   if (!interaction.result?.answers) return null;
   return {
-    schema: "paperclip.question_response.v1",
+    schema: "outpost.question_response.v1",
     answers: Object.fromEntries(
       interaction.result.answers.map((answer) => {
         const question = questionSet.questions.find(

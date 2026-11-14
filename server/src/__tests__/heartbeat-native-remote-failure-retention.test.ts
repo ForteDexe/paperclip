@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { activityLog, agents, agentWakeupRequests, authUsers, companyMemberships, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations } from "@paperclipai/db";
+import { activityLog, agents, agentWakeupRequests, authUsers, companyMemberships, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { beforeAll, expect, it, vi } from "vitest";
-import { DurablePrpControlPlane } from "../vendor/paperclip-runner/index.js";
+import { DurablePrpControlPlane } from "../vendor/outpost-runner/index.js";
 import * as storageBackend from "../storage/index.js";
 import { getStorageService } from "../storage/index.js";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
@@ -49,16 +49,16 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
     const db = f.db, workspaceId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID();
     const settings = instanceSettingsService(db), previous = await settings.getExperimental();
     restore.push(() => settings.updateExperimental(previous));
-    const priorDatabase = process.env.DATABASE_URL, priorKey = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
+    const priorDatabase = process.env.DATABASE_URL, priorKey = process.env.OUTPOST_SECRETS_MASTER_KEY;
     restore.push(() => {
       if (priorDatabase === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = priorDatabase;
-      if (priorKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY; else process.env.PAPERCLIP_SECRETS_MASTER_KEY = priorKey;
+      if (priorKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY; else process.env.OUTPOST_SECRETS_MASTER_KEY = priorKey;
     });
     const localStorage = getStorageService();
     const storage = vi.spyOn(storageBackend, "getStorageService").mockReturnValue({ ...localStorage, provider: "s3" });
     restore.push(() => storage.mockRestore());
     process.env.DATABASE_URL = fixture.current.temporary.connectionString;
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY = "71".repeat(32);
+    process.env.OUTPOST_SECRETS_MASTER_KEY = "71".repeat(32);
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Original operator", email: `${userId}@example.invalid`, createdAt: new Date(), updatedAt: new Date() });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
@@ -68,11 +68,11 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
     await db.insert(environments).values({ id: environmentId, name: `Bound original allocation ${label}`, driver: "sandbox",
       config: { provider: "fake", image: "fixture:test" } });
     await db.update(agents).set({ defaultEnvironmentId: environmentId }).where(eq(agents.id, agentId));
-    const reference = { schema: "paperclip.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId,
+    const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId,
       remoteCwd, epoch: 1, state: "prepared", snapshotId: null };
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: f.issueId,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "cloud_sandbox", name: "Original files",
-      cwd: `/workspaces/${workspaceId}`, metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1",
+      cwd: `/workspaces/${workspaceId}`, metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1",
         epoch: 1, snapshotId: null, source: { kind: "empty" }, location: { environmentId, leaseId, providerLeaseId, remoteCwd },
         writerRunId: f.runId, dirty: true } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, f.issueId));
@@ -84,12 +84,12 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
       taskPrompt: "Continue the original task.", provider: "codex",
       workspace: { id: workspaceId, cwd: remoteCwd, repoUrl: null, repoRef: null, branchName: null },
       normalizedSessionId: f.native.normalizedSessionId, runtimeContext: nativeRuntimeContextFixture(),
-      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "paperclip.run-result.v1",
+      completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
         contract: { revision: "1", objective: "Preserve original work", criteria: [{ id: "objective", requirement: "Retain files" }] } } });
     const identity = { companyId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...f.preparedProfile, remoteWorkspace: reference,
       nativeExecutionInput: execution, sessionCheckpoint: { identity, providerSessionId: "original-provider" },
-      ...(options.legacyProfile ? { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+      ...(options.legacyProfile ? { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId, leaseId, providerLeaseId, remoteCwd, resourceDisposition: "stop_and_retain" } } : {}) },
       responsibleUserId: userId, contextSnapshot: { issueId: f.issueId, executionWorkspaceId: workspaceId } }).where(eq(heartbeatRuns.id, f.runId));
@@ -97,18 +97,18 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
       controllerGeneration: 1, attempt: 1, leaseOwner: "previous-controller", leaseExpiresAt: new Date(Date.now() + 60_000) })
       .where(eq(nativeRunFinalizations.runId, f.runId));
     const authority = new DurablePrpControlPlane({ stateDirectory: path.join(runtimeRoot, f.runId, "control-plane"),
-      identity: fixture.transportOptions(f, runtimeRoot).prpIdentity,
+      identity: fixture.transportOptions(f, runtimeRoot).orpIdentity,
       expectedRunnerVersion: "retention-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
     await registerNativeRunnerCheckpoint({ db, binding: { companyId, issueId: f.issueId, runId: f.runId },
       bootId: fixture.current.successor.bootId, authority });
     await authority.stop();
     if (options.providerHistory) {
-      const event = { schema: "paperclip.prp.event.v1", sourceInstanceId: f.native.runnerInstanceId,
+      const event = { schema: "outpost.orp.event.v1", sourceInstanceId: f.native.runnerInstanceId,
         sourceEventId: randomUUID(), sourceSeq: 1, schemaVersion: 1, sourceKind: "runner", runId: f.runId,
         normalizedSessionId: f.native.normalizedSessionId, turnId: f.native.turnId, eventType: "tool.execution.started",
         priority: 0, emittedAt: new Date().toISOString(), payload: { toolName: "fixture.external_effect", toolCallId: randomUUID() } };
       await appendHeartbeatRunEvent(db, { companyId, agentId, runId: f.runId, eventType: event.eventType,
-        stream: "system", level: "info", message: "Original external action has an unknown outcome", payload: { prpEvent: event },
+        stream: "system", level: "info", message: "Original external action has an unknown outcome", payload: { orpEvent: event },
         nativeSource: { sourceEventId: event.sourceEventId, sourceInstanceId: event.sourceInstanceId,
           sourceSeq: event.sourceSeq, protocolSchemaVersion: 1, canonicalPayload: event } });
     }

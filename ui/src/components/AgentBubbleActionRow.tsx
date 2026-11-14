@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type {
   FeedbackDataSharingPreference,
   FeedbackVoteValue,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { cn, formatShortDate } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { useCopyAction, useCopyToast } from "../lib/use-copy-action";
@@ -68,7 +68,7 @@ export function BubbleCopyButton({ copyText }: { copyText: string }) {
  * Shared agent-bubble action row — copy · 👍 · 👎 · timestamp · ⋯ menu.
  *
  * Rendered below every agent bubble so the task thread (`IssueChatThread`) and
- * the conference room (`BoardChat`) speak the same bubble language (PAP-95 /
+ * agent conversation surfaces speak the same bubble language (PAP-95 /
  * PAP-105). Each surface supplies its own copy text, timestamp label, optional
  * feedback-vote wiring, and any extra overflow-menu items (e.g. stop-run /
  * view-run on the task side).

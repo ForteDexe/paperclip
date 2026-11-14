@@ -2,7 +2,7 @@
 
 The reference prototype is now accompanied by an experimental Rust Runner
 provider, dedicated `/mcp/runner` agent connection and durable broker. See
-[OpenAI Dot with Paperclip Runner](openai-dot-runner.md) for setup and the
+[OpenAI Dot with Outpost Runner](openai-dot-runner.md) for setup and the
 current qualification limits. The transport proof below remains specific to
 this reference harness.
 
@@ -36,7 +36,7 @@ Fresh-worktree preparation (use the repository's pinned pnpm version):
 
 ```sh
 pnpm install --no-frozen-lockfile
-pnpm --filter '@paperclipai/server^...' --filter '!@paperclipai/paperclip-runner' --filter '!@paperclipai/ui' build
+pnpm --filter '@outpost/server^...' --filter '!@outpost/outpost-runner' --filter '!@outpost/ui' build
 ```
 
 The local callback uses an injected transport restricted to one fixed synthetic
@@ -71,7 +71,7 @@ node server/scripts/dot-runner-live-control.mjs /path/to/control.json approve RE
 
 The consent page then returns to ChatGPT. Give Dot the standing instruction
 printed by the lab, including the exact company and inbox task IDs. Wait for a
-verified `paperclip.dot.work_available` subscription in `status`, then publish
+verified `outpost.dot.work_available` subscription in `status`, then publish
 the assignment from Paperclip's side:
 
 ```sh
@@ -109,10 +109,10 @@ sequenceDiagram
   Dot-->>MCP: Receipt (does not mean work started)
   Dot->>MCP: Read inbox and assignment; accept
   MCP->>Runner: Authenticated, bound commands
-  Runner-->>Host: PRP turn.started
+  Runner-->>Host: ORP turn.started
   Dot->>MCP: Call projected tools / report progress / propose result
   MCP->>Runner: Check current authority; deduplicate request ID
-  Runner-->>Host: PRP progress and structured result
+  Runner-->>Host: ORP progress and structured result
   Note over Host: Paperclip decides final task disposition
   Dot->>MCP: Personal Paperclip reads/writes while idle
   Note over MCP: These retain the consenting person's identity
@@ -127,13 +127,13 @@ The registry has no MCP registration tool and no generic API executor.
 ## What is implemented
 
 - `DotHarnessDriver`: one turn per admitted run, explicit acceptance, bounded
-  lifetime, projected tools, progress and validated `paperclip.run_result.v1`
-  completion. Reports normal PRP events consumed by the existing native backend.
+  lifetime, projected tools, progress and validated `outpost.run_result.v1`
+  completion. Reports normal ORP events consumed by the existing native backend.
 - `createDotRunnerMcpBridge`: six tools on the existing authenticated endpoint:
   `paperclip_dot_inbox`, `paperclip_dot_read`, `paperclip_dot_accept`,
   `paperclip_dot_tool`, `paperclip_dot_progress`, `paperclip_dot_finish`.
   Bound tools are visible only to the selected grant with write consent.
-- Optional `paperclip.dot.work_available` event on the existing durable outbox.
+- Optional `outpost.dot.work_available` event on the existing durable outbox.
   Its `companyId` and `taskId` identify a designated standing inbox task. Each
   assignment can concern a different task; the event carries only IDs, and Dot
   retrieves the current assignment through authenticated tools. Existing
@@ -189,7 +189,7 @@ Unregister completed runs to release the bounded in-process registry.
    the team and requested writes.
 2. Explicitly bind that connection to the chosen Dot agent after the production
    admission work above. Show the identity and the standing inbox task.
-3. Give Dot one standing instruction to subscribe to `paperclip.dot.work_available`
+3. Give Dot one standing instruction to subscribe to `outpost.dot.work_available`
    for that inbox, inspect current assignments, accept intended work, use the
    projected tools, and finish with a structured result. Treat duplicate events
    as wakeups, never as another task. Avoid comment-acknowledgement loops.
@@ -204,12 +204,12 @@ and [app review](https://developers.openai.com/plugins/deploy/app-review).
 ## Verification
 
 ```sh
-pnpm --filter @paperclipai/paperclip-runner exec vitest run src/drivers/dot/dot-harness-driver.test.ts
-pnpm --filter @paperclipai/server exec vitest run src/__tests__/public-mcp.test.ts
+pnpm --filter @outpost/outpost-runner exec vitest run src/drivers/dot/dot-harness-driver.test.ts
+pnpm --filter @outpost/server exec vitest run src/__tests__/public-mcp.test.ts
 pnpm prototype:dot
 ```
 
-Runner tests cover native PRP validation, cross-company/grant/turn rejection,
+Runner tests cover native ORP validation, cross-company/grant/turn rejection,
 unknown outcomes, concurrent retries, expiry, live authority checks, malformed
 results, late writes, revocation and unsupported recovery. The MCP suite checks
 real OAuth, event signatures, the opt-in catalog, personal-tool coexistence and
@@ -254,7 +254,7 @@ Observed live results:
   using MCP 2026-07-28; all returned HTTP 200.
 - The plugin UI showed its connected account, 10 read tools, 6 write tools, and
   all four event definitions, including the six Dot runner actions.
-- Dot found `paperclip.dot.work_available` and recognized its argument schema.
+- Dot found `outpost.dot.work_available` and recognized its argument schema.
   Initially it reported no Paperclip action tools in its runtime, including the
   read-only `paperclip_connection`. An explicit @ mention did not make them
   available immediately.
@@ -286,13 +286,13 @@ Observed server evidence (UTC):
 | Time | Observation |
 | --- | --- |
 | 22:16:30 | Dot called `paperclip_connection` successfully. |
-| 22:17:00 | `events/subscribe` succeeded; the verified `paperclip.dot.work_available` subscription was present. |
+| 22:17:00 | `events/subscribe` succeeded; the verified `outpost.dot.work_available` subscription was present. |
 | 22:17:24 | The operator queued the single assignment. Its webhook was observed as `delivered` after one attempt. |
 | 22:17:48 | Dot called `paperclip_dot_inbox` after the event, without another chat prompt. |
 | 22:17:56 | Dot read the assignment using `paperclip_dot_read`. |
 | 22:18:10 | Dot accepted it; the native Runner emitted `turn.started`. |
 | 22:18:23 | Dot called `save_report` through `paperclip_dot_tool`; the lab saved exactly one report: `Dot received the Paperclip event. 17 + 25 = 42.` |
-| 22:18:38 | Dot submitted a valid `paperclip.run_result.v1`; the Runner emitted `run.result.proposed`, `turn.completed` and `run.terminal` with state `succeeded`. |
+| 22:18:38 | Dot submitted a valid `outpost.run_result.v1`; the Runner emitted `run.result.proposed`, `turn.completed` and `run.terminal` with state `succeeded`. |
 | 22:18:50 | `events/unsubscribe` succeeded; no subscription remained. |
 
 Dot's final chat message confirmed event receipt and completion. It could not

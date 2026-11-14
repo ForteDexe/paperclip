@@ -49,8 +49,8 @@ describe("grok device-login credential promotion", () => {
 
   function envFor(instanceHome: string): NodeJS.ProcessEnv {
     return {
-      PAPERCLIP_HOME: instanceHome,
-      PAPERCLIP_INSTANCE_ID: "default",
+      OUTPOST_HOME: instanceHome,
+      OUTPOST_INSTANCE_ID: "default",
     };
   }
 

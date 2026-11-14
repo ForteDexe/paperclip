@@ -51,7 +51,7 @@ function gradeObservation(input: NativeCompletionObservation, finalAnswer: boole
       && blocker.scope === "task_wide", "The structured owner, exact action and whole-task scope are independently checked.");
   }
 
-  const events = input.events.map(event => ({ event, envelope: row(row(event.payload).prpEvent) }));
+  const events = input.events.map(event => ({ event, envelope: row(row(event.payload).orpEvent) }));
   const bound = events.length > 0 && events.every(({ event, envelope }, index) => {
     const action = /^(?:tool\.execution\.|item\.)/.test(String(event.eventType));
     const required = action || ["run.result.proposed", "run.result.accepted", "run.terminal"].includes(String(event.eventType));
@@ -65,7 +65,7 @@ function gradeObservation(input: NativeCompletionObservation, finalAnswer: boole
     && envelope.sourceEventId === event.sourceEventId && envelope.sourceInstanceId === event.sourceInstanceId
     && envelope.sourceSeq === event.sourceSeq);
   });
-  check("complete-bound-events", bound, "A complete contiguous public PRP stream is bound to this run and persisted source identity.");
+  check("complete-bound-events", bound, "A complete contiguous public ORP stream is bound to this run and persisted source identity.");
   const selected = (type: string) => events.filter(({ event }) => event.eventType === type);
   const proposed = selected("run.result.proposed");
   const accepted = selected("run.result.accepted");
@@ -145,6 +145,6 @@ function gradeObservation(input: NativeCompletionObservation, finalAnswer: boole
     check("no-deployment-or-file-work", !input.workspaceChanged && !forbidden,
       "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed.");
   }
-  return { schema: finalAnswer ? "paperclip.native-completion-observation.v3" : "paperclip.native-completion-observation.v2", passed: checks.every(value => value.passed), checks,
+  return { schema: finalAnswer ? "outpost.native-completion-observation.v3" : "outpost.native-completion-observation.v2", passed: checks.every(value => value.passed), checks,
     limitations: ["Exact provider feedback identity/consumption is not measured by the public sequence."] };
 }

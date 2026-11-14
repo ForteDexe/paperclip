@@ -1,4 +1,4 @@
-import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, type Db } from "@paperclipai/db";
+import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -67,11 +67,11 @@ function callbacks(db: Db) {
 }
 
 const support = await getEmbeddedPostgresTestSupport();
-describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)("reviewed chat setup wait reporting", () => {
+describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("reviewed chat setup wait reporting", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: Db;
   beforeAll(async () => {
-    const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
+    const external = process.env.OUTPOST_TEST_DATABASE_URL;
     if (external) db = createDb(external);
     else {
       database = await startEmbeddedPostgresTestDatabase("paperclip-reviewed-chat-report");

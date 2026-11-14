@@ -27,7 +27,7 @@ for (const { unfinishedWrite, stopResponse, sendSavedQueue = false } of [
         adapterConfig: { engine: "acp", cwd: root, stateDir: path.join(root, "state"),
           agentCommand: `${JSON.stringify(process.execPath)} ${JSON.stringify(path.resolve("scripts/mcp-fixtures/servers/acp-stop-agent.mjs"))}`,
           // The ACP fixture has no provider login. Use a fixture key to keep setup offline.
-          env: { ANTHROPIC_API_KEY: "acp-stop-fixture-key", PAPERCLIP_STOP_FIXTURE_ROOT: root, PAPERCLIP_STOP_FIXTURE_FINISH_TASK: "1", ...(unfinishedWrite ? { PAPERCLIP_STOP_FIXTURE_TOOL: "write" } : {}) },
+          env: { ANTHROPIC_API_KEY: "acp-stop-fixture-key", OUTPOST_STOP_FIXTURE_ROOT: root, OUTPOST_STOP_FIXTURE_FINISH_TASK: "1", ...(unfinishedWrite ? { OUTPOST_STOP_FIXTURE_TOOL: "write" } : {}) },
         }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
       } }));
       await expect.poll(async () => (await json(await request.get(`/api/agents/${owner.id}`))).lifecycleState,

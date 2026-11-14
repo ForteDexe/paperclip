@@ -9,7 +9,7 @@ afterEach(() => { vi.useRealTimers(); });
 export function question() {
   return { id: "question", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo",
     addresseeUserId: "person", resolverPolicy: "human_only", continuationPolicy: "wake_assignee", kind: "ask_user_questions", status: "pending",
-    payload: questionSetToAskUserQuestionsPayload({ schema: "paperclip.question_set.v1", title: "Personal publishing credential",
+    payload: questionSetToAskUserQuestionsPayload({ schema: "outpost.question_set.v1", title: "Personal publishing credential",
       description: "Set your own personal publishing value securely in My secrets. Never paste the credential in chat.", questions: [{ id: "saved", prompt: "Have you set your own value?", answerMode: "single_select", required: true,
         helpText: "Settings → Secrets → My secrets → Set my value. Definition definition (PERSONAL_PUBLISHING_KEY).", options: [
           { id: "yes", label: "Yes, entered", description: "My personal value is saved in My secrets." },
@@ -19,7 +19,7 @@ export function question() {
 }
 function measuredQuestion() {
   return { ...question(), resolverPolicy: "anyone", requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone",
-    payload: questionSetToAskUserQuestionsPayload({ schema: "paperclip.question_set.v1", title: "Personal publishing credential",
+    payload: questionSetToAskUserQuestionsPayload({ schema: "outpost.question_set.v1", title: "Personal publishing credential",
       description: "The value belongs only to your signed-in account; it is entered in the secure secrets page, never in chat.",
       questions: [{ id: "saved", prompt: "Have you saved your PERSONAL_PUBLISHING_KEY value in My secrets?", required: true, answerMode: "single_select", customAnswer: { enabled: true, label: "Optional note" },
         options: [{ id: "saved", label: "Yes, saved", description: "I saved my personal publishing value in My secrets." },

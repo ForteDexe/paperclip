@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { HeartbeatRunEvent, LiveEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent, LiveEvent } from "@outpost/shared";
 import { __liveUpdatesTestUtils, type CompanyLiveEventHandler } from "../../context/LiveUpdatesProvider";
 import { LiveTranscriptInterests } from "../../lib/live-transcript-interests";
 import { useNativeRunTranscripts } from "./useNativeRunTranscripts";
@@ -21,8 +21,8 @@ let latest: ReturnType<typeof useNativeRunTranscripts>;
 let subscription: { companyId: string; transcripts: LiveTranscriptInterests; subscribe: (fn: CompanyLiveEventHandler) => () => void };
 const row = (seq: number, message = `row ${seq}`, runId = "run-1"): HeartbeatRunEvent => ({
   id: seq, seq, runId, companyId: "company-1", agentId: "agent-1", eventType: "item.completed",
-  stream: null, level: null, color: null, message, payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceEventId: `event-${seq}`,
+  stream: null, level: null, color: null, message, payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceEventId: `event-${seq}`,
     sourceSeq: seq, sourceInstanceId: "runner-1", sourceKind: "runner", runId,
     normalizedSessionId: "session-1", eventType: "item.completed", itemId: `message-${seq}`,
     emittedAt: "2026-10-24T00:00:00Z", payload: { kind: "agentMessage", channel: "progress", text: message },
@@ -30,7 +30,7 @@ const row = (seq: number, message = `row ${seq}`, runId = "run-1"): HeartbeatRun
 });
 function emit(seq: number, signalOnly = false, kind = "agentMessage") {
   const value = row(seq);
-  const envelope = value.payload!.prpEvent as { payload: Record<string, unknown> };
+  const envelope = value.payload!.orpEvent as { payload: Record<string, unknown> };
   envelope.payload = { ...envelope.payload, kind };
   const event: LiveEvent = { id: seq, companyId: value.companyId, type: "heartbeat.run.event", createdAt: value.createdAt.toISOString(), payload: signalOnly
     ? { runId: value.runId, agentId: value.agentId, eventType: value.eventType, seq }
@@ -81,7 +81,7 @@ it.each(["agentMessage", "reasoning"])("streams %s deltas after hydration withou
   const reads = events.mock.calls.length;
   const delta = row(2, "still writing");
   delta.eventType = "item.delta";
-  const envelope = delta.payload!.prpEvent as Record<string, unknown>;
+  const envelope = delta.payload!.orpEvent as Record<string, unknown>;
   envelope.eventType = "item.delta";
   envelope.payload = { kind, text: "still writing" };
   await act(async () => {
@@ -129,7 +129,7 @@ it("retains a signal arriving during an older catch-up until its canonical row i
   expect(events).toHaveBeenCalledTimes(recoveredReads);
 });
 
-it("renders complete live PRP rows without initiating or scheduling history reads", async () => {
+it("renders complete live ORP rows without initiating or scheduling history reads", async () => {
   await render(); await negotiate();
   const reads = events.mock.calls.length;
   await act(async () => { emit(1); emit(2); await vi.advanceTimersByTimeAsync(90_000); });

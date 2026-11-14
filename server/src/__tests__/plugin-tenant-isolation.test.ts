@@ -10,7 +10,7 @@ import {
   pluginLogs,
   pluginWebhookDeliveries,
   plugins,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { buildHostServices, flushPluginLogBuffer } from "../services/plugin-host-services.js";
 import { pluginRegistryService } from "../services/plugin-registry.js";
 import {
@@ -70,13 +70,13 @@ describeEmbeddedPostgres("plugin tenant isolation (company_id FK)", () => {
     const pluginId = randomUUID();
     await db.insert(plugins).values({
       id: pluginId,
-      pluginKey: "paperclip.tenant-isolation-test",
-      packageName: "@paperclipai/plugin-tenant-isolation-test",
+      pluginKey: "outpost.tenant-isolation-test",
+      packageName: "@outpost/plugin-tenant-isolation-test",
       version: "0.0.1",
       apiVersion: 1,
       categories: ["automation"],
       manifestJson: {
-        id: "paperclip.tenant-isolation-test",
+        id: "outpost.tenant-isolation-test",
         apiVersion: 1,
         version: "0.0.1",
         displayName: "Tenant Isolation Test",

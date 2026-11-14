@@ -62,11 +62,11 @@ export function buildCiliumNetworkPolicyManifest(input: BuildCiliumNetworkPolicy
     metadata: {
       name: input.name ?? "paperclip-egress-fqdn",
       namespace: input.namespace,
-      labels: { "paperclip.io/managed-by": "paperclip-k8s-plugin" },
+      labels: { "outpost.io/managed-by": "paperclip-k8s-plugin" },
       ...(input.ownerReferences ? { ownerReferences: input.ownerReferences } : {}),
     },
     spec: {
-      endpointSelector: { matchLabels: input.endpointSelector ?? { "paperclip.io/role": "agent" } },
+      endpointSelector: { matchLabels: input.endpointSelector ?? { "outpost.io/role": "agent" } },
       egress,
     },
   };

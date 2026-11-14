@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
-import { inspectDurablePrpCheckpointHeader, type DurablePrpCheckpoint } from "../../packages/paperclip-runner/src/control-plane/durable-prp-control-plane.js";
-import { parseNativeExecutionInput } from "../../packages/paperclip-runner/src/contracts/native-execution.js";
+import { inspectDurablePrpCheckpointHeader, type DurablePrpCheckpoint } from "../../packages/outpost-runner/src/control-plane/durable-orp-control-plane.js";
+import { parseNativeExecutionInput } from "../../packages/outpost-runner/src/contracts/native-execution.js";
 import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
 import type { KimiContextPublication } from "./kimi-context-rendezvous.js";
 
@@ -13,7 +13,7 @@ const bytes = (x: string) => createHash("sha256").update(x).digest("hex");
 const hash = (x: unknown) => `sha256:${bytes(canonicalJson(x))}`;
 const demand = (x: unknown): void => { if (!x) throw new Error("Kimi context checkpoint: exact bound result delivery unavailable"); };
 export interface KimiContextAuthority {
-  schema: "paperclip.e2e.kimi-context-authority.v2";
+  schema: "outpost.e2e.kimi-context-authority.v2";
   companyId: string; issueId: string; agentId: string; environmentId: string; runId: string;
   sessionId: string; sourceInstanceId: string; turnId: string;
   observerLeaseId: string; executionWorkspaceId: string; controllerTurnId: string; controllerItemId: string; requestId: string; toolCallId: string;
@@ -44,10 +44,10 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   }
   const controllerEvent = (saved: Row) => {
     const envelope = rec(saved.envelope), event = rec(envelope.payload);
-    demand(envelope.protocol === "paperclip.runner" && envelope.kind === "event" && envelope.runId === p.runId
+    demand(envelope.protocol === "outpost.runner" && envelope.kind === "event" && envelope.runId === p.runId
       && envelope.normalizedSessionId === p.sessionId && envelope.runnerInstanceId === p.sourceInstanceId && envelope.turnId === identity!.turnId
       && envelope.itemId === identity!.itemId && envelope.environmentLeaseId === executionWorkspaceId
-      && event.schema === "paperclip.prp.event.v1" && event.schemaVersion === 1 && event.sourceKind === "runner"
+      && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1 && event.sourceKind === "runner"
       && event.runId === p.runId && event.normalizedSessionId === p.sessionId && event.sourceInstanceId === p.sourceInstanceId
       && event.turnId === identity!.turnId && event.itemId === identity!.itemId && saved.sourceSeq === event.sourceSeq
       && saved.sourceEventId === event.sourceEventId && saved.eventType === event.eventType && saved.logicalEffectCount === 1
@@ -56,7 +56,7 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   };
   const completed = (command: Row, status: string) => {
     const result = rec(command.result);
-    demand(command.schema === "paperclip.prp.command.v1" && command.status === "completed" && Number.isSafeInteger(command.controllerSeq) && command.controllerSeq > 0
+    demand(command.schema === "outpost.orp.command.v1" && command.status === "completed" && Number.isSafeInteger(command.controllerSeq) && command.controllerSeq > 0
       && result.commandId === command.commandId && result.controllerSeq === command.controllerSeq && result.commandType === command.type
       && result.status === "completed" && result.result?.status === status);
     return rec(result.result);
@@ -68,7 +68,7 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   const created = requests.find(x => x.eventType === "runtime_request.created"), resolved = requests.find(x => x.eventType === "runtime_request.resolved");
   demand(created && resolved);
   const request = rec(rec(controllerEvent(created!).payload).request), resolution = rec(controllerEvent(resolved!).payload);
-  demand(request.schema === "paperclip.runtime_request.v2" && request.requestKind === "permission_approval" && request.type === "permission" && request.status === "pending"
+  demand(request.schema === "outpost.runtime_request.v2" && request.requestKind === "permission_approval" && request.type === "permission" && request.status === "pending"
     && request.requestId === p.requestId && request.turnId === identity!.turnId && request.itemId === identity!.itemId
     && request.prompt === "mcp__paperclip__get_task_context" && hasAcpxNativeOrigin(request.origin, "kimi", "session/request_permission")
     && request.details?.toolCallId === p.toolCallId && resolution.requestId === p.requestId && resolution.requestKind === "permission_approval"
@@ -79,19 +79,19 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   demand(events.length <= 1 && commands.length <= 1);
   if (!events.length) return undefined;
   const saved = events[0]!, envelope = rec(saved.envelope), event = rec(envelope.payload), tool = rec(rec(event.payload).semantic_tool), correlation = rec(tool.correlation);
-  demand(envelope.protocol === "paperclip.runner" && envelope.kind === "event" && envelope.runId === p.runId
+  demand(envelope.protocol === "outpost.runner" && envelope.kind === "event" && envelope.runId === p.runId
     && envelope.normalizedSessionId === p.sessionId && envelope.runnerInstanceId === p.sourceInstanceId && envelope.turnId === identity!.turnId
     && envelope.environmentLeaseId === identity!.environmentLeaseId && envelope.itemId === identity!.itemId
-    && event.schema === "paperclip.prp.event.v1" && event.schemaVersion === 1 && event.eventType === "semantic_tool.input" && event.sourceKind === "runner"
+    && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1 && event.eventType === "semantic_tool.input" && event.sourceKind === "runner"
     && event.runId === p.runId && event.normalizedSessionId === p.sessionId && event.sourceInstanceId === p.sourceInstanceId && event.turnId === identity!.turnId && event.itemId === identity!.itemId
     && event.sourceSeq > resolved!.sourceSeq && saved.sourceSeq === event.sourceSeq && saved.sourceEventId === event.sourceEventId && saved.logicalEffectCount === 1
     && Number.isSafeInteger(event.sourceSeq) && event.sourceSeq > 0 && event.sourceSeq <= evidence.highestRecordedSourceSeq
-    && tool.schema === "paperclip.prp.semantic_tool.v1" && tool.schemaVersion === 1 && tool.phase === "input" && tool.operationId === "get_task_context"
+    && tool.schema === "outpost.orp.semantic_tool.v1" && tool.schemaVersion === 1 && tool.phase === "input" && tool.operationId === "get_task_context"
     && typeof tool.callId === "string" && tool.callId.length > 0 && tool.idempotencyKey === null && canonicalJson(tool.input) === "{}" && tool.content?.digest === hash({})
     && canonicalJson(correlation) === canonicalJson({ runId: p.runId, normalizedSessionId: p.sessionId, turnId: identity!.turnId, itemId: identity!.itemId }));
   if (!commands.length) return undefined;
   const command = commands[0]!, body = rec(command.payload), delivered = rec(command.result);
-  demand(command.schema === "paperclip.prp.command.v1" && command.commandId === `command_tool_${bytes(`${p.runId}\0${tool.callId}`).slice(0, 32)}`
+  demand(command.schema === "outpost.orp.command.v1" && command.commandId === `command_tool_${bytes(`${p.runId}\0${tool.callId}`).slice(0, 32)}`
     && Number.isSafeInteger(command.controllerSeq) && command.controllerSeq > resolutionCommand.controllerSeq && body.callId === tool.callId && body.operationId === "get_task_context"
     && body.sourceEventId === event.sourceEventId && body.sourceEventType === event.eventType && body.inputDigest === bytes("{}")
     && (body.input === undefined || canonicalJson(body.input) === "{}") && canonicalJson(body.correlation) === canonicalJson(correlation) && body.isError === false);
@@ -101,7 +101,7 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   const value = rec(body.result);
   demand(value.company?.id === p.companyId && value.actor?.id === p.agentId && value.activeTask?.id === p.issueId
     && typeof value.activeTask.description === "string" && `sha256:${bytes(value.activeTask.description)}` === p.actionSha256);
-  return { schema: "paperclip.e2e.kimi-context-authority.v2", companyId: p.companyId, issueId: p.issueId, agentId: p.agentId, environmentId: p.environmentId, runId: p.runId,
+  return { schema: "outpost.e2e.kimi-context-authority.v2", companyId: p.companyId, issueId: p.issueId, agentId: p.agentId, environmentId: p.environmentId, runId: p.runId,
     sessionId: p.sessionId, sourceInstanceId: p.sourceInstanceId, turnId: p.turnId, observerLeaseId: p.observerLeaseId, executionWorkspaceId, controllerTurnId: identity!.turnId, controllerItemId: identity!.itemId, requestId: p.requestId, toolCallId: p.toolCallId,
     requestCreatedSourceSeq: created!.sourceSeq, requestResolvedSourceSeq: resolved!.sourceSeq, requestCreatedSha256: hash(created), requestResolvedSha256: hash(resolved), turnStartSha256: hash(turnStart), resolutionCommandSha256: hash(resolutionCommand), actionSha256: p.actionSha256, callId: tool.callId,
     inputSourceSeq: event.sourceSeq, inputSourceEventId: event.sourceEventId, inputSha256: hash({}), inputEventSha256: hash(saved), resultSha256: hash(value), correlationSha256: hash(correlation),
@@ -109,7 +109,7 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
     checkpointIdentitySha256: hash(identity), authenticatedConnectionCount: evidence.authenticatedConnectionCount, highestRecordedSourceSeq: evidence.highestRecordedSourceSeq };
 }
 export async function assertKimiContextObserverConfig(env: NodeJS.ProcessEnv) {
-  const temporary = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, config = env.PAPERCLIP_CONFIG, home = env.PAPERCLIP_HOME, instance = env.PAPERCLIP_INSTANCE_ID;
+  const temporary = env.OUTPOST_RUNNER_E2E_TEMP_ROOT, config = env.OUTPOST_CONFIG, home = env.OUTPOST_HOME, instance = env.OUTPOST_INSTANCE_ID;
   demand(temporary && config && home && instance && path.isAbsolute(temporary) && path.isAbsolute(config) && path.isAbsolute(home) && /^[A-Za-z0-9_-]+$/.test(instance));
   const [root, actualConfig, actualHome] = await Promise.all([realpath(temporary!), realpath(config!), realpath(home!)]);
   demand(actualHome === path.join(root, "paperclip-home") && actualConfig === path.join(actualHome, "instances", instance!, "config.json"));

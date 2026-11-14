@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.native-controller.release-qualification-receipt/v1",
+  "schema": "outpost.native-controller.release-qualification-receipt/v1",
   "finishedAt": "2026-10-30T19:33:20.587023+00:00",
   "sourceIntegrity": {
     "A": {
@@ -20,7 +20,7 @@
     "runnerArtifact": {
       "role": "admitted Runner artifact A, unchanged through every controller",
       "sourceRevision": "59ff89a18fe1312b5f0bb908439bbdb1237b0252",
-      "binary": "/private/tmp/native-controller-qualification-20261030-1833/installed-A/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/bin/linux-arm64/paperclip-runnerd",
+      "binary": "/private/tmp/native-controller-qualification-20261030-1833/installed-A/consumer/node_modules/@outpost/server/dist/vendor/outpost-runner/bin/linux-arm64/outpost-runnerd",
       "sha256": "b1f04caa1ce04e720dec7eb62ede170eb3621948c0849b8f305ea5c5116bced8",
       "bytes": 35345144,
       "installationReceipt": "/private/tmp/native-controller-qualification-20261030-1833/installed-A/receipt.json"
@@ -33,7 +33,7 @@
   ],
   "failed": [
     "Fresh B2 retained continuation rejected after B1 completed because durable control journal has a null-goal snapshot after run.terminal",
-    "Final 98f05fc live probe still rejects actual paperclip.prp.event.v2 because proposed guard accepts only v1"
+    "Final 98f05fc live probe still rejects actual outpost.orp.event.v2 because proposed guard accepts only v1"
   ],
   "notQualified": [
     "Complete A/B/A native installed-application startup/rollback gate",
@@ -59,7 +59,7 @@
     "cause": null
   },
   "candidateCorrection": {
-    "change": "Accept supported PRP event v1 and v2 idle goal suffixes; reject unknown versions",
+    "change": "Accept supported ORP event v1 and v2 idle goal suffixes; reject unknown versions",
     "fullSourceReplay": "not rerun after the final v2 correction within the one-hour qualification window",
     "focusedTests": {
       "result": "pass",

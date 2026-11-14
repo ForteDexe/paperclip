@@ -1,8 +1,8 @@
 import { releaseAbandonedNativeOwners } from "../services/native-runtime/native-failed-run-owner-release.js";
 import { guardSlackFixtureNetwork } from "./helpers/slack-cloud/transport.js";
 import { chatHistoryActionBlocks } from "./helpers/chat-history-proof.js";
-import type { NativeExecutionInput, NativeSession, NativeSessionBackend, PrpEvent } from "../vendor/paperclip-runner/index.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/paperclip-runner/testing.js";
+import type { NativeExecutionInput, NativeSession, NativeSessionBackend, PrpEvent } from "../vendor/outpost-runner/index.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { resolveCommittedNativeRecoveryNotices, pendingNativeRecoveryNotices } from "../services/native-runtime/native-recovery-notices.js";
 import { issueRecoveryActionService } from "../services/issue-recovery-actions.js";
@@ -24,7 +24,7 @@ import { nativeChatProgressWork } from "../services/chat-native-progress-work.js
 import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "../middleware/auth.js";
 import { cloudTenantPrimaryCompanyId } from "../services/cloud-instance.js";
 import { accessService } from "../services/access.js";
-import { databaseWorkPending, reconcileDatabaseWork, signalDatabaseWork, subscribeDatabaseWork } from "@paperclipai/db";
+import { databaseWorkPending, reconcileDatabaseWork, signalDatabaseWork, subscribeDatabaseWork } from "@outpost/db";
 import { claimTaskRetryInput, releaseUnadmittedTaskRetryInput } from "../services/chat-channels/task-retry-input.js";
 import { restoreNativeChatReviewPresentationInTransaction } from "../services/native-runtime/native-chat-review-presentation.js";
 import { notifyChatEndpointConfiguration, notifyChatCompanyConfiguration } from "../services/chat-channels/configuration-work-notifications.js";
@@ -36,7 +36,7 @@ import * as durableChatWakeup from "../services/durable-chat-wakeup.js";
 import * as adapterModule from "../adapters/index.js";
 import { conflict } from "../errors.js";
 import * as githubTaskPreparation from "../services/chat-channels/github/task-preparation.js";
-import { budgetPolicies, costEvents } from "@paperclipai/db";
+import { budgetPolicies, costEvents } from "@outpost/db";
 import { budgetService } from "../services/budgets.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 import { readIdleLocalWork } from "../services/idle-local-work.js";
@@ -51,14 +51,14 @@ import { withQueuedCommentIdsInWakePayload } from "../services/issue-queued-comm
 import { createSystemRecovery } from "../services/system-recovery-state.js";
 import { remoteTerminationReceipt } from "../services/remote-execution-termination.js";
 import { stageReceiptReactionRemovals } from "../services/chat-receipt-reactions.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import { githubResponseAuthorityFields } from "../services/chat-channels/github/response-authority-read.js";
 import * as activityLogModule from "../services/activity-log.js";
 import * as connectionCredentialBindings from "../services/connection-credential-bindings.js";
-import { chatSlackManagerGrants, chatSlackRegistrations, toolOauthStates } from "@paperclipai/db";
+import { chatSlackManagerGrants, chatSlackRegistrations, toolOauthStates } from "@outpost/db";
 import type { PaperclipCloudConnector, SealedConnectorCredentials } from "../services/paperclip-cloud-connector.js";
-import { buildSlackAppManifest, SLACK_MANAGER_SCOPES } from "@paperclipai/shared";
+import { buildSlackAppManifest, SLACK_MANAGER_SCOPES } from "@outpost/shared";
 import { registerChatActionWork, dueChatAction } from "../services/chat-action-work.js";
 import { chatRunMilestoneWork } from "../services/chat-run-milestone-work.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -68,9 +68,9 @@ import { DELIVERY_QUEUES, subscribeDeliveryWork } from "../services/delivery-wor
 import { aiConnectionService } from "../services/ai-connections.js";
 import { fastResponseService } from "../services/fast-responses.js";
 import { fastResponseReceipt } from "../services/fast-response-provider.js";
-import { companyFastResponses, fastResponseRequests } from "@paperclipai/db";
+import { companyFastResponses, fastResponseRequests } from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
-import { toolActionRequests, toolInvocations, toolPolicies } from "@paperclipai/db";
+import { toolActionRequests, toolInvocations, toolPolicies } from "@outpost/db";
 import { GitHubPublicationLeaseLost, withGitHubPublicationLease } from "../services/chat-github-publication-lease.js";
 import { secretService } from "../services/secrets.js";
 import { githubChatWizardService } from "../services/chat-github-wizard.js";
@@ -91,7 +91,7 @@ import { initializeRunIdentity } from "../services/run-identity.js";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
 import { companySkillService } from "../services/company-skills.js";
 import * as runIdentityModule from "../services/run-identity.js";
-import { chatGitHubRegistrations, chatGitHubReviews, chatGitHubConfigurations, toolCatalogEntries } from "@paperclipai/db";
+import { chatGitHubRegistrations, chatGitHubReviews, chatGitHubConfigurations, toolCatalogEntries } from "@outpost/db";
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as cloudRuntimeIdentity from "../services/cloud-runtime-identity.js";
 import {
@@ -181,9 +181,9 @@ import {
   projects,
   projectWorkspaces,
   toolConnections,
-} from "@paperclipai/db";
-import { defaultGitHubReviewPolicy, type ChatProvider } from "@paperclipai/shared";
-import { isPaperclipExternalChatTurn } from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/db";
+import { defaultGitHubReviewPolicy, type ChatProvider } from "@outpost/shared";
+import { isPaperclipExternalChatTurn } from "@outpost/adapter-utils/server-utils";
 import type { Attachment, Author, Message, Thread } from "chat";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
@@ -219,7 +219,7 @@ import type { TelegramDraftControl } from "../services/chat-telegram-draft-stop.
 
 // Opt-in private physical candidate; normal CI uses the staged pinned package.
 vi.mock("@chat-adapter/telegram", async (importOriginal) => {
-  const candidate = process.env.PAPERCLIP_TELEGRAM_STOP_ADAPTER_MODULE;
+  const candidate = process.env.OUTPOST_TELEGRAM_STOP_ADAPTER_MODULE;
   return candidate ? import(/* @vite-ignore */ candidate) : importOriginal();
 });
 import { createDiscordAdapter } from "@chat-adapter/discord";
@@ -237,7 +237,7 @@ import { ensureProjectAccessMember } from "../services/projects.js";
 import { createPostgresWakeQueueAdapter } from "../modules/wake-queue/adapters/postgres.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { getExternalChannelBindingSummary } from "../services/chat-channel-binding.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { NativeChatAttachmentReadScope } from "../services/native-runtime/chat-attachment-read.js";
 import { logActivity } from "../services/activity-log.js";
 import * as activityLogService from "../services/activity-log.js";
@@ -291,7 +291,7 @@ import { logger as chatAttachmentLogger } from "../middleware/logger.js";
 import type {
   PrpStructuredRunResult,
   PrpTerminalState,
-} from "../vendor/paperclip-runner/index.js";
+} from "../vendor/outpost-runner/index.js";
 import {
   finalizeNativeRun,
   repairCommittedNativeChatResponse,
@@ -305,11 +305,11 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 
-const historyTestDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_HISTORY_TEST_DATABASE_URL");
-const slackProtocolCapture = process.env.PAPERCLIP_SLACK_PROTOCOL_CAPTURE === "1";
-const slackProtocolDatabaseUrl = slackProtocolCapture ? resolveExternalTestDatabaseUrl("PAPERCLIP_SLACK_TEST_DATABASE_URL") : undefined;
+const historyTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
+const slackProtocolCapture = process.env.OUTPOST_SLACK_PROTOCOL_CAPTURE === "1";
+const slackProtocolDatabaseUrl = slackProtocolCapture ? resolveExternalTestDatabaseUrl("OUTPOST_SLACK_TEST_DATABASE_URL") : undefined;
 if (slackProtocolCapture && !slackProtocolDatabaseUrl) throw new Error("Slack protocol capture requires an explicit dedicated test database");
-const externalTestDatabaseUrl = slackProtocolDatabaseUrl ?? historyTestDatabaseUrl ?? process.env.PAPERCLIP_TEST_DATABASE_URL;
+const externalTestDatabaseUrl = slackProtocolDatabaseUrl ?? historyTestDatabaseUrl ?? process.env.OUTPOST_TEST_DATABASE_URL;
 const embeddedPostgresSupport = externalTestDatabaseUrl
   ? { supported: true }
   : await getEmbeddedPostgresTestSupport();
@@ -1144,7 +1144,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   let tempDb: Awaited<
     ReturnType<typeof startEmbeddedPostgresTestDatabase>
   > | null = null;
-  const previousKeyFile = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
+  const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
   const secretsTmpDir = path.join(
     os.tmpdir(),
     `paperclip-chat-channels-${randomUUID()}`,
@@ -1153,7 +1153,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   beforeAll(async () => {
     if (slackProtocolDatabaseUrl) await applyPendingMigrations(slackProtocolDatabaseUrl);
     mkdirSync(secretsTmpDir, { recursive: true });
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = path.join(
+    process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = path.join(
       secretsTmpDir,
       "master.key",
     );
@@ -1185,8 +1185,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await db?.$client.end();
     await tempDb?.cleanup();
     if (previousKeyFile === undefined)
-      delete process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-    else process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = previousKeyFile;
+      delete process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
+    else process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = previousKeyFile;
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 
@@ -1287,7 +1287,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         name: "Maya",
         role: "engineer",
         status: "idle",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
         runtimeConfig: {},
         permissions: {},
@@ -1298,7 +1298,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         name: "Linus",
         role: "engineer",
         status: "idle",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: {},
         runtimeConfig: {},
         permissions: {},
@@ -1618,7 +1618,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const service = chatChannelService(db, {
       fetch: providerFetch,
       heartbeat: { cancelRun, wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       runtime: runtime as unknown as ChatSdkRuntime,
       ...serviceOverrides,
     });
@@ -1694,7 +1694,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       publicId,
       "slack",
       signedSlackWebhookRequest({
-        url: `https://paperclip.example/api/chat-webhooks/${publicId}/slack`,
+        url: `https://outpost.example/api/chat-webhooks/${publicId}/slack`,
         contentType: "application/json",
         body: JSON.stringify({ type: "url_verification", challenge: "verified-challenge" }),
         signingSecret,
@@ -1743,7 +1743,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       publicId,
       "github",
       new Request(
-        `https://paperclip.example/api/chat-webhooks/${publicId}/github`,
+        `https://outpost.example/api/chat-webhooks/${publicId}/github`,
         {
           method: "POST",
           headers: {
@@ -1809,7 +1809,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const signature = createHmac("sha256", input.webhookSecret)
       .update(body)
       .digest("hex");
-    return new Request(input.url ?? "https://paperclip.example/github", {
+    return new Request(input.url ?? "https://outpost.example/github", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -2622,7 +2622,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         await db.update(agentWakeupRequests).set({ status: "completed", runId: sourceRunId, finishedAt: stoppedAt })
           .where(eq(agentWakeupRequests.id, initial.id));
         await db.update(companies).set({ defaultResponsibleUserId: "owner-user" }).where(eq(companies.id, f.companyId));
-        await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+        await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
           runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } }).where(eq(agents.id, f.assignedAgentId));
         await db.insert(heartbeatRuns).values({ id: capacityRunId, companyId: f.companyId, agentId: f.assignedAgentId,
           status: "running", contextSnapshot: { issueId: randomUUID() } });
@@ -2644,15 +2644,15 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           cause: "native_continuation_requires_reconciliation", fingerprint: randomUUID(), nextAction: "Retained workspace repair",
           evidence: { runId: sourceRunId, automaticRecovery: { replay: "blocked" },
             workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: { leaseIds: [leaseId] },
-            workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: sourceRunId,
+            workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: sourceRunId,
               status: "recovered", stage: "saving_receipts", attempt: 1, attemptLimit: 6, retryable: true, requestIds: [] },
             systemRecovery: { ...createSystemRecovery(sourceRunId), state: "complete", phase: "reconcile_effects" },
           },
         });
         if (snapshotScenario) {
-          const { workspaceOperations } = await import("@paperclipai/db");
+          const { workspaceOperations } = await import("@outpost/db");
           await db.update(heartbeatRuns).set({ status: "failed", errorCode: "execution_finalization_deadline_exceeded",
-            runnerProfileJson: { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+            runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
               descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
               workspaceId: randomUUID(), leaseId, providerLeaseId, remoteCwd: "/workspace", resourceDisposition: "destroy" } },
           }).where(eq(heartbeatRuns.id, sourceRunId));
@@ -2663,7 +2663,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           const prefix = `${f.companyId}/workspace-recovery/${sourceRunId}/${leaseId}/`;
           const [snapshot] = await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId, heartbeatRunId: sourceRunId,
             phase: "workspace_recovery_snapshot", status: "succeeded", finishedAt: new Date(), metadata: {
-              schema: "paperclip.workspace-recovery-snapshot.v1", recoveryActionId: recovery.id, leaseId, providerLeaseId,
+              schema: "outpost.workspace-recovery-snapshot.v1", recoveryActionId: recovery.id, leaseId, providerLeaseId,
               archive: { objectKey: `${prefix}${"c".repeat(64)}.tar`, sha256: "c".repeat(64), byteSize: 1024 },
               manifest: { objectKey: `${prefix}${"d".repeat(64)}.jsonl`, sha256: "d".repeat(64), byteSize: 512 },
             } }).returning();
@@ -2692,7 +2692,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           payload: { executionWait: { reason: "remote_cleanup" } } });
         if (snapshotScenario) await db.update(heartbeatRuns).set({
           resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-            schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] } },
+            schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] } },
         }).where(eq(heartbeatRuns.id, sourceRunId));
         let nextReceipt: typeof receipt | undefined;
         let nextCommentId: string | undefined;
@@ -2778,7 +2778,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const injected = await skill("injected");
       const foreign = await skill("foreign", other.companyId);
       // Use the production link format, including the slash picker identity.
-      const { buildSkillMentionHref } = await import("@paperclipai/shared");
+      const { buildSkillMentionHref } = await import("@outpost/shared");
       const ref = (s: typeof common) => `[/skill](${buildSkillMentionHref(s.id, s.slug)})`;
       const saved = await f.management.configuration(f.endpoint.id, "owner-user");
       await f.management.saveConfiguration(f.endpoint.id, { expectedRevision: saved.revision, configuration: {
@@ -3113,9 +3113,9 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         status: "running", runtimeMode: "native", contextSnapshot: await chatWakeContext({
           endpointId: f.endpoint.id, issueId: f.conversation.issueId, provider: "github", providerMessageId: "41802",
         }), resultJson: { finalizationPhase: "committed", finalizationReasonCode: reason,
-          nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded",
+          nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
             continuation: { kind: "response_wake", idempotencyKey: "passive-author-reply" } },
-          presentationDecision: { schema: "paperclip.run_presentation_decision.v1", resolverVersion: "2",
+          presentationDecision: { schema: "outpost.run_presentation_decision.v1", resolverVersion: "2",
             activityDisposition: "collapse", chosenSource: "none", commentAction: "none", commentId: null,
             reasonCodes: ["yielded_control_plane_wait"] } } }).returning();
       const expectedStatus = reason === "preserved_result_status_unproven" ? "blocked" : "in_review";
@@ -3165,11 +3165,11 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         nativePhase: scenario.startsWith("uncommitted") ? "observed" : "committed", contextSnapshot: await chatWakeContext({
           endpointId: f.endpoint.id, issueId: f.conversation.issueId, provider: "github", providerMessageId: "41802",
         }), resultJson: { finalizationPhase: "committed", finalizationReasonCode: reason,
-          ...(scenario === "missing_semantic" ? {} : { nativeResult: { schema: "paperclip.run_result.v1",
+          ...(scenario === "missing_semantic" ? {} : { nativeResult: { schema: "outpost.run_result.v1",
             reportedWorkDisposition: scenario === "completed" ? "completed" : "yielded",
             continuation: { kind: "response_wake", idempotencyKey: "new-request-wait" } } }),
           ...(scenario.startsWith("missing_decision") ? {} : { presentationDecision: scenario === "malformed_null" ? null : scenario === "malformed_scalar" ? "pending" : {
-            schema: scenario === "malformed_schema" ? "unknown" : "paperclip.run_presentation_decision.v1", chosenSource: "none",
+            schema: scenario === "malformed_schema" ? "unknown" : "outpost.run_presentation_decision.v1", chosenSource: "none",
             commentAction: scenario === "malformed_action" ? "unknown" : scenario === "comment_requested" ? "create" : "none", reasonCodes: ["yielded_control_plane_wait"] } }) } }).returning();
       if (scenario === "pending_publication") await db.insert(chatActions).values({ companyId: f.companyId,
         endpointId: f.endpoint.id, conversationId: f.conversation.id, kind: "github_review_publication",
@@ -3198,9 +3198,9 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         await db.update(heartbeatRuns).set({ status: failed ? "failed" : "succeeded",
           nativePhase: failed ? "failed" : "committed", resultJson: {
             ...next.resultJson, finalizationPhase: failed ? "failed" : "committed",
-            nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: missing ? "completed" : "yielded",
+            nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: missing ? "completed" : "yielded",
               continuation: missing ? null : { kind: "response_wake", idempotencyKey: "settled-request-wait" } },
-            presentationDecision: { schema: "paperclip.run_presentation_decision.v1", chosenSource: "none",
+            presentationDecision: { schema: "outpost.run_presentation_decision.v1", chosenSource: "none",
               commentAction: "none", reasonCodes: [missing ? "no_final_response" : "yielded_control_plane_wait"] },
           } }).where(eq(heartbeatRuns.id, next.id));
         await responses.processPending();
@@ -3223,9 +3223,9 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const f = await toolReplyFixture();
       await db.update(heartbeatRuns).set({ status: "succeeded", nativePhase: "committed", resultJson: {
         finalizationPhase: "committed", finalizationReasonCode: "external_chat_response_waiting",
-        nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded",
+        nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
           continuation: { kind: "response_wake", idempotencyKey: "not-a-main-pr-review" } },
-        presentationDecision: { schema: "paperclip.run_presentation_decision.v1", chosenSource: "none",
+        presentationDecision: { schema: "outpost.run_presentation_decision.v1", chosenSource: "none",
           commentAction: "none", reasonCodes: ["yielded_control_plane_wait"] },
       } }).where(eq(heartbeatRuns.id, f.run.id));
       await githubResponseCommentService(db, f.providerFetch).processPending();
@@ -3698,7 +3698,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { boardFollowUp: false, legacyOrigin: true },
       { boardFollowUp: true, legacyOrigin: true },
     ])("keeps GitHub review tools callable through a later native task gateway (board follow-up: $boardFollowUp, legacy origin: $legacyOrigin)", async ({ boardFollowUp, legacyOrigin }) => {
-      vi.stubEnv("PAPERCLIP_API_URL", "https://paperclip.example.test");
+      vi.stubEnv("OUTPOST_API_URL", "https://outpost.example.test");
       onTestFinished(() => { vi.unstubAllEnvs(); });
       const f = await publicationRetryFixture();
       const identity = await initializeRunIdentity(db, {
@@ -3801,7 +3801,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     describe("replies in review finding threads behind an active run", () => {
       const pr = "github:paperclipai/paperclip:17044";
       async function findingThreadFixture() {
-        vi.stubEnv("PAPERCLIP_API_URL", "https://paperclip.example.test");
+        vi.stubEnv("OUTPOST_API_URL", "https://outpost.example.test");
         onTestFinished(() => { vi.unstubAllEnvs(); });
         const f = await subscribedGitHubFixture(pr);
         const adapterType = `github-finding-thread-test-${randomUUID()}`;
@@ -3967,7 +3967,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const replay = await gateway.executeTool({ sessionToken: session.token, tool: tool.name, parameters });
       expect(replay).toMatchObject({ invocationId: first.invocationId, result: { data: { status: "processed" } } });
       if (name === "submit_review") {
-        vi.stubEnv("PAPERCLIP_API_URL", "https://paperclip.example.test");
+        vi.stubEnv("OUTPOST_API_URL", "https://outpost.example.test");
         onTestFinished(() => { vi.unstubAllEnvs(); });
         await initializeRunIdentity(db, { companyId: f.companyId, runId: f.run.id, issueId: f.conversation.issueId!,
           responsibleUserId: "owner-user", messageIds: [String(f.run.contextSnapshot?.wakeCommentId)], cause: "instruction" });
@@ -4010,7 +4010,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       onTestFinished(() => { vi.unstubAllGlobals(); });
       const { aiConnectionService } = await import("../services/ai-connections.js");
       const { promptInjectionPreventionService } = await import("../services/prompt-injection-prevention.js");
-      const { promptInjectionInvocations } = await import("@paperclipai/db");
+      const { promptInjectionInvocations } = await import("@outpost/db");
       const binding = await aiConnectionService(db).save(f.companyId, "owner-user", { provider: "openrouter", method: "api_key",
         name: "Classifier", ownership: "shared", apiKey: "fixture-key", allAgents: true, agentIds: [] }, "fixture-key");
       await promptInjectionPreventionService(db).configure(f.companyId, "owner-user", { ...binding, enabled: true, model: "openai/gpt-oss-safeguard-20b" });
@@ -4309,9 +4309,9 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           await notifyChatRunMilestones(tx, { companyId: f.companyId, issueId: f.conversation.issueId! });
           await tx.update(heartbeatRuns).set({ nativePhase: "committed", updatedAt: new Date(), resultJson: {
             finalizationPhase: "committed", finalizationReasonCode: outcome === "passive" ? "external_chat_response_waiting" : "completed",
-            nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: outcome === "passive" ? "yielded" : "completed",
+            nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: outcome === "passive" ? "yielded" : "completed",
               continuation: outcome === "passive" ? { kind: "response_wake", idempotencyKey: "settled-presentation" } : null },
-            presentationDecision: { schema: "paperclip.run_presentation_decision.v1", chosenSource: "none", commentAction: "none",
+            presentationDecision: { schema: "outpost.run_presentation_decision.v1", chosenSource: "none", commentAction: "none",
               reasonCodes: [outcome === "passive" ? "yielded_control_plane_wait" : "no_final_response"] },
           } }).where(eq(heartbeatRuns.id, f.run.id));
         };
@@ -4968,7 +4968,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const [response] = await db.select().from(chatActions).where(and(eq(chatActions.endpointId, f.endpoint.id), eq(chatActions.kind, "github_response_comment")));
       await db.update(chatActions).set({ status: "received", result: null }).where(eq(chatActions.id, response.id));
       await db.update(heartbeatRuns).set({ status: "succeeded", nativePhase: "committed", resultJson: { presentationDecision: {
-        schema: "paperclip.run_presentation_decision.v1", commentAction: "none", chosenSource: "none",
+        schema: "outpost.run_presentation_decision.v1", commentAction: "none", chosenSource: "none",
         reasonCodes: ["no_final_response"],
       } } }).where(eq(heartbeatRuns.id, f.run.id));
       await githubResponseCommentService(db, f.providerFetch).processPending();
@@ -4987,7 +4987,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const errors: unknown[] = [];
       const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true,
         onError: error => errors.push(error) });
-      const decision = { schema: "paperclip.run_presentation_decision.v1" as const, resolverVersion: "2",
+      const decision = { schema: "outpost.run_presentation_decision.v1" as const, resolverVersion: "2",
         sourceEventId: null, commentId: null, activityDisposition: "collapse" as const,
         commentAction: "none" as const, chosenSource: "none" as const, reasonCodes: ["no_final_response"] };
       const commit = (database: typeof db) => recordRunPresentationDecision(database, {
@@ -5287,7 +5287,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     it("does not invent a GitHub completion response when the agent sends no tool reply", async () => {
       const f = await toolReplyFixture();
       await db.update(heartbeatRuns).set({ status: "succeeded", nativePhase: "committed", resultJson: { presentationDecision: {
-        schema: "paperclip.run_presentation_decision.v1", commentAction: "none", chosenSource: "none",
+        schema: "outpost.run_presentation_decision.v1", commentAction: "none", chosenSource: "none",
         reasonCodes: ["no_final_response"], authorizationReason: "internal_agent_write",
       } } }).where(eq(heartbeatRuns.id, f.run.id));
       await expect(resolveChatRunPresentationAuthorizationReason(db, f.session)).resolves.toBe("internal_agent_write");
@@ -7211,7 +7211,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     });
     it("admits opt-in signed issue events without PR checks, deduplicates them and rechecks revoked policy", async () => {
       const f = await reviewBotFixture();
-      const { buildSkillMentionHref } = await import("@paperclipai/shared");
+      const { buildSkillMentionHref } = await import("@outpost/shared");
       const [skill] = await db.insert(companySkills).values({
         companyId: f.companyId, key: `company/${f.companyId}/automatic-playbook`,
         slug: "automatic-playbook", name: "Automatic playbook", markdown: "# Automatic playbook",
@@ -7346,7 +7346,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
 
     it("admits signed PR events into an ordinary assigned task and deduplicates delivery", async () => {
       const f = await reviewBotFixture();
-      const { buildSkillMentionHref } = await import("@paperclipai/shared");
+      const { buildSkillMentionHref } = await import("@outpost/shared");
       const [skill] = await db.insert(companySkills).values({
         companyId: f.companyId, key: `company/${f.companyId}/automatic-playbook`,
         slug: "automatic-playbook", name: "Automatic playbook", markdown: "# Automatic playbook",
@@ -7478,7 +7478,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           wakeReason: "External chat message received", paperclipHarnessCheckedOut: true } };
       const wake = await buildPaperclipWakePayload(wakeArgs);
       expect(wake?.githubReviewConfigurations).toEqual(configs);
-      const { renderPaperclipWakePrompt } = await import("@paperclipai/adapter-utils/server-utils");
+      const { renderPaperclipWakePrompt } = await import("@outpost/adapter-utils/server-utils");
       const prompt = renderPaperclipWakePrompt(wake);
       expect(prompt.split(instruction)).toHaveLength(2);
       expect(prompt).not.toContain("Untrusted PR body");
@@ -9411,7 +9411,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     });
     const guid = randomUUID();
     const deliveryId = "9007199254740993";
-    const webhookUrl = `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/github`;
+    const webhookUrl = `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/github`;
     const createdAt = new Date(Date.now() - 30_000).toISOString();
     const body = `@${current.botUsername} recover the original request ${randomUUID()}`;
     const comment = {
@@ -9749,7 +9749,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const installerId = `UINSTALLER${id}`;
       const appId = `A${id}`;
       const token = `xoxb-bot-token-canary-${id}`;
-      const scopes = buildSlackAppManifest({ app: appDetails, agentName: "Maya", webhookUrl: "https://paperclip.example/hook" }).oauth_config.scopes.bot;
+      const scopes = buildSlackAppManifest({ app: appDetails, agentName: "Maya", webhookUrl: "https://outpost.example/hook" }).oauth_config.scopes.bot;
       const state = {
         managedAccessToken: token, rejectOldBotToken: false,
         userListCursor: null as string | null, userListNextCursor: "",
@@ -10054,7 +10054,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         const f = await managedFixture(); await f.provision();
         const secondBot = `${f.botId}SECOND`;
         const secondApp = `${f.appId}SECOND`;
-        const scopes = buildSlackAppManifest({ app: appDetails, agentName: "Maya", webhookUrl: "https://paperclip.example/hook" }).oauth_config.scopes.bot;
+        const scopes = buildSlackAppManifest({ app: appDetails, agentName: "Maya", webhookUrl: "https://outpost.example/hook" }).oauth_config.scopes.bot;
         const provider: typeof fetch = async (input, init) => {
           const url = String(input);
           if (url.endsWith("apps.manifest.create")) return Response.json({ ok: true, app_id: secondApp, team_id: "TAUTO", credentials: { client_id: "222.333", client_secret: clientSecret, signing_secret: signingSecret } });
@@ -10337,7 +10337,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         await db.update(chatEndpoints).set({ status: "paused" }).where(eq(chatEndpoints.id, f.endpoint.id));
       };
       await f.service.handleWebhook(f.endpoint.publicId, "slack", setupEvent(f, patch,
-        invalid === "old-origin" ? f.endpoint.setup.webhookUrl!.replace("paperclip.example", "old.example") : undefined,
+        invalid === "old-origin" ? f.endpoint.setup.webhookUrl!.replace("outpost.example", "old.example") : undefined,
         invalid === "wrong-secret" ? "wrong-secret" : undefined,
         invalid === "stale-signature" ? "1" : undefined));
       const saved = await f.service.get(f.endpoint.id);
@@ -11123,7 +11123,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   });
 
   it.each(["cancelled", "paused", "blocked", "closed-workspace"] as const)("does not bypass %s task guards from the Slack Board composer or its outbox", async (guard) => {
-    const { issueTreeHolds, issueRelations, executionWorkspaces, projects } = await import("@paperclipai/db");
+    const { issueTreeHolds, issueRelations, executionWorkspaces, projects } = await import("@outpost/db");
     const fixture = await seedCompany();
     const { callbacks, endpoint, service, wakeup, runtime } = await configuredSlackEndpoint(fixture);
     const channel = makeThread({ channelId: "CGUARD", id: "slack:CGUARD:8100.1", name: "guard" });
@@ -11219,7 +11219,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const worker = chatChannelService(smallDb, {
       fetch: fakeSlackFetch() as typeof fetch,
       heartbeat: { wakeup: smallWake },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       runtime: runtime as unknown as ChatSdkRuntime,
     });
     fixtureServices.add(worker);
@@ -11230,7 +11230,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   }, 15_000);
 
   it("refreshes Slack tool guidance without restoring disabled catalog policies", async () => {
-    const { SLACK_TOOLS } = await import("@paperclipai/shared");
+    const { SLACK_TOOLS } = await import("@outpost/shared");
     const { slackBotCatalogIsCurrent, syncSlackBotTools } = await import("../services/connectors/slack-catalog.js");
     const fixture = await seedCompany();
     const { endpoint } = await configuredSlackEndpoint(fixture);
@@ -11399,7 +11399,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(assignments.map(a => a.key)).toEqual(["slack"]);
     expect(assignments[0].resources[0].metadata?.channelId).toBe("CTOOLS");
     const skillConfig = await applyConnectorSkills({}, [], assignments);
-    const runnerDelivery = await prepareConnectorSkillDelivery(skillConfig, "paperclip_runner");
+    const runnerDelivery = await prepareConnectorSkillDelivery(skillConfig, "outpost_runner");
     expect(runnerDelivery.instructions).toContain('"channelId": "CTOOLS"');
     expect(runnerDelivery.instructions).toContain("untrusted source material");
     expect(runnerDelivery.instructions).not.toContain("xoxb-test-token");
@@ -11433,7 +11433,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       inspected: [{ channel: "COTHER", count: 1, nextCursor: "older", hasMore: true }],
     });
     await expect(executeSlackTool(db, binding, "slack_history", { channel: "GPRIVATE" }, fetched as typeof fetch)).rejects.toThrow("in a DM");
-    vi.stubEnv("PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", "slack-tools-integration-signing-secret");
+    vi.stubEnv("OUTPOST_TOOL_ACTION_SIGNING_SECRET", "slack-tools-integration-signing-secret");
     onTestFinished(() => { vi.unstubAllEnvs(); });
     const originalFetch = globalThis.fetch;
     const postFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -11450,7 +11450,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       req.actor = { type: "agent", source: "agent_key", companyId: binding.companyId, agentId: binding.agentId, runId: binding.runId };
       next();
     });
-    cliApp.use("/api", slackToolRoutes(db, "https://paperclip.example"));
+    cliApp.use("/api", slackToolRoutes(db, "https://outpost.example"));
     cliApp.use(errorHandler);
     await request(cliApp).post(`/api/companies/${binding.companyId}/slack/tasks/${binding.issueId}/tools`).send({ tool: "slack_channel_info", arguments: { channel: "COTHER" } }).expect(response => expect(response.status, response.text).toBe(200));
     await request(cliApp).post(`/api/companies/${randomUUID()}/slack/tasks/${binding.issueId}/tools`).send({ tool: "slack_history", arguments: { channel: "COTHER" } }).expect(403);
@@ -11522,7 +11522,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(await service.listResources(endpoint.id)).toEqual(expect.arrayContaining([
       expect.objectContaining({ providerResourceId: "CNEWCHANNEL", enabled: false }),
     ]));
-    await service.handleWebhook(endpoint.publicId, "slack", new Request("https://paperclip.example/slack", {
+    await service.handleWebhook(endpoint.publicId, "slack", new Request("https://outpost.example/slack", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ event_id: "Ev-created-channel", event: {
         type: "member_joined_channel", user: (await service.get(endpoint.id)).botExternalId,
@@ -11555,7 +11555,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await expect(resolveChatRunPresentationAuthorizationReason(db, presentation)).resolves.toBe(CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON);
     const approvalBookkeeping = await issueService(db).addComment(
       conversation.issueId, "Recorded approved operation", { agentId: fixture.assignedAgentId, runId: continuationRunId },
-      { authorType: "agent", authorizationReason: "paperclip_runner_protocol" },
+      { authorType: "agent", authorizationReason: "outpost_runner_protocol" },
     );
     expect(await readChatPublicationsByCommentId(approvalBookkeeping.id)).toHaveLength(0);
     const approvalFinal = await issueService(db).addComment(
@@ -11588,7 +11588,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       }
       throw new Error("Unexpected OAuth request");
     });
-    const oauth = slackSearchOAuthService(db, "https://paperclip.example", oauthFetch as typeof fetch);
+    const oauth = slackSearchOAuthService(db, "https://outpost.example", oauthFetch as typeof fetch);
     await oauth.configure(fixture.companyId, endpoint.id, "owner-user", { clientId: "123.456", clientSecret: "fixture-client-secret" });
     const started = await oauth.start(fixture.companyId, endpoint.id, "owner-user");
     const state = new URL(started.url).searchParams.get("state")!;
@@ -11607,7 +11607,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await rejected;
     await expect(oauth.status(fixture.companyId, endpoint.id, "owner-user")).resolves.toMatchObject({ connected: false });
     await expect(oauth.status(randomUUID(), endpoint.id, "owner-user")).rejects.toThrow("not found");
-    const { toolProfiles, toolProfileBindings } = await import("@paperclipai/db");
+    const { toolProfiles, toolProfileBindings } = await import("@outpost/db");
     const [slackProfile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.companyId, fixture.companyId), eq(toolProfiles.profileKey, `slack-bot:${endpoint.id}`)));
     const [removedBinding] = await db.delete(toolProfileBindings).where(and(eq(toolProfileBindings.profileId, slackProfile.id), eq(toolProfileBindings.targetId, binding.agentId))).returning();
     await expect(resolveConnectorAssignments(db, recovered)).resolves.toEqual([]);
@@ -15635,7 +15635,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const staleCallback = service.handleWebhook(
       endpoint.publicId,
       "github",
-      new Request("https://paperclip.example/github", {
+      new Request("https://outpost.example/github", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -15786,7 +15786,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const response = await service.handleWebhook(
       endpoint.publicId,
       "github",
-      new Request("https://paperclip.example/github", {
+      new Request("https://outpost.example/github", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -15840,7 +15840,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const response = await service.handleWebhook(
       endpoint.publicId,
       "github",
-      new Request("https://paperclip.example/github", {
+      new Request("https://outpost.example/github", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -15984,7 +15984,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "github",
-        new Request("https://paperclip.example/github", {
+        new Request("https://outpost.example/github", {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -16144,7 +16144,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "github",
-        new Request("https://paperclip.example/github", {
+        new Request("https://outpost.example/github", {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -20325,7 +20325,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(failure).toMatchObject({
       status: 422,
       message:
-        "Telegram webhooks require PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL to use HTTPS on port 443, 80, 88, or 8443",
+        "Telegram webhooks require OUTPOST_CHAT_WEBHOOK_PUBLIC_URL to use HTTPS on port 443, 80, 88, or 8443",
       details: {
         code: "chat_telegram_webhook_url_unsupported",
         provider: "telegram",
@@ -20582,7 +20582,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       if (providerConfig?.provider !== "telegram")
         throw new Error("Telegram runtime configuration was not created");
       expect(observedWebhook).toEqual({
-        url: `${webhookPublicBaseUrl ?? "https://paperclip.example"}/api/chat-webhooks/${endpoint.publicId}/telegram`,
+        url: `${webhookPublicBaseUrl ?? "https://outpost.example"}/api/chat-webhooks/${endpoint.publicId}/telegram`,
         secret_token: providerConfig.credentials.secretToken,
         allowed_updates: [
           "message",
@@ -20647,7 +20647,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         `https://api.telegram.org/bot${encodeURIComponent(botToken)}/setMyCommands`,
       ]);
       expect(observedWebhook).toMatchObject({
-        url: `${webhookPublicBaseUrl ?? "https://paperclip.example"}/api/chat-webhooks/${endpoint.publicId}/telegram`,
+        url: `${webhookPublicBaseUrl ?? "https://outpost.example"}/api/chat-webhooks/${endpoint.publicId}/telegram`,
         // Repointing an existing bot must retain updates Telegram queued while
         // the old callback URL was unavailable.
         drop_pending_updates: false,
@@ -21254,7 +21254,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         service.handleWebhook(
           endpoint.publicId,
           "slack",
-          new Request("https://paperclip.example/slack", {
+          new Request("https://outpost.example/slack", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -21311,7 +21311,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         service.handleWebhook(
           endpoint.publicId,
           "slack",
-          new Request("https://paperclip.example/slack", {
+          new Request("https://outpost.example/slack", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -21368,7 +21368,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "slack",
-        new Request("https://paperclip.example/slack", {
+        new Request("https://outpost.example/slack", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
@@ -21546,7 +21546,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   it("orders Slack private-channel archive, unarchive, and rename lifecycle", async () => {
     const fixture = await seedCompany();
     const { endpoint, service } = await configuredSlackEndpoint(fixture);
-    const webhookUrl = `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`;
+    const webhookUrl = `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`;
     const send = async (
       eventId: string,
       type: string,
@@ -21666,7 +21666,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       teams.service.handleWebhook(
         teamsEndpoint.publicId,
         "microsoft-teams",
-        new Request("https://paperclip.example/teams", {
+        new Request("https://outpost.example/teams", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
@@ -21928,7 +21928,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       telegram.service.handleWebhook(
         telegramEndpoint.publicId,
         "telegram",
-        new Request("https://paperclip.example/telegram", {
+        new Request("https://outpost.example/telegram", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -22018,7 +22018,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "slack",
-        new Request("https://paperclip.example/slack", {
+        new Request("https://outpost.example/slack", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -22058,7 +22058,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "slack",
-        new Request("https://paperclip.example/slack", {
+        new Request("https://outpost.example/slack", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -22303,8 +22303,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   it.each([undefined, "https://ingress.example"])(
     "uses a live Cloud claim after chat service startup (ingress: %s)",
     async (webhookPublicBaseUrl) => {
-      const poolOrigin = "https://pool-fixture.staging.paperclip.app";
-      const claimedOrigin = "https://claimed-fixture.staging.paperclip.app";
+      const poolOrigin = "https://pool-fixture.staging.outpost.app";
+      const claimedOrigin = "https://claimed-fixture.staging.outpost.app";
       const canonicalOrigin = vi.spyOn(cloudRuntimeIdentity, "runtimeCanonicalOrigin").mockReturnValue(null);
       let context: ReturnType<typeof createService> | undefined;
       try {
@@ -22344,7 +22344,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           }).returning();
           const intent = await service.createLinkIntent(endpoint.id, principal.id, 1800);
           expect(intent.confirmationUrl).toMatch(
-            /^https:\/\/claimed-fixture\.staging\.paperclip\.app\/chat-identity\/confirm\?token=/,
+            /^https:\/\/claimed-fixture\.staging\.outpost\.app\/chat-identity\/confirm\?token=/,
           );
         }
         const fresh = await service.create(fixture.companyId, {
@@ -22367,8 +22367,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   it.each([undefined, "https://ingress.example"])(
     "registers provider callbacks after a live Cloud claim (ingress: %s)",
     async (webhookPublicBaseUrl) => {
-      const poolOrigin = "https://pool-fixture.staging.paperclip.app";
-      const claimedOrigin = "https://claimed-fixture.staging.paperclip.app";
+      const poolOrigin = "https://pool-fixture.staging.outpost.app";
+      const claimedOrigin = "https://claimed-fixture.staging.outpost.app";
       const canonicalOrigin = vi.spyOn(cloudRuntimeIdentity, "runtimeCanonicalOrigin").mockReturnValue(null);
       let telegram: ReturnType<typeof createService> | undefined;
       let github: Awaited<ReturnType<typeof configuredGitHubEndpoint>> | undefined;
@@ -22517,7 +22517,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const { endpoint, service } = await configuredSlackEndpoint(fixture);
     const path = `/api/chat-webhooks/${endpoint.publicId}/slack`;
     const body = JSON.stringify({ type: "url_verification", challenge: "proxy-check" });
-    const request = signedSlackWebhookRequest({ url: `http://paperclip.example${path}`, contentType: "application/json", body });
+    const request = signedSlackWebhookRequest({ url: `http://outpost.example${path}`, contentType: "application/json", body });
     request.headers.set("x-forwarded-host", "untrusted.example");
     request.headers.set("x-paperclip-cloud-forwarded-host", "untrusted.example");
     request.headers.set("x-paperclip-cloud-forwarded-proto", "https");
@@ -22525,7 +22525,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await service.handleWebhook(endpoint.publicId, "slack", request);
     await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: false, callbackSurfaces: { events: { status: "current" } } } });
     // A different public host or port is still drift, even with TLS termination.
-    for (const publicBaseUrl of ["https://moved.example", "https://paperclip.example:8443"]) {
+    for (const publicBaseUrl of ["https://moved.example", "https://outpost.example:8443"]) {
       const moved = createService(new FakeChatSdkRuntime(), fakeSlackFetch(), { publicBaseUrl });
       await expect(moved.service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: true, callbackSurfaces: { events: { status: "stale" } } } });
       await moved.service.shutdown();
@@ -22535,7 +22535,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   it("records the public Cloud proxy host for authenticated Slack callback health", async () => {
     const fixture = await seedCompany();
     const { endpoint, service } = await configuredSlackEndpoint(fixture);
-    const canonicalOrigin = vi.spyOn(cloudRuntimeIdentity, "runtimeCanonicalOrigin").mockReturnValue("https://paperclip.example");
+    const canonicalOrigin = vi.spyOn(cloudRuntimeIdentity, "runtimeCanonicalOrigin").mockReturnValue("https://outpost.example");
     const path = `/api/chat-webhooks/${endpoint.publicId}/slack`;
     const cases = [
       ["events", "application/json", JSON.stringify({ type: "url_verification", challenge: "cloud-proxy-check" })],
@@ -22547,7 +22547,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         for (const [surface, contentType, body] of cases) {
           const request = signedSlackWebhookRequest({ url: `http://tenant.internal:3100${path}`, contentType, body });
           request.headers.set("x-forwarded-host", "tenant.up.railway.app");
-          request.headers.set(`${prefix}-host`, "paperclip.example");
+          request.headers.set(`${prefix}-host`, "outpost.example");
           request.headers.set(`${prefix}-proto`, "https");
           expect((await service.handleWebhook(endpoint.publicId, "slack", request)).ok).toBe(true);
           await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: {
@@ -22571,7 +22571,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const fixture = await seedCompany();
     const { endpoint, runtime, service } = await configuredSlackEndpoint(fixture);
     const providerRuntime = runtime.endpoints.get(endpoint.id)!;
-    const canonicalOrigin = vi.spyOn(cloudRuntimeIdentity, "runtimeCanonicalOrigin").mockReturnValue("https://paperclip.example");
+    const canonicalOrigin = vi.spyOn(cloudRuntimeIdentity, "runtimeCanonicalOrigin").mockReturnValue("https://outpost.example");
     const path = `/api/chat-webhooks/${endpoint.publicId}/slack`;
     const body = JSON.stringify({ type: "url_verification", challenge: "proxy-hint-check" });
     const send = async (host: string, protocol = "https", signed = true) => {
@@ -22587,17 +22587,17 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       // A real callback on an old public hostname must still warn.
       await send("old.example");
       await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: true } });
-      expect((await send("paperclip.example", "https", false)).status).toBe(401);
+      expect((await send("outpost.example", "https", false)).status).toBe(401);
       await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: true } });
-      for (const host of ["paperclip.example, proxy.example", "paperclip.example/path", "user@paperclip.example", "paperclip.example?query=1", "paperclip.example#fragment", "paperclip.example:8443"]) {
+      for (const host of ["outpost.example, proxy.example", "outpost.example/path", "user@outpost.example", "outpost.example?query=1", "outpost.example#fragment", "outpost.example:8443"]) {
         await send(host);
         await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: true } });
       }
-      await send("paperclip.example", "javascript");
+      await send("outpost.example", "javascript");
       await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: true } });
-      await send("paperclip.example");
+      await send("outpost.example");
       await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: false } });
-      for (const host of ["paperclip.example:443", "PAPERCLIP.EXAMPLE:443", "paperclip.example.", "paperclip.example.:443"]) {
+      for (const host of ["outpost.example:443", "PAPERCLIP.EXAMPLE:443", "outpost.example.", "outpost.example.:443"]) {
         await send(host);
         await expect(service.get(endpoint.id)).resolves.toMatchObject({ setup: { callbacksNeedUpdate: false } });
       }
@@ -22611,7 +22611,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const fixture = await seedCompany();
     const { endpoint, runtime, service } =
       await configuredSlackEndpoint(fixture);
-    const webhookUrl = `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`;
+    const webhookUrl = `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`;
 
     await expect(service.get(endpoint.id)).resolves.toMatchObject({
       setup: {
@@ -22692,7 +22692,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       fakeSlackFetch(),
       {
         publicBaseUrl: "https://board-moved.example",
-        webhookPublicBaseUrl: "https://paperclip.example",
+        webhookPublicBaseUrl: "https://outpost.example",
       },
     );
     await expect(boardOnlyMove.service.get(endpoint.id)).resolves.toMatchObject(
@@ -23066,7 +23066,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         user: externalUserId,
       },
     });
-    const webhookUrl = `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`;
+    const webhookUrl = `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`;
     workWake.mockClear();
     const first = await service.handleWebhook(
       endpoint.publicId,
@@ -23252,7 +23252,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     if (!conversation || !principal) {
       throw new Error("Expected Slack governance conversation and principal");
     }
-    const webhookUrl = `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`;
+    const webhookUrl = `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`;
     const workspaceId = (await service.get(endpoint.id)).providerAccountId;
     const sendStop = (input: { eventId: string; eventSecond: number }) => {
       const body = JSON.stringify({
@@ -23669,7 +23669,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       deferWebhookProcessing: true,
       fetch: fakeSlackFetch() as typeof globalThis.fetch,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       runtime: runtime as unknown as ChatSdkRuntime,
       scheduleDeferredWork: (task) => deferred.push(task),
       reachAuthorizationBarrier: async () => {
@@ -23787,7 +23787,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const competingService = chatChannelService(db, {
       fetch: fakeSlackFetch() as typeof globalThis.fetch,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       runtime: new FakeChatSdkRuntime() as unknown as ChatSdkRuntime,
     });
     let drainSettled = false;
@@ -24884,7 +24884,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       deferWebhookProcessing: true,
       fetch: fakeTelegramFetch() as typeof globalThis.fetch,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       runtime: runtime as unknown as ChatSdkRuntime,
       scheduleDeferredWork: (task) => deferred.push(task),
     });
@@ -25010,7 +25010,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       deferWebhookProcessing: true,
       fetch: fakeTelegramFetch() as typeof globalThis.fetch,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       runtime: runtime as unknown as ChatSdkRuntime,
       scheduleDeferredWork: (task) => deferred.push(task),
     });
@@ -29588,7 +29588,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = `v0=${createHmac("sha256", signingSecret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
       return new Request(
-        `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`,
+        `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`,
         {
           method: "POST",
           headers: {
@@ -29712,7 +29712,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       heartbeat: {
         wakeup: receiptBackedWakeup(vi.fn(async () => ({ accepted: true }))),
       },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
     });
     const endpoint = await service.create(
       fixture.companyId,
@@ -29753,7 +29753,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const signature = `v0=${createHmac("sha256", signingSecret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
     const providerRequest = (retry = false) =>
       new Request(
-        `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`,
+        `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`,
         {
           method: "POST",
           headers: {
@@ -30192,7 +30192,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const initializingWebhook = service.handleWebhook(
       endpoint.publicId,
       "slack",
-      new Request("https://paperclip.example/slack", {
+      new Request("https://outpost.example/slack", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type: "event_callback", event: {} }),
@@ -30230,7 +30230,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       deferWebhookProcessing: true,
       fetch: fakeSlackFetch("U-BOT-PAUSE") as typeof globalThis.fetch,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       scheduleDeferredWork: (task) => deferred.push(task),
     });
     const endpoint = await service.create(
@@ -30279,7 +30279,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = `v0=${createHmac("sha256", signingSecret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
       return new Request(
-        `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`,
+        `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`,
         {
           method: "POST",
           headers: {
@@ -32206,7 +32206,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const startedAt = performance.now();
     try {
       const response = await pinned.handleWebhook(signedSlackWebhookRequest({
-        url: `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`, contentType: "application/json",
+        url: `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`, contentType: "application/json",
         body: JSON.stringify({ type: "event_callback", event_id: "EvFASTSDK", team_id: "T-PAPERCLIP",
           event: { type: "app_mention", channel: "CFASTSDK", user: "USENDER", ts: "1740000090.1", text: "<@UBOT> review <https://example.com/review|this link>" },
         }),
@@ -33202,7 +33202,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.assignedAgentId, runId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -33349,7 +33349,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.assignedAgentId, runId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -33974,7 +33974,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         return context.service.handleWebhook(
           endpoint.publicId,
           "telegram",
-          new Request("https://paperclip.example/synthetic-telegram-webhook", {
+          new Request("https://outpost.example/synthetic-telegram-webhook", {
             method: "POST",
             headers: {
               "content-type": "application/json",
@@ -34681,7 +34681,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       oldConversation.issueId,
       "late-old-generation-final-stays-in-paperclip",
       { agentId: fixture.assignedAgentId, runId: oldRunId },
-      { authorType: "agent", authorizationReason: "paperclip_runner_protocol" },
+      { authorType: "agent", authorizationReason: "outpost_runner_protocol" },
     );
     await expect(
       db
@@ -35207,7 +35207,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           { agentId: f.assignedAgentId, runId: f.runId },
           {
             authorType: "agent",
-            authorizationReason: "paperclip_runner_protocol",
+            authorizationReason: "outpost_runner_protocol",
           },
         );
         await expect(
@@ -35834,7 +35834,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               .set({
                 payload: {
                   ...f.progress.payload,
-                  card: { schema: "paperclip.chat.card.v1", kind: "status", title: "Not a plain progress lane" },
+                  card: { schema: "outpost.chat.card.v1", kind: "status", title: "Not a plain progress lane" },
                 },
               })
               .where(eq(chatPublications.id, f.progress.id));
@@ -35977,7 +35977,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             { agentId: fixture.assignedAgentId, runId },
             {
               authorType: "agent",
-              authorizationReason: "paperclip_runner_protocol",
+              authorizationReason: "outpost_runner_protocol",
             },
           ),
         );
@@ -40776,7 +40776,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       });
       await expect(
         enqueueChatRunMilestones(db, {
-          publicBaseUrl: "https://paperclip.example",
+          publicBaseUrl: "https://outpost.example",
         }),
       ).resolves.toBe(1);
       await service.processPendingPublications(1_000);
@@ -41483,7 +41483,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
                 },
               ],
               questionSet: {
-                schema: "paperclip.question_set.v1",
+                schema: "outpost.question_set.v1",
                 title: "Deployment details",
                 questions: [
                   {
@@ -42599,7 +42599,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(definiteFailureNotices).toHaveLength(1);
     const rejectedAttachmentNotice =
       "Paperclip could not send the response attachment. The complete response remains on its Paperclip task for an operator to retry." +
-      ` Open task: https://paperclip.example/issues/${conversation.issueId}`;
+      ` Open task: https://outpost.example/issues/${conversation.issueId}`;
     expect(definiteFailureNotices[0]).toMatchObject({
       commentId: null,
       state: "published",
@@ -42659,7 +42659,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       payload: {
         text: source,
         card: {
-          schema: "paperclip.chat.card.v1",
+          schema: "outpost.chat.card.v1",
           kind: "status",
           title: "Long structured card",
         },
@@ -43680,7 +43680,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     recoveryPromise = service.handleWebhook(
       endpoint.publicId,
       "telegram",
-      new Request("https://paperclip.example/telegram", {
+      new Request("https://outpost.example/telegram", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -43874,8 +43874,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     ["connection_intent", "reject"],
     ["connection_intent", "reassign"],
   ] as const)("wakes parked Slack %s actions after board %s commits", async (kind, decision) => {
-    const previousPublicUrl = process.env.PAPERCLIP_PUBLIC_URL;
-    process.env.PAPERCLIP_PUBLIC_URL = "https://paperclip.example";
+    const previousPublicUrl = process.env.OUTPOST_PUBLIC_URL;
+    process.env.OUTPOST_PUBLIC_URL = "https://outpost.example";
     const fixture = await seedCompany();
     const { callbacks, endpoint, service } = await configuredSlackEndpoint(fixture);
     let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
@@ -43952,14 +43952,14 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       expect(errors).toEqual([]);
     } finally {
       await coordinator?.stop(); vi.useRealTimers(); await service.shutdown();
-      if (previousPublicUrl === undefined) delete process.env.PAPERCLIP_PUBLIC_URL;
-      else process.env.PAPERCLIP_PUBLIC_URL = previousPublicUrl;
+      if (previousPublicUrl === undefined) delete process.env.OUTPOST_PUBLIC_URL;
+      else process.env.OUTPOST_PUBLIC_URL = previousPublicUrl;
     }
   });
 
   it.each(["request_confirmation", "request_checkbox_confirmation", "request_item_verdicts", "suggest_tasks", "connection_intent"] as const)("delivers and replaces a Slack %s card through the publication service", async kind => {
-    const previousPublicUrl = process.env.PAPERCLIP_PUBLIC_URL;
-    process.env.PAPERCLIP_PUBLIC_URL = "https://paperclip.example";
+    const previousPublicUrl = process.env.OUTPOST_PUBLIC_URL;
+    process.env.OUTPOST_PUBLIC_URL = "https://outpost.example";
     const fixture = await seedCompany();
     const { callbacks, endpoint, service } = await configuredSlackEndpoint(fixture);
     try {
@@ -44002,8 +44002,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       await db.update(chatActions).set({ payload: control.payload }).where(eq(chatActions.id, control.id));
     } finally {
       await service.shutdown();
-      if (previousPublicUrl === undefined) delete process.env.PAPERCLIP_PUBLIC_URL;
-      else process.env.PAPERCLIP_PUBLIC_URL = previousPublicUrl;
+      if (previousPublicUrl === undefined) delete process.env.OUTPOST_PUBLIC_URL;
+      else process.env.OUTPOST_PUBLIC_URL = previousPublicUrl;
     }
   });
 
@@ -44643,7 +44643,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.assignedAgentId, runId: unrelatedRunId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -44660,7 +44660,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.assignedAgentId, runId: sourceRunId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -44677,7 +44677,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.assignedAgentId, runId: sourceRunId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -44744,7 +44744,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.replacementAgentId, runId: reassignedRunId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -45056,9 +45056,9 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       });
       routedService = chatChannelService(db, { runtime: actualRuntime,
         fetch: fakeSlackFetch() as typeof globalThis.fetch,
-        heartbeat: { wakeup: receiptBackedWakeup(wakeup) }, publicBaseUrl: "https://paperclip.example" });
+        heartbeat: { wakeup: receiptBackedWakeup(wakeup) }, publicBaseUrl: "https://outpost.example" });
       fixtureServices.add(routedService);
-      const callbackUrl = `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/slack`;
+      const callbackUrl = `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/slack`;
       const forward = async (request: Request, lane: string) => {
         const startedAt = Date.now();
         const originalTimestamp = request.headers.get("x-slack-request-timestamp");
@@ -45158,7 +45158,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         const observed = (await db.select({ setup: chatEndpoints.setup }).from(chatEndpoints).where(eq(chatEndpoints.id, endpoint.id)))[0]!.setup as InternalSetupState;
         expect(observed.slackCallbackSurfaces?.interactivity?.url).toBe(callbackUrl);
         expect(observed.slackCallbackSurfaces?.slashCommands?.url).toBe(callbackUrl);
-        if (process.env.PAPERCLIP_SLACK_PROTOCOL_CAPTURE === "1") console.info(JSON.stringify({ mode, protocol, custody }));
+        if (process.env.OUTPOST_SLACK_PROTOCOL_CAPTURE === "1") console.info(JSON.stringify({ mode, protocol, custody }));
         return;
       }
       expect(protocol[0]).toMatchObject({ method: "views.open", outcome: "opened" });
@@ -45422,7 +45422,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const observed = (await db.select({ setup: chatEndpoints.setup }).from(chatEndpoints).where(eq(chatEndpoints.id, endpoint.id)))[0]!.setup as InternalSetupState;
       expect(observed.slackCallbackSurfaces?.interactivity?.url).toBe(callbackUrl);
       expect(observed.slackCallbackSurfaces?.slashCommands?.url).toBe(callbackUrl);
-      if (process.env.PAPERCLIP_SLACK_PROTOCOL_CAPTURE === "1") console.info(JSON.stringify({ mode, protocol, custody, invalidSubmission: "errors", correctedSubmission: "clear", answerDeliveries: accepted.deliveries.length }));
+      if (process.env.OUTPOST_SLACK_PROTOCOL_CAPTURE === "1") console.info(JSON.stringify({ mode, protocol, custody, invalidSubmission: "errors", correctedSubmission: "clear", answerDeliveries: accepted.deliveries.length }));
     } catch (error) {
       failure = { error };
       throw error;
@@ -46455,7 +46455,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { agentId: fixture.assignedAgentId, runId: sourceRunId },
       {
         authorType: "agent",
-        authorizationReason: "paperclip_runner_protocol",
+        authorizationReason: "outpost_runner_protocol",
       },
     );
     await expect(
@@ -46960,7 +46960,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       heartbeat: {
         wakeup: receiptBackedWakeup(vi.fn(async () => ({ accepted: true }))),
       },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
     });
     try {
       const endpoint = await service.create(
@@ -46987,7 +46987,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         data = callbackData,
       ) =>
         new Request(
-          `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/telegram`,
+          `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/telegram`,
           {
             method: "POST",
             headers: {
@@ -49134,8 +49134,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
 
   it("publishes GitHub questions as link-only cards with no executable callback", async () => {
     const fixture = await seedCompany();
-    const previousPublicUrl = process.env.PAPERCLIP_PUBLIC_URL;
-    process.env.PAPERCLIP_PUBLIC_URL = "https://paperclip.example";
+    const previousPublicUrl = process.env.OUTPOST_PUBLIC_URL;
+    process.env.OUTPOST_PUBLIC_URL = "https://outpost.example";
     try {
       const { callbacks, endpoint, runtime, service } =
         await configuredGitHubEndpoint(fixture);
@@ -49203,7 +49203,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               {
                 type: "link",
                 label: "Open in Paperclip",
-                url: `https://paperclip.example/issues/${conversation!.issueId}`,
+                url: `https://outpost.example/issues/${conversation!.issueId}`,
               },
             ],
           },
@@ -49223,18 +49223,18 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       ).toHaveLength(0);
       expect(
         JSON.stringify(runtime.endpoints.get(endpoint.id)?.posts),
-      ).toContain(`https://paperclip.example/issues/${conversation!.issueId}`);
+      ).toContain(`https://outpost.example/issues/${conversation!.issueId}`);
     } finally {
       if (previousPublicUrl === undefined)
-        delete process.env.PAPERCLIP_PUBLIC_URL;
-      else process.env.PAPERCLIP_PUBLIC_URL = previousPublicUrl;
+        delete process.env.OUTPOST_PUBLIC_URL;
+      else process.env.OUTPOST_PUBLIC_URL = previousPublicUrl;
     }
   });
 
   it("keeps a successful GitHub link-question continuation final internal", async () => {
     const fixture = await seedCompany();
-    const previousPublicUrl = process.env.PAPERCLIP_PUBLIC_URL;
-    process.env.PAPERCLIP_PUBLIC_URL = "https://paperclip.example";
+    const previousPublicUrl = process.env.OUTPOST_PUBLIC_URL;
+    process.env.OUTPOST_PUBLIC_URL = "https://outpost.example";
     try {
       const continuationRunId = randomUUID();
       const wakeup = vi.fn(async (agentId, options) => {
@@ -49407,8 +49407,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       await service.shutdown();
     } finally {
       if (previousPublicUrl === undefined)
-        delete process.env.PAPERCLIP_PUBLIC_URL;
-      else process.env.PAPERCLIP_PUBLIC_URL = previousPublicUrl;
+        delete process.env.OUTPOST_PUBLIC_URL;
+      else process.env.OUTPOST_PUBLIC_URL = previousPublicUrl;
     }
   });
 
@@ -49516,7 +49516,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     });
     await expect(
       enqueueChatRunMilestones(db, {
-        publicBaseUrl: "https://paperclip.example",
+        publicBaseUrl: "https://outpost.example",
       }),
     ).resolves.toBe(1);
     await service.processPendingPublications();
@@ -49543,9 +49543,9 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
   it("publishes explicit Board GitHub attachment fallbacks without provider file bytes", async () => {
     for (const testCase of [
       {
-        publicBaseUrl: "https://board.paperclip.example",
+        publicBaseUrl: "https://board.outpost.example",
         expectedFallback: (issueId: string) =>
-          `File saved on the Paperclip task: report.txt. This GitHub App connection cannot upload file bytes into comments. Download it: https://board.paperclip.example/issues/${issueId}`,
+          `File saved on the Paperclip task: report.txt. This GitHub App connection cannot upload file bytes into comments. Download it: https://board.outpost.example/issues/${issueId}`,
       },
       {
         publicBaseUrl: "http://127.0.0.1:3103",
@@ -49712,7 +49712,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(failed).toMatchObject({ state: "failed" });
     const selectedAttachmentNotice =
       "Paperclip could not send an attachment. The file remains on its Paperclip task for an operator to retry." +
-      ` Open task: https://paperclip.example/issues/${conversation.issueId}`;
+      ` Open task: https://outpost.example/issues/${conversation.issueId}`;
     const publications = await db
       .select()
       .from(chatPublications)
@@ -50006,7 +50006,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       .mockRejectedValueOnce(new Error("remove retirement uncertain"))
       .mockRejectedValueOnce(new Error("shutdown retirement uncertain"))
       .mockResolvedValue(undefined);
-    const service = chatChannelService(db, { runtime: registry, fetch: f.providerFetch, publicBaseUrl: "https://paperclip.example",
+    const service = chatChannelService(db, { runtime: registry, fetch: f.providerFetch, publicBaseUrl: "https://outpost.example",
       heartbeat: { wakeup: async () => undefined } });
     fixtureServices.add(service);
     expect(await registeredIdleProbeState()).toBe("none");
@@ -51194,7 +51194,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           phase: "delivered",
           privateState: {
             resolution: {
-              schema: "paperclip.teams.file-resolution.v1",
+              schema: "outpost.teams.file-resolution.v1",
               action: "mark_delivered",
               fromPhase: "upload_unknown",
             },
@@ -53821,7 +53821,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       conversation.issueId,
       "Recorded a direct upload before final presentation.",
       { agentId: fixture.assignedAgentId, runId },
-      { authorType: "agent", authorizationReason: "paperclip_runner_protocol" },
+      { authorType: "agent", authorizationReason: "outpost_runner_protocol" },
     );
     const storedDirect = await storage.storage.putFile({
       companyId: fixture.companyId,
@@ -55155,7 +55155,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             .set({
               payload: { registration: priorRegistration },
               result: {
-                schema: "paperclip.discord.command-registration-result.v1",
+                schema: "outpost.discord.command-registration-result.v1",
                 outcome: legacyCopy ? "registered" : "unavailable",
                 retryAt: legacyCopy
                   ? new Date(0).toISOString()
@@ -55314,7 +55314,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               .set({
                 payload: {
                   ...progress.payload,
-                  card: { schema: "paperclip.chat.card.v1", kind: "status", title: "Not a plain progress lane" },
+                  card: { schema: "outpost.chat.card.v1", kind: "status", title: "Not a plain progress lane" },
                 },
               })
               .where(eq(chatPublications.id, progress.id));
@@ -56145,7 +56145,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         "wakes a post-close milestone when %s authority is restored", async owner => {
           const stackId = randomUUID();
           const f = await reopenedFixture(false, owner === "cloud_sync" ? cloudTenantPrimaryCompanyId(stackId) : undefined);
-          const previousToken = process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
+          const previousToken = process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
           const [previousUser] = owner === "cloud_sync"
             ? await db.select().from(authUsers).where(eq(authUsers.id, "owner-user"))
             : [];
@@ -56188,7 +56188,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               if (owner === "member") restore = () => access.updateMember(f.fixture.companyId, membership.id, { status: "active" });
               else if (owner === "member_permissions") restore = () => access.updateMemberAndPermissions(f.fixture.companyId, membership.id, { status: "active", grants: [] }, "owner-user");
               else if (owner === "cloud_sync") {
-                process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = "milestone-cloud-sync-test";
+                process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "milestone-cloud-sync-test";
                 let request = 0;
                 restore = () => resolveCloudTenantActor(db, cloudActorHeaderSourceFromHeaders({
                   "x-paperclip-cloud-tenant-token": "milestone-cloud-sync-test",
@@ -56226,8 +56226,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             }
             expect(onError).not.toHaveBeenCalled();
           } finally {
-            if (previousToken === undefined) delete process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN;
-            else process.env.PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN = previousToken;
+            if (previousToken === undefined) delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
+            else process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = previousToken;
             await coordinator.stop();
             if (previousUser) await db.update(authUsers).set({
               name: previousUser.name, email: previousUser.email,
@@ -60394,7 +60394,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const service = chatChannelService(db, {
       fetch: telegramFetch,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup) },
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
     });
     try {
       const endpoint = await service.create(
@@ -60419,7 +60419,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         updateId: number;
       }) =>
         new Request(
-          `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/telegram`,
+          `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/telegram`,
           {
             method: "POST",
             headers: {
@@ -61214,7 +61214,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               callId: "edited-source-read",
               arguments: selection,
             }),
-          ).rejects.toThrow("paperclip_runner_chat_attachment_source_denied");
+          ).rejects.toThrow("outpost_runner_chat_attachment_source_denied");
           await expect(
             tools.execute({
               tool: "reuse_chat_attachment",
@@ -61225,7 +61225,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
                 idempotencyKey: "edited-source-reuse",
               },
             }),
-          ).rejects.toThrow("paperclip_runner_chat_attachment_source_denied");
+          ).rejects.toThrow("outpost_runner_chat_attachment_source_denied");
           expect(storage.putFile).toHaveBeenCalledTimes(1);
           const textEdit = {
             ...original,
@@ -61796,7 +61796,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               arguments: selection,
             }),
           ).rejects.toThrow(
-            "paperclip_runner_chat_attachment_read_not_authorized",
+            "outpost_runner_chat_attachment_read_not_authorized",
           );
           await db
             .update(chatIdentityLinks)
@@ -61830,14 +61830,14 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               title: "Must remain unavailable",
             },
           }),
-        ).rejects.toThrow("paperclip_runner_chat_attachment_source_denied");
+        ).rejects.toThrow("outpost_runner_chat_attachment_source_denied");
         await expect(
           authority.execute({
             tool: "read_chat_attachment",
             callId: "deleted-source-read",
             arguments: selection,
           }),
-        ).rejects.toThrow("paperclip_runner_chat_attachment_source_denied");
+        ).rejects.toThrow("outpost_runner_chat_attachment_source_denied");
         await expect(
           authority.execute({
             tool: "list_chat_attachments",
@@ -62799,7 +62799,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "telegram",
-        new Request("https://paperclip.example/telegram", {
+        new Request("https://outpost.example/telegram", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -62924,7 +62924,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "telegram",
-        new Request("https://paperclip.example/telegram", {
+        new Request("https://outpost.example/telegram", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -63049,7 +63049,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "telegram",
-        new Request("https://paperclip.example/telegram", {
+        new Request("https://outpost.example/telegram", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -63196,7 +63196,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "microsoft-teams",
-        new Request("https://paperclip.example/microsoft-teams", {
+        new Request("https://outpost.example/microsoft-teams", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
@@ -63640,7 +63640,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "telegram",
-        new Request("https://paperclip.example/telegram", {
+        new Request("https://outpost.example/telegram", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(editPayload),
@@ -63650,7 +63650,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await service.handleWebhook(
       endpoint.publicId,
       "telegram",
-      new Request("https://paperclip.example/telegram", {
+      new Request("https://outpost.example/telegram", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -63809,7 +63809,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       service.handleWebhook(
         endpoint.publicId,
         "telegram",
-        new Request("https://paperclip.example/telegram", {
+        new Request("https://outpost.example/telegram", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -64131,7 +64131,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
 
   it.each([
     {
-      authorizationReason: "paperclip_runner_protocol",
+      authorizationReason: "outpost_runner_protocol",
       chatId: "77112241",
       publishesComment: false,
     },
@@ -64773,7 +64773,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     }
     const [originalDelivery] = await db.select().from(chatDeliveries).where(eq(chatDeliveries.id, f.action.deliveryId!));
 
-    await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+    await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
       runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } })
       .where(eq(agents.id, f.fixture.assignedAgentId));
     await db.insert(heartbeatRuns).values({ companyId, agentId: f.fixture.assignedAgentId,
@@ -65364,7 +65364,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       [String(f.pending!.payload.commentId)]) }).where(eq(agentWakeupRequests.id, saved.id));
     const contractId = randomUUID(), resultId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ status: "succeeded", errorCode: null, nativePhase: "committed",
@@ -65392,7 +65392,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       app.use(errorHandler);
       try {
         if (provider === "telegram") {
-          await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+          await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
             runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } })
             .where(eq(agents.id, f.fixture.assignedAgentId));
           await db.insert(heartbeatRuns).values({ companyId, agentId: f.fixture.assignedAgentId,
@@ -65404,7 +65404,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         const diagnostic = mode === "other_setup" ? "A different preparation failure" : "The workspace still has an unfinished writer or save operation.";
         await db.update(heartbeatRuns).set({ runtimeMode: "legacy", nativeIssueId: null, nativePhase: null,
           errorCode: "setup_failed", error: diagnostic, sessionIdBefore: "inherited-display-hint",
-          runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+          runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
           usageJson: { ledgerScope: { issueId, projectId: null, billingCode: null } },
           resultJson: { stopReason: "adapter_failed", executionRecovery: { kind: "bootstrap", providerWorkStarted: false },
             timeoutFired: false, timeoutSource: "config", timeoutConfigured: false, effectiveTimeoutSec: 0,
@@ -65422,7 +65422,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         ]);
         if (mode === "late_event") await db.insert(heartbeatRunEvents).values({ companyId,
           agentId: f.fixture.assignedAgentId, runId: f.runId, seq: 3, eventType: "session.started",
-          sourceInstanceId: randomUUID(), payload: { prpEvent: { sourceKind: "runner" } } });
+          sourceInstanceId: randomUUID(), payload: { orpEvent: { sourceKind: "runner" } } });
         if (mode === "retained_native") {
           await db.update(heartbeatRuns).set({ nativeIssueId: issueId }).where(eq(heartbeatRuns.id, f.runId));
           await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId: f.runId, phase: "terminal_failure" });
@@ -65446,7 +65446,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         if (mode === "accepted_result") {
           const contractId = randomUUID(), resultId = randomUUID();
           await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-            schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+            schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
             completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
             canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
           await db.update(heartbeatRuns).set({ nativeIssueId: issueId, completionContractId: contractId })
@@ -65498,7 +65498,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       releasedAt: new Date(), leasePolicy: "retain_on_failure" };
     const termination = remoteTerminationReceipt(lease, { providerLeaseId: lease.providerLeaseId, state: "stopped" })!;
     const metadata = { remoteExecutionTermination: termination, sandboxStopAndRetainReceipt: {
-      schema: "paperclip.sandbox-stop-and-retain-receipt.v1", companyId, runId: f.runId,
+      schema: "outpost.sandbox-stop-and-retain-receipt.v1", companyId, runId: f.runId,
       leaseId: lease.id, provider: lease.provider, providerLeaseId: lease.providerLeaseId,
       requestId: randomUUID(), confirmedAt: termination.confirmedAt, builtinProvider: "daytona", method: "builtin.stopLease",
     } };
@@ -65820,8 +65820,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           const leaseId = randomUUID(), providerLeaseId = randomUUID();
           await db.update(heartbeatRuns).set({ errorCode: "execution_finalization_deadline_exceeded",
             resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-              schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] } },
-            runnerProfileJson: { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+              schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] } },
+            runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
               descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
               workspaceId: randomUUID(), leaseId, providerLeaseId, remoteCwd: "/workspace", resourceDisposition: "destroy" } },
           }).where(eq(heartbeatRuns.id, f.runId));
@@ -65957,7 +65957,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           idempotencyKey: mode === "concurrent_clicks" ? randomUUID() : input.idempotencyKey })]);
         if (capture) {
           capture.flush();
-          expect(Number(queryEvents.find(event => event.event === "paperclip.test_db_response_capture.summary.v1")?.startedQueries))
+          expect(Number(queryEvents.find(event => event.event === "outpost.test_db_response_capture.summary.v1")?.startedQueries))
             .toBeLessThan(180);
         }
         expect(two.requestId).toBe(one.requestId);
@@ -66178,7 +66178,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       await db.update(heartbeatRuns).set({ errorCode: "workspace_validation_failed", error: diagnostic,
         runtimeMode: "legacy", sessionIdBefore: "prior-provider-display-hint",
         usageJson: { ledgerScope: { issueId, projectId: null, billingCode: null } },
-        runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+        runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
         resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false }, stopReason: "adapter_failed",
           workspaceValidation: { reason: "isolated_task_directory_binding_mismatch", issueId } } })
         .where(eq(heartbeatRuns.id, f.runId));
@@ -66215,7 +66215,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       if (mode === "accepted_result") {
         const contractId = randomUUID(), resultId = randomUUID();
         await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-          schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+          schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
           completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
           canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
         await db.update(heartbeatRuns).set({ nativeIssueId: issueId, completionContractId: contractId }).where(eq(heartbeatRuns.id, f.runId));
@@ -66304,10 +66304,10 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       expect(current).toMatchObject({ status: "queued" });
       await initializeRunIdentity(db, { companyId, runId: current!.id, issueId, responsibleUserId: "owner-user",
         parentRunId: f.runId, messageIds: [comment.id], cause: "issue_reopened_via_comment" });
-      const diagnostic = 'Failed to acquire lease for environment "Managed computer" (sandbox): sandbox_snapshot_qualification_required: The snapshot qualification is missing or stale. Test this environment again before running Paperclip Runner.';
+      const diagnostic = 'Failed to acquire lease for environment "Managed computer" (sandbox): sandbox_snapshot_qualification_required: The snapshot qualification is missing or stale. Test this environment again before running Outpost Runner.';
       await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(), runtimeMode: "legacy",
         errorCode: "setup_failed", error: diagnostic, sessionIdBefore: "prior-provider-session-hint",
-        runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+        runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
         usageJson: { ledgerScope: { issueId, projectId: null } },
         resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false }, stopReason: "adapter_failed" } })
         .where(eq(heartbeatRuns.id, current!.id));
@@ -66353,7 +66353,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         { activeIdentityContextId: null }, { sessionIdAfter: "provider-started" }, { processPid: 999999 },
         { controllerLeaseExpiresAt: new Date(Date.now() + 60000) }, { stdoutExcerpt: "provider output" },
         { resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: true } } },
-        { runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" }, unexpectedExecution: true } },
+        { runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" }, unexpectedExecution: true } },
       ]) {
         const restore = Object.fromEntries(Object.keys(patch).map(key => [key, failed[key as keyof typeof failed]]));
         await denySource(() => db.update(heartbeatRuns).set(patch).where(eq(heartbeatRuns.id, failed.id)),
@@ -66361,7 +66361,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       }
       const contractId = randomUUID(), resultId = randomUUID();
       await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+        schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
         completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
         canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
       await denySource(async () => {
@@ -66516,7 +66516,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         parentRunId: f.runId, cause: "issue_tree_resumed" });
       const contractId = randomUUID(), resultId = randomUUID();
       await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+        schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
         completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
         canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
       await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(), runtimeMode: "native",
@@ -66698,7 +66698,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         if (mode.startsWith("committed_") || executionRevalidation) {
           const contractId = randomUUID(), resultId = randomUUID();
           await db.insert(completionContracts).values({ id: contractId, companyId, issueId: context.issue.id,
-            revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+            revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
             completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
             canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
           await db.update(heartbeatRuns).set({ nativePhase: "committed", completionContractId: contractId })
@@ -66827,7 +66827,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       if (realBudgetIngress || mode === "real_queue" || mode === "unreconciled" || mode.startsWith("committed_")) {
         // Capacity prevents a real provider start while exercising production
         // admission, persisted source identity, and queue ownership.
-        await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+        await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
           runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } })
           .where(eq(agents.id, context.fixture.assignedAgentId));
         await db.insert(heartbeatRuns).values({ companyId, agentId: context.fixture.assignedAgentId,
@@ -66943,7 +66943,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
             expect(verified).toEqual([firstAttempt.id]);
             if (mode === "legacy_execution_log") await db.update(heartbeatRuns).set({ logBytes: 1 }).where(eq(heartbeatRuns.id, firstAttempt.id));
-            if (mode === "legacy_execution_profile") await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" }, unexpectedExecution: true } }).where(eq(heartbeatRuns.id, firstAttempt.id));
+            if (mode === "legacy_execution_profile") await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" }, unexpectedExecution: true } }).where(eq(heartbeatRuns.id, firstAttempt.id));
             if (mode === "legacy_execution_controller") await db.update(heartbeatRuns).set({ controllerLeaseExpiresAt: new Date(Date.now() + 60000) }).where(eq(heartbeatRuns.id, firstAttempt.id));
             if (mode === "legacy_execution_event") await db.update(heartbeatRunEvents).set({ message: "different diagnostic" }).where(and(eq(heartbeatRunEvents.runId, firstAttempt.id), eq(heartbeatRunEvents.seq, 1)));
             if (mode === "legacy_execution_intent") await db.update(agentWakeupRequests).set({ runId: context.runId }).where(eq(agentWakeupRequests.id, receipt.requestId!));
@@ -67348,17 +67348,17 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             : mode === "malformed_account"
               ? 123
               : providerAccount;
-      const previous = process.env.PAPERCLIP_RUNNER_STATE_DIR;
+      const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
       const directory = mkdtempSync(
         path.join(os.tmpdir(), "paperclip-chat-cleanup-retry-"),
       );
-      process.env.PAPERCLIP_RUNNER_STATE_DIR = directory;
+      process.env.OUTPOST_RUNNER_STATE_DIR = directory;
       try {
         const runId = randomUUID();
         const nativeSessionId = context.binding.normalizedSessionId;
         const runnerInstanceId = context.binding.runnerSourceInstanceId;
         const inputFor = (id: string) => ({
-          schema: "paperclip.native-execution-input.v1",
+          schema: "outpost.native-execution-input.v1",
           provider: { kind: "codex", model: null },
           binding: {
             companyId: context.fixture.companyId,
@@ -67389,7 +67389,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           completionContract: {
             id: context.binding.completionContractId,
             sha256: context.binding.completionContractSha256,
-            schemaVersion: "paperclip.completion-contract.v1",
+            schemaVersion: "outpost.completion-contract.v1",
             contract: {
               revision: "recovered-response-v1",
               objective: "Exact request",
@@ -67536,7 +67536,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         const key = createHash("sha256")
           .update(
             canonical({
-              schema: "paperclip.native-session-scope.v2",
+              schema: "outpost.native-session-scope.v2",
               companyId: context.fixture.companyId,
               agentId: context.fixture.assignedAgentId,
               workspace: { kind: "transient", ...inputFor(runId).workspace },
@@ -67561,14 +67561,14 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           [
             "control-plane/control-plane-state.json",
             {
-              schema: "paperclip.runner.durable.control-plane-state.v1",
+              schema: "outpost.runner.durable.control-plane-state.v1",
               identity,
             },
           ],
           [
             "runner/runner-state.json",
             {
-              schema: "paperclip.runner.durable.state.v1",
+              schema: "outpost.runner.durable.state.v1",
               ...identity,
               lifecycle: "suspended",
               outbox: [],
@@ -67577,7 +67577,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           [
             "runner/codex-provider-state.json",
             {
-              schema: "paperclip.runner.codex-provider-state.v1",
+              schema: "outpost.runner.codex-provider-state.v1",
               lifecycle: "prepared",
               threadId: "same-retained-thread",
               providerSessionId: providerAccount,
@@ -67636,7 +67636,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           writeFileSync(
             path.join(root, "cleanup-activation.json"),
             JSON.stringify({
-              schema: "paperclip.native_cleanup_activation.v1",
+              schema: "outpost.native_cleanup_activation.v1",
               companyId: context.fixture.companyId,
               issueId: context.issue.id,
               runId: context.runId,
@@ -67662,7 +67662,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             seq: 1,
             eventType: "session.started",
             sourceInstanceId: runnerInstanceId,
-            payload: { prpEvent: { sourceKind: "runner" } },
+            payload: { orpEvent: { sourceKind: "runner" } },
           });
         if (mode === "source_edited")
           await db
@@ -67719,8 +67719,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       } finally {
         await context.service.shutdown();
         if (previous === undefined)
-          delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-        else process.env.PAPERCLIP_RUNNER_STATE_DIR = previous;
+          delete process.env.OUTPOST_RUNNER_STATE_DIR;
+        else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
         rmSync(directory, { recursive: true, force: true });
       }
     },
@@ -67736,7 +67736,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId,
           nativePhase: "terminal_failure", runnerProfileJson: {},
           resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-            schema: "paperclip.workspace-restore-recovery.v1", runId: context.runId, leaseIds: [leaseId],
+            schema: "outpost.workspace-restore-recovery.v1", runId: context.runId, leaseIds: [leaseId],
           } },
         }).where(eq(heartbeatRuns.id, context.runId));
         await db.insert(nativeRunFinalizations).values({ companyId, issueId,
@@ -67760,8 +67760,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           cause: "native_continuation_requires_reconciliation", fingerprint: randomUUID(),
           nextAction: "Verify and preserve the exact retained source before continuing.",
           evidence: { runId: context.runId, automaticRecovery: { replay: "blocked" },
-            workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] },
-            historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId: context.runId, leaseIds: [leaseId] },
+            workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] },
+            historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: context.runId, leaseIds: [leaseId] },
             systemRecovery: priorRecovery,
           },
         });
@@ -67770,7 +67770,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           const [environment] = await db.insert(environments).values({ name: context.runId, driver: "sandbox" }).returning();
           await db.delete(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
           await db.update(heartbeatRuns).set({ resultJson: null, errorCode: "execution_finalization_deadline_exceeded",
-            runnerProfileJson: { nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared",
+            runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
               descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
               workspaceId: issueId, leaseId, providerLeaseId: lease.providerLeaseId,
               remoteCwd: lease.metadata!.remoteCwd, resourceDisposition: "keep_running" } },
@@ -67806,7 +67806,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         if (gate === "paused_endpoint") await db.update(chatEndpoints).set({ status: "paused" })
           .where(eq(chatEndpoints.id, context.endpoint.id));
         // Keep capacity occupied so a regression cannot start a real adapter.
-        await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+        await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
           runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } })
           .where(eq(agents.id, context.fixture.assignedAgentId));
         await db.insert(heartbeatRuns).values({ companyId,
@@ -67859,7 +67859,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             agentId: context.fixture.assignedAgentId, runtimeMode: "native", nativePhase: "terminal_failure",
             status: "failed", createdAt: new Date(Date.now() - 120_000), finishedAt: new Date(Date.now() - 60_000),
             resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-              schema: "paperclip.workspace-restore-recovery.v1", runId: foreignRunId, leaseIds: [] } },
+              schema: "outpost.workspace-restore-recovery.v1", runId: foreignRunId, leaseIds: [] } },
           });
           await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
             kind: "active_run_watchdog", status: "resolved", ownerType: "system",
@@ -68045,7 +68045,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       for (const invalid of ["wrong_digest", "changed_generation", "not_resolved"] as const) {
         try {
           if (invalid === "wrong_digest") await db.update(issueRecoveryActions).set({ evidence: {
-            ...resolved.evidence, controllerAuthority: { schema: "paperclip.native-controller-authority.v1", digest: "0".repeat(64) },
+            ...resolved.evidence, controllerAuthority: { schema: "outpost.native-controller-authority.v1", digest: "0".repeat(64) },
           } }).where(eq(issueRecoveryActions.id, action.id));
           if (invalid === "changed_generation") await db.update(nativeRunFinalizations)
             .set({ controllerGeneration: settled.controllerGeneration + 1 }).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -68078,7 +68078,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           identity: () => identity, async capabilities() { return capabilities; },
           async *events() {
             await turnStarted; const [run] = await readHeartbeatRunsById(identity.runId);
-            yield { schema: "paperclip.prp.event.v1", sourceEventId: `${identity.runId}:terminal`, sourceSeq: 1,
+            yield { schema: "outpost.orp.event.v1", sourceEventId: `${identity.runId}:terminal`, sourceSeq: 1,
               sourceInstanceId: run.runnerInstanceId!, sourceKind: "runner", runId: identity.runId,
               normalizedSessionId: identity.sessionId, turnId, eventType: "turn.completed", schemaVersion: 1,
               priority: 0, emittedAt: new Date().toISOString(), payload: {} } satisfies PrpEvent;
@@ -68101,7 +68101,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         };
       };
       if (useful) await settings.updateExperimental({ enableNativeRunner: true, enableIsolatedWorkspaces: true });
-      await db.update(agents).set({ adapterType: "paperclip_runner", status: useful ? "idle" : "running",
+      await db.update(agents).set({ adapterType: "outpost_runner", status: useful ? "idle" : "running",
         ...(useful ? { adapterConfig: { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017",
           cwd: workingDirectory, workspaceStrategy: { type: "project_primary" } } } : {}),
         runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } }).where(eq(agents.id, agentId));
@@ -68203,7 +68203,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         if (kind === "real_queue") {
           // Exercise the real dispatch transaction while another live run
           // occupies capacity. This test makes no provider-execution claim.
-          await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+          await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
             runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } })
             .where(eq(agents.id, context.fixture.assignedAgentId));
           await db.insert(heartbeatRuns).values({ companyId: context.fixture.companyId,
@@ -68294,7 +68294,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             : kind === "malformed_account"
               ? 123
               : providerAccount;
-      const previousStateDirectory = process.env.PAPERCLIP_RUNNER_STATE_DIR;
+      const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
       let stateDirectory: string | null = null;
       let noticeCoordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
       let noticeActionId: string | undefined;
@@ -68303,7 +68303,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         const nativeSessionId = randomUUID();
         const runnerInstanceId = randomUUID();
         const nativeExecutionInput = {
-          schema: "paperclip.native-execution-input.v1",
+          schema: "outpost.native-execution-input.v1",
           provider: { kind: "codex", model: null },
           binding: {
             companyId: context.fixture.companyId,
@@ -68334,7 +68334,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           completionContract: {
             id: randomUUID(),
             sha256: "sha",
-            schemaVersion: "paperclip.completion-contract.v1",
+            schemaVersion: "outpost.completion-contract.v1",
             contract: {
               revision: "1",
               objective: "Exact request",
@@ -68427,7 +68427,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           stateDirectory = mkdtempSync(
             path.join(os.tmpdir(), "paperclip-chat-retry-checkpoint-"),
           );
-          process.env.PAPERCLIP_RUNNER_STATE_DIR = stateDirectory;
+          process.env.OUTPOST_RUNNER_STATE_DIR = stateDirectory;
           const canonical = (value: unknown): string =>
             value && typeof value === "object" && !Array.isArray(value)
               ? `{${Object.entries(value)
@@ -68439,7 +68439,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
                   .join(",")}}`
               : JSON.stringify(value);
           const scope = {
-            schema: "paperclip.native-session-scope.v2",
+            schema: "outpost.native-session-scope.v2",
             companyId: context.fixture.companyId,
             agentId: context.fixture.assignedAgentId,
             workspace: { kind: "transient", ...nativeExecutionInput.workspace },
@@ -68464,14 +68464,14 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           writeFileSync(
             path.join(root, "control-plane", "control-plane-state.json"),
             JSON.stringify({
-              schema: "paperclip.runner.durable.control-plane-state.v1",
+              schema: "outpost.runner.durable.control-plane-state.v1",
               identity,
             }),
           );
           writeFileSync(
             path.join(root, "runner", "runner-state.json"),
             JSON.stringify({
-              schema: "paperclip.runner.durable.state.v1",
+              schema: "outpost.runner.durable.state.v1",
               ...identity,
               lifecycle: "suspended",
               outbox: [],
@@ -68480,7 +68480,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           writeFileSync(
             path.join(root, "runner", "codex-provider-state.json"),
             JSON.stringify({
-              schema: "paperclip.runner.codex-provider-state.v1",
+              schema: "outpost.runner.codex-provider-state.v1",
               lifecycle: "prepared",
               threadId: "exact-retry-thread",
               providerSessionId: providerAccount,
@@ -68616,8 +68616,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         }
         if (stateDirectory) {
           if (previousStateDirectory === undefined)
-            delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-          else process.env.PAPERCLIP_RUNNER_STATE_DIR = previousStateDirectory;
+            delete process.env.OUTPOST_RUNNER_STATE_DIR;
+          else process.env.OUTPOST_RUNNER_STATE_DIR = previousStateDirectory;
           rmSync(stateDirectory, { recursive: true, force: true });
         }
       }
@@ -69119,7 +69119,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId,
       nativePhase: "terminal_failure", runnerProfileJson: {},
       resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-        schema: "paperclip.workspace-restore-recovery.v1", runId: context.runId, leaseIds: [leaseId],
+        schema: "outpost.workspace-restore-recovery.v1", runId: context.runId, leaseIds: [leaseId],
       } },
     }).where(eq(heartbeatRuns.id, context.runId));
     await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId: context.runId, phase: "terminal_failure" });
@@ -69133,8 +69133,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       cause: "native_continuation_requires_reconciliation", fingerprint: randomUUID(),
       nextAction: "Verify and preserve the retained source before continuing.",
       evidence: { runId: context.runId, automaticRecovery: { replay: "blocked" },
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] },
-        historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId: context.runId, leaseIds: [leaseId] },
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] },
+        historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: context.runId, leaseIds: [leaseId] },
         systemRecovery: { ...createSystemRecovery(context.runId), state: "exhausted", attempts: 2, retriesUsed: 1,
           attemptId: randomUUID(), firstFailureAt: Date.now() - 1000, deadlineAt: Date.now() + 60_000,
           preservationOperationIds: [randomUUID()] },
@@ -69143,7 +69143,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const retry = await requestTaskRetry({ db, companyId, issueId, actorId: "owner-user",
       actorSource: "cloud_tenant", observedRunId: context.runId, idempotencyKey: randomUUID(),
       prepareChatRetry: context.service.prepareFailedChatRunRetry });
-    await db.update(agents).set({ adapterType: "paperclip_runner", status: "running",
+    await db.update(agents).set({ adapterType: "outpost_runner", status: "running",
       runtimeConfig: { heartbeat: { wakeOnDemand, maxConcurrentRuns: 1 } },
     }).where(eq(agents.id, context.fixture.assignedAgentId));
     await db.insert(heartbeatRuns).values({ companyId, agentId: context.fixture.assignedAgentId,
@@ -69495,7 +69495,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       }
       expect(events.at(-1)).toMatchObject({ startedQueries: mode === "task" ? 0 : 1,
         completedQueries: mode === "task" ? 0 : 1, inFlightAtEnd: 0 });
-      expect(events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1")
+      expect(events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1")
         .reduce((count, event) => count + Number(event.rows), 0)).toBe(mode === "task" ? 0 : scopes.length);
     } finally {
       await context.service.shutdown(); await other.service.shutdown();
@@ -70001,7 +70001,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         agentId: context.fixture.assignedAgentId,
         runId: context.runId,
         seq: 2,
-        eventType: "prp",
+        eventType: "orp",
         sourceInstanceId: "late-provider",
         payload: { type: "turn.started" },
       });
@@ -70051,7 +70051,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             agentId: context.fixture.assignedAgentId,
             runId: context.runId,
             seq: 2,
-            eventType: "prp",
+            eventType: "orp",
             sourceInstanceId: "provider-source",
             payload: { type: "turn.started" },
           });
@@ -70347,7 +70347,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         async *events() {
           await turnStarted;
           const [run] = await readHeartbeatRunsById(identity.runId);
-          yield { schema: "paperclip.prp.event.v1", sourceEventId: `${identity.runId}:terminal`, sourceSeq: 1,
+          yield { schema: "outpost.orp.event.v1", sourceEventId: `${identity.runId}:terminal`, sourceSeq: 1,
             sourceInstanceId: run.runnerInstanceId!, sourceKind: "runner", runId: identity.runId,
             normalizedSessionId: identity.sessionId, turnId, eventType: "turn.completed", schemaVersion: 1,
             priority: 0, emittedAt: new Date().toISOString(), payload: {} } satisfies PrpEvent;
@@ -71634,7 +71634,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             payload: {
               code: "provider_startup_ownership",
               startup: {
-                schema: "paperclip.provider_startup.v1",
+                schema: "outpost.provider_startup.v1",
                 phase,
                 launchId: "PRIVATE-STARTUP-LAUNCH",
                 requestedThreadId: "PRIVATE-REQUESTED-THREAD",
@@ -74185,7 +74185,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
                   ? "pull_request_review_comment"
                   : "issue_comment",
               webhookSecret: signingSecret,
-              url: `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/github`,
+              url: `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/github`,
               payload: {
                 action: "edited",
                 comment: {
@@ -74382,7 +74382,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             sender: { id: 7001, login: "alex-e2e" },
           },
           webhookSecret,
-          url: `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/github`,
+          url: `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/github`,
         }),
       );
 
@@ -74598,7 +74598,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             sender: { id: 7001, login: "alex-e2e" },
           },
           webhookSecret,
-          url: `https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/github`,
+          url: `https://outpost.example/api/chat-webhooks/${endpoint.publicId}/github`,
         }),
       );
       expect(response.status).toBeLessThan(300);
@@ -74946,7 +74946,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const response = await service.handleWebhook(
       endpoint.publicId,
       "telegram",
-      new Request("https://paperclip.example/telegram", {
+      new Request("https://outpost.example/telegram", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -76635,7 +76635,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       companyId: context.fixture.companyId,
       issueId: context.issue.id,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -76675,7 +76675,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       .set({ status: "in_review", executionRunId: null })
       .where(eq(issues.id, context.issue.id));
     const result: PrpStructuredRunResult = {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary:
         summary?.(context.issue.id) ??
@@ -76699,7 +76699,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       },
     };
     const terminal: PrpTerminalState = {
-      schema: "paperclip.prp.terminal.v1",
+      schema: "outpost.orp.terminal.v1",
       turnTerminalState: "completed",
       runTerminalState: "succeeded",
       reportedWorkDisposition: "yielded",
@@ -76760,7 +76760,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         seq: 1,
         eventType: "run.result.accepted",
         sourceInstanceId: controlPlaneSourceInstanceId,
-        payload: { prpEvent: { sourceKind: "control_plane" } },
+        payload: { orpEvent: { sourceKind: "control_plane" } },
       });
     }
     const [acceptedRow] = await db
@@ -78290,7 +78290,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         sourceInstanceId: context.binding.runnerSourceInstanceId, controlPlaneSourceInstanceId: `control-${context.runId}`,
       });
       await port.appendEvent({
-        schema: "paperclip.prp.event.v1", sourceEventId: `accepted-${context.runId}`, sourceSeq: 1,
+        schema: "outpost.orp.event.v1", sourceEventId: `accepted-${context.runId}`, sourceSeq: 1,
         sourceInstanceId: `control-${context.runId}`, sourceKind: "control_plane",
         runId: context.runId, normalizedSessionId: context.binding.normalizedSessionId,
         turnId: `turn-${context.runId}`, eventType: "run.result.accepted", schemaVersion: 1,
@@ -78482,7 +78482,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       companyId: fixture.companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -78540,7 +78540,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       sourceInstanceId: runnerInstanceId,
     });
     const responseResult: PrpStructuredRunResult = {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary: "The exact response and files are prepared. I will wait.",
       completionClaim: {
@@ -78566,7 +78566,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       },
     };
     const terminal: PrpTerminalState = {
-      schema: "paperclip.prp.terminal.v1",
+      schema: "outpost.orp.terminal.v1",
       turnTerminalState: "completed",
       runTerminalState: "succeeded",
       reportedWorkDisposition: "yielded",
@@ -78679,7 +78679,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       issueId,
       "Prepared the exact requested files for this response.",
       { agentId: fixture.assignedAgentId, runId },
-      { authorizationReason: "paperclip_runner_protocol" },
+      { authorizationReason: "outpost_runner_protocol" },
     );
     const attachments = [];
     for (const [originalFilename, contentType, body] of [
@@ -79438,7 +79438,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           event_ts: `${Math.floor(Date.now() / 1000)}.999999`, streaming_message_ts: [], user: "UBOARD" },
       });
       const response = await context.service.handleWebhook(context.endpoint.publicId, "slack", signedSlackWebhookRequest({
-        body, contentType: "application/json", url: `https://paperclip.example/api/chat-webhooks/${context.endpoint.publicId}/slack`,
+        body, contentType: "application/json", url: `https://outpost.example/api/chat-webhooks/${context.endpoint.publicId}/slack`,
       }));
       expect(response.status).toBe(202);
       await settle();
@@ -79646,7 +79646,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       }
       expect(events.at(-1)).toMatchObject({ startedQueries: mode === "task" ? 0 : 1,
         completedQueries: mode === "task" ? 0 : 1, inFlightAtEnd: 0 });
-      expect(events.filter(event => event.event === "paperclip.test_db_response_capture.entry.v1")
+      expect(events.filter(event => event.event === "outpost.test_db_response_capture.entry.v1")
         .reduce((count, event) => count + Number(event.rows), 0)).toBe(mode === "task" ? 0 : scopes.length);
     } finally {
       await context.service.shutdown(); await other.service.shutdown();
@@ -80733,7 +80733,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
               });
             } else {
               const response = await pinned.handleWebhook(
-                new Request("https://paperclip.example/timestamp-fixture", {
+                new Request("https://outpost.example/timestamp-fixture", {
                   method: "POST",
                   headers: {
                     "content-type": "application/json",
@@ -80888,7 +80888,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         };
         const proof = received!.normalizedEvent.teamsPersonalRecipient;
         expect(proof).toEqual({
-          schema: "paperclip.teams.personal-recipient.v1",
+          schema: "outpost.teams.personal-recipient.v1",
           companyId: context.fixture.companyId,
           endpointId: context.endpoint.id,
           runtimeGeneration: origin.generation,
@@ -81183,7 +81183,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       runtime: runtime as unknown as ChatSdkRuntime,
       heartbeat: { wakeup: receiptBackedWakeup(wakeup), cancelRun },
       storage: storage.storage,
-      publicBaseUrl: "https://paperclip.example",
+      publicBaseUrl: "https://outpost.example",
       teamsFileUploadRequest: uploadRequest,
       scheduleDeferredWork: () => undefined,
     });
@@ -81624,7 +81624,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         const configuration = context.runtime.configurations.get(endpoint.id)!;
         if (configuration.providerConfig.provider !== "telegram")
           throw new Error("Expected Telegram");
-        const request = new Request("https://paperclip.example/fixture", {
+        const request = new Request("https://outpost.example/fixture", {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -81756,7 +81756,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           await context.service.handleWebhook(
             endpoint.publicId,
             "telegram",
-            new Request("https://paperclip.example/fixture", {
+            new Request("https://outpost.example/fixture", {
               method: "POST",
               headers: {
                 "content-type": "application/json",
@@ -82216,7 +82216,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             );
             const webhookUrlSha256 = createHash("sha256")
               .update(
-                `https://paperclip.example/api/chat-webhooks/${publicId}/telegram`,
+                `https://outpost.example/api/chat-webhooks/${publicId}/telegram`,
               )
               .digest("hex");
             await db.transaction(async (tx) => {
@@ -82934,7 +82934,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         companyId: context.fixture.companyId,
         issueId: context.issue.id,
         revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         policyVersion: "phase6-v3",
         risk: "low",
         completionAuthority: "agent_claim_policy",
@@ -83010,7 +83010,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         .set({ status: "in_review", executionRunId: null })
         .where(eq(issues.id, context.issue.id));
       const result: PrpStructuredRunResult = {
-        schema: "paperclip.run_result.v1",
+        schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded",
         summary:
           "Here is the exact requested file. I will wait for your next message.",
@@ -83033,7 +83033,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         },
       };
       const terminal: PrpTerminalState = {
-        schema: "paperclip.prp.terminal.v1",
+        schema: "outpost.orp.terminal.v1",
         turnTerminalState: "completed",
         runTerminalState: "succeeded",
         reportedWorkDisposition: "yielded",
@@ -83067,7 +83067,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
         status: "succeeded",
         resultJson: {
           nativeCommittedChatResponse: {
-            schema: "paperclip.native_committed_chat_response.v1",
+            schema: "outpost.native_committed_chat_response.v1",
           },
         },
       });
@@ -83441,7 +83441,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
             cancelRun: vi.fn(async () => ({ status: "cancelled" })),
           },
           storage: context.storage.storage,
-          publicBaseUrl: "https://paperclip.example",
+          publicBaseUrl: "https://outpost.example",
           teamsFileUploadRequest: context.uploadRequest,
           scheduleDeferredWork: () => undefined,
         });

@@ -1,6 +1,6 @@
 import { captureEnvironmentAcquisitionDiagnostic } from "../environment-acquisition-diagnostics.js";
 import { describe, expect, it } from "vitest";
-import type { heartbeatRuns } from "@paperclipai/db";
+import type { heartbeatRuns } from "@outpost/db";
 import { attachRemoteRunnerRecoveryDiagnostic, RemoteRunnerRecoveryError } from "../native-runtime/remote-runner-recovery-diagnostics.js";
 import { collectRunFailureDiagnostics, collectRunFailureHostTokenSecrets, collectRunFailureSecretValues, redactRunFailureSecretValues, sanitizeRunFailureDiagnostics, sanitizeRunFailureText } from "../run-failure-diagnostics.js";
 
@@ -610,11 +610,11 @@ describe("run failure diagnostics", () => {
   });
 
   it("preserves ordinary settings while retaining declared secrets", () => {
-    const env = { PAPERCLIP_DB_BACKUP_ENABLED: "false", PAPERCLIP_DB_BACKUP_RETENTION_DAYS: "1" };
+    const env = { OUTPOST_DB_BACKUP_ENABLED: "false", OUTPOST_DB_BACKUP_RETENTION_DAYS: "1" };
     expect(collectRunFailureSecretValues(env)).toEqual([]);
-    expect(collectRunFailureSecretValues(env, ["PAPERCLIP_DB_BACKUP_ENABLED"])).toEqual(["false"]);
+    expect(collectRunFailureSecretValues(env, ["OUTPOST_DB_BACKUP_ENABLED"])).toEqual(["false"]);
     expect(collectRunFailureSecretValues({ CUSTOM_BINDING: "1" })).toEqual(["1"]);
-    expect(collectRunFailureSecretValues({ PAPERCLIP_DB_BACKUP_ENABLED: "opaque" })).toEqual(["opaque"]);
+    expect(collectRunFailureSecretValues({ OUTPOST_DB_BACKUP_ENABLED: "opaque" })).toEqual(["opaque"]);
   });
   it("preserves generic exceptions, numeric codes and nested network causes", () => {
     const root = Object.assign(new Error("network failed"), { code: "ECONNRESET", statusCode: 502, request_id: "req-123" });

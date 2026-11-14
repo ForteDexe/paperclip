@@ -9,7 +9,7 @@ import { Readable } from "node:stream";
 import { appendFileSync, readdirSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { applyPendingMigrations, closeRegisteredClients, createDb, executionWorkspaceSnapshots } from "@paperclipai/db";
+import { applyPendingMigrations, closeRegisteredClients, createDb, executionWorkspaceSnapshots } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 
@@ -33,7 +33,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...actual, lstat, default: { ...actual, lstat } };
 });
 
-const externalDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const externalDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 if (externalDatabaseUrl && !/^remote_workspace_[a-z_]*test$/.test(new URL(externalDatabaseUrl).pathname.slice(1))) {
   throw new Error("Workspace storage tests require a disposable remote_workspace_*test database");
 }
@@ -49,7 +49,7 @@ suite("remote workspace snapshot storage", () => {
   }, 90_000);
   afterAll(async () => { if (externalDatabaseUrl) await closeRegisteredClients(externalDatabaseUrl); else await database?.cleanup(); });
   beforeEach(async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "41".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "41".repeat(32));
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "pc-workspace-store-test-")));
     storage = createStorageService(createLocalDiskStorageProvider(path.join(root, "objects")));
   });
@@ -88,7 +88,7 @@ suite("remote workspace snapshot storage", () => {
     const get = vi.spyOn(storage, "getObject").mockRejectedValue(new Error("must not download"));
     const upload = vi.spyOn(storage, "putFile");
     const [before] = await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, f.row.id));
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "42".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "42".repeat(32));
     await expect(uploadWorkspaceSnapshot({ ...f.upload, verification: "upload" })).rejects.toThrow();
     const [after] = await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, f.row.id));
     expect(after).toEqual(before);

@@ -17,7 +17,7 @@ it("claims only an empty state directory and releases the claim outside volume-f
   const dir = await base();
   expect(await claimVolumeFreeControllerState(true, dir)).toBe("claimed");
   expect((await stat(dir)).mode & 0o777).toBe(0o700);
-  expect(JSON.parse(await readFile(join(dir, ".volume-free-owner.json"), "utf8")).schema).toBe("paperclip.volume-free-controller-state.v1");
+  expect(JSON.parse(await readFile(join(dir, ".volume-free-owner.json"), "utf8")).schema).toBe("outpost.volume-free-controller-state.v1");
   await mkdir(join(dir, "a".repeat(64)));
   expect(await claimVolumeFreeControllerState(true, dir)).toBe("owned");
   expect(await claimVolumeFreeControllerState(false, dir)).toBe("released");

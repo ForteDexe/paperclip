@@ -88,7 +88,7 @@ describe("AppErrorBoundary", () => {
   });
 
   it("reloads for a failed lazy chunk, then shows the prompt once the retries are used up", async () => {
-    const chunkError = () => new Error("Failed to fetch dynamically imported module: https://paperclip.example/assets/layout.js");
+    const chunkError = () => new Error("Failed to fetch dynamically imported module: https://outpost.example/assets/layout.js");
     const root = createRoot(container);
     const FailedLayout = lazy(async () => { throw chunkError(); });
     await act(async () => {
@@ -121,7 +121,7 @@ describe("AppErrorBoundary", () => {
     try {
       const root = createRoot(container);
       const FailedLayout = lazy(async () => {
-        throw new Error("Failed to fetch dynamically imported module: https://paperclip.example/assets/layout.js");
+        throw new Error("Failed to fetch dynamically imported module: https://outpost.example/assets/layout.js");
       });
       await act(async () => {
         root.render(<AppErrorBoundary><Suspense fallback={null}><FailedLayout /></Suspense></AppErrorBoundary>);

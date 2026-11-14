@@ -132,7 +132,7 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   const beforeProbe = await api.get<Row[]>(`/api/companies/${company.id}/heartbeat-runs?agentId=${draft.id}&limit=100`);
   if (beforeProbe.length) throw new ConnectionFailure("new_agent_already_has_runs");
   const probeResponse = page.waitForResponse(response => response.request().method() === "POST"
-    && new URL(response.url()).pathname === `/api/companies/${company.id}/adapters/paperclip_runner/test-environment`, { timeout: 120_000 });
+    && new URL(response.url()).pathname === `/api/companies/${company.id}/adapters/outpost_runner/test-environment`, { timeout: 120_000 });
   resources.setupProbe = "pending";
   await input.persistResources();
   await page.getByRole("button", { name: "Run test", exact: true }).click();
@@ -149,7 +149,7 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   await assertAntigravityReady(page, resources.agentName);
   const ready = await api.get<Row>(`/api/agents/${draft.id}`);
   if (ready.companyId !== company.id || ready.name !== resources.agentName || ready.status !== "idle" || ready.lifecycleState !== "ready"
-    || ready.adapterType !== "paperclip_runner" || ready.adapterConfig?.provider !== "acpx" || ready.adapterConfig?.acpxAgent !== "antigravity"
+    || ready.adapterType !== "outpost_runner" || ready.adapterConfig?.provider !== "acpx" || ready.adapterConfig?.acpxAgent !== "antigravity"
     || ready.adapterConfig?.model !== ANTIGRAVITY_JOURNEY_MODEL || ready.runtimeConfig?.aiConnection?.mode !== "responsible_user"
     || ready.runtimeConfig.aiConnection.provider !== "google" || ready.runtimeConfig.aiConnection.method !== "subscription")
     throw new ConnectionFailure("saved_ready_agent_binding_mismatch");

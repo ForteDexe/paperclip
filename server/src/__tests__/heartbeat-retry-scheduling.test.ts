@@ -22,7 +22,7 @@ import {
   issueComments,
   issues,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -39,9 +39,9 @@ vi.mock("../telemetry.js", () => ({
   getTelemetryClient: () => mockTelemetryClient,
 }));
 
-vi.mock("@paperclipai/shared/telemetry", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/shared/telemetry")>(
-    "@paperclipai/shared/telemetry",
+vi.mock("@outpost/shared/telemetry", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/shared/telemetry")>(
+    "@outpost/shared/telemetry",
   );
   return {
     ...actual,
@@ -498,7 +498,7 @@ describeEmbeddedPostgres("heartbeat bounded retry scheduling", () => {
   it.each(["remote_workspace_prepare_timeout", "reusable_sandbox_resume_failed", "remote_workspace_restore_failed", "reviewed_chat_execution_binding_not_ready"].flatMap(errorCode =>
     (["resume", "paused", "Stop", "dependency"] as const).map(action => [errorCode, action] as const)))("bounds %s bootstrap retries across restart and honors %s", async (errorCode, action) => {
     const { companyId, agentId, issueId, runId, now } = await seedMaxTurnFixture();
-    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol" } })
+    await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol" } })
       .where(eq(agents.id, agentId));
     const resultJson = { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } };
     await db.update(heartbeatRuns).set({ errorCode, resultJson }).where(eq(heartbeatRuns.id, runId));
@@ -539,7 +539,7 @@ describeEmbeddedPostgres("heartbeat bounded retry scheduling", () => {
 
   it("re-queues a native pre-dispatch database failure without charging an attempt, until its lane is spent", async () => {
     const { agentId, issueId, runId, now } = await seedMaxTurnFixture();
-    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol" } })
+    await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol" } })
       .where(eq(agents.id, agentId));
     const resultJson = { failureCause: "40001", nativePreDispatchFailure: { version: 1, providerWorkStarted: false } };
     await db.update(heartbeatRuns).set({ runtimeMode: "native", errorCode: "adapter_failed", resultJson })

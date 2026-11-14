@@ -12,7 +12,7 @@ const baseInput = {
   image: "ghcr.io/paperclipai/agent-runtime-claude:v1",
   envSecretName: "r-01h00000000000000000000000-env",
   serviceAccountName: "paperclip-tenant-sa",
-  labels: { "paperclip.io/run-id": "r1" },
+  labels: { "outpost.io/run-id": "r1" },
   resources: { requests: { cpu: "250m", memory: "512Mi" }, limits: { cpu: "2", memory: "4Gi" } },
   runtimeClassName: undefined,
   activeDeadlineSec: 3600,
@@ -92,8 +92,8 @@ describe("buildJobManifest", () => {
 
   it("applies the provided labels to both Job metadata and pod template", () => {
     const job = buildJobManifest(baseInput);
-    expect(job.metadata.labels["paperclip.io/run-id"]).toBe("r1");
-    expect(job.spec.template.metadata.labels["paperclip.io/run-id"]).toBe("r1");
-    expect(job.spec.template.metadata.labels["paperclip.io/role"]).toBe("agent");
+    expect(job.metadata.labels["outpost.io/run-id"]).toBe("r1");
+    expect(job.spec.template.metadata.labels["outpost.io/run-id"]).toBe("r1");
+    expect(job.spec.template.metadata.labels["outpost.io/role"]).toBe("agent");
   });
 });

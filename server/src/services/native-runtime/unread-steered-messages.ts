@@ -1,10 +1,10 @@
 import { and, asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
-import { heartbeatRunEvents, issueComments, issueThreadInteractions, type Db } from "@paperclipai/db";
-import { unreadSteeredMessageIds } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRunEvents, issueComments, issueThreadInteractions, type Db } from "@outpost/db";
+import { unreadSteeredMessageIds } from "../../vendor/outpost-runner/index.js";
 import { queuedInteractionSteeringBody } from "../queued-interaction-response.js";
 import { filterRunMessageInteractionDelivery } from "../agent-interaction-delivery.js";
 
-const kind = sql<string | null>`${heartbeatRunEvents.payload}->'prpEvent'->'payload'->>'kind'`;
+const kind = sql<string | null>`${heartbeatRunEvents.payload}->'orpEvent'->'payload'->>'kind'`;
 
 /**
  * Steered messages a restart lost before the model read them, oldest first.
@@ -19,8 +19,8 @@ export async function readUnreadSteeredMessages(
   const rows = await db
     .select({
       eventType: heartbeatRunEvents.eventType,
-      turnId: sql<string | null>`${heartbeatRunEvents.payload}->'prpEvent'->>'turnId'`,
-      itemId: sql<string | null>`${heartbeatRunEvents.payload}->'prpEvent'->>'itemId'`,
+      turnId: sql<string | null>`${heartbeatRunEvents.payload}->'orpEvent'->>'turnId'`,
+      itemId: sql<string | null>`${heartbeatRunEvents.payload}->'orpEvent'->>'itemId'`,
       kind,
     })
     .from(heartbeatRunEvents)

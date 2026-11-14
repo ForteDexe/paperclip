@@ -23,7 +23,7 @@ export function multipartExistingFormDescription(original: Interaction) {
 async function questionFixture(ctx: ChatCatalogContext, multipart: boolean) {
   const source = await openStandingChat(ctx);
   const payload = createIssueThreadInteractionSchema.parse({ kind: "ask_user_questions", title: "Launch page details", continuationPolicy: "wake_assignee",
-    payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "paperclip.question_set.v1", title: "Launch page details", submitLabel: "Submit answers",
+    payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "outpost.question_set.v1", title: "Launch page details", submitLabel: "Submit answers",
       questions: multipart ? [
         { id: "audience", prompt: "Who is the audience?", answerMode: "single_select", required: true, options: [{ id: "researchers", label: "Researchers" }, { id: "teams", label: "Teams" }] },
         { id: "tone", prompt: "What tone should we use?", answerMode: "single_select", required: true, options: [{ id: "clear", label: "Clear" }, { id: "playful", label: "Playful" }] },
@@ -193,7 +193,7 @@ export function gradeQuestions(value: unknown) {
       c.add("answer-in-saved-brief", o.tasks.some(row => `${row.title}\n${row.description}`.includes(String(o.state.answer)) && row.companyId === o.companyId && hasLink(o, "issues", row)),
         "A saved, linked task brief uses the actual answer rather than merely acknowledging it in chat.");
       c.add("one-bound-continuation", o.runs.filter(run => run.contextSnapshot?.interactionId === original?.id).length === 1
-        || !!original?.payload.runtimeRequestId && original.idempotencyKey === `paperclip-runner-question:${original.sourceRunId}:${original.payload.runtimeRequestId}`
+        || !!original?.payload.runtimeRequestId && original.idempotencyKey === `outpost-runner-question:${original.sourceRunId}:${original.payload.runtimeRequestId}`
           && o.runs.filter(run => run.id === original.sourceRunId && run.status === "succeeded").length === 1,
         "Exactly one semantic continuation or the same verified native provider request resumes.");
       const brief = o.state.taskBrief as { id?: string; companyId?: string; createdAt?: string; updatedAt?: string; description?: string; title?: string } | undefined;
@@ -228,7 +228,7 @@ export const questionIdentityCases = [
     await expect(ctx.input.page.getByText("Riley's website proposal", { exact: true }).first()).toBeVisible();
     return { original, originalHumanName: session.user.name, alexId: session.user.id, rileyId: riley.id, realHumanIdentities: true, visibleToAlex: true };
   }, gradeQuestions, {
-    authentication: "human-session", oracleVersion: "paperclip.chat-catalog.identity.wrong-reviewer.v2",
+    authentication: "human-session", oracleVersion: "outpost.chat-catalog.identity.wrong-reviewer.v2",
     sourceFiles: ["chat-catalog-domains/identity-questions-and-approvals.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/questions-and-approvals.yaml"],
     async act(ctx, state) {
       remainingIdentityObservationBudget(ctx);
@@ -274,8 +274,8 @@ export const questionIdentityCases = [
     },
   }),
   identityDefinition("questions-and-approvals.multi-part-question", ctx => questionFixture(ctx, true), gradeQuestions, {
-    expectedRunCount: 2, observe: observeQuestion, oracleVersion: "paperclip.chat-catalog.required-question.v6",
-    sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-questions-and-approvals.ts", "chat-scenarios/questions-and-approvals.yaml", "../../packages/paperclip-runner/src/protocol-actions/request-human-input.ts", "chat-catalog-flow.ts", "chat-flow.ts", "cleanup-verification.ts", "runner.spec.ts"],
+    expectedRunCount: 2, observe: observeQuestion, oracleVersion: "outpost.chat-catalog.required-question.v6",
+    sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-questions-and-approvals.ts", "chat-scenarios/questions-and-approvals.yaml", "../../packages/outpost-runner/src/protocol-actions/request-human-input.ts", "chat-catalog-flow.ts", "chat-flow.ts", "cleanup-verification.ts", "runner.spec.ts"],
     async verifyResult(ctx, _state, value) {
       if (await ctx.input.page.getByTestId("task-chat-composer-input").isVisible()) return;
       const o = identityObservation(value);
@@ -380,7 +380,7 @@ export const questionIdentityCases = [
     }
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); return { proposals };
   }, gradeQuestions, {
-    oracleVersion: "paperclip.chat-catalog.identity.ambiguous-yes.v2",
+    oracleVersion: "outpost.chat-catalog.identity.ambiguous-yes.v2",
     async act(ctx, state) {
       await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx));
       // Only after the canonical ambiguity response, exercise the additional

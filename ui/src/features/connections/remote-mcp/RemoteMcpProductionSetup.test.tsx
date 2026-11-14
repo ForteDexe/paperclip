@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ToolConnection } from "@paperclipai/shared";
+import type { ToolConnection } from "@outpost/shared";
 import type { ConnectionSetupFlowProps } from "../ConnectionSetupFlow";
 import { ApiError } from "@/api/client";
 import { toolsApi } from "@/api/tools";

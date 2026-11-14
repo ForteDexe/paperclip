@@ -4,7 +4,7 @@ import { chromium, type Page } from "@playwright/test";
 import { stripTypeScriptTypes } from "node:module";
 import { expect, it } from "vitest";
 
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY !== "1")("waits for the actual company create form to close while its details sheet stays open", async () => {
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY !== "1")("waits for the actual company create form to close while its details sheet stays open", async () => {
   const source = await readFile(new URL("./external-private-browser-worker.ts", import.meta.url), "utf8");
   const start = source.indexOf('    if(input.mode === "company-secret-create"){');
   const end = source.indexOf('    if (input.mode === "gateway-token-rotation")', start);
@@ -15,7 +15,7 @@ it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY !== "1")("waits fo
   expect(ui).toContain('<DialogTitle>{editingDefinition ? "Edit user-provided secret" : "Create secret"}</DialogTitle>');
   expect(ui).toContain("setCreateOpen(false)");
   expect(ui).toContain("setDetailSelection(result.item.id)");
-  const browser = await chromium.launch({ headless: true, ...(process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE } : {}) });
+  const browser = await chromium.launch({ headless: true, ...(process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ? { executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE } : {}) });
   const companyId = "11111111-1111-4111-8111-111111111111", secretId = "22222222-2222-4222-8222-222222222222";
   try {
     for (const scenario of ["created", "requested metadata", "wrong stored metadata", "failed POST", "missing form"]) {

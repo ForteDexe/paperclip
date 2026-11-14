@@ -1,6 +1,6 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { sql } from "drizzle-orm";
-import { remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { inspectNativeRunnerUpgradeHeader, NATIVE_CHECKPOINT_HEADER_INSPECTION_MAX_BYTES,
   NATIVE_CHECKPOINT_INSPECTION_TOTAL_MAX_BYTES } from "../native-runtime/native-runner-checkpoint.js";
 import { readNativeWorkspaceSyncReference } from "../native-runtime/native-workspace-sync.js";
@@ -41,7 +41,7 @@ export async function readUpgradeReadiness(db: Db, input: {
       r.runner_profile_json->'remoteWorkspace' as "remoteWorkspace",
       r.runner_profile_json ? 'remoteWorkspace' as "hasRemoteWorkspace", p.id as "pluginLeaseId",
       f.result_id is not null as "hasResult",
-      (r.runtime_mode = 'native' and a.adapter_type = 'paperclip_runner' and r.native_phase = 'observed'
+      (r.runtime_mode = 'native' and a.adapter_type = 'outpost_runner' and r.native_phase = 'observed'
         and f.recovery_state = 'awaiting_evidence' and f.phase = 'observed' and f.result_id is null and f.failure_code is null
         and f.controller_boot_id is not null and f.controller_boot_id <> '' and f.controller_boot_id <> ${owner.bootId}
         and f.controller_generation > 0 and f.lease_owner is not null and f.lease_owner <> ''
@@ -50,7 +50,7 @@ export async function readUpgradeReadiness(db: Db, input: {
       ) is true as "retainedUnowned",
       case when pg_column_size(c.material) <= ${NATIVE_CHECKPOINT_HEADER_INSPECTION_MAX_BYTES}
         and sum(pg_column_size(c.material)) over () <= ${NATIVE_CHECKPOINT_INSPECTION_TOTAL_MAX_BYTES} then c.material else null end as material, (
-      r.runtime_mode = 'native' and a.adapter_type = 'paperclip_runner'
+      r.runtime_mode = 'native' and a.adapter_type = 'outpost_runner'
       and r.runner_instance_id is not null and r.native_session_id is not null
       and r.process_pid is not null and r.process_started_at is not null
       and f.controller_boot_id = ${owner.bootId}
@@ -63,7 +63,7 @@ export async function readUpgradeReadiness(db: Db, input: {
       -- session, no checkpoint, no dispatched runner task and no execution-start event
       -- (the executor records the start request before any backend may spawn a runner).
       -- Restart recovery proves the same facts before it starts such a run again.
-      a.adapter_type = 'paperclip_runner'
+      a.adapter_type = 'outpost_runner'
       and r.process_pid is null and r.process_group_id is null and r.process_started_at is null
       and r.session_id_before is null and r.session_id_after is null
       and c.run_id is null and p.id is null

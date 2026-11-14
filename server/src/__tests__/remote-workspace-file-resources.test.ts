@@ -8,8 +8,8 @@ import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companySecrets, companySecretBindings, createDb, environmentLeases, environments, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issues, plugins, projects, projectWorkspaces, secretAccessEvents, workspaceOperations, type Db } from "@paperclipai/db";
-import { INSPECTION_AUDIENCE, INSPECTION_HEADER, INSPECTION_PERMIT_TYPE, parseInspectionQuery, type InspectionQuery, type InspectionPermit, type RemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { agents, companies, companySecrets, companySecretBindings, createDb, environmentLeases, environments, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issues, plugins, projects, projectWorkspaces, secretAccessEvents, workspaceOperations, type Db } from "@outpost/db";
+import { INSPECTION_AUDIENCE, INSPECTION_HEADER, INSPECTION_PERMIT_TYPE, parseInspectionQuery, type InspectionQuery, type InspectionPermit, type RemoteWorkspaceAuthority } from "@outpost/shared";
 import { errorHandler } from "../middleware/index.js";
 import { notFound, unprocessable } from "../errors.js";
 import { fileResourceRoutes } from "../routes/file-resources.js";
@@ -39,7 +39,7 @@ vi.mock("node:fs/promises", async importOriginal => {
     return actual.rm(target, options);
   } };
 });
-const externalDatabase = process.env.PAPERCLIP_TEST_DATABASE_URL?.trim();
+const externalDatabase = process.env.OUTPOST_TEST_DATABASE_URL?.trim();
 const support = externalDatabase ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeDatabase = support.supported ? describe : describe.skip;
 
@@ -121,7 +121,7 @@ describeDatabase("remote workspace ordinary file routes", () => {
     await fs.writeFile(path.join(root, ".env"), "private-key");
     const ids = { company: randomUUID(), workspace: randomUUID(), issue: randomUUID(), environment: randomUUID(), lease: randomUUID() };
     const authority: RemoteWorkspaceAuthority = {
-      schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null, writerRunId: null, dirty: false,
+      schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null, writerRunId: null, dirty: false,
       source: { kind: "empty" }, location: { environmentId: ids.environment, leaseId: ids.lease,
         providerLeaseId: `allocation-${ids.lease}`, remoteCwd: root },
     };
@@ -190,20 +190,20 @@ describeDatabase("remote workspace ordinary file routes", () => {
     const other = await fixture();
     const keyDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "inspection-workspace-key-"));
     directories.push(keyDirectory);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", path.join(keyDirectory, "master.key"));
-    vi.stubEnv("PAPERCLIP_CUSTOMER_SUCCESS_INSPECTION_ENABLED", "true");
-    vi.stubEnv("PAPERCLIP_CLOUD_STACK_ID", "remote-inspection-fixture");
-    vi.stubEnv("PAPERCLIP_CUSTOMER_SUCCESS_CLOUD_ORIGIN", "https://cloud.example.test");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", path.join(keyDirectory, "master.key"));
+    vi.stubEnv("OUTPOST_CUSTOMER_SUCCESS_INSPECTION_ENABLED", "true");
+    vi.stubEnv("OUTPOST_CLOUD_STACK_ID", "remote-inspection-fixture");
+    vi.stubEnv("OUTPOST_CUSTOMER_SUCCESS_CLOUD_ORIGIN", "https://cloud.example.test");
     const keys = generateKeyPairSync("ed25519");
-    vi.stubEnv("PAPERCLIP_CUSTOMER_SUCCESS_INSPECTION_JWKS", JSON.stringify({ keys: [{ ...keys.publicKey.export({ format: "jwk" }), kid: "cloud" }] }));
+    vi.stubEnv("OUTPOST_CUSTOMER_SUCCESS_INSPECTION_JWKS", JSON.stringify({ keys: [{ ...keys.publicKey.export({ format: "jwk" }), kid: "cloud" }] }));
     const consumed = vi.fn(async () => Response.json({ consumed: true }));
     vi.stubGlobal("fetch", consumed);
     try {
       const pluginId = randomUUID();
       const provider = `inspection-${pluginId}`;
-      const pluginKey = `paperclip.${provider}`;
-      await db.insert(plugins).values({ id: pluginId, pluginKey, packageName: `@paperclipai/${provider}`, version: "1.0.0", apiVersion: 1,
+      const pluginKey = `outpost.${provider}`;
+      await db.insert(plugins).values({ id: pluginId, pluginKey, packageName: `@outpost/${provider}`, version: "1.0.0", apiVersion: 1,
         categories: ["automation"], status: "ready", manifestJson: {
           id: pluginKey, apiVersion: 1, version: "1.0.0", displayName: "Inspection fixture", description: "Synthetic inspection provider", author: "Paperclip",
           categories: ["automation"], capabilities: ["environment.drivers.register"], entrypoints: { worker: "dist/worker.js" },

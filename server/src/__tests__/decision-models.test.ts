@@ -8,9 +8,9 @@ import {
   createDb, companies, agents, companyMemberships, companyDecisionModels, costEvents, costAdjustments, decisionInvocations,
   connectionGrants, connectionGrantMembers, toolConnectionInstalls, budgetPolicies, budgetReservations,
   heartbeatRuns, issues, projects, runIdentityContexts, secretAccessEvents, companySecrets, activityLog,
-} from "@paperclipai/db";
-import { startEmbeddedPostgresTestDatabase } from "@paperclipai/db/test-embedded-postgres";
-import { DECISION_TEST_REQUEST, updateDecisionModelSchema, createCostEventSchema } from "@paperclipai/shared";
+} from "@outpost/db";
+import { startEmbeddedPostgresTestDatabase } from "@outpost/db/test-embedded-postgres";
+import { DECISION_TEST_REQUEST, updateDecisionModelSchema, createCostEventSchema } from "@outpost/shared";
 import { aiConnectionService } from "../services/ai-connections.js";
 import { agentService } from "../services/agents.js";
 import { decisionModelService, settingsDecisionTest, defineDecisionFeature, type DecisionContext } from "../services/decision-models.js";
@@ -32,8 +32,8 @@ const backgroundFeature = defineDecisionFeature("test.background", { background:
 const outcome: DecisionProviderOutcome = { answers: { billing: { type: "boolean", probability: 0.9 } }, receipt: decisionReceipt("openai", { usage: { inputTokens: 100, outputTokens: 0 } }) };
 beforeAll(async () => {
   home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-decisions-")));
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_INSTANCE_ID", "decisions-fixture");
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_INSTANCE_ID", "decisions-fixture");
   database = await startEmbeddedPostgresTestDatabase("paperclip-decisions-db-");
   db = createDb(database.connectionString);
 }, 90000);

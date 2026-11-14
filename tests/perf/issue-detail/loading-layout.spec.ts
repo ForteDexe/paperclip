@@ -8,7 +8,7 @@ type Frame = { time: number; ready: boolean; visibleHeader: boolean; loading: Bo
 
 test.use({ video: "on", trace: "retain-on-failure", serviceWorkers: "block", colorScheme: "dark" });
 test.setTimeout(60_000);
-test.skip(!process.env.PAPERCLIP_ISSUE_PERF_DATABASE_URL, "The rich loading fixture requires disposable PostgreSQL");
+test.skip(!process.env.OUTPOST_ISSUE_PERF_DATABASE_URL, "The rich loading fixture requires disposable PostgreSQL");
 
 let fixture: RichLoadingFixture;
 test.beforeAll(async ({ request }) => { fixture = await richLoadingFixture(request); });

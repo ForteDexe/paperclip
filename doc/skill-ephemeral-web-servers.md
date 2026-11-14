@@ -70,8 +70,8 @@ the concrete retained asset obligations independently of installation eligibilit
 Run on the host retaining the original runtime asset files, and follow its cursor:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --company=<uuid> --limit=10
-pnpm --filter @paperclipai/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --company=<uuid> --limit=10 --apply
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --company=<uuid> --limit=10
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --company=<uuid> --limit=10 --apply
 ```
 
 Studio tests deliver the selected saved version through the same native Runner
@@ -108,8 +108,8 @@ not prove the other is finished.
 Run the existing bounded CLI with the target's explicit database and storage config:
 
 ```sh
-pnpm --filter @paperclipai/server exec tsx scripts/migrate-skill-packages.ts --phase=eligibility --company=<uuid> --limit=10
-pnpm --filter @paperclipai/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --company=<uuid> --limit=10
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=eligibility --company=<uuid> --limit=10
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --company=<uuid> --limit=10
 ```
 
 These commands return a cursor. Continue each phase with `--after=<uuid>` until an
@@ -129,7 +129,7 @@ use the latest branch as a replacement for missing installed content.
    local source again before publication:
 
    ```sh
-   pnpm --filter @paperclipai/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --company=<uuid> --limit=10 --apply
+   pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --company=<uuid> --limit=10 --apply
    ```
 
 4. Keep all original directories, versions and inline bytes. Conversion does not
@@ -204,8 +204,8 @@ that URL. The S3 test creates and removes its own random bucket. Supply test-onl
 credentials through the environment:
 
 ```sh
-PAPERCLIP_TEST_POSTGRES_ADMIN_URL=<disposable-postgres-url> \
-PAPERCLIP_TEST_S3_ENDPOINT=<disposable-s3-endpoint> \
+OUTPOST_TEST_POSTGRES_ADMIN_URL=<disposable-postgres-url> \
+OUTPOST_TEST_S3_ENDPOINT=<disposable-s3-endpoint> \
 pnpm exec vitest run server/src/__tests__/ephemeral-skills-process.test.ts
 ```
 

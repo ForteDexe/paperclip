@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, companies, createDb, documents, heartbeatRuns, issueComments, issueThreadInteractions, issueWorkProducts, issues,
-  EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
-import { buildAgentMentionHref } from "@paperclipai/shared";
+  EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { buildAgentMentionHref } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { issueService } from "../services/issues.js";
 import { documentService } from "../services/documents.js";
@@ -11,7 +11,7 @@ import { workProductService } from "../services/work-products.js";
 import { buildHostServices } from "../services/plugin-host-services.js";
 import { withPluginInteractionOrigin } from "../services/plugin-interaction-context.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 
 describe("agent interaction mutation boundaries", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -121,7 +121,7 @@ describe("agent interaction mutation boundaries", () => {
   it("checks assignment restrictions on native create_task before saving tasks or enqueueing wakes", async () => {
     const f = await seed(), runId = randomUUID(), wakes = vi.fn();
     await db.update(issues).set({ assigneeAgentId: f.sender, status: "in_progress" }).where(eq(issues.id, f.issueId));
-    await db.update(agents).set({ adapterType: "paperclip_runner", status: "active" }).where(eq(agents.id, f.sender));
+    await db.update(agents).set({ adapterType: "outpost_runner", status: "active" }).where(eq(agents.id, f.sender));
     await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.sender,
       status: "running", runtimeMode: "native", nativeIssueId: f.issueId,
       invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: f.issueId } });
@@ -151,7 +151,7 @@ describe("agent interaction mutation boundaries", () => {
   it("rejects a native reassignment reason before stopping the currently running recipient", async () => {
     const f = await seed(), runId = randomUUID(), targetRunId = randomUUID(), stop = vi.fn(), wake = vi.fn();
     await db.update(issues).set({ assigneeAgentId: f.sender, status: "in_progress" }).where(eq(issues.id, f.issueId));
-    await db.update(agents).set({ adapterType: "paperclip_runner", status: "active" }).where(eq(agents.id, f.sender));
+    await db.update(agents).set({ adapterType: "outpost_runner", status: "active" }).where(eq(agents.id, f.sender));
     const [target] = await db.insert(issues).values({ companyId: f.companyId, title: "Running peer task",
       status: "in_progress", assigneeAgentId: f.recipient }).returning();
     await db.insert(heartbeatRuns).values([

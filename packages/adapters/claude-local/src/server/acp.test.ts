@@ -1,24 +1,24 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createPromptContextFixture } from "@paperclipai/adapter-utils/test-fixtures/prompt-context";
+import { createPromptContextFixture } from "@outpost/adapter-utils/test-fixtures/prompt-context";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionContext, AdapterInvocationMeta } from "@paperclipai/adapter-utils";
-import { runChildProcess } from "@paperclipai/adapter-utils/server-utils";
+import type { AdapterExecutionContext, AdapterInvocationMeta } from "@outpost/adapter-utils";
+import { runChildProcess } from "@outpost/adapter-utils/server-utils";
 
 // Wrap the shared staging seam in a call-recording spy that still delegates to
 // the real implementation (a runner-backed sandbox test exercises it end to
 // end against the local sandbox stand-in). This lets a test assert the exact
 // `assets` the Claude remote managed-home seam sends it without changing any
 // real behavior for the other tests.
-vi.mock("@paperclipai/adapter-utils/execution-target", async (importActual) => {
-  const actual = await importActual<typeof import("@paperclipai/adapter-utils/execution-target")>();
+vi.mock("@outpost/adapter-utils/execution-target", async (importActual) => {
+  const actual = await importActual<typeof import("@outpost/adapter-utils/execution-target")>();
   return {
     ...actual,
     prepareAdapterExecutionTargetRuntime: vi.fn(actual.prepareAdapterExecutionTargetRuntime),
   };
 });
-import { prepareAdapterExecutionTargetRuntime } from "@paperclipai/adapter-utils/execution-target";
+import { prepareAdapterExecutionTargetRuntime } from "@outpost/adapter-utils/execution-target";
 import {
   buildClaudeAcpConfig,
   createClaudeAcpExecutor,
@@ -81,8 +81,8 @@ type FakeRuntimeTurn = {
 const tempRoots: string[] = [];
 const originalNodeVersion = process.version;
 const originalEnv: Record<string, string | undefined> = {
-  PAPERCLIP_HOME: process.env.PAPERCLIP_HOME,
-  PAPERCLIP_INSTANCE_ID: process.env.PAPERCLIP_INSTANCE_ID,
+  OUTPOST_HOME: process.env.OUTPOST_HOME,
+  OUTPOST_INSTANCE_ID: process.env.OUTPOST_INSTANCE_ID,
   CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
 };
 
@@ -865,8 +865,8 @@ describe("claude_local ACP lane", () => {
       "utf8",
     );
     await fs.writeFile(path.join(sharedClaudeConfig, "CLAUDE.md"), "# shared guidance\n", "utf8");
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
     process.env.CLAUDE_CONFIG_DIR = sharedClaudeConfig;
 
     const meta: AdapterInvocationMeta[] = [];
@@ -942,8 +942,8 @@ describe("claude_local ACP lane", () => {
           "utf8",
         );
       }
-      process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-      process.env.PAPERCLIP_INSTANCE_ID = "test";
+      process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+      process.env.OUTPOST_INSTANCE_ID = "test";
       process.env.CLAUDE_CONFIG_DIR = sharedClaudeConfig;
 
       const meta: AdapterInvocationMeta[] = [];
@@ -1019,8 +1019,8 @@ describe("claude_local ACP lane", () => {
     const remoteCwd = path.join(root, "remote-workspace");
     await fs.mkdir(localCwd, { recursive: true });
     await fs.mkdir(remoteCwd, { recursive: true });
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
     process.env.CLAUDE_CONFIG_DIR = path.join(root, "shared-claude-config");
 
     const hostSettingsPath = path.join(localCwd, ".claude", "settings.local.json");
@@ -1085,8 +1085,8 @@ describe("claude_local ACP lane", () => {
     await fs.mkdir(remoteCwd, { recursive: true });
     await fs.mkdir(sharedClaudeConfig, { recursive: true });
     await fs.writeFile(path.join(sharedClaudeConfig, "CLAUDE.md"), "# shared guidance\n", "utf8");
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
     process.env.CLAUDE_CONFIG_DIR = sharedClaudeConfig;
 
     const meta: AdapterInvocationMeta[] = [];
@@ -1144,8 +1144,8 @@ describe("claude_local ACP lane", () => {
       "utf8",
     );
     await fs.writeFile(path.join(sharedClaudeConfig, "CLAUDE.md"), "# shared guidance\n", "utf8");
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
     process.env.CLAUDE_CONFIG_DIR = sharedClaudeConfig;
 
     // The runtime writes a NEW file into the in-sandbox workspace during the turn.
@@ -1214,8 +1214,8 @@ describe("claude_local ACP lane", () => {
     await fs.mkdir(localCwd, { recursive: true });
     await fs.mkdir(remoteCwd, { recursive: true });
     await fs.writeFile(path.join(localCwd, "hello.txt"), "hi", "utf8");
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
 
     // The runtime writes a new file into the in-sandbox workspace during the
     // turn, so the teardown's restore has something to copy back — and a new
@@ -1284,7 +1284,7 @@ describe("claude_local ACP lane", () => {
       const allLogs = loggedLines.join("");
       expect(allLogs).not.toContain("SENTINEL-HOST-PATH-marker");
       expect(allLogs).not.toContain(localCwd);
-      const diagnostic = '[paperclip] Workspace restore diagnostic: {"phase":"workspace","step":"directory_merge","errorCode":"EACCES"}\n';
+      const diagnostic = '[outpost] Workspace restore diagnostic: {"phase":"workspace","step":"directory_merge","errorCode":"EACCES"}\n';
       expect(loggedLines.filter((line) => line.includes("Workspace restore diagnostic:"))).toEqual([diagnostic]);
       expect(loggedLines.filter((line) => line !== diagnostic).join("")).not.toContain("EACCES");
       expect(allLogs).toContain("permission denied");
@@ -1309,8 +1309,8 @@ describe("claude_local ACP lane", () => {
       JSON.stringify({ permissions: { defaultMode: "acceptEdits" } }),
       "utf8",
     );
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
 
     const meta: AdapterInvocationMeta[] = [];
     const logs: string[] = [];
@@ -1377,8 +1377,8 @@ describe("claude_local ACP lane", () => {
       "utf8",
     );
     await fs.writeFile(path.join(sharedClaudeConfig, "CLAUDE.md"), "# shared guidance\n", "utf8");
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test";
     process.env.CLAUDE_CONFIG_DIR = sharedClaudeConfig;
 
     const meta: AdapterInvocationMeta[] = [];

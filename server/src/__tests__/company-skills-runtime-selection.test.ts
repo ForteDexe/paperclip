@@ -3,9 +3,9 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, companySkillSources, companySkills, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, projectAccessMembers, projects, projectSkillSources } from "@paperclipai/db";
+import { agents, companies, companyMemberships, companySkillSources, companySkills, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, projectAccessMembers, projects, projectSkillSources } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
-import { PAPERCLIP_OPERATIONAL_SKILL_KEY } from "@paperclipai/adapter-utils/server-utils";
+import { OUTPOST_OPERATIONAL_SKILL_KEY } from "@outpost/adapter-utils/server-utils";
 import { companySkillService } from "../services/company-skills.js";
 import { authorizationService, type AuthorizationActor } from "../services/authorization.js";
 import { skillAccessService, withSkillActor } from "../services/skill-access.js";
@@ -18,24 +18,24 @@ describeDatabase("selected runtime skill reconciliation", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let home: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
-  const previousPrivacy = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
+  const previousHome = process.env.OUTPOST_HOME;
+  const previousPrivacy = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
   const companyId = randomUUID();
 
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("runtime-skill-selection-");
     db = createDb(database.connectionString);
     home = await fs.mkdtemp(path.join(os.tmpdir(), "runtime-skill-selection-"));
-    process.env.PAPERCLIP_HOME = home;
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    process.env.OUTPOST_HOME = home;
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     await db.insert(companies).values({ id: companyId, name: "Runtime selection", issuePrefix: `RS${companyId.slice(0, 6)}` });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
   afterAll(async () => {
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = previousHome;
-    if (previousPrivacy === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousPrivacy;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = previousHome;
+    if (previousPrivacy === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    else process.env.OUTPOST_ISSUE_PRIVACY_MODE = previousPrivacy;
     await database?.cleanup();
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
@@ -57,7 +57,7 @@ describeDatabase("selected runtime skill reconciliation", () => {
           cpuMicros: process.cpuUsage(cpu), selectBuilderCalls: select.mock.calls.length,
           insertBuilderCalls: insert.mock.calls.length, updateBuilderCalls: update.mock.calls.length,
           delivered: entries.map(entry => entry.key) }));
-        expect(entries.map(entry => entry.key)).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY]);
+        expect(entries.map(entry => entry.key)).toEqual([OUTPOST_OPERATIONAL_SKILL_KEY]);
         expect(entries.every(entry => entry.sourceStatus === "available" && entry.versionId)).toBe(true);
       } finally {
         select.mockRestore();
@@ -177,7 +177,7 @@ describeDatabase("selected runtime skill reconciliation", () => {
       }));
       console.info(JSON.stringify({ phase: "actor-runtime", projects: 80, elapsedMs: performance.now() - runtimeStarted,
         selectBuilderCalls: select.mock.calls.length }));
-      expect(entries.map(entry => entry.key)).toEqual([PAPERCLIP_OPERATIONAL_SKILL_KEY]);
+      expect(entries.map(entry => entry.key)).toEqual([OUTPOST_OPERATIONAL_SKILL_KEY]);
     } finally { select.mockRestore(); }
     expect(counts[1]).toBeLessThanOrEqual(counts[0]! + 2);
   }, 30_000);

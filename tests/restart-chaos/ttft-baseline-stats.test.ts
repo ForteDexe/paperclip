@@ -205,13 +205,13 @@ describe("restart recovery split", () => {
 
 describe("restart sample guard", () => {
   const tool = (eventType: string, executionId: string, extra: Record<string, unknown> = {}): BaselineEvent => ({
-    eventType, createdAt: at(0), payload: { prpEvent: { payload: { executionId, ...extra } } },
+    eventType, createdAt: at(0), payload: { orpEvent: { payload: { executionId, ...extra } } },
   });
   const ids = (events: BaselineEvent[], marker?: string) => openShellExecutions(events, marker);
 
   it("keeps a shell call open until it ends, and ignores other tools", () => {
     expect(ids([
-      tool("tool.execution.started", "mcp-1", { name: "paperclip.issue.comment", operation: "unknown" }),
+      tool("tool.execution.started", "mcp-1", { name: "outpost.issue.comment", operation: "unknown" }),
       tool("tool.execution.started", "sh-1", { name: "Bash", operation: "execute" }),
       tool("tool.execution.progressed", "sh-1"),
     ]).map(call => call.executionId)).toEqual(["sh-1"]);

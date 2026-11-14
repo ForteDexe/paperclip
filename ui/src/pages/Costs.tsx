@@ -19,7 +19,7 @@ import type {
   FinanceEvent,
   QuotaWindow,
   ProviderQuotaResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, Coins, DollarSign, ReceiptText } from "lucide-react";
 import { budgetsApi } from "../api/budgets";
 import { costsApi } from "../api/costs";
@@ -187,7 +187,7 @@ export function Costs({
     queryFn: () => agentsApi.get(scopedAgentId!, selectedCompanyId!),
     enabled: Boolean(selectedCompanyId && scopedAgentId),
   });
-  const museUsageUnavailable = scopedAgent?.adapterType === "paperclip_runner" && scopedAgent.adapterConfig.provider === "muse";
+  const museUsageUnavailable = scopedAgent?.adapterType === "outpost_runner" && scopedAgent.adapterConfig.provider === "muse";
   const [mainTab, setMainTab] = useState<CostsMainTab>(initialTab);
   const [activeProvider, setActiveProvider] = useState("all");
   const [activeBiller, setActiveBiller] = useState("all");

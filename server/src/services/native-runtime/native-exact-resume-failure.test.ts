@@ -6,7 +6,7 @@ const interruption = {
   disposition: "retryable_failure",
   reason: "native_session_interrupted",
   providerAttempt: 1,
-  stderrTail: "PRP command turn.start failed: classification=session_resume_required",
+  stderrTail: "ORP command turn.start failed: classification=session_resume_required",
   providerSessionEstablished: true,
   checkpointExists: true,
 };
@@ -16,7 +16,7 @@ describe("interruptedExactResumeCause", () => {
   it("returns the interrupted attempt that a pending exact-checkpoint resume claim was resuming", () => {
     expect(interruptedExactResumeCause(claimed)).toEqual({
       originalFailureCode: "native_session_interrupted",
-      originalMessage: "PRP command turn.start failed: classification=session_resume_required",
+      originalMessage: "ORP command turn.start failed: classification=session_resume_required",
       interruptedAttempt: 1,
     });
   });
@@ -45,7 +45,7 @@ describe("interruptedExactResumeCause", () => {
     const awaiting = { at: "2099-01-01T00:02:00.000Z", disposition: "awaiting_evidence", reason: "current_controller_preparing", providerAttempt: 1 };
     expect(interruptedExactResumeCause({ ...claimed, recoveryHistory: [interruption, blocked, awaiting] })).toEqual({
       originalFailureCode: "native_session_interrupted",
-      originalMessage: "PRP command turn.start failed: classification=session_resume_required",
+      originalMessage: "ORP command turn.start failed: classification=session_resume_required",
       interruptedAttempt: 1,
     });
   });
@@ -55,7 +55,7 @@ describe("interruptedExactResumeCause", () => {
       providerAttempt: 1, evidence: { recoveryMode: "exact_checkpoint_resume" } };
     expect(interruptedExactResumeCause({ ...claimed, recoveryHistory: [interruption, resumeClaim] })).toEqual({
       originalFailureCode: "native_session_interrupted",
-      originalMessage: "PRP command turn.start failed: classification=session_resume_required",
+      originalMessage: "ORP command turn.start failed: classification=session_resume_required",
       interruptedAttempt: 1,
     });
   });
@@ -81,7 +81,7 @@ describe("interruptedExactResumeCause", () => {
 describe("describeRefusedExactResume", () => {
   it("names the original failure before the refusal", () => {
     expect(describeRefusedExactResume(interruptedExactResumeCause(claimed)!, "Plugin Runner retained session is not authorized"))
-      .toBe("native_session_interrupted: PRP command turn.start failed: classification=session_resume_required; "
+      .toBe("native_session_interrupted: ORP command turn.start failed: classification=session_resume_required; "
         + "exact checkpoint resume refused: Plugin Runner retained session is not authorized");
   });
 

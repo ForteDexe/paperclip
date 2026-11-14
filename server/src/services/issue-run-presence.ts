@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { agents as agentsTable, heartbeatRuns, type Db } from "@paperclipai/db";
-import { agentAvatarUrl, resolveAgentAppearance } from "@paperclipai/shared";
+import { agents as agentsTable, heartbeatRuns, type Db } from "@outpost/db";
+import { agentAvatarUrl, resolveAgentAppearance } from "@outpost/shared";
 import { executionProjectionForRun, executionProjectionsForRuns } from "./execution-projection.js";
 import type { heartbeatService } from "./heartbeat.js";
 import type { agentService } from "./agents.js";

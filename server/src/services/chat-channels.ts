@@ -148,7 +148,7 @@ import { registerIdleLocalWorkProbe } from "./idle-local-work.js";
 import type { ChatEndpointRuntime } from "./voice/voice-runtime.js";
 
 import { fastResponseService, fastResponseSourceCurrent } from "./fast-responses.js";
-import { fastResponseRequests } from "@paperclipai/db";
+import { fastResponseRequests } from "@outpost/db";
 import { chatCredentialMutationLease } from "./chat-credential-mutation-lease.js";
 import type { AgentAvatarRequest } from "./agent-avatars.js";
 
@@ -158,7 +158,7 @@ import { buildChatCommunicationGuidance } from "./chat-communication-guidance.js
 import { assertChatTaskCreationAccess, resolveChatExecutionDefaults } from "./chat-execution-defaults.js";
 
 import { githubAutomaticAdmission } from "./chat-github-events.js";
-import type { GitHubReviewEventContext, GitHubIssueEventContext, GitHubReviewPolicy } from "@paperclipai/shared";
+import type { GitHubReviewEventContext, GitHubIssueEventContext, GitHubReviewPolicy } from "@outpost/shared";
 
 import { resumeExternalConversation } from "./slack-conversation-state.js";
 
@@ -190,14 +190,14 @@ import {
   readChatControlChronology,
 } from "./chat-control-chronology.js";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
-import { agentWakeupRequests, agents, chatActions, chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, chatMessageLinks, chatPublications, chatTeamsFileTransfers, companyMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues, toolConnections } from "@paperclipai/db";
-import type { ChatEventKind, ChatEndpointSetupState, ChatProvider, ExternalChannelBindingSummary, SafeChatPublicationPayload, ToolCredentialSecretRef } from "@paperclipai/shared";
+import { agentWakeupRequests, agents, chatActions, chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, chatMessageLinks, chatPublications, chatTeamsFileTransfers, companyMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues, toolConnections } from "@outpost/db";
+import type { ChatEventKind, ChatEndpointSetupState, ChatProvider, ExternalChannelBindingSummary, SafeChatPublicationPayload, ToolCredentialSecretRef } from "@outpost/shared";
 import {
   isUuidLike,
   LOW_TRUST_REVIEW_PRESET,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   type TeamsFileTransferOptions,
@@ -1372,7 +1372,7 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
           return false;
         const marker = committed as Record<string, unknown>;
         if (
-          marker.schema !== "paperclip.native_committed_chat_response.v1" ||
+          marker.schema !== "outpost.native_committed_chat_response.v1" ||
           typeof marker.resultId !== "string" ||
           !isUuidLike(marker.resultId) ||
           typeof marker.canonicalSha256 !== "string" ||

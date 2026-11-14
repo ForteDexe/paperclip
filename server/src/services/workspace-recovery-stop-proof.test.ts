@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agentWakeupRequests, environmentLeases, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { readRemoteWorkspaceAuthority } from "@paperclipai/shared";
+import { activityLog, agentWakeupRequests, environmentLeases, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { readRemoteWorkspaceWriterHold, remoteWorkspaceHoldRefusesStart } from "./remote-workspace-writer-hold.js";
 import { readSystemRecovery } from "./system-recovery-state.js";
 import { adoptSystemRecovery } from "./system-recovery.js";
@@ -36,7 +36,7 @@ describe("exhausted stop-proof holds", () => {
   useWorkspaceRecoveryFixture(targets);
   beforeEach(() => {
     vi.stubEnv("DATABASE_URL", connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "63".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "63".repeat(32));
   });
   afterEach(() => { vi.unstubAllEnvs(); });
 
@@ -70,7 +70,7 @@ describe("exhausted stop-proof holds", () => {
       systemRecovery: { ...current, revision: 3, phase: "verify_execution", state: "exhausted", attempts: 1, retriesUsed: 0,
         attemptId: randomUUID(), firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
         failure: { code: "agent_stop_unconfirmed", retryClass: "recheck_evidence", evidenceFingerprint: "d".repeat(64) } },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
         attempt: 1, attemptLimit: 6, retryable: true, requestIds: [] },
       coordinatorAttempt: 1, originalFailureCode: "native_workspace_sync_out_failed", workspaceFinalizeAttempt: 3 } })
       .where(eq(issueRecoveryActions.id, f.actionId));
@@ -98,7 +98,7 @@ describe("exhausted stop-proof holds", () => {
     expect(readSystemRecovery(settled.evidence)).toMatchObject({ state: "complete" });
     expect(readSystemRecovery(settled.evidence)!.preservationOperationIds.length).toBeGreaterThan(0);
     expect(readWorkspaceRecovery(settled.evidence)?.status).toBe("recovered");
-    expect(settled.evidence.stopProofRecovery).toMatchObject({ schema: "paperclip.stop-proof-recovery.v1", rearms: 1 });
+    expect(settled.evidence.stopProofRecovery).toMatchObject({ schema: "outpost.stop-proof-recovery.v1", rearms: 1 });
     expect(settled.ownerType).toBe("system");
     expect(String(settled.nextAction)).not.toMatch(adminText);
     expect(onRecovered).toHaveBeenCalledTimes(1);
@@ -134,7 +134,7 @@ describe("exhausted stop-proof holds", () => {
     const f = await exhaustedStopProofHold();
     const prior = await action(f.actionId);
     await db.update(issueRecoveryActions).set({ evidence: { ...prior.evidence, stopProofRecovery: {
-      schema: "paperclip.stop-proof-recovery.v1", rearms: 1, generationId: randomUUID(), previousGenerationId: randomUUID(),
+      schema: "outpost.stop-proof-recovery.v1", rearms: 1, generationId: randomUUID(), previousGenerationId: randomUUID(),
       rearmedAt: Date.now() - 60_000, nextRearmAt: Date.now() + 60 * 60_000 } } }).where(eq(issueRecoveryActions.id, f.actionId));
 
     expect((await retainedWorkspaceCandidates(db, undefined, false, true)).map(row => row.action.id)).not.toContain(f.actionId);
@@ -151,7 +151,7 @@ describe("exhausted stop-proof holds", () => {
     const f = await exhaustedStopProofHold();
     const prior = await action(f.actionId);
     await db.update(issueRecoveryActions).set({ evidence: { ...prior.evidence, stopProofRecovery: {
-      schema: "paperclip.stop-proof-recovery.v1", rearms: 4, generationId: randomUUID(), previousGenerationId: randomUUID(),
+      schema: "outpost.stop-proof-recovery.v1", rearms: 4, generationId: randomUUID(), previousGenerationId: randomUUID(),
       rearmedAt: Date.now() - 86_400_000, nextRearmAt: null } } }).where(eq(issueRecoveryActions.id, f.actionId));
 
     expect((await retainedWorkspaceCandidates(db, undefined, false, true)).map(row => row.action.id)).toContain(f.actionId);
@@ -171,7 +171,7 @@ describe("exhausted stop-proof holds", () => {
     const generationId = readSystemRecovery(prior.evidence)!.generationId;
     const checkedAt = Date.now() - 60_000;
     await db.update(issueRecoveryActions).set({ evidence: { ...prior.evidence,
-      stopProofRecovery: { schema: "paperclip.stop-proof-recovery.v1", rearms: 4, generationId, previousGenerationId: randomUUID(),
+      stopProofRecovery: { schema: "outpost.stop-proof-recovery.v1", rearms: 4, generationId, previousGenerationId: randomUUID(),
         rearmedAt: Date.now() - 86_400_000, nextRearmAt: null },
       retainedSourceFallbackCheck: { generationId, reason: "execution_not_stopped", checks: 12, checkedAt, nextCheckAt: null } } })
       .where(eq(issueRecoveryActions.id, f.actionId));
@@ -197,7 +197,7 @@ describe("exhausted stop-proof holds", () => {
       systemRecovery: { ...current, revision: current.revision + 3, state: "exhausted", attempts: 1, retriesUsed: 0, attemptId: randomUUID(),
         firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
         failure: { code: "agent_stop_unconfirmed", retryClass: "recheck_evidence", evidenceFingerprint: "e".repeat(64) } },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop",
         attempt: 1, attemptLimit: 6, retryable: true, requestIds: [] } } }).where(eq(issueRecoveryActions.id, actionId));
   }
 
@@ -304,7 +304,7 @@ describe("exhausted stop-proof holds", () => {
     const system = readSystemRecovery(prior.evidence)!;
     await db.update(issueRecoveryActions).set({ id, status: "resolved", outcome: "blocked", ownerType: "system", evidence: { ...prior.evidence,
       systemRecovery: { ...system, state: "complete", phase: "reconcile_effects", attempts: 1 },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "recovered", stage: "saving_receipts",
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "recovered", stage: "saving_receipts",
         attempt: 1, attemptLimit: 6, retryable: false, requestIds: [] },
       automaticRecovery: { runId: f.runId, policy: "preserve_without_replay_v1", replay: "blocked" } } })
       .where(eq(issueRecoveryActions.id, f.actionId));

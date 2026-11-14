@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueComments, issues, userWorkspacePreferences } from "@paperclipai/db";
-import { FAST_RESPONSE_AGENT_GUIDANCE } from "@paperclipai/shared";
+import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueComments, issues, userWorkspacePreferences } from "@outpost/db";
+import { FAST_RESPONSE_AGENT_GUIDANCE } from "@outpost/shared";
 import { registerServerAdapter, unregisterServerAdapter, type AdapterExecutionContext } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { prepareHeartbeatTaskContext } from "../services/heartbeat/task-context.js";

@@ -16,13 +16,13 @@ const binDir = path.join(home, "bin");
 
 function isolateEnvironment() {
   for (const name of [
-    "PAPERCLIP_BIND", "PAPERCLIP_BIND_HOST", "PAPERCLIP_TAILNET_BIND_HOST", "HOST", "PAPERCLIP_DEPLOYMENT_MODE",
-    "PAPERCLIP_DEPLOYMENT_EXPOSURE", "PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "PAPERCLIP_MANAGED_CONFIG",
-    "PAPERCLIP_STORAGE_PROVIDER", "DATABASE_URL",
+    "OUTPOST_BIND", "OUTPOST_BIND_HOST", "OUTPOST_TAILNET_BIND_HOST", "HOST", "OUTPOST_DEPLOYMENT_MODE",
+    "OUTPOST_DEPLOYMENT_EXPOSURE", "OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "OUTPOST_MANAGED_CONFIG",
+    "OUTPOST_STORAGE_PROVIDER", "DATABASE_URL",
   ]) delete process.env[name];
-  process.env.PAPERCLIP_HOME = home;
-  process.env.PAPERCLIP_INSTANCE_ID = "default";
-  process.env.PAPERCLIP_CONFIG = configPath;
+  process.env.OUTPOST_HOME = home;
+  process.env.OUTPOST_INSTANCE_ID = "default";
+  process.env.OUTPOST_CONFIG = configPath;
   if (!process.env.PATH?.startsWith(binDir)) process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH ?? ""}`;
 }
 

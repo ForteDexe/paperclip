@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useMemo } from "react";
 import * as RouterDom from "react-router-dom";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/timeAgo";
 import { createIssueDetailPath, withIssueDetailHeaderSeed } from "@/lib/issueDetailBreadcrumb";
@@ -21,7 +21,7 @@ import { useFlyoutAppearance } from "@/components/ui/flyout-appearance";
 /*  Single-flight quicklook store                                      */
 /*                                                                     */
 /*  Every issue link renders its own Radix Popover. In a dense list    */
-/*  (e.g. the Conference Room agent feed) independent per-card open     */
+/*  (e.g. a dense task feed) independent per-card open                  */
 /*  state lets popovers overlap, linger, and stack — two flyouts at    */
 /*  once, sometimes showing the wrong card. This module-level store    */
 /*  enforces exactly one open quicklook across the whole tree: opening  */

@@ -12,7 +12,7 @@ import {
   externalAgentHolds,
   issues,
   issueThreadInteractions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -247,7 +247,7 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
       finishedAt: new Date(), contextSnapshot: { issueId: holderIssueId } });
     await db.update(issues).set({ executionRunId: holderRunId }).where(sql`${issues.id} = ${holderIssueId}`);
     const userId = `routine-owner-${randomUUID()}`;
-    await db.insert(authUsers).values({ id: userId, name: "Routine owner", email: `${userId}@paperclip.test`,
+    await db.insert(authUsers).values({ id: userId, name: "Routine owner", email: `${userId}@outpost.test`,
       createdAt: new Date(), updatedAt: new Date() });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId,
       status: "active", membershipRole: "owner" });
@@ -298,7 +298,7 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   async function insertCardAnswerInterruptRun(fault?: "other-answer" | "other-resolver") {
     const { companyId, agentId } = await insertAgent();
     const userId = `card-owner-${randomUUID()}`;
-    await db.insert(authUsers).values({ id: userId, name: "Card owner", email: `${userId}@paperclip.test`,
+    await db.insert(authUsers).values({ id: userId, name: "Card owner", email: `${userId}@outpost.test`,
       createdAt: new Date(), updatedAt: new Date() });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId,
       status: "active", membershipRole: "owner" });

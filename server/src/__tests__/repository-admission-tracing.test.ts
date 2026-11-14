@@ -6,8 +6,8 @@ import { promisify } from "node:util";
 import { context, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider, type ReadableSpan, type SpanProcessor } from "@opentelemetry/sdk-trace";
-import { withDirectoryPublicationLock } from "@paperclipai/adapter-utils/workspace-restore-merge";
-import { createDb, executionWorkspaceRepositories, executionWorkspaces, issues, projects, projectWorkspaces, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { withDirectoryPublicationLock } from "@outpost/adapter-utils/workspace-restore-merge";
+import { createDb, executionWorkspaceRepositories, executionWorkspaces, issues, projects, projectWorkspaces, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRunPreparationTiming, withRunExecutionTiming } from "../services/execution-preparation-timing.js";
@@ -42,9 +42,9 @@ const support = await getEmbeddedPostgresTestSupport();
 
   beforeEach(async () => {
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.test");
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
-    vi.stubEnv("PAPERCLIP_HOME", path.join(directory, "home"));
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "admission-tracing");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_HOME", path.join(directory, "home"));
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "admission-tracing");
     catalog.list.mockClear();
     started = [];
     lifecycle = [];
@@ -122,7 +122,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   function expectPrivateFieldsAbsent(spans: ReadableSpan[]) {
     for (const span of spans) {
-      expect(Object.keys(span.attributes)).toEqual(["paperclip.task.run.run_id"]);
+      expect(Object.keys(span.attributes)).toEqual(["outpost.task.run.run_id"]);
       expect(span.events).toEqual([]);
       expect(span.status.message).toBeUndefined();
     }

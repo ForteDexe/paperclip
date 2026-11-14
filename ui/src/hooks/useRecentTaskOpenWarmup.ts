@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ISSUE_CHAT_BOOTSTRAP_MAX_IDS } from "@paperclipai/shared";
+import { ISSUE_CHAT_BOOTSTRAP_MAX_IDS } from "@outpost/shared";
 import { loadIssueChatBootstraps } from "@/lib/issue-chat-bootstrap";
 import { whenPageSettles } from "@/lib/when-page-settles";
 import { useWarmTaskDetailCode } from "./useWarmTaskDetailCode";

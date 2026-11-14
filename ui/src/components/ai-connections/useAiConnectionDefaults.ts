@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AiConnectionList, AiManagedConnectionSummary, AiProvider, ToolConnection } from "@paperclipai/shared";
-import { aiConnectionRouterPluginKey } from "@paperclipai/shared";
+import type { AiConnectionList, AiManagedConnectionSummary, AiProvider, ToolConnection } from "@outpost/shared";
+import { aiConnectionRouterPluginKey } from "@outpost/shared";
 import { aiConnectionsApi } from "@/api/ai-connections";
 import { describeError } from "@/api/errors";
 import { useOptionalToastActions } from "@/context/ToastContext";

@@ -7,9 +7,9 @@ import type {Request} from "express";
 import {afterAll,afterEach,beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {eq,sql} from "drizzle-orm";
 import {PgDatabase} from "drizzle-orm/pg-core";
-import {subscribeDatabaseWork} from "@paperclipai/db/work-signals";
+import {subscribeDatabaseWork} from "@outpost/db/work-signals";
 import {DELIVERY_QUEUES} from "../delivery-work-notifications.js";
-import {applyPendingMigrations,createDb,companies,authUsers,companyMemberships,mcpOauthClients as clients,mcpOauthClientMirrorState as state,mcpOauthClientChanges as changes,mcpOauthDeviceRequests as devices,mcpOauthGrants as grants} from "@paperclipai/db";
+import {applyPendingMigrations,createDb,companies,authUsers,companyMemberships,mcpOauthClients as clients,mcpOauthClientMirrorState as state,mcpOauthClientChanges as changes,mcpOauthDeviceRequests as devices,mcpOauthGrants as grants} from "@outpost/db";
 import {resolveExternalTestDatabaseUrl} from "../../__tests__/helpers/external-test-database.js";
 import {createDeliveryWorkCoordinator} from "../delivery-work-coordinator.js";
 import {instanceSettingsService} from "../instance-settings.js";
@@ -26,7 +26,7 @@ import {readIdleMcpWakeProof} from "./idle-wake-proof.js";
 
 const managed=vi.hoisted(()=>({identity:null as null|{stackId:string;canonicalOrigin:string}}));
 vi.mock("../cloud-runtime-identity.js",async importOriginal=>({...await importOriginal<typeof import("../cloud-runtime-identity.js")>(),getCloudRuntimeIdentity:()=>managed.identity}));
-const configured=resolveExternalTestDatabaseUrl("PAPERCLIP_MCP_SLEEP_TEST_DATABASE_URL"),origin="https://mirror.example.test",instanceId="mirror-instance",stackId="mirror-stack";
+const configured=resolveExternalTestDatabaseUrl("OUTPOST_MCP_SLEEP_TEST_DATABASE_URL"),origin="https://mirror.example.test",instanceId="mirror-instance",stackId="mirror-stack";
 const budget={beforeRead:async()=>{},check:()=>{}};
 describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
   let db:ReturnType<typeof createDb>,coordinator:ReturnType<typeof createDeliveryWorkCoordinator>|undefined;
@@ -38,8 +38,8 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
   beforeEach(async()=>{
     await db.execute(sql`TRUNCATE TABLE companies,mcp_oauth_clients,mcp_oauth_client_mirror_state,mcp_oauth_client_changes CASCADE`);
     companyId=randomUUID();userId=randomUUID();remoteAvailable=false;failures=0;ack=undefined;sent.length=0;errors.length=0;onAppend=undefined;
-    home=await mkdtemp(path.join(tmpdir(),"mcp-mirror-lifecycle-"));vi.stubEnv("PAPERCLIP_HOME",home);
-    managed.identity={stackId,canonicalOrigin:origin};vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));
+    home=await mkdtemp(path.join(tmpdir(),"mcp-mirror-lifecycle-"));vi.stubEnv("OUTPOST_HOME",home);
+    managed.identity={stackId,canonicalOrigin:origin};vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));
     await db.insert(companies).values({id:companyId,name:"Mirror lifecycle",issuePrefix:"MIRROR"});
     await db.insert(authUsers).values({id:userId,name:"Mirror operator",email:`${userId}@example.test`,createdAt:new Date(),updatedAt:new Date()});
     await db.insert(companyMemberships).values({companyId,principalId:userId,principalType:"user",membershipRole:"owner",status:"active"});
@@ -174,7 +174,7 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
       await device();remoteAvailable=true;await start();const before=await acknowledged();beforeRevision=before.revision;
       // Replace the key context only after the previous publication owner has joined.
       await coordinator!.stop();coordinator=undefined;
-      vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));expect((await readIdleMcpDeviceStatus(db,{enabled:true,receipt:before.receipt!,budget})).blocked).toBe(true);
+      vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));expect((await readIdleMcpDeviceStatus(db,{enabled:true,receipt:before.receipt!,budget})).blocked).toBe(true);
       await start();const after=await acknowledged();afterRevision=after.revision;expect(after.revision).toBe(before.revision+1);expect(after.receipt?.deviceStatus?.keyId).not.toBe(before.receipt?.deviceStatus?.keyId);expect((await readIdleMcpDeviceStatus(db,{enabled:true,receipt:after.receipt!,budget})).blocked).toBe(false);
     }finally{
       const category=(error:unknown)=>{
@@ -188,7 +188,7 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
         if(error.message==="MCP client mirror current authority changed")return "authority-changed";
         return error.name==="ZodError"?"schema-invalid":"other-error";
       };
-      const diagnosticPath=process.env.PAPERCLIP_MCP_KEY_DIAGNOSTIC_PATH;
+      const diagnosticPath=process.env.OUTPOST_MCP_KEY_DIAGNOSTIC_PATH;
       if(diagnosticPath){
         try{
           const cache=process.env.XDG_CACHE_HOME;

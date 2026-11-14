@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, realpath, rename, rm, symlink, writeFile } fr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { createRemoteAttachmentStager } from "./remote-attachment-staging.js";
 
 const bytes = Buffer.from("synthetic PNG input\0\u00e9");
@@ -47,7 +47,7 @@ describe("remote attachment transport", () => {
     const execute = vi.fn().mockRejectedValueOnce(new Error("private transport details"))
       .mockRejectedValueOnce(new Error("cleanup transport lost")).mockResolvedValue(success);
     const stager = createRemoteAttachmentStager("/workspace", { execute });
-    await expect(stager({ body: bytes })).rejects.toThrow(new Error("paperclip_runner_attachment_staging_failed"));
+    await expect(stager({ body: bytes })).rejects.toThrow(new Error("outpost_runner_attachment_staging_failed"));
     await stager.close();
     expect(execute).toHaveBeenCalledTimes(3);
     await expect(stager({ body: bytes })).rejects.toThrow("scope_closed");

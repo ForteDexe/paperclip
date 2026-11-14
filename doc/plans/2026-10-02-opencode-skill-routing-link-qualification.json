@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.opencode-skill-routing-link-comparison/v1",
+  "schema": "outpost.opencode-skill-routing-link-comparison/v1",
   "status": "complete",
   "candidateSha": "fe9dc1e3c518825242ed889ab9c8352986f8c2ed",
   "baselineSha": "0d7ecfa96d72fba79b7f0a25052b42c0686c0488",
@@ -31,7 +31,7 @@
       }
     ],
     "baselineReceipt": {
-      "schema": "paperclip.opencode-skill-routing.baseline/v1",
+      "schema": "outpost.opencode-skill-routing.baseline/v1",
       "candidateSha": "fe9dc1e3c518825242ed889ab9c8352986f8c2ed",
       "priorSkillSha": "b85668c4065d66e08026218a6bd48a3d22ddd4c9",
       "expectedCellsPerVariant": 2,
@@ -57,7 +57,7 @@
       ]
     },
     "fixtureConfigurations": {
-      "schema": "paperclip.opencode-skill-routing.fixture-match-proof/v1",
+      "schema": "outpost.opencode-skill-routing.fixture-match-proof/v1",
       "cells": [
         {
           "executionId": "stock-harness.legacy-opencode.local.assigned-skill-explicit-invocation",

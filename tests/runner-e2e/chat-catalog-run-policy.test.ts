@@ -33,7 +33,7 @@ it("admits a lead run outside the source only as a declared case handback", () =
 function reassignment() {
   const receipt = { runId: "worker-run", taskId: "task", workerId: "worker", sourceRunId: "final-source" };
   const stopped: ChatRun = { ...worker, status: "cancelled", errorCode: "issue_reassigned", resultJson: {
-    reassignmentStopConfirmed: true, nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: "worker-run", issueId: "task", companyId: "company", dispatchState: "acknowledged", acknowledgedAt: "2026-10-27T10:00:00Z", intentAuditId: "intent", acknowledgementAuditId: "ack" },
+    reassignmentStopConfirmed: true, nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: "worker-run", issueId: "task", companyId: "company", dispatchState: "acknowledged", acknowledgedAt: "2026-10-27T10:00:00Z", intentAuditId: "intent", acknowledgementAuditId: "ack" },
   } };
   const implementation = { scenarioId: "tasks.edit-properties", expectedRunCount: 4, minimumRunCount: 3,
     runPolicy: { kind: "source-settled-with-active-work" as const, maximumActiveWorkerRuns: 1, expectedWorkerCancellation: "owned-task-reassignment" as const },

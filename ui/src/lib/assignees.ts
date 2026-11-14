@@ -1,4 +1,4 @@
-import type { ActivityEvent } from "@paperclipai/shared";
+import type { ActivityEvent } from "@outpost/shared";
 
 export interface AssigneeSelection {
   assigneeAgentId: string | null;

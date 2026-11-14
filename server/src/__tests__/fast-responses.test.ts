@@ -23,8 +23,8 @@ import {
   heartbeatRuns,
   issues,
   issueComments,
-} from "@paperclipai/db";
-import { startEmbeddedPostgresTestDatabase } from "@paperclipai/db/test-embedded-postgres";
+} from "@outpost/db";
+import { startEmbeddedPostgresTestDatabase } from "@outpost/db/test-embedded-postgres";
 import { aiConnectionService } from "../services/ai-connections.js";
 import {
   enqueueFastResponse,
@@ -50,9 +50,9 @@ beforeAll(async () => {
   home = await realpath(
     await mkdtemp(path.join(os.tmpdir(), "paperclip-fast-response-")),
   );
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_INSTANCE_ID", "fast-response-fixture");
-  const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_INSTANCE_ID", "fast-response-fixture");
+  const external = process.env.OUTPOST_TEST_DATABASE_URL;
   if (external && !new URL(external).pathname.endsWith("_test")) throw new Error("Fast-response tests require a database ending in _test");
   database = external ? undefined : await startEmbeddedPostgresTestDatabase(
     "paperclip-fast-response-db-",
@@ -528,7 +528,7 @@ describe("fast response accepted turns", () => {
             seq: 1,
             eventType: "item.delta",
             payload: {
-              prpEvent: {
+              orpEvent: {
                 payload: {
                   kind: "agentMessage",
                   text: "Here is the recommendation",

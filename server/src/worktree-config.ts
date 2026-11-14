@@ -7,14 +7,14 @@ import {
   mergePaperclipConfig,
   paperclipConfigSchema,
   type PaperclipConfig,
-} from "@paperclipai/shared";
-import { updateEnvFileContents, writeEnvFileAtomicallyIfChanged } from "@paperclipai/shared/env-file";
+} from "@outpost/shared";
+import { updateEnvFileContents, writeEnvFileAtomicallyIfChanged } from "@outpost/shared/env-file";
 import {
   readWorktreePortRegistry,
   withWorktreePortRegistryLockSync,
   writeWorktreePortRegistry,
-} from "@paperclipai/shared/worktree-port-registry";
-import { resolvePaperclipConfigPath, resolvePaperclipEnvPath } from "./paths.js";
+} from "@outpost/shared/worktree-port-registry";
+import { resolvePaperclipConfigPath, resolveOutpostEnvPath } from "./paths.js";
 import { rewriteUrlPort } from "./url-utils.js";
 import { applyEmptyWorktreeSigningSecrets } from "./dev-runner-worktree.js";
 
@@ -110,22 +110,22 @@ function resolveWorktreeRuntimeContext(
   env: NodeJS.ProcessEnv,
   overrideConfigPath?: string,
 ): WorktreeRuntimeContext | null {
-  if (env.PAPERCLIP_IN_WORKTREE !== "true") return null;
+  if (env.OUTPOST_IN_WORKTREE !== "true") return null;
 
   const configPath = resolvePaperclipConfigPath(overrideConfigPath);
-  const envPath = resolvePaperclipEnvPath(configPath);
+  const envPath = resolveOutpostEnvPath(configPath);
   const persistedEnv = readEnvEntries(envPath);
 
-  // PAPERCLIP_IN_WORKTREE can leak in from a parent process or a sourced env
+  // OUTPOST_IN_WORKTREE can leak in from a parent process or a sourced env
   // file while config resolution still points at a non-worktree target (for
   // example the default instance under <home>/instances/default). Only adopt
   // a target as a worktree when its config sits in a `<root>/.paperclip/`
   // layout and its own persisted env already declares it a worktree;
   // otherwise the repair would rewrite main-instance config and env files.
   if (path.basename(path.dirname(configPath)) !== ".paperclip") return null;
-  if (persistedEnv.PAPERCLIP_IN_WORKTREE !== "true") return null;
+  if (persistedEnv.OUTPOST_IN_WORKTREE !== "true") return null;
 
-  const persistedConfigPath = nonEmpty(persistedEnv.PAPERCLIP_CONFIG);
+  const persistedConfigPath = nonEmpty(persistedEnv.OUTPOST_CONFIG);
   const persistedConfigLooksStale =
     persistedConfigPath !== null &&
     path.resolve(expandHomePrefix(persistedConfigPath)) !== path.resolve(configPath) &&
@@ -133,17 +133,17 @@ function resolveWorktreeRuntimeContext(
   const stablePersistedEnv = persistedConfigLooksStale ? {} : persistedEnv;
   const worktreeRoot = path.resolve(path.dirname(configPath), "..");
   const worktreeName =
-    nonEmpty(stablePersistedEnv.PAPERCLIP_WORKTREE_NAME) ??
-    nonEmpty(env.PAPERCLIP_WORKTREE_NAME) ??
+    nonEmpty(stablePersistedEnv.OUTPOST_WORKTREE_NAME) ??
+    nonEmpty(env.OUTPOST_WORKTREE_NAME) ??
     path.basename(worktreeRoot);
   const instanceId =
-    nonEmpty(stablePersistedEnv.PAPERCLIP_INSTANCE_ID) ??
-    nonEmpty(env.PAPERCLIP_INSTANCE_ID) ??
+    nonEmpty(stablePersistedEnv.OUTPOST_INSTANCE_ID) ??
+    nonEmpty(env.OUTPOST_INSTANCE_ID) ??
     sanitizeWorktreeInstanceId(worktreeName);
   const homeDir = resolveHomeAwarePath(
-    nonEmpty(stablePersistedEnv.PAPERCLIP_HOME) ??
-      nonEmpty(env.PAPERCLIP_HOME) ??
-      nonEmpty(env.PAPERCLIP_WORKTREES_DIR) ??
+    nonEmpty(stablePersistedEnv.OUTPOST_HOME) ??
+      nonEmpty(env.OUTPOST_HOME) ??
+      nonEmpty(env.OUTPOST_WORKTREES_DIR) ??
       "~/.paperclip-worktrees",
   );
   const instanceRoot = path.resolve(homeDir, "instances", instanceId);
@@ -458,11 +458,11 @@ export function maybeRepairLegacyWorktreeConfigAndEnvFiles(): {
 
   applyEmptyWorktreeSigningSecrets(path.resolve(path.dirname(context.configPath), ".."));
 
-  process.env.PAPERCLIP_HOME = context.homeDir;
-  process.env.PAPERCLIP_INSTANCE_ID = context.instanceId;
-  process.env.PAPERCLIP_CONFIG = context.configPath;
-  process.env.PAPERCLIP_CONTEXT = context.contextPath;
-  process.env.PAPERCLIP_WORKTREE_NAME = context.worktreeName;
+  process.env.OUTPOST_HOME = context.homeDir;
+  process.env.OUTPOST_INSTANCE_ID = context.instanceId;
+  process.env.OUTPOST_CONFIG = context.configPath;
+  process.env.OUTPOST_CONTEXT = context.contextPath;
+  process.env.OUTPOST_WORKTREE_NAME = context.worktreeName;
 
   let repairedConfig = false;
   if (fs.existsSync(context.configPath)) {
@@ -539,23 +539,23 @@ export function maybeRepairLegacyWorktreeConfigAndEnvFiles(): {
     : null;
   const existingEnvEntries = parseEnvFile(existingContents ?? "");
   const toolActionSigningSecret =
-    nonEmpty(process.env.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET) ??
-    nonEmpty(existingEnvEntries.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET) ??
+    nonEmpty(process.env.OUTPOST_TOOL_ACTION_SIGNING_SECRET) ??
+    nonEmpty(existingEnvEntries.OUTPOST_TOOL_ACTION_SIGNING_SECRET) ??
     randomBytes(32).toString("hex");
 
   const managedEnvEntries: Record<string, string> = {
-    PAPERCLIP_HOME: context.homeDir,
-    PAPERCLIP_INSTANCE_ID: context.instanceId,
-    PAPERCLIP_CONFIG: context.configPath,
-    PAPERCLIP_CONTEXT: context.contextPath,
-    PAPERCLIP_IN_WORKTREE: "true",
-    PAPERCLIP_DB_BACKUP_ENABLED: "false",
-    PAPERCLIP_WORKTREE_NAME: context.worktreeName,
-    PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: toolActionSigningSecret,
+    OUTPOST_HOME: context.homeDir,
+    OUTPOST_INSTANCE_ID: context.instanceId,
+    OUTPOST_CONFIG: context.configPath,
+    OUTPOST_CONTEXT: context.contextPath,
+    OUTPOST_IN_WORKTREE: "true",
+    OUTPOST_DB_BACKUP_ENABLED: "false",
+    OUTPOST_WORKTREE_NAME: context.worktreeName,
+    OUTPOST_TOOL_ACTION_SIGNING_SECRET: toolActionSigningSecret,
   };
 
-  process.env.PAPERCLIP_DB_BACKUP_ENABLED = "false";
-  process.env.PAPERCLIP_TOOL_ACTION_SIGNING_SECRET = toolActionSigningSecret;
+  process.env.OUTPOST_DB_BACKUP_ENABLED = "false";
+  process.env.OUTPOST_TOOL_ACTION_SIGNING_SECRET = toolActionSigningSecret;
   const repairedContents = updateEnvFileContents(
     existingContents ?? emptyWorktreeEnvFileContents(),
     managedEnvEntries,

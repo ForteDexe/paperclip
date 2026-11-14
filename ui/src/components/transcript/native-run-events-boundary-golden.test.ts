@@ -1,29 +1,29 @@
-import type { HeartbeatRunEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent } from "@outpost/shared";
 import { describe, expect, it } from "vitest";
 
 import {
   localIntegrityBoundaryGolden as fixture,
   localIntegrityEventsFor,
-} from "../../../../packages/paperclip-runner/test-support/local-integrity-boundary-golden";
+} from "../../../../packages/outpost-runner/test-support/local-integrity-boundary-golden";
 import { nativeRunEventsToTranscript } from "./native-run-events";
 
 function persistedEventsFor(
   profile: (typeof fixture.profiles)[number],
 ): HeartbeatRunEvent[] {
-  return localIntegrityEventsFor(profile).map((prpEvent) => {
+  return localIntegrityEventsFor(profile).map((orpEvent) => {
     return {
-      id: prpEvent.sourceSeq,
+      id: orpEvent.sourceSeq,
       companyId: "73000000-0000-4000-8000-000000000001",
       runId: profile.runId,
       agentId: "73000000-0000-4000-8000-000000000201",
-      seq: prpEvent.sourceSeq,
-      eventType: prpEvent.eventType,
+      seq: orpEvent.sourceSeq,
+      eventType: orpEvent.eventType,
       stream: "system",
       level: "info",
       color: null,
       message: null,
-      payload: { prpEvent },
-      createdAt: new Date(prpEvent.emittedAt),
+      payload: { orpEvent },
+      createdAt: new Date(orpEvent.emittedAt),
     } satisfies HeartbeatRunEvent;
   });
 }
@@ -34,7 +34,7 @@ describe("canonical native event UI boundary corpus", () => {
     (profile) => {
       const persistedEvents = persistedEventsFor(profile);
       for (const event of persistedEvents) {
-        const envelope = event.payload?.prpEvent as Record<string, unknown>;
+        const envelope = event.payload?.orpEvent as Record<string, unknown>;
         expect(envelope.eventType).toBe(event.eventType);
         expect(envelope.sourceEventId).toBe(
           `${profile.id}:${fixture.events[event.seq - 1]!.sourceEventId}`,
@@ -102,7 +102,7 @@ describe("canonical native event UI boundary corpus", () => {
           requestType: "input",
           status: "pending",
           questionSet: expect.objectContaining({
-            schema: "paperclip.question_set.v1",
+            schema: "outpost.question_set.v1",
             questions: [expect.objectContaining({ id: "boundary-mode" })],
           }),
         }),
@@ -110,7 +110,7 @@ describe("canonical native event UI boundary corpus", () => {
       expect(transcript).toContainEqual(
         expect.objectContaining({
           kind: "result",
-          subtype: "paperclip_runner_usage",
+          subtype: "outpost_runner_usage",
           inputTokens: 20,
           outputTokens: 6,
           cachedTokens: 2,

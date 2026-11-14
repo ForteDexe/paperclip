@@ -19,8 +19,8 @@ import {
   toolInvocations,
   workspaceOperations,
   type Db,
-} from "@paperclipai/db";
-import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+} from "@outpost/db";
+import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { decideNativeReplacement } from "./native-replacement-evidence.js";
 import { issueService } from "../issues.js";
 import { issueRecoveryActionService } from "../issue-recovery-actions.js";
@@ -435,8 +435,8 @@ export async function reconcileSafeNativeReplacements(
       ]);
       const uncertainProviderActions = events.flatMap((event) => {
         const envelope = record(event.payload);
-        const p = envelope.prpEvent
-          ? record(record(envelope.prpEvent).payload)
+        const p = envelope.orpEvent
+          ? record(record(envelope.orpEvent).payload)
           : envelope;
         if (event.eventType === "harness.diagnostic")
           return p.classification === "descendant"

@@ -213,7 +213,7 @@ describe("git workspace sync", () => {
     await git(repo, ["init"]);
     await git(repo, ["checkout", "-b", "main"]);
     await git(repo, ["config", "user.name", "Paperclip Test"]);
-    await git(repo, ["config", "user.email", "test@paperclip.dev"]);
+    await git(repo, ["config", "user.email", "test@outpost.dev"]);
     await writeFile(path.join(repo, "tracked.txt"), "base\n", "utf8");
     await git(repo, ["add", "tracked.txt"]);
     await git(repo, ["commit", "-m", "base"]);
@@ -372,7 +372,7 @@ describe("git workspace sync", () => {
       snapshot: snapshot!,
     }, async (cloneDir) => {
       await git(cloneDir, ["config", "user.name", "Paperclip Sandbox"]);
-      await git(cloneDir, ["config", "user.email", "sandbox@paperclip.dev"]);
+      await git(cloneDir, ["config", "user.email", "sandbox@outpost.dev"]);
       await writeFile(path.join(cloneDir, "change.txt"), "sandbox change\n", "utf8");
       await git(cloneDir, ["add", "change.txt"]);
       await git(cloneDir, ["commit", "-m", "sandbox change"]);
@@ -413,7 +413,7 @@ describe("git workspace sync", () => {
       expect((await stat(emptyBundle)).size).toBe(0);
 
       await git(remoteDir, ["config", "user.name", "Paperclip Remote"]);
-      await git(remoteDir, ["config", "user.email", "remote@paperclip.dev"]);
+      await git(remoteDir, ["config", "user.email", "remote@outpost.dev"]);
       await writeFile(path.join(remoteDir, "tracked.txt"), "remote\n", "utf8");
       await git(remoteDir, ["commit", "-am", "remote update"]);
       const remoteHead = await git(remoteDir, ["rev-parse", "HEAD"]);
@@ -459,7 +459,7 @@ describe("git workspace sync", () => {
     const sandbox = path.join(rootDir, "sandbox");
     await git(rootDir, ["clone", host, sandbox]);
     await git(sandbox, ["config", "user.name", "Paperclip Remote"]);
-    await git(sandbox, ["config", "user.email", "remote@paperclip.dev"]);
+    await git(sandbox, ["config", "user.email", "remote@outpost.dev"]);
     await writeFile(path.join(sandbox, "advance.txt"), "advance\n", "utf8");
     await git(sandbox, ["add", "-A"]);
     await git(sandbox, ["commit", "-m", "advance"]);
@@ -512,7 +512,7 @@ describe("git workspace sync", () => {
     const sandbox = path.join(rootDir, "sandbox");
     await git(rootDir, ["clone", host, sandbox]);
     await git(sandbox, ["config", "user.name", "Paperclip Remote"]);
-    await git(sandbox, ["config", "user.email", "remote@paperclip.dev"]);
+    await git(sandbox, ["config", "user.email", "remote@outpost.dev"]);
     // Advance the merge-base past the host, then baseSha past that, then a
     // divergent local commit — so merge-base(baseSha, HEAD) is itself a commit
     // the host does not hold.
@@ -703,7 +703,7 @@ describe("git workspace sync", () => {
     // containers without git config, where commit-tree cannot auto-detect an
     // identity. Setup commits pass their identity inline so only the merge
     // commit under test depends on the sync-supplied identity.
-    const setupIdentity = ["-c", "user.name=Setup", "-c", "user.email=setup@paperclip.dev"];
+    const setupIdentity = ["-c", "user.name=Setup", "-c", "user.email=setup@outpost.dev"];
     const repo = path.join(rootDir, "repo");
     await mkdir(repo, { recursive: true });
     await git(repo, ["init"]);
@@ -744,7 +744,7 @@ describe("git workspace sync", () => {
     const parents = (await git(repo, ["rev-list", "--parents", "-1", "HEAD"])).split(" ");
     expect(parents.slice(1)).toEqual([currentHead, importedHead]);
     expect(await git(repo, ["log", "-1", "--format=%an|%ae|%cn|%ce"]))
-      .toBe("Paperclip|noreply@paperclip.ing|Paperclip|noreply@paperclip.ing");
+      .toBe("Paperclip|noreply@outpost.ing|Paperclip|noreply@outpost.ing");
     expect(await git(repo, ["log", "-1", "--format=%s"]))
       .toBe(`Paperclip remote git sync merge ${importedHead.slice(0, 12)}`);
     const mergedTree = await git(repo, ["ls-tree", "--name-only", "HEAD"]);
@@ -759,7 +759,7 @@ describe("git workspace sync", () => {
       await git(repo, ["init"]);
       await git(repo, ["checkout", "-b", "host"]);
       await git(repo, ["config", "user.name", "Paperclip Test"]);
-      await git(repo, ["config", "user.email", "test@paperclip.dev"]);
+      await git(repo, ["config", "user.email", "test@outpost.dev"]);
       await writeFile(path.join(repo, "tracked.txt"), "base\n");
       await git(repo, ["add", "."]);
       await git(repo, ["commit", "-m", "base"]);
@@ -909,7 +909,7 @@ exit 0
   it.each([false, true])("grafts an unrelated imported head with an unchanged host (baseline supplied: %s)", async (withBaseline) => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-git-graft-"));
     cleanupDirs.push(rootDir);
-    const setupIdentity = ["-c", "user.name=Setup", "-c", "user.email=setup@paperclip.dev"];
+    const setupIdentity = ["-c", "user.name=Setup", "-c", "user.email=setup@outpost.dev"];
     const repo = path.join(rootDir, "repo");
     await mkdir(repo, { recursive: true });
     await git(repo, ["init"]);
@@ -947,7 +947,7 @@ exit 0
   it.each([false, true])("does not graft on a merge-base error other than missing ancestry (baseline supplied: %s)", async (withBaseline) => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-git-no-graft-"));
     cleanupDirs.push(rootDir);
-    const setupIdentity = ["-c", "user.name=Setup", "-c", "user.email=setup@paperclip.dev"];
+    const setupIdentity = ["-c", "user.name=Setup", "-c", "user.email=setup@outpost.dev"];
     const repo = path.join(rootDir, "repo");
     await mkdir(repo, { recursive: true });
     await git(repo, ["init"]);
@@ -981,7 +981,7 @@ exit 0
     cleanupDirs.push(repo);
     await git(repo, ["init", "-b", "host"]);
     await git(repo, ["config", "user.name", "Test"]);
-    await git(repo, ["config", "user.email", "test@paperclip.dev"]);
+    await git(repo, ["config", "user.email", "test@outpost.dev"]);
     await writeFile(path.join(repo, "private-filename.txt"), "base\n");
     await git(repo, ["add", "."]);
     await git(repo, ["commit", "-m", "base"]);
@@ -1015,7 +1015,7 @@ exit 0
     cleanupDirs.push(repo);
     await git(repo, ["init", "-b", "private-branch"]);
     await git(repo, ["config", "user.name", "Test"]);
-    await git(repo, ["config", "user.email", "test@paperclip.dev"]);
+    await git(repo, ["config", "user.email", "test@outpost.dev"]);
     await git(repo, ["commit", "--allow-empty", "-m", "base"]);
     const base = await git(repo, ["rev-parse", "HEAD"]);
     await git(repo, ["commit", "--allow-empty", "-m", "advance"]);
@@ -1042,7 +1042,7 @@ exit 0
     cleanupDirs.push(repo);
     await git(repo, ["init", "-b", "private-branch"]);
     await git(repo, ["config", "user.name", "Test"]);
-    await git(repo, ["config", "user.email", "test@paperclip.dev"]);
+    await git(repo, ["config", "user.email", "test@outpost.dev"]);
     await git(repo, ["commit", "--allow-empty", "-m", "base"]);
     const base = await git(repo, ["rev-parse", "HEAD"]);
     await git(repo, ["commit", "--allow-empty", "-m", "advance"]);
@@ -1064,7 +1064,7 @@ exit 0
     await git(repo, ["init"]);
     await writeFile(path.join(repo, "tracked.txt"), "base\n", "utf8");
     await git(repo, ["add", "tracked.txt"]);
-    await git(repo, ["-c", "user.name=Setup", "-c", "user.email=setup@paperclip.dev", "commit", "-m", "base"]);
+    await git(repo, ["-c", "user.name=Setup", "-c", "user.email=setup@outpost.dev", "commit", "-m", "base"]);
     await writeFile(path.join(repo, ".git", "index.lock"), "fixture lock\n", "utf8");
     const error = await withWorkspaceRestoreDiagnostics("workspace", () => withWorkspaceRestoreStep("index_reset", () =>
       resetLocalGitIndexToHead({ localDir: repo }))).catch((error: unknown) => error);

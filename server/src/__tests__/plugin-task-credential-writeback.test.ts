@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, createDb, environmentLeases, environments, heartbeatRuns, plugins } from "@paperclipai/db";
+import { agents, companies, companyMemberships, createDb, environmentLeases, environments, heartbeatRuns, plugins } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { aiConnectionService } from "../services/ai-connections.js";
 import { prepareManagedAiRuntime } from "../services/ai-connection-runtime.js";
@@ -13,7 +13,7 @@ import { executeEnvironmentTask, settleDispatchedEnvironmentTask } from "../serv
 import { secretService } from "../services/secrets.js";
 import { syncManagedAiCredentials } from "../services/managed-ai-credential-writeback.js";
 import { appendNativeCredentialUpdate } from "../services/native-runtime/native-credential-updates.js";
-import type { PrpEvent } from "../vendor/paperclip-runner/index.js";
+import type { PrpEvent } from "../vendor/outpost-runner/index.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 
 vi.mock("../services/subscription-refresh.js", () => ({ refreshSubscriptionConnection: async () => {} }));
@@ -25,7 +25,7 @@ suite("durable plugin task credential handoff", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>, db: ReturnType<typeof createDb>, home: string;
   beforeAll(async () => {
     home = await realpath(await mkdtemp(join(tmpdir(), "plugin-task-secret-")));
-    vi.stubEnv("PAPERCLIP_HOME", home); vi.stubEnv("PAPERCLIP_INSTANCE_ID", "plugin-task-fixture");
+    vi.stubEnv("OUTPOST_HOME", home); vi.stubEnv("OUTPOST_INSTANCE_ID", "plugin-task-fixture");
     database = await startEmbeddedPostgresTestDatabase("plugin-task-credential-"); db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) await rm(home, { recursive: true, force: true }); });
@@ -39,12 +39,12 @@ suite("durable plugin task credential handoff", () => {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID();
     const owner = `fixture-${randomUUID()}`;
     await db.insert(companies).values({ id: companyId, name: "Task credential fixture", issuePrefix: `C${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
     await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const service = aiConnectionService(db);
     await service.save(companyId, owner, { provider: selectedProvider, method: "subscription", ownership: "personal", name: "Fixture account", loginSessionId: "fixture", agentIds: [], allAgents: true }, credential("fixture-original"));
     const [selection] = await service.quotaAccounts(companyId, owner, true);
-    const managed = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "paperclip_runner",
+    const managed = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
       binding: { mode: "responsible_user", provider: selectedProvider, method: "subscription" },
       config: provider === "codex" ? { provider: "codex" } : { provider: "acpx", acpxAgent: "grok" } });
     expect(managed.credentialWriteback).toBeDefined();
@@ -115,16 +115,16 @@ suite("durable plugin task credential handoff", () => {
     expect(result).toBe("binding_changed");
     expect(await f.credential()).toBe(f.accountCredential("fixture-reconnected", 2022));
   });
-  it("replays a validated PRP refresh into the tenant secret after export failure", async () => {
+  it("replays a validated ORP refresh into the tenant secret after export failure", async () => {
     const f = await fixture(), normalizedSessionId = randomUUID(), runnerInstanceId = randomUUID();
     await db.update(heartbeatRuns).set({ status: "succeeded", runtimeMode: "native", nativeSessionId: normalizedSessionId, runnerInstanceId })
       .where(eq(heartbeatRuns.id, f.runId));
     await db.update(environmentLeases).set({ status: "retained" }).where(eq(environmentLeases.id, f.leaseId));
     const event: PrpEvent = {
-      schema: "paperclip.prp.event.v3", schemaVersion: 3, eventType: "auth.credentials.updated", priority: 0,
+      schema: "outpost.orp.event.v3", schemaVersion: 3, eventType: "auth.credentials.updated", priority: 0,
       sourceKind: "runner", sourceInstanceId: runnerInstanceId, sourceEventId: "live-refresh", sourceSeq: 1,
       runId: f.runId, normalizedSessionId, emittedAt: "2020-01-01T00:00:00Z",
-      payload: { schema: "paperclip.auth.credentials.updated.v1", provider: "codex", bindingId: "harness-auth", revision: 1, detection: "credential_store" },
+      payload: { schema: "outpost.auth.credentials.updated.v1", provider: "codex", bindingId: "harness-auth", revision: 1, detection: "credential_store" },
     };
     const notification = { companyId: f.companyId, agentId: f.agentId, runnerInstanceId, normalizedSessionId,
       event, synchronizeCredentials: f.synchronize };

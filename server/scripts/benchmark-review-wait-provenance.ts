@@ -15,7 +15,7 @@
  * both versions return the same waits and the same inherited wait for each
  * run.
  *
- *   pnpm --filter @paperclipai/server exec tsx scripts/benchmark-review-wait-provenance.ts --baseline-ref=<pre-fix commit>
+ *   pnpm --filter @outpost/server exec tsx scripts/benchmark-review-wait-provenance.ts --baseline-ref=<pre-fix commit>
  *
  * Optional sizes: WAITS (default 250), CONTINUED_EVERY (10: every tenth wait
  * continues an earlier run), CONTINUATIONS (3: the length of that lineage),
@@ -30,8 +30,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { chatActions, chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints,
   chatExternalPrincipals, chatGitHubReviews, chatIdentityLinks, chatMessageLinks, companies, companyMemberships,
   createDb, heartbeatRuns, issueComments, runIdentityContexts, toolApplications, toolConnections,
-  type Db } from "@paperclipai/db";
-import { defaultGitHubReviewPolicy } from "@paperclipai/shared";
+  type Db } from "@outpost/db";
+import { defaultGitHubReviewPolicy } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "../src/__tests__/helpers/embedded-postgres.js";
 import { readInheritedGitHubReviewWaits } from "../src/services/chat-channels/github/review-wait.js";
 import { listExternalReviewWaits } from "../src/services/native-runtime/external-review-wait.js";

@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CompanyPortabilityFileEntry } from "@paperclipai/shared";
-import { runnerApiResponseReservations } from "@paperclipai/db";
+import type { CompanyPortabilityFileEntry } from "@outpost/shared";
+import { runnerApiResponseReservations } from "@outpost/db";
 
 const runnerTarget = vi.hoisted(() => ({ driver: "local", platform: "linux", architecture: "x64" }));
 
@@ -616,7 +616,7 @@ describe("company portability", () => {
     expect(asTextFile(exported.files["skills/company/PAP/company-playbook/SKILL.md"])).toContain("# Company Playbook");
     expect(asTextFile(exported.files["skills/company/PAP/company-playbook/references/checklist.md"])).toContain("# Checklist");
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain('schema: "paperclip/v1"');
     expect(extension).not.toContain("promptTemplate");
     expect(extension).not.toContain("instructionsFilePath");
@@ -746,7 +746,7 @@ describe("company portability", () => {
 
     const exported = await exportCompanyAndAgents(portability);
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("permissionGrants:");
     expect(extension).toContain('permissionKey: "agents:suggest-changes"');
     expect(extension).toContain('permissionKey: "skills:create"');
@@ -784,7 +784,7 @@ describe("company portability", () => {
       },
     });
 
-    expect(asTextFile(exported.files[".paperclip.yaml"])).toContain("requireBoardApprovalForNewAgents: true");
+    expect(asTextFile(exported.files[".outpost.yaml"])).toContain("requireBoardApprovalForNewAgents: true");
   });
 
   it("exports legacy inline sensitive env values as declarations without values", async () => {
@@ -916,7 +916,7 @@ describe("company portability", () => {
       },
     });
 
-    expect(asTextFile(exported.files[".paperclip.yaml"])).toContain([
+    expect(asTextFile(exported.files[".outpost.yaml"])).toContain([
       "sidebar:",
       "  agents:",
       '    - "claudecoder"',
@@ -979,7 +979,7 @@ describe("company portability", () => {
         catalogKind: "bundled",
         catalogCategory: "software-development",
         catalogPath: "catalog/bundled/software-development/review",
-        packageName: "@paperclipai/skills-catalog",
+        packageName: "@outpost/skills-catalog",
         packageVersion: "0.3.1",
         originHash,
         originVersion: "0.3.1",
@@ -1025,7 +1025,7 @@ describe("company portability", () => {
     expect(skillMarkdown).toContain(`catalogKey: "${catalogKey}"`);
     expect(skillMarkdown).toContain('catalogKind: "bundled"');
     expect(skillMarkdown).toContain('catalogPath: "catalog/bundled/software-development/review"');
-    expect(skillMarkdown).toContain('packageName: "@paperclipai/skills-catalog"');
+    expect(skillMarkdown).toContain('packageName: "@outpost/skills-catalog"');
     expect(skillMarkdown).toContain('packageVersion: "0.3.1"');
     expect(skillMarkdown).toContain('installedHash: "sha256:installed"');
     expect(skillMarkdown).toContain('auditVerdict: "warning"');
@@ -1042,7 +1042,7 @@ describe("company portability", () => {
         catalogKey,
         catalogKind: "bundled",
         catalogPath: "catalog/bundled/software-development/review",
-        packageName: "@paperclipai/skills-catalog",
+        packageName: "@outpost/skills-catalog",
         packageVersion: "0.3.1",
         installedHash: "sha256:installed",
         auditCodes: ["local_modifications"],
@@ -1100,7 +1100,7 @@ describe("company portability", () => {
     expect(exported.warnings).toContain("Skipped private API response snapshot used as a company logo.");
   });
 
-  it("exports the company logo into images/ and references it from .paperclip.yaml", async () => {
+  it("exports the company logo into images/ and references it from .outpost.yaml", async () => {
     const storage = {
       getObject: vi.fn().mockResolvedValue({
         stream: Readable.from([Buffer.from("png-bytes")]),
@@ -1140,7 +1140,7 @@ describe("company portability", () => {
       data: Buffer.from("png-bytes").toString("base64"),
       contentType: "image/png",
     });
-    expect(exported.files[".paperclip.yaml"]).toContain('logoPath: "images/company-logo.png"');
+    expect(exported.files[".outpost.yaml"]).toContain('logoPath: "images/company-logo.png"');
   });
 
   it("exports duplicate skill slugs into readable namespaced paths", async () => {
@@ -1378,7 +1378,7 @@ describe("company portability", () => {
             name: "Main Repo",
             sourceType: "git_repo",
             cwd: "/Users/dotta/paperclip",
-            repoUrl: "https://github.com/paperclipai/paperclip.git",
+            repoUrl: "https://github.com/paperclipai/outpost.git",
             repoRef: "main",
             defaultRef: "main",
             visibility: "default",
@@ -1448,11 +1448,11 @@ describe("company portability", () => {
       },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain('icon: "rocket"');
     expect(extension).toContain("workspaces:");
     expect(extension).toContain("main-repo:");
-    expect(extension).toContain('repoUrl: "https://github.com/paperclipai/paperclip.git"');
+    expect(extension).toContain('repoUrl: "https://github.com/paperclipai/outpost.git"');
     expect(extension).toContain('defaultProjectWorkspaceKey: "main-repo"');
     expect(extension).toContain('projectWorkspaceKey: "main-repo"');
     expect(extension).not.toContain("/Users/dotta/paperclip");
@@ -1525,7 +1525,7 @@ describe("company portability", () => {
     expect(projectSvc.createWorkspace).toHaveBeenCalledWith("project-imported", expect.objectContaining({
       name: "Main Repo",
       sourceType: "git_repo",
-      repoUrl: "https://github.com/paperclipai/paperclip.git",
+      repoUrl: "https://github.com/paperclipai/outpost.git",
       repoRef: "main",
       defaultRef: "main",
       visibility: "default",
@@ -1579,7 +1579,7 @@ describe("company portability", () => {
         "---",
         "",
       ].join("\n"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         'schema: "paperclip/v1"',
         "projects:",
         "  launch:",
@@ -1605,7 +1605,7 @@ describe("company portability", () => {
     const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-portability-git-"));
     execFileSync("git", ["init"], { cwd: repoDir, stdio: "ignore" });
     execFileSync("git", ["checkout", "-b", "main"], { cwd: repoDir, stdio: "ignore" });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/paperclipai/paperclip.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/paperclipai/outpost.git"], {
       cwd: repoDir,
       stdio: "ignore",
     });
@@ -1678,8 +1678,8 @@ describe("company portability", () => {
       },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
-    expect(extension).toContain('repoUrl: "https://github.com/paperclipai/paperclip.git"');
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
+    expect(extension).toContain('repoUrl: "https://github.com/paperclipai/outpost.git"');
     expect(extension).toContain('projectWorkspaceKey: "paperclip"');
     expect(exported.warnings).not.toContainEqual(expect.stringContaining("does not have a portable repoUrl"));
     expect(exported.warnings).not.toContainEqual(expect.stringContaining("reference workspace workspace-1"));
@@ -1795,15 +1795,15 @@ describe("company portability", () => {
     const portability = companyPortabilityService({} as any);
     const include = { company: true, agents: true, projects: false, issues: false, skills: false };
     const exported = await portability.exportBundle("company-1", { include });
-    expect(asTextFile(exported.files[".paperclip.yaml"])).toContain("arctic-blue");
-    const extensionText = asTextFile(exported.files[".paperclip.yaml"]);
+    expect(asTextFile(exported.files[".outpost.yaml"])).toContain("arctic-blue");
+    const extensionText = asTextFile(exported.files[".outpost.yaml"]);
     expect(extensionText).not.toContain("customAvatarAssetId");
     if (customAvatarAssetId) {
       expect(exported.warnings.some(warning => warning.includes("uploaded avatar was omitted"))).toBe(true);
       // Even a hand-edited package must not carry another agent's private asset into import.
-      exported.files[".paperclip.yaml"] = extensionText.replace(/^(\s*)paletteId:.*$/gm,
+      exported.files[".outpost.yaml"] = extensionText.replace(/^(\s*)paletteId:.*$/gm,
         match => `${match}\n${match.match(/^\s*/)?.[0]}customAvatarAssetId: ${customAvatarAssetId}`);
-      expect(asTextFile(exported.files[".paperclip.yaml"])).toContain(customAvatarAssetId);
+      expect(asTextFile(exported.files[".outpost.yaml"])).toContain(customAvatarAssetId);
     }
 
     agentSvc.list.mockResolvedValue([]);
@@ -1870,7 +1870,7 @@ describe("company portability", () => {
     agentSvc.updatePermissions.mockReset();
   });
 
-  it("reads env inputs back from .paperclip.yaml during preview import", async () => {
+  it("reads env inputs back from .outpost.yaml during preview import", async () => {
     const portability = companyPortabilityService({} as any);
 
     const exported = await exportCompanyAndAgents(portability);
@@ -1953,7 +1953,7 @@ describe("company portability", () => {
             "# Coder",
             "",
           ].join("\n"),
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "agents:",
             "  coder:",
@@ -2005,7 +2005,7 @@ describe("company portability", () => {
           },
         },
       }),
-      { strictMode: false, adapterType: "paperclip_runner" },
+      { strictMode: false, adapterType: "outpost_runner" },
     );
     expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({
       adapterConfig: expect.objectContaining({
@@ -2061,7 +2061,7 @@ describe("company portability", () => {
             "# Coder",
             "",
           ].join("\n"),
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "agents:",
             "  coder:",
@@ -2139,7 +2139,7 @@ describe("company portability", () => {
             "# Coder",
             "",
           ].join("\n"),
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "agents:",
             "  coder:",
@@ -2204,7 +2204,7 @@ describe("company portability", () => {
             "# Coder",
             "",
           ].join("\n"),
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "agents:",
             "  coder:",
@@ -2257,7 +2257,7 @@ describe("company portability", () => {
         "# Coder",
         "",
       ].join("\n"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         "schema: paperclip/v1",
         "agents:",
         "  coder:",
@@ -2340,7 +2340,7 @@ describe("company portability", () => {
             "Verify engineering work.",
             "",
           ].join("\n"),
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             'schema: "paperclip/v1"',
             "agents:",
             "  cto:",
@@ -2407,7 +2407,7 @@ describe("company portability", () => {
       },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("OPENAI_API_KEY:");
     expect(extension).toContain("DOCS_MODE:");
     expect(extension).toContain("GITHUB_TOKEN:");
@@ -2419,7 +2419,7 @@ describe("company portability", () => {
     expect(extension).toContain('kind: "plain"');
   });
 
-  it("reads project env inputs back from .paperclip.yaml during preview import", async () => {
+  it("reads project env inputs back from .outpost.yaml during preview import", async () => {
     const portability = companyPortabilityService({} as any);
 
     projectSvc.list.mockResolvedValue([
@@ -2591,7 +2591,7 @@ describe("company portability", () => {
     });
 
     expect(asTextFile(exported.files["tasks/monday-review/TASK.md"])).toContain('recurring: true');
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("routines:");
     expect(extension).toContain("monday-review:");
     expect(extension).toContain('cronExpression: "0 9 * * 1"');
@@ -2786,7 +2786,7 @@ describe("company portability", () => {
         "Review pipeline health.",
         "",
       ].join("\n"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         'schema: "paperclip/v1"',
         "routines:",
         "  monday-review:",
@@ -2983,7 +2983,7 @@ describe("company portability", () => {
         "Review pipeline health.",
         "",
       ].join("\n"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         'schema: "paperclip/v1"',
         "routines:",
         "  monday-review:",
@@ -3054,7 +3054,7 @@ describe("company portability", () => {
         "Review pipeline health.",
         "",
       ].join("\n"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         'schema: "paperclip/v1"',
         "routines:",
         "  monday-review:",
@@ -3209,7 +3209,7 @@ describe("company portability", () => {
     );
   });
 
-  it("imports a vendor-neutral package without .paperclip.yaml", async () => {
+  it("imports a vendor-neutral package without .outpost.yaml", async () => {
     const portability = companyPortabilityService({} as any);
 
     companySvc.create.mockResolvedValue({
@@ -3411,7 +3411,7 @@ describe("company portability", () => {
 
     const exported = await exportCompanyAndAgents(portability);
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("APIKEY:");
     expect(extension).toContain("GITHUBAUTH:");
     expect(extension).toContain("PRIVATEKEY:");
@@ -3529,9 +3529,9 @@ describe("company portability", () => {
     // Declare the packaged logo in the bundle's company block. The exported
     // company map is empty for this fixture, so the block is appended rather
     // than patched into an existing one.
-    const paperclipYaml = `${exported.files[".paperclip.yaml"]}`;
+    const paperclipYaml = `${exported.files[".outpost.yaml"]}`;
     expect(paperclipYaml).not.toContain("company:");
-    exported.files[".paperclip.yaml"] =
+    exported.files[".outpost.yaml"] =
       `${paperclipYaml}company:\n  logoPath: "images/company-logo.png"\n`;
 
     agentSvc.list.mockResolvedValue([]);
@@ -3970,7 +3970,7 @@ describe("company portability", () => {
       include: { company: true, agents: false, projects: true, issues: true },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("labels:");
     expect(extension).toContain('"bug"');
     expect(extension).toContain('"urgent"');
@@ -4110,7 +4110,7 @@ describe("company portability", () => {
             "Legacy labelled task.",
             "",
           ].join("\n"),
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             'schema: "paperclip/v1"',
             "tasks:",
             "  kickoff:",
@@ -4283,7 +4283,7 @@ describe("company portability", () => {
     });
 
     expect(asTextFile(exported.files["tasks/pap-1/documents/spec.md"])).toBe("# Spec\n\nDetails.");
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("blockedBy:");
     expect(extension).toContain('"pap-1"');
     expect(extension).toContain("workProducts:");
@@ -4422,7 +4422,7 @@ describe("company portability", () => {
       target: { mode: "new_company", newCompanyName: "Imported" },
       agents: "all",
       collisionStrategy: "rename",
-      selectedFiles: ["COMPANY.md", ".paperclip.yaml", "tasks/pap-2/TASK.md"],
+      selectedFiles: ["COMPANY.md", ".outpost.yaml", "tasks/pap-2/TASK.md"],
     }, "user-1");
 
     expect(issueSvc.importIssues.mock.calls[0]![1]).toHaveLength(1);
@@ -4509,7 +4509,7 @@ describe("company portability", () => {
       include: { company: true, agents: false, projects: false, issues: true },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("schemaVersion: 7");
     expect(extension).toContain('parent: "pap-1"');
     expect(extension).toContain('createdAt: "2026-01-01T00:00:00.000Z"');
@@ -4591,7 +4591,7 @@ describe("company portability", () => {
       "tasks/task-a/TASK.md": taskFile("Task A"),
       "tasks/task-b/TASK.md": taskFile("Task B"),
       "tasks/task-c/TASK.md": taskFile("Task C"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         'schema: "paperclip/v1"',
         "schemaVersion: 7",
         "tasks:",
@@ -4852,7 +4852,7 @@ describe("company portability", () => {
       "Skipped 2 attachments on task pap-1 because storage is unavailable.",
     );
     expect(Object.keys(exported.files).some((filePath) => filePath.startsWith("blobs/"))).toBe(false);
-    expect(asTextFile(exported.files[".paperclip.yaml"])).not.toContain("attachments:");
+    expect(asTextFile(exported.files[".outpost.yaml"])).not.toContain("attachments:");
   });
 
   it("skips all attachment imports with one warning when the target has no storage", async () => {
@@ -4918,8 +4918,8 @@ describe("company portability", () => {
   it("skips oversized and missing-blob attachments with warnings instead of failing", async () => {
     // The deployment-level cap is read once when the service module loads, so
     // this test re-imports the module under a 10-byte cap to reach the skip.
-    const previousCap = process.env.PAPERCLIP_ATTACHMENT_MAX_BYTES;
-    process.env.PAPERCLIP_ATTACHMENT_MAX_BYTES = "10";
+    const previousCap = process.env.OUTPOST_ATTACHMENT_MAX_BYTES;
+    process.env.OUTPOST_ATTACHMENT_MAX_BYTES = "10";
     vi.resetModules();
     try {
       const { companyPortabilityService: cappedPortabilityService } =
@@ -4973,9 +4973,9 @@ describe("company portability", () => {
       );
     } finally {
       if (previousCap === undefined) {
-        delete process.env.PAPERCLIP_ATTACHMENT_MAX_BYTES;
+        delete process.env.OUTPOST_ATTACHMENT_MAX_BYTES;
       } else {
-        process.env.PAPERCLIP_ATTACHMENT_MAX_BYTES = previousCap;
+        process.env.OUTPOST_ATTACHMENT_MAX_BYTES = previousCap;
       }
       vi.resetModules();
     }
@@ -5171,7 +5171,7 @@ describe("company portability", () => {
 
     expect(Object.keys(exported.files).some((filePath) => filePath.startsWith("blobs/"))).toBe(false);
     expect(storage.getObject).not.toHaveBeenCalled();
-    expect(asTextFile(exported.files[".paperclip.yaml"])).not.toContain("embeddedAssets:");
+    expect(asTextFile(exported.files[".outpost.yaml"])).not.toContain("embeddedAssets:");
     expect(exported.manifest.embeddedAssets).toEqual([]);
     expect(exported.warnings).toContain(
       "2 embedded image references point at assets that are unavailable for export (missing, outside this company, or private API response snapshots); their images were not exported.",
@@ -5220,17 +5220,17 @@ describe("company portability", () => {
 
     const kept = await portability.exportBundle("company-1", {
       include: { company: true, agents: false, projects: false, issues: true },
-      selectedFiles: ["COMPANY.md", ".paperclip.yaml", "tasks/pap-1/TASK.md", "tasks/pap-1/documents/spec.md", `blobs/${sha}`],
+      selectedFiles: ["COMPANY.md", ".outpost.yaml", "tasks/pap-1/TASK.md", "tasks/pap-1/documents/spec.md", `blobs/${sha}`],
     });
-    expect(asTextFile(kept.files[".paperclip.yaml"])).toContain("embeddedAssets:");
+    expect(asTextFile(kept.files[".outpost.yaml"])).toContain("embeddedAssets:");
     expect(kept.files[`blobs/${sha}`]).toBeDefined();
 
     const pruned = await portability.exportBundle("company-1", {
       include: { company: true, agents: false, projects: false, issues: true },
-      selectedFiles: ["COMPANY.md", ".paperclip.yaml"],
+      selectedFiles: ["COMPANY.md", ".outpost.yaml"],
     });
     expect(Object.keys(pruned.files).some((filePath) => filePath.startsWith("blobs/"))).toBe(false);
-    const prunedYaml = asTextFile(pruned.files[".paperclip.yaml"]);
+    const prunedYaml = asTextFile(pruned.files[".outpost.yaml"]);
     expect(prunedYaml).not.toContain("embeddedAssets:");
     expect(prunedYaml).not.toContain("blobs:");
     expect(pruned.manifest.embeddedAssets).toEqual([]);
@@ -5253,7 +5253,7 @@ describe("company portability", () => {
         "Legacy task.",
         "",
       ].join("\n"),
-      ".paperclip.yaml": [
+      ".outpost.yaml": [
         'schema: "paperclip/v1"',
         ...extensionLines,
         "tasks:",
@@ -5413,7 +5413,7 @@ describe("company portability", () => {
       include: { company: true, agents: false, projects: false, issues: true },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain("comments:");
     expect(extension).toContain("system_notice");
     expect(extension).toContain("successful_run_missing_state");
@@ -5487,7 +5487,7 @@ describe("company portability", () => {
       include: { company: true, agents: false, projects: false, issues: true },
     });
 
-    const extension = asTextFile(exported.files[".paperclip.yaml"]);
+    const extension = asTextFile(exported.files[".outpost.yaml"]);
     expect(extension).toContain('authorType: "user"');
     expect(extension).not.toContain("authorUserId: local-board");
   });
@@ -5677,7 +5677,7 @@ describe("company portability", () => {
         files: {
           "COMPANY.md": "---\nname: Import\nincludes:\n  - projects/app/PROJECT.md\n---\n",
           "projects/app/PROJECT.md": "---\nname: App\nslug: app\n---\n\n# App\n",
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "projects:",
             "  app:",
@@ -5719,7 +5719,7 @@ describe("company portability", () => {
         files: {
           "COMPANY.md": "---\nname: Import\nincludes:\n  - projects/app/PROJECT.md\n---\n",
           "projects/app/PROJECT.md": "---\nname: App\nslug: app\n---\n\n# App\n",
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "projects:",
             "  app:",
@@ -5767,7 +5767,7 @@ describe("company portability", () => {
           "agents/ceo/AGENTS.md": "---\nname: CEO\nslug: ceo\nrole: ceo\n---\n\nLead.",
           "projects/app/PROJECT.md": "---\nname: App\nslug: app\n---\n\n# App\n",
           "tasks/review/TASK.md": "---\nname: Review\nslug: review\nproject: app\nassignee: ceo\nrecurring: true\n---\n\nReview.",
-          ".paperclip.yaml": [
+          ".outpost.yaml": [
             "schema: paperclip/v1",
             "tasks:",
             "  review:",
@@ -6106,32 +6106,32 @@ describe("company portability", () => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = platform === "darwin" ? "arm64" : "x64";
     const [fixture] = await agentSvc.list();
-    agentSvc.list.mockResolvedValue([{ ...fixture, adapterType: runner === "legacy" ? "codex_local" : "paperclip_runner", adapterConfig: { ...(runner === "paperclip" ? { provider: "codex" } : {}), model: "gpt-5.4" } }]);
+    agentSvc.list.mockResolvedValue([{ ...fixture, adapterType: runner === "legacy" ? "codex_local" : "outpost_runner", adapterConfig: { ...(runner === "paperclip" ? { provider: "codex" } : {}), model: "gpt-5.4" } }]);
     const portability = companyPortabilityService({} as any);
     const exported = await portability.exportBundle("company-1", { include: { company: false, agents: true, projects: false, issues: false } });
     expect(exported.manifest.agents[0]?.runner).toBe(runner);
-    expect(asTextFile(exported.files[".paperclip.yaml"])).toContain(`runner: "${runner}"`);
+    expect(asTextFile(exported.files[".outpost.yaml"])).toContain(`runner: "${runner}"`);
     agentSvc.list.mockResolvedValue([]);
     agentSvc.create.mockImplementation(async (_companyId: string, input: Record<string, unknown>) => ({ id: "agent-created", ...input }));
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files: exported.files }, include: { company: false, agents: true, projects: false, issues: false }, target: { mode: "existing_company", companyId: "company-1" }, agents: "all", collisionStrategy: "rename" }, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterType: runner === "legacy" ? "codex_local" : "paperclip_runner", runner, adapterConfig: expect.objectContaining(runner === "paperclip" ? { provider: "codex", model: "gpt-5.4" } : { model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
+    expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterType: runner === "legacy" ? "codex_local" : "outpost_runner", runner, adapterConfig: expect.objectContaining(runner === "paperclip" ? { provider: "codex", model: "gpt-5.4" } : { model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files: exported.files }, include: { company: false, agents: true, projects: false, issues: false }, target: { mode: "existing_company", companyId: "company-1" }, agents: "all", collisionStrategy: "rename", adapterOverrides: { claudecoder: { adapterType: "codex_local", adapterConfig: { model: "gpt-5.5" } } } }, "user-1");
-    expect(agentSvc.create).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ adapterType: runner === "legacy" ? "codex_local" : "paperclip_runner", runner, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }) }), { createdByUserId: "user-1" });
+    expect(agentSvc.create).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ adapterType: runner === "legacy" ? "codex_local" : "outpost_runner", runner, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }) }), { createdByUserId: "user-1" });
   });
 
   it("rejects an invalid package runner without selecting a default or creating an agent", async () => {
     const portability = companyPortabilityService({} as any);
     const exported = await portability.exportBundle("company-1", { include: { company: false, agents: true, projects: false, issues: false } });
-    const files = { ...exported.files, ".paperclip.yaml": asTextFile(exported.files[".paperclip.yaml"]).replace('runner: "legacy"', 'runner: "typo"') };
+    const files = { ...exported.files, ".outpost.yaml": asTextFile(exported.files[".outpost.yaml"]).replace('runner: "legacy"', 'runner: "typo"') };
     agentSvc.list.mockResolvedValue([]);
     await expect(portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files }, include: { company: false, agents: true, projects: false, issues: false }, target: { mode: "existing_company", companyId: "company-1" }, agents: "all", collisionStrategy: "rename" }, "user-1")).rejects.toMatchObject({ status: 422, details: { code: "agent_runner_choice_invalid", field: "agents.claudecoder.adapter.runner" } });
     expect(agentSvc.create).not.toHaveBeenCalled();
   });
 
   it.each([
-    { action: "create", platform: "linux", expectedType: "paperclip_runner" },
+    { action: "create", platform: "linux", expectedType: "outpost_runner" },
     { action: "update", platform: "linux", expectedType: "codex_local" },
-    { action: "create", platform: "darwin", expectedType: "paperclip_runner" },
+    { action: "create", platform: "darwin", expectedType: "outpost_runner" },
     { action: "update", platform: "darwin", expectedType: "codex_local" },
     { action: "create", platform: "win32", expectedType: "codex_local" },
   ])("applies qualified Codex defaults only to new imports without a runner ($platform/$action)", async ({ action, platform, expectedType }) => {
@@ -6141,33 +6141,33 @@ describe("company portability", () => {
     agentSvc.list.mockResolvedValue([{ ...fixture, adapterType: "codex_local", adapterConfig: { model: "gpt-5.4" } }]);
     const portability = companyPortabilityService({} as any);
     const exported = await portability.exportBundle("company-1", { include: { company: false, agents: true, projects: false, issues: false } });
-    const files = { ...exported.files, ".paperclip.yaml": asTextFile(exported.files[".paperclip.yaml"]).replace(/\n\s+runner: "legacy"/, "") };
+    const files = { ...exported.files, ".outpost.yaml": asTextFile(exported.files[".outpost.yaml"]).replace(/\n\s+runner: "legacy"/, "") };
     if (action === "create") agentSvc.list.mockResolvedValue([]);
     agentSvc.create.mockImplementation(async (_companyId: string, input: Record<string, unknown>) => ({ id: "agent-created", ...input }));
     agentSvc.update.mockImplementation(async (id: string, input: Record<string, unknown>) => ({ id, ...fixture, ...input }));
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files }, include: { company: false, agents: true, projects: false, issues: false }, target: { mode: "existing_company", companyId: "company-1" }, agents: "all", collisionStrategy: action === "update" ? "replace" : "rename" }, "user-1");
-    if (action === "create") expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining(expectedType === "paperclip_runner" ? { provider: "codex" } : { model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
+    if (action === "create") expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining(expectedType === "outpost_runner" ? { provider: "codex" } : { model: "gpt-5.4" }) }), { createdByUserId: "user-1" });
     else expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({ adapterType: "codex_local", adapterConfig: expect.objectContaining({ model: "gpt-5.4" }) }));
   });
 
   it.each([
     { existingRunner: "legacy", existingHarness: "codex_local", expectedType: "codex_local", platform: "linux" },
     { existingRunner: "legacy", existingHarness: "codex_local", expectedType: "codex_local", platform: "darwin" },
-    { existingRunner: "paperclip", existingHarness: "codex_local", expectedType: "paperclip_runner", platform: "linux" },
-    { existingRunner: "paperclip", existingHarness: "codex_local", expectedType: "paperclip_runner", platform: "darwin" },
-    { existingRunner: "legacy", existingHarness: "claude_local", expectedType: "paperclip_runner", platform: "linux" },
+    { existingRunner: "paperclip", existingHarness: "codex_local", expectedType: "outpost_runner", platform: "linux" },
+    { existingRunner: "paperclip", existingHarness: "codex_local", expectedType: "outpost_runner", platform: "darwin" },
+    { existingRunner: "legacy", existingHarness: "claude_local", expectedType: "outpost_runner", platform: "linux" },
   ])("keeps execution on same-harness replace-import edits and defaults genuine changes ($existingRunner/$existingHarness/$platform)", async ({ existingRunner, existingHarness, expectedType, platform }) => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = platform === "darwin" ? "arm64" : "x64";
     const [fixture] = await agentSvc.list();
-    const existing = { ...fixture, adapterType: existingRunner === "paperclip" ? "paperclip_runner" : existingHarness, adapterConfig: { ...(existingRunner === "paperclip" ? { provider: "codex" } : {}), model: existingHarness === "codex_local" ? "gpt-5.4" : "claude-sonnet-4-6" } };
+    const existing = { ...fixture, adapterType: existingRunner === "paperclip" ? "outpost_runner" : existingHarness, adapterConfig: { ...(existingRunner === "paperclip" ? { provider: "codex" } : {}), model: existingHarness === "codex_local" ? "gpt-5.4" : "claude-sonnet-4-6" } };
     agentSvc.list.mockResolvedValue([existing]);
     const portability = companyPortabilityService({} as any);
     const exported = await portability.exportBundle("company-1", { include: { company: false, agents: true, projects: false, issues: false } });
-    const files = { ...exported.files, ".paperclip.yaml": asTextFile(exported.files[".paperclip.yaml"]).replace(/\n\s+runner: "(?:legacy|paperclip)"/, "") };
+    const files = { ...exported.files, ".outpost.yaml": asTextFile(exported.files[".outpost.yaml"]).replace(/\n\s+runner: "(?:legacy|paperclip)"/, "") };
     agentSvc.update.mockImplementation(async (id: string, input: Record<string, unknown>) => ({ id, ...existing, ...input }));
     await portability.importBundle({ source: { type: "inline", rootPath: exported.rootPath, files }, include: { company: false, agents: true, projects: false, issues: false }, target: { mode: "existing_company", companyId: "company-1" }, agents: "all", collisionStrategy: "replace", adapterOverrides: { claudecoder: { adapterType: "codex_local", adapterConfig: { model: "gpt-5.5" } } } }, "user-1");
-    expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining({ model: "gpt-5.5", ...(expectedType === "paperclip_runner" ? { provider: "codex" } : {}) }) }));
+    expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({ adapterType: expectedType, adapterConfig: expect.objectContaining({ model: "gpt-5.5", ...(expectedType === "outpost_runner" ? { provider: "codex" } : {}) }) }));
     expect(agentSvc.create).not.toHaveBeenCalled();
   });
 
@@ -6181,21 +6181,21 @@ describe("company portability", () => {
       include: { company: false, agents: true, projects: false, issues: false },
       target: { mode: "existing_company" as const, companyId: "company-1" },
       agents: "all" as const, collisionStrategy: "rename" as const,
-      adapterOverrides: { claudecoder: { adapterType: "paperclip_runner", adapterConfig: { provider: "openai_dot", allowUnmeteredProvider: true, lifecycleMode: "per_turn" } } },
+      adapterOverrides: { claudecoder: { adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot", allowUnmeteredProvider: true, lifecycleMode: "per_turn" } } },
     };
     instanceSettingsSvc.getExperimental.mockResolvedValue({ enableNativeRunner: true, enableOpenAiDot: false });
-    await expect(portability.importBundle(input, "user-1")).rejects.toMatchObject({ status: 422, details: { code: "paperclip_runner_dot_disabled" } });
+    await expect(portability.importBundle(input, "user-1")).rejects.toMatchObject({ status: 422, details: { code: "outpost_runner_dot_disabled" } });
     expect(agentSvc.create).not.toHaveBeenCalled();
     instanceSettingsSvc.getExperimental.mockResolvedValue({ enableNativeRunner: false, enableOpenAiDot: true });
-    await expect(portability.importBundle({ ...input, adapterOverrides: { claudecoder: { adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.4" } } } }, "user-1"))
-      .rejects.toMatchObject({ status: 422, details: { code: "paperclip_runner_rollout_disabled" } });
+    await expect(portability.importBundle({ ...input, adapterOverrides: { claudecoder: { adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.4" } } } }, "user-1"))
+      .rejects.toMatchObject({ status: 422, details: { code: "outpost_runner_rollout_disabled" } });
     expect(agentSvc.create).not.toHaveBeenCalled();
     await portability.importBundle(input, "user-1");
-    expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterType: "paperclip_runner", adapterConfig: expect.objectContaining({ provider: "openai_dot", allowUnmeteredProvider: true }) }), { createdByUserId: "user-1" });
+    expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterType: "outpost_runner", adapterConfig: expect.objectContaining({ provider: "openai_dot", allowUnmeteredProvider: true }) }), { createdByUserId: "user-1" });
     const createdConfig = agentSvc.create.mock.calls[0]![1].adapterConfig;
     expect(createdConfig.dotBindingId).toBeUndefined();
     const { resolvePaperclipRunnerProviderProfile } = await import("../services/native-runtime/provider-profile.js");
-    expect(() => resolvePaperclipRunnerProviderProfile(createdConfig)).toThrow(expect.objectContaining({ code: "paperclip_runner_dot_config_invalid" }));
+    expect(() => resolvePaperclipRunnerProviderProfile(createdConfig)).toThrow(expect.objectContaining({ code: "outpost_runner_dot_config_invalid" }));
   });
 
   it("imports qualified Grok without the experimental flag and preserves its model and effort", async () => {
@@ -6211,11 +6211,11 @@ describe("company portability", () => {
       include: { company: false, agents: true, projects: false, issues: false },
       target: { mode: "existing_company", companyId: "company-1" },
       agents: "all", collisionStrategy: "rename",
-      adapterOverrides: { claudecoder: { adapterType: "paperclip_runner", adapterConfig } },
+      adapterOverrides: { claudecoder: { adapterType: "outpost_runner", adapterConfig } },
     }, "user-1");
 
     expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({
-      adapterType: "paperclip_runner", adapterConfig: expect.objectContaining(adapterConfig),
+      adapterType: "outpost_runner", adapterConfig: expect.objectContaining(adapterConfig),
     }), { createdByUserId: "user-1" });
   });
 
@@ -6241,7 +6241,7 @@ describe("company portability", () => {
       collisionStrategy: "rename" as const,
       adapterOverrides: {
         claudecoder: {
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: { provider: "opencode", model: "openrouter/deepseek/deepseek-v4-flash-0731" },
         },
       },
@@ -6249,7 +6249,7 @@ describe("company portability", () => {
 
     await portability.importBundle(request, "user-1");
     expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: expect.objectContaining({ provider: "opencode" }),
     }), { createdByUserId: "user-1" });
 
@@ -6258,7 +6258,7 @@ describe("company portability", () => {
       ...request,
       adapterOverrides: {
         claudecoder: {
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: {
             provider: "opencode",
             model: "openrouter/deepseek/deepseek-v4-flash-0731",
@@ -6267,13 +6267,13 @@ describe("company portability", () => {
       },
     }, "user-1");
     expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: expect.objectContaining({ provider: "opencode" }),
     }), { createdByUserId: "user-1" });
 
     await portability.importBundle(request, "user-1");
     expect(agentSvc.create).toHaveBeenCalledWith("company-1", expect.objectContaining({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: expect.objectContaining({ provider: "opencode" }),
     }), { createdByUserId: "user-1" });
 
@@ -6281,7 +6281,7 @@ describe("company portability", () => {
       ...request,
       adapterOverrides: {
         claudecoder: {
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: {
             provider: "claude_managed",
             managedProfileId: "managed-primary",
@@ -6304,7 +6304,7 @@ describe("company portability", () => {
       ...request,
       adapterOverrides: {
         claudecoder: {
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
           adapterConfig: {
             provider: "claude_managed",
             managedProfileId: "managed-other-company",

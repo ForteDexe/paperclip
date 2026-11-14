@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { activityLog, agents, companies, companyMemberships, heartbeatRuns, issues, issueThreadInteractions,
-  connectionIntentDeliveries, toolApplications, toolConnections, connectionGrants, aiProviderDefaults, plugins, aiConnectionTaskPins, aiConnectionRouterCursors, createDb } from "@paperclipai/db";
-import type { AiConnectionRouterRequest } from "@paperclipai/shared";
+  connectionIntentDeliveries, toolApplications, toolConnections, connectionGrants, aiProviderDefaults, plugins, aiConnectionTaskPins, aiConnectionRouterCursors, createDb } from "@outpost/db";
+import type { AiConnectionRouterRequest } from "@outpost/shared";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { aiConnectionRouterService } from "../services/ai-connection-router.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -32,7 +32,7 @@ describe.skipIf(!support.supported)("queued agent setup uses task connection car
     const binding = { mode: "responsible_user", provider: "openrouter", method: "api_key" } as const;
     await db.insert(agents).values({ id: agentId, companyId, name: "Reviewer", status: "paused", lifecycleState: "verifying", lifecycleHolds: [],
       lifecycleRequiredPluginIds: [], lifecycleOperation: { responsibleUserId: setupUserId, id: randomUUID(), hostComplete: false, completedPluginIds: [], attempts: 1, retryRequired: true },
-      adapterType: "paperclip_runner", adapterConfig: { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, runtimeConfig: { aiConnection: binding } });
+      adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, runtimeConfig: { aiConnection: binding } });
     await db.insert(issues).values({ id: issueId, companyId, title: "Review after setup", status: "todo", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "queued", responsibleUserId: userId, contextSnapshot: { issueId } });
     const service = connectionIntentService(db);
@@ -105,7 +105,7 @@ describe.skipIf(!support.supported)("queued agent setup uses task connection car
         const verificationUserId = agent.lifecycleOperation?.responsibleUserId ?? company!.defaultResponsibleUserId;
         expect(verificationUserId).toBe(f.setupUserId);
         await aiConnectionService(db).select({ companyId: f.companyId, agentId: f.agentId,
-          userId: verificationUserId, adapterType: "paperclip_runner", runnerProvider: "opencode",
+          userId: verificationUserId, adapterType: "outpost_runner", runnerProvider: "opencode",
           model: "openrouter/deepseek/deepseek-v4.1-flash-1017", binding: f.binding });
         return "complete";
       }, onReady });
@@ -137,7 +137,7 @@ describe.skipIf(!support.supported)("queued agent setup uses task connection car
     const routerBinding = { mode: "router", connectionId: pool.id };
     await db.update(agents).set({ runtimeConfig: { aiConnection: routerBinding } }).where(eq(agents.id, f.agentId));
     const input = { companyId: f.companyId, poolId: pool.id, agentId: f.agentId, userId: f.setupUserId,
-      adapterType: "paperclip_runner", taskKey: `lifecycle:${agent!.lifecycleOperation!.id}` };
+      adapterType: "outpost_runner", taskKey: `lifecycle:${agent!.lifecycleOperation!.id}` };
     const selected = await router.resolve(input);
     await db.update(toolConnections).set({ healthStatus: "error" }).where(eq(toolConnections.id, account.connectionId));
     try { await router.resolve(input); throw new Error("Expected owned account refusal"); }

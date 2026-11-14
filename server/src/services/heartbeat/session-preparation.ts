@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
-import { agentConfigRevisions, type Db, type agents, type agentTaskSessions, type heartbeatRuns, type issues, type projects } from "@paperclipai/db";
-import type { AiConnectionBinding, AiRuntimeConnectionBinding } from "@paperclipai/shared";
+import { agentConfigRevisions, type Db, type agents, type agentTaskSessions, type heartbeatRuns, type issues, type projects } from "@outpost/db";
+import type { AiConnectionBinding, AiRuntimeConnectionBinding } from "@outpost/shared";
 import { getServerAdapter } from "../../adapters/index.js";
 import type { prepareManagedAiRuntime } from "../ai-connection-runtime.js";
 import { aiConnectionSessionCompatibilityInputs, managedAiSessionIdentityCompatible } from "../ai-connection-session.js";
@@ -182,7 +182,7 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
   }
   const configuredModel =
     readConfiguredModelFromAdapterConfig(runtimeConfig);
-  if (context.refreshTools === true && agent.adapterType !== "paperclip_runner") {
+  if (context.refreshTools === true && agent.adapterType !== "outpost_runner") {
     const capability = getServerAdapter(agent.adapterType).supportsToolRefreshOnResume;
     const canRefresh = typeof capability === "function" ? capability(runtimeConfig) : capability === true;
     if (!canRefresh) context.forceFreshSession = true;
@@ -226,7 +226,7 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
     );
   // Legacy plugins can consume the existing context field on a known-fresh
   // dispatch. Built-ins also load lazily if their resume attempt fails.
-  if (agent.adapterType !== "paperclip_runner" && !previousSessionParams && getFreshSessionHandoff) {
+  if (agent.adapterType !== "outpost_runner" && !previousSessionParams && getFreshSessionHandoff) {
     const handoff = await getFreshSessionHandoff();
     if (handoff) context.paperclipFreshSessionHandoffMarkdown = handoff;
   }

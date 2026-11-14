@@ -12,7 +12,7 @@ import {
   heartbeatRuns,
   issueRecoveryActions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { nextEnvironmentCleanupAt } from "../services/environment-cleanup-state.js";
@@ -90,9 +90,9 @@ suite("retained orphan sandbox on the shared ownership path", () => {
       acquiredAt: new Date(now.getTime() - 60_000), releasedAt: now, expiresAt: extra.expiresAt ?? null,
       metadata: {
         [ORPHANED_SANDBOX_RECOVERY_KEY]: { recoveredOrphanedRunLease: true, ownerProof: "pid_dead", runId },
-        remoteExecutionTermination: { schema: "paperclip.remote-termination.v1", companyId, runId, leaseId: id,
+        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId, leaseId: id,
           provider: "fake", providerLeaseId, state: "stopped", confirmedAt: now.toISOString() },
-        sandboxStopAndRetainReceipt: { schema: "paperclip.sandbox-stop-and-retain-receipt.v1", requestId: randomUUID(),
+        sandboxStopAndRetainReceipt: { schema: "outpost.sandbox-stop-and-retain-receipt.v1", requestId: randomUUID(),
           companyId, runId, leaseId: id, provider: "fake", providerLeaseId, builtinProvider: "fake",
           method: "builtin.stopLease", confirmedAt: now.toISOString() },
         ...extra.metadata,
@@ -119,7 +119,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
   it("keeps the orphan marker for a stop intent saved before the top-level marker existed", async () => {
     const runId = await run("failed");
     const id = randomUUID(), providerLeaseId = `sandbox://fake/${id}`, attemptId = randomUUID();
-    const intent = { schema: "paperclip.sandbox-stop-and-retain.v1", requestId: attemptId, companyId, runId, leaseId: id,
+    const intent = { schema: "outpost.sandbox-stop-and-retain.v1", requestId: attemptId, companyId, runId, leaseId: id,
       provider: "fake", providerLeaseId, builtinProvider: "fake", recoveredOrphanedRunLease: true, ownerProof: "pid_dead" };
     await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
       status: "pending_cleanup", cleanupStatus: "failed", failureReason: "sandbox_stop_pending", leasePolicy: "ephemeral",
@@ -137,7 +137,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
   it("does not mark an ordinary stop-and-retain as an orphan", async () => {
     const runId = await run("failed");
     const id = randomUUID(), providerLeaseId = `sandbox://fake/${id}`, attemptId = randomUUID();
-    const intent = { schema: "paperclip.sandbox-stop-and-retain.v1", requestId: attemptId, companyId, runId, leaseId: id,
+    const intent = { schema: "outpost.sandbox-stop-and-retain.v1", requestId: attemptId, companyId, runId, leaseId: id,
       provider: "fake", providerLeaseId, builtinProvider: "fake" };
     await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
       status: "pending_cleanup", cleanupStatus: "failed", leasePolicy: "ephemeral", provider: "fake", providerLeaseId,
@@ -246,7 +246,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     const leaseId = await retainedOrphan(runId, { expiresAt: new Date(Date.now() - 1_000) });
     const lease = await row(leaseId);
     await db.update(heartbeatRuns).set({ runtimeMode: "native", runnerProfileJson: { nativeWorkspaceSync: {
-      schema: "paperclip.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
+      schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
       baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: randomUUID(), leaseId,
       providerLeaseId: lease.providerLeaseId, remoteCwd: "/workspace", resourceDisposition: "destroy" } } })
       .where(eq(heartbeatRuns.id, runId));
@@ -262,7 +262,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     const lease = await row(leaseId);
     await db.update(heartbeatRuns).set({ runtimeMode: "native", runnerProfileJson: {
       nativeExecutionInput: { workspace: { access: "none", cwd: null } },
-      nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
+      nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
         baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: randomUUID(), leaseId,
         providerLeaseId: lease.providerLeaseId, remoteCwd: "/workspace", resourceDisposition: "destroy" } } })
       .where(eq(heartbeatRuns.id, runId));
@@ -276,7 +276,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     const runId = await run("failed");
     const leaseId = await retainedOrphan(runId);
     await db.update(heartbeatRuns).set({ runtimeMode: "native", runnerProfileJson: {
-      nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
+      nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
         baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: randomUUID(), leaseId: randomUUID(),
         providerLeaseId: "sandbox://fake/other", remoteCwd: "/workspace", resourceDisposition: "destroy" } } })
       .where(eq(heartbeatRuns.id, runId));
@@ -316,7 +316,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
       leasePolicy: "reuse_by_environment", provider: "fake", providerLeaseId, acquiredAt: now, releasedAt: now,
       createdAt: now, updatedAt: now,
       metadata: { agentId, reuseLease: true, ...(input.receipt === false ? {} : { remoteExecutionTermination: {
-        schema: "paperclip.remote-termination.v1", companyId, runId, leaseId: id, provider: "fake", providerLeaseId,
+        schema: "outpost.remote-termination.v1", companyId, runId, leaseId: id, provider: "fake", providerLeaseId,
         state: "stopped", confirmedAt: now.toISOString() } }) } });
     return id;
   }
@@ -399,7 +399,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
       await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
         executionWorkspaceId: current, status: "failed", cleanupStatus: "success", leasePolicy: "reuse_by_environment",
         provider: "fake", providerLeaseId, acquiredAt: createdAt, releasedAt: createdAt, createdAt, updatedAt: createdAt,
-        metadata: { agentId, remoteExecutionTermination: { schema: "paperclip.remote-termination.v1", companyId, runId,
+        metadata: { agentId, remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId,
           leaseId: id, provider: "fake", providerLeaseId, state: "stopped", confirmedAt: createdAt.toISOString() } } });
     }
     const listed = await db.select({ id: environmentLeases.id }).from(environmentLeases)

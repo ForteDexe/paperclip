@@ -75,7 +75,7 @@ from a trace's local `acknowledgedDebugSequence`. Neither proves remote commit.
 Generic stdout/stderr and raw traces cannot be reconstructed from
 `heartbeat_run_events`. The implementation investigation found a narrower
 surviving source: native control ingestion already commits the exact validated
-PRP event before ACK. Its canonical `paperclip.prp.event` log export can replay
+ORP event before ACK. Its canonical `outpost.orp.event` log export can replay
 that existing source with an S3 cursor, without adding payload writes. This
 replaces the tentative second Runner spool below for canonical native output.
 

@@ -71,7 +71,7 @@ const gated = privilegedDefinition("developer-labs.gated-lab", "privileged-gated
   async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
 });
 gated.attemptTimeoutMs = 600_000;
-gated.oracleVersion = "paperclip.chat-catalog.privileged.gated-lab.v4";
+gated.oracleVersion = "outpost.chat-catalog.privileged.gated-lab.v4";
 gated.queryAttachments = factualContextQueryAttachment("historical-lab-link.md");
 gated.cleanup = async ctx => {
   const target = productionTargets.get(ctx);

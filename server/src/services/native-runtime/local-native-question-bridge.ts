@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
-import { heartbeatRuns, type Db } from "@paperclipai/db";
-import type { HarnessRuntimeRequestResolution, PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRuns, type Db } from "@outpost/db";
+import type { HarnessRuntimeRequestResolution, PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { flushNativeQuestionResponses, projectNativeRuntimeRequest, registerNativeQuestionCommandTarget } from "./native-question-bridge.js";
 import { readPendingNativeRuntimeRequest } from "./runtime-request-resolution-authority.js";
 
 /** The in-process executor must perform the same card projection and response
- * delivery as the durable PRP coordinator. The answer remains durable in DB. */
+ * delivery as the durable ORP coordinator. The answer remains durable in DB. */
 export function createLocalNativeQuestionBridge(input: {
   db: Db;
   binding: Parameters<typeof projectNativeRuntimeRequest>[0]["binding"];

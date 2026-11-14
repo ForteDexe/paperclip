@@ -117,7 +117,7 @@ function inboxBoundary(scenarioId: string): ChatCatalogCase {
     } catch (error) { await cleanupInboxProbe(ctx); throw error; }
   }, gradeInbox);
   return { ...base, authentication: "human-session",
-    oracleVersion: scenarioId === "inbox-search.archive-without-grant" ? "paperclip.chat-catalog.inbox.archive-without-grant.v4" : "paperclip.chat-catalog.internal.show-my-work.v4",
+    oracleVersion: scenarioId === "inbox-search.archive-without-grant" ? "outpost.chat-catalog.inbox.archive-without-grant.v4" : "outpost.chat-catalog.internal.show-my-work.v4",
     async observe(ctx, state): Promise<InboxObservation> {
       const o = await observeInternal(ctx, state);
       const [personalItems, policy, personalProbe, responsibleUserProbe, unreadProbe] = await Promise.all([

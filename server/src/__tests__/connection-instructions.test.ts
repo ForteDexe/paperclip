@@ -1,18 +1,18 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { nativeSystemInstructions } from "../../../packages/paperclip-runner/src/backends/runtime-context.js";
-import type { NativeExecutionInput } from "../vendor/paperclip-runner/index.js";
+import { nativeSystemInstructions } from "../../../packages/outpost-runner/src/backends/runtime-context.js";
+import type { NativeExecutionInput } from "../vendor/outpost-runner/index.js";
 import { randomUUID } from "node:crypto";
 import { access, mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, companyMemberships, connectionGrants, createDb, heartbeatRuns, issues, toolApplications, toolCatalogEntries, toolConnections, toolPolicies, toolProfileBindings, toolActionRequests } from "@paperclipai/db";
+import { agents, companies, companyMemberships, connectionGrants, createDb, heartbeatRuns, issues, toolApplications, toolCatalogEntries, toolConnections, toolPolicies, toolProfileBindings, toolActionRequests } from "@outpost/db";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { toolDiscoveryScheduler } from "../services/tool-discovery-scheduler.js";
 import { toolAccessService, projectedConnectionToolArguments, projectedConnectionToolInputSchema } from "../services/tool-access.js";
 import { composeConnectionInstructions, prepareConnectionInstructionDelivery } from "../services/connection-instructions.js";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
-import { canonicalNativeRuntimeContextDigest, parseNativeRuntimeContext } from "../vendor/paperclip-runner/index.js";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { canonicalNativeRuntimeContextDigest, parseNativeRuntimeContext } from "../vendor/outpost-runner/index.js";
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
 import { execute as executeProcess } from "../adapters/process/execute.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -153,7 +153,7 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     expect(parseNativeRuntimeContext(nativeRuntimeContextFixture()).connectionInstructions).toBeUndefined();
     const captured: string[] = [];
     const result = await executeProcess({ runId: f.run.id, agent: { ...f.agent, adapterType: "process" }, runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null }, context,
-      config: { command: process.execPath, args: ["-e", "const fs=require('node:fs');const file=process.env.PAPERCLIP_CONNECTION_INSTRUCTIONS_FILE;console.log(JSON.stringify({file,mode:fs.statSync(file).mode&511,snapshot:JSON.parse(fs.readFileSync(file,'utf8'))}))"], env: { PAPERCLIP_CONNECTION_INSTRUCTIONS_FILE: "/forged" } },
+      config: { command: process.execPath, args: ["-e", "const fs=require('node:fs');const file=process.env.OUTPOST_CONNECTION_INSTRUCTIONS_FILE;console.log(JSON.stringify({file,mode:fs.statSync(file).mode&511,snapshot:JSON.parse(fs.readFileSync(file,'utf8'))}))"], env: { OUTPOST_CONNECTION_INSTRUCTIONS_FILE: "/forged" } },
       onLog: async (_stream, text) => { captured.push(text); },
     });
     expect(result.exitCode).toBe(0);

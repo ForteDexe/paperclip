@@ -220,7 +220,7 @@ function openInventory(): ChatCatalogCase {
     if ((await ctx.allRuns()).length) throw new Error("Seeding the paused-owner inventory unexpectedly admitted work");
     return { project: p, originalTasks, workerIds: [worker.id, secondWorker.id], ownerPauseReceipts, ownerLabels: { [worker.id]: "Morgan", [secondWorker.id]: "Riley", unassigned: "Unassigned" } };
   }, gradeOpenInventory);
-  return { ...base, observe: observeOpenInventory, oracleVersion: "paperclip.chat-catalog.internal.organize-open-work.v6",
+  return { ...base, observe: observeOpenInventory, oracleVersion: "outpost.chat-catalog.internal.organize-open-work.v6",
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-task-inventory.ts"],
     // Seeding 504 tasks under paused owners takes about 2.75 minutes of the attempt; the agent keeps about 12 minutes.
     attemptTimeoutMs: 900_000,

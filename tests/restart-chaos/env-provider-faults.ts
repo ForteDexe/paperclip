@@ -47,7 +47,7 @@ export const ENV_PROVIDER_FAULTS: Record<EnvProviderFaultKind, EnvProviderFault>
   EP1D: { kind: "EP1D", label: "A database query fails during lease acquisition once", shape: "database", failures: 1 },
 };
 
-/** The control file the seam reads (PAPERCLIP_CHAOS_LEASE_FAULT_CONTROL). An empty file disarms. */
+/** The control file the seam reads (OUTPOST_CHAOS_LEASE_FAULT_CONTROL). An empty file disarms. */
 export function leaseFaultControl(fault: EnvProviderFault, token: string): string {
   return JSON.stringify({ token, kind: fault.shape, failures: fault.failures });
 }

@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TASK_COLLECTION_PAINTED_EVENT } from "@/lib/issue-detail-preload-events";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { seedIssueChatBootstrap, type IssueChatBootstrapEntry } from "@/lib/issueChatBootstrapCache";
 import { queryKeys } from "@/lib/queryKeys";
 import { resetIssueChatBootstrapsForTest } from "@/lib/issue-chat-bootstrap";

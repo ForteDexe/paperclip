@@ -18,9 +18,9 @@ export function installedReleaseLaunch(cliPath: string) {
 export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPath?: string, expectedVersion?: string): string {
   const cli = installedReleaseLaunch(cliPath);
   if (installedPluginPath && !path.isAbsolute(installedPluginPath)) throw new Error("Installed Daytona plugin path must be absolute");
-  const plugin = realpathSync(installedPluginPath ?? path.join(path.dirname(cli.cwd), "@paperclipai/plugin-daytona"));
+  const plugin = realpathSync(installedPluginPath ?? path.join(path.dirname(cli.cwd), "@outpost/plugin-daytona"));
   const manifest = JSON.parse(readFileSync(path.join(plugin, "package.json"), "utf8"));
-  if (manifest.name !== "@paperclipai/plugin-daytona" ||
+  if (manifest.name !== "@outpost/plugin-daytona" ||
       manifest.paperclipPlugin?.manifest !== "./dist/manifest.js" ||
       manifest.paperclipPlugin?.worker !== "./dist/worker.js" ||
       manifest.exports?.["."]?.import !== "./dist/index.js") {
@@ -38,11 +38,11 @@ export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPa
 
 /** Qualification assets must never make a public installed product smoke pass. */
 export function installedReleaseEnvironment(source: NodeJS.ProcessEnv, repositoryRoot: string, providerBin: string): NodeJS.ProcessEnv {
-  if (source.PAPERCLIP_RUNNER_ACPX_QUALIFICATION) throw new Error("Installed release smoke requires production admission without qualification overrides");
+  if (source.OUTPOST_RUNNER_ACPX_QUALIFICATION) throw new Error("Installed release smoke requires production admission without qualification overrides");
   const result = { ...source };
   for (const key of Object.keys(result)) {
-    if ((key.startsWith("PAPERCLIP_RUNNER_") && !key.startsWith("PAPERCLIP_RUNNER_E2E_")) ||
-        key.startsWith("PAPERCLIP_ACPX_") || key.startsWith("PAPERCLIP_NATIVE_") ||
+    if ((key.startsWith("OUTPOST_RUNNER_") && !key.startsWith("OUTPOST_RUNNER_E2E_")) ||
+        key.startsWith("OUTPOST_ACPX_") || key.startsWith("OUTPOST_NATIVE_") ||
         key === "NODE_PATH" || key === "NODE_OPTIONS") delete result[key];
   }
   result.PATH = source.PATH?.split(path.delimiter).filter(entry =>

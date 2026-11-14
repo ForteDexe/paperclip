@@ -429,7 +429,7 @@ None of these gates is represented as a successful live conversation.
 
 - A live-readiness audit found that a webhook-only tunnel was also being used
   as the board origin. That produced valid-looking Paperclip links whose host
-  intentionally returned 404. `PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL` now controls
+  intentionally returned 404. `OUTPOST_CHAT_WEBHOOK_PUBLIC_URL` now controls
   only provider callback URLs; the board origin still controls authentication,
   identity confirmation, task links, and trusted hosts. Invalid explicit ingress
   URLs refuse startup without echoing their value. Local/private task links are
@@ -478,7 +478,7 @@ Runtime checkpoint after commit `f535dde54`:
   production build also passed (existing chunk-size warnings only).
 - The isolated 3103 server reports `f535dde54` and ready startup recovery. Its
   board/auth origin is `http://127.0.0.1:3103`; only
-  `PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL` uses the current Cloudflare ingress.
+  `OUTPOST_CHAT_WEBHOOK_PUBLIC_URL` uses the current Cloudflare ingress.
 - GitHub setup still advertises the exact existing public webhook path. Public
   health and company API checks remain **404**; an unsigned recognized GitHub
   `ping` remains **401**. No board trust or exposure was broadened.

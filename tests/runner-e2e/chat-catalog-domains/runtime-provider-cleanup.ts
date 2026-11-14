@@ -79,8 +79,8 @@ export async function suspendOwnedProviderForCleanup(ctx: ChatCatalogContext, bi
   const checkpoint = run.runnerProfileJson?.sessionCheckpoint as { process?: { providerPid?: number; providerProcessStartedAt?: string } } | undefined;
   const provider = run.runnerProfileJson?.nativeExecutionInput as { provider?: { kind?: string } } | undefined;
   const kind = provider?.provider?.kind;
-  const events = await collectRunEvents<{ seq?: number; payload?: { prpEvent?: { runId?: string; normalizedSessionId?: string; sourceKind?: string; sourceInstanceId?: string; eventType?: string; payload?: { processId?: number; processStartedAt?: string | null; providerSessionId?: string; driverSessionId?: string } } } }>((afterSeq, limit) => ctx.input.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-  const sessionReceipts = events.map(row => row.payload?.prpEvent).filter(e => e?.runId === run.id && e.sourceKind === "runner" && e.sourceInstanceId === run.runnerInstanceId && e.normalizedSessionId === run.nativeSessionId
+  const events = await collectRunEvents<{ seq?: number; payload?: { orpEvent?: { runId?: string; normalizedSessionId?: string; sourceKind?: string; sourceInstanceId?: string; eventType?: string; payload?: { processId?: number; processStartedAt?: string | null; providerSessionId?: string; driverSessionId?: string } } } }>((afterSeq, limit) => ctx.input.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
+  const sessionReceipts = events.map(row => row.payload?.orpEvent).filter(e => e?.runId === run.id && e.sourceKind === "runner" && e.sourceInstanceId === run.runnerInstanceId && e.normalizedSessionId === run.nativeSessionId
     && ["session.started", "session.resumed"].includes(e.eventType ?? "") && !!(e.payload?.providerSessionId ?? e.payload?.driverSessionId));
   if (kind !== "codex" && kind !== "opencode") throw new Error("Actual public native session lacks a supported local provider kind");
   if (!sessionReceipts.length) throw new Error("Provider suspension lacks the exact durable native session receipt");
@@ -93,7 +93,7 @@ export async function suspendOwnedProviderForCleanup(ctx: ChatCatalogContext, bi
   if (!Number.isSafeInteger(pid) || !pid || !started) throw new Error("Actual public native session lacks a qualified local provider PID/start identity");
   const viaProxy = kind === "opencode" && !!(await providerIdentity(pid)).proxyScript;
   const executable = viaProxy ? await realpath(process.execPath) : undefined;
-  const proxyScript = viaProxy ? await realpath(fileURLToPath(new URL("../../../packages/paperclip-runner/dist/cli/opencode-app-server-proxy.cjs", import.meta.url))) : undefined;
+  const proxyScript = viaProxy ? await realpath(fileURLToPath(new URL("../../../packages/outpost-runner/dist/cli/opencode-app-server-proxy.cjs", import.meta.url))) : undefined;
   const digest = executable ? createHash("sha256").update(await readFile(executable)).digest("hex") : undefined;
   const proxyDigest = proxyScript ? createHash("sha256").update(await readFile(proxyScript)).digest("hex") : undefined;
   if (checkpoint?.process?.providerPid && !sessionReceipts.some(e => e?.payload?.processId === pid)) throw new Error("Provider suspension lacks the exact durable native session/PID receipt");

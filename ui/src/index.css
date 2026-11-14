@@ -292,7 +292,7 @@
   --paperclip-doc-annotation-highlight-y-outset: 0.125rem;
   --paperclip-doc-annotation-highlight-radius: 0.1875rem;
 
-  /* Brand agent-capsule gradient stops (paperclip.ing/brand/).
+  /* Brand agent-capsule gradient stops (outpost.ing/brand/).
      "The capsule is the agent" — each agent gets a 2-stop gradient,
      --agent-Na (top) → --agent-Nb (bottom). Brand-fixed hex, identical
      across themes. Indices 1–10; consumed by AgentCapsule. */
@@ -3102,7 +3102,7 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sz-30rem: 30rem; /* Extracted from ui/src/pages/AgentDetail.tsx (w-[30rem]). */
   --sz-38rem: 38rem; /* Extracted from ui/src/pages/AgentDetail.tsx (max-h-[38rem]). */
   --sz-7rem: 7rem; /* Extracted from ui/src/pages/Agents.test.tsx (min-w-[7rem]). */
-  --sz-calc-29: calc(100% + 3rem); /* Extracted from ui/src/pages/BoardChat.tsx (h-[calc(100%+3rem)]). */
+  --sz-calc-29: calc(100% + 3rem);
   --sz-22rem: 22rem; /* SkillStudio.tsx editor minimum height. */
   --sz-560px: 560px; /* Extracted from ui/src/pages/CompanyExport.tsx (min-h-[560px]). */
   --sz-520px: 520px; /* Extracted from ui/src/pages/CompanyExport.tsx (min-h-[520px]). */

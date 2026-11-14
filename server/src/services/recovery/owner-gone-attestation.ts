@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { issueRecoveryActions, type Db } from "@paperclipai/db";
-import { confirmOwnerGoneSchema } from "@paperclipai/shared";
+import { issueRecoveryActions, type Db } from "@outpost/db";
+import { confirmOwnerGoneSchema } from "@outpost/shared";
 import { conflict } from "../../errors.js";
 import { persistActivity, publishActivity } from "../activity-log.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";

@@ -40,19 +40,19 @@ describe("task workspace product E2E", () => {
   });
   it("keeps native tools and legacy authenticated API prompts distinct", () => {
     expect(taskWorkspacePrompt("fixture", 1, true)).toContain("Call prepare_repository twice");
-    expect(taskWorkspacePrompt("fixture", 1, false)).toContain("POST /api/issues/$PAPERCLIP_TASK_ID/workspace/repositories twice");
+    expect(taskWorkspacePrompt("fixture", 1, false)).toContain("POST /api/issues/$OUTPOST_TASK_ID/workspace/repositories twice");
     expect(taskWorkspacePrompt("fixture", 3, true)).not.toContain(taskWorkspaceFiles("fixture").repositoryBytes.trim());
   });
   it("recognizes the normalized provider receipt and rejects claims from another source/run", () => {
-    const receipt = { eventType: "tool.execution.completed", payload: { prpEvent: {
+    const receipt = { eventType: "tool.execution.completed", payload: { orpEvent: {
       sourceKind: "runner", runId: "run-1", payload: { name: "paperclip_prepare_repository", status: "completed" },
     } } };
     expect(isRepositoryPreparationReceipt(receipt, "run-1")).toBe(true);
     expect(isRepositoryPreparationReceipt(receipt, "another-run")).toBe(false);
-    receipt.payload.prpEvent.sourceKind = "control_plane";
+    receipt.payload.orpEvent.sourceKind = "control_plane";
     expect(isRepositoryPreparationReceipt(receipt, "run-1")).toBe(false);
-    receipt.payload.prpEvent.sourceKind = "runner";
-    receipt.payload.prpEvent.payload.status = "failed";
+    receipt.payload.orpEvent.sourceKind = "runner";
+    receipt.payload.orpEvent.payload.status = "failed";
     expect(isRepositoryPreparationReceipt(receipt, "run-1")).toBe(false);
   });
   it("accepts independently consistent persisted observations", () => {

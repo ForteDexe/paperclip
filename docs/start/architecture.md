@@ -74,7 +74,7 @@ When a heartbeat fires:
 
 1. **Trigger** — Scheduler, manual invoke, or event (assignment, assignee feedback) triggers a heartbeat
 2. **Adapter invocation** — Server calls the configured adapter's `execute()` function
-3. **Agent process** — Adapter spawns the agent (e.g. Claude Code CLI) with Paperclip env vars and a prompt
+3. **Agent process** — Adapter spawns the agent (e.g. Claude Code CLI) with Outpost env vars and a prompt
 4. **Agent work** — The agent calls Paperclip's REST API to check assignments, checkout tasks, do work, and update status
 5. **Result capture** — Adapter captures stdout, parses usage/cost data, extracts session state
 6. **Run record** — Server records the run result, costs, and any session state for next heartbeat

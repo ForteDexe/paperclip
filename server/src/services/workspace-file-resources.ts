@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { executionWorkspaces, issues, projects, projectWorkspaces } from "@paperclipai/db";
-import { normalizeIssueIdentifier } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { executionWorkspaces, issues, projects, projectWorkspaces } from "@outpost/db";
+import { normalizeIssueIdentifier } from "@outpost/shared";
 import type {
   NormalizedWorkspaceFileAvailabilityQuery,
   ResolvedWorkspaceResource,
@@ -20,7 +20,7 @@ import type {
   WorkspaceFileSelector,
   WorkspaceFileWorkspaceKind,
   WorkspaceFileSource,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type { RemoteWorkspaceFiles, RemoteWorkspaceFileAccess, RemoteWorkspaceFileEntry } from "./remote-workspace-files.js";
 import { HttpError, notFound, unprocessable } from "../errors.js";
 import {

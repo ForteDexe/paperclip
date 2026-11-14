@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { beforeAll, afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { agents, authUsers, companies, companyMemberships, createDb, dotAgentBindings, grokBotDispatches,
-  grokBotRoutines, mcpOauthGrants, activityLog, issues, heartbeatRuns, dotRunnerAssignments, dotRunnerOperations, dotMailboxItems, nativeRunFinalizations, environmentLeases, environments, issueRecoveryActions, issueComments } from "@paperclipai/db";
+  grokBotRoutines, mcpOauthGrants, activityLog, issues, heartbeatRuns, dotRunnerAssignments, dotRunnerOperations, dotMailboxItems, nativeRunFinalizations, environmentLeases, environments, issueRecoveryActions, issueComments } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { accessService } from "../services/access.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -30,11 +30,11 @@ import { environmentRuntimeService } from "../services/environment-runtime.js";
 let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
 let db: ReturnType<typeof createDb>;
 beforeAll(async () => {
-  const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_GROK_ROUTINE_TEST_DATABASE_URL");
+  const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_GROK_ROUTINE_TEST_DATABASE_URL");
   if (!externalUrl) temporary = await startEmbeddedPostgresTestDatabase("paperclip-grok-routine-");
   db = createDb(externalUrl ?? temporary!.connectionString);
-  vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
-  vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+  vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
+  vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
   await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true, enableNativeRunner: true, enableGrokBot: true, enableOpenAiDot: true });
 }, 120000);
 afterAll(async () => { try { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); } finally { vi.unstubAllEnvs(); } });
@@ -530,7 +530,7 @@ describe("Grok inspection of historical workspace-less Stop", () => {
     const { run, task, work } = await admittedWork(f, "accepted");
     const finishedAt = new Date(Date.now() - 1000);
     const fileHold = { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-      schema: "paperclip.workspace-restore-recovery.v1", runId: run.id, leaseIds: [] as string[],
+      schema: "outpost.workspace-restore-recovery.v1", runId: run.id, leaseIds: [] as string[],
     } };
     const [environment] = await db.insert(environments).values({ name: `Grok ${run.id}`, driver: "sandbox" }).returning();
     const [lease] = await db.insert(environmentLeases).values({ companyId: f.company.id, issueId: task.id,
@@ -541,7 +541,7 @@ describe("Grok inspection of historical workspace-less Stop", () => {
     fileHold.workspaceRestoreRecovery.leaseIds.push(lease!.id);
     await db.update(heartbeatRuns).set({ status: "cancelled", driverKind: "grok_bot_mcp", finishedAt,
       nativeIssueId: task.id, issueId: task.id, contextSnapshot: { issueId: task.id },
-      runnerProfileJson: { nativeExecutionInput: { schema: "paperclip.native-execution-input.v6",
+      runnerProfileJson: { nativeExecutionInput: { schema: "outpost.native-execution-input.v6",
         binding: { runId: run.id, companyId: f.company.id, agentId: f.agent.id, issueId: task.id },
         provider: { kind: "grok_bot" }, workspace: { access: "none", cwd: null } } },
       resultJson: { ...fileHold, cancellation: { source: "user", reason: "Paperclip work stopped" } },
@@ -637,7 +637,7 @@ describe("Grok inspection of historical workspace-less Stop", () => {
   it.each(["cleanup_pending", "receipt_mismatch", "controller_owned", "assignment_active", "running", "operator_revoked", "foreign_company"])("does not retire an old obligation when %s", async condition => {
     const f = await historicalHold();
     if (condition === "cleanup_pending") await db.update(environmentLeases).set({ cleanupStatus: "failed" }).where(eq(environmentLeases.id, f.lease.id));
-    if (condition === "receipt_mismatch") await db.update(environmentLeases).set({ metadata: { remoteExecutionTermination: { schema: "paperclip.remote-termination.v1", runId: randomUUID() } } }).where(eq(environmentLeases.id, f.lease.id));
+    if (condition === "receipt_mismatch") await db.update(environmentLeases).set({ metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", runId: randomUUID() } } }).where(eq(environmentLeases.id, f.lease.id));
     if (condition === "controller_owned") await db.update(nativeRunFinalizations).set({ leaseOwner: "other-owner" }).where(eq(nativeRunFinalizations.runId, f.run.id));
     if (condition === "assignment_active") await db.update(dotRunnerAssignments).set({ status: "accepted" }).where(eq(dotRunnerAssignments.id, f.work.id));
     if (condition === "running") await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, f.run.id));

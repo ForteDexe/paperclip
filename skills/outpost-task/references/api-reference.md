@@ -19,11 +19,11 @@ base URL and bearer token. Add `X-Paperclip-Run-Id` to every mutation.
 
 ```bash
 curl -sS -X POST \
-  "$PAPERCLIP_API_URL/api/issues/$PAPERCLIP_TASK_ID/checkout" \
-  -H "Authorization: Bearer $PAPERCLIP_API_KEY" \
-  -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" \
+  "$OUTPOST_API_URL/api/issues/$OUTPOST_TASK_ID/checkout" \
+  -H "Authorization: Bearer $OUTPOST_API_KEY" \
+  -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
   -H 'Content-Type: application/json' \
-  --data "{\"agentId\":\"$PAPERCLIP_AGENT_ID\",\"expectedStatuses\":[\"todo\",\"backlog\",\"in_progress\"]}"
+  --data "{\"agentId\":\"$OUTPOST_AGENT_ID\",\"expectedStatuses\":[\"todo\",\"backlog\",\"in_progress\"]}"
 ```
 
 A `409` means another owner or run holds the task. Do not bypass it or retry

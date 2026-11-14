@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { randomUUID } from "node:crypto";
-import { activityLog, heartbeatRuns, issueRelations, issues, workspaceOperations } from "@paperclipai/db";
+import { activityLog, heartbeatRuns, issueRelations, issues, workspaceOperations } from "@outpost/db";
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import { issueService } from "./issues.js";
 import { recoveryService } from "./recovery/service.js";

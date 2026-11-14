@@ -4,16 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issueComments, issues, nativeRunResults } from "@paperclipai/db";
-import { createNativeSessionBackend, type NativeExecutionInput, type PrpEvent, type PrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import { agents, companies, createDb, heartbeatRuns, issueComments, issues, nativeRunResults } from "@outpost/db";
+import { createNativeSessionBackend, type NativeExecutionInput, type PrpEvent, type PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { assertCurrentWakeCommentsRead, READ_CURRENT_WAKE_COMMENTS_TOOL_DEFINITION, resolveCurrentWakeCommentsBinding, type CurrentWakeCommentsPage } from "./current-wake-comments.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 const report: PrpStructuredRunResult = {
-  schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Answered the accepted message.",
+  schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Answered the accepted message.",
   completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] },
   evidence: [], verification: [], attentionRequests: [], artifacts: [],
 };
@@ -30,7 +30,7 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
   async function seed(bodies = ["Read this complete accepted message."], fallbackFetchNeeded = true) {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Wake feedback", issuePrefix: `WF${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reader", adapterType: "paperclip_runner", status: "running" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Reader", adapterType: "outpost_runner", status: "running" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Answer the accepted message", status: "in_progress", assigneeAgentId: agentId });
     const comments = await db.insert(issueComments).values(bodies.map(body => ({ companyId, issueId, body, authorType: "user" as const, authorUserId: "local-board" }))).returning();
     const commentIds = comments.map(comment => comment.id);
@@ -170,12 +170,12 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
     const value = await seed(["A".repeat(16_001)]);
     const root = await mkdtemp(join(tmpdir(), "paperclip-wake-feedback-provider-"));
     const command = join(root, "fake-opencode-server.mjs");
-    await copyFile(new URL("../../../../packages/paperclip-runner/test/fixtures/fake-opencode-server.mjs", import.meta.url), command);
+    await copyFile(new URL("../../../../packages/outpost-runner/test/fixtures/fake-opencode-server.mjs", import.meta.url), command);
     await chmod(command, 0o755);
     const order: string[] = [];
     const sessionId = randomUUID();
     const execution: NativeExecutionInput = {
-      schema: "paperclip.native-execution-input.v1",
+      schema: "outpost.native-execution-input.v1",
       binding: { companyId: value.companyId, issueId: value.issueId, runId: value.runId, agentId: value.agentId, executionWorkspaceId: randomUUID() },
       task: { identifier: "WF-1", title: "Read and answer the accepted message", description: null, prompt: "current-wake-completion-feedback", workMode: "standard" },
       workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },

@@ -87,7 +87,7 @@ function expectResponseId(value: unknown): string {
   return String(value);
 }
 
-vi.mock("@paperclipai/shared/telemetry", () => ({
+vi.mock("@outpost/shared/telemetry", () => ({
   trackAgentCreated: mockTrackAgentCreated,
   trackErrorHandlerCrash: vi.fn(),
 }));
@@ -125,7 +125,7 @@ vi.mock("../services/instance-settings.js", async (importOriginal) => ({
 
 vi.mock("../adapters/index.js", () => ({
   findServerAdapter: vi.fn(() => mockAdapter),
-  findActiveServerAdapter: vi.fn((adapterType: string) => adapterType === "paperclip_runner"
+  findActiveServerAdapter: vi.fn((adapterType: string) => adapterType === "outpost_runner"
     ? { ...mockAdapter, supportsInstructionsBundle: true }
     : mockAdapter),
   listAdapterModels: vi.fn(),
@@ -133,7 +133,7 @@ vi.mock("../adapters/index.js", () => ({
 }));
 
 function registerModuleMocks() {
-  vi.doMock("@paperclipai/shared/telemetry", () => ({
+  vi.doMock("@outpost/shared/telemetry", () => ({
     trackAgentCreated: mockTrackAgentCreated,
     trackErrorHandlerCrash: vi.fn(),
   }));
@@ -170,7 +170,7 @@ function registerModuleMocks() {
 
   vi.doMock("../adapters/index.js", () => ({
     findServerAdapter: vi.fn(() => mockAdapter),
-    findActiveServerAdapter: vi.fn((adapterType: string) => adapterType === "paperclip_runner"
+    findActiveServerAdapter: vi.fn((adapterType: string) => adapterType === "outpost_runner"
       ? { ...mockAdapter, supportsInstructionsBundle: true }
       : mockAdapter),
     listAdapterModels: vi.fn(),
@@ -831,8 +831,8 @@ describe("agent skill routes", () => {
     expect(mockAdapter.syncSkills).toHaveBeenCalled();
   });
 
-  it("ignores the reserved legacy Paperclip skill for paperclip_runner", async () => {
-    mockAgentService.getById.mockResolvedValue(makeAgent("paperclip_runner"));
+  it("ignores the reserved legacy Paperclip skill for outpost_runner", async () => {
+    mockAgentService.getById.mockResolvedValue(makeAgent("outpost_runner"));
 
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .post("/api/agents/11111111-1111-4111-8111-111111111111/skills/sync?companyId=company-1")
@@ -854,9 +854,9 @@ describe("agent skill routes", () => {
     );
   });
 
-  it("allows paperclip_runner to remove a pre-existing legacy Paperclip skill", async () => {
+  it("allows outpost_runner to remove a pre-existing legacy Paperclip skill", async () => {
     mockAgentService.getById.mockResolvedValue({
-      ...makeAgent("paperclip_runner"),
+      ...makeAgent("outpost_runner"),
       adapterConfig: {
         paperclipSkillSync: {
           desiredSkills: ["company-1/keep", "paperclipai/paperclip/paperclip"],
@@ -1088,7 +1088,7 @@ describe("agent skill routes", () => {
     expect(mockAgentInstructionsService.materializeManagedBundle).not.toHaveBeenCalled();
   });
 
-  it.each(["claude_local", "paperclip_runner"].flatMap((adapterType) =>
+  it.each(["claude_local", "outpost_runner"].flatMap((adapterType) =>
     ["agents", "agent-hires"].map((route) => ({ adapterType, route })),
   ))("materializes only the CEO entry file for $adapterType via $route", async ({ adapterType, route }) => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({
@@ -1102,7 +1102,7 @@ describe("agent skill routes", () => {
         role: "ceo",
         adapterType,
         ...(adapterType === "claude_local" ? { runner: "legacy" } : {}),
-        adapterConfig: adapterType === "paperclip_runner" ? { provider: "codex" } : {},
+        adapterConfig: adapterType === "outpost_runner" ? { provider: "codex" } : {},
       }));
 
     expect(res.status, JSON.stringify(res.body)).toBe(201);
@@ -1115,7 +1115,7 @@ describe("agent skill routes", () => {
     );
   });
 
-  it.each(["claude_local", "paperclip_runner"].flatMap((adapterType) =>
+  it.each(["claude_local", "outpost_runner"].flatMap((adapterType) =>
     ["agents", "agent-hires"].map((route) => ({ adapterType, route })),
   ))("preserves an explicit CEO instruction bundle for $adapterType via $route", async ({ adapterType, route }) => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({
@@ -1133,7 +1133,7 @@ describe("agent skill routes", () => {
         role: "ceo",
         adapterType,
         ...(adapterType === "claude_local" ? { runner: "legacy" } : {}),
-        adapterConfig: adapterType === "paperclip_runner" ? { provider: "codex" } : {},
+        adapterConfig: adapterType === "outpost_runner" ? { provider: "codex" } : {},
         instructionsBundle: { entryFile: "AGENTS.md", files: customFiles },
       }));
 
@@ -1213,16 +1213,16 @@ describe("agent skill routes", () => {
   });
 
   const codexRunnerCases = [
-    { adapterType: "codex_local", runner: "auto", platform: "linux", expectedType: "paperclip_runner" },
+    { adapterType: "codex_local", runner: "auto", platform: "linux", expectedType: "outpost_runner" },
     { adapterType: "codex_local", runner: "legacy", platform: "linux", expectedType: "codex_local" },
-    { adapterType: "codex_local", runner: "auto", platform: "darwin", expectedType: "paperclip_runner" },
+    { adapterType: "codex_local", runner: "auto", platform: "darwin", expectedType: "outpost_runner" },
     { adapterType: "codex_local", runner: "legacy", platform: "darwin", expectedType: "codex_local" },
     { adapterType: "codex_local", runner: "auto", platform: "win32", expectedType: "codex_local" },
   ];
   const creationRunnerCases = [...codexRunnerCases,
-    { adapterType: "claude_local", runner: "auto", platform: "linux", expectedType: "paperclip_runner" },
+    { adapterType: "claude_local", runner: "auto", platform: "linux", expectedType: "outpost_runner" },
     { adapterType: "claude_local", runner: "legacy", platform: "linux", expectedType: "claude_local" },
-    { adapterType: "claude_local", runner: "auto", platform: "darwin", expectedType: "paperclip_runner" },
+    { adapterType: "claude_local", runner: "auto", platform: "darwin", expectedType: "outpost_runner" },
     { adapterType: "claude_local", runner: "legacy", platform: "darwin", expectedType: "claude_local" },
   ];
   it.each(creationRunnerCases.flatMap((runnerCase) => [
@@ -1244,7 +1244,7 @@ describe("agent skill routes", () => {
     const input = mockAgentService.create.mock.calls[0][1];
     expect(input.role).toBe("general");
     expect(input.adapterType).toBe(expectedType);
-    const native = expectedType === "paperclip_runner";
+    const native = expectedType === "outpost_runner";
     if (native) expect(input.adapterConfig).toMatchObject(adapterType === "claude_local" ? { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } : { provider: "codex" });
     const canonicalKey = skill === "paperclip" ? "paperclipai/paperclip/paperclip" : skill;
     const expected = ["paperclip"]
@@ -1273,7 +1273,7 @@ describe("agent skill routes", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     const input = mockAgentService.create.mock.calls[0][1];
     expect(input.adapterType).toBe(expectedType);
-    const native = expectedType === "paperclip_runner";
+    const native = expectedType === "outpost_runner";
     if (native) expect(input.adapterConfig).toMatchObject(adapterType === "claude_local" ? { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } : { provider: "codex" });
     const desiredSkills = input.adapterConfig.paperclipSkillSync.desiredSkills;
     const expected = ["paperclip"]
@@ -1343,7 +1343,7 @@ describe("agent skill routes", () => {
     );
   });
 
-  it("does not add bundled API skills to paperclip_runner CEO defaults", async () => {
+  it("does not add bundled API skills to outpost_runner CEO defaults", async () => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({
       enableBetaSkills: false,
       enableNativeRunner: true,
@@ -1354,7 +1354,7 @@ describe("agent skill routes", () => {
       .send({
         name: "Native Lead",
         role: "ceo",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: { provider: "codex" },
       });
 

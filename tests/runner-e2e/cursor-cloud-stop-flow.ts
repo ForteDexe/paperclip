@@ -69,7 +69,7 @@ export async function runCursorCloudStopFlow(input: {
       accept: value => value.local?.status === "cancelled" && value.remote.status === "CANCELLED",
       reject: value => ["FINISHED", "ERROR", "EXPIRED"].includes(value.remote.status) ? "Cloud run ended without verified cancellation" : undefined });
     const receipt = runs[0]!.resultJson?.nativeCancellation;
-    expect(receipt).toMatchObject({ schema: "paperclip.native-cancellation.v1", companyId: fixtures.company.id, issueId: issue.id, runId: active.localRunId, scope: "run", dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only" });
+    expect(receipt).toMatchObject({ schema: "outpost.native-cancellation.v1", companyId: fixtures.company.id, issueId: issue.id, runId: active.localRunId, scope: "run", dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only" });
     const samples: Array<{ elapsedMs: number; providerCancelled: boolean; artifactAbsent: boolean; localCancelled: boolean }> = [];
     const quietStart = Date.now();
     do {

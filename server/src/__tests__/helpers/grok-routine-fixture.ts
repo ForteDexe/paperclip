@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, type createDb } from "@paperclipai/db";
+import { agents, authUsers, companies, companyMemberships, type createDb } from "@outpost/db";
 import { accessService } from "../../services/access.js";
 import { createPublicMcpOAuth } from "../../services/public-mcp/oauth.js";
 import { dotRunnerBroker } from "../../services/dot-runner-broker.js";
@@ -12,8 +12,8 @@ export async function grokRoutineFixture(db: ReturnType<typeof createDb>) {
   const [company] = await db.insert(companies).values({ name: "Grok test", issuePrefix: "GK" + randomBytes(3).toString("hex") }).returning();
   await db.insert(companyMemberships).values({ companyId: company!.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
   await accessService(db).setPrincipalPermission(company!.id, "user", userId, "agents:create", true, userId);
-  const [agent] = await db.insert(agents).values({ companyId: company!.id, name: "Grok test", adapterType: "paperclip_runner", status: "active", adapterConfig: { provider: "grok_bot", allowUnmeteredProvider: true, lifecycleMode: "per_turn" } }).returning();
-  const oauth = createPublicMcpOAuth(db, { origin: "https://paperclip.example", resource: "https://paperclip.example/mcp/runner" });
+  const [agent] = await db.insert(agents).values({ companyId: company!.id, name: "Grok test", adapterType: "outpost_runner", status: "active", adapterConfig: { provider: "grok_bot", allowUnmeteredProvider: true, lifecycleMode: "per_turn" } }).returning();
+  const oauth = createPublicMcpOAuth(db, { origin: "https://outpost.example", resource: "https://outpost.example/mcp/runner" });
   const client = await oauth.register({ client_name: "Synthetic Grok client", redirect_uris: ["https://client.example/callback"] }, randomUUID());
   const verifier = randomBytes(32).toString("base64url");
   const input = { client_id: client.client_id, redirect_uri: "https://client.example/callback", response_type: "code", resource: oauth.config.resource,

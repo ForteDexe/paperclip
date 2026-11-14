@@ -7,10 +7,10 @@ import { armArchiveStorageFault, archiveStorageFaultSql, type ArchiveFaultBindin
 
 it("refuses every execution except its own single selected case", async () => {
   const binding = { companyId: randomUUID(), agentId: randomUUID(), personId: "person-0001", taskIds: [randomUUID(), randomUUID(), randomUUID()] };
-  await expect(armArchiveStorageFault({ executionId: "chat-features.runner-opencode.local.inbox-search.archive-done", binding, env: { PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify(["chat-features.runner-opencode.local.inbox-search.archive-done"]) } })).rejects.toThrow("single selected");
+  await expect(armArchiveStorageFault({ executionId: "chat-features.runner-opencode.local.inbox-search.archive-done", binding, env: { OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify(["chat-features.runner-opencode.local.inbox-search.archive-done"]) } })).rejects.toThrow("single selected");
   const own = "chat-features.runner-opencode.local.inbox-search.archive-partial-failure";
-  await expect(armArchiveStorageFault({ executionId: own, binding, env: { PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own, "other"]) } })).rejects.toThrow("single selected");
-  await expect(armArchiveStorageFault({ executionId: own, binding, env: { PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own]) } })).rejects.toThrow("owned runner instance");
+  await expect(armArchiveStorageFault({ executionId: own, binding, env: { OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own, "other"]) } })).rejects.toThrow("single selected");
+  await expect(armArchiveStorageFault({ executionId: own, binding, env: { OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own]) } })).rejects.toThrow("owned runner instance");
   expect(() => archiveStorageFaultSql("abcdefabcdef", { ...binding, personId: "x'; drop table issues; --" })).toThrow("exact owned binding");
   expect(() => archiveStorageFaultSql("abcdefabcdef", { ...binding, taskIds: binding.taskIds.slice(0, 2) })).toThrow("exact owned binding");
 });

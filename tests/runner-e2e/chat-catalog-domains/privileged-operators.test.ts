@@ -61,7 +61,7 @@ it("inventories Paperclip installations under the attempt root by content", asyn
 });
 it("surfaces a bounded, redacted reason for an owned CLI child that exits", () => {
   const secret = "owned-generated-jwt-secret-value-0123456789";
-  const output = ["\u001b[36m┌   paperclipai run \u001b[0m", ...Array.from({ length: 40 }, (_, i) => `noise ${i}`), `PAPERCLIP_AGENT_JWT_SECRET=${secret}`, "error: unknown option '--yes'"].join("\n");
+  const output = ["\u001b[36m┌   paperclipai run \u001b[0m", ...Array.from({ length: 40 }, (_, i) => `noise ${i}`), `OUTPOST_AGENT_JWT_SECRET=${secret}`, "error: unknown option '--yes'"].join("\n");
   const reason = boundedOwnedDevReason(output, [secret]);
   expect(reason).toContain("error: unknown option '--yes'");
   expect(reason).not.toContain(secret); expect(reason).not.toContain("\u001b"); expect(reason).not.toContain("noise 20");
@@ -70,7 +70,7 @@ it("surfaces a bounded, redacted reason for an owned CLI child that exits", () =
 });
 it("binds retained interrupted work to actual original cancelled run, comment and events", () => {
   const run = { id: "run", companyId: "company", agentId: "morgan", status: "cancelled", eventCount: 1 };
-  const bundle: FeedbackTraceBundle = { traceId: "trace", exportId: null, issueIdentifier: "OWN-1", adapterType: "paperclip_runner", captureStatus: "partial", notes: [], surface: null, rawAdapterTrace: null, normalizedAdapterTrace: null, privacy: null, integrity: {}, companyId: "company", issueId: "task", envelope: { targetId: "comment" }, paperclipRun: run, files: [{ path: "paperclip/run.json", contentType: "application/json", encoding: "utf8", byteLength: 1, sha256: "x", source: "paperclip_run", contents: JSON.stringify(run) }, { path: "paperclip/run-events.json", contentType: "application/json", encoding: "utf8", byteLength: 1, sha256: "x", source: "paperclip_run_events", contents: JSON.stringify([{ runId: "run", seq: 1 }]) }] };
+  const bundle: FeedbackTraceBundle = { traceId: "trace", exportId: null, issueIdentifier: "OWN-1", adapterType: "outpost_runner", captureStatus: "partial", notes: [], surface: null, rawAdapterTrace: null, normalizedAdapterTrace: null, privacy: null, integrity: {}, companyId: "company", issueId: "task", envelope: { targetId: "comment" }, paperclipRun: run, files: [{ path: "paperclip/run.json", contentType: "application/json", encoding: "utf8", byteLength: 1, sha256: "x", source: "paperclip_run", contents: JSON.stringify(run) }, { path: "paperclip/run-events.json", contentType: "application/json", encoding: "utf8", byteLength: 1, sha256: "x", source: "paperclip_run_events", contents: JSON.stringify([{ runId: "run", seq: 1 }]) }] };
   const ids = { company: "company", issue: "task", run: "run", agent: "morgan", comment: "comment" };
   expect(interruptedBundleMatches(bundle, ids)).toBe(true);
   expect(interruptedBundleMatches({ ...bundle, paperclipRun: { ...run, status: "failed" } }, ids)).toBe(false);

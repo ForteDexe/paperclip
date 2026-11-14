@@ -1,7 +1,7 @@
 import { queryViewKind } from "@/components/QueryView";
 import { useEffect, useMemo } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
 import { api, ApiError } from "@/api/client";
 import { heartbeatsApi } from "@/api/heartbeats";
 import { useTaskRunLiveUpdates, useTranscriptLiveStream } from "@/context/LiveUpdatesProvider";
@@ -94,9 +94,9 @@ export function useTaskPluginPanels(issue: Issue | null | undefined, enabled = t
     if (!active || !run || event.companyId !== issue?.companyId || event.payload.runId !== run.id
       || event.payload.agentId !== run.agentId || event.payload.issueId !== issue?.id
       || event.type !== "heartbeat.run.event" || event.payload.eventType !== "runtime.activity.recorded") return;
-    const native = event.payload.payload as { prpEvent?: { eventType?: string; sourceKind?: string; payload?: unknown } } | null;
-    if (native?.prpEvent?.eventType !== "runtime.activity.recorded" || native.prpEvent.sourceKind !== "runner") return;
-    const activity = native.prpEvent.payload as { namespace?: unknown; activityKey?: unknown } | null;
+    const native = event.payload.payload as { orpEvent?: { eventType?: string; sourceKind?: string; payload?: unknown } } | null;
+    if (native?.orpEvent?.eventType !== "runtime.activity.recorded" || native.orpEvent.sourceKind !== "runner") return;
+    const activity = native.orpEvent.payload as { namespace?: unknown; activityKey?: unknown } | null;
     if (!activity || Object.keys(activity).length !== 2 || typeof activity.namespace !== "string" || typeof activity.activityKey !== "string") return;
     const panels = slots.filter(slot => slot.taskSidePanel?.activation?.namespace === activity.namespace
       && slot.taskSidePanel?.activation?.activityKey === activity.activityKey)

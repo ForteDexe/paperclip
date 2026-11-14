@@ -122,14 +122,14 @@ describe("Copilot sealed remote proof", () => {
     const call = { ...notice, seq: 10, status: "in_progress" as const };
     const read = { ...notice, toolCallId: "bootstrap", operation: "read", status: "completed", seq: 1 } as CopilotToolNotice;
     const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
-    const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { prpEvent: {
-      schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
-      payload: { schema: "paperclip.tool.execution.v1", executionId: "bootstrap", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
+    const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { orpEvent: {
+      schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
+      payload: { schema: "outpost.tool.execution.v1", executionId: "bootstrap", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
     } } };
     read.readTargetSha256 = `sha256:${createHash("sha256").update(actionFile).digest("hex")}`;
     const proof = { actionFile, events: [event] };
     expect(countCopilotToolOrigins(copilotActionNotices([read, call], call, proof))).toBe(1);
-    const wrong = structuredClone(event); wrong.payload.prpEvent.payload.target = "unrelated.txt";
+    const wrong = structuredClone(event); wrong.payload.orpEvent.payload.target = "unrelated.txt";
     expect(() => copilotActionNotices([read, call], call, { actionFile, events: [wrong] })).toThrow();
     expect(() => copilotActionNotices([read, { ...read, toolCallId: "unrelated", seq: 3 }, call], call, proof)).toThrow();
     expect(() => copilotActionNotices([{ ...read, turnId: "other" }, call], call, proof)).toThrow();

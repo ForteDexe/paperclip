@@ -1,6 +1,6 @@
 import { notifyChatRunMilestones } from "./chat-run-milestone-notifications.js";
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agentWakeupRequests,
   agents,
@@ -11,12 +11,12 @@ import {
   issueQuestionResponseDeliveries,
   issues,
   issueThreadInteractions,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   AskUserQuestionsInteraction,
   PaperclipQuestionSetPayload,
-} from "@paperclipai/shared";
-import type { PaperclipQuestionResponse } from "../vendor/paperclip-runner/index.js";
+} from "@outpost/shared";
+import type { PaperclipQuestionResponse } from "../vendor/outpost-runner/index.js";
 import { isUniqueViolation } from "../db-errors.js";
 import { getTelemetryClient } from "../telemetry.js";
 import { logger } from "../middleware/logger.js";
@@ -80,7 +80,7 @@ type NativeQuestionResponseResolver = (
 ) => Promise<"not_native" | "pending" | "queued">;
 
 export interface QuestionResponseDeliveryEnvelope {
-  schema: "paperclip.question_response_delivery.v1";
+  schema: "outpost.question_response_delivery.v1";
   interactionId: string;
   sourceRunId: string | null;
   questionSet: PaperclipQuestionSetPayload;
@@ -126,7 +126,7 @@ function canonicalQuestionSet(
   if (interaction.payload.questionSet)
     return structuredClone(interaction.payload.questionSet);
   return {
-    schema: "paperclip.question_set.v1",
+    schema: "outpost.question_set.v1",
     ...(interaction.title ? { title: interaction.title } : {}),
     ...(interaction.payload.submitLabel
       ? { submitLabel: interaction.payload.submitLabel }
@@ -182,7 +182,7 @@ export function buildQuestionResponseDeliveryEnvelope(
     questionSet.questions.map((question) => [question.id, question]),
   );
   const response: PaperclipQuestionResponse = {
-    schema: "paperclip.question_response.v1",
+    schema: "outpost.question_response.v1",
     answers: Object.fromEntries(
       interaction.result.answers.map((answer) => {
         const question = questionById.get(answer.questionId);
@@ -199,7 +199,7 @@ export function buildQuestionResponseDeliveryEnvelope(
     ),
   };
   return {
-    schema: "paperclip.question_response_delivery.v1",
+    schema: "outpost.question_response_delivery.v1",
     interactionId: interaction.id,
     sourceRunId: interaction.sourceRunId ?? null,
     questionSet,
@@ -326,7 +326,7 @@ export async function isRetiredExternalChatQuestionSource(
   if (
     result.externalChatContinuation !== true ||
     typeof interactionId !== "string" || !uuid.test(interactionId) ||
-    cancellation.schema !== "paperclip.native-cancellation.v1" ||
+    cancellation.schema !== "outpost.native-cancellation.v1" ||
     cancellation.companyId !== scope.companyId ||
     cancellation.runId !== scope.runId ||
     cancellation.issueId !== scope.issueId ||

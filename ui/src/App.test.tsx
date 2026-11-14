@@ -107,12 +107,12 @@ describe("CloudAccessGate", () => {
   });
 
   it("renews a missing Cloud instance session without opening local auth", async () => {
-    mockHealthApi.get.mockResolvedValue({ deploymentMode: "authenticated", cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my-staging.paperclip.app", stackSlug: "team" } });
+    mockHealthApi.get.mockResolvedValue({ deploymentMode: "authenticated", cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my-staging.outpost.app", stackSlug: "team" } });
     mockAuthApi.getSession.mockResolvedValue(null);
     beginCloudSignInMock.mockReturnValue(true);
     const root = renderGate(container);
     await vi.waitFor(() => expect(beginCloudSignInMock).toHaveBeenCalledTimes(1));
-    expect(beginCloudSignInMock).toHaveBeenCalledWith("https://my-staging.paperclip.app/v1/stacks/team/entry-redirect?returnTo=%2Finstance%2Fsettings%2Fgeneral");
+    expect(beginCloudSignInMock).toHaveBeenCalledWith("https://my-staging.outpost.app/v1/stacks/team/entry-redirect?returnTo=%2Finstance%2Fsettings%2Fgeneral");
     expect(container.textContent).not.toContain("Navigate:/auth");
     expect(container.textContent).not.toContain("Outlet content");
     unmountRoot(root);
@@ -129,7 +129,7 @@ describe("CloudAccessGate", () => {
     unmountRoot(root);
   });
 
-  it.each([undefined, { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my.paperclip.app", stackSlug: "team" }])(
+  it.each([undefined, { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my.outpost.app", stackSlug: "team" }])(
     "does not require a session in local trusted mode, including with Cloud metadata %j", async (cloud) => {
     mockHealthApi.get.mockResolvedValue({ deploymentMode: "local_trusted", cloud });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

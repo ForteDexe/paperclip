@@ -48,4 +48,4 @@ An optional drop-in engineering pod for Outposts that want a working software-de
 
 ## Migration notes
 
-This entry is derived from the `Coder` and `QA` role templates in `skills/paperclip-create-agent/references/agents/` plus the historical Engineering Lead persona under `server/src/onboarding-assets/`. Adapter-type defaults (claude_local vs codex_local) are intentionally left out of frontmatter so the import preview can let operators choose per-agent. SecurityEngineer is intentionally deferred to the future `optional/quality/security-review` entry, since most installs will not want a dedicated security agent on day one.
+This entry carries its own curated Coder and QA role descriptions plus the historical Engineering Lead persona under `server/src/onboarding-assets/`. Adapter-type defaults (claude_local vs codex_local) are intentionally left out of frontmatter so the import preview can let operators choose per-agent. SecurityEngineer is intentionally deferred to the future `optional/quality/security-review` entry, since most installs will not want a dedicated security agent on day one.

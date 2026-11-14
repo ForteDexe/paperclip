@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { CodexHarnessSession } from "../../packages/paperclip-runner/src/drivers/codex/codex-harness-session.js";
+import { CodexHarnessSession } from "../../packages/outpost-runner/src/drivers/codex/codex-harness-session.js";
 import { assertSamePiPending, observePiControlPending, readPiStopSettlement, readPiSteeringAcknowledgement, readPiSteeringSettlement } from "./pi-controls-evidence.js";
 import { stopPiAtPendingPermission } from "./pi-controls-flow.js";
 import { piControlFixture, piControlCaller, piCancellationId } from "./pi-controls-test-fixture.js";
@@ -10,7 +10,7 @@ import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 import { assertRemoteNativeEvidencePrerequisites } from "./prerequisites.js";
 
 type Row = Record<string, any>;
-const event = (row: Row) => row.payload.prpEvent;
+const event = (row: Row) => row.payload.orpEvent;
 function cancelled() {
   const f = piControlFixture(), pending = f.pending(); f.cancel();
   const binding = { pending, caller: piControlCaller, cancellationRequestId: piCancellationId, dispatchMonotonicNs: String(BigInt(pending.observedMonotonicNs) + 1n) };
@@ -68,7 +68,7 @@ describe("Pi pending control identity", () => {
 });
 describe("Pi active Stop settlement", () => {
   it("uses the production terminal mapper and actually cancels the pending callback", () => {
-    const s = cancelled(); expect(s.f.responses).toHaveLength(1); expect(s.read()).toMatchObject({ normalCompletionAccepted: false, schema: "paperclip.e2e.pi-stop-settlement.v1" });
+    const s = cancelled(); expect(s.f.responses).toHaveLength(1); expect(s.read()).toMatchObject({ normalCompletionAccepted: false, schema: "outpost.e2e.pi-stop-settlement.v1" });
   });
   it.each([
     ["normal terminal", (s: ReturnType<typeof cancelled>) => { event(s.f.events.at(-1)!).eventType = s.f.events.at(-1)!.eventType = "turn.completed"; }],
@@ -123,7 +123,7 @@ describe("Pi same-turn steering", () => {
     ["foreign control session", s => { event(s.f.events.at(-1)!).normalizedSessionId = "foreign"; }],
     ["unknown control event", s => { s.f.events.at(-1)!.eventType = event(s.f.events.at(-1)!).eventType = "runtime_request.resolved"; }],
     ["reordered control sequence", s => { event(s.f.events.at(-1)!).sourceSeq = 1; event(s.f.events.at(-1)!).sourceEventId = "source:control:run:1"; }],
-    ["duplicate control terminal", s => { s.f.append("run.terminal", { schema: "paperclip.prp.terminal.v1" }, { sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 3, sourceEventId: "source:control:run:3" }); }],
+    ["duplicate control terminal", s => { s.f.append("run.terminal", { schema: "outpost.orp.terminal.v1" }, { sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 3, sourceEventId: "source:control:run:3" }); }],
     ["unbound control result", s => { event(s.f.events.at(-2)!).payload.result.schema = "foreign"; }],
     ["both control records missing", s => { s.f.events.splice(-2); }],
     ["accepted result missing", s => { s.f.events.splice(-2, 1); }],
@@ -180,7 +180,7 @@ describe("Pi controls catalog admission", () => {
     expect(cells).toHaveLength(4); expect(cells.every(c => c.profile.qualificationCandidate === "pi" && c.task.expectedRunCount === 1)).toBe(true);
     expect(cells.map(c => `${c.environment.id}/${c.task.id}`).sort()).toEqual(["daytona/pending-permission-stop", "daytona/same-turn-steering", "local/pending-permission-stop", "local/same-turn-steering"]);
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(c => c.suite.id === "pi-controls")).toBe(false);
-    for (const cell of cells) expect(buildRunnerE2EProcessEnvironment({}, [cell]).PAPERCLIP_RUNNER_ACPX_QUALIFICATION).toBeUndefined();
+    for (const cell of cells) expect(buildRunnerE2EProcessEnvironment({}, [cell]).OUTPOST_RUNNER_ACPX_QUALIFICATION).toBeUndefined();
     expect(() => assertRemoteNativeEvidencePrerequisites(cells, {})).toThrow();
   });
   it("pins the Pi 1 profile and versioned coverage while retaining active Stop identity", () => {

@@ -36,8 +36,8 @@ export function installFixtureApi(
   deferred = false,
 ) {
   let previous = window.fetch;
-  const selectedCompany = localStorage.getItem("paperclip.selectedCompanyId");
-  localStorage.setItem("paperclip.selectedCompanyId", "company-storybook");
+  const selectedCompany = localStorage.getItem("outpost.selectedCompanyId");
+  localStorage.setItem("outpost.selectedCompanyId", "company-storybook");
   const requests: FixtureRequest[] = [];
   const fixtureFetch: typeof fetch = async (input, init) => {
     const request = input instanceof Request ? input : null;
@@ -110,8 +110,8 @@ export function installFixtureApi(
       if (pendingIndex >= 0) pendingFixtures.splice(pendingIndex, 1);
       if (active) window.fetch = previous;
       if (selectedCompany === null)
-        localStorage.removeItem("paperclip.selectedCompanyId");
-      else localStorage.setItem("paperclip.selectedCompanyId", selectedCompany);
+        localStorage.removeItem("outpost.selectedCompanyId");
+      else localStorage.setItem("outpost.selectedCompanyId", selectedCompany);
     },
   };
 }

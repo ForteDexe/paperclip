@@ -18,7 +18,7 @@ const request: TaskChatMessageItem = {
   timestamp: "9:41 AM",
 };
 
-const PAPERCLIP_FAILED: TaskChatMcpStartupFailure = {
+const OUTPOST_FAILED: TaskChatMcpStartupFailure = {
   id: "mcp:paperclip",
   serverName: "paperclip",
   reason: "handshaking with MCP server failed: connection closed: initialize response",
@@ -142,10 +142,10 @@ function AllStates() {
           </p>
         </header>
         <StateCard title="One server failed" rule="Server name, then the provider's reason, truncated to one line. Click to see the full reason.">
-          <Run failures={[PAPERCLIP_FAILED]} />
+          <Run failures={[OUTPOST_FAILED]} />
         </StateCard>
         <StateCard title="Several servers failed" rule="One line names them all. Expanding lists each reason.">
-          <Run failures={[PAPERCLIP_FAILED, GITHUB_FAILED, LINEAR_FAILED]} />
+          <Run failures={[OUTPOST_FAILED, GITHUB_FAILED, LINEAR_FAILED]} />
         </StateCard>
         <StateCard title="Run finished" rule="The warning stays on the turn after the run ends, so the agent's “I couldn't reach the tools” answer has its cause beside it.">
           <Run failures={[GITHUB_FAILED]} status="succeeded" items={completedItems} />
@@ -182,7 +182,7 @@ export const AllRunHealthStates: Story = {};
 export const InTaskChat: Story = {
   render: () => (
     <Task title="Investigate duplicate webhook deliveries to Acme">
-      <Run failures={[PAPERCLIP_FAILED]} />
+      <Run failures={[OUTPOST_FAILED]} />
     </Task>
   ),
   play: async ({ canvasElement }) => {

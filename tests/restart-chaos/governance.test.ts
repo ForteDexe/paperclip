@@ -244,7 +244,7 @@ describe("H1: budget hard stop across a restart", () => {
 
 describe("K14 replay", () => {
   it("replays a task that launched after the upgrade on the current build, its K14 restarts as K2", () => {
-    const plan = { schema: "paperclip.restart-chaos.wave-plan/v1", waveId: "w", seed: 1, createdAt: "",
+    const plan = { schema: "outpost.restart-chaos.wave-plan/v1", waveId: "w", seed: 1, createdAt: "",
       options: { env: "local", adapters: ["codex"], workloads: ["A1"], faults: ["K14", "K1"], concurrency: 1, tasks: 1, seed: 1,
         budgetCents: 3_000, pollMs: 3_000, upgradeFrom: "/old" },
       tasks: [{ taskId: "t02", index: 0, workload: "A1", adapter: "codex", fault: "K14", fireAfterMs: 1, holdMs: 0, followUpAfterMs: null,

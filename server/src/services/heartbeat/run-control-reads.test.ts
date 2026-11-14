@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import type { Db } from "@paperclipai/db";
-import { heartbeatRuns, issues } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRuns, issues } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { isAiAuthenticationBlocked } from "../ai-auth-failure.js";

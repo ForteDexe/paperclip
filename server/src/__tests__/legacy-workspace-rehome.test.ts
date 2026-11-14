@@ -5,7 +5,7 @@ import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { activityLog, agents, agentWakeupRequests, authUsers, companies, companyMemberships, createDb, executionWorkspaces,
-  heartbeatRuns, issueRecoveryActions, issueRelations, issues, statusDecisions } from "@paperclipai/db";
+  heartbeatRuns, issueRecoveryActions, issueRelations, issues, statusDecisions } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { REMOTE_WORKSPACE_WRITER_PENDING_MESSAGE } from "../services/remote-workspace-writer-hold.js";
@@ -33,14 +33,14 @@ describePostgres("stranded subtasks bound to a parent's held workspace", () => {
   let heartbeat: ReturnType<typeof heartbeatService>;
   const adapterType = "legacy_rehome_test";
   const dispatched: Array<{ issueId: string; context: Record<string, unknown> }> = [];
-  const oldHome = process.env.PAPERCLIP_HOME;
+  const oldHome = process.env.OUTPOST_HOME;
   let home: string;
 
   beforeAll(async () => {
     temporary = await startRecoveryPostgres("legacy-workspace-rehome-");
     db = createDb(temporary.connectionString);
     home = await mkdtemp(path.join(tmpdir(), "paperclip-legacy-rehome-"));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     heartbeat = heartbeatService(db);
     registerServerAdapter({
       type: adapterType, supportsLocalAgentJwt: false,
@@ -59,7 +59,7 @@ describePostgres("stranded subtasks bound to a parent's held workspace", () => {
     unregisterServerAdapter(adapterType);
     await db?.$client.end({ timeout: 0 });
     await temporary?.cleanup();
-    if (oldHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = oldHome;
+    if (oldHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = oldHome;
     if (home) await rm(home, { recursive: true, force: true });
   });
 
@@ -74,7 +74,7 @@ describePostgres("stranded subtasks bound to a parent's held workspace", () => {
     const writerRunId = randomUUID();
     const [workspace] = await db.insert(executionWorkspaces).values({ companyId, sourceIssueId: parent.id, name: "Parent workspace",
       mode: "shared_workspace", strategyType: "project_primary", status: "active", providerType: "cloud_sandbox",
-      metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 2, snapshotId: randomUUID(),
+      metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId: randomUUID(),
         source: { kind: "empty" }, writerRunId, dirty: true, location: null } } }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, parent.id));
     const child = async (title: string, issueNumber: number) => (await db.insert(issues).values({ companyId, title, parentId: parent.id,

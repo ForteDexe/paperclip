@@ -58,8 +58,8 @@ Suppress browser opening explicitly for headless or automated runs with either
 environment variable:
 
 ```sh
-PAPERCLIP_NO_BROWSER=1 pnpm paperclipai onboard --yes
-PAPERCLIP_OPEN_ON_LISTEN=false pnpm paperclipai onboard --yes
+OUTPOST_NO_BROWSER=1 pnpm paperclipai onboard --yes
+OUTPOST_OPEN_ON_LISTEN=false pnpm paperclipai onboard --yes
 ```
 
 On an existing install, `--yes` now preserves the current config and just starts Paperclip with that setup.
@@ -107,7 +107,7 @@ Show resolved environment configuration:
 pnpm paperclipai env
 ```
 
-This now includes bind-oriented deployment settings such as `PAPERCLIP_BIND` and `PAPERCLIP_BIND_HOST` when configured.
+This now includes bind-oriented deployment settings such as `OUTPOST_BIND` and `OUTPOST_BIND_HOST` when configured.
 
 ## `paperclipai allowed-hostname`
 
@@ -130,7 +130,7 @@ npx paperclipai allowed-hostname my-tailscale-host
 Override with:
 
 ```sh
-PAPERCLIP_HOME=/custom/home PAPERCLIP_INSTANCE_ID=dev pnpm paperclipai run
+OUTPOST_HOME=/custom/home OUTPOST_INSTANCE_ID=dev pnpm paperclipai run
 ```
 
 Or pass `--data-dir` directly on any command:

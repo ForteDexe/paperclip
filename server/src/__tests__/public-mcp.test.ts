@@ -1,4 +1,4 @@
-import { applyPendingMigrations } from "@paperclipai/db";
+import { applyPendingMigrations } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -8,13 +8,13 @@ import { projectRoutes } from "../routes/projects.js";
 import { agentRoutes } from "../routes/agents.js";
 import { companySkillRoutes } from "../routes/company-skills.js";
 import { MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
-import { mcpAttachmentUploads, mcpFileTickets, principalPermissionGrants, heartbeatRuns, issueAccessGrants } from "@paperclipai/db";
+import { mcpAttachmentUploads, mcpFileTickets, principalPermissionGrants, heartbeatRuns, issueAccessGrants } from "@outpost/db";
 import { createHmac, createHash, randomBytes, randomUUID } from "node:crypto";
 import express, { type Request } from "express";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, mcpEventAdmissions, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyLogos, assets, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpOauthDeviceRequests, mcpOauthMetadataAdmissions, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { activityLog, mcpEventAdmissions, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyLogos, assets, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpOauthDeviceRequests, mcpOauthMetadataAdmissions, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@outpost/db";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret, DEVICE_GRANT, McpOAuthError } from "../services/public-mcp/oauth.js";
 import { McpApiError, createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
@@ -34,14 +34,14 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 
 import { createPublicMcpEvents, publicMcpEventDefinitions } from "../services/public-mcp/events.js";
 import { createDotRunnerMcpBridge } from "../services/public-mcp/dot-runner.js";
-import { DotHarnessDriver } from "../../../packages/paperclip-runner/src/drivers/dot/dot-harness-driver.js";
-import { HarnessDriverBackend } from "../../../packages/paperclip-runner/src/backends/harness-driver-backend.js";
+import { DotHarnessDriver } from "../../../packages/outpost-runner/src/drivers/dot/dot-harness-driver.js";
+import { HarnessDriverBackend } from "../../../packages/outpost-runner/src/backends/harness-driver-backend.js";
 import { eventFetch, signingKey, type EventFetch } from "../services/public-mcp/event-webhooks.js";
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_PUBLIC_MCP_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_PUBLIC_MCP_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 if (!support.supported) console.warn(`Public MCP database checks unavailable: ${support.reason}`);
-const config = { origin: "https://paperclip.example", resource: "https://paperclip.example/mcp/paperclip" };
+const config = { origin: "https://outpost.example", resource: "https://outpost.example/mcp/paperclip" };
 const redirectUri = "https://client.example/callback";
 const verifier = randomBytes(32).toString("base64url");
 const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -49,10 +49,10 @@ const challenge = createHash("sha256").update(verifier).digest("base64url");
 describe("public MCP configuration", () => {
   it("uses the configured origin independently of the retired environment gate", () => {
     expect(publicMcpConfig({})).toBeNull();
-    expect(() => publicMcpConfig({ PAPERCLIP_PUBLIC_URL: "http://example.com" })).toThrow();
-    expect(publicMcpConfig({ PAPERCLIP_PUBLIC_URL: "http://localhost:3100" })?.resource).toBe("http://localhost:3100/mcp/paperclip");
-    expect(publicMcpConfig({}, "https://paperclip.example")?.origin).toBe("https://paperclip.example");
-    expect(publicMcpConfig({ PAPERCLIP_PUBLIC_MCP_ENABLED: "true" })).toBeNull();
+    expect(() => publicMcpConfig({ OUTPOST_PUBLIC_URL: "http://example.com" })).toThrow();
+    expect(publicMcpConfig({ OUTPOST_PUBLIC_URL: "http://localhost:3100" })?.resource).toBe("http://localhost:3100/mcp/paperclip");
+    expect(publicMcpConfig({}, "https://outpost.example")?.origin).toBe("https://outpost.example");
+    expect(publicMcpConfig({ OUTPOST_PUBLIC_MCP_ENABLED: "true" })).toBeNull();
     expect(publicMcpCapabilities.map((c) => c.name)).not.toEqual(expect.arrayContaining(["run_tool", "call_api"]));
   });
 });
@@ -62,7 +62,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
   let db: ReturnType<typeof createDb>;
   let oauth: ReturnType<typeof createPublicMcpOAuth>;
   beforeAll(async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     if (externalUrl) await applyPendingMigrations(externalUrl);
     else temp = await startEmbeddedPostgresTestDatabase("paperclip-public-mcp-");
     db = createDb(externalUrl ?? temp.connectionString);
@@ -760,7 +760,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
   it.each([
     ["codex_local", "gpt-5.4", "modelReasoningEffort"],
     ["claude_local", "claude-sonnet-4-6", "effort"],
-    ["paperclip_runner", "gpt-5.4", "modelReasoningEffort"],
+    ["outpost_runner", "gpt-5.4", "modelReasoningEffort"],
   ])("updates the effective %s reasoning setting and validates its model", async (adapterType, model, field) => {
     const f = await expandedFixture(true);
     try {
@@ -1039,7 +1039,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     expect(invalid.body.result.structuredContent.issues[0].message).toContain("UUID");
     expect(dispatch).not.toHaveBeenCalled();
     const pending = await oauth.authorize({ client_id: f.client.client_id, redirect_uri: redirectUri, resource: config.resource, response_type: "code", code_challenge: challenge, code_challenge_method: "S256" });
-    vi.stubEnv("PAPERCLIP_CLOUD_API_ORIGIN", "https://cloud.example.test");
+    vi.stubEnv("OUTPOST_CLOUD_API_ORIGIN", "https://cloud.example.test");
     try {
       const described = await request(app).get(`/api/mcp/requests/${pending.split("/").at(-1)}`);
       expect(described.body.setupUrl).toBe("https://cloud.example.test/orgs/new");
@@ -1139,7 +1139,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     };
     const options = { fetch: fetcher, now: () => clock, ...(cloudOrigin ? { cloudOrigin } : {}) };
     const service = createPublicMcpEvents(db, oauth, dispatch, options);
-    const input = { name: "paperclip.task.status_changed", arguments: { companyId: f.company.id, taskId: task!.id, statuses: ["done"] }, delivery: { mode: "webhook", url: "https://receiver.example/events/" + randomUUID(), secret } };
+    const input = { name: "outpost.task.status_changed", arguments: { companyId: f.company.id, taskId: task!.id, statuses: ["done"] }, delivery: { mode: "webhook", url: "https://receiver.example/events/" + randomUUID(), secret } };
     const activity = async (action = "issue.updated", details: Record<string, unknown> = { status: "done" }) => {
       clock += 100;
       const [row] = await db.insert(activityLog).values({ companyId: f.company.id, actorType: "user", actorId: f.actor.userId!, action, entityType: "issue", entityId: task!.id, details, createdAt: new Date(clock) }).returning();
@@ -1177,8 +1177,8 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     const tool = async (name: string, args: Record<string, unknown>) => (await rpc("tools/call", { name, arguments: args })).body.result;
     try {
       expect((await rpc("server/discover")).body.result.capabilities).toHaveProperty("events");
-      expect((await rpc("events/list")).body.result.events.map((e: { name: string }) => e.name)).toContain("paperclip.dot.work_available");
-      const subscription = { ...f.input, name: "paperclip.dot.work_available", arguments: { companyId: f.company.id, taskId: f.task.id } };
+      expect((await rpc("events/list")).body.result.events.map((e: { name: string }) => e.name)).toContain("outpost.dot.work_available");
+      const subscription = { ...f.input, name: "outpost.dot.work_available", arguments: { companyId: f.company.id, taskId: f.task.id } };
       expect((await rpc("events/subscribe", subscription)).body.result.id).toBeTruthy();
       const { turnId } = await session.startTurn({ message: { role: "user", text: "Save a competitor research report." } });
       await events.tick();
@@ -1200,7 +1200,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       expect((await call("paperclip_dot_progress", { text: "Saved the report." })).isError).toBe(false);
       const other = await fixture();
       expect((await rpc("tools/call", { name: "paperclip_dot_read", arguments: { ...base, requestId: randomUUID() } }, other.tokens.access_token)).body.result.isError).toBe(true);
-      const result = { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Report saved.",
+      const result = { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Report saved.",
         completionClaim: { contractRevision: "dot-prototype-v1", objectiveSatisfied: true, criteria: [], remainingWork: [] },
         evidence: [], verification: [], attentionRequests: [], artifacts: [] };
       expect((await call("paperclip_dot_finish", { result })).isError).toBe(false);
@@ -1502,8 +1502,8 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await f.service.unsubscribe(f.principal, f.input);
     const g = await eventFixture();
     for (const [name, action, details] of [
-      ["paperclip.task.comment_created", "issue.comment_added", { commentId: randomUUID(), body: "private comment" }],
-      ["paperclip.task.document_updated", "issue.document_updated", { key: "report", revisionNumber: 2, body: "private report" }],
+      ["outpost.task.comment_created", "issue.comment_added", { commentId: randomUUID(), body: "private comment" }],
+      ["outpost.task.document_updated", "issue.document_updated", { key: "report", revisionNumber: 2, body: "private report" }],
     ] as const) {
       const input = { ...g.input, name, arguments: { companyId: g.company.id, taskId: g.task.id } };
       await g.service.subscribe(g.principal, input); await g.activity(action, details); await g.service.tick();

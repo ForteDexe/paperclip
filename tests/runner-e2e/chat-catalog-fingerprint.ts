@@ -87,8 +87,8 @@ export function assertChatCatalogFingerprintLane(selected: unknown, env: NodeJS.
   const database = databaseFingerprintIdentity(env);
   if (execution.databaseLane !== undefined && JSON.stringify(execution.databaseLane) !== JSON.stringify(database)) throw new Error("Selected database lane differs from fingerprint environment");
   const installed = execution.installedSource === "published-global-npm" && (installedChatScenarioIds as readonly string[]).includes(String(execution.scenarioId));
-  const installedKeys = ["PAPERCLIP_RUNNER_E2E_INSTALLED_CLI", "PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256",
-    "PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT", "PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256", "PAPERCLIP_RUNNER_E2E_INSTALLED_STARTUP_ONLY"];
+  const installedKeys = ["OUTPOST_RUNNER_E2E_INSTALLED_CLI", "OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256",
+    "OUTPOST_RUNNER_E2E_INSTALLED_SERVER_ROOT", "OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256", "OUTPOST_RUNNER_E2E_INSTALLED_STARTUP_ONLY"];
   const forbiddenArguments = ["--target-config", "--github-review-config", "--connection-config", "--installed-startup-only", "product-journeys"];
   if (installed && !reviewedChatProfile(execution.profile) || execution.suiteId !== "chat-features" || execution.flow !== "agent_chat" || execution.environment !== "local"
     || !installed && installedKeys.some(key => env[key] && env[key] !== "0") || args.some(argument => forbiddenArguments.includes(argument)))
@@ -145,7 +145,7 @@ export function legacyChatFeatureFingerprint(execution: MatrixExecution) {
   if (!["create-backlog", "delegate-announcement"].includes(execution.task.id)) throw new Error("Unknown legacy chat feature case");
   return chatCatalogCaseFingerprint({ scenarioId: `tasks.${execution.task.id}`, modulePath: "./chat-feature-flow.js", exportName: "runChatFeatureFlow",
     sourceFiles: ["chat-feature-flow.ts", "chat-feature-scoring.ts", "chat-scenarios/tasks.yaml", "completion-updates.ts"],
-    oracleVersion: "paperclip.chat-features.v1", expectedRunCount: execution.task.expectedRunCount,
+    oracleVersion: "outpost.chat-features.v1", expectedRunCount: execution.task.expectedRunCount,
     expectedHumanMessageCount: 1, turnTimeoutMs: execution.task.turnTimeoutMs!, attemptTimeoutMs: execution.task.attemptTimeoutMs.local,
   }, normalizedChatCatalogExecution(execution));
 }

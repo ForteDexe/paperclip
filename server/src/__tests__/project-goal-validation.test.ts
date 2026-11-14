@@ -6,7 +6,7 @@ import {
   goals,
   projectGoals,
   projects as projectsTable,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

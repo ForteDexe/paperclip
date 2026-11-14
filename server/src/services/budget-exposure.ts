@@ -1,6 +1,6 @@
-import { addCents, normalizeCents, usdToUnits, unitsToCents } from "@paperclipai/shared";
+import { addCents, normalizeCents, usdToUnits, unitsToCents } from "@outpost/shared";
 import { and, eq, gte, inArray, lt, or, sql, type SQL } from "drizzle-orm";
-import { budgetPolicies, budgetReservations, browserUseRuns, browserUseSessions, costEvents, heartbeatRuns, issues, type Db } from "@paperclipai/db";
+import { budgetPolicies, budgetReservations, browserUseRuns, browserUseSessions, costEvents, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { withBudgetSpan } from "./budget-tracing.js";
 
 export interface BudgetExposure {

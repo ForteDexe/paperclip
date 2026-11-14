@@ -45,7 +45,7 @@ export async function addSentryRunLinks<T extends LinkableEvent>(event: T): Prom
   if (!resolver || typeof runId !== "string" || !UUID.test(runId)) return event;
   let base: URL | null = null;
   try {
-    base = new URL(process.env.PAPERCLIP_PUBLIC_URL ?? "");
+    base = new URL(process.env.OUTPOST_PUBLIC_URL ?? "");
     if (!["http:", "https:"].includes(base.protocol) || base.username || base.password ||
         base.search || base.hash || base.pathname !== "/") base = null;
   } catch {}

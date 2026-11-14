@@ -1,6 +1,6 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
 
-const PLUGIN_ID = "paperclip.workspace-diff";
+const PLUGIN_ID = "outpost.workspace-diff";
 const CHANGES_TAB_SLOT_ID = "workspace-changes-tab";
 
 const manifest: PaperclipPluginManifestV1 = {

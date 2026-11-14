@@ -1,12 +1,12 @@
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { commitToolActionReview } from "../services/tool-action-review.js";
-import { googleWorkspaceSelectedScopes, defaultGitHubReviewPolicy, SLACK_CHAT_BOT_SCOPES, SLACK_BOT_TOOL_SCOPES } from "@paperclipai/shared";
+import { googleWorkspaceSelectedScopes, defaultGitHubReviewPolicy, SLACK_CHAT_BOT_SCOPES, SLACK_BOT_TOOL_SCOPES } from "@outpost/shared";
 import { createHash, randomBytes, randomUUID, generateKeyPairSync } from "node:crypto";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { and, eq, sql } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, activityLog, agentApiKeys, companies, companySecrets, companySecretVersions, chatConversations, chatDeliveries, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, toolPolicies, toolRateLimitCounters, connectionGrants, connectionGrantMembers, connectionGrantDelegations, toolAccessAuditEvents, toolOauthStates, issueThreadInteractions, connectionIntentDeliveries, agents, companyMemberships, heartbeatRuns, issues, principalPermissionGrants, projects, toolApplications, toolConnections, toolConnectionInstalls, aiConnectionPools, toolMcpGateways, toolMcpGatewayTokens, toolActionRequests, toolCatalogEntries, toolInvocations, toolCallEvents, toolProfileEntries, toolProfiles, toolProfileBindings, plugins, adapterAuthSessions, environments, routines, chatGitHubReviews } from "@paperclipai/db";
+import { createDb, authUsers, activityLog, agentApiKeys, companies, companySecrets, companySecretVersions, chatConversations, chatDeliveries, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, toolPolicies, toolRateLimitCounters, connectionGrants, connectionGrantMembers, connectionGrantDelegations, toolAccessAuditEvents, toolOauthStates, issueThreadInteractions, connectionIntentDeliveries, agents, companyMemberships, heartbeatRuns, issues, principalPermissionGrants, projects, toolApplications, toolConnections, toolConnectionInstalls, aiConnectionPools, toolMcpGateways, toolMcpGatewayTokens, toolActionRequests, toolCatalogEntries, toolInvocations, toolCallEvents, toolProfileEntries, toolProfiles, toolProfileBindings, plugins, adapterAuthSessions, environments, routines, chatGitHubReviews } from "@outpost/db";
 import { findSatisfiedToolConnection, satisfiedConnectionIntentService } from "../services/satisfied-connection-intents.js";
 import { connectionManagementService, continuingConnectionManagement } from "../services/connection-management.js";
 import { aiConnectionService } from "../services/ai-connections.js";
@@ -25,7 +25,7 @@ import { accessService } from "../services/access.js";
 import { secretService } from "../services/secrets.js";
 import { localEncryptedProvider } from "../secrets/local-encrypted-provider.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import type { AuthorizationActor } from "../services/authorization.js";
 import type { ConnectionManagementResource } from "../services/connection-management-policy.js";
 
@@ -47,9 +47,9 @@ describe("connection management with production default agents", () => {
   let provider: ((url: string, init?: RequestInit) => Promise<Response>) | null = null;
   let providerFetch: ReturnType<typeof vi.spyOn>;
   beforeAll(async () => {
-    vi.stubEnv("PAPERCLIP_AGENT_JWT_SECRET", randomUUID());
-    vi.stubEnv("PAPERCLIP_RESPONSIBLE_USER_AUTHZ_MODE", "shadow");
-    vi.stubEnv("PAPERCLIP_AUTH_RATE_LIMIT_ENABLED", "false");
+    vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", randomUUID());
+    vi.stubEnv("OUTPOST_RESPONSIBLE_USER_AUTHZ_MODE", "shadow");
+    vi.stubEnv("OUTPOST_AUTH_RATE_LIMIT_ENABLED", "false");
     const realFetch = globalThis.fetch;
     providerFetch = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
@@ -57,9 +57,9 @@ describe("connection management with production default agents", () => {
       if (provider) return provider(url, init);
       throw new Error("Unexpected external request in provider fixture");
     });
-    server = await startRunnerApiTestServer({ authPublicBaseUrl: "https://paperclip.fixture.invalid", humanSessions: true, databaseUrl: process.env.PAPERCLIP_CONNECTION_MANAGEMENT_TEST_DATABASE_URL });
+    server = await startRunnerApiTestServer({ authPublicBaseUrl: "https://outpost.fixture.invalid", humanSessions: true, databaseUrl: process.env.OUTPOST_CONNECTION_MANAGEMENT_TEST_DATABASE_URL });
     lifecycle = configureAgentLifecycle(server.db, { requiredPluginIds: async () => [], runPlugin: async () => "complete", runHost: async () => "complete" });
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", join(server.root, "master.key"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", join(server.root, "master.key"));
     await instanceSettingsService(server.db).updateExperimental({ enableChatConnectors: true, enableGitHubReviewBots: true, enableGoogleWorkspaceConnector: true });
   }, 90_000);
   afterAll(async () => { await lifecycle?.stop(); await server?.close(); providerFetch?.mockRestore(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
@@ -74,7 +74,7 @@ describe("connection management with production default agents", () => {
     const cookie = await server.humanSession(userId);
     const created = await fetch(`${server.apiUrl}/api/companies/${base.companyId}/agents`, {
       method: "POST", headers: { cookie, "Content-Type": "application/json", origin: server.apiUrl },
-      body: JSON.stringify({ name: "Fresh standard agent", role: "engineer", adapterType: "paperclip_runner", adapterConfig: { provider: "codex" },
+      body: JSON.stringify({ name: "Fresh standard agent", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" },
         runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } }, permissions: {} }),
     });
     const agent = await created.json();
@@ -85,7 +85,7 @@ describe("connection management with production default agents", () => {
     await server.db.update(heartbeatRuns).set({ agentId: agent.id }).where(eq(heartbeatRuns.id, base.runId));
     await server.db.update(issues).set({ assigneeAgentId: agent.id, responsibleUserId: userId }).where(eq(issues.id, base.issueId));
     const key = await agentService(server.db).createApiKey(agent.id, "integration", { kind: "standard" }, { responsibleUserId: userId });
-    const jwt = createLocalAgentJwt(agent.id, base.companyId, "paperclip_runner", base.runId, userId)!;
+    const jwt = createLocalAgentJwt(agent.id, base.companyId, "outpost_runner", base.runId, userId)!;
     const request = async (method: string, path: string, body?: unknown, token = key.token) => {
       const response = await fetch(server.apiUrl + (path.startsWith("/mcp/") ? "" : "/api") + path, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       return { status: response.status, body: await response.json().catch(() => null) };
@@ -480,7 +480,7 @@ describe("connection management with production default agents", () => {
 
   it("reaches sandbox device-login management as the responsible user and protects another owner's saved session", async () => {
     const f = await fixture();
-    registerServerAdapter({ ...getServerAdapter("paperclip_runner"), type: "codex_local", loginCapability: {
+    registerServerAdapter({ ...getServerAdapter("outpost_runner"), type: "codex_local", loginCapability: {
       panelMode: "displayed_code", timeoutPolicy: "caller_bounded", getCommand: () => "codex login --device-auth", parsePrompt: () => null,
     } });
     try {
@@ -557,7 +557,7 @@ describe("connection management with production default agents", () => {
     if (revocation.startsWith("other-agent")) {
       const cookie = await server.humanSession(f.userId);
       const created = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/agents`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Test target", role: "engineer", adapterType: "paperclip_runner", adapterConfig: { provider: "codex" }, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }) });
+        body: JSON.stringify({ name: "Test target", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }) });
       const target = await created.json();
       expect(created.status, JSON.stringify(target)).toBe(201);
       targetAgentId = target.id;
@@ -726,7 +726,7 @@ describe("connection management with production default agents", () => {
           expect(settled.policyExplanation?.delegatedCallerConsumedRateAdmissions).toHaveLength(1);
           const [nextRun] = await server.db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
             status: "running", responsibleUserId: f.userId, contextSnapshot: { issueId: f.issueId } }).returning();
-          const nextJwt = createLocalAgentJwt(f.agentId, f.companyId, "paperclip_runner", nextRun.id, f.userId)!;
+          const nextJwt = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", nextRun.id, f.userId)!;
           expect(await f.request("POST", path, body, nextJwt)).toMatchObject({ status: 200, body: { decision: "off", error: { reasonCode: "rate_limited" } } });
           expect(calls).toBe(1);
         }
@@ -1151,7 +1151,7 @@ describe("connection management with production default agents", () => {
       const cookie = await server.humanSession(f.userId);
       const targetResponse = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/agents`, {
         method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Slack target", role: "engineer", adapterType: "paperclip_runner", adapterConfig: { provider: "codex" },
+        body: JSON.stringify({ name: "Slack target", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" },
           permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }),
       });
       const target = await targetResponse.json();
@@ -1223,7 +1223,7 @@ describe("connection management with production default agents", () => {
       if (path === "/user/installations") return Response.json({ installations: [{ id: 2468, app_id: appId }] });
       if (path === "/app") return Response.json({ id: appId, slug: `fixture-${f.agentId.slice(0, 8)}`, name: "Fixture App", owner: { login: "fixture" }, permissions,
         events: ["pull_request", "github_app_authorization", "installation", "installation_repositories", "issue_comment", "pull_request_review_comment"] });
-      if (path === "/app/hook/config") return Response.json(init?.body ? JSON.parse(String(init.body)) : { url: "https://paperclip.fixture.invalid", content_type: "json", insecure_ssl: "0" });
+      if (path === "/app/hook/config") return Response.json(init?.body ? JSON.parse(String(init.body)) : { url: "https://outpost.fixture.invalid", content_type: "json", insecure_ssl: "0" });
       if (path === "/app/installations") return Response.json([{ id: 2468, account: { id: 1357, login: "fixture", type: "Organization" }, permissions, suspended_at: null }]);
       if (path === "/app/installations/2468") return Response.json({ permissions, suspended_at: null });
       if (path === "/app/installations/2468/access_tokens") return Response.json({ token: "fixture-installation-token" }, { status: 201 });
@@ -1502,8 +1502,8 @@ describe("connection management with production default agents", () => {
 
   it("encrypts native local-login checks and replays without exposing device codes in receipts or assets", async () => {
     const f = await fixture();
-    const priorHome = process.env.PAPERCLIP_HOME;
-    vi.stubEnv("PAPERCLIP_HOME", join(server.root, "local-login-receipt"));
+    const priorHome = process.env.OUTPOST_HOME;
+    vi.stubEnv("OUTPOST_HOME", join(server.root, "local-login-receipt"));
     const authorizationUrl = "https://fixture.invalid/device?private_handoff=disposable-login";
     const code = "DISPOSABLE-DEVICE-CODE";
     const browser = vi.spyOn(localBrowserLogin, "startLocalBrowserLogin").mockReturnValue({ authorizationUrl, code, abort: vi.fn() });
@@ -1531,8 +1531,8 @@ describe("connection management with production default agents", () => {
     } finally {
       if (sessionId) await f.request("DELETE", `/companies/${f.companyId}/ai-connections/local/attempts/${sessionId}`, undefined, f.jwt);
       browser.mockRestore();
-      if (priorHome === undefined) delete process.env.PAPERCLIP_HOME;
-      else process.env.PAPERCLIP_HOME = priorHome;
+      if (priorHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = priorHome;
     }
   });
 
@@ -1667,7 +1667,7 @@ describe("connection management with production default agents", () => {
     const f = await fixture();
     const cookie = await server.humanSession(f.userId);
     const createdTarget = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/agents`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Gateway target", role: "engineer", adapterType: "paperclip_runner", adapterConfig: { provider: "codex" }, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }) });
+      body: JSON.stringify({ name: "Gateway target", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }) });
     const target = await createdTarget.json();
     expect(createdTarget.status).toBe(201);
     await lifecycle.process(target.id);
@@ -1843,7 +1843,7 @@ describe("connection management with production default agents", () => {
       if (url === "https://api.openai.com/v1/models") return Response.json({ data: [] });
       throw new Error("Unexpected AI fixture request");
     };
-    registerServerAdapter({ ...getServerAdapter("paperclip_runner"), testEnvironment: async () => ({ adapterType: "paperclip_runner", status: "pass", checks: [], testedAt: new Date().toISOString() }) });
+    registerServerAdapter({ ...getServerAdapter("outpost_runner"), testEnvironment: async () => ({ adapterType: "outpost_runner", status: "pass", checks: [], testedAt: new Date().toISOString() }) });
     try {
       const account = await f.request("POST", `/companies/${f.companyId}/ai-connections`, { provider: "openai", method: "api_key", name: "Fixture OpenAI", ownership: "personal", apiKey: "fixture-secret-do-not-return", agentIds: [f.agentId] });
       expect(account, JSON.stringify(account)).toMatchObject({ status: 201 });
@@ -1871,7 +1871,7 @@ describe("connection management with production default agents", () => {
       expect(await f.request("DELETE", `/companies/${f.companyId}/ai-connection-pools/${pool.body.id}`, { expectedRevision: 2 })).toMatchObject({ status: 200 });
       await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
       expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, { provider: "openai", method: "api_key", name: "No sharing authority", ownership: "personal", apiKey: "fixture-secret", agentIds: [f.agentId] })).toMatchObject({ status: 403 });
-    } finally { provider = null; unregisterServerAdapter("paperclip_runner"); }
+    } finally { provider = null; unregisterServerAdapter("outpost_runner"); }
   });
 
   it("reads only the authorized Anthropic account identity through actual agent authentication", async () => {

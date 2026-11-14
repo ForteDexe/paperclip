@@ -218,8 +218,8 @@ retained content. Neither source admission nor a scripted pass proves model
 behavior.
 
 - **Runner Evals:** real Runner/provider behavior against a seeded mock control
-  plane. Definitions live in `paperclip-evals/evals/paperclip-runner`; see the
-  [direct live protocol evals](../packages/paperclip-runner/docs/runner-protocol-live-evals.md).
+  plane. Definitions live in `paperclip-evals/evals/outpost-runner`; see the
+  [direct live protocol evals](../packages/outpost-runner/docs/runner-protocol-live-evals.md).
 - **Product E2E Evals:** real browser, Paperclip server, database, Runner,
   provider, and (where selected) Daytona, using an isolated instance and
   grading oracle. See [`tests/runner-e2e`](../tests/runner-e2e/README.md) and
@@ -296,7 +296,7 @@ comparison axis.
 Runner Evals are owned by the Runner/evals maintainers. Definitions, rosters,
 case prompts, and the report program live in the sibling private repository
 `paperclipai/paperclip-evals`; Runner integration, viewer, aggregation, and
-publication code live under `packages/paperclip-runner` and the
+publication code live under `packages/outpost-runner` and the
 `runner-protocol-live-evals.yml` workflow. The public-facing report uses the
 same Evalbook renderer and Runner Lab viewer as the trusted report after
 sanitization.
@@ -397,12 +397,12 @@ for the command, the TestOps Reliability plan and the before-release cadence.
 
 For Runner Evals, the narrowest useful local validation is the report program's
 help/validation path and the deterministic Runner checks documented in
-[`runner-workflow-evals.md`](../packages/paperclip-runner/docs/runner-workflow-evals.md).
+[`runner-workflow-evals.md`](../packages/outpost-runner/docs/runner-workflow-evals.md).
 Hosted direct live runs must use the default-branch workflow, an exact 40
 character `evals_sha`, an explicitly selected roster (or the maintained
 enabled `all` campaign), and the protected paid environment. The complete
 hosted command is intentionally kept in the workflow and
-[direct live protocol guide](../packages/paperclip-runner/docs/runner-protocol-live-evals.md).
+[direct live protocol guide](../packages/outpost-runner/docs/runner-protocol-live-evals.md).
 Live provider runs can spend money; use the existing workflow authorization and
 the user's stated scope when selecting them.
 
@@ -487,7 +487,7 @@ Existing public histories are available at
 [Runner protocol history](https://d1p6rlowie26tp.cloudfront.net/runner-protocol-evals/index.html)
 and [Runner Product E2E history](https://d1p6rlowie26tp.cloudfront.net/runner-e2e/).
 The consolidated eval hub is at
-[pages.paperclip.ing/evals](https://pages.paperclip.ing/evals/).
+[pages.outpost.ing/evals](https://pages.outpost.ing/evals/).
 
 For a repeatable workflow, use the matching skill: [paperclip-evals](../.agents/skills/paperclip-evals/SKILL.md),
 [add-runner-eval](../.agents/skills/add-runner-eval/SKILL.md), or
@@ -610,8 +610,8 @@ system Bash 3 cannot run this helper. On macOS with Homebrew Bash installed,
 put `$(brew --prefix bash)/bin` first in `PATH` before these commands:
 
 ```sh
-export PAPERCLIP_PAGE_BUCKET=pages.paperclip.ing
-export PAPERCLIP_PAGE_BASE_URL=https://pages.paperclip.ing
+export OUTPOST_PAGE_BUCKET=pages.outpost.ing
+export OUTPOST_PAGE_BASE_URL=https://pages.outpost.ing
 export AWS_REGION=us-east-1
 bash .agents/skills/paperclip-page/scripts/publish.sh .paperclip/evals-hub --slug evals --dry-run
 bash .agents/skills/paperclip-page/scripts/publish.sh .paperclip/evals-hub --slug evals

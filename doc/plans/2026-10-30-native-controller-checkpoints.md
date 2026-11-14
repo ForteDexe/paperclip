@@ -39,8 +39,8 @@ has since landed. Build on it instead of introducing another checkpoint store.
 
 | Existing capability | Owner / evidence inspected |
 | --- | --- |
-| Encrypted, company/task/run-bound PRP checkpoints in Postgres | [`native-runner-checkpoint.ts`](../../server/src/services/native-runtime/native-runner-checkpoint.ts), [`native_runner_checkpoints`](../../packages/db/src/schema/native_runner_checkpoints.ts); landed in `09ad9adce2` / PR #17439 |
-| Opaque checkpoint codec, restore, authenticated replay cursor and persistence-before-effect barriers | [`durable-prp-control-plane.ts`](../../packages/paperclip-runner/src/control-plane/durable-prp-control-plane.ts) |
+| Encrypted, company/task/run-bound ORP checkpoints in Postgres | [`native-runner-checkpoint.ts`](../../server/src/services/native-runtime/native-runner-checkpoint.ts), [`native_runner_checkpoints`](../../packages/db/src/schema/native_runner_checkpoints.ts); landed in `09ad9adce2` / PR #17439 |
+| Opaque checkpoint codec, restore, authenticated replay cursor and persistence-before-effect barriers | [`durable-orp-control-plane.ts`](../../packages/outpost-runner/src/control-plane/durable-orp-control-plane.ts) |
 | Expiring ownership, controller generations, stale-writer fencing and isolated renewal/checkpoint pools | [`native-restart-recovery.ts`](../../server/src/services/native-runtime/native-restart-recovery.ts), [`native-execution-lease.ts`](../../server/src/services/native-runtime/native-execution-lease.ts) |
 | Active remote reattachment from DB state and the admitted Runner artifact | [`native-session-executor.ts`](../../server/src/services/native-runtime/native-session-executor.ts), `executePaperclipNativeSessionWithinScope` |
 | Bounded database discovery of prior task/session checkpoints | [`native-session-resume.ts`](../../server/src/services/native-runtime/native-session-resume.ts) |
@@ -56,17 +56,17 @@ changes; do not duplicate its rollout or configuration work.
 
 ## Remaining dependencies and evidence gaps
 
-1. **Ordinary continuation still discovers PRP state through local identity.**
+1. **Ordinary continuation still discovers ORP state through local identity.**
    `restoreWarmRunnerdController` and `restorePerTurnRunnerdController` first read
    the local full state or external marker. They return when neither supplies a
    matching identity. Active restart recovery instead starts from a DB run
    binding. Extend that approach to ordinary continuation without skipping the
    existing prior-owner, session, configuration, and suspended-state checks.
 2. **Warm supervisor state has its own local persistence path.**
-   `persistWarmNativeCheckpoint` writes `paperclip.native-session-supervisor.v1`
+   `persistWarmNativeCheckpoint` writes `outpost.native-session-supervisor.v1`
    with the snapshot, configuration digest, and process-configuration digest;
    `loadWarmNativeCheckpoint` and warm process reuse read that file. The separate
-   Postgres PRP restore writes only `control-plane-state.json`. Existing saved
+   Postgres ORP restore writes only `control-plane-state.json`. Existing saved
    `runnerProfileJson.sessionCheckpoint` and admitted execution input provide
    reusable data, but the complete warm reuse decision must become reconstructible.
 3. **Current focused tests do not establish the whole application contract.**
@@ -76,7 +76,7 @@ changes; do not duplicate its rollout or configuration work.
    overlap, or a second fresh-server continuation. Existing supervisor/Product
    E2E coverage may prove some of these; reconcile it before adding new cells.
 4. **Upgrade eligibility is narrower than disk independence.**
-   The current report checks active runs and bounded PRP headers. It does not
+   The current report checks active runs and bounded ORP headers. It does not
    certify completed retained sessions or dereference workspace recovery files.
    An empty active-run list must not imply that all controller history is safe
    to discard.
@@ -91,7 +91,7 @@ already reconstruct sufficient state through their callers.
 
 | State | Durable owner | Local treatment |
 | --- | --- | --- |
-| PRP authentication, command receipts, control events and replay state | Existing encrypted `native_runner_checkpoints` | Reconstructed cache/marker |
+| ORP authentication, command receipts, control events and replay state | Existing encrypted `native_runner_checkpoints` | Reconstructed cache/marker |
 | Run authority and finalization | Existing `native_run_finalizations`, run and issue locks | No local substitute |
 | Provider/session snapshot and native reuse compatibility | Existing run profile plus a versioned native recovery envelope where fields are missing | Reconstructed supervisor projection |
 | Session lookup | Existing task-session pointer and bounded prior-run selection | Never depends on directory enumeration or a marker |
@@ -114,7 +114,7 @@ workspace scope, admitted execution, provider configuration and current authorit
 Retain the existing progress barriers: a newer incompatible or incomplete record
 must not make recovery select an older convenient checkpoint.
 
-Load and validate the PRP checkpoint and native snapshot before materializing
+Load and validate the ORP checkpoint and native snapshot before materializing
 local projections. The destination is computed from the replacement's local
 root; absolute paths recorded by the old controller never identify durable data.
 An existing local projection must agree with the selected committed state or be
@@ -124,7 +124,7 @@ state remains a specific recovery hold, without a fresh provider turn.
 Default persistence design: reuse `runnerProfileJson.sessionCheckpoint` and add
 only a private, versioned native recovery envelope for missing compatibility and
 checkpoint-binding metadata. Persist the snapshot and its metadata together
-under the current run's fenced ownership. Do not duplicate the PRP journal or
+under the current run's fenced ownership. Do not duplicate the ORP journal or
 store server-specific fields as arbitrary Runner checkpoint parts. If existing
 profile metadata already supplies a field, reference it instead of copying it.
 Use a schema migration only if characterization demonstrates that the existing
@@ -133,7 +133,7 @@ run/session records cannot express a required durable lookup or concurrency chec
 The private `nativeControllerRecovery` envelope is limited to 4 KiB serialized.
 It contains a format version, digest of the exact redacted stored snapshot,
 native configuration digest, process-configuration digest or explicit absence,
-and PRP attachment/checkpoint binding. Run/company/task/agent/session identity is
+and ORP attachment/checkpoint binding. Run/company/task/agent/session identity is
 validated against existing records and the snapshot, not duplicated execution
 inputs. Keep credentials in the
 existing encrypted authority; persist logical resource identities, not secret
@@ -154,10 +154,10 @@ owners. Outcomes distinguish recoverable, waiting for an owner with its actual
 deadline, missing/inconsistent evidence, unsupported format/capability, dependency
 unavailable and proven no-prior-execution. Missing evidence is not fresh bootstrap.
 Keep the 32-candidate selection window and newer-progress barriers; fetch the full
-payload only for the selected source. PRP attachment identity and current business
+payload only for the selected source. ORP attachment identity and current business
 run write authority differ during warm handoff and must remain explicit.
 
-Publish a resumable snapshot only after its referenced PRP boundary is durable.
+Publish a resumable snapshot only after its referenced ORP boundary is durable.
 Across separate commits, interruption may leave a pending obligation, never a
 false ready state. Recovery reconciles that exact obligation without rerunning
 the provider. Completion acceptance, workspace settlement, session reuse, and
@@ -231,7 +231,7 @@ floor; an older local-only reader is not a valid empty-disk rollback target.
 
 - Text streaming adds zero recovery SQL, transactions or checkpoint rows per chunk.
 - Ordinary usage remains coalesced into control checkpoints. Preserve changed-part
-  PRP writes and exact removals; do not add a journal, transcript or archive copy.
+  ORP writes and exact removals; do not add a journal, transcript or archive copy.
 - Snapshot metadata rides the existing snapshot transaction, including unchanged
   metadata; no parallel writer, per-agent connection or new pool.
 - Idle servers add no recurring SQL/network work once obligations settle.
@@ -297,7 +297,7 @@ default branch and reconcile the active upgrades chat before writing source.
 ## Feedback path and verification
 
 First experiment: extend the existing real-Postgres remote continuation fixture
-with a completed warm turn, remove both PRP marker and supervisor directories,
+with a completed warm turn, remove both ORP marker and supervisor directories,
 then submit the next turn through normal admission. Keep the remote Runner alive.
 Assert the prior run/session chosen, process identity, one new turn and a useful
 result. Also run the per-turn control. Do not prepopulate the desired recovery
@@ -339,7 +339,7 @@ Native checkpoint success alone does not permit removing the webserver volume.
 Workspace sync still resolves local descriptors/manifests in
 [`native-workspace-sync.ts`](../../server/src/services/native-runtime/native-workspace-sync.ts).
 That owner must provide durable logical recovery references and saved generations;
-this plan consumes that contract rather than moving workspace archives into PRP.
+this plan consumes that contract rather than moving workspace archives into ORP.
 Provider backup blobs and prepared resources needed after a process has suspended
 must likewise resolve without the old server disk.
 
@@ -431,7 +431,7 @@ test can waive that gate.
 
 Qualification update: the legacy and changed-process-configuration warm cases
 exposed a marker left by suspension before authority rotation. Restoring the
-committed PRP checkpoint before constructing the replacement backend fixes both;
+committed ORP checkpoint before constructing the replacement backend fixes both;
 both real-process cases pass. The initial rerun used the wrong fixture executable
 path and failed before provider startup; its log is retained. All 59 control-plane
 port tests pass after narrowing the snapshot read to the binding and profile
@@ -443,7 +443,7 @@ acceptance. A new paired run will measure the narrower snapshot projection.
 
 Qualification update at `512cc6d6dc`: the snapshot port now combines coordinator
 and run locks into one statement, with a database-clock check after both waits.
-All 59 real-Postgres port tests pass. Snapshot and PRP transaction counts remain
+All 59 real-Postgres port tests pass. Snapshot and ORP transaction counts remain
 unchanged; the first completed 300-controller baseline/candidate pair each issued
 74,790 total statements and 7,800 control transactions across all pools. The
 candidate adds the metadata bytes but no SQL per streamed chunk.
@@ -520,7 +520,7 @@ discovery, startup recovery and heartbeat runtime execution passed against owned
 Docker Postgres. After the final database-clock and operator-Stop fences, all
 nine durable discovery/import/wait tests passed and server typecheck passed.
 The direct per-turn failed-read regression passed through normal admission with
-three real controller processes: the failed read leaves the reconstructed PRP
+three real controller processes: the failed read leaves the reconstructed ORP
 projection, the next admission reconstructs the missing lifecycle receipt, and
 the next replacement still continues the same provider history. Prepared-task
 resumed and failed-read/retry cases also pass for Codex and Claude fixtures.
@@ -543,7 +543,7 @@ host, with PostgreSQL and its Node workload each limited to two CPUs and 1536 Mi
 It preserves the existing 10/2/2 request/renewal/checkpoint pool caps per logical
 server. Steady and aligned-burst ABBA comparisons passed the existing absolute,
 correctness and 10% relative regression gates with 300 controllers and 10,000
-historical tasks. Neither changes snapshot/PRP transaction counts. The separate
+historical tasks. Neither changes snapshot/ORP transaction counts. The separate
 claim-capacity probe waits for natural lease expiry, invokes the production
 claim path for 300 synthetic executions, restores real encrypted checkpoints
 under empty controller directories, and measures current-owner checkpoint and

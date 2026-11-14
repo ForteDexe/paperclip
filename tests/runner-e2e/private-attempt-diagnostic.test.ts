@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
 import { appendPrivateAttemptDiagnostic, privateAttemptDiagnostic, readPrivateAttemptObservation } from "./private-attempt-diagnostic.js";
-import { canonicalProviderEventsFromOpenCodePart } from "../../packages/paperclip-runner/src/provider-events.js";
+import { canonicalProviderEventsFromOpenCodePart } from "../../packages/outpost-runner/src/provider-events.js";
 it("projects only fixed outcomes from private result, run and carrier evidence", () => {
   const diagnostic = privateAttemptDiagnostic({ stage: "seal-original", result: { status: "failed", error: "Actual new native task reads inherited project context: private-value", runIds: ["private-id"] },
     error: new Error("Credential-contaminated original evidence cannot be retained"), evidence: { leaks: [{ file: "private-path", reason: "zip inspection exceeded its expanded-byte bound" }] },
@@ -29,10 +29,10 @@ it("distinguishes an unfinished source tool and preserves a timeout hidden by pr
     await writeFile(path.join(snapshots, "chat-catalog-runs.json"), JSON.stringify([
       { runId: "private-other", events: [{ eventType: "run.result.proposed" }] },
       { runId: "private-run", events: [
-        { payload: { prpEvent: { eventType: "turn.started" } } },
-        { payload: { prpEvent: { eventType: "tool.execution.started", payload: { name: "paperclip_call_api", output: "private-value" } } } },
-        { payload: { prpEvent: { eventType: "tool.execution.started", payload: { name: "private-tool" } } } },
-        { payload: { prpEvent: { eventType: "tool.execution.completed", payload: { name: "private-tool" } } } },
+        { payload: { orpEvent: { eventType: "turn.started" } } },
+        { payload: { orpEvent: { eventType: "tool.execution.started", payload: { name: "paperclip_call_api", output: "private-value" } } } },
+        { payload: { orpEvent: { eventType: "tool.execution.started", payload: { name: "private-tool" } } } },
+        { payload: { orpEvent: { eventType: "tool.execution.completed", payload: { name: "private-tool" } } } },
       ] },
     ]));
     await writeFile(path.join(snapshots, "diagnostic-privacy.json"), JSON.stringify({ originalResult: { error: "Canonical project-defaults turn settles: private-value" }, issues: [{ file: "private-path" }] }));
@@ -65,7 +65,7 @@ it("writes one closed variable to the actual owned runner environment file and r
     const commands = path.join(root, "_runner_file_commands"); await mkdir(commands); const file = path.join(commands, "set_env_test"); await writeFile(file, "");
     const env = { GITHUB_ACTIONS: "true", RUNNER_TEMP: root, GITHUB_ENV: file };
     await appendPrivateAttemptDiagnostic({ stage: "execution", error: new Error("private-value") }, env);
-    const text = await readFile(file, "utf8"); expect(text).toMatch(/^PAPERCLIP_E2E_CLOSED_DIAGNOSTIC_V1=\{/); expect(text).not.toContain("private-value"); expect(text.trim().split("\n")).toHaveLength(1);
+    const text = await readFile(file, "utf8"); expect(text).toMatch(/^OUTPOST_E2E_CLOSED_DIAGNOSTIC_V1=\{/); expect(text).not.toContain("private-value"); expect(text.trim().split("\n")).toHaveLength(1);
     await symlink(file, path.join(commands, "set_env_symlink"));
     await expect(appendPrivateAttemptDiagnostic({ stage: "execution" }, { ...env, GITHUB_ENV: path.join(commands, "set_env_symlink") })).rejects.toThrow();
   } finally { await rm(root, { recursive: true, force: true }); }

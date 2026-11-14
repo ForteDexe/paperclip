@@ -19,7 +19,7 @@ client_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(client_module)
 BINDING = "10000000-0000-4000-8000-000000000001"
 ASSIGNMENT = "20000000-0000-4000-8000-000000000001"
-ORIGIN = "https://paperclip.invalid"
+ORIGIN = "https://outpost.invalid"
 SCOPE = {"companyId": "30000000-0000-4000-8000-000000000001", "companyName": "Scoped Company", "agentId": "40000000-0000-4000-8000-000000000001", "agentName": "Personal Muse"}
 
 
@@ -325,7 +325,7 @@ class ClientContract(unittest.TestCase):
     def test_supported_authd_helper_handles_authenticated_io_without_caching_headers(self):
         private_surrogate = "synthetic-private-surrogate-should-never-persist"
         def add(request, **kwargs):
-            self.assertEqual(kwargs, {"credential_name": CREDENTIAL_NAME, "entry_name": "access_token", "allowed_hosts": ["paperclip.invalid"]})
+            self.assertEqual(kwargs, {"credential_name": CREDENTIAL_NAME, "entry_name": "access_token", "allowed_hosts": ["outpost.invalid"]})
             request.add_header("Authorization", "Bearer " + private_surrogate)
         self.helper.add_surrogate_to_request.side_effect = add
         response = Mock(); response.status = 200; response.headers.get_content_type.return_value = "application/json"
@@ -533,7 +533,7 @@ urllib.request.build_opener = lambda *args: Opener()
             self.assertNotIn("DISABLE", output)
             self.assertNotIn("Receiver unavailable", output)
             if expected == "wake":
-                self.assertIn("WAKE:PAPERCLIP_MUSE:", output)
+                self.assertIn("WAKE:OUTPOST_MUSE:", output)
                 self.assertIn("binding " + BINDING, output)
             else:
                 self.assertNotIn("WAKE:", output)
@@ -559,7 +559,7 @@ urllib.request.build_opener = lambda *args: Opener()
         error.close()
 
     def test_redirects_and_non_https_origins_are_rejected(self):
-        for origin in ("http://paperclip.invalid", "https://user:secret@paperclip.invalid", "https://paperclip.invalid/path", "https://paperclip.invalid/?secret=x"):
+        for origin in ("http://outpost.invalid", "https://user:secret@outpost.invalid", "https://outpost.invalid/path", "https://outpost.invalid/?secret=x"):
             with self.assertRaises(RuntimeError):
                 client_module.origin(origin)
         self.assertIsNone(client_module.NoRedirect().redirect_request(None, None, 302, "redirect", {}, "https://elsewhere.invalid"))
@@ -567,12 +567,12 @@ urllib.request.build_opener = lambda *args: Opener()
     def input_response(self, **changes):
         value = {"assignmentId": ASSIGNMENT, "bindingId": BINDING, "generation": 1,
                  "requestId": "question-one", "turnId": "turn-one",
-                 "response": {"schema": "paperclip.question_response.v1", "answers": {"format": {"text": "Markdown"}}}, "consumed": False}
+                 "response": {"schema": "outpost.question_response.v1", "answers": {"format": {"text": "Markdown"}}}, "consumed": False}
         value["inputDigest"] = "sha256:" + client_module.hashlib.sha256(client_module.canonical({k: value[k] for k in ("requestId", "turnId", "response")})).hexdigest()
         return {**value, **changes}
 
     def selected_input(self, count, request="question-one"):
-        response = {"schema": "paperclip.question_response.v1", "answers": {
+        response = {"schema": "outpost.question_response.v1", "answers": {
             "choices": {"selectedOptionIds": ["choice-" + str(index) for index in range(count)]},
             "format": {"text": "Markdown"}}}
         value = self.input_response(response=response, requestId=request)
@@ -613,7 +613,7 @@ urllib.request.build_opener = lambda *args: Opener()
                 self.assertFalse(self.client.journal_path("consume:" + ASSIGNMENT + ":question-one").exists())
 
     def test_selection_cap_does_not_widen_question_or_option_id_bounds(self):
-        response = {"schema": "paperclip.question_response.v1", "answers": {
+        response = {"schema": "outpost.question_response.v1", "answers": {
             "question-" + str(index): {"selectedOptionIds": ["x" * 160]} for index in range(64)}}
         self.assertTrue(client_module.input_response_valid(response))
         response["answers"]["question-64"] = {"selectedOptionIds": ["x"]}
@@ -645,7 +645,7 @@ urllib.request.build_opener = lambda *args: Opener()
 
     def input_record(self, value=None):
         value = value or {**self.input_response(), "continuationReceiptId": "50000000-0000-4000-8000-000000000001"}
-        return {"schema": "paperclip.muse_input_receipts.v2", "bindingId": BINDING, "generation": 1,
+        return {"schema": "outpost.muse_input_receipts.v2", "bindingId": BINDING, "generation": 1,
                 "assignmentId": ASSIGNMENT, "inputs": {"question-one": value}}
 
     def input_path(self, request="question-one"):
@@ -655,7 +655,7 @@ urllib.request.build_opener = lambda *args: Opener()
         return self.client.directory / "input-receipts" / (ASSIGNMENT + ".json")
 
     def aggregate_record(self, inputs):
-        return {"schema": "paperclip.muse_input_receipts.v1", "bindingId": BINDING, "generation": 1, "assignmentId": ASSIGNMENT, "inputs": inputs}
+        return {"schema": "outpost.muse_input_receipts.v1", "bindingId": BINDING, "generation": 1, "assignmentId": ASSIGNMENT, "inputs": inputs}
 
     def legacy_input_path(self):
         return self.client.directory / "continuations" / (ASSIGNMENT + ".json")
@@ -671,14 +671,14 @@ urllib.request.build_opener = lambda *args: Opener()
                 original = json.dumps(model) if model != "not parseable JSON" else model
                 legacy.write_text(original)
                 work = self.client.directory / "work-continuations" / (ASSIGNMENT + ".json")
-                client_module.save(work, {"schema": "paperclip.muse_work_continuation.v1", "phase": "waiting"})
+                client_module.save(work, {"schema": "outpost.muse_work_continuation.v1", "phase": "waiting"})
                 work_bytes = work.read_bytes()
                 with patch.object(client_module, "http", return_value=self.input_response()) as transport:
                     result = self.client.answer(ASSIGNMENT, "question-one")
                 self.assertEqual(result["response"], self.input_response()["response"])
                 self.assertEqual(legacy.read_text(), original)
                 self.assertEqual(work.read_bytes(), work_bytes)
-                self.assertEqual(json.loads(self.input_path().read_text())["schema"], "paperclip.muse_input_receipts.v2")
+                self.assertEqual(json.loads(self.input_path().read_text())["schema"], "outpost.muse_input_receipts.v2")
                 self.assertEqual(transport.call_count, 1)
 
     def test_valid_legacy_prepared_consume_migrates_without_changing_any_identity(self):
@@ -731,7 +731,7 @@ urllib.request.build_opener = lambda *args: Opener()
 
     def test_duplicate_json_keys_are_not_silently_adopted_as_a_helper_receipt(self):
         self.input_path().parent.mkdir(parents=True, exist_ok=True)
-        self.input_path().write_text('{"schema":"paperclip.muse_input_receipts.v2","inputs":{},"inputs":null}')
+        self.input_path().write_text('{"schema":"outpost.muse_input_receipts.v2","inputs":{},"inputs":null}')
         with patch.object(client_module, "http") as transport:
             with self.assertRaisesRegex(RuntimeError, "input_receipt_invalid"):
                 self.client.consume(ASSIGNMENT, "question-one")
@@ -740,9 +740,9 @@ urllib.request.build_opener = lambda *args: Opener()
     def test_missing_or_invalid_native_answer_fields_never_prepare_a_consume(self):
         for change in ({"turnId": None}, {"turnId": ""}, {"inputDigest": None}, {"inputDigest": ""},
                        {"response": {"answers": {}}}, {"generation": True},
-                       {"response": {"schema": "paperclip.question_response.v1", "answers": {"format": {"text": 1}}}},
-                       {"response": {"schema": "paperclip.question_response.v1", "answers": {"format": {"text": "\ud800"}}}},
-                       {"response": {"schema": "paperclip.question_response.v1", "answers": {"format": {"selectedOptionIds": ["x", "x"]}}}}):
+                       {"response": {"schema": "outpost.question_response.v1", "answers": {"format": {"text": 1}}}},
+                       {"response": {"schema": "outpost.question_response.v1", "answers": {"format": {"text": "\ud800"}}}},
+                       {"response": {"schema": "outpost.question_response.v1", "answers": {"format": {"selectedOptionIds": ["x", "x"]}}}}):
             with self.subTest(change=change), patch.object(client_module, "http", return_value=self.input_response(**change)):
                 with self.assertRaisesRegex(RuntimeError, "input_receipt_invalid"):
                     self.client.answer(ASSIGNMENT, "question-one")
@@ -946,7 +946,7 @@ urllib.request.build_opener = lambda *args: Opener()
         self.assertEqual(self.legacy_input_path().read_bytes(), original)
 
     def large_input(self, request, size=100000):
-        value = self.input_response(requestId=request, response={"schema": "paperclip.question_response.v1", "answers": {"answer": {"text": "x" * size}}})
+        value = self.input_response(requestId=request, response={"schema": "outpost.question_response.v1", "answers": {"answer": {"text": "x" * size}}})
         value["inputDigest"] = "sha256:" + client_module.hashlib.sha256(client_module.canonical({key: value[key] for key in ("requestId", "turnId", "response")})).hexdigest()
         return value
 
@@ -1060,7 +1060,7 @@ urllib.request.build_opener = lambda *args: Opener()
             self.assertFalse(self.input_path("question-1").exists()); self.assertFalse((self.input_path().parent / "migration.json").exists())
 
     def near_transport_input(self, unit):
-        value = self.input_response(response={"schema": "paperclip.question_response.v1", "answers": {"answer-" + str(index): {"text": ""} for index in range(64)}})
+        value = self.input_response(response={"schema": "outpost.question_response.v1", "answers": {"answer-" + str(index): {"text": ""} for index in range(64)}})
         remaining = client_module.MAX_BYTES - len(client_module.canonical(value))
         unit_bytes = len(client_module.canonical(unit)) - 2
         for answer in value["response"]["answers"].values():
@@ -1091,7 +1091,7 @@ urllib.request.build_opener = lambda *args: Opener()
                 self.assertEqual(json.loads(self.input_path().read_text())["inputs"]["question-one"]["continuationReceiptId"], answer["continuationReceiptId"])
 
     def test_current_writer_rejects_an_unreadable_record_before_publication(self):
-        value = self.input_response(response={"schema": "paperclip.question_response.v1", "answers": {"answer-" + str(i): {"text": "x" * 100000} for i in range(21)}})
+        value = self.input_response(response={"schema": "outpost.question_response.v1", "answers": {"answer-" + str(i): {"text": "x" * 100000} for i in range(21)}})
         value["inputDigest"] = "sha256:" + client_module.hashlib.sha256(client_module.canonical({key: value[key] for key in ("requestId", "turnId", "response")})).hexdigest()
         with patch.object(client_module, "http", return_value=value) as transport:
             with self.assertRaisesRegex(RuntimeError, "input_receipt_invalid"): self.client.answer(ASSIGNMENT, "question-one")
@@ -1107,7 +1107,7 @@ urllib.request.build_opener = lambda *args: Opener()
             marker_path = self.input_path().parent / "migration.json"; marker = marker_path.read_bytes()
             if changed == "source": self.aggregate_input_path().write_bytes(source + b" ")
             elif changed == "missing": self.input_path(request).unlink()
-            elif changed == "marker": marker_path.write_text('{"schema":"paperclip.muse_input_receipts_migration.v1","entries":{},"entries":null}')
+            elif changed == "marker": marker_path.write_text('{"schema":"outpost.muse_input_receipts_migration.v1","entries":{},"entries":null}')
             else:
                 record = json.loads(target); row = record["inputs"][request]
                 field = {"turn": "turnId", "digest": "inputDigest", "receipt": "continuationReceiptId"}[changed]

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   agents, authUsers, companies, companyMemberships, heartbeatRuns, issueAccessGrants, issueRelations, issues,
   projectAccessMembers, projects, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type { AuthorizationActor } from "../../services/authorization.js";
 
 /** Every actor type and membership role that can reach a task read. */

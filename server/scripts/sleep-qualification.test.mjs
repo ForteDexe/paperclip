@@ -13,7 +13,7 @@ const configDigest = createHash('sha256').update(JSON.stringify({ automaticBacku
 const expected = { appSha: 'a'.repeat(40), cloudSha: 'b'.repeat(40), target: 'owned-fixture', configDigest };
 function fixture() {
   return { version: 1, ...expected, configuration: structuredClone(configuration), collectorOrigins: { telemetry: configuration.telemetryOrigin, otel: configuration.otelOrigin },
-    announcement: { intercepted: true, requests: ['https://pages.paperclip.ing/announcements/v1/current.json'], unmatched: [] },
+    announcement: { intercepted: true, requests: ['https://pages.outpost.ing/announcements/v1/current.json'], unmatched: [] },
     signalObservation: { telemetryRequests: 1, traceRequests: 1, exportedSpans: 1, qualificationSpans: 1, metricRequests: 0, logRequests: 0, malformedTraceRequests: 0, unexpectedRequests: 0 },
     backupCheckpoint: { owner: 'normal-idle-checkpoint', startedAt: '2099-01-01T00:12:31Z', observedAt: '2099-01-01T00:13:00Z', wakeMarkerObserved: true, failureObserved: false, archives: [{ name: 'owned.sql.gz', bytes: 128, sqlBytes: 256, sha256: 'd'.repeat(64), gzipVerified: true, fixtureIdentifierFound: true, createdAt: '2099-01-01T00:12:45Z', createdAtSource: 'birthtime' }] }, startedAt: '2099-01-01T00:00:00Z', finishedAt: '2099-01-01T01:00:00Z',
     features: { telemetry: true, announcements: true, automaticBackups: true, otel: true, exportedSpans: 1 },

@@ -1,4 +1,4 @@
-import type { NativeSession } from "../../vendor/paperclip-runner/index.js";
+import type { NativeSession } from "../../vendor/outpost-runner/index.js";
 
 type CredentialTurn = {
   /** Legacy turn copy-back; event-backed bindings need no per-turn read. */
@@ -76,7 +76,7 @@ async function completeCredentialTurn(turn: CredentialTurn) {
   await turn.completion;
 }
 
-/** Complete a turn without closing the provider; event-backed bindings flush through PRP. */
+/** Complete a turn without closing the provider; event-backed bindings flush through ORP. */
 export async function completeManagedNativeCredentialTurn(session: NativeSession | undefined) {
   if (!session) return;
   const turn = credentialTurns.get(session);

@@ -1,11 +1,11 @@
 import { currentProcessSpaceHash } from "../controller-process-identity.js";
-import type { ExecutionReconciliation } from "@paperclipai/shared";
+import type { ExecutionReconciliation } from "@outpost/shared";
 import { nativeControllerAuthorityDigest, readNativeRemoteExecutionOwnership, isNativeRunnerOwnershipHeld } from "./native-runner-ownership.js";
 import { preserveNativeFailedWorkspace } from "./native-failed-workspace-recovery.js";
 import { settleNativeTerminalWake } from "./native-run-projection.js";
 import { notifyNativeStatusReassessment } from "../native-status-reassessment-notifications.js";
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { activityLog, environmentLeases, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@paperclipai/db";
+import { activityLog, environmentLeases, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@outpost/db";
 import { logger } from "../../middleware/logger.js";
 import { adapterExecutionControls } from "../adapter-execution-control.js";
 import { proveOwnerGone, type LocalOwnerStamp } from "../owner-proof.js";
@@ -188,7 +188,7 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
         .from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
       const authority = action?.evidence.controllerAuthority;
       const recordedDigest = authority && typeof authority === "object" && !Array.isArray(authority)
-        && (authority as Record<string, unknown>).schema === "paperclip.native-controller-authority.v1"
+        && (authority as Record<string, unknown>).schema === "outpost.native-controller-authority.v1"
         ? (authority as Record<string, unknown>).digest : null;
       if (!["completed", "not_performed", "mixed"].includes(release.actionOutcome)
         || release.outcomeEvidence.trim().length < 20 || release.outcomeEvidence.length > 12_000
@@ -287,7 +287,7 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
         ...(run.error ? { message: run.error.slice(0, 2_000) } : {}),
         originalFailureCode: run.errorCode ?? failureCode,
         releasedOwner: release.kind === "operator_containment"
-          ? { schema: "paperclip.native-controller-containment.v1", reason: release.kind, actionId: release.actionId,
+          ? { schema: "outpost.native-controller-containment.v1", reason: release.kind, actionId: release.actionId,
               controllerGeneration: coordinator.controllerGeneration, controllerBootId: coordinator.controllerBootId,
               controllerHostHash: coordinator.controllerHostHash, authorityDigest: release.authorityDigest, attempt: release.attempt,
               actorId: release.actorId, recordedAt: now.toISOString(), controllerStopped: true, providerStopped: true,
@@ -458,7 +458,7 @@ export async function hasCommittedNativeControllerContainment(
   const value = owner.failureDetail?.releasedOwner;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const receipt = value as Record<string, unknown>;
-  if (receipt.schema !== "paperclip.native-controller-containment.v1" || receipt.reason !== "operator_containment"
+  if (receipt.schema !== "outpost.native-controller-containment.v1" || receipt.reason !== "operator_containment"
     || typeof receipt.actionId !== "string" || typeof receipt.authorityDigest !== "string"
     || !/^[a-f0-9]{64}$/.test(receipt.authorityDigest)
     || receipt.attempt !== owner.attempt || receipt.controllerGeneration !== owner.controllerGeneration
@@ -480,7 +480,7 @@ export async function hasCommittedNativeControllerContainment(
     || action.evidence.runId !== run.id || action.evidence.reason !== "controller_process_space_unverified"
     || action.evidence.continuationDelivery !== "not_requested"
     || !authority || typeof authority !== "object" || Array.isArray(authority)
-    || !("schema" in authority) || authority.schema !== "paperclip.native-controller-authority.v1"
+    || !("schema" in authority) || authority.schema !== "outpost.native-controller-authority.v1"
     || !("digest" in authority) || authority.digest !== receipt.authorityDigest
     || !decision || typeof decision !== "object" || Array.isArray(decision)) return false;
   const reconciliation = decision as Record<string, unknown>;

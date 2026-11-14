@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
-import { getTaskContextAction } from "../../packages/paperclip-runner/src/protocol-actions/get-task-context.js";
+import { getTaskContextAction } from "../../packages/outpost-runner/src/protocol-actions/get-task-context.js";
 import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
 import { isValidNativePrpEnvelope } from "./native-event-envelope.js";
 import { bootstrapReadExecutionId } from "./native-bootstrap-read-proof.js";
@@ -19,16 +19,16 @@ export interface KimiContextPending extends KimiContextScope {
   createdSeq: number; createdSha256: string;
 }
 export interface KimiContextPublication extends KimiContextPending {
-  schema: "paperclip.e2e.kimi-context-publication.v1"; observerLeaseId: string; actionSha256: string; setupSha256: string; observerSha256: string;
+  schema: "outpost.e2e.kimi-context-publication.v1"; observerLeaseId: string; actionSha256: string; setupSha256: string; observerSha256: string;
 }
 export interface KimiContextProof extends Omit<KimiContextPublication, "schema"> {
-  schema: "paperclip.e2e.kimi-context-proof.v1";
+  schema: "outpost.e2e.kimi-context-proof.v1";
   callId: string; inputSha256: string; resultSha256: string; completedSeq: number; authority: KimiContextAuthority;
   rows: Array<{ seq: number; sha256: string }>;
 }
 function frames(events: readonly unknown[], scope: KimiContextScope) {
   requireProof(events.length > 0 && events.length <= 20_000);
-  const rows = events.map(rec).filter(row => rec(row.payload).prpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).prpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
+  const rows = events.map(rec).filter(row => rec(row.payload).orpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seqs = new Set<number>(), sources = new Set<string>(), cursor = new Map<string, number>();
   for (const { row, event } of rows) {
     requireProof(row.companyId === scope.companyId && row.runId === scope.runId && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
@@ -56,7 +56,7 @@ export function pendingKimiContextPermission(events: readonly unknown[], scope: 
   if (!created.length) return undefined;
   requireProof(created.length === 1);
   const { row, event } = created[0]!, request = rec(rec(event.payload).request);
-  requireProof(request.schema === "paperclip.runtime_request.v2" && request.requestKind === "permission_approval" && request.type === "permission" && request.status === "pending"
+  requireProof(request.schema === "outpost.runtime_request.v2" && request.requestKind === "permission_approval" && request.type === "permission" && request.status === "pending"
     && request.prompt === "mcp__paperclip__get_task_context" && request.method === "session/request_permission"
     && hasAcpxNativeOrigin(request.origin, "kimi", "session/request_permission") && request.turnId === event.turnId
     && typeof request.requestId === "string" && typeof request.details?.toolCallId === "string"
@@ -88,11 +88,11 @@ export async function publishKimiContextContinuation(input: {
   const updated = await input.api.patch<Row>(`/api/issues/${p.issueId}`, { description: input.action });
   const confirmed = await input.api.get<Row>(`/api/issues/${p.issueId}`);
   requireProof(owned(updated) && owned(confirmed) && updated.description === input.action && confirmed.description === input.action);
-  return { ...p, schema: "paperclip.e2e.kimi-context-publication.v1", observerLeaseId: binding.leaseId, actionSha256, setupSha256: setup.sha256, observerSha256: hash(snapshot) };
+  return { ...p, schema: "outpost.e2e.kimi-context-publication.v1", observerLeaseId: binding.leaseId, actionSha256, setupSha256: setup.sha256, observerSha256: hash(snapshot) };
 }
 export function readKimiContextProof(events: readonly unknown[], publication: KimiContextPublication, authority?: KimiContextAuthority): KimiContextProof | undefined {
   declaredReadOnlyContext();
-  requireProof(publication.schema === "paperclip.e2e.kimi-context-publication.v1" && /^sha256:[a-f0-9]{64}$/.test(publication.actionSha256)
+  requireProof(publication.schema === "outpost.e2e.kimi-context-publication.v1" && /^sha256:[a-f0-9]{64}$/.test(publication.actionSha256)
     && publication.setupSha256 === publication.actionSha256 && /^sha256:[a-f0-9]{64}$/.test(publication.observerSha256));
   const rows = frames(events, publication), same = rows.filter(x => sameStream(x.event, publication));
   const created = same.filter(x => x.event.eventType === "runtime_request.created" && x.event.payload?.request?.requestId === publication.requestId);
@@ -105,7 +105,7 @@ export function readKimiContextProof(events: readonly unknown[], publication: Ki
   const original = pendingKimiContextPermission(beforeDecision, publication);
   requireProof(original && Object.entries(original).every(([key, value]) => publication[key as keyof KimiContextPublication] === value));
   if (!authority) return undefined;
-  requireProof(authority.schema === "paperclip.e2e.kimi-context-authority.v2"
+  requireProof(authority.schema === "outpost.e2e.kimi-context-authority.v2"
     && ["companyId", "issueId", "agentId", "environmentId", "runId", "sessionId", "sourceInstanceId", "turnId", "actionSha256", "observerLeaseId", "requestId", "toolCallId"].every(key => (authority as unknown as Row)[key] === (publication as unknown as Row)[key])
     && authority.inputSha256 === hash({}) && typeof authority.callId === "string" && authority.callId.length > 0
     && [authority.inputEventSha256, authority.resultSha256, authority.correlationSha256, authority.commandSha256, authority.deliverySha256, authority.checkpointIdentitySha256, authority.requestCreatedSha256, authority.requestResolvedSha256, authority.turnStartSha256, authority.resolutionCommandSha256].every(value => /^sha256:[a-f0-9]{64}$/.test(value))
@@ -119,7 +119,7 @@ export function readKimiContextProof(events: readonly unknown[], publication: Ki
   const finished = native.filter(x => x.event.eventType === "tool.execution.completed");
   if (!finished.length) return undefined;
   requireProof(finished.length === 1 && native[0]?.event.eventType === "tool.execution.started" && native.at(-1) === finished[0]
-    && native.every((x, index) => x.event.payload?.schema === "paperclip.tool.execution.v1" && x.event.payload?.target === null
+    && native.every((x, index) => x.event.payload?.schema === "outpost.tool.execution.v1" && x.event.payload?.target === null
       && (x.event.payload.name === null || x.event.payload.name === "get_task_context")
       && (x.event.payload.namespace === null || x.event.payload.namespace === "paperclip")
       && x.event.payload.status === (index === native.length - 1 ? "completed" : "running")));
@@ -130,12 +130,12 @@ export function readKimiContextProof(events: readonly unknown[], publication: Ki
     && (output.outputTruncated || output.outputBytes === Buffer.byteLength(output.output) && output.outputDigest === bytesHash(output.output)));
   const retained = [...created, ...closed, ...native];
   requireProof(new Set(retained.map(x => x.row.seq)).size === retained.length);
-  return { ...publication, schema: "paperclip.e2e.kimi-context-proof.v1", callId: authority.callId, inputSha256: authority.inputSha256, resultSha256: authority.resultSha256, authority,
+  return { ...publication, schema: "outpost.e2e.kimi-context-proof.v1", callId: authority.callId, inputSha256: authority.inputSha256, resultSha256: authority.resultSha256, authority,
     completedSeq: final.row.seq, rows: retained.map(x => ({ seq: x.row.seq, sha256: hash(x.row) })) };
 }
 export function withoutProvenKimiContext(events: readonly unknown[], proof?: KimiContextProof): unknown[] {
   if (!proof) return [...events];
-  const checked = readKimiContextProof(events, { ...proof, schema: "paperclip.e2e.kimi-context-publication.v1" }, proof.authority);
+  const checked = readKimiContextProof(events, { ...proof, schema: "outpost.e2e.kimi-context-publication.v1" }, proof.authority);
   requireProof(checked && canonicalJson(checked) === canonicalJson(proof));
   const remove = new Map(proof.rows.map(row => [row.seq, row.sha256]));
   return events.filter(value => { const row = rec(value), expected = remove.get(row.seq); if (!expected) return true; requireProof(hash(row) === expected); return false; });

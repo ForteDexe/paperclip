@@ -153,8 +153,8 @@ jobs:
       - name: Build native runner
         run: |
           set -euo pipefail
-          pnpm --filter @paperclipai/paperclip-runner build:typescript
-          pnpm --filter @paperclipai/paperclip-runner build:runner-binaries
+          pnpm --filter @outpost/outpost-runner build:typescript
+          pnpm --filter @outpost/outpost-runner build:runner-binaries
 
       - name: List selected crash points
         env:

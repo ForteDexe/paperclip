@@ -50,13 +50,6 @@ test.describe("Onboarding wizard", () => {
       await route.continue();
     });
 
-    // New-NUX surfaces are flag-gated default-OFF (PAP-136/137/138): turn the
-    // experimental flag on for this throwaway instance before driving them.
-    const flagRes = await page.request.patch("/api/instance/settings/experimental", {
-      data: { enableConferenceRoomChat: true },
-    });
-    expect(flagRes.ok()).toBe(true);
-
     await page.goto("/onboarding");
 
     // The wizard may open on a launcher card or directly on the capsule
@@ -162,11 +155,6 @@ test.describe("Onboarding wizard", () => {
   }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
-
-    const flagRes = await page.request.patch("/api/instance/settings/experimental", {
-      data: { enableConferenceRoomChat: true },
-    });
-    expect(flagRes.ok()).toBe(true);
 
     // The login panel's capability gate requires a sandbox environment with a
     // login-capable provider, and this throwaway instance has neither: it
@@ -424,11 +412,6 @@ test.describe("Onboarding wizard", () => {
       return route.fulfill({ status: 400, json: { error: "Unexpected hire while login is pending." } });
     });
 
-    const flagRes = await page.request.patch("/api/instance/settings/experimental", {
-      data: { enableConferenceRoomChat: true },
-    });
-    expect(flagRes.ok()).toBe(true);
-
     const FAKE_SANDBOX_ENVIRONMENT_ID = "a6d2e530-1e8b-4f0b-9c94-42f1d23e8750";
     const FAKE_SANDBOX_PROVIDER = "e2e-fake-provider-reload";
 
@@ -644,7 +627,7 @@ test.describe("Onboarding wizard", () => {
     const setup = await setupResponse.json();
     expect(setup).toMatchObject({ id: setupAgentId, name: "Ada", pauseReason: "setup" });
     const resumedSelection = { ...savedSelection, setupAgentId,
-      runner: setup.adapterType === "paperclip_runner" ? "paperclip" : "legacy" };
+      runner: setup.adapterType === "outpost_runner" ? "paperclip" : "legacy" };
     const assertResumedLogin = async () => {
       await expect(page.getByRole("heading", { name: "Connect a model", exact: true })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId("onboarding-wizard").getByText("Ada", { exact: true })).toBeVisible();
@@ -681,11 +664,6 @@ test.describe("Onboarding wizard", () => {
     await mockOnboardingLocalAiConnection(page);
     const pageErrors: string[] = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
-
-    const flagRes = await page.request.patch("/api/instance/settings/experimental", {
-      data: { enableConferenceRoomChat: true },
-    });
-    expect(flagRes.ok()).toBe(true);
 
     await page.route("**/test-environment", (route) =>
       route.fulfill({
@@ -766,12 +744,12 @@ test.describe("Onboarding wizard", () => {
       const setup = await (await setupResponse).json();
       await page.locator("summary").filter({ hasText: "Advanced" }).click();
       await page.getByRole("button", { name: "Experimental harness", exact: true }).click();
-      await page.getByRole("option", { name: "Grok Build (Paperclip Runner)", exact: true }).click();
+      await page.getByRole("option", { name: "Grok Build (Outpost Runner)", exact: true }).click();
       await page.getByRole("button", { name: "Configure agent", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Connect a model", exact: true })).toBeVisible();
       expect(new URL(page.url()).searchParams.get("setupAgentId")).toBe(setup.id);
       const saved = await (await page.request.get(`/api/agents/${setup.id}?companyId=${company.id}`)).json();
-      expect(saved).toMatchObject({ id: setup.id, adapterType: "paperclip_runner", pauseReason: "setup",
+      expect(saved).toMatchObject({ id: setup.id, adapterType: "outpost_runner", pauseReason: "setup",
         adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "grok-4.7" }, metadata: { setupAdapterPending: false } });
     } finally {
       await page.request.patch("/api/instance/settings/experimental", { data: { enableNativeRunner: previous.enableNativeRunner === true } });

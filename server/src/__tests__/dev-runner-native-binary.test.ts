@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { paperclipRunnerSupportsPlatform } from "@paperclipai/shared";
+import { paperclipRunnerSupportsPlatform } from "@outpost/shared";
 
 import {
   paperclipRunnerBinaryNeedsBuild,
@@ -28,15 +28,15 @@ function createRunnerCheckout(): { root: string; source: string; binary: string 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-dev-runner-binary-"));
   tempRoots.add(root);
 
-  const runnerRoot = path.join(root, "packages", "paperclip-runner", "runner");
+  const runnerRoot = path.join(root, "packages", "outpost-runner", "runner");
   const source = path.join(runnerRoot, "crates", "runner-core", "src", "main.rs");
   const binary = path.join(
     root,
     "packages",
-    "paperclip-runner",
+    "outpost-runner",
     "dist",
     "bin",
-    process.platform === "win32" ? "paperclip-runnerd.exe" : "paperclip-runnerd",
+    process.platform === "win32" ? "outpost-runnerd.exe" : "outpost-runnerd",
   );
   fs.mkdirSync(path.dirname(source), { recursive: true });
   fs.mkdirSync(path.dirname(binary), { recursive: true });
@@ -61,7 +61,7 @@ function nativeHeader(platform: string, architecture: string): Buffer {
   return bytes;
 }
 
-describe("paperclip runner native dev prerequisite", () => {
+describe("outpost runner native dev prerequisite", () => {
   it.each(["x64", "arm64"].flatMap(architecture => [[undefined, false], ["2.38", false], ["2.39", true], ["3.0", true]].map(([glibcVersionRuntime, native]) => ({ architecture, glibcVersionRuntime, native }))))("uses the measured libc prerequisite on Linux $architecture/$glibcVersionRuntime when no native run or flag requires it", ({ architecture, glibcVersionRuntime, native }) => {
     Object.defineProperty(process, "platform", { ...initialPlatform, value: "linux" });
     Object.defineProperty(process, "arch", { ...initialArchitecture, value: architecture });
@@ -146,7 +146,7 @@ describe("paperclip runner native dev prerequisite", () => {
     "antigravity-distributions.json", "rust-toolchain.toml", "protocol/provider-schemas/acpx-sidecar.schema.json",
   ])("rebuilds an existing native binary after changing embedded input %s", input => {
     const checkout = createRunnerCheckout();
-    const dependency = path.join(checkout.root, "packages/paperclip-runner", input);
+    const dependency = path.join(checkout.root, "packages/outpost-runner", input);
     fs.mkdirSync(path.dirname(dependency), { recursive: true });
     fs.writeFileSync(dependency, "fixture compile input\n");
     const now = Date.now(), old = new Date(now - 2_000), built = new Date(now + 2_000), changed = new Date(now + 4_000);
@@ -161,7 +161,7 @@ describe("paperclip runner native dev prerequisite", () => {
 
   it.each(["arm64", "x64"] as const)("uses the staged Mac %s target before the flat build output", architecture => {
     const checkout = createRunnerCheckout();
-    const target = path.join(path.dirname(checkout.binary), `darwin-${architecture}`, "paperclip-runnerd");
+    const target = path.join(path.dirname(checkout.binary), `darwin-${architecture}`, "outpost-runnerd");
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, nativeHeader("darwin", architecture));
     const old = new Date(Date.now() - 2000), current = new Date(Date.now() + 2000);
@@ -184,7 +184,7 @@ describe("paperclip runner native dev prerequisite", () => {
 
   it.each(["arm64", "x64"] as const)("uses only a newer matching Mac %s source build without changing release selection", architecture => {
     const checkout = createRunnerCheckout();
-    const target = path.join(path.dirname(checkout.binary), `darwin-${architecture}`, "paperclip-runnerd");
+    const target = path.join(path.dirname(checkout.binary), `darwin-${architecture}`, "outpost-runnerd");
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, nativeHeader("darwin", architecture));
     fs.writeFileSync(checkout.binary, nativeHeader("darwin", architecture));
@@ -207,7 +207,7 @@ describe("paperclip runner native dev prerequisite", () => {
       paperclipRunnerBinaryNeedsBuild({
         repoRoot: "/checkout/without/a/staged/binary",
         nativeRunnerRequired: true,
-        configuredBinary: "/opt/paperclip/paperclip-runnerd",
+        configuredBinary: "/opt/paperclip/outpost-runnerd",
       }),
     ).toBe(false);
   });

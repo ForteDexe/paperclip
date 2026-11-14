@@ -1,5 +1,5 @@
-import type { LinkPreviewResult, LinkPreviewTarget } from "@paperclipai/shared";
-import { recognizeLinkPreview } from "@paperclipai/shared";
+import type { LinkPreviewResult, LinkPreviewTarget } from "@outpost/shared";
+import { recognizeLinkPreview } from "@outpost/shared";
 
 export interface LinkPreviewScope { companyId: string; userId: string | null }
 export interface LinkPreviewProvider {

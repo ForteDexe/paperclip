@@ -6,7 +6,7 @@ const assignmentId = "00000000-0000-4000-8000-000000000001";
 const requestId = "00000000-0000-4000-8000-000000000002";
 const operation = { version: 1, assignmentId, requestId };
 const questionSet = {
-  schema: "paperclip.question_set.v1",
+  schema: "outpost.question_set.v1",
   questions: [{ id: "answer", prompt: "What should happen next?", required: true, answerMode: "text" }],
 };
 const nativeRequestEnvelopes = [

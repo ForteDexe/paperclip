@@ -240,7 +240,7 @@ export function AgentChatPrototype({
   }, [contextInitiallyOpen, setPanelVisible]);
   useLayoutEffect(() => {
     const originalFetch = window.fetch;
-    const recentKey = `paperclip.recentAgentChats:${issue.companyId}:user-board`;
+    const recentKey = `outpost.recentAgentChats:${issue.companyId}:user-board`;
     const previousRecents = localStorage.getItem(recentKey);
     const recentTasksKey = getRecentTasksStorageKey(issue.companyId, "user-board");
     const previousRecentTasks = localStorage.getItem(recentTasksKey);

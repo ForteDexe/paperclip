@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { posix } from "node:path";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { MAX_ATTACHMENT_BYTES } from "../../attachment-types.js";
 import type { NativeRunnerAttachmentStager } from "./native-runner-file-handoff.js";
 
@@ -84,10 +84,10 @@ export function createRemoteAttachmentStager(
   const pending = new Set<Promise<unknown>>();
   let closed = false;
   const write: NativeRunnerAttachmentStager = async ({ body, contentType }) => {
-    if (closed) throw new Error("paperclip_runner_attachment_staging_scope_closed");
+    if (closed) throw new Error("outpost_runner_attachment_staging_scope_closed");
     if (!posix.isAbsolute(workspaceRoot) || posix.normalize(workspaceRoot) !== workspaceRoot
       || /[\u0000-\u001f\u007f\\]/u.test(workspaceRoot) || workspaceRoot === "/"
-      || body.length > MAX_ATTACHMENT_BYTES) throw new Error("paperclip_runner_attachment_staging_path_denied");
+      || body.length > MAX_ATTACHMENT_BYTES) throw new Error("outpost_runner_attachment_staging_path_denied");
     const slot = `remote-${randomUUID()}`;
     const extensions: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "application/pdf": ".pdf" };
     const filename = `content${extensions[contentType ?? ""] ?? ""}`;
@@ -100,10 +100,10 @@ export function createRemoteAttachmentStager(
         cwd: workspaceRoot, env: { NODE_OPTIONS: "", NODE_PATH: "" },
         stdin: phase === "stage" ? body.toString("base64") : undefined,
         timeoutMs: 30_000, bypassSession: true,
-      }).catch(() => { throw new Error("paperclip_runner_attachment_staging_failed"); });
-      if (result.timedOut || result.exitCode !== 0) throw new Error("paperclip_runner_attachment_staging_failed");
+      }).catch(() => { throw new Error("outpost_runner_attachment_staging_failed"); });
+      if (result.timedOut || result.exitCode !== 0) throw new Error("outpost_runner_attachment_staging_failed");
       try { return JSON.parse(result.stdout) as { dev?: string; ino?: string }; }
-      catch { throw new Error("paperclip_runner_attachment_staging_failed"); }
+      catch { throw new Error("outpost_runner_attachment_staging_failed"); }
     };
     let cleaned = false;
     const cleanup = async () => {
@@ -116,13 +116,13 @@ export function createRemoteAttachmentStager(
     try {
       const result = await run("stage");
       if (typeof result.dev !== "string" || typeof result.ino !== "string"
-        || !/^\d+$/.test(result.dev) || !/^\d+$/.test(result.ino)) throw new Error("paperclip_runner_attachment_staging_failed");
+        || !/^\d+$/.test(result.dev) || !/^\d+$/.test(result.ino)) throw new Error("outpost_runner_attachment_staging_failed");
       identity = { dev: result.dev, ino: result.ino };
-      if (closed) throw new Error("paperclip_runner_attachment_staging_scope_closed");
+      if (closed) throw new Error("outpost_runner_attachment_staging_scope_closed");
       return { workspaceRelativePath: `.paperclip-inbound/${slot}/${filename}`, cleanup };
     } catch {
       await cleanup();
-      throw new Error("paperclip_runner_attachment_staging_failed");
+      throw new Error("outpost_runner_attachment_staging_failed");
     }
   };
   const stage: NativeRunnerAttachmentStager = input => {
@@ -135,6 +135,6 @@ export function createRemoteAttachmentStager(
     closed = true;
     await Promise.allSettled([...pending]);
     const results = await Promise.allSettled([...cleanups].map(cleanup => cleanup()));
-    if (results.some(result => result.status === "rejected")) throw new Error("paperclip_runner_attachment_staging_cleanup_failed");
+    if (results.some(result => result.status === "rejected")) throw new Error("outpost_runner_attachment_staging_cleanup_failed");
   } });
 }

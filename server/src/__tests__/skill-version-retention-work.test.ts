@@ -24,8 +24,8 @@ afterEach(async () => {
 
 it("keeps an expired cache change eligible when its own paged scan finishes", async () => {
   home = mkdtempSync(path.join(tmpdir(), "sleep64-retention-work-"));
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_INSTANCE_ID", "sleep64-retention-work");
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_INSTANCE_ID", "sleep64-retention-work");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-29T12:00:00Z"));
   const companyId = randomUUID();
@@ -58,8 +58,8 @@ it("keeps an expired cache change eligible when its own paged scan finishes", as
 
 it("continues a successful page when another company's grace deadline expires during it", async () => {
   home = mkdtempSync(path.join(tmpdir(), "retention-page-deadline-"));
-  vi.stubEnv("PAPERCLIP_HOME", home);
-  vi.stubEnv("PAPERCLIP_INSTANCE_ID", "retention-page-deadline");
+  vi.stubEnv("OUTPOST_HOME", home);
+  vi.stubEnv("OUTPOST_INSTANCE_ID", "retention-page-deadline");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2099-01-01T00:00:00Z"));
   const startedAt = Date.now();

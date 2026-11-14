@@ -5,7 +5,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 function fixture() {
   vi.useFakeTimers(); vi.setSystemTime(100);
   const config = { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "controller", version: "latest" } } };
-  const ready = { id: "morgan", companyId: "company", lifecycleState: "ready", lifecycleHolds: [] as string[], lifecycleError: null as string | null, status: "idle", adapterType: "paperclip_runner", adapterConfig: config };
+  const ready = { id: "morgan", companyId: "company", lifecycleState: "ready", lifecycleHolds: [] as string[], lifecycleError: null as string | null, status: "idle", adapterType: "outpost_runner", adapterConfig: config };
   const agent = { ...ready, adapterConfig: { ...config, env: { ...config.env, PUBLISHING_API_KEY: { type: "user_secret_ref", key: "PERSONAL_PUBLISHING_KEY", version: "latest", required: true, allowMissingOverride: false } } } };
   const lead = { ...ready, id: "ceo" }, evidence = vi.fn();
   const get = vi.fn(async (route: string) => route === "/api/agents/ceo" ? lead : ready);
@@ -28,7 +28,7 @@ it("proves the worker ready before adding the missing required value and does no
 it("requires exact current-person missing-secret resolution and ready CEO with unchanged worker configuration", async () => {
   const f = fixture(); await provePersonalSecretMissingBoundary(f.ctx, f.state, f.agent);
   expect(f.fetcher).toHaveBeenCalledOnce();
-  expect(f.fetcher.mock.calls[0]?.[0]).toEqual(new URL("http://127.0.0.1:3100/api/companies/company/adapters/paperclip_runner/test-environment"));
+  expect(f.fetcher.mock.calls[0]?.[0]).toEqual(new URL("http://127.0.0.1:3100/api/companies/company/adapters/outpost_runner/test-environment"));
   expect(f.evidence).toHaveBeenCalledWith("personal-secret-missing-binding-prerequisite.json", expect.objectContaining({ status: 422, code: "user_secret_missing", prospectiveResolutionOnly: true }));
   expect(JSON.stringify(f.evidence.mock.calls)).not.toContain("synthetic-private-session");
 });

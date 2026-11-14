@@ -5,20 +5,20 @@ import { installChatReadinessObserver } from "./chat-readiness-observer.js";
 import { ServerResponse } from "node:http";
 import path from "node:path";
 import { installAgentFilesystemSandbox } from "./agent-filesystem-sandbox.js";
-import { PaperclipRunnerToolAuthority } from "../../server/src/services/native-runtime/paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "../../server/src/services/native-runtime/outpost-runner-tool-authority.js";
 import { canonicalDocumentIssueId, contextCommentGateSelected, holdCommittedDocumentResponse, isArmed } from "./context-comment-gate.js";
 import { holdInteractionResponse } from "./interaction-response-gate.js";
 import { installOwnedEmailResponseLoss } from "./chat-catalog-domains/runtime-email-fault.js";
 import { installOwnedEmailReceiptDuplicate } from "./chat-catalog-domains/runtime-email-duplicate.js";
 
-const ids: string[] = JSON.parse(process.env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "[]");
+const ids: string[] = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]");
 if (ids.length && ids.every(id => id === CHAT_SETUP_HEALTH_ID || id.startsWith("chat-features.runner-opencode.local."))) {
   const { requireServerAdapter } = await import("../../server/src/adapters/index.js");
-  await installChatReadinessObserver({ executionIds: ids, temporaryRoot: process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT ?? "",
-    adapter: requireServerAdapter("paperclip_runner") });
+  await installChatReadinessObserver({ executionIds: ids, temporaryRoot: process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "",
+    adapter: requireServerAdapter("outpost_runner") });
 }
-await installOwnedEmailResponseLoss({ executionIds: ids, attemptId: process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID ?? "", temporaryRoot: process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT ?? "" });
-await installOwnedEmailReceiptDuplicate({ executionIds: ids, attemptId: process.env.PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID ?? "", temporaryRoot: process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT ?? "" });
+await installOwnedEmailResponseLoss({ executionIds: ids, attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ?? "", temporaryRoot: process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "" });
+await installOwnedEmailReceiptDuplicate({ executionIds: ids, attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ?? "", temporaryRoot: process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "" });
 const contextCommentGate = contextCommentGateSelected(ids);
 const completionBusyGate = ids.some(id => id.startsWith("completion-updates.") && id.endsWith(".handoff-completion-busy"));
 if (ids.some((id) => id.endsWith(".accept-while-running"))) {
@@ -31,7 +31,7 @@ if (ids.some((id) => id.endsWith(".accept-while-running"))) {
     await holdInteractionResponse({
       deadlineAt: Date.now() + 90_000,
       loadStatus: async () => {
-        const response = await fetch(`http://127.0.0.1:${process.env.PAPERCLIP_RUNNER_E2E_PORT}/api/issues/${interaction.issueId}/interactions`);
+        const response = await fetch(`http://127.0.0.1:${process.env.OUTPOST_RUNNER_E2E_PORT}/api/issues/${interaction.issueId}/interactions`);
         if (!response.ok) throw new Error(`Approval barrier read failed: ${response.status}`);
         const rows = await response.json() as Array<{ id: string; status: string }>;
         const row = rows.find((candidate) => candidate.id === interaction.id);

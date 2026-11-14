@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
-import { heartbeatRuns, issueRecoveryActions, issues, statusDecisions, type Db } from "@paperclipai/db";
+import { heartbeatRuns, issueRecoveryActions, issues, statusDecisions, type Db } from "@outpost/db";
 import { logger } from "../../middleware/logger.js";
 import { persistActivity, publishActivity } from "../activity-log.js";
 import { releaseAncestorWorkspaceBinding } from "../execution-workspaces.js";
@@ -7,7 +7,7 @@ import { issueService } from "../issues.js";
 import { REMOTE_WORKSPACE_WRITER_PENDING_MESSAGE } from "../remote-workspace-writer-hold.js";
 import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 
-export const LEGACY_WORKSPACE_REHOME_SCHEMA = "paperclip.legacy-workspace-rehome.v1";
+export const LEGACY_WORKSPACE_REHOME_SCHEMA = "outpost.legacy-workspace-rehome.v1";
 export const LEGACY_WORKSPACE_REHOME_OUTCOME = "legacy_shared_workspace_rehomed";
 const STRANDED_KIND = "stranded_assigned_issue";
 const BOARD_ESCALATION_POLICY = "board_escalation_no_takeover_v1";

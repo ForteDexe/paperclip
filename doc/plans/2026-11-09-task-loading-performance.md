@@ -136,7 +136,7 @@ These requests were made during one 17 s visit (Task E):
 | Question | Loop and environment | Cost per iteration |
 |---|---|---|
 | Is the user-visible timing better? | Staging harness (Phase 0) run through Chrome against real data, after each deploy | ~5 min per sample set, plus the deploy |
-| Does a UI gate or prefetch change help? | Local `tests/perf/issue-detail` Playwright harness with production assets (`PAPERCLIP_UI_DEV_MIDDLEWARE=false`), plus a CDP network RTT of ~150 ms so local results match staging round trips | ~2–3 min |
+| Does a UI gate or prefetch change help? | Local `tests/perf/issue-detail` Playwright harness with production assets (`OUTPOST_UI_DEV_MIDDLEWARE=false`), plus a CDP network RTT of ~150 ms so local results match staging round trips | ~2–3 min |
 | Is the object-store log read faster? | Server unit or bench test against a fake object provider with ~60 ms latency per GET and a fixture log with many small segments. Confirm on staging with Honeycomb traces (GET count per request) | seconds |
 | Did we break layout? | Existing `layout-stability`, `loading-layout`, `compact-startup` and `saved-reply-startup` specs, plus the frame recorder in the harness | ~3 min |
 

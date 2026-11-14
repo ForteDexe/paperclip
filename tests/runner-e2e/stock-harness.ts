@@ -42,7 +42,7 @@ export function productionDefaultHireProfile(profile: RunnerProfileFixture): Run
 }
 
 export interface StockHarnessEvidence {
-  schema: "paperclip.stock-harness.v1";
+  schema: "outpost.stock-harness.v1";
   generation: "legacy" | "native";
   agentId: string;
   budgets: { companyMonthlyCents: unknown; agentMonthlyCents: unknown };
@@ -145,7 +145,7 @@ export async function captureStockHarness(input: {
     throw new Error("Stock invocation mode receipt is missing or bound to a different run/company/agent.");
   }
   return {
-    schema: "paperclip.stock-harness.v1", generation: input.generation,
+    schema: "outpost.stock-harness.v1", generation: input.generation,
     budgets: { companyMonthlyCents: company.budgetMonthlyCents, agentMonthlyCents: agent.budgetMonthlyCents },
     agentId: input.agentId, bundle: { entryFile: bundle.entryFile, files }, runIds: input.runIds,
     invocations: events.flatMap(({ runId, rows, run }) => rows.filter(row => row.eventType === "adapter.invoke")
@@ -165,18 +165,18 @@ export function stockHarnessSourceDigest() {
     "../../packages/adapter-utils/src/acpx-engine/execute.ts",
     "../../packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.ts",
     "../../packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.test.ts",
-    "../../packages/paperclip-runner/scripts/generate-capability-contract.mjs",
-    "../../packages/paperclip-runner/scripts/check-capability-inventory.mjs",
-    "../../packages/paperclip-runner/scripts/lib/capability-inventory.mjs",
-    "../../packages/paperclip-runner/spec/capability/source-contract.json",
-    "../../packages/paperclip-runner/spec/capability/capabilities.yaml",
-    "../../packages/paperclip-runner/spec/capability/eval-traceability.yaml",
-    "../../packages/paperclip-runner/spec/capability/mcp-tool-map.yaml",
-    "../../packages/paperclip-runner/spec/capability/inventory.schema.json",
-    "../../packages/paperclip-runner/src/generated/capability-contract.ts",
-    "../../packages/paperclip-runner/docs/capability-contract.md",
+    "../../packages/outpost-runner/scripts/generate-capability-contract.mjs",
+    "../../packages/outpost-runner/scripts/check-capability-inventory.mjs",
+    "../../packages/outpost-runner/scripts/lib/capability-inventory.mjs",
+    "../../packages/outpost-runner/spec/capability/source-contract.json",
+    "../../packages/outpost-runner/spec/capability/capabilities.yaml",
+    "../../packages/outpost-runner/spec/capability/eval-traceability.yaml",
+    "../../packages/outpost-runner/spec/capability/mcp-tool-map.yaml",
+    "../../packages/outpost-runner/spec/capability/inventory.schema.json",
+    "../../packages/outpost-runner/src/generated/capability-contract.ts",
+    "../../packages/outpost-runner/docs/capability-contract.md",
     ...["capabilities.yaml", "mcp-tool-map.yaml", "eval-traceability.yaml", "capability-contract.md", "downstream-handoff.md"]
-      .map(file => `../../packages/paperclip-runner/generated/capability/${file}`),
+      .map(file => `../../packages/outpost-runner/generated/capability/${file}`),
     "../../server/src/onboarding-assets/default/AGENTS.md",
     "../../packages/adapter-utils/src/server-utils.ts",
     "../../packages/shared/src/connection-intent-guidance.ts",

@@ -47,10 +47,10 @@ export async function runEmptyInstallationBoundary(input: {
   // or eval qualification flags from becoming a prerequisite of this install.
   const environment = installedReleaseEnvironment({ PATH: process.env.PATH, HOME: home, USER: process.env.USER,
     TMPDIR: process.env.TMPDIR, SHELL: process.env.SHELL, LANG: process.env.LANG,
-    PAPERCLIP_HOME: home, PAPERCLIP_CONFIG: config, PAPERCLIP_INSTANCE_ID: `onboarding-${randomUUID()}`,
-    PORT: String(port), PAPERCLIP_OPEN_ON_LISTEN: "false", PAPERCLIP_DEPLOYMENT_MODE: "local_trusted",
-    PAPERCLIP_BIND: "loopback", PAPERCLIP_BIND_HOST: "127.0.0.1", SERVE_UI: "true", DO_NOT_TRACK: "1" },
-    fileURLToPath(new URL("../../../", import.meta.url)), path.join(process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT ?? directory, "provider-bin"));
+    OUTPOST_HOME: home, OUTPOST_CONFIG: config, OUTPOST_INSTANCE_ID: `onboarding-${randomUUID()}`,
+    PORT: String(port), OUTPOST_OPEN_ON_LISTEN: "false", OUTPOST_DEPLOYMENT_MODE: "local_trusted",
+    OUTPOST_BIND: "loopback", OUTPOST_BIND_HOST: "127.0.0.1", SERVE_UI: "true", DO_NOT_TRACK: "1" },
+    fileURLToPath(new URL("../../../", import.meta.url)), path.join(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? directory, "provider-bin"));
   const processHandle = spawn(process.execPath, [...launch.args, "--config", config], {
     cwd: launch.cwd, env: environment, detached: true, stdio: ["ignore", log.fd, log.fd],
   });

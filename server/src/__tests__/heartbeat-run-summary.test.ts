@@ -31,7 +31,7 @@ describe.each(["scheduled_monitor_waiting", "scheduled_monitor_dispatched", "sch
     finalizationPhase: "committed",
     finalizationReasonCode,
     nativeResult: {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary: "QA is still pending. The repository is being prepared and I will continue automatically.",
       continuation: { kind: "monitor", summary: "Continue with the prepared repository.", idempotencyKey: "repository-ready" },
@@ -160,7 +160,7 @@ describe("readCompletedAssistantMessageCandidate", () => {
       expect(
         readCompletedAssistantMessageCandidate({
           seq: 17,
-          prpEvent: {
+          orpEvent: {
             sourceEventId: `runner:${channel}`,
             payload: {
               kind: "agentMessage",
@@ -181,7 +181,7 @@ describe("readCompletedAssistantMessageCandidate", () => {
   it("leaves a recorded proposed plan to its Plan document and posts only the surrounding reply", () => {
     const candidate = (text: string, proposed = true) => readCompletedAssistantMessageCandidate({
       seq: 3,
-      prpEvent: { sourceEventId: "runner:plan", itemId: "msg-1", payload: { kind: "agentMessage", channel: "final", text } },
+      orpEvent: { sourceEventId: "runner:plan", itemId: "msg-1", payload: { kind: "agentMessage", channel: "final", text } },
       proposedItemIds: proposed ? new Set(["msg-1"]) : new Set(),
     });
     const withPlan = "Plan ready for approval.\n<proposed_plan>\n# Fix\n1. Ship\n</proposed_plan>";
@@ -196,16 +196,16 @@ describe("readCompletedAssistantMessageCandidate", () => {
     const fencedPreview = "Format:\n```\n<proposed_plan>\n# Plan…[truncated]";
     expect(candidate(fencedPreview)?.text).toBe(fencedPreview);
     expect(completedPlanProposalIds([
-      { payload: { prpEvent: { payload: { proposalId: "msg-1", status: "completed" } } } },
-      { payload: { prpEvent: { payload: { proposalId: "msg-2", status: "streaming" } } } },
+      { payload: { orpEvent: { payload: { proposalId: "msg-1", status: "completed" } } } },
+      { payload: { orpEvent: { payload: { proposalId: "msg-2", status: "streaming" } } } },
     ])).toEqual(new Set(["msg-1"]));
   });
 
-  it("keeps the persisted PRP v1 assistant_message alias readable", () => {
+  it("keeps the persisted ORP v1 assistant_message alias readable", () => {
     expect(
       readCompletedAssistantMessageCandidate({
         seq: 18,
-        prpEvent: {
+        orpEvent: {
           sourceEventId: "runner:legacy-final",
           payload: {
             kind: "assistant_message",
@@ -226,7 +226,7 @@ describe("readCompletedAssistantMessageCandidate", () => {
     expect(
       readCompletedAssistantMessageCandidate({
         seq: 18,
-        prpEvent: {
+        orpEvent: {
           payload: {
             kind: "agentMessage",
             channel: "progress",
@@ -238,7 +238,7 @@ describe("readCompletedAssistantMessageCandidate", () => {
     expect(
       readCompletedAssistantMessageCandidate({
         seq: 19,
-        prpEvent: {
+        orpEvent: {
           payload: {
             kind: "toolResult",
             channel: "unknown",
@@ -369,7 +369,7 @@ describe("buildHeartbeatRunIssueComment", () => {
       buildHeartbeatRunIssueComment({
         summary: "",
         nativeResult: {
-          schema: "paperclip.run_result.v1",
+          schema: "outpost.run_result.v1",
           reportedWorkDisposition: "done",
           summary,
         },
@@ -381,7 +381,7 @@ describe("buildHeartbeatRunIssueComment", () => {
 describe("resolveHeartbeatRunResponse", () => {
   const resultJson = {
     nativeResult: {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "done",
       summary: "semantic result",
     },
@@ -394,7 +394,7 @@ describe("resolveHeartbeatRunResponse", () => {
   ])("delivers the native conversation final without classifying the earlier comment: %s", body => {
     const summary = "Open Settings → Secrets → My secrets. Select the publishing definition and Set my value. Keep the value out of chat.";
     expect(resolveHeartbeatRunResponse({
-      resultJson: { nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary } },
+      resultJson: { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary } },
       nativeConversationFinalResponse: true, existingComment: { id: "earlier", body },
     })).toMatchObject({ text: summary, decision: { chosenSource: "semantic_result_summary", commentAction: "create",
       reasonCodes: ["accepted_semantic_result_summary", "native_conversation_final_precedence"] } });
@@ -404,7 +404,7 @@ describe("resolveHeartbeatRunResponse", () => {
 
   it.each(["done", "needs_review", "blocked", "failed"])("presents an accepted %s conversation response and reuses identical text", reportedWorkDisposition => {
     const summary = "The requested work needs your attention.";
-    const resultJson = { nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition, summary } };
+    const resultJson = { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition, summary } };
     expect(resolveHeartbeatRunResponse({ resultJson, nativeConversationFinalResponse: true,
       existingComment: { id: "earlier", body: "I will check." } })).toMatchObject({ text: summary, decision: { commentAction: "create" } });
     expect(resolveHeartbeatRunResponse({ resultJson, nativeConversationFinalResponse: true,
@@ -419,7 +419,7 @@ describe("resolveHeartbeatRunResponse", () => {
   });
 
   it("does not let compatibility narration outrank an accepted conversation result", () => {
-    const resultJson = { nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "blocked", summary: "The accepted handoff" },
+    const resultJson = { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "blocked", summary: "The accepted handoff" },
       finalResponse: { final: true, text: "Adapter compatibility prose" }, summary: "Legacy compatibility prose" };
     expect(resolveHeartbeatRunResponse({ resultJson, nativeConversationFinalResponse: true,
       existingComment: { id: "earlier", body: "Earlier comment" },
@@ -440,7 +440,7 @@ describe("resolveHeartbeatRunResponse", () => {
 
   it("keeps a governed interaction in control of the conversation response", () => {
     for (const input of [{ resultJson, interactionOwnsResponse: true },
-      { resultJson: { nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded", summary: "Waiting for an answer" } } }]) {
+      { resultJson: { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "Waiting for an answer" } } }]) {
       expect(resolveHeartbeatRunResponse({ ...input, nativeConversationFinalResponse: true,
         existingComment: { id: "earlier", body: "I will check." },
         finalAgentMessage: { text: "Do not publish this", sourceEventId: "final", channel: "final" },
@@ -453,7 +453,7 @@ describe("resolveHeartbeatRunResponse", () => {
       Array.from({ length: 501 }, (_, i) => `RUN-${i + 1}`).join(", ");
     const preview = complete.slice(0, 3_988) + "…[truncated]";
     const accepted = (summary: string) => ({
-      nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary },
+      nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary },
     });
 
     it("posts a complete final message longer than the run-log preview bound", () => {
@@ -513,11 +513,11 @@ describe("resolveHeartbeatRunResponse", () => {
     it("marks a stored preview candidate as bounded", () => {
       expect(readCompletedAssistantMessageCandidate({
         seq: 3,
-        prpEvent: { sourceEventId: "event-3", payload: { kind: "agentMessage", channel: "final", text: preview } },
+        orpEvent: { sourceEventId: "event-3", payload: { kind: "agentMessage", channel: "final", text: preview } },
       })).toMatchObject({ text: preview, bounded: true });
       expect(readCompletedAssistantMessageCandidate({
         seq: 4,
-        prpEvent: { sourceEventId: "event-4", payload: { kind: "agentMessage", channel: "final", text: complete } },
+        orpEvent: { sourceEventId: "event-4", payload: { kind: "agentMessage", channel: "final", text: complete } },
       })).not.toHaveProperty("bounded");
     });
   });
@@ -615,7 +615,7 @@ describe("resolveHeartbeatRunResponse", () => {
       resolveHeartbeatRunResponse({
         resultJson: {
           nativeResult: {
-            schema: "paperclip.run_result.v1",
+            schema: "outpost.run_result.v1",
             reportedWorkDisposition: "yielded",
             summary: "Waiting for Choose an output format.",
           },
@@ -631,7 +631,7 @@ describe("resolveHeartbeatRunResponse", () => {
         resultJson: {
           summary: "Waiting for Choose an output format.",
           nativeResult: {
-            schema: "paperclip.run_result.v1",
+            schema: "outpost.run_result.v1",
             reportedWorkDisposition: "yielded",
             summary: "Waiting for Choose an output format.",
           },
@@ -650,7 +650,7 @@ describe("resolveHeartbeatRunResponse", () => {
       resolveHeartbeatRunResponse({
         resultJson: {
           nativeResult: {
-            schema: "paperclip.run_result.v1",
+            schema: "outpost.run_result.v1",
             reportedWorkDisposition: "yielded",
             summary: "Waiting for Choose an output format.",
           },
@@ -678,7 +678,7 @@ describe("resolveHeartbeatRunResponse", () => {
   ])("preserves server-finished conversation authority for a yielded result: %j", ({ visible, ...authority }) => {
     const { channel, ...flags } = authority;
     const resolved = resolveHeartbeatRunResponse({ ...flags, nativeConversationFinalResponse: true,
-      resultJson: { summary: "Unqualified legacy summary", nativeResult: { schema: "paperclip.run_result.v1",
+      resultJson: { summary: "Unqualified legacy summary", nativeResult: { schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded", summary: "Waiting for the next message." } },
       finalAgentMessage: { text: "Which project should own this?", sourceEventId: "chat-final-1", channel },
     });
@@ -689,7 +689,7 @@ describe("resolveHeartbeatRunResponse", () => {
   it("persists a final assistant reply when the server completed a conversation turn", () => {
     expect(resolveHeartbeatRunResponse({
       conversationTurnFinished: true,
-      resultJson: { nativeResult: { schema: "paperclip.run_result.v1",
+      resultJson: { nativeResult: { schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded", summary: "Waiting for the next message." } },
       finalAgentMessage: { text: "Which project should own this?",
         sourceEventId: "chat-final-1", channel: "final" },
@@ -773,7 +773,7 @@ describe("resolveHeartbeatRunResponse", () => {
       resolveHeartbeatRunResponse({
         resultJson: {
           acceptedResult: {
-            schema: "paperclip.run_result.v1",
+            schema: "outpost.run_result.v1",
             reportedWorkDisposition: "done",
             summary: "TELEGRAM-ACCEPTED-Onyx",
           },
@@ -845,7 +845,7 @@ describe("resolveHeartbeatRunResponse", () => {
       resolveHeartbeatRunResponse({
         resultJson: {
           nativeResult: {
-            schema: "paperclip.run_result.v1",
+            schema: "outpost.run_result.v1",
             reportedWorkDisposition: "yielded",
             summary: "Waiting for a provider answer.",
           },
@@ -871,7 +871,7 @@ describe("resolveHeartbeatRunResponse", () => {
       finalizationPhase: "committed",
       finalizationReasonCode: "external_chat_response_waiting",
       nativeResult: {
-        schema: "paperclip.run_result.v1",
+        schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded",
         summary: "SLACK-LUNA-WAITING",
         continuation: {
@@ -957,7 +957,7 @@ describe("resolveHeartbeatRunResponse", () => {
       finalizationReasonCode: "prior_status_terminal_preserved",
       externalChatCommittedResponseWakeSummaryAuthorized: true,
       nativeResult: {
-        schema: "paperclip.run_result.v1",
+        schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded",
         summary: "Exact accepted public response",
         continuation: {
@@ -1026,10 +1026,10 @@ describe("resolveHeartbeatRunResponse", () => {
       finalizationPhase: "committed",
       finalizationReasonCode: "governed_response_waiting",
       externalChatReviewPresentation: {
-        schema: "paperclip.chat_review_response_presentation.v1",
+        schema: "outpost.chat_review_response_presentation.v1",
       },
       nativeResult: {
-        schema: "paperclip.run_result.v1",
+        schema: "outpost.run_result.v1",
         reportedWorkDisposition: "yielded",
         summary:
           "The original image is prepared for delivery; the completion review is still pending.",
@@ -1142,7 +1142,7 @@ describe("projectHistoricalHeartbeatRunComment", () => {
     expect(
       projectHistoricalHeartbeatRunComment(LEGACY_WITHHELD_RUN_COMMENT, {
         nativeResult: {
-          schema: "paperclip.run_result.v1",
+          schema: "outpost.run_result.v1",
           summary,
         },
       }),
@@ -1153,7 +1153,7 @@ describe("projectHistoricalHeartbeatRunComment", () => {
     expect(
       projectHistoricalHeartbeatRunComment("Real response", {
         nativeResult: {
-          schema: "paperclip.run_result.v1",
+          schema: "outpost.run_result.v1",
           summary: "Different response",
         },
       }),
@@ -1183,8 +1183,8 @@ describe("findHeartbeatRunCompletionComment", () => {
     expect(resolveHeartbeatRunResponse({
       resultJson,
       existingComment,
-      finalAgentMessage: { text: "PAPERCLIP_E2E_WARM_T3", sourceEventId: "final-event", channel: "final" },
-    })).toMatchObject({ text: "PAPERCLIP_E2E_WARM_T3", decision: { commentAction: "create" } });
+      finalAgentMessage: { text: "OUTPOST_E2E_WARM_T3", sourceEventId: "final-event", channel: "final" },
+    })).toMatchObject({ text: "OUTPOST_E2E_WARM_T3", decision: { commentAction: "create" } });
     // A final reply already materialized on a retry keeps precedence.
     expect(findHeartbeatRunCompletionComment([prepared, explicit], resultJson)).toEqual(explicit);
     // The body alone does not mark an ordinary agent comment as generated.

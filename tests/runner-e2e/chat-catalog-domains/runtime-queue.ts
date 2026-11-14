@@ -74,7 +74,7 @@ export function gradeQueuedFollowup(value: unknown) {
   return c.result();
 }
 export const runtimeQueueCases = [runtimeDefinition("steering.queue-follow-up", busyRuntimeWorker, gradeQueuedFollowup, {
-  oracleVersion: "paperclip.chat-catalog.runtime-queue.v3",
+  oracleVersion: "outpost.chat-catalog.runtime-queue.v3",
   sourceFiles: ["chat-catalog-domains/runtime-queue.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/steering.yaml"],
   expectedRunCount: 3, attemptTimeoutMs: 720_000,
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "real-busy-worker", "worker-task-scope"] },

@@ -73,7 +73,7 @@ import {
 
 type Row = Record<string, any>;
 export interface EverydayEvidence {
-  schema: "paperclip.everyday-workflow.v1";
+  schema: "outpost.everyday-workflow.v1";
   caseId: string;
   prompt: string;
   harnessDigest?: string;
@@ -158,7 +158,7 @@ export async function runEverydayFlow(input: Input) {
   const { page, api, fixtures, execution, nonce } = input;
   const prefix = fixtures.company.issuePrefix!;
   const ev: EverydayEvidence = {
-    schema: "paperclip.everyday-workflow.v1",
+    schema: "outpost.everyday-workflow.v1",
     caseId: execution.task.id,
     prompt: execution.task.buildPrompt(nonce),
     fixtureConfiguration: {
@@ -1011,7 +1011,7 @@ export async function runEverydayFlow(input: Input) {
                 const original = ev.runs.find(run => run.id === active.id);
                 if (!original || original.status !== "running") return { run: original };
                 const rows = await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${active.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-                if (!rows.some(row => row.payload?.prpEvent?.eventType === "tool.execution.completed" && row.payload.prpEvent.payload?.status === "completed")) return { run: original };
+                if (!rows.some(row => row.payload?.orpEvent?.eventType === "tool.execution.completed" && row.payload.orpEvent.payload?.status === "completed")) return { run: original };
                 return { run: original, boundary: await remoteRestartBoundary(active.id) };
               } });
             currentBefore = before;
@@ -1369,7 +1369,7 @@ export async function runEverydayFlow(input: Input) {
       check(
         "hire-native-connection",
         hires.length === 1 &&
-          hires[0]!.adapterType === "paperclip_runner" &&
+          hires[0]!.adapterType === "outpost_runner" &&
           hires[0]!.adapterConfig?.model === lead?.adapterConfig?.model &&
           isDeepStrictEqual(
             hires[0]!.runtimeConfig?.aiConnection,
@@ -1565,7 +1565,7 @@ export async function runEverydayFlow(input: Input) {
         const events = await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${after.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
         const evidence = { before, after: retainedControllerRun(after), outage: outage || undefined, requestedAt,
           followupTransport, followupCommentId: retainedFollowupCommentId,
-          completedTool: events.some(row => row.payload?.prpEvent?.eventType === "tool.execution.completed" && row.payload.prpEvent.payload?.status === "completed"),
+          completedTool: events.some(row => row.payload?.orpEvent?.eventType === "tool.execution.completed" && row.payload.orpEvent.payload?.status === "completed"),
           usefulReply: storyAgentReplyMatches(settledAgentReply, fixtures.agent.id, expectedReply) };
         ev.checks.push(...gradeRetainedControllerContinuation(evidence));
         await input.evidence("retained-controller-continuation.json", evidence);
@@ -1652,7 +1652,7 @@ export async function runEverydayFlow(input: Input) {
         .every(
           (r) =>
             (r.resultJson?.nativeTerminal as Row | undefined)?.schema ===
-            "paperclip.prp.terminal.v1",
+            "outpost.orp.terminal.v1",
         ),
       "Successful runs retain the native terminal contract.",
     );

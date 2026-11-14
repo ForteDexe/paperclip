@@ -1,4 +1,4 @@
-import type { Issue, IssueDisplayStatus, IssueStatus } from "@paperclipai/shared";
+import type { Issue, IssueDisplayStatus, IssueStatus } from "@outpost/shared";
 import { workflowSort } from "./workflow-sort";
 
 export type SubIssueProgressTargetKind = "next" | "blocked";

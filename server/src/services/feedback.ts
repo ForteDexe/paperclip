@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   documentRevisions,
   documents,
@@ -7,8 +7,8 @@ import {
   issueComments,
   issueDocuments,
   issues,
-} from "@paperclipai/db";
-import type { FeedbackTargetType, FeedbackVoteValue } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { FeedbackTargetType, FeedbackVoteValue } from "@outpost/shared";
 import { notFound, unprocessable } from "../errors.js";
 
 const publicVoteColumns = {

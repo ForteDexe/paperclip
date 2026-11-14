@@ -86,12 +86,12 @@ import { connectorToolPolicy } from "./connectors/tool-policy.js";
 
 import { notifyChatEndpointWork } from "./chat-work-notifications.js";
 
-import { defaultConnectionAgentInstructions } from "@paperclipai/shared";
+import { defaultConnectionAgentInstructions } from "@outpost/shared";
 
 import { isBrowserUseConnection } from "./browser-use-client.js";
 
 import { COGNEE_STDIO_TEMPLATE } from "./cognee-connection.js";
-import { isRemoteMcpConnectorMethod } from "@paperclipai/shared";
+import { isRemoteMcpConnectorMethod } from "@outpost/shared";
 
 import { githubBotRequest } from "./chat-github-client.js";
 import { syncConnectionCredentialBindings } from "./connection-credential-bindings.js";
@@ -106,16 +106,16 @@ import { measureRunPhase } from "./execution-preparation-timing.js";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, asc, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agents, connectionGrantMembers, connectionGrants, companyMemberships, principalPermissionGrants, userSecretDefinitions, plugins, toolAccessAuditEvents, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolStdioCommandTemplates, toolCallEvents, toolPolicies, toolProfileBindings, toolProfileEntries, toolProfiles } from "@paperclipai/db";
-import type { AppDefinition, ConnectionGrantKind, CreateToolApplication, CreateToolConnection, ConnectToolApp, ConnectToolAppResult, CreateToolStdioCommandTemplate, FinishToolApp, FinishToolAppResult, CreateToolProfileBindingForProfile, CreateToolProfileEntryForProfile, DeploymentExposure, DeploymentMode, ImportMcpJson, McpConnectionCredentialRef, McpJsonImportPreview, ToolApplication, ToolCatalogEntry, ToolCatalogRefreshResult, ToolConnection, ToolConnectionInstall, ToolConnectionHealthCheckResult, ToolConnectionAuthKind, ToolConnectionCredentialPolicy, ToolConnectionCredentialSource, ToolConnectionTransport, ToolAppMetadataPreflightResult, ToolExampleInstallResult, ToolExampleSmokeCheck, ToolExampleSmokeResult, ToolExampleSummary, ToolProfileBinding, ToolProfileEntry, ToolPolicyDecision, ToolStdioCommandTemplate, UpdateToolApplication, UpdateToolConnection, VercelConnectCredentialReference } from "@paperclipai/shared";
-import { getAppDefinitionForUrl, getAvailableConnectionMethods, getConnectableAppDefinition, recommendedDefaultsForApp } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { agents, connectionGrantMembers, connectionGrants, companyMemberships, principalPermissionGrants, userSecretDefinitions, plugins, toolAccessAuditEvents, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolStdioCommandTemplates, toolCallEvents, toolPolicies, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
+import type { AppDefinition, ConnectionGrantKind, CreateToolApplication, CreateToolConnection, ConnectToolApp, ConnectToolAppResult, CreateToolStdioCommandTemplate, FinishToolApp, FinishToolAppResult, CreateToolProfileBindingForProfile, CreateToolProfileEntryForProfile, DeploymentExposure, DeploymentMode, ImportMcpJson, McpConnectionCredentialRef, McpJsonImportPreview, ToolApplication, ToolCatalogEntry, ToolCatalogRefreshResult, ToolConnection, ToolConnectionInstall, ToolConnectionHealthCheckResult, ToolConnectionAuthKind, ToolConnectionCredentialPolicy, ToolConnectionCredentialSource, ToolConnectionTransport, ToolAppMetadataPreflightResult, ToolExampleInstallResult, ToolExampleSmokeCheck, ToolExampleSmokeResult, ToolExampleSummary, ToolProfileBinding, ToolProfileEntry, ToolPolicyDecision, ToolStdioCommandTemplate, UpdateToolApplication, UpdateToolConnection, VercelConnectCredentialReference } from "@outpost/shared";
+import { getAppDefinitionForUrl, getAvailableConnectionMethods, getConnectableAppDefinition, recommendedDefaultsForApp } from "@outpost/shared";
 import {
   checkMcpRemoteHeaderName,
   checkMcpRemoteHeaderValue,
   mcpRemoteHeaderNameFromConfigPath,
   mcpRemoteHeaderRejectionMessage,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   badRequest,
   conflict,
@@ -137,7 +137,7 @@ import {
 import { secretService } from "./secrets.js";
 import { connectionCredentialConfigPath as credentialRefConfigPath, validateConnectionGrantSecretOwnership, writeConnectionCredential } from "./connection-credentials.js";
 
-import type { ConfigureRailwaySsh, RailwaySshSetup } from "@paperclipai/shared";
+import type { ConfigureRailwaySsh, RailwaySshSetup } from "@outpost/shared";
 import { generateRailwaySshKey, RAILWAY_SSH_SECRET_PATH, validateRailwayKnownHosts } from "./railway-ssh.js";
 import { isRailwayConnection } from "./railway.js";
 import { toolAccessPolicyService } from "./tool-access-policy.js";
@@ -147,7 +147,7 @@ import { gmailArchiveToolDescription } from "./gmail-archive-tool-policy.js";
 
 import { createToolRuntimeSupervisor } from "./tool-runtime-supervisor.js";
 
-import { appWithPaperclipCloudConnectorAvailability, paperclipCloudConnectorCapabilitiesFromEnv, createPaperclipCloudConnector, isPaperclipCloudConnectorStrategy, paperclipCloudConnectorConfigFromEnv, type PaperclipCloudConnector } from "./paperclip-cloud-connector.js";
+import { appWithPaperclipCloudConnectorAvailability, outpostCloudConnectorCapabilitiesFromEnv, createPaperclipCloudConnector, isPaperclipCloudConnectorStrategy, outpostCloudConnectorConfigFromEnv, type PaperclipCloudConnector } from "./paperclip-cloud-connector.js";
 import { createVercelConnectClient, deriveVercelConnectSubject, vercelConnectIntegrationStatus, type VercelConnectClient } from "./vercel-connect.js";
 
 type ToolAccessServiceOptions = {
@@ -243,7 +243,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
     tools: McpToolDescriptor[];
   }
 > = {
-  "paperclip.echo-calculator-time": {
+  "outpost.echo-calculator-time": {
     name: "Outpost Echo / Calculator / Time fixture",
     tools: [
       {
@@ -284,7 +284,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
       },
     ],
   },
-  "paperclip.synthetic-todo-kv": {
+  "outpost.synthetic-todo-kv": {
     name: "Outpost Synthetic Todo / KV fixture",
     tools: [
       {
@@ -319,8 +319,8 @@ const APPROVED_STDIO_TEMPLATES: Record<
       },
     ],
   },
-  "paperclip.cognee-cloud": COGNEE_STDIO_TEMPLATE,
-  "paperclip.google-sheets": {
+  "outpost.cognee-cloud": COGNEE_STDIO_TEMPLATE,
+  "outpost.google-sheets": {
     name: "Google Sheets",
     command: "paperclip-google-sheets-mcp-server",
     args: [],
@@ -424,7 +424,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
 };
 
 const GOOGLE_SHEETS_GALLERY_KEY = "google-sheets";
-const GOOGLE_SHEETS_TEMPLATE_ID = "paperclip.google-sheets";
+const GOOGLE_SHEETS_TEMPLATE_ID = "outpost.google-sheets";
 const GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS_ENV =
   "GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS";
 
@@ -448,13 +448,13 @@ const TOOL_EXAMPLES: ToolExampleDefinition[] = [
     title: "Safe read-only Todo / KV fixture",
     description:
       "Installs a deterministic local MCP fixture and grants only its read-only catalog entries.",
-    applicationKey: "paperclip.examples.safe-read-only-todo-kv",
+    applicationKey: "outpost.examples.safe-read-only-todo-kv",
     applicationName: "Outpost example: Safe read-only Todo / KV",
     applicationDescription:
       "Deterministic MCP fixture for first-run tool governance checks.",
     connectionName: "Outpost example: Safe read-only Todo / KV",
-    templateId: "paperclip.synthetic-todo-kv",
-    profileKey: "paperclip.examples.safe-read-only-todo-kv.profile",
+    templateId: "outpost.synthetic-todo-kv",
+    profileKey: "outpost.examples.safe-read-only-todo-kv.profile",
     profileName: "Example safe read-only tools",
     profileDescription:
       "Allows only the read-only tools from the Outpost Todo / KV example fixture.",
@@ -762,7 +762,7 @@ export function toolAccessService(
   const currentCloudConnector = (): PaperclipCloudConnector | null => {
     if (cachedCloudConnector || connectorWasProvided)
       return cachedCloudConnector;
-    const config = paperclipCloudConnectorConfigFromEnv();
+    const config = outpostCloudConnectorConfigFromEnv();
     cachedCloudConnector = config
       ? createPaperclipCloudConnector({ config, now: () => now().getTime() })
       : null;
@@ -774,7 +774,7 @@ export function toolAccessService(
     }
     const profiles = connectorWasProvided
       ? (await currentCloudConnector()?.getCapabilities() ?? [])
-      : await paperclipCloudConnectorCapabilitiesFromEnv();
+      : await outpostCloudConnectorCapabilitiesFromEnv();
     return appWithPaperclipCloudConnectorAvailability(app, profiles);
   }
   const vercelConnect =
@@ -824,8 +824,8 @@ export function toolAccessService(
   function trustedRuntimeHost() {
     return (
       options.trustedLocalStdioRuntimeHost ??
-      process.env.PAPERCLIP_TRUSTED_MCP_RUNTIME_HOST ??
-      process.env.PAPERCLIP_TOOL_RUNTIME_TRUSTED_HOST ??
+      process.env.OUTPOST_TRUSTED_MCP_RUNTIME_HOST ??
+      process.env.OUTPOST_TOOL_RUNTIME_TRUSTED_HOST ??
       null
     );
   }
@@ -835,7 +835,7 @@ export function toolAccessService(
     enabled: boolean,
     config: Record<string, unknown> = {},
   ) {
-    if (config.templateId === "paperclip.cognee-cloud") return;
+    if (config.templateId === "outpost.cognee-cloud") return;
     if (
       transport === "local_stdio" &&
       enabled &&
@@ -4370,7 +4370,7 @@ export function toolAccessService(
       ]);
       const repositories = new Map<
         string,
-        import("@paperclipai/shared").ProjectRepository
+        import("@outpost/shared").ProjectRepository
       >();
       const usableConnections: Array<{ id: string; name: string }> = [];
       let connectionCount = 0;

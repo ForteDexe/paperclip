@@ -70,7 +70,7 @@ export const subscriptionIdentityCases: readonly ChatCatalogCase[] = [identityDe
   throw new SetupPrerequisiteUnavailable("Setup prerequisite unavailable: two subscription records for one paid account need a real subscription account signed in twice through provider sign-in, and this lane supplies none; no canonical request was sent");
 
 }, gradeSubscriptions, {
-  authentication: "human-session", sourceFiles: sources, oracleVersion: "paperclip.chat-catalog.identity-subscriptions.v2",
+  authentication: "human-session", sourceFiles: sources, oracleVersion: "outpost.chat-catalog.identity-subscriptions.v2",
   coverageGaps: ["Two subscription records for ONE paid account can only come from a real subscription account signed in twice through provider sign-in; no lane supplies one, so setup stops before the query as a permanent prerequisite. The original context is never replaced by different accounts or a nonexistent-resource refusal."],
   async act(ctx, state) {
     await waitForReply(ctx); const pair = state.duplicateAccounts as SubscriptionAccountReport[] | undefined;

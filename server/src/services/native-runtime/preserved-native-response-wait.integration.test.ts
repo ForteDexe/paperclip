@@ -10,12 +10,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { agentWakeupRequests, agents, chatActions, chatConversations, chatEndpointResources, chatEndpoints, chatExternalPrincipals, chatIdentityLinks,
   chatGitHubReviews, companies, completionContracts, createDb, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns,
   issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, runIdentityContexts,
-  statusDecisionEffects, statusDecisions, toolConnections, workspaceOperations } from "@paperclipai/db";
-import { defaultGitHubReviewPolicy, readRemoteWorkspaceAuthority, type EnvironmentLease } from "@paperclipai/shared";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+  statusDecisionEffects, statusDecisions, toolConnections, workspaceOperations } from "@outpost/db";
+import { defaultGitHubReviewPolicy, readRemoteWorkspaceAuthority, type EnvironmentLease } from "@outpost/shared";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { seedBoundChatAuthorization } from "../../__tests__/helpers/bound-chat-authorization.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/paperclip-runner/testing.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
 import { classifyEnvironmentCapabilities, environmentRuntimeService } from "../environment-runtime.js";
 import { issueService } from "../issues.js";
 import { remoteTerminationReceipt } from "../remote-execution-termination.js";
@@ -101,7 +101,7 @@ describe("preserved native response wait", () => {
       .where(eq(chatConversations.id, f.conversationId));
     const contractId = randomUUID(), sourceInstanceId = randomUUID(), identityId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "preserved-wait-test",
+      revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "preserved-wait-test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
         objective: "Review the requested change", criteria: [{ id: "objective", requirement: "Review the change" }] },
@@ -254,7 +254,7 @@ describe("preserved native response wait", () => {
     }
     if (scenario === "saved_chat_retry") {
       retryRequestId = randomUUID();
-      const payload = { issueId: f.issueId, taskRetry: { schema: "paperclip.task-retry.v1", generationId: retryRequestId,
+      const payload = { issueId: f.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: retryRequestId,
         sourceRunId: f.runId, actorId: f.userId, actorSource: "local_implicit", strategy: "evaluate" } };
       expect(readTaskRetryIntent(payload)?.sourceRunId).toBe(f.runId);
       await db.insert(agentWakeupRequests).values({ id: retryRequestId, companyId: f.companyId, agentId: f.agentId,
@@ -280,14 +280,14 @@ describe("preserved native response wait", () => {
     if (scenario === "stop") {
       const [current] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
       await db.update(heartbeatRuns).set({ resultJson: { ...current.resultJson,
-        nativeCancellation: { schema: "paperclip.native-cancellation.v1", companyId: f.companyId,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId: f.companyId,
           issueId: f.issueId, runId: f.runId, scope: "run", dispatchState: "requested" } } }).where(eq(heartbeatRuns.id, f.runId));
     }
     if (scenario === "cancelled_run") await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
     if (scenario === "cancelled_task") await issueService(db).update(f.issueId, { status: "cancelled" });
     if (scenario === "owner_changed") {
       const peerId = randomUUID();
-      await db.insert(agents).values({ id: peerId, companyId: f.companyId, name: "New owner", adapterType: "paperclip_runner" });
+      await db.insert(agents).values({ id: peerId, companyId: f.companyId, name: "New owner", adapterType: "outpost_runner" });
       await db.update(issues).set({ assigneeAgentId: peerId }).where(eq(issues.id, f.issueId));
     }
     if (scenario === "newer_cancelled" || scenario === "newer_active") {
@@ -459,7 +459,7 @@ describe("preserved native response wait", () => {
       expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
     }, 60_000);
 
-  it.each(["paperclip.native-workspace-sync/v1", "paperclip.native-workspace-sync/v2"])(
+  it.each(["outpost.native-workspace-sync/v1", "outpost.native-workspace-sync/v2"])(
     "recognizes the existing finalized export receipt schema %s", async schema => {
       const f = await recovered("export_retry_defer");
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
@@ -583,7 +583,7 @@ describe("preserved native response wait", () => {
       agentId: f.agentId, runtimeMode: "native", status: "running", nativePhase: "observed" });
     const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId,
       mode: "task", strategyType: "isolated", name: "Retained generations", metadata: { remoteWorkspace: {
-        schema: "paperclip.remote-workspace.v1", epoch: 2, snapshotId: currentSnapshotId,
+        schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId: currentSnapshotId,
         source: { kind: "empty" }, location, writerRunId: newerId, dirty: true } } }).returning();
     expect(readRemoteWorkspaceAuthority(workspace.metadata)?.writerRunId).toBe(newerId);
     const [oldSave, newSave] = await db.insert(workspaceOperations).values([
@@ -603,7 +603,7 @@ describe("preserved native response wait", () => {
       storage: "remote_workspace", snapshotId, generation: 2, epoch: 1, sha256: "a".repeat(64) } })
       .where(eq(workspaceOperations.id, operationId));
     await db.update(heartbeatRuns).set({ runnerProfileJson: { remoteWorkspace: {
-      schema: "paperclip.remote-workspace-run.v1", workspaceId: workspace.id, ...location,
+      schema: "outpost.remote-workspace-run.v1", workspaceId: workspace.id, ...location,
       epoch: 1, state: "saved", snapshotId } } }).where(eq(heartbeatRuns.id, f.runId));
     await db.update(issues).set({ status: "in_progress", executionRunId: newerId }).where(eq(issues.id, f.issueId));
     const [beforeIssue] = await db.select().from(issues).where(eq(issues.id, f.issueId));

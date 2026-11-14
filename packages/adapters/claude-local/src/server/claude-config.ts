@@ -6,7 +6,7 @@ import type {
   AdapterExecutionContext,
   AdapterEnvironmentCheck,
   AdapterRuntimeMcpServer,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 import {
   adapterExecutionTargetUsesManagedHome,
   maybeRunSandboxInstallCommand,
@@ -14,9 +14,9 @@ import {
   runAdapterExecutionTargetShellCommand,
   type AdapterExecutionTarget,
   type AdapterExecutionTargetShellOptions,
-} from "@paperclipai/adapter-utils/execution-target";
-import { resolvePaperclipInstanceRootForAdapter } from "@paperclipai/adapter-utils/server-utils";
-import { shellQuote } from "@paperclipai/adapter-utils/ssh";
+} from "@outpost/adapter-utils/execution-target";
+import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
+import { shellQuote } from "@outpost/adapter-utils/ssh";
 import { classifyThrownErrorClass, logSandboxProbeDiagnostic } from "./probe-diagnostics.js";
 
 const SEEDED_SHARED_FILES = ["settings.json", "CLAUDE.md"] as const;
@@ -143,8 +143,8 @@ export function resolveManagedClaudeConfigSeedDir(
   companyId?: string,
 ): string {
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return companyId
@@ -158,8 +158,8 @@ export function resolveManagedClaudeRuntimeStateDir(
   agentId: string,
 ): string {
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return path.join(instanceRoot, "companies", companyId, "agents", agentId, "claude-runtime");
@@ -218,12 +218,12 @@ export async function prepareClaudeConfigSeed(
   if (copiedFiles.length > 0) {
     await onLog(
       "stdout",
-      `[paperclip] Prepared Claude config seed "${targetDir}" from "${sourceDir}" (${copiedFiles.map((file) => file.name).join(", ")}).\n`,
+      `[outpost] Prepared Claude config seed "${targetDir}" from "${sourceDir}" (${copiedFiles.map((file) => file.name).join(", ")}).\n`,
     );
   } else {
     await onLog(
       "stdout",
-      `[paperclip] No local Claude config seed files were found in "${sourceDir}". Remote Claude auth may still require login.\n`,
+      `[outpost] No local Claude config seed files were found in "${sourceDir}". Remote Claude auth may still require login.\n`,
     );
   }
 
@@ -248,7 +248,7 @@ export const CLAUDE_TOOL_SHELL_PREFIX_SCRIPT = [
   "",
 ].join("\n");
 
-const CLAUDE_TOOL_SHELL_PREFIX_INSTALLED_MARKER = "[paperclip] Installed the Claude tool shell prefix.";
+const CLAUDE_TOOL_SHELL_PREFIX_INSTALLED_MARKER = "[outpost] Installed the Claude tool shell prefix.";
 
 export function buildRemoteClaudeConfigMaterializationCommand(input: {
   remoteClaudeConfigDir: string;
@@ -364,7 +364,7 @@ export async function overrideRemoteClaudeLocalPermissionMode(input: {
     );
   const applied = await writeRemote(overridden);
   if (applied.exitCode !== 0 || applied.timedOut) {
-    await input.options.onLog?.("stderr", "[paperclip] Could not apply the Claude permission mode to the sandbox workspace settings.\n");
+    await input.options.onLog?.("stderr", "[outpost] Could not apply the Claude permission mode to the sandbox workspace settings.\n");
   }
   return {
     beforeRestore: async () => {
@@ -385,14 +385,14 @@ export async function overrideRemoteClaudeLocalPermissionMode(input: {
           await writeRemote(withClaudeLocalDefaultMode(current, originalMode));
         }
       } catch {
-        await input.options.onLog?.("stderr", "[paperclip] Could not reset the Claude permission mode in the sandbox workspace settings.\n");
+        await input.options.onLog?.("stderr", "[outpost] Could not reset the Claude permission mode in the sandbox workspace settings.\n");
       }
     },
     afterRestore: async () => {
       const current = parseClaudeLocalSettings(await fs.readFile(localPath, "utf8").catch(() => null));
       if (current?.permissions.defaultMode !== input.defaultMode) return;
       await fs.writeFile(localPath, withClaudeLocalDefaultMode(current, originalMode)).catch(async () => {
-        await input.options.onLog?.("stderr", "[paperclip] Could not restore the host Claude workspace settings after the sandbox run.\n");
+        await input.options.onLog?.("stderr", "[outpost] Could not restore the host Claude workspace settings after the sandbox run.\n");
       });
     },
   };

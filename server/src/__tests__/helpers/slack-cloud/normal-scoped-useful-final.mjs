@@ -1,9 +1,9 @@
 // Controlled ordinary run-token acceptance helper; normal run token only.
 const peer = new URL(process.env.SLACK_FORM_FIXTURE_PEER_ORIGIN ?? "invalid:");
-const base = new URL(process.env.PAPERCLIP_API_URL ?? "invalid:");
+const base = new URL(process.env.OUTPOST_API_URL ?? "invalid:");
 if (peer.protocol !== "http:" || peer.hostname !== "127.0.0.1" || peer.origin !== base.origin || peer.pathname !== "/") throw Error("unexpected scoped agent API peer");
 if (process.env.SLACK_GATE_GUARD_PID !== String(process.pid)) throw Error("missing actual process guard");
-const runId=process.env.PAPERCLIP_RUN_ID, agentId=process.env.PAPERCLIP_AGENT_ID, companyId=process.env.PAPERCLIP_COMPANY_ID, token=process.env.PAPERCLIP_API_KEY;
+const runId=process.env.OUTPOST_RUN_ID, agentId=process.env.OUTPOST_AGENT_ID, companyId=process.env.OUTPOST_COMPANY_ID, token=process.env.OUTPOST_API_KEY;
 if (!runId || !agentId || !companyId || !token) throw Error("missing normal run identity");
 const headers={authorization:`Bearer ${token}`,"x-paperclip-run-id":runId,"content-type":"application/json"};
 async function request(path, method="GET", body) { const response=await fetch(new URL(path,base),{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});if(!response.ok)throw Error(`normal agent API refused ${method} ${response.status}`);return response.json(); }

@@ -127,9 +127,9 @@ def public_preflight(base):
         raise RuntimeError("Public Paperclip metadata does not match the configured connection")
     return {"status": "site_approval_preflight_complete", "origin": base, "clientVersion": VERSION}
 
-INPUT_RECEIPTS_SCHEMA = "paperclip.muse_input_receipts.v2"
-LEGACY_INPUT_RECEIPTS_SCHEMA = "paperclip.muse_input_receipts.v1"
-INPUT_MIGRATION_SCHEMA = "paperclip.muse_input_receipts_migration.v1"
+INPUT_RECEIPTS_SCHEMA = "outpost.muse_input_receipts.v2"
+LEGACY_INPUT_RECEIPTS_SCHEMA = "outpost.muse_input_receipts.v1"
+INPUT_MIGRATION_SCHEMA = "outpost.muse_input_receipts_migration.v1"
 # save() uses json.dump(ensure_ascii=False), default separators, and no indent.
 # Valid UTF-8/control escaping does not grow against the decoded transport JSON;
 # reserialization adds at most one space per separator. Budget all 64 answers,
@@ -223,7 +223,7 @@ def input_text(value, minimum, maximum):
     return True
 
 def input_response_valid(response):
-    if not isinstance(response, dict) or set(response) != {"schema", "answers"} or response["schema"] != "paperclip.question_response.v1": return False
+    if not isinstance(response, dict) or set(response) != {"schema", "answers"} or response["schema"] != "outpost.question_response.v1": return False
     answers = response["answers"]
     if not isinstance(answers, dict) or len(answers) > 64: return False
     for question, answer in answers.items():

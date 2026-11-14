@@ -166,14 +166,14 @@ export function describeProviderFault(rule: ProviderFaultRule): string {
 
 /** The Codex executable product code would resolve for this checkout (mirrors codex-command.ts). */
 export function resolveRealCodex(repositoryRoot: string): { command: string; version: string; manifestPath: string } {
-  const runnerRequire = createRequire(path.join(repositoryRoot, "packages/paperclip-runner/package.json"));
+  const runnerRequire = createRequire(path.join(repositoryRoot, "packages/outpost-runner/package.json"));
   let manifestPath: string;
   try {
     const bridge = runnerRequire.resolve("@agentclientprotocol/codex-acp/package.json");
     manifestPath = createRequire(bridge).resolve("@openai/codex/package.json");
   } catch {
     try {
-      const adapter = runnerRequire.resolve("@paperclipai/adapter-codex-local/server");
+      const adapter = runnerRequire.resolve("@outpost/adapter-codex-local/server");
       manifestPath = createRequire(createRequire(adapter).resolve("@agentclientprotocol/codex-acp/package.json")).resolve("@openai/codex/package.json");
     } catch {
       manifestPath = runnerRequire.resolve("@openai/codex/package.json");

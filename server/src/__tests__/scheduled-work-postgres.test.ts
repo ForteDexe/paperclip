@@ -1,6 +1,6 @@
-import { agents, applyPendingMigrations, companies, createDb, issues, routines, routineTriggers } from "@paperclipai/db";
+import { agents, applyPendingMigrations, companies, createDb, issues, routines, routineTriggers } from "@outpost/db";
 import { sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import type { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -10,7 +10,7 @@ import { routineService } from "../services/routines.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { registerScheduledWork } from "../services/scheduled-work.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_SCHEDULED_WORK_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_SCHEDULED_WORK_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("scheduled deadline database queries", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;

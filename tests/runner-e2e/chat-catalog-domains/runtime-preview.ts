@@ -47,7 +47,7 @@ export const runtimePreviewCases = [runtimeDefinition("workspaces.preview-servic
   if (ctx.input.execution.environment.id !== "local") throw new Error("Owned loopback website preview fixture requires the actual local target");
   await enableTaskWorkspaceView(ctx);
   const state = await savedTaskWorkspace(ctx, { html: true }); const cwd = await realpath(state.workspaceBefore.workspace.cwd);
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root || !cwd.startsWith(`${await realpath(root)}${path.sep}`)) throw new Error("Preview fixture escaped the isolated task directory");
   const websiteBytes = await readFile(path.join(cwd, "index.html"), "utf8");
   if (!/<html|<!doctype html/i.test(websiteBytes) || !websiteBytes.includes(state.marker)) throw new Error("Actual native website prerequisite is not present");
@@ -63,7 +63,7 @@ export const runtimePreviewCases = [runtimeDefinition("workspaces.preview-servic
   if (saved.runtimeServices?.some(row => row.status === "running")) throw new Error("Preview setup must not start the target service");
   return { ...state, workspace: saved, websiteBytes, failureFlag };
 }, gradePreview, {
-  oracleVersion: "paperclip.chat-catalog.preview-service.v4",
+  oracleVersion: "outpost.chat-catalog.preview-service.v4",
   sourceFiles: ["chat-catalog-domains/runtime-preview.ts", "chat-catalog-domains/runtime-workspaces.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/workspaces.yaml"],
   expectedHumanMessageCount: 2, expectedRunCount: 3, attemptTimeoutMs: 720_000,
   async act(ctx, state) {

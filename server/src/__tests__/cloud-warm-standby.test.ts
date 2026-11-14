@@ -3,7 +3,7 @@ import { createServer, request as httpRequest } from "node:http";
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { installDatabaseWorkSignals } from "../../../packages/db/src/work-signals.js";
 import { cloudWarmStandbyMiddleware, cloudWarmStandbyServerOptions } from "../middleware/cloud-warm-standby.js";
 import { healthRoutes } from "../routes/health.js";
@@ -17,7 +17,7 @@ const healthOptions = {
   deploymentExposure: "public" as const,
   authReady: true,
   companyDeletionEnabled: false,
-  runtimeEnv: { PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "test-token" },
+  runtimeEnv: { OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "test-token" },
 };
 afterEach(() => vi.useRealTimers());
 
@@ -49,7 +49,7 @@ describe("unclaimed Cloud background work", () => {
       const page = await request(app).get(path)
         .set("authorization", "Bearer test-bearer")
         .set("x-paperclip-cloud-tenant-token", "test-tenant")
-        .set("cookie", "paperclip.session_token=test-session");
+        .set("cookie", "outpost.session_token=test-session");
       expect(page.status).toBe(200);
     }
     expect((await request(app).post("/mcp/gateways/gw_test")).status).toBe(503);
@@ -90,7 +90,7 @@ describe("unclaimed Cloud background work", () => {
       req.end();
     });
     try {
-      for (const path of ["/api/companies/company/events/ws?token=anything", "/api/health", "/prp", "/"]) {
+      for (const path of ["/api/companies/company/events/ws?token=anything", "/api/health", "/orp", "/"]) {
         expect(await upgrade(path)).toBe(503);
       }
       expect(authenticate).not.toHaveBeenCalled();

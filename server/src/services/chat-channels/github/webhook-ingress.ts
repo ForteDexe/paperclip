@@ -38,7 +38,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatActions,
@@ -47,11 +47,11 @@ import {
   chatEndpoints,
   chatSdkState,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatEndpointSetupState,
   ToolCredentialSecretRef,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   conflict,
@@ -869,7 +869,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         record.endpoint.publicId,
         "github",
         new Request(
-          `https://paperclip.internal/api/chat-webhooks/${record.endpoint.publicId}/github`,
+          `https://outpost.internal/api/chat-webhooks/${record.endpoint.publicId}/github`,
           {
             method: "POST",
             headers: {

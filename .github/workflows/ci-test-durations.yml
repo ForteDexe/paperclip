@@ -51,7 +51,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          manifests="scripts/general-server-shard-durations.json scripts/serialized-shard-durations.json scripts/e2e-shard-durations.json packages/paperclip-runner/scripts/vitest-lane-durations.json"
+          manifests="scripts/general-server-shard-durations.json scripts/serialized-shard-durations.json scripts/e2e-shard-durations.json packages/outpost-runner/scripts/vitest-lane-durations.json"
           # The Runner manifest can be new; record intent so the diff sees it.
           for file in $manifests; do [ ! -e "$file" ] || git add -N -- "$file"; done
           if git diff --quiet; then exit 0; fi
@@ -60,7 +60,7 @@ jobs:
             import {readFileSync} from "node:fs";
             import assert from "node:assert/strict";
             const allowed = new Set(["scripts/general-server-shard-durations.json", "scripts/serialized-shard-durations.json",
-              "scripts/e2e-shard-durations.json", "packages/paperclip-runner/scripts/vitest-lane-durations.json"]);
+              "scripts/e2e-shard-durations.json", "packages/outpost-runner/scripts/vitest-lane-durations.json"]);
             for (const file of readFileSync(0,"utf8").split("\0").filter(Boolean)) assert.ok(allowed.has(file), file);
           '
           branch="codex/refresh-ci-durations-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -68,7 +68,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           for file in $manifests; do [ ! -e "$file" ] || git add -- "$file"; done
-          git commit -m 'chore(ci): refresh measured test durations' -m 'Co-Authored-By: Paperclip <noreply@paperclip.ing>'
+          git commit -m 'chore(ci): refresh measured test durations' -m 'Co-Authored-By: Paperclip <noreply@outpost.ing>'
           gh auth setup-git
           git push origin "$branch"
           gh pr create --repo paperclipai/paperclip --base master --head "$branch" \

@@ -12,7 +12,7 @@ describe("--runner-bind-fault", () => {
     if (command.mode !== "wave") throw new Error("expected a wave");
     expect(command.options.runnerBindFault).toBe(true);
     expect(runnerBindFaultServerEnvironment(command.options.runnerBindFault))
-      .toEqual({ PAPERCLIP_TEST_RUNNER_BIND_FAULT: "first_launch" });
+      .toEqual({ OUTPOST_TEST_RUNNER_BIND_FAULT: "first_launch" });
   });
 
   it("leaves the server unarmed without the flag and refuses a local wave", () => {

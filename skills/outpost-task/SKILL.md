@@ -9,20 +9,20 @@ Use this skill for the task that woke you. A task has one durable owner; keep it
 from start to finish unless the human explicitly changes ownership.
 
 Internal API routes and environment variables retain legacy names: `issue`
-means task, `company` means Space, and run context uses `PAPERCLIP_*` variables.
+means task, `company` means Space, and run context uses `OUTPOST_*` variables.
 
 ## Run context
 
-Outpost injects `PAPERCLIP_AGENT_ID`, `PAPERCLIP_COMPANY_ID`,
-`PAPERCLIP_TASK_ID`, `PAPERCLIP_RUN_ID`, `PAPERCLIP_API_URL`, and
-`PAPERCLIP_API_KEY`. Use them exactly and never put the API key in content,
+Outpost injects `OUTPOST_AGENT_ID`, `OUTPOST_COMPANY_ID`,
+`OUTPOST_TASK_ID`, `OUTPOST_RUN_ID`, `OUTPOST_API_URL`, and
+`OUTPOST_API_KEY`. Use them exactly and never put the API key in content,
 repository files, logs, or prompts.
 
 Every mutating request includes:
 
 ```text
-Authorization: Bearer $PAPERCLIP_API_KEY
-X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID
+Authorization: Bearer $OUTPOST_API_KEY
+X-Paperclip-Run-Id: $OUTPOST_RUN_ID
 ```
 
 ## Task loop
@@ -47,7 +47,7 @@ For multiline status updates, run the installed helper:
 ```bash
 skill_dir="${CODEX_HOME:-$HOME/.codex}/skills/outpost-task"
 bash "$skill_dir/scripts/outpost-task-update.sh" \
-  --task-id "$PAPERCLIP_TASK_ID" \
+  --task-id "$OUTPOST_TASK_ID" \
   --status in_progress <<'MD'
 Implemented the first part and verified the focused test.
 MD

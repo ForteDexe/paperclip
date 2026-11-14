@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { OwnerProof } from "../owner-proof.js";
 import type { InProgressRecord, SettleOutcome } from "./ownership-registry.js";
 

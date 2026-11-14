@@ -2,7 +2,7 @@ import { cloneElement, isValidElement, type CSSProperties, type ReactNode } from
 import { CircleDot, ExternalLink, GitPullRequest } from "lucide-react";
 import { GithubIcon } from "./icons/github-icon";
 import { parseGitHubLink } from "@/lib/github-link";
-import { recognizeLinkPreview, type LinkPreviewState, type LinkPreview as Preview } from "@paperclipai/shared";
+import { recognizeLinkPreview, type LinkPreviewState, type LinkPreview as Preview } from "@outpost/shared";
 import { LinkPreview, linkPreviewStateIcon, linkPreviewStateLabel } from "./LinkPreview";
 
 function isExternalHttpUrl(href: string | undefined): boolean {

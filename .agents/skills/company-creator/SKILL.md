@@ -116,14 +116,14 @@ Create the directory structure and all files. Follow the spec's conventions exac
 │   └── <slug>/TASK.md        (if tasks are needed)
 ├── skills/
 │   └── <slug>/SKILL.md       (if custom skills are needed)
-└── .paperclip.yaml            (Paperclip vendor extension)
+└── .outpost.yaml            (Paperclip vendor extension)
 ```
 
 **Rules:**
 
 - Slugs must be URL-safe, lowercase, hyphenated
 - COMPANY.md gets `schema: agentcompanies/v1` - other files inherit it
-- Agent instructions go in the AGENTS.md body, not in .paperclip.yaml
+- Agent instructions go in the AGENTS.md body, not in .outpost.yaml
 - Skills referenced by shortname in AGENTS.md resolve to `skills/<shortname>/SKILL.md`
 - For external skills, use `sources` with `usage: referenced` (see spec section 12)
 - Do not export secrets, machine-local paths, or database IDs
@@ -187,9 +187,9 @@ Write all files, then give a brief summary:
 - Projects and tasks if any
 - The output path
 
-## .paperclip.yaml Guidelines
+## .outpost.yaml Guidelines
 
-The `.paperclip.yaml` file is the Paperclip vendor extension. It configures adapters and env inputs per agent.
+The `.outpost.yaml` file is the Paperclip vendor extension. It configures adapters and env inputs per agent.
 
 ### Adapter Rules
 
@@ -244,7 +244,7 @@ agents:
           requirement: optional
 ```
 
-In this example, only `release-engineer` appears because it needs `GH_TOKEN`. The other agents (ceo, cto, etc.) have no overrides, so they are omitted entirely from `.paperclip.yaml`.
+In this example, only `release-engineer` appears because it needs `GH_TOKEN`. The other agents (ceo, cto, etc.) have no overrides, so they are omitted entirely from `.outpost.yaml`.
 
 ## External Skill References
 

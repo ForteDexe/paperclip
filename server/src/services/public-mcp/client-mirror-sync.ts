@@ -6,9 +6,9 @@ import { prepareMcpClientMutation } from "./client-mirror-mutations.js";
 import { installMcpDeviceCutover } from "./device-cutover.js";
 import { prepareMcpClientMirrorPolicy } from "./client-mirror-mutations.js";
 import { and, eq, gt, lte, sql } from "drizzle-orm";
-import { mcpOauthClients as clients,mcpOauthDeviceRequests as devices, mcpOauthClientMirrorState as state, mcpOauthClientChanges as changes, type Db } from "@paperclipai/db";
+import { mcpOauthClients as clients,mcpOauthDeviceRequests as devices, mcpOauthClientMirrorState as state, mcpOauthClientChanges as changes, type Db } from "@outpost/db";
 import { instanceSettingsService } from "../instance-settings.js";
-import { createPaperclipCloudConnector, paperclipCloudConnectorConfigFromEnv } from "../paperclip-cloud-connector.js";
+import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv } from "../paperclip-cloud-connector.js";
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
 import { mcpClientMirrorGeneration, mcpClientMirrorReceiptSchema, mcpClientMirrorResponseSchema, mcpMirroredClientSchema,
@@ -24,7 +24,7 @@ export function sameMcpClientMirrorReceipt(left:McpClientMirrorReceipt,right:Mcp
 
 export function startMcpClientMirrorSync(db: Db, coordinator: Pick<ReturnType<typeof createDeliveryWorkCoordinator>,"register">,
   origin: string | undefined, input: {authorizationOrigin?:string;instanceId?:string;publish?:(request:McpClientMirrorRequest)=>Promise<unknown>} = {}) {
-  const config = paperclipCloudConnectorConfigFromEnv();
+  const config = outpostCloudConnectorConfigFromEnv();
   const connector = config ? createPaperclipCloudConnector({config}) : undefined;
   const instanceId = input.instanceId ?? config?.instanceId;
   const publish = input.publish ?? (connector ? (request:McpClientMirrorRequest) => connector.syncMcpClientMirror(JSON.stringify(request)) : undefined);
@@ -41,7 +41,7 @@ export function startMcpClientMirrorSync(db: Db, coordinator: Pick<ReturnType<ty
       try {
         enabled=(await instanceSettingsService(db).getExperimentalReadOnly()).enablePublicMcp;
         const assertCurrentAuthority=()=>{
-          const identity=getCloudRuntimeIdentity(),currentConfig=paperclipCloudConnectorConfigFromEnv();
+          const identity=getCloudRuntimeIdentity(),currentConfig=outpostCloudConnectorConfigFromEnv();
           if(!identity||identity.stackId!==managedIdentity.stackId||boundStackId!==undefined&&identity.stackId!==boundStackId
             ||identity.canonicalOrigin!==origin||config&&(!currentConfig||currentConfig.instanceId!==instanceId
               ||currentConfig.baseUrl!==config.baseUrl||currentConfig.environment!==config.environment

@@ -300,10 +300,10 @@ describe("adapter routes", () => {
     expect(res.body.fields).toEqual([]);
   });
 
-  it("serves provider-scoped Paperclip Runner configuration fields", async () => {
+  it("serves provider-scoped Outpost Runner configuration fields", async () => {
     const app = createApp();
 
-    const res = await request(app).get("/api/adapters/paperclip_runner/config-schema");
+    const res = await request(app).get("/api/adapters/outpost_runner/config-schema");
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.fields).toEqual(expect.arrayContaining([

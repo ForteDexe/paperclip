@@ -67,7 +67,7 @@ export const TASK_CHAT_STATE_META: Record<TaskChatStateId, TaskChatStateMeta> = 
     label: "Final response",
     tier: "live",
     surface: "thread",
-    protocol: 'PRP item.delta kind:"agentMessage" channel:"final"',
+    protocol: 'ORP item.delta kind:"agentMessage" channel:"final"',
   },
   thinking: {
     id: "thinking",
@@ -81,7 +81,7 @@ export const TASK_CHAT_STATE_META: Record<TaskChatStateId, TaskChatStateMeta> = 
     label: "Progress update (streaming)",
     tier: "live",
     surface: "thread",
-    protocol: 'PRP item.delta kind:"agentMessage" channel:"progress"',
+    protocol: 'ORP item.delta kind:"agentMessage" channel:"progress"',
   },
   "responding-burst": {
     id: "responding-burst",

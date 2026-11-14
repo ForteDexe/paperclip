@@ -6,7 +6,7 @@ import { checks, internalResultLink, type InternalObservation } from "./internal
 import { runtimeDefinition, runtimeObservation, runtimeWorker, unchangedAgent, type RuntimeAgent } from "./runtime-support.js";
 
 const scenarioId = "execution-environments.choose-capable-target";
-const oracleVersion = "paperclip.chat-catalog.runtime-capability-choice.v2";
+const oracleVersion = "outpost.chat-catalog.runtime-capability-choice.v2";
 /** Saved SSH computer that is advertised for Claude Code but was never qualified.
  * The host uses the reserved .invalid domain, so it cannot be reached either. */
 export function unqualifiedSshConfig(nonce: string) {

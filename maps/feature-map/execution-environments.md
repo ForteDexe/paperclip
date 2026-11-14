@@ -65,7 +65,7 @@ account, image or active captured template invalidates
 the record; normal metadata edits cannot forge or overwrite it, and API reads
 omit the private metadata. Reading this evidence for discovery or creation does
 not allocate a sandbox. The draft `probe-config` checks are not a saved-image
-qualification operation. See the [runtime contract](../../packages/paperclip-runner/README.md)
+qualification operation. See the [runtime contract](../../packages/outpost-runner/README.md)
 and [adapter validation recipe](./runs-adapters.md#adapter-setup) for native
 binary/provider readiness after platform qualification.
 
@@ -84,10 +84,10 @@ execution. Remote-driver probes and a real bounded run need their own evidence.
 
 ### `remote-execution`
 
-For `paperclip_runner`, a saved plugin environment can provide per-turn Runner
+For `outpost_runner`, a saved plugin environment can provide per-turn Runner
 execution when its manifest and worker expose the Runner task API. The task
 contract starts a provider-owned Runner without shell or workspace hooks. Core
-resolves the saved lease, connects through PRP, and verifies stop before lease
+resolves the saved lease, connects through ORP, and verifies stop before lease
 cleanup. The provider owns the installed agent home and retained session files;
 data transfer is outside task execution. See the
 [plugin contract](../../doc/plugins/PLUGIN_RUNNER_EXECUTION.md).
@@ -125,10 +125,10 @@ Manual: Run a bounded command in the intended target, inspect its output and wor
 The task-only setup path uses a Core-issued expiring probe identity and a real,
 read-only Runner hello. The plugin checks project authentication before provider startup.
 [Setup probe coverage](../../server/src/services/native-runtime/plugin-runner-probe.test.ts)
-uses the real Runner and a synthetic Codex provider through loopback PRP; TLS
+uses the real Runner and a synthetic Codex provider through loopback ORP; TLS
 termination is replaced by the fixture. It does not qualify a live plugin provider.
 
-The plugin prepares execution-host resources and the provider descriptor. Core validates the result, then supplies task identity and PRP launch limits.
+The plugin prepares execution-host resources and the provider descriptor. Core validates the result, then supplies task identity and ORP launch limits.
 
 ### Storybook verification
 

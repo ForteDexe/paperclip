@@ -1,11 +1,11 @@
-import { agents, plugins, type Db } from "@paperclipai/db";
+import { agents, plugins, type Db } from "@outpost/db";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { conflict } from "../errors.js";
 import type {
   EnvironmentProbeResult,
   PluginEnvironmentConfig,
   PluginEnvironmentDriverDeclaration,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type {
   PluginEnvironmentExecuteParams,
   PluginEnvironmentExecuteResult,
@@ -21,7 +21,7 @@ import type {
   PluginEnvironmentLease,
   PluginEnvironmentRealizeWorkspaceParams,
   PluginEnvironmentRealizeWorkspaceResult,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 import { unprocessable } from "../errors.js";
 import {
   collectSecretRefPaths,

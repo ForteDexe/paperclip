@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolvePaperclipInstanceRootForAdapter } from "@paperclipai/adapter-utils/server-utils";
+import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
 
 // `GROK_HOME` replaces `~/.grok` and holds `auth.json` plus session history.
 // Unlike Codex, a Grok `auth.json` has no fixed top-level key: it
@@ -119,8 +119,8 @@ export function resolveManagedGrokHomeDir(
   companyId?: string,
 ): string {
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return companyId

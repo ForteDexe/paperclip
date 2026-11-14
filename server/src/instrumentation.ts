@@ -96,7 +96,7 @@ let tracerApiLoadFailed = false;
  * accessor never throws: a load or lookup failure logs once and returns the
  * local no-op tracer (fail open).
  */
-export function getStartupTracer(name = "paperclip.startup"): StartupTracerHandle {
+export function getStartupTracer(name = "outpost.startup"): StartupTracerHandle {
   if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()) return NOOP_TRACER;
   try {
     const require = createRequire(import.meta.url);
@@ -110,7 +110,7 @@ export function getStartupTracer(name = "paperclip.startup"): StartupTracerHandl
       tracerApiLoadFailed = true;
       // eslint-disable-next-line no-console
       console.warn(
-        "[paperclip] @opentelemetry/api is not available; startup tracing uses a no-op tracer.",
+        "[outpost] @opentelemetry/api is not available; startup tracing uses a no-op tracer.",
         err,
       );
     }
@@ -152,7 +152,7 @@ let traceContextApiLoadFailed = false;
  * accessor never throws: a load or lookup failure logs once and returns the
  * local no-op trace context (fail open).
  */
-export function getStartupTraceContext(name = "paperclip.startup"): StartupTraceContextHandle {
+export function getStartupTraceContext(name = "outpost.startup"): StartupTraceContextHandle {
   if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()) return NOOP_TRACE_CONTEXT;
   try {
     const require = createRequire(import.meta.url);
@@ -180,7 +180,7 @@ export function getStartupTraceContext(name = "paperclip.startup"): StartupTrace
       traceContextApiLoadFailed = true;
       // eslint-disable-next-line no-console
       console.warn(
-        "[paperclip] @opentelemetry/api is not available; startup tracing uses a no-op trace context.",
+        "[outpost] @opentelemetry/api is not available; startup tracing uses a no-op trace context.",
         err,
       );
     }
@@ -268,7 +268,7 @@ export function recordProviderPluginSpan(input: {
     };
     if (input.linked && (!api.ROOT_CONTEXT || (input.parent.traceFlags & 1) === 0)) return;
     const parentContext = input.linked ? api.ROOT_CONTEXT : trace.setSpanContext(context.active(), remoteSpanContext);
-    const tracer = trace.getTracer("paperclip.startup");
+    const tracer = trace.getTracer("outpost.startup");
     // Pass the true start time as the OpenTelemetry `startTime` option, so the
     // span opens at its real wall-clock start. An epoch-millisecond number is a
     // valid OpenTelemetry `TimeInput`.
@@ -328,7 +328,7 @@ export function shutdownInstrumentation(): Promise<void> {
       await sdkShutdown();
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("[paperclip] OpenTelemetry shutdown failed", err);
+      console.error("[outpost] OpenTelemetry shutdown failed", err);
     }
   })();
   return shutdownPromise;
@@ -362,7 +362,7 @@ export function resolveProtocol(): {
     default:
       // eslint-disable-next-line no-console
       console.warn(
-        `[paperclip] Unknown OTEL_EXPORTER_OTLP_PROTOCOL=${raw}; falling back to grpc. ` +
+        `[outpost] Unknown OTEL_EXPORTER_OTLP_PROTOCOL=${raw}; falling back to grpc. ` +
           `Valid values: grpc, http/protobuf, http/json.`,
       );
       return {
@@ -497,7 +497,7 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
     );
     // Log the resolved value once so an operator can confirm the built commit.
     // eslint-disable-next-line no-console
-    console.log(`[paperclip] OpenTelemetry service.version=${serviceVersion}`);
+    console.log(`[outpost] OpenTelemetry service.version=${serviceVersion}`);
 
     const sdk = new NodeSDK({
       // This integration exports traces only. NodeSDK otherwise creates
@@ -538,7 +538,7 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
       // rejects the SDK's handshake should not take down the server.
       // eslint-disable-next-line no-console
       console.error(
-        "[paperclip] OpenTelemetry SDK failed to start; continuing without tracing",
+        "[outpost] OpenTelemetry SDK failed to start; continuing without tracing",
         err,
       );
       return;
@@ -571,7 +571,7 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
     // single diagnostic so the opt-in path is self-documenting.
     // eslint-disable-next-line no-console
     console.warn(
-      "[paperclip] OTEL_EXPORTER_OTLP_ENDPOINT is set and the @opentelemetry/* " +
+      "[outpost] OTEL_EXPORTER_OTLP_ENDPOINT is set and the @opentelemetry/* " +
         "packages passed the version check, but one of them failed to load. " +
         "Continuing without tracing.",
       err,

@@ -16,7 +16,7 @@ export function actualAuthenticationFailure(codes: readonly string[]) { return c
 export function savedValidationReceipts(events: Array<{ seq?: number; eventType?: string; payload?: unknown }>, expected: { companyId: string; worker: Pick<Agent, "id" | "adapterType" | "adapterConfig" | "defaultEnvironmentId" | "runtimeConfig"> }) {
   const inputs = new Map<string, Record<string, unknown>>(), results = new Map<string, Record<string, unknown>>(), completed = new Set<string>();
   for (const event of events) {
-    const payload = record(record(record(event.payload).prpEvent).payload), item = record(payload.item);
+    const payload = record(record(record(event.payload).orpEvent).payload), item = record(payload.item);
     if (event.eventType === "item.started" && item.type === "tool_use" && item.name === "call_api" && typeof item.id === "string") inputs.set(item.id, record(item.input));
     if (event.eventType === "item.completed" && item.type === "tool_result" && typeof item.id === "string" && (!item.tool_use_id || item.tool_use_id === item.id)) results.set(item.id, record(item.result));
     if (event.eventType === "tool.execution.completed" && payload.name === "call_api" && payload.status === "completed" && typeof payload.executionId === "string") completed.add(payload.executionId);
@@ -78,7 +78,7 @@ export const runtimeClaudeValidationCases = [runtimeDefinition("runs-adapters.va
     await waitForReply(ctx); const runs = await ctx.allRuns(), worker = state.worker as Agent;
     const events = await collectRunEvents<{ seq?: number; eventType?: string; payload?: unknown }>((afterSeq, limit) => ctx.input.api.get(`/api/heartbeat-runs/${runs[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
     for (const event of events) {
-      const item = record(record(record(record(event.payload).prpEvent).payload).item), result = record(item.result), artifact = record(result.artifact);
+      const item = record(record(record(record(event.payload).orpEvent).payload).item), result = record(item.result), artifact = record(result.artifact);
       if (event.eventType !== "item.completed" || item.type !== "tool_result" || result.apiOperationId !== operation || result.data !== undefined || typeof artifact.artifactId !== "string" || !/^[a-f0-9-]{36}$/i.test(artifact.artifactId)) continue;
       const response = await ctx.input.api.request.get(`/api/assets/${artifact.artifactId}/content`);
       if (!response.ok()) throw new Error("Actual validation response artifact could not be independently read");

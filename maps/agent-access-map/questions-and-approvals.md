@@ -40,7 +40,7 @@ Agent access: `available` — native request_human_input(interactionKind=questio
 
 Policy: Agent mutation requires authenticated source run and low-trust/issue boundaries; sourceRunId is server-stamped. Chat addressee defaults to immutable owner. User/agent addressee mutually exclusive; agent cannot address self, foreign or uninvokable agent. Company kind governance clamps policy. Native dedicated input does not expose arbitrary addressee/policy fields.
 
-Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Create complete canonical mixed form; same idempotency key/payload returns same card; changed payload conflicts. Reload exact IDs/audience; deny spoofed source/governed metadata/foreign addressee.
 
@@ -185,7 +185,7 @@ Agent access: `available` — permitted REST/CLI create/read; native request_hum
 
 Policy: Creation authority/source/audience as questions. Server-owned governed metadata cannot be forged. Target-bound request validates exact document revision atomically; same create key changed content conflicts.
 
-Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Create/read each relevant kind with exact target; repeat key unchanged/changed; deny forged toolAction/secretProposal and stale document target.
 
@@ -304,7 +304,7 @@ Agent access: `available` — native list/read/write_document + request_human_in
 
 Policy: Document ACL/version gates; request insert validates current target revision atomically. Native supplied targetRevisionId infers own plan target only for planning confirmation; otherwise full target required. Stable revision-specific key. Product Chat Ask discussion does not authorize plan/task writes.
 
-Evidence: `source-only` — [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts), [chat directive](../../server/src/services/agent-conversations.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [chat directive](../../server/src/services/agent-conversations.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Save plan and request exact returned revision; reload, edit and reject old base/card. No project/execution tasks merely from drafting. Ask discussion must not become handoff.
 
@@ -318,7 +318,7 @@ Agent access: `partial` — eligible human or agent resolver under the ordinary 
 
 Policy: Locks revalidate current target, reviewer and eligible task. Own-plan acceptance can change planning to standard and return the exact creator ownership; non-plan/checkbox acceptance cannot. Rejection retains planning and carries the reason. Live-source finalization readiness can block acceptance; failed/stale finalization after an ended source has different rules. Accepted-plan continuation retains the exact revision and fresh workspace-aware session.
 
-Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Accept a current plan and reject a separate request; inspect mode, owner, reason, accepted revision and useful continuation. Reject stale/foreign revision or excluded resolver. Compare repeated/conflicting generic decisions without assuming native-review deduplication.
 
@@ -332,7 +332,7 @@ Agent access: `available` — the actual bound native completion-review run expo
 
 Policy: Recheck the current server-issued review assignment and independent reviewer policy. Reject requires a reason. Same decision already resolved by the admitted review run returns a deduplicated receipt; a different or stale decision fails. Record the verdict without changing task ownership; task completion still waits for every required reviewer.
 
-Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Inspect submitted work through a real bound reviewer, accept or reject with a reason, replay the exact decision, and reject retargeting, missing/stale binding, creator exclusion and conflicting verdict. Compare reviewer receipt, task ownership and all required review outcomes.
 
@@ -360,7 +360,7 @@ Agent access: `partial` — advertised native list_projects/list_project_reposit
 
 Policy: After accepted scope, reauthorize run/task/generation/standard-or-skill_test project write, same-company project/repository, responsible user and assignment/trust. Native conversation create_task fixes parentId null/standard mode and persists initialPlan atomically before wake. Project/task receipts prevent duplicates and compare fingerprints. Legacy wrapper fixes todo/blocked, omits person-assignee/status parity. Generic schema does not guarantee suitable project/copied plan; verify result.
 
-Evidence: `source-only` — [legacy wrappers](../../server/src/services/project-tools.ts), [project authority](../../server/src/services/project-tool-context.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts), [project receipts](../../server/src/routes/projects.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [legacy wrappers](../../server/src/services/project-tools.ts), [project authority](../../server/src/services/project-tool-context.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [project receipts](../../server/src/routes/projects.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Inspect suitable project, standalone assigned tasks and relevant persisted plan before first execution; source plan unchanged. Replay/concurrent exact key -> one task/project, changed payload conflicts. Deny stale generation/project/repository/assignee/company and restricted mode.
 
@@ -374,7 +374,7 @@ Agent access: `partial` — bound native task context; legacy description/contex
 
 Policy: Same-company originRunId points to conversation; newest eligible accepted plan resolved before task creation joins exact stored revision with source privacy. Pending/later/foreign/nonconversation gives no approval; Muse additionally filters trust. This informs source scope, not approval of new task plan/changed work. No atomic copied-plan equality or current-generation guarantee.
 
-Evidence: `source-only` — [source approval selector](../../server/src/services/native-runtime/handoff-plan-context.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [source approval selector](../../server/src/services/native-runtime/handoff-plan-context.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Read worker source approval after newer unapproved draft; exact historical accepted revision only. Foreign/private/no-origin/pending/later evidence absent; new plan has no fabricated own acceptance.
 
@@ -410,7 +410,7 @@ Agent access: `partial` — eligible human or authenticated agent resolver; nati
 
 Policy: Shared read/mutation/run/responsible-user/containment/cross-issue gates plus named addressee, creator/source-run and independent requester exclusion. Authorized human may override agent addressee, never another named user or creator exclusion. Board chat owner restriction. Missing independent requester fails closed. Governed tool/secret approval always human.
 
-Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [resolver audience](../../server/src/services/issue-thread-interaction-resolution.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [resolver audience](../../server/src/services/issue-thread-interaction-resolution.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Run matrix named user/agent, different actor, creator/source run, no/mismatched run, human-only+not_creator, unknown review requester, low-trust/watchdog/private/foreign. Denial leaves pending/no downstream effect.
 
@@ -432,7 +432,7 @@ Agent access: `available` — agent REST/CLI approval list/get; native list_appr
 
 Policy: Company_scope:read where route requires; every ID route hides approval unless all linked/payload tasks readable, including responsible-user/private scope. Native context filters linked tasks. Read capability doesn't grant decisions.
 
-Evidence: `source-only` — [approval routes](../../server/src/routes/approvals.ts), [approval privacy](../../server/src/services/authorization.ts), [native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts), [assistant pending links](../../server/src/services/public-mcp/capabilities.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [approval routes](../../server/src/routes/approvals.ts), [approval privacy](../../server/src/services/authorization.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [assistant pending links](../../server/src/services/public-mcp/capabilities.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Read visible approvals/history/context; foreign/private-linked/payload task hidden and no secret values; pending link alone can't decide.
 
@@ -586,7 +586,7 @@ API: `present` — GET /api/issues/{id}/interactions; GET /api/heartbeat-runs/{r
 
 Agent access: `available` — permitted reads/native task context; actual bound waiting-input bridge or server continuation receives response, not an arbitrary model-created wake.
 
-Policy: Exact interaction/source/payload digest and current task/assignee. Waiting native/PRP input first; unavailable session remains pending. Running successor answer queues rather than auto-steers; never steer into source solely because alive. No target/terminal task fails safely; historical Done answer has no outbox.
+Policy: Exact interaction/source/payload digest and current task/assignee. Waiting native/ORP input first; unavailable session remains pending. Running successor answer queues rather than auto-steers; never steer into source solely because alive. No target/terminal task fails safely; historical Done answer has no outbox.
 
 Evidence: `source-only` — [answer delivery](../../server/src/services/question-response-delivery.ts), [interaction routes](../../server/src/routes/issues.ts), [native bridge](../../server/src/services/native-runtime/native-interaction-bridge.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 

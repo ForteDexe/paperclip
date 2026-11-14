@@ -29,6 +29,6 @@ Core fields:
 Notes:
 - Outpost reuses the durable Cursor agent across heartbeats when the repo/runtime identity still matches.
 - Each Outpost heartbeat maps to a Cursor run on that durable agent.
-- Outpost injects PAPERCLIP_* runtime env vars into the cloud agent shell through Cursor SDK cloud envVars.
+- Outpost injects OUTPOST_* runtime env vars into the cloud agent shell through Cursor SDK cloud envVars.
 - Outpost remains the source of truth for issue/task state; Cursor provides the remote execution surface.
 `;

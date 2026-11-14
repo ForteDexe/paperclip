@@ -60,7 +60,7 @@ Manual: Run a task that writes a small file, follow the bound workspace, and ins
 For experimental native remote storage, follow the
 [deployment prerequisites and explicit local import](../../doc/DEVELOPING.md#experimental-native-remote-workspace-storage).
 With durable Postgres, S3, and a stable key configured, a new disposable
-Paperclip Runner sandbox task with a supported fresh source enrolls by default.
+Outpost Runner sandbox task with a supported fresh source enrolls by default.
 Verify an explicit `remoteWorkspaceStorageEnabled: false` disables new enrollment,
 and an existing host workspace or configured local folder stays on its legacy
 path until explicitly imported. An enrolled workspace must keep remote authority

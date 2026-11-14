@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ProjectWorkspace } from "@paperclipai/shared";
+import type { ProjectWorkspace } from "@outpost/shared";
 import { Link } from "lucide-react";
 import { projectsApi } from "@/api/projects";
 import { describeError } from "@/api/errors";

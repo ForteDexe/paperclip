@@ -1,8 +1,8 @@
 import { notifyStrandedAgentStatus } from "./live-run-recovery-notifications.js";
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
-import { centsToUnits, centsToUsd, usdToUnits, unitsToCents } from "@paperclipai/shared";
+import { centsToUnits, centsToUsd, usdToUnits, unitsToCents } from "@outpost/shared";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { budgetReservations, agents, environmentLeases, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, runUsageReceipts, issues, projects, decisionInvocations, promptInjectionInvocations, type Db } from "@paperclipai/db";
+import { budgetReservations, agents, environmentLeases, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations, runUsageReceipts, issues, projects, decisionInvocations, promptInjectionInvocations, type Db } from "@outpost/db";
 import { withOperationAccountingTransaction } from "./accounting-transaction.js";
 import { withBudgetSpan } from "./budget-tracing.js";
 import { conflict } from "../errors.js";
@@ -17,9 +17,9 @@ import { logger } from "../middleware/logger.js";
 import { promises as fs } from "node:fs";
 import { priceAnthropicReceipt } from "./anthropic-pricing.js";
 import { priceCodexReceipt } from "./codex-pricing.js";
-import type { AdapterUsageCheckpoint } from "@paperclipai/adapter-utils";
+import type { AdapterUsageCheckpoint } from "@outpost/adapter-utils";
 import { replayUsageReceipts, indexPendingUsageReceipts, readPendingRunUsageReceipts, persistUsageReceiptInTransaction, reconcileLateRunUsageReceiptInTransaction, type UsageReceiptIndex } from "./usage-receipts.js";
-import { crashPoint } from "@paperclipai/shared/crash-points";
+import { crashPoint } from "@outpost/shared/crash-points";
 
 const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -60,7 +60,7 @@ const remoteExecutionTerminated = sql`exists (select 1 from ${environmentLeases}
       and (remote_lease.provider is not null and remote_lease.provider <> 'local'
         and remote_lease.provider_lease_id is not null and remote_lease.released_at is not null
         and remote_lease.cleanup_status = 'success' and remote_lease.status in ('released', 'expired', 'failed')
-        and remote_lease.metadata->'remoteExecutionTermination'->>'schema' = 'paperclip.remote-termination.v1'
+        and remote_lease.metadata->'remoteExecutionTermination'->>'schema' = 'outpost.remote-termination.v1'
         and remote_lease.metadata->'remoteExecutionTermination'->>'companyId' = remote_lease.company_id::text
         and remote_lease.metadata->'remoteExecutionTermination'->>'runId' = remote_lease.heartbeat_run_id::text
         and remote_lease.metadata->'remoteExecutionTermination'->>'leaseId' = remote_lease.id::text

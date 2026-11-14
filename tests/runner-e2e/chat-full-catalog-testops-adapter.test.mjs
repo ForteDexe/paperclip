@@ -14,7 +14,7 @@ const selected = fullCatalogCases.map((row, index) => ({ ...row, caseId: row.key
   registeredFullName: row.aliases[0] ?? row.fullName }));
 const compact = row => ({ key: row.key, caseId: row.caseId, registeredFullName: row.registeredFullName });
 const binding = { planId: 10, jobId: 11, integrationId: 1, cases: selected.map(compact) };
-const selection = { schema: 'paperclip.chat-completion-testops-selection/v1', ...context,
+const selection = { schema: 'outpost.chat-completion-testops-selection/v1', ...context,
   projectId: 1, planId: 10, jobId: 11, launchId: 12, allureJobRunId: '77', cases: selected };
 const env = { CHAT_FULL_CATALOG_TESTOPS_BINDING: JSON.stringify(binding), ALLURE_JOB_RUN_ID: '77' };
 const attachments = [
@@ -62,7 +62,7 @@ test('the complete 244 mapping uses compact actual IDs and preserves the legacy 
   assert.equal(bindingFromEnv(env, context).cases.length, 244);
   const f = api(), value = await validatePilotSelection(f.get, env, context, 99);
   assert.equal(validateSelection(value, context, '77').length, 244);
-  assert.equal(value.cases.find(row => row.caseId === 388).registeredFullName, 'paperclip.Product E2E.chat-features.create-backlog');
+  assert.equal(value.cases.find(row => row.caseId === 388).registeredFullName, 'outpost.Product E2E.chat-features.create-backlog');
   assert.equal(value.targetSha, catalogTargetSha);
 });
 
@@ -89,7 +89,7 @@ test('the actual full registration receipt fits one protected variable without a
   const receipt = await completePilotRegistration(f.get, prepared, { jobRunId: '77', launchId: 12 }, context, 99, async () => {});
   assert.ok(Buffer.byteLength(JSON.stringify(receipt.binding)) < 48_000);
   assert.equal(bindingFromEnv({ CHAT_FULL_CATALOG_TESTOPS_BINDING: JSON.stringify(receipt.binding) }, context).cases.length, 244);
-  assert.equal(receipt.binding.cases.find(row => row.caseId === 388).registeredFullName, 'paperclip.Product E2E.chat-features.create-backlog');
+  assert.equal(receipt.binding.cases.find(row => row.caseId === 388).registeredFullName, 'outpost.Product E2E.chat-features.create-backlog');
 });
 
 test('every case has a singleton private approval instead of broadening the original eight-cell authority', () => {

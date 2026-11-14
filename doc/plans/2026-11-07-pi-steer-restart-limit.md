@@ -20,7 +20,7 @@ Context: [#19962](https://github.com/paperclipai/paperclip/pull/19962) (restart 
 
 1. In pi-acp, forward Pi's native user `message_start` as an ACP update with Pi-native provenance, for the turn's own input and for each delivered steer.
 2. Map it through acpx, the ACPX sidecar and the Rust ACPX backend to a `userMessage` item in the run log.
-3. The existing rule in `packages/paperclip-runner/src/steering-delivery.ts` then covers Pi unchanged. The first `userMessage` of a turn is its own input; each later one reads a steer.
+3. The existing rule in `packages/outpost-runner/src/steering-delivery.ts` then covers Pi unchanged. The first `userMessage` of a turn is its own input; each later one reads a steer.
 4. Add a red/green test with a Pi fixture: a steer read before the crash is not delivered again, and an unread one is delivered once.
 
 Cost, which is why this waits for a re-qualification:

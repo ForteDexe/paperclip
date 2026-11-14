@@ -10,9 +10,9 @@ The catalog covers:
 - every current built-in direct adapter except the explicitly deferred Pi
   adapter;
 - the external-plugin direct-adapter compatibility contract;
-- Paperclip Runner with Codex;
-- Paperclip Runner with the qualified OpenCode model; and
-- Paperclip Runner with the qualified ACPX Claude and Codex profiles.
+- Outpost Runner with Codex;
+- Outpost Runner with the qualified OpenCode model; and
+- Outpost Runner with the qualified ACPX Claude and Codex profiles.
 
 The direct-adapter cells assert the legacy boundary: runnerd does not start,
 native records are not created, direct finalization remains authoritative, and
@@ -44,7 +44,7 @@ utilities; they do not claim that a provider was contacted.
 
 ## Result boundary
 
-Future fixture executors may emit `paperclip.runner-acceptance.result/v1`
+Future fixture executors may emit `outpost.runner-acceptance.result/v1`
 objects and pass them to `buildRunnerAcceptanceReport`. Results must name a
 catalog cell, report every expected assertion, carry successful redaction, and
 contain no sensitive-looking structured values. The aggregator produces only

@@ -1,4 +1,4 @@
-import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
@@ -18,7 +18,7 @@ import {
   projectWorkspaces,
   projects,
   workspaceRuntimeServices,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -60,7 +60,7 @@ async function createRepo() {
   const repoRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-compaction-")));
   await git(repoRoot, ["init"]);
   await git(repoRoot, ["config", "user.name", "Paperclip Test"]);
-  await git(repoRoot, ["config", "user.email", "test@paperclip.local"]);
+  await git(repoRoot, ["config", "user.email", "test@outpost.local"]);
   await writeFile(path.join(repoRoot, "README.md"), "# Test repo\n");
   await writeFile(
     path.join(repoRoot, ".gitignore"),

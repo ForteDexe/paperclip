@@ -40,7 +40,7 @@ import type {
   CompanySkillVersion,
   CompanySkillVersionSummary,
   CompanySkillVersionCreateRequest,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { api } from "./client";
 
 export interface CatalogListQuery {

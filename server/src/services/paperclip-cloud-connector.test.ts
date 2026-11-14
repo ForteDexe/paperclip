@@ -8,7 +8,7 @@ import {
   sign,
   type KeyObject,
 } from "node:crypto";
-import { SLACK_MANAGER_SCOPES } from "@paperclipai/shared";
+import { SLACK_MANAGER_SCOPES } from "@outpost/shared";
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -17,8 +17,8 @@ import {
   invalidatePaperclipCloudConnectorCapabilities,
   GMAIL_CONNECTOR_SCOPES,
   GOOGLE_WORKSPACE_CONNECTOR_PROFILES,
-  paperclipCloudConnectorCapabilitiesFromEnv,
-  paperclipCloudConnectorConfigFromEnv,
+  outpostCloudConnectorCapabilitiesFromEnv,
+  outpostCloudConnectorConfigFromEnv,
   PaperclipCloudConnectorError,
   type PaperclipCloudConnectorConfig,
 } from "./paperclip-cloud-connector.js";
@@ -87,18 +87,18 @@ describe("Paperclip Cloud connector", () => {
   it("accepts a managed test identity and rejects other environments at its broker", () => {
     const identity = config().config;
     const env = {
-      PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID: identity.instanceId,
-      PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: identity.signPrivateKey,
-      PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: identity.sealPrivateKey,
-      PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: "https://test.paperclip.app",
-      PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: "test",
+      OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID: identity.instanceId,
+      OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: identity.signPrivateKey,
+      OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: identity.sealPrivateKey,
+      OUTPOST_CLOUD_CONNECTOR_BASE_URL: "https://test.outpost.app",
+      OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "test",
     };
-    expect(paperclipCloudConnectorConfigFromEnv(env)).toMatchObject({ environment: "test", baseUrl: env.PAPERCLIP_CLOUD_CONNECTOR_BASE_URL });
+    expect(outpostCloudConnectorConfigFromEnv(env)).toMatchObject({ environment: "test", baseUrl: env.OUTPOST_CLOUD_CONNECTOR_BASE_URL });
     for (const environment of ["development", "staging", "production"]) {
-      expect(() => paperclipCloudConnectorConfigFromEnv({ ...env, PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: environment })).toThrow(/broker and environment do not match/);
+      expect(() => outpostCloudConnectorConfigFromEnv({ ...env, OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: environment })).toThrow(/broker and environment do not match/);
     }
-    for (const baseUrl of ["https://my.paperclip.app", "https://my-staging.paperclip.app"]) {
-      expect(() => paperclipCloudConnectorConfigFromEnv({ ...env, PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: baseUrl })).toThrow(/broker and environment do not match/);
+    for (const baseUrl of ["https://my.outpost.app", "https://my-staging.outpost.app"]) {
+      expect(() => outpostCloudConnectorConfigFromEnv({ ...env, OUTPOST_CLOUD_CONNECTOR_BASE_URL: baseUrl })).toThrow(/broker and environment do not match/);
     }
   });
 
@@ -109,7 +109,7 @@ describe("Paperclip Cloud connector", () => {
     });
     return connector.startAuthorization({
       subject, companyId, profile: "gmail.read",
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "private-state",
     }).catch((error: unknown) => error);
   }
@@ -211,11 +211,11 @@ describe("Paperclip Cloud connector", () => {
   it("refreshes capabilities after enrollment and rejects stale cache writes", async () => {
     const keys = config().config;
     const env = {
-      PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: keys.baseUrl,
-      PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID: keys.instanceId,
-      PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: keys.environment,
-      PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: keys.signPrivateKey,
-      PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: keys.sealPrivateKey,
+      OUTPOST_CLOUD_CONNECTOR_BASE_URL: keys.baseUrl,
+      OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID: keys.instanceId,
+      OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: keys.environment,
+      OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: keys.signPrivateKey,
+      OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: keys.sealPrivateKey,
     };
     let completeOldRequest!: (response: Response) => void;
     const request = vi.spyOn(globalThis, "fetch")
@@ -224,16 +224,16 @@ describe("Paperclip Cloud connector", () => {
       .mockResolvedValue(Response.json({ status: "active", active: true, profiles: ["gmail.read"] }));
     invalidatePaperclipCloudConnectorCapabilities();
     try {
-      await expect(paperclipCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual([]);
-      await expect(paperclipCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual([]);
+      await expect(outpostCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual([]);
+      await expect(outpostCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual([]);
       expect(request).toHaveBeenCalledTimes(1);
       invalidatePaperclipCloudConnectorCapabilities();
-      const oldRequest = paperclipCloudConnectorCapabilitiesFromEnv(env);
+      const oldRequest = outpostCloudConnectorCapabilitiesFromEnv(env);
       invalidatePaperclipCloudConnectorCapabilities();
-      await expect(paperclipCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual(["gmail.read"]);
+      await expect(outpostCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual(["gmail.read"]);
       completeOldRequest(Response.json({ status: "pending", active: false }));
       await expect(oldRequest).resolves.toEqual([]);
-      await expect(paperclipCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual(["gmail.read"]);
+      await expect(outpostCloudConnectorCapabilitiesFromEnv(env)).resolves.toEqual(["gmail.read"]);
       expect(request).toHaveBeenCalledTimes(3);
     } finally {
       request.mockRestore();
@@ -254,7 +254,7 @@ describe("Paperclip Cloud connector", () => {
     });
     const connector = createPaperclipCloudConnector({ config: keys.config, request: request as typeof fetch });
     await connector.startAuthorization({ subject, companyId, profile,
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback", returnState: "chat-state" });
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback", returnState: "chat-state" });
     expect(request).toHaveBeenCalledOnce();
   });
 
@@ -269,7 +269,7 @@ describe("Paperclip Cloud connector", () => {
     });
     const connector = createPaperclipCloudConnector({ config: keys.config, request: request as typeof fetch });
     await connector.startAuthorization({ subject, companyId, profile: "workspace.all", scopes,
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback", returnState: "workspace-state" });
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback", returnState: "workspace-state" });
     expect(request).toHaveBeenCalledOnce();
   });
 
@@ -293,7 +293,7 @@ describe("Paperclip Cloud connector", () => {
         prv: "google",
         prf: "gmail.draft",
         scp: [...GMAIL_CONNECTOR_SCOPES],
-        ruri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+        ruri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
         rst: "state-1",
       });
       return Response.json({
@@ -310,7 +310,7 @@ describe("Paperclip Cloud connector", () => {
     await expect(connector.startAuthorization({
       subject,
       companyId,
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "state-1",
     })).resolves.toMatchObject({
       authorizationUrl: expect.stringContaining("/connections/confirm"),
@@ -336,7 +336,7 @@ describe("Paperclip Cloud connector", () => {
       subject,
       companyId,
       profile: "github.code",
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "state-direct",
     })).resolves.toMatchObject({
       authorizationUrl: "https://github.com/login/oauth/authorize?client_id=client&state=broker-state",
@@ -359,7 +359,7 @@ describe("Paperclip Cloud connector", () => {
       }) as typeof fetch,
     });
     const result = connector.startAuthorization({ subject, companyId, profile: "asana.mcp",
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback", returnState: "state" });
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback", returnState: "state" });
     if (accepted) await expect(result).resolves.toMatchObject({ authorizationUrl });
     else await expect(result).rejects.toMatchObject({ code: "CONNECTOR_BAD_RESPONSE" });
   });
@@ -379,7 +379,7 @@ describe("Paperclip Cloud connector", () => {
       subject,
       companyId,
       profile: "gmail.draft",
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "state-direct-google",
     })).resolves.toMatchObject({
       authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth?client_id=client&state=broker-state",
@@ -409,7 +409,7 @@ describe("Paperclip Cloud connector", () => {
       subject,
       companyId,
       profile: "github.code",
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "state-malformed-direct",
     })).rejects.toMatchObject({ code: "CONNECTOR_BAD_RESPONSE" });
   });
@@ -467,7 +467,7 @@ describe("Paperclip Cloud connector", () => {
     await expect(legacy.startAuthorization({
       subject,
       companyId,
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "state-legacy",
     })).resolves.not.toHaveProperty("handoff");
 
@@ -482,7 +482,7 @@ describe("Paperclip Cloud connector", () => {
     await expect(malformed.startAuthorization({
       subject,
       companyId,
-      returnUri: "https://paperclip.example.test/api/tools/oauth/cloud-connector/callback",
+      returnUri: "https://outpost.example.test/api/tools/oauth/cloud-connector/callback",
       returnState: "state-malformed",
     })).rejects.toMatchObject({ code: "CONNECTOR_BAD_RESPONSE" });
   });
@@ -663,25 +663,25 @@ describe("Paperclip Cloud connector", () => {
   });
 
   it("requires an all-or-nothing environment configuration and loopback for HTTP", () => {
-    expect(paperclipCloudConnectorConfigFromEnv({})).toBeNull();
-    expect(() => paperclipCloudConnectorConfigFromEnv({
-      PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID: instanceId,
+    expect(outpostCloudConnectorConfigFromEnv({})).toBeNull();
+    expect(() => outpostCloudConnectorConfigFromEnv({
+      OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID: instanceId,
     })).toThrowError(/incomplete/);
-    expect(() => paperclipCloudConnectorConfigFromEnv({
-      PAPERCLIP_CLOUD_CONNECTOR_INSTANCE_ID: instanceId,
-      PAPERCLIP_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: "key",
-      PAPERCLIP_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: "key",
-      PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: "development",
-      PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: "http://my.example.test",
+    expect(() => outpostCloudConnectorConfigFromEnv({
+      OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID: instanceId,
+      OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY: "key",
+      OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY: "key",
+      OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "development",
+      OUTPOST_CLOUD_CONNECTOR_BASE_URL: "http://my.example.test",
     })).toThrowError(/HTTPS/);
     const legacyError = (() => {
       try {
-        paperclipCloudConnectorConfigFromEnv({
-          PAPERCLIP_ID_CONNECTOR_INSTANCE_ID: instanceId,
-          PAPERCLIP_ID_CONNECTOR_SIGN_PRIVATE_KEY: "key",
-          PAPERCLIP_ID_CONNECTOR_SEAL_PRIVATE_KEY: "key",
-          PAPERCLIP_ID_CONNECTOR_ENVIRONMENT: "development",
-          PAPERCLIP_ID_CONNECTOR_BASE_URL: "https://id.paperclip.app",
+        outpostCloudConnectorConfigFromEnv({
+          OUTPOST_ID_CONNECTOR_INSTANCE_ID: instanceId,
+          OUTPOST_ID_CONNECTOR_SIGN_PRIVATE_KEY: "key",
+          OUTPOST_ID_CONNECTOR_SEAL_PRIVATE_KEY: "key",
+          OUTPOST_ID_CONNECTOR_ENVIRONMENT: "development",
+          OUTPOST_ID_CONNECTOR_BASE_URL: "https://id.outpost.app",
         });
         return null;
       } catch (error) {
@@ -693,9 +693,9 @@ describe("Paperclip Cloud connector", () => {
   });
 
   it("keeps gallery capability discovery available during incomplete enrollment", async () => {
-    await expect(paperclipCloudConnectorCapabilitiesFromEnv({
-      PAPERCLIP_CLOUD_CONNECTOR_BASE_URL: "https://my-staging.paperclip.app",
-      PAPERCLIP_CLOUD_CONNECTOR_ENVIRONMENT: "staging",
+    await expect(outpostCloudConnectorCapabilitiesFromEnv({
+      OUTPOST_CLOUD_CONNECTOR_BASE_URL: "https://my-staging.outpost.app",
+      OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "staging",
     })).resolves.toEqual([]);
   });
 });
@@ -898,8 +898,8 @@ describe("Slack form normal connector terminal reply contracts", () => {
     const release = { kind: "receipt", binding: { instanceId }, operationId: canonical.operationId, releaseAckFact: true };
     await expect(connector.slackFormOperation({ subject, companyId, operation: release })).resolves.toEqual({ releasedAckDigest: digest });
     expect(operations).toEqual([refresh, release]); expect(request).toHaveBeenCalledTimes(2);
-    expect(verifySlackFormFinalizedReceipt({ compactJws, env: { PAPERCLIP_CLOUD_STACK_ID: instanceId,
-      PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }) } })).toEqual(canonical);
+    expect(verifySlackFormFinalizedReceipt({ compactJws, env: { OUTPOST_CLOUD_STACK_ID: instanceId,
+      OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }) } })).toEqual(canonical);
   });
   it("does not confuse refresh, release, acceptance or sealed operation responses", async () => {
     const keys = config(); let reply: unknown;

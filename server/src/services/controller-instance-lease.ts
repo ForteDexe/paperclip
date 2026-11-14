@@ -1,5 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { controllerInstances, type Db } from "@paperclipai/db";
+import { controllerInstances, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import {
   currentControllerBootId, currentProcessSpaceHash, onControllerStamp,
@@ -55,7 +55,7 @@ let state: LeaseState | null = null;
 let registeredDb: Db | null = null;
 
 export function controllerInstanceLeaseEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.PAPERCLIP_CONTROLLER_INSTANCE_LEASE !== "off";
+  return env.OUTPOST_CONTROLLER_INSTANCE_LEASE !== "off";
 }
 
 function exitOnLostLease(reason: "fenced" | "lease_lost") {

@@ -43,7 +43,7 @@ describe("actual company package download and conflict-safe import", () => {
     const kept = valid("companies.import-preview"); kept.state.firstTurnAwaitedHuman = false; expect(gradePortability(kept).passed).toBe(false);
   });
   it("compares saved configuration without lifecycle status or timestamps, but catches an overwrite", () => {
-    const before = { name: "Morgan", adapterType: "paperclip_runner", adapterConfig: { model: "m" }, configurationRevision: "a", status: "paused", updatedAt: "t1" };
+    const before = { name: "Morgan", adapterType: "outpost_runner", adapterConfig: { model: "m" }, configurationRevision: "a", status: "paused", updatedAt: "t1" };
     expect(savedAgentConfiguration({ ...before, status: "idle", updatedAt: "t2" })).toBe(savedAgentConfiguration(before));
     expect(savedAgentConfiguration({ ...before, adapterType: "process", configurationRevision: "b" })).not.toBe(savedAgentConfiguration(before));
   });

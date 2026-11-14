@@ -18,8 +18,8 @@ import {
   routineRuns,
   routineTriggers,
   routines,
-} from "@paperclipai/db";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -47,7 +47,7 @@ function issuePrefix(id: string) {
 
 function manifest(): PaperclipPluginManifestV1 {
   return {
-    id: "paperclip.managed-routines-test",
+    id: "outpost.managed-routines-test",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Managed Routines Test",
@@ -148,7 +148,7 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
     await db.insert(plugins).values({
       id: pluginId,
       pluginKey: pluginManifest.id,
-      packageName: "@paperclipai/plugin-managed-routines-test",
+      packageName: "@outpost/plugin-managed-routines-test",
       version: pluginManifest.version,
       apiVersion: pluginManifest.apiVersion,
       categories: pluginManifest.categories,
@@ -177,7 +177,7 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
       activityGatePolicy: "require_external_activity",
       activityGateScope: "project",
       managedByPlugin: expect.objectContaining({
-        pluginKey: "paperclip.managed-routines-test",
+        pluginKey: "outpost.managed-routines-test",
         resourceKind: "routine",
         resourceKey: "nightly-lint",
       }),
@@ -252,7 +252,7 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
     expect(run.status).toBe("issue_created");
     const [issue] = await db.select().from(issues).where(eq(issues.id, run.linkedIssueId!));
     expect(issue).toMatchObject({
-      originKind: "plugin:paperclip.managed-routines-test:operation",
+      originKind: "plugin:outpost.managed-routines-test:operation",
       originId: "operation:nightly-lint",
       billingCode: "plugin-test:nightly-lint",
       projectId: project.projectId,

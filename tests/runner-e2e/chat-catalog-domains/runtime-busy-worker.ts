@@ -19,7 +19,7 @@ export function taskBoundRuntimeGate(nonce: string, timeoutMs = 300_000): Runtim
 /** Bind only the actual assigned task's persisted workspace, never AGENT_HOME. */
 export async function readRuntimeTaskGate(ctx: ChatCatalogContext, gate: RuntimeBriefGate, taskId: string, workerId: string) {
   if (!gate.taskBound || !gate.gateName) throw new Error("Expected task-bound brief listener");
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root) throw new Error("Task gate requires the owned attempt root");
   const [task, view] = await Promise.all([
     ctx.input.api.get<{ id: string; companyId: string; assigneeAgentId: string | null; executionWorkspaceId: string | null }>(`/api/issues/${taskId}`),
@@ -48,7 +48,7 @@ export async function readRuntimeTaskGate(ctx: ChatCatalogContext, gate: Runtime
 }
 export async function prepareRuntimeWorkerGate(ctx: ChatCatalogContext, options: { worker?: RuntimeAgent; taskBound?: boolean } = {}) {
   if (ctx.input.execution.environment.id !== "local") throw new Error("Owned file-gate fixture requires a real local environment");
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT; if (!root) throw new Error("Busy fixture requires its isolated attempt root");
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT; if (!root) throw new Error("Busy fixture requires its isolated attempt root");
   const worker = options.worker ?? await runtimeWorker(ctx);
   const isolated = await realpath(root);
   const previousRuns = await ctx.allRuns();

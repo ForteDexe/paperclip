@@ -13,7 +13,7 @@ import {
   agentSessionGoalActions,
   agents,
   activityLog,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   type IssueExecutionMonitorPolicy,
   type IssueExecutionMonitorClearReason,
@@ -21,7 +21,7 @@ import {
   PROVIDER_QUOTA_MONITOR_SERVICE_NAME,
   EXECUTION_RECONCILIATION_CAUSES,
   isUuidLike,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   and,
   eq,
@@ -59,12 +59,12 @@ import { logger } from "../../middleware/logger.js";
 import { failRunnerGoalAction } from "../runner-goals.js";
 import { evaluateAgentInvokability } from "../agent-invokability.js";
 import { supportsUnscopedTimerHeartbeat } from "../heartbeat-policy.js";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import type { issueService } from "../issues.js";
 import type { createHeartbeatQueue } from "./queue.js";
 import type { createHeartbeatRetries, HeartbeatRetryDependencies } from "./retries.js";
 import type { createHeartbeatRunPreparation } from "./run-preparation.js";
-import type { NativeSessionGoalControl } from "../../vendor/paperclip-runner/index.js";
+import type { NativeSessionGoalControl } from "../../vendor/outpost-runner/index.js";
 
 type HeartbeatQueue = ReturnType<typeof createHeartbeatQueue>;
 type RunPreparation = ReturnType<typeof createHeartbeatRunPreparation>;

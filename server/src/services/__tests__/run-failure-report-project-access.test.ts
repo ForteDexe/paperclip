@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRuns } from "@paperclipai/db";
+import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -15,7 +15,7 @@ vi.mock("../../sentry.js", () => ({
 import { reportRunFailure } from "../run-failure-report.js";
 import { PROJECT_ACCESS_DENIED } from "../project-access-denial.js";
 
-const testDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const testDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 const embeddedPostgresSupport = testDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -42,7 +42,7 @@ describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
       ["PATH", "HOME", "USER", "USERNAME", "LOGNAME", "USERPROFILE", "TMPDIR", "TEMP", "TMP"]
         .flatMap((key) => inheritedEnv[key] === undefined ? [] : [[key, inheritedEnv[key]]]),
     );
-    process.env.PAPERCLIP_SENTRY_RUN_FAILURES = "unexpected";
+    process.env.OUTPOST_SENTRY_RUN_FAILURES = "unexpected";
     companyId = randomUUID();
     agentId = randomUUID();
     await db.insert(companies).values({
@@ -121,7 +121,7 @@ describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
   });
 
   it("reports project denials when every run failure is reported", async () => {
-    vi.stubEnv("PAPERCLIP_SENTRY_RUN_FAILURES", "all");
+    vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
     await reportRunFailure(db, projectAccessDeniedRun(), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });

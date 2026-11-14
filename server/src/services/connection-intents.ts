@@ -12,10 +12,10 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { logActivity } from "./activity-log.js";
 import { aiConnectionService } from "./ai-connections.js";
-import { aiConnectionBindingSchema, aiConnectionRouterBindingSchema } from "@paperclipai/shared";
+import { aiConnectionBindingSchema, aiConnectionRouterBindingSchema } from "@outpost/shared";
 import { aiBindingForAuthRecovery, isAiAuthenticationFailure, isAiAuthenticationRepairable } from "./ai-auth-failure.js";
 import { and, eq, desc, isNull, notInArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   aiConnectionTaskPins,
@@ -33,7 +33,7 @@ import {
   issueThreadInteractions,
   issueComments,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   APP_STORE_DEFINITIONS,
   isUuidLike,
@@ -57,7 +57,7 @@ import {
   type ToolConnection,
   type AiConnectionAttribution,
   type AiConnectionBinding,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { instanceSettingsService } from "./instance-settings.js";
 import { createNativeConnectorYield } from "./connection-native-yield.js";
 import { HttpError, conflict, forbidden, notFound, unprocessable } from "../errors.js";

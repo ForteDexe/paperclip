@@ -1,12 +1,12 @@
 import type { McpClientMirrorReceipt } from "./client-mirror-contract.js";
 import type { McpDiscovery } from "./discovery.js";
 import { createHash } from "node:crypto";
-import { PUBLIC_MCP_SCOPES, DOT_RUNNER_MCP_SCOPES } from "@paperclipai/shared";
+import { PUBLIC_MCP_SCOPES, DOT_RUNNER_MCP_SCOPES } from "@outpost/shared";
 import { and, asc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import {
   agents, authUsers, companies, companyMemberships, dotAgentBindings,
   mcpOauthGrants, mcpOauthTokens, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { mcpRevocationAuthorityId, parseMcpRevocationIndexReceipt, type McpRevocationIndexReceipt } from "./revocation-index-contract.js";
 import { createMcpWakeAdmission, type McpWakeAdmission, type McpWakeProfile, type McpWakeTokenKind } from "./wake-admission.js";
 

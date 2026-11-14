@@ -11,11 +11,11 @@ import {
   projects,
   projectWorkspaces,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   readWorkspaceProviderBinding,
   type WorkspaceProviderBinding,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   workspaceProviderOperationSchema,
   type PluginWorkspaceOperation,
@@ -23,7 +23,7 @@ import {
   type PluginWorkspaceParams,
   type PluginWorkspaceResult,
   type PluginFreshWorkspace,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 import { invokeWorkspaceProvider } from "./plugin-workspace-preparation.js";
 import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
 import { withExecutionWorkspaceLifecycleLock } from "./execution-workspace-lifecycle-lock.js";
@@ -155,7 +155,7 @@ export async function preparePluginWorkspace(
     mode: string;
     strategy: string;
     selectedProviderPluginId?: string | null;
-    environment?: Pick<import("@paperclipai/shared").Environment, "driver" | "config" | "name"> | null;
+    environment?: Pick<import("@outpost/shared").Environment, "driver" | "config" | "name"> | null;
     branchMode?: "create" | "existing";
     branchName?: string | null;
     baseRef?: string | null;

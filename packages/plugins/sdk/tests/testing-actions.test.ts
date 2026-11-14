@@ -4,7 +4,7 @@ import { createTestHarness } from "../src/testing.js";
 import type { PaperclipPluginManifestV1 } from "../src/types.js";
 
 const manifest = {
-  id: "paperclip.test-actions",
+  id: "outpost.test-actions",
   apiVersion: 1,
   version: "1.0.0",
   displayName: "Test Actions",
@@ -103,7 +103,7 @@ describe("createTestHarness issue interactions", () => {
     const issue = await harness.ctx.issues.create({ companyId: "company-1", title: "Ask for a repository" });
     const input = {
       idempotencyKey: "canonical:repo",
-      payload: { version: 1 as const, questionSet: { schema: "paperclip.question_set.v1" as const, questions: [{ id: "repo", prompt: "Repository URL?", required: true, answerMode: "text" as const }] } },
+      payload: { version: 1 as const, questionSet: { schema: "outpost.question_set.v1" as const, questions: [{ id: "repo", prompt: "Repository URL?", required: true, answerMode: "text" as const }] } },
     };
     const created = await harness.ctx.issues.askUserQuestions(issue.id, input, "company-1");
     expect(created.payload.questionSet).toEqual(input.payload.questionSet);

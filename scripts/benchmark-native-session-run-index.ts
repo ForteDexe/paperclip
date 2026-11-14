@@ -9,7 +9,7 @@
  * same rows and the same service result. Then times the migration through the
  * normal migration runner, including a rerun.
  *
- *   pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-native-session-run-index.ts
+ *   pnpm --filter @outpost/server exec tsx ../scripts/benchmark-native-session-run-index.ts
  *
  * Optional sizes: RUNS (default 50000 runs of the measured agent), OTHER_RUNS
  * (50000 runs of a second agent), RUNS_PER_SESSION (4), PROFILE_KIB (4).
@@ -62,7 +62,7 @@ try {
       jsonb_build_object('padding', (select string_agg(encode(gen_random_bytes(768), 'base64'), '')
           from generate_series(1, $7::int) i where g > 0),
         'nativeControllerRecovery', case when g % 100 = 0 then jsonb_build_object(
-          'schema', 'paperclip.native-controller-recovery.v1', 'checkpoint', null) end)
+          'schema', 'outpost.native-controller-recovery.v1', 'checkpoint', null) end)
     from generate_series(0, $3::int - 1) g join sessions on sessions.s = g / $4::int`,
   [company!.id, agentId, count, RUNS_PER_SESSION, issue!.id, finishedAt.toISOString(), PROFILE_KIB]);
   await seedRuns(agent!.id, RUNS);

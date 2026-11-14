@@ -26,5 +26,5 @@ export function validateRuntimePrivateRequirement(scenarioId: string | undefined
   return true;
 }
 export function runtimePrivateReferenceNames(provider: string): readonly string[] {
-  return provider === "ssh" ? ["PAPERCLIP_CHAT_EVAL_SSH_PRIVATE_KEY"] : provider === "grok" ? ["PAPERCLIP_CHAT_EVAL_GROK_BOT_TOKEN"] : [];
+  return provider === "ssh" ? ["OUTPOST_CHAT_EVAL_SSH_PRIVATE_KEY"] : provider === "grok" ? ["OUTPOST_CHAT_EVAL_GROK_BOT_TOKEN"] : [];
 }

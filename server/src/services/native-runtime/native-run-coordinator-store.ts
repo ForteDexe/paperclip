@@ -9,14 +9,14 @@ import { createHash } from "node:crypto";
 
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   heartbeatRunEvents,
   heartbeatRuns,
   issues,
   nativeRunFinalizations,
   nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   NativeSessionProtocolIntegrityError,
   type PrpEvent,
@@ -24,7 +24,7 @@ import {
   type PrpTerminalState,
   validatePrpEvent,
   validatePrpStructuredRunResult,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 
 export interface NativeRunStoreBinding {
   readonly companyId: string;
@@ -69,7 +69,7 @@ function assertTerminal(value: unknown): asserts value is PrpTerminalState {
     typeof value !== "object" ||
     terminal === null ||
     Array.isArray(value) ||
-    terminal.schema !== "paperclip.prp.terminal.v1" ||
+    terminal.schema !== "outpost.orp.terminal.v1" ||
     typeof terminal.turnTerminalState !== "string" ||
     !["completed", "failed", "interrupted", "cancelled"].includes(
       terminal.turnTerminalState,
@@ -120,7 +120,7 @@ function validateBoundCompletion(
   return { result: validated.result, terminal };
 }
 
-/** Durable DB boundary used by the hidden PRP coordinator. */
+/** Durable DB boundary used by the hidden ORP coordinator. */
 export class NativeRunCoordinatorStore {
   readonly #db: Db;
   readonly #binding: NativeRunStoreBinding;
@@ -182,7 +182,7 @@ export class NativeRunCoordinatorStore {
       .orderBy(desc(heartbeatRunEvents.sourceSeq))
       .limit(3);
     for (const row of rows) {
-      const event = (row.payload as Record<string, unknown> | null)?.prpEvent;
+      const event = (row.payload as Record<string, unknown> | null)?.orpEvent;
       const payload = typeof event === "object" && event !== null && !Array.isArray(event)
         ? (event as Record<string, unknown>).payload
         : null;
@@ -314,7 +314,7 @@ export class NativeRunCoordinatorStore {
           eventType: event.eventType,
           stream: "system",
           level: event.eventType.includes("failed") ? "error" : "info",
-          payload: { prpEvent: canonicalPayload },
+          payload: { orpEvent: canonicalPayload },
           sourceInstanceId: event.sourceInstanceId,
           sourceEventId: event.sourceEventId,
           sourceSeq: event.sourceSeq,
@@ -446,7 +446,7 @@ export class NativeRunCoordinatorStore {
     });
   }
 
-  /** Rebuild the accepted result/finalization record from durable PRP events. */
+  /** Rebuild the accepted result/finalization record from durable ORP events. */
   async reconcileTerminalEvent(event: PrpEvent): Promise<{
     readonly disposition: "committed" | "duplicate";
     readonly resultId: string;
@@ -479,7 +479,7 @@ export class NativeRunCoordinatorStore {
       .limit(1);
     const proposedEnvelope = (
       proposed?.payload as Record<string, unknown> | undefined
-    )?.prpEvent as Record<string, unknown> | undefined;
+    )?.orpEvent as Record<string, unknown> | undefined;
     if (proposedEnvelope?.payload === undefined) {
       throw new Error("native_terminal_result_missing");
     }
@@ -487,7 +487,7 @@ export class NativeRunCoordinatorStore {
       result: proposedEnvelope.payload as PrpStructuredRunResult,
       terminal,
       turnId: event.turnId,
-      callerDedupeKey: `prp-terminal:${event.sourceEventId}`,
+      callerDedupeKey: `orp-terminal:${event.sourceEventId}`,
     });
   }
 

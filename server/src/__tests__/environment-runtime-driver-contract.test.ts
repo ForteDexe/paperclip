@@ -9,7 +9,7 @@ import {
   getSshEnvLabSupport,
   startSshEnvLabFixture,
   stopSshEnvLabFixture,
-} from "@paperclipai/adapter-utils/ssh";
+} from "@outpost/adapter-utils/ssh";
 import {
   agents,
   companies,
@@ -19,8 +19,8 @@ import {
   environmentLeases,
   environments,
   heartbeatRuns,
-} from "@paperclipai/db";
-import type { Environment, EnvironmentDriver } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { Environment, EnvironmentDriver } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

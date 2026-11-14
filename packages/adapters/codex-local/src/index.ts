@@ -1,7 +1,7 @@
 import {
-  PAPERCLIP_RUNNER_DEFAULT_MODELS,
-} from "@paperclipai/adapter-utils";
-import { PAPERCLIP_RUNNER_MINIMUM_GLIBC_VERSION } from "@paperclipai/shared";
+  OUTPOST_RUNNER_DEFAULT_MODELS,
+} from "@outpost/adapter-utils";
+import { OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION } from "@outpost/shared";
 
 export const type = "codex_local";
 export const label = "Codex";
@@ -13,7 +13,7 @@ export const SANDBOX_INSTALL_COMMAND = "npm install -g @openai/codex";
 // model is never rewritten. Always use a concrete slug rather than a bare family alias such as
 // `gpt-5.6`: OpenAI ships no model metadata for bare slugs, so the Codex CLI warns and falls back to
 // generic context limits.
-export const DEFAULT_CODEX_LOCAL_MODEL = PAPERCLIP_RUNNER_DEFAULT_MODELS.codex;
+export const DEFAULT_CODEX_LOCAL_MODEL = OUTPOST_RUNNER_DEFAULT_MODELS.codex;
 // The floor-free model a remote Codex CLI too old for the requested model falls back to. It stays
 // `gpt-5.6-sol` because the default `gpt-6.1-sol` itself needs Codex 0.159.0 or newer.
 export const CODEX_LOCAL_COMPATIBILITY_FALLBACK_MODEL = "gpt-5.6-sol";
@@ -241,7 +241,7 @@ export const models = [
 
 export const agentConfigurationDoc = `# codex_local agent configuration
 
-New agents select the Codex harness with adapterType: codex_local and an optional request-level runner: auto, paperclip, or legacy. Automatic selection uses Outpost Runner on qualified Linux x64/ARM64 targets with GNU libc ${PAPERCLIP_RUNNER_MINIMUM_GLIBC_VERSION} or newer and macOS arm64/x64 targets. It stores adapterType: paperclip_runner with provider: codex. Windows, 32-bit ARM, Alpine/musl, and older or unknown Linux libc retain automatic legacy selection. Qualification and artifact checks use the selected execution environment, including its architecture, rather than the controller's platform. Other harness defaults are unchanged.
+New agents select the Codex harness with adapterType: codex_local and an optional request-level runner: auto, paperclip, or legacy. Automatic selection uses Outpost Runner on qualified Linux x64/ARM64 targets with GNU libc ${OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION} or newer and macOS arm64/x64 targets. It stores adapterType: outpost_runner with provider: codex. Windows, 32-bit ARM, Alpine/musl, and older or unknown Linux libc retain automatic legacy selection. Qualification and artifact checks use the selected execution environment, including its architecture, rather than the controller's platform. Other harness defaults are unchanged.
 
 Set runner: legacy to retain this adapter's execution and custom settings. Explicit runner: paperclip requires a qualified target. Existing agents and reviewed pending hires retain their saved runner; authentication, model, dependency, and runtime errors never silently switch runners. The fields below describe legacy codex_local execution. Native creation translates supported settings and rejects unsupported settings with the explicit Legacy runner option.
 
@@ -289,8 +289,8 @@ Notes:
 - OpenAI retired gpt-5.5 (October 14, 2026), gpt-5.4 and gpt-5.4-mini (August 31, 2026) from Codex with ChatGPT sign-in. They remain selectable for OpenAI API-key sessions; with ChatGPT sign-in the Test names the retirement and its replacement.
 - With ChatGPT sign-in, model availability depends on the installed Codex capabilities. Legacy setup reports known model/version mismatches. Native setup tests the actual app-server and selected model; a version number alone does not reject or replace an installed CLI. If the provider rejects the model, select an available model or update Codex in the execution environment.
 - Fast mode is supported on GPT-6 (astra/sol/luna), GPT-6.1 Sol, GPT-5.6 (sol/terra/luna), GPT-5.5, GPT-5.4 and manual model IDs. When enabled for those models, Outpost applies \`service_tier="fast"\` and \`features.fast_mode=true\`.
-- When Outpost realizes a workspace/runtime for a run, it injects PAPERCLIP_WORKSPACE_* and PAPERCLIP_RUNTIME_* env vars for agent-side tooling.
-- The ACP engine keeps its workspace sandbox and enables network access on each turn. Explicit sandbox_workspace_write.network_access overrides in extraArgs (or env.PAPERCLIP_CODEX_ACP_NETWORK_ACCESS="false") disable it; execution-target network denial wins. The bundled ACP patch is needed because upstream mode presets override Codex config.toml on every turn.
+- When Outpost realizes a workspace/runtime for a run, it injects OUTPOST_WORKSPACE_* and OUTPOST_RUNTIME_* env vars for agent-side tooling.
+- The ACP engine keeps its workspace sandbox and enables network access on each turn. Explicit sandbox_workspace_write.network_access overrides in extraArgs (or env.OUTPOST_CODEX_ACP_NETWORK_ACCESS="false") disable it; execution-target network denial wins. The bundled ACP patch is needed because upstream mode presets override Codex config.toml on every turn.
 - The CLI engine defaults to a writable workspace sandbox with network access for unattended work and Outpost API calls. It does not enable the dangerous bypass flag. Explicit sandbox modes/profiles and network overrides in extraArgs retain their meaning. An execution-target network denial remains enforced.
 - Codex ACP is the preferred auto lane when Node >=24.11.0 and the Codex ACP server are available. It reuses shared ACP prompt/runtime guidance, selected skill materialization into CODEX_HOME/skills, model/reasoning/fast-mode session config, and existing quota-window reporting. Missing ACP prerequisites fail both default and explicit ACP runs with an actionable setup error; the adapter never switches engines automatically.
 `;

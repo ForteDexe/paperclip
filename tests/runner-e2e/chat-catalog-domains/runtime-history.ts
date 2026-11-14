@@ -162,7 +162,7 @@ export const runtimeHistoryCases = [runtimeDefinition("agent-chat.remember-and-f
   return { designMarker, filename, previewBefore, history, initialRunId: phase.runs[0]!.id, setupRunIds: phase.runs.map(run => run.id), choiceEstablished: true, reloaded: true };
 }, gradeRememberPreview, {
   sourceFiles: ["chat-catalog-domains/runtime-history.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agent-chat.yaml"],
-  oracleVersion: "paperclip.chat-catalog.runtime.remember-preview.v3",
+  oracleVersion: "outpost.chat-catalog.runtime.remember-preview.v3",
   setupHumanMessageCount: 1, expectedHumanMessageCount: 3, expectedRunCount: 3, attemptTimeoutMs: 720_000,
   async act(ctx, state) {
     const canonical = await sourceSettled(ctx, 2);
@@ -233,7 +233,7 @@ export const runtimeHistoryCases = [runtimeDefinition("agent-chat.remember-and-f
   }
 }, gradeBrowserReconnect, {
   sourceFiles: ["chat-catalog-domains/runtime-history.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-native-failure.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/recovery.yaml"],
-  oracleVersion: "paperclip.chat-catalog.runtime.browser-reconnect.v3",
+  oracleVersion: "outpost.chat-catalog.runtime.browser-reconnect.v3",
   setupHumanMessageCount: 1, expectedHumanMessageCount: 4, expectedRunCount: 7, attemptTimeoutMs: 1_200_000,
   runPolicy: { kind: "terminal-counts", terminalStatusCounts: { succeeded: 6, failed: 1 } },
   async act(ctx, state) {

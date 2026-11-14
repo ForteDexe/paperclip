@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, applyPendingMigrations, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, plugins, workspaceOperations } from "@paperclipai/db";
-import type { Environment } from "@paperclipai/shared";
+import { agents, agentWakeupRequests, applyPendingMigrations, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, plugins, workspaceOperations } from "@outpost/db";
+import type { Environment } from "@outpost/shared";
 import type { PluginWorkerManager } from "../plugin-worker-manager.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -20,7 +20,7 @@ describe("native workspace export warm reuse fence", () => {
   let db: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_WORKSPACE_RECOVERY_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_RECOVERY_TEST_DATABASE_URL");
     if (external) { await applyPendingMigrations(external); temporary = { connectionString: external, cleanup: async () => {} }; }
     else temporary = await startEmbeddedPostgresTestDatabase("native-warm-reuse-");
     db = createDb(temporary.connectionString);
@@ -31,7 +31,7 @@ describe("native workspace export warm reuse fence", () => {
   async function seed(plugin: boolean, release = true) {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), pluginId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Native warm fence", issuePrefix: `W${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Keep the source", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
     const provider = plugin ? "native-fence-plugin" : "fake";
@@ -68,7 +68,7 @@ describe("native workspace export warm reuse fence", () => {
       heartbeatRunId: runId, persistedExecutionWorkspace: null };
     const acquired = await runtime.acquireRunLease(input);
     if (release) await runtime.releaseRunLeases(runId, "released", undefined, "keep_running");
-    const reference = { schema: "paperclip.native-workspace-sync/v3", state: "prepared", leaseId: acquired.lease.id,
+    const reference = { schema: "outpost.native-workspace-sync/v3", state: "prepared", leaseId: acquired.lease.id,
       providerLeaseId: acquired.lease.providerLeaseId, workspaceId: issueId, remoteCwd: "/work", resourceDisposition: "keep_running",
       descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null };
     if (release) await db.update(heartbeatRuns).set({ status: "failed", runnerProfileJson: { nativeWorkspaceSync: reference } }).where(eq(heartbeatRuns.id, runId));
@@ -147,9 +147,9 @@ describe("native workspace export warm reuse fence", () => {
 
   it.each(["native", "legacy"])("fences a historical modern %s writer in one allocation read", async runtimeMode => {
     const f = await seed(true), workspaceId = randomUUID();
-    const reference = { schema: "paperclip.remote-workspace-run.v1", workspaceId, leaseId: f.lease.id,
+    const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId: f.lease.id,
       providerLeaseId: f.lease.providerLeaseId!, remoteCwd: "/work", epoch: 1, state: "prepared", snapshotId: null };
-    const authority = { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
+    const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
       writerRunId: f.runId, dirty: true, location: { environmentId: f.input.environment.id,
         leaseId: f.lease.id, providerLeaseId: f.lease.providerLeaseId!, remoteCwd: "/work" } };
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.input.companyId,
@@ -230,7 +230,7 @@ describe("native workspace export warm reuse fence", () => {
     const f = await seed(true);
     const binding = { runId: f.runId, companyId: f.input.companyId, agentId: f.input.agentId, issueId: f.input.issueId };
     const profile = { nativeWorkspaceSync: f.reference, nativeExecutionInput: {
-      schema: kind === "muse" ? "paperclip.native-execution-input.v8" : "paperclip.native-execution-input.v6",
+      schema: kind === "muse" ? "outpost.native-execution-input.v8" : "outpost.native-execution-input.v6",
       binding, workspace: { access: "none", cwd: null }, provider: { kind, bridgeRevision: "muse-v1" } } };
     await db.update(heartbeatRuns).set({ driverKind: kind === "muse" ? "muse_external" : "grok_bot_mcp",
       runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
@@ -259,17 +259,17 @@ describe("native workspace export warm reuse fence", () => {
         new SystemRecoveryFailure("source_binding_invalid", "service_required"));
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: f.reference },
         resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
-          schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id] } } }).where(eq(heartbeatRuns.id, f.runId));
+          schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] } } }).where(eq(heartbeatRuns.id, f.runId));
       await db.insert(nativeRunFinalizations).values({ companyId: f.input.companyId, issueId: f.input.issueId,
         runId: f.runId, phase: "terminal_failure" });
       await db.insert(issueRecoveryActions).values({ id: actionId, companyId: f.input.companyId, sourceIssueId: f.input.issueId,
         kind: "active_run_watchdog", ownerType: "system", cause: "native_workspace_sync_out_retry_exhausted", fingerprint: f.runId,
         nextAction: "Preserve the source", evidence: { runId: f.runId, systemRecovery: failure, workspaceRecovery: {
-          schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
+          schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
           attempt: 1, requestIds: [requestId] } } });
       await db.insert(agentWakeupRequests).values({ id: requestId, companyId: f.input.companyId, agentId: f.input.agentId,
         source: "on_demand", reason: "task_retry", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "board",
-        payload: { issueId: f.input.issueId, taskRetry: { schema: "paperclip.task-retry.v1", generationId: requestId,
+        payload: { issueId: f.input.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: requestId,
           sourceRunId: f.runId, actorId: "board", actorSource: "local_implicit", strategy: "evaluate" } } });
       await recoverRetainedWorkspace({ db, companyId: f.input.companyId, issueId: f.input.issueId,
         runId: f.runId, actionId, environmentRuntime: f.runtime });
@@ -303,8 +303,8 @@ describe("native workspace export warm reuse fence", () => {
     await db.insert(issueRecoveryActions).values({ id: actionId, companyId: f.input.companyId, sourceIssueId: f.input.issueId,
       kind: "active_run_watchdog", ownerType: "system", cause: "native_continuation_requires_reconciliation", fingerprint: f.runId,
       nextAction: "Recover saved work", evidence: { runId: f.runId, workspaceRestoreFailure: "restore_failed",
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id] }, systemRecovery: system,
-        workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId,
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] }, systemRecovery: system,
+        workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId,
           status: fault === "unsettled" ? "recovering" : "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] } } });
     await db.insert(workspaceOperations).values([{ id: operationId, companyId: f.input.companyId, issueId: f.input.issueId,
       heartbeatRunId: f.runId, phase: "workspace_recovery", status: "succeeded", finishedAt: new Date(),

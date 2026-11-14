@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PreviewCard } from "@base-ui/react/preview-card";
 import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, TriangleAlert } from "lucide-react";
-import type { LinkPreview as Preview, LinkPreviewResult, LinkPreviewState, LinkPreviewTarget } from "@paperclipai/shared";
+import type { LinkPreview as Preview, LinkPreviewResult, LinkPreviewState, LinkPreviewTarget } from "@outpost/shared";
 import { useLinkPreviewContext, type LinkPreviewContextValue } from "@/context/LinkPreviewContext";
 import { timeAgo } from "@/lib/timeAgo";
 import { retryTransientOnly } from "@/lib/query-client";

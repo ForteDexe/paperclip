@@ -189,7 +189,7 @@ export async function run(env = process.env) {
       try { return await api(route, 'GET'); }
       catch (error) { apiFailure = failureProjection(error, 'upload_verification'); throw error; }
     }, selected, exported);
-    const record = { schema: 'paperclip.chat-feature-testops-retained-verification/v1', executor, origin,
+    const record = { schema: 'outpost.chat-feature-testops-retained-verification/v1', executor, origin,
       observedAt: new Date().toISOString(), authentication: 'existing protected reporting ALLURE_TOKEN',
       historicalFailureCause: 'not established by this later snapshot', originalGradeUnchanged: true,
       selectionSha256: selectionHash, bindingSha256: bindingHash, ...result };
@@ -197,7 +197,7 @@ export async function run(env = process.env) {
     await writeFile(path.join(output, 'retained-verification.json'), JSON.stringify(record, null, 2), { flag: 'wx', mode: 0o600 });
     return result.verification ? 0 : 1;
   } catch (error) {
-    if (output) await writeFile(path.join(output, 'failure.json'), JSON.stringify({ schema: 'paperclip.chat-feature-testops-retained-failure/v1',
+    if (output) await writeFile(path.join(output, 'failure.json'), JSON.stringify({ schema: 'outpost.chat-feature-testops-retained-failure/v1',
       executor, origin, stage, code: codes.has(error.message) ? error.message : 'retained_verification_failed',
       ...(apiFailure ? { apiFailure } : {}) }, null, 2), { flag: 'wx', mode: 0o600 });
     return 1;

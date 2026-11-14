@@ -1,7 +1,7 @@
 import type {
   RunPresentationDecision,
   RunPresentationSource,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 export const HEARTBEAT_RUN_RESULT_SUMMARY_MAX_CHARS = 500;
 export const HEARTBEAT_RUN_RESULT_OUTPUT_MAX_CHARS = 4_096;
@@ -176,7 +176,7 @@ export function summarizeHeartbeatRunResultJson(
 
 // An untyped adapter summary can be raw inter-tool narration (assistantTexts
 // concatenated by the adapter), which must never be published verbatim to the
-// board — see BRO-1507 / BRO-1516. Typed final messages and accepted PRP results
+// board — see BRO-1507 / BRO-1516. Typed final messages and accepted ORP results
 // are semantic output, so they intentionally bypass this legacy safety check.
 // Apostrophes are matched as a character class so both the straight (') and
 // curly (’) forms count — agents emit either. Openers are narration phrases a
@@ -192,7 +192,7 @@ export const CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON =
   "allow_chat_run_presentation";
 
 export type RunPresentationCommentAction = "reuse" | "create" | "none";
-export type { RunPresentationDecision } from "@paperclipai/shared";
+export type { RunPresentationDecision } from "@outpost/shared";
 
 export interface ResolvedHeartbeatRunResponse {
   text: string | null;
@@ -295,7 +295,7 @@ export function isChatOriginPublicationCandidate(contextSnapshot: unknown): bool
 export function completedPlanProposalIds(rows: readonly { payload: unknown }[]): Set<string> {
   const ids = new Set<string>();
   for (const row of rows) {
-    const payload = record(record(record(row.payload).prpEvent).payload);
+    const payload = record(record(record(row.payload).orpEvent).payload);
     if (payload.status === "completed" && typeof payload.proposalId === "string") {
       ids.add(payload.proposalId);
     }
@@ -305,13 +305,13 @@ export function completedPlanProposalIds(rows: readonly { payload: unknown }[]):
 
 export function readCompletedAssistantMessageCandidate(input: {
   seq: number;
-  prpEvent: unknown;
+  orpEvent: unknown;
   /** Item ids with a recorded proposal; other replies keep their plan text. */
   proposedItemIds?: ReadonlySet<string>;
 }): CompletedFinalAgentMessageCandidate | null {
-  const prpEvent = record(input.prpEvent);
-  const payload = record(prpEvent.payload);
-  // `assistant_message` is the shipped PRP v1 spelling used by older replay
+  const orpEvent = record(input.orpEvent);
+  const payload = record(orpEvent.payload);
+  // `assistant_message` is the shipped ORP v1 spelling used by older replay
   // fixtures and persisted native runs. New providers emit `agentMessage`,
   // but both represent the same canonical assistant item at this boundary.
   if (payload.kind !== "agentMessage" && payload.kind !== "assistant_message") {
@@ -323,7 +323,7 @@ export function readCompletedAssistantMessageCandidate(input: {
   // A harness's `<proposed_plan>` block that became a recorded proposal is the
   // task's Plan document and approval card; that reply keeps only the
   // surrounding prose. Without a recorded proposal the reply keeps the plan.
-  const itemId = typeof prpEvent.itemId === "string" ? prpEvent.itemId
+  const itemId = typeof orpEvent.itemId === "string" ? orpEvent.itemId
     : typeof payload.itemId === "string" ? payload.itemId : null;
   const proposed = itemId !== null && input.proposedItemIds?.has(itemId) === true;
   const text = readCommentText(
@@ -333,7 +333,7 @@ export function readCompletedAssistantMessageCandidate(input: {
   return {
     seq: input.seq,
     text,
-    sourceEventId: readCommentText(prpEvent.sourceEventId),
+    sourceEventId: readCommentText(orpEvent.sourceEventId),
     channel: payload.channel,
     ...(isBoundedRunEventText(payload.text) ? { bounded: true } : {}),
   };
@@ -342,7 +342,7 @@ export function readCompletedAssistantMessageCandidate(input: {
 function readAcceptedSemanticSummary(resultJson: Record<string, unknown>) {
   const candidates = semanticResultCandidates(resultJson);
   for (const candidate of candidates) {
-    if (candidate.schema !== "paperclip.run_result.v1") continue;
+    if (candidate.schema !== "outpost.run_result.v1") continue;
     // A yielded result is a control-plane liveness fact, not a final assistant
     // response. Its summary belongs in diagnostics/system state while the
     // durable interaction card remains the user-facing surface.
@@ -365,14 +365,14 @@ export function hasAcceptedSemanticResult(
   resultJson: Record<string, unknown> | null | undefined,
 ) {
   return semanticResultCandidates(record(resultJson)).some(
-    (candidate) => candidate.schema === "paperclip.run_result.v1",
+    (candidate) => candidate.schema === "outpost.run_result.v1",
   );
 }
 
 function hasYieldedSemanticResult(resultJson: Record<string, unknown>) {
   return semanticResultCandidates(resultJson).some(
     (candidate) =>
-      candidate.schema === "paperclip.run_result.v1" &&
+      candidate.schema === "outpost.run_result.v1" &&
       candidate.reportedWorkDisposition === "yielded",
   );
 }
@@ -387,7 +387,7 @@ export function readAcceptedTaskContinuationSummary(
   if (!kind) return null;
   for (const candidate of semanticResultCandidates(result)) {
     const continuation = record(candidate.continuation);
-    if (candidate.schema === "paperclip.run_result.v1" && candidate.reportedWorkDisposition === "yielded" &&
+    if (candidate.schema === "outpost.run_result.v1" && candidate.reportedWorkDisposition === "yielded" &&
         continuation.kind === kind && readCommentText(continuation.idempotencyKey)) {
       return readCommentText(candidate.summary);
     }
@@ -410,7 +410,7 @@ function readAcceptedExternalChatResponseWakeSummary(
         reviewPresentationAuthorized &&
         resultJson.finalizationReasonCode === "governed_response_waiting"
       )) ||
-    nativeResult.schema !== "paperclip.run_result.v1" ||
+    nativeResult.schema !== "outpost.run_result.v1" ||
     nativeResult.reportedWorkDisposition !== "yielded" ||
     continuation.kind !== "response_wake" ||
     !readCommentText(continuation.summary) ||
@@ -452,7 +452,7 @@ function isStructuredSemanticResultText(value: string) {
       parsed &&
       typeof parsed === "object" &&
       !Array.isArray(parsed) &&
-      (parsed as Record<string, unknown>).schema === "paperclip.run_result.v1",
+      (parsed as Record<string, unknown>).schema === "outpost.run_result.v1",
     );
   } catch {
     return false;
@@ -469,7 +469,7 @@ function decision(
   },
 ): RunPresentationDecision {
   return {
-    schema: "paperclip.run_presentation_decision.v1",
+    schema: "outpost.run_presentation_decision.v1",
     resolverVersion: RUN_PRESENTATION_RESOLVER_VERSION,
     chosenSource,
     sourceEventId: input.sourceEventId ?? null,

@@ -159,7 +159,7 @@ export function HermesGatewayConfigFields({
         label="API key"
         value={isCreate ? String(readCreateValue(values, "apiKey", "") ?? "") : editApiKeyValue}
         onCommit={(v) => writeValue("apiKey", v || undefined)}
-        placeholder="Hermes API_SERVER_KEY, not PAPERCLIP_API_KEY"
+        placeholder="Hermes API_SERVER_KEY, not OUTPOST_API_KEY"
         stored={!isCreate && hasStoredApiKey && !editApiKeyValue}
       />
 

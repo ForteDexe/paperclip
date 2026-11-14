@@ -49,10 +49,10 @@ export const heartbeatRunEvents = pgTable(
     // Context-window readings: the few usage items per run, newest first.
     usageItemRunIdx: index("heartbeat_run_events_usage_item_run_idx")
       .on(table.runId, table.createdAt)
-      .where(sql`${table.eventType} = 'item.completed' and (${table.payload} -> 'prpEvent' -> 'payload' ->> 'kind') = 'usage'`),
+      .where(sql`${table.eventType} = 'item.completed' and (${table.payload} -> 'orpEvent' -> 'payload' ->> 'kind') = 'usage'`),
     // Compactions counted per agent session across runs.
     compactionSessionIdx: index("heartbeat_run_events_compaction_session_idx")
-      .on(table.companyId, sql`(${table.payload} -> 'prpEvent' ->> 'normalizedSessionId')`)
+      .on(table.companyId, sql`(${table.payload} -> 'orpEvent' ->> 'normalizedSessionId')`)
       .where(sql`${table.eventType} = 'context.compacted'`),
     // Retry-exhaustion receipts for the attention feed: a few rows per company.
     // The predicate must stay textually equal to the query in

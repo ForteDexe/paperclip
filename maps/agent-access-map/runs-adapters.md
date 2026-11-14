@@ -6,7 +6,7 @@ Feature ID: `runs-adapters`.
 
 Scoped local Git author contract (`runs-adapters/runs`): an admitted execution
 with managed launchers can create a local commit without a GitHub grant. A
-private per-operation Git config supplies `Paperclip <noreply@paperclip.ing>`
+private per-operation Git config supplies `Paperclip <noreply@outpost.ing>`
 only as a default. Repository/command configuration and captured managed identity
 retain precedence. The default conveys no API, repository-network or credential
 authority; current run, company, trust and GitHub-grant checks stay in force.
@@ -167,11 +167,11 @@ per-turn lifecycle, exact model, selected `CURSOR_API_KEY`, and repository or na
 Cloud environment. Hosted semantic calls use
 `POST /mcp/native-runs/{runId}` with a separate expiring run capability. The relay
 checks the current source company/agent/task/run and authority epoch, then forwards
-to the provider bridge and normal PRP/Core tool policy. It grants no board or
+to the provider bridge and normal ORP/Core tool policy. It grants no board or
 cross-company access. Source/control evidence:
 [runtime helper](../../server/src/services/native-runtime/cursor-cloud-runtime.ts),
 [relay regressions](../../server/src/services/native-runtime/remote-mcp-relay.test.ts)
-and [provider client](../../packages/paperclip-runner/src/drivers/cursor-cloud/cloud-client.test.ts).
+and [provider client](../../packages/outpost-runner/src/drivers/cursor-cloud/cloud-client.test.ts).
 Live provider authorization and task qualification remain `not-run`; see the
 [acceptance ledger](../../doc/plans/2026-10-28-cursor-cloud-native-runner.md).
 
@@ -271,7 +271,7 @@ Capability ID: `runs-adapters/runs`.
 Review: `baseline`.
 
 Run reads and task interruption projections can include a sanitized
-`paperclip.provider-failure.v1` cause. Existing company and task/run read policy
+`outpost.provider-failure.v1` cause. Existing company and task/run read policy
 applies. The cause exposes no credential values or new secret access and grants
 no retry authority. Startup receipts and failed-turn events use the same cause;
 unknown categories retain their explanation. Transport/controller restart and
@@ -347,9 +347,9 @@ owner across the ordinary 30-second MCP deadline. The native MCP client uses
 a fixed one-hour ceiling; ordinary driver calls keep their deadline.
 Company, tool, run and Stop authority do not change. Unanswered effects still
 block run attachment, including after the client ceiling expires while the
-Runner lease remains valid. The [proxy regression](../../packages/paperclip-runner/src/live/runnerd-opencode-streaming-tools.test.ts)
+Runner lease remains valid. The [proxy regression](../../packages/outpost-runner/src/live/runnerd-opencode-streaming-tools.test.ts)
 checks delayed delivery, one tool call, and a settled next run with a deterministic
-provider. The [bridge suite](../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.test.ts)
+provider. The [bridge suite](../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.test.ts)
 covers result replay, cancellation and teardown. These are local protocol checks;
 live provider and deployed access remain separate checks in the
 [session recipe](../feature-map/runs-adapters.md#session).
@@ -479,7 +479,7 @@ invalidation. Verify saved configuration, current versus historical run identity
 restart and follow-up without granting session-reset authority to an agent.
 
 Scoped Evidence: `source-only` — the
-[native transport](../../packages/paperclip-runner/src/live/runnerd-codex-transport.ts)
+[native transport](../../packages/outpost-runner/src/live/runnerd-codex-transport.ts)
 joins owned startup before certifying cleanup. Rejected duplicates cannot replace
 that owner or mutate recovery state. Unconfirmed preparation or registration
 retains recovery state; late registration may release only its own route and
@@ -494,7 +494,7 @@ readiness/recovery fixtures and installed provider acceptance remain separate ga
 Scoped shutdown source review: 2026-10-14, against literal
 `651a3de64fc943216cc414b64b1443809f9499da`. The suspension barrier bounds remote
 state reads by its remaining deadline and rejects late proof. Intentional
-[provider ingress shutdown](../../server/src/realtime/runner-prp-outbound.ts)
+[provider ingress shutdown](../../server/src/realtime/runner-orp-outbound.ts)
 joins physical socket closure and retires the connection owner before endpoint
 release. Unconfirmed termination stays blocked. Existing fake-peer and delayed
 read controls are source evidence; this changes no actor, company, account or

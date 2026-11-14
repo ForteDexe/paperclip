@@ -4,7 +4,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activityLog, agents, authUsers, companyMemberships, companySkillRepositorySnapshots, principalPermissionGrants, environments, environmentLeases, companies, completionContracts, costEvents, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, executionWorkspaces, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations, type Db } from "@paperclipai/db";
+import { activityLog, agents, authUsers, companyMemberships, companySkillRepositorySnapshots, principalPermissionGrants, environments, environmentLeases, companies, completionContracts, costEvents, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, executionWorkspaces, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations, type Db } from "@outpost/db";
 import { accountRunCost } from "../run-cost-accounting.js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +24,7 @@ import { nativeRuntimeContextFixture } from "../native-runtime/runtime-context.t
 import { prepareNativeWorkspaceSync } from "../native-runtime/native-workspace-sync.js";
 import { resolveHeartbeatNativeRuntimeMode } from "../native-runtime/runtime-mode.js";
 import { claimNativeRestartRecoveries } from "../native-runtime/native-restart-recovery.js";
-import { buildNativeModelEnvelope, canonicalNativeRuntimeContextDigest } from "../../vendor/paperclip-runner/index.js";
+import { buildNativeModelEnvelope, canonicalNativeRuntimeContextDigest } from "../../vendor/outpost-runner/index.js";
 import { prepareAndSelectHeartbeatRuntime, selectHeartbeatRuntime, type HeartbeatRuntimeSelectionInput } from "./runtime-selection.js";
 import { resolveRunnerEnvironmentForRun, resolveWarmRunnerIdleTimeoutMsForRun } from "../runner-environment-lifecycle.js";
 import { reserveRunBudget } from "../budget-reservations.js";
@@ -44,7 +44,7 @@ vi.mock("../native-runtime/native-workspace-sync.js", async (original) => ({
   prepareNativeWorkspaceSync: vi.fn(async () => null),
 }));
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_RUNTIME_SELECTION_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_RUNTIME_SELECTION_TEST_DATABASE_URL");
 const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -72,7 +72,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     });
   });
 
-  async function fixture(adapterType = "paperclip_runner") {
+  async function fixture(adapterType = "outpost_runner") {
     const [company] = await db.insert(companies).values({ name: "Runtime selection", issuePrefix: "SEL" }).returning();
     const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Selecting agent", status: "running", adapterType, adapterConfig: { provider: "codex", model: "gpt-5.6-luna" } }).returning();
     const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Complete this task", description: "Preserve the requested work", assigneeAgentId: agent.id }).returning();
@@ -100,10 +100,10 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
   it("rejects invalid local Runner configuration before native authority and retains the preparation owner", async () => {
     const f = await fixture();
     await claimPreparation(f);
-    vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "relative-invalid-dot-retry-controller");
-    f.input.runtimeEnv = { PAPERCLIP_RUNNER_BINARY: join(tmpdir(), "ignored-injected-runnerd") };
+    vi.stubEnv("OUTPOST_RUNNER_BINARY", "relative-invalid-dot-retry-controller");
+    f.input.runtimeEnv = { OUTPOST_RUNNER_BINARY: join(tmpdir(), "ignored-injected-runnerd") };
     const before = await read(f.run.id);
-    await expect(selectHeartbeatRuntime(db, f.input)).rejects.toThrow("PAPERCLIP_RUNNER_BINARY must be an absolute path");
+    await expect(selectHeartbeatRuntime(db, f.input)).rejects.toThrow("OUTPOST_RUNNER_BINARY must be an absolute path");
     expect(await read(f.run.id)).toEqual(before);
     expect(await coordinators(f.run.id)).toEqual([]);
     expect(await db.select().from(completionContracts)).toHaveLength(0);
@@ -113,8 +113,8 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it("ignores an injected runtime Runner value that the local backend does not consume", async () => {
     const f = await fixture();
-    vi.stubEnv("PAPERCLIP_RUNNER_BINARY", join(tmpdir(), "configuration-only-controller-runnerd"));
-    f.input.runtimeEnv = { PAPERCLIP_RUNNER_BINARY: "relative-ignored-injected-runnerd" };
+    vi.stubEnv("OUTPOST_RUNNER_BINARY", join(tmpdir(), "configuration-only-controller-runnerd"));
+    f.input.runtimeEnv = { OUTPOST_RUNNER_BINARY: "relative-ignored-injected-runnerd" };
     expect((await selectHeartbeatRuntime(db, f.input)).selected).toBe(true);
     expect((await read(f.run.id)).runtimeMode).toBe("native");
     expect(await coordinators(f.run.id)).toHaveLength(1);
@@ -122,7 +122,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it("does not apply local Runner configuration to remote native selection", async () => {
     const f = await fixture();
-    vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "relative-unused-remote-controller");
+    vi.stubEnv("OUTPOST_RUNNER_BINARY", "relative-unused-remote-controller");
     f.input.workspace.executionTarget = sandbox;
     expect((await selectHeartbeatRuntime(db, f.input)).selected).toBe(true);
     expect((await read(f.run.id)).runtimeMode).toBe("native");
@@ -137,7 +137,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     f.input.run = saved;
     f.input.session.persistedRunnerProfile = saved.runnerProfileJson ?? {};
     f.input.session.persistedNativeExecutionInput = selected.nativeExecution;
-    vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "relative-unused-recovery-controller");
+    vi.stubEnv("OUTPOST_RUNNER_BINARY", "relative-unused-recovery-controller");
     const resumed = await selectHeartbeatRuntime(db, f.input);
     expect(resumed).toMatchObject({ selected: true, nativeExecution: selected.nativeExecution, nativeRunnerInstanceId: selected.nativeRunnerInstanceId });
     expect((await read(f.run.id)).runnerProfileJson).toEqual(saved.runnerProfileJson);
@@ -147,7 +147,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
   async function connectorFixture(durable = true) {
     const f = await fixture(), { input } = f;
     const home = await mkdtemp(join(tmpdir(), "selection-connector-assets-"));
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     const config = await applyConnectorSkills({}, [], [{ key: "slack", label: "Slack", skillKey: "paperclipai/paperclip/slack",
       resources: [{ id: "synthetic-channel", label: "Fixture channel", connectionId: randomUUID() }],
       tools: [{ name: "fixture_read", description: "Read synthetic messages", inputSchema: { type: "object" } }] }]);
@@ -186,7 +186,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       const original = selected.nativeExecution.runtimeContext.skills[0]!;
       expect(original.versionId).toBeNull();
       const files = await Promise.all(["SKILL.md", "TOOLS.json"].map(async name => ({ name, bytes: await readFile(join(original.bundle.rootPath, name)) })));
-      vi.stubEnv("PAPERCLIP_HOME", join(home, "cold"));
+      vi.stubEnv("OUTPOST_HOME", join(home, "cold"));
       const recovered = await rehydratePinnedSkillAssets(db, { companyId: agent.companyId, agentId: agent.id, runId: run.id }, selected.nativeExecution.runtimeContext);
       expect(recovered.skills[0]!.versionId).toBeNull();
       expect(recovered.skills[0]!.bundle.digest).toBe(original.bundle.digest);
@@ -267,7 +267,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
   it.each([false, true])("checkpoints the real instruction copy under the selected agent-default warm policy (changed: %s)", async changed => {
     const { input, issue, agent, run } = await fixture();
     const userId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID();
-    vi.stubEnv("PAPERCLIP_HOME", instructionRoot);
+    vi.stubEnv("OUTPOST_HOME", instructionRoot);
     const { resolveManagedInstructionsRoot } = await import("../agent-instructions.js");
     const canonical = resolveManagedInstructionsRoot(agent), remoteCwd = join(instructionRoot, randomUUID(), "task");
     await mkdir(canonical, { recursive: true }); await mkdir(remoteCwd, { recursive: true });
@@ -279,8 +279,8 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       runner: { execute: async (command: { command: string; args?: string[]; cwd?: string; env?: Record<string,string>; stdin?: string; timeoutMs?: number }) => {
         const args = [...(command.args ?? [])], env = { PATH: process.env.PATH, ...command.env };
         if (command.stdin != null && (args[0] === "-c" || args[0] === "-lc")) {
-          Object.assign(env, { PAPERCLIP_TEST_STDIN: command.stdin });
-          args[1] = `printf '%s' "$PAPERCLIP_TEST_STDIN" | (${args[1]})`;
+          Object.assign(env, { OUTPOST_TEST_STDIN: command.stdin });
+          args[1] = `printf '%s' "$OUTPOST_TEST_STDIN" | (${args[1]})`;
         }
         const result = await execute(command.command, args, { cwd: command.cwd, env, timeout: command.timeoutMs, maxBuffer: 32 * 1024 * 1024 });
         return { exitCode: 0, signal: null, timedOut: false, ...result, pid: null, startedAt: new Date().toISOString() };
@@ -384,7 +384,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     const { input, run, agent, issue } = await fixture();
     const sessionId = randomUUID(), operationId = randomUUID();
     const logicalCwd = "/paperclip/legacy/task-workspace";
-    const marker = { schema: "paperclip.native-workspace-migration.v1", operationId };
+    const marker = { schema: "outpost.native-workspace-migration.v1", operationId };
     const [workspace] = await db.insert(executionWorkspaces).values({
       companyId: agent.companyId, sourceIssueId: issue.id, name: "Migrated workspace",
       mode: "shared_workspace", strategyType: "project_primary", cwd: "/tmp/ephemeral/task-workspace",
@@ -393,7 +393,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     await db.insert(workspaceOperations).values({
       id: operationId, companyId: agent.companyId, executionWorkspaceId: workspace!.id,
       phase: "remote_workspace_migration", status: "succeeded", metadata: {
-        schema: "paperclip.remote-workspace-migration.v1", snapshotId: randomUUID(),
+        schema: "outpost.remote-workspace-migration.v1", snapshotId: randomUUID(),
         nativeSessionContinuity: { schema: marker.schema, remoteCwd: sandbox.remoteCwd, sessions: [{
           sourceRunId: randomUUID(), agentId: agent.id, issueId: issue.id,
           sessionId: sameSession ? sessionId : randomUUID(), logicalCwd,
@@ -428,9 +428,9 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
   });
 
   it.each([false, true])("persists the Cursor provider API placement and completion authority without a Computer lease (ephemeral: %s)", async ephemeral => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", String(ephemeral));
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", String(ephemeral));
     const { input, run, issue } = await fixture();
-    vi.stubEnv("PAPERCLIP_RUNNER_BINARY", "relative-unused-api-controller");
+    vi.stubEnv("OUTPOST_RUNNER_BINARY", "relative-unused-api-controller");
     input.agent = { ...input.agent, adapterConfig: { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification" } };
     await db.update(agents).set({ adapterConfig: input.agent.adapterConfig }).where(eq(agents.id, input.agent.id));
     input.workspace.activeEnvironmentLease = null;
@@ -696,7 +696,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       await db.update(heartbeatRuns).set({ resultJson: {
         startupCancellation: { beforeNativeSelection: false, errorCode: "cancelled", requestedAt: new Date().toISOString() },
         executionCancellation: { state: "requested" },
-        nativeCancellation: { schema: "paperclip.native-cancellation.v1", companyId: run.companyId, runId: run.id, issueId: issue.id,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId: run.companyId, runId: run.id, issueId: issue.id,
           scope: "run", reasonCode: "cancellation_run_only", intentId: `native-cancellation:${randomUUID()}`,
           intentAuditId: mode === "missing-audit" ? randomUUID() : intentAuditId, dispatchState: "pending", dispatched: false,
           effects: ["release_run_resources"] },
@@ -798,9 +798,9 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     input.nativeRuntimeResolution = resolveHeartbeatNativeRuntimeMode({ persisted: run, enabled: true, runtimeConfig: {}, adapterConfig, agent, issue, target: null, workspaceId: null });
     // An inheriting environment with its own idle window: the provider and the runner must use the same one.
     const environment = { driver: "sandbox" as const, config: { provider: "daytona", runnerIdleTimeoutMs: 900_000 } as Record<string, unknown> };
-    const view = resolveRunnerEnvironmentForRun(environment, "paperclip_runner", adapterConfig, undefined, undefined, { reusableLeaseSupported: true });
+    const view = resolveRunnerEnvironmentForRun(environment, "outpost_runner", adapterConfig, undefined, undefined, { reusableLeaseSupported: true });
     expect(view.config.reuseLease === true).toBe(mode === "warm");
-    const forwardedIdleMs = resolveWarmRunnerIdleTimeoutMsForRun(environment, "paperclip_runner", adapterConfig, undefined, { reusableLeaseSupported: true });
+    const forwardedIdleMs = resolveWarmRunnerIdleTimeoutMsForRun(environment, "outpost_runner", adapterConfig, undefined, { reusableLeaseSupported: true });
     input.workspace.executionTarget = { ...sandbox, reusableLeaseConfigured: view.config.reuseLease === true, effectiveCapabilities: { reusableLeases: true },
       runnerIdleTimeoutMs: 900_000 } as never;
     const stop = new Error("policy captured");
@@ -837,9 +837,9 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it("rejects resolved legacy execution on an ephemeral server before runtime admission", async () => {
     const { input, run } = await fixture("process");
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     expect(input.nativeRuntimeResolution.kind).toBe("legacy");
-    await expect(selectHeartbeatRuntime(db, input)).rejects.toThrow("native Paperclip Runner");
+    await expect(selectHeartbeatRuntime(db, input)).rejects.toThrow("native Outpost Runner");
     expect((await read(run.id)).runtimeMode).toBe("legacy");
     expect(await coordinators(run.id)).toHaveLength(0);
     expect(input.onNativeLifecycleSelected).not.toHaveBeenCalled();
@@ -848,7 +848,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it.each(["warm", "per_turn"] as const)("preserves resolved %s policy on an ephemeral server", async mode => {
     const { input, run } = await fixture();
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     // Deliberately disagree with the resolved provider policy in both cases.
     input.agent.adapterConfig = { ...input.agent.adapterConfig, ...(mode === "per_turn" ? { lifecycleMode: "warm" } : {}) };
     input.workspace.executionTarget = { ...sandbox, reusableLeaseConfigured: true,
@@ -865,7 +865,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     { provider: "acpx", acpxAgent: "grok", model: "grok-4.7", credentialProvider: "xai" as const, method: "subscription" as const },
     { provider: "opencode", model: "openrouter/deepseek/deepseek-v4-flash-0731", credentialProvider: "openrouter" as const, method: "api_key" as const },
   ])("admits managed $provider/$acpxAgent on an ephemeral server without changing credential lifecycle", async profile => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     const { input, run, issue } = await fixture();
     const { credentialProvider, method, ...providerConfig } = profile;
     const adapterConfig = { ...providerConfig, lifecycleMode: "warm" };

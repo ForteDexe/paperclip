@@ -1,7 +1,7 @@
 import { notifyAttentionRetentionWork } from "./retention-work-notifications.js";
 import { createAgentLifecycle } from "./agent-lifecycle.js";
 import { and, eq, isNull, ne } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   companies,
@@ -9,14 +9,14 @@ import {
   pluginManagedResources,
   plugins,
   activityLog,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   Agent,
   PaperclipPluginManifestV1,
   PluginManagedAgentDeclaration,
   PluginManagedAgentResolution,
-} from "@paperclipai/shared";
-import { agentHarnessType, agentRunner, isUuidLike } from "@paperclipai/shared";
+} from "@outpost/shared";
+import { agentHarnessType, agentRunner, isUuidLike } from "@outpost/shared";
 import { conflict, forbidden, notFound } from "../errors.js";
 import { agentService } from "./agents.js";
 import { resolveNewAgentRunnerForCompany } from "./agent-runner-selection.js";
@@ -650,7 +650,7 @@ export function pluginManagedAgentService(
       const adapterType = await resolveManagedAdapterType(companyId, declaration);
       const defaults = declarationPatch(declaration, { adapterType });
       const sameCodexHarness = adapterType === "codex_local" && agentHarnessType(reconciled.agent.adapterType, reconciled.agent.adapterConfig) === adapterType;
-      const retainedNative = sameCodexHarness && reconciled.agent.adapterType === "paperclip_runner";
+      const retainedNative = sameCodexHarness && reconciled.agent.adapterType === "outpost_runner";
       const resetAdapterConfig = { ...defaults.adapterConfig };
       if (retainedNative) {
         for (const field of ["provider", "acpxAgent", "acpxMode"]) {

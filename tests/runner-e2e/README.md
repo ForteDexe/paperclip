@@ -10,20 +10,20 @@ It is experimental and unqualified until all four real cells pass.
 Model acknowledgement and provider dollar cost remain
 unavailable; catalog discovery and support tests are not live acceptance.
 
-Configure `PAPERCLIP_CURSOR_CLOUD_ACCEPTANCE_MODEL` with an exact account model,
-`PAPERCLIP_CURSOR_CLOUD_ACCEPTANCE_REPO` with an owned disposable HTTPS repository,
-optional `PAPERCLIP_CURSOR_CLOUD_ACCEPTANCE_REF`, and `CURSOR_API_KEY`.
-Set `PAPERCLIP_CURSOR_CLOUD_CALLBACK_PORT` to a dedicated free loopback port and
+Configure `OUTPOST_CURSOR_CLOUD_ACCEPTANCE_MODEL` with an exact account model,
+`OUTPOST_CURSOR_CLOUD_ACCEPTANCE_REPO` with an owned disposable HTTPS repository,
+optional `OUTPOST_CURSOR_CLOUD_ACCEPTANCE_REF`, and `CURSOR_API_KEY`.
+Set `OUTPOST_CURSOR_CLOUD_CALLBACK_PORT` to a dedicated free loopback port and
 point an HTTPS tunnel at **that port only**. After approving unpriced provider
 spend for these disposable tests, set
-`PAPERCLIP_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION=1`. Missing opt-in blocks
+`OUTPOST_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION=1`. Missing opt-in blocks
 before credential loading or fixture creation. Each fresh Cursor Cloud fixture
 sets and reads back only its company and agent monthly billed-cost policies:
 1,000 cents, active hard stops, and `unpricedUsagePolicy: allow`. A failed or
 mismatched readback blocks task dispatch. The verified policy receipt is retained
 in `fixtures.json`. These limits still stop known billed costs; they do not cap
 unpriced usage. Provider cost remains unavailable, never inferred as zero.
-Set `PAPERCLIP_PUBLIC_URL` to the
+Set `OUTPOST_PUBLIC_URL` to the
 tunnel's origin. The E2E wrapper exposes only POST `/mcp/native-runs/:runId`
 through this listener; it rejects the UI and `/api/` paths. Public ingress is
 checked before fixtures or provider work. Never tunnel the local operator app.
@@ -170,8 +170,8 @@ credentials remain outside the task snapshot root. Catalog discovery and local
 grader calibration do not establish a live pass.
 
 ```sh
-PAPERCLIP_RUNNER_E2E_WORKSPACE_STORAGE_BUCKET=<owned-disposable-bucket> \
-PAPERCLIP_RUNNER_E2E_WORKSPACE_STORAGE_REGION=us-east-1 \
+OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_BUCKET=<owned-disposable-bucket> \
+OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_REGION=us-east-1 \
 pnpm test:e2e:runner -- --id remote-workspace-storage.runner-codex.daytona.recover-controller --max-automatic-retries 0
 ```
 
@@ -206,14 +206,14 @@ before handoff, then requires a new controller generation, authenticated Runner
 attachment, and new canonical events for the original execution. No fixture
 modifies leases, checkpoints, provider identity, or completed work.
 
-Before paid execution, set `PAPERCLIP_ROLLING_TEST_STORAGE_CONFIG` and the
-loopback `PAPERCLIP_TEST_DATABASE_URL`, then run
+Before paid execution, set `OUTPOST_ROLLING_TEST_STORAGE_CONFIG` and the
+loopback `OUTPOST_TEST_DATABASE_URL`, then run
 `tests/runner-e2e/controller-replacement-smoke.ts` through the existing tsx loader.
 It exercises the actual supervisor and two replacements without an agent and
 explicitly records `activeAgentContinuityQualified: false`.
 
-Optional `PAPERCLIP_RUNNER_E2E_WORKSPACE_STORAGE_ENDPOINT` and
-`PAPERCLIP_RUNNER_E2E_WORKSPACE_STORAGE_FORCE_PATH_STYLE=true` select a test S3
+Optional `OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_ENDPOINT` and
+`OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_FORCE_PATH_STYLE=true` select a test S3
 endpoint. Each attempt has a distinct `runner-e2e/<instance-id>/` prefix. The
 server rejects mixed selections and never adopts ambient production storage
 configuration. Provider environment variables and immutable image selection use
@@ -234,7 +234,7 @@ Repeated tasks or runs cannot count as fresh attempts. Each journey requires
 its independent durable-state, output, rendered-conversation, and delivery checks.
 An agent's success prose cannot satisfy these checks.
 
-Set `PAPERCLIP_DEPENDABLE_QUALIFICATION_MANIFEST` to a private JSON file matching
+Set `OUTPOST_DEPENDABLE_QUALIFICATION_MANIFEST` to a private JSON file matching
 `DependableQualification` when generating the ordinary Product E2E report. It
 writes `dependable-qualification.json` beside the existing report and makes an
 incomplete checkpoint fail that report command. The checkpoint reads the entire
@@ -299,7 +299,7 @@ have four development cells: Codex `gpt-6.1-sol` and Claude `claude-opus-5-5`,
 on local and Daytona environments. Each uses production hire instructions,
 one attempt, one expected provider admission, and 1,000-cent company and agent
 hard stops. The conversion journey creates a real legacy agent and selects
-Paperclip Runner through the public agent update API. It checks retained
+Outpost Runner through the public agent update API. It checks retained
 configuration, encrypted secret references, environment, instructions, and
 corresponding permission policy before submitting work through the browser.
 The disposable legacy profile starts without optional CLI-only extra arguments.
@@ -502,7 +502,7 @@ For family selection, ownership, provenance, history, and failure taxonomy,
 see the [Paperclip evaluation guide](../../doc/evals.md). This README is the
 authoritative runbook for Product E2E runner cells; the separate Runner Evals
 protocol guide lives at
-`packages/paperclip-runner/docs/runner-protocol-live-evals.md`.
+`packages/outpost-runner/docs/runner-protocol-live-evals.md`.
 
 This is the billable browser acceptance campaign system for Paperclip runner
 profiles. It is deliberately separate from `tests/e2e`: every independently
@@ -595,7 +595,7 @@ The browser creates and assigns the task; fixtures use public APIs. The
 `accept-while-running` case additionally holds the committed card’s creation
 response in the test server until browser acceptance, to exercise real overlap.
 
-The launcher always sets `PAPERCLIP_ANNOUNCEMENTS_ENABLED=false` for its isolated
+The launcher always sets `OUTPOST_ANNOUNCEMENTS_ENABLED=false` for its isolated
 instances so announcement panels do not obscure screenshot evidence. No shell
 or workflow configuration is needed, including for Daytona cells.
 
@@ -811,8 +811,8 @@ Shell variables take precedence over the local file. The recognized names are:
 - `DAYTONA_API_KEY`
 - `CURSOR_AUTH_TOKEN` (extended Cursor candidate)
 - `COPILOT_GITHUB_TOKEN` (extended Copilot candidate)
-- `PAPERCLIP_E2E_DAYTONA_IMAGE` (Daytona only)
-- `PAPERCLIP_E2E_DAYTONA_NODE_SHA256` and `PAPERCLIP_E2E_DAYTONA_RUNNERD_SHA256` (native Cursor/Pi/Copilot Daytona fixtures; exact `sha256:...` executable digests from that image)
+- `OUTPOST_E2E_DAYTONA_IMAGE` (Daytona only)
+- `OUTPOST_E2E_DAYTONA_NODE_SHA256` and `OUTPOST_E2E_DAYTONA_RUNNERD_SHA256` (native Cursor/Pi/Copilot Daytona fixtures; exact `sha256:...` executable digests from that image)
 
 The image must be an immutable `image@sha256:...` reference. The launcher
 reports missing variable names but never prints values. It passes raw provider
@@ -832,7 +832,7 @@ inputs, or a tracked env file.
 
 ## Private framework evidence
 
-The protected TestOps reporter (`PAPERCLIP_CHAT_COMPLETION_TESTOPS=v1`) uses
+The protected TestOps reporter (`OUTPOST_CHAT_COMPLETION_TESTOPS=v1`) uses
 Playwright's official JSON and JUnit reporters only with an approved private-cell
 preflight. Other runs, including generic private full-stack runs, keep the existing
 HTML and blob reporters. A setup failure can retain its SDK audit without a
@@ -860,7 +860,7 @@ A complete evidence transfer does not attest that the feature passed.
 ## Local commands
 
 When the host cannot start embedded Postgres, set
-`PAPERCLIP_RUNNER_E2E_POSTGRES_ADMIN_URL` to an explicitly supplied loopback
+`OUTPOST_RUNNER_E2E_POSTGRES_ADMIN_URL` to an explicitly supplied loopback
 test Postgres administrator. The launcher creates a new `runner_e2e_<random>`
 database per attempt; the serving app applies its migrations. This does not
 reuse the administrator URL's database. The administrator variable is not
@@ -874,7 +874,7 @@ runner binaries:
 ```bash
 pnpm install
 pnpm exec playwright install chromium
-pnpm --filter @paperclipai/paperclip-runner run build:runner-binaries
+pnpm --filter @outpost/outpost-runner run build:runner-binaries
 ```
 
 List cells without loading credentials or starting Paperclip:
@@ -1164,7 +1164,7 @@ GitHub discovery is simulated, scoped to a fixture-only credential; repository
 permissions and mutations remain real. Run it with:
 
 ```bash
-pnpm --filter @paperclipai/ui build
+pnpm --filter @outpost/ui build
 pnpm test:e2e tests/e2e/agent-chat.spec.ts
 # Against a dedicated authenticated test instance configured per that suite:
 pnpm test:e2e:multiuser-authenticated --grep 'agent chats'
@@ -1189,7 +1189,7 @@ AND semantics. `--id` is exclusive with dimension selectors and `--all`.
 selector, an empty selection, or a run with no explicit selector exits before
 Paperclip starts. `--max-parallel <n>` controls the number of isolated
 profile/environment/case harnesses that can overlap (default 1, also configurable
-with `PAPERCLIP_E2E_MAX_PARALLEL`). `--max-automatic-retries <0|1>` controls the
+with `OUTPOST_E2E_MAX_PARALLEL`). `--max-automatic-retries <0|1>` controls the
 launcher retry budget (default 1). Set it to 0 for a single-attempt comparison;
 it suppresses both transient-infrastructure and provider-variance retries while
 preserving the original failure classification. Headed/UI/debug runs are forced
@@ -1283,9 +1283,9 @@ image="ghcr.io/paperclipai/paperclip-daytona-runner:e2e-content-${content_id}"
 if ! docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
   docker buildx build \
     --platform linux/amd64 \
-    --build-arg "PAPERCLIP_RUNNER_CONTENT_ID=${content_id}" \
-    --build-arg "PAPERCLIP_RUNNER_SOURCE_REVISION=${source_revision}" \
-    --build-arg "PAPERCLIP_RUNNER_LOCK_SHA256=${lock_sha}" \
+    --build-arg "OUTPOST_RUNNER_CONTENT_ID=${content_id}" \
+    --build-arg "OUTPOST_RUNNER_SOURCE_REVISION=${source_revision}" \
+    --build-arg "OUTPOST_RUNNER_LOCK_SHA256=${lock_sha}" \
     --file docker/daytona-runner/Dockerfile \
     --tag "$image" \
     --push \
@@ -1301,13 +1301,13 @@ so the content ID, provenance, and lockfile digest describe the same tree.
 
 The content ID hashes the audited image inputs, including the Dockerfile,
 platform, root package/lock/build configuration, dependency patches,
-`paperclip-eval-kernel`, and `paperclip-runner`. Changes elsewhere in the
+`outpost-eval-kernel`, and `outpost-runner`. Changes elsewhere in the
 repository keep the same tag and reuse the already signed image. The Git SHA is
 stored separately as image provenance. CI reads that provenance back from a
 reused image when it builds the controller-side provider pack, preserving the
 exact manifest match required to avoid restaging the pack into Daytona.
 
-Resolve the manifest digest and set `PAPERCLIP_E2E_DAYTONA_IMAGE` to
+Resolve the manifest digest and set `OUTPOST_E2E_DAYTONA_IMAGE` to
 `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:...`. The repository
 workflow signs that digest with Cosign/OIDC and verifies that it is publicly
 pullable, includes the provider pack, and advertises `dial_ws_loopback`,
@@ -1318,15 +1318,15 @@ content tags are never rebuilt or overwritten by the workflow.
 ### Match the local controller package to the Daytona image
 
 When the controller runs on macOS or another platform different from the sandbox,
-set `PAPERCLIP_RUNNER_REMOTE_BINARY_PATH` to a verified Linux amd64
-`paperclip-runnerd`, such as the binary copied from `/usr/local/bin/paperclip-runnerd`
+set `OUTPOST_RUNNER_REMOTE_BINARY_PATH` to a verified Linux amd64
+`outpost-runnerd`, such as the binary copied from `/usr/local/bin/outpost-runnerd`
 in the pinned image. The controller must have these exact bytes for its artifact
 identity check. A local macOS runner cannot substitute for the Linux binary,
 even when the sandbox image contains a compatible runner. This also applies to
 native Codex cells, which do not otherwise need the remote provider pack below.
 
 Native ACPX (including Claude) and OpenCode Daytona cells also require
-`PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH` on the controller. The package and
+`OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH` on the controller. The package and
 the image must come from the same verified build. Equal provider version numbers
 are insufficient: verification compares the complete manifest, source revision,
 Node executable, lockfile, and built bridge hashes. An independently rebuilt
@@ -1342,19 +1342,19 @@ match. Docker must be running; the temporary container below is never started.
 ```sh
 (
   set -eu
-  : "${PAPERCLIP_E2E_DAYTONA_IMAGE:?Set the verified immutable image digest}"
-  case "$PAPERCLIP_E2E_DAYTONA_IMAGE" in
+  : "${OUTPOST_E2E_DAYTONA_IMAGE:?Set the verified immutable image digest}"
+  case "$OUTPOST_E2E_DAYTONA_IMAGE" in
     *@sha256:*) ;;
     *) echo "Use an immutable image digest" >&2; exit 1 ;;
   esac
-  docker pull --platform linux/amd64 "$PAPERCLIP_E2E_DAYTONA_IMAGE"
+  docker pull --platform linux/amd64 "$OUTPOST_E2E_DAYTONA_IMAGE"
   pack_dir="$(mktemp -d "${TMPDIR:-/tmp}/paperclip-e2e-provider-pack.XXXXXX")"
   container_id="$(docker create --platform linux/amd64 --network none \
-    --entrypoint /bin/true "$PAPERCLIP_E2E_DAYTONA_IMAGE")"
+    --entrypoint /bin/true "$OUTPOST_E2E_DAYTONA_IMAGE")"
   trap 'docker rm "$container_id" >/dev/null' EXIT
-  docker cp "$container_id:/opt/paperclip-runner/provider-pack/." "$pack_dir/"
+  docker cp "$container_id:/opt/outpost-runner/provider-pack/." "$pack_dir/"
   test -f "$pack_dir/provider-pack.json"
-  printf 'Set PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH to: %s\n' "$pack_dir"
+  printf 'Set OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH to: %s\n' "$pack_dir"
 )
 ```
 
@@ -1379,14 +1379,14 @@ published with permanent campaign dashboards; fixture authors must therefore
 keep credentials and other private data out of every captured UI state. SVG is
 active content and is rejected from the packaged evidence entirely.
 
-For native matrix campaigns, set `PAPERCLIP_RUNNER_E2E_RESULTS_ROOT` to a
+For native matrix campaigns, set `OUTPOST_RUNNER_E2E_RESULTS_ROOT` to a
 dedicated normalized absolute directory outside the checkout, for example
 `/private/tmp/paperclip-product-evidence`. Final attempt packages, campaign JSON,
 and dashboards are written there directly, so removing a checkout does not
 remove their evidence. The default remains `tests/runner-e2e/results`.
 Empty/relative paths, traversal, filesystem/home/checkout roots, and symbolic-link
 paths are rejected before credentials load. The output root is owner-only.
-Use a distinct `PAPERCLIP_E2E_CAMPAIGN_ID` for each invocation to preserve earlier
+Use a distinct `OUTPOST_E2E_CAMPAIGN_ID` for each invocation to preserve earlier
 attempts. This changes storage only; required evidence, redaction, grades, and
 temporary-instance cleanup retain their existing checks. Provider-connection,
 GitHub-review, and product-journey launchers retain their separate output contracts.
@@ -1468,7 +1468,7 @@ with a partial-amount label and incomplete billing coverage. The CI report job s
 Campaign billing retains a separate numeric receipt for each attempt, including
 failed retries. The selected result still controls the grade and result card.
 Copies of the same attempt do not add another charge. The supervisor stamps a
-campaign/attempt identity; CI cells share `PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID`
+campaign/attempt identity; CI cells share `OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID`
 while retaining their separate artifact directories. Report regeneration keeps
 these receipts and their totals. A later cleanup update replaces an earlier
 observation of the same attempt; contradictory costs at the same timestamp are
@@ -2030,9 +2030,9 @@ usage is not reported as free. Judge spend is shown separately and included in
 total estimated spend when known; provider/child usage stays in the run ledger.
 
 Regenerate normalized reports with the existing report command, pointing
-`PAPERCLIP_RUNNER_E2E_REPORT_ROOT` at that campaign,
-`PAPERCLIP_RUNNER_E2E_REPORT_OUT` at a fresh output directory, and
-`PAPERCLIP_RUNNER_E2E_EXPECTED_IDS` at the JSON array of selected execution IDs.
+`OUTPOST_RUNNER_E2E_REPORT_ROOT` at that campaign,
+`OUTPOST_RUNNER_E2E_REPORT_OUT` at a fresh output directory, and
+`OUTPOST_RUNNER_E2E_EXPECTED_IDS` at the JSON array of selected execution IDs.
 Then use the existing dashboard/history publication workflow. Merely running
 `test:e2e:runner:dashboard` reads the already normalized bundle; it never calls
 a judge or refreshes results from outside that bundle. Published campaign
@@ -2043,7 +2043,7 @@ bundles remain immutable; judge them before publishing.
 Use separate campaigns for each skill revision and three repetitions per
 case/provider (144 executions per revision), keeping source environment,
 provider/default model, credentials mode, case facts, and judge configuration
-matched. Set distinct `PAPERCLIP_E2E_CAMPAIGN_ID` values such as
+matched. Set distinct `OUTPOST_E2E_CAMPAIGN_ID` values such as
 `first-task-skill-a-r1` through `r3`, and repeat for skill B. Review actual model
 identities and instruction hashes before comparing; dirty working trees are
 explicitly marked. Do not pool results with mismatched configurations or treat
@@ -2159,7 +2159,7 @@ Browser-only regressions exercise delayed rendering without provider calls:
 ```sh
 pnpm test:e2e:runner:browser-support
 # To use an installed Chrome instead of Playwright's Chromium:
-PAPERCLIP_PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e:runner:browser-support
+OUTPOST_PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e:runner:browser-support
 ```
 
 ### Native provider continuity
@@ -2468,7 +2468,7 @@ charges are separate; unavailable receipts do not mean zero cost. The September
 $25 per provider and $25 coordinated infrastructure/diagnosis.
 
 The launcher binds only the selected candidate and exact discovered model in
-`PAPERCLIP_RUNNER_ACPX_QUALIFICATION`, a JSON array of `{agent,model}` pairs.
+`OUTPOST_RUNNER_ACPX_QUALIFICATION`, a JSON array of `{agent,model}` pairs.
 The server reads this operator environment at its normal runnerd construction
 boundary; agent config/environment cannot enable qualification. Normal hosts
 have no admission override. It does not bypass profile, executable, credential,
@@ -2640,7 +2640,7 @@ provider startup, and no action is published before the observer is armed.
 
 The observer watches registered targets (including transient create/delete), user
 workspace changes and the exact runner process plus descendants. The single
-controller-owned `.paperclip-runtime/paperclip-runner` subtree is excluded from
+controller-owned `.paperclip-runtime/outpost-runner` subtree is excluded from
 user-file inventory and mutation counts: it holds the binary, provider pack,
 context, active runtime state, and sandbox GitHub launchers, upload locks and
 per-command configuration. Launcher restaging after controller recovery uses
@@ -2652,7 +2652,7 @@ claim that runtime-internal writes are covered by the user-file oracle.
 A sealed receipt and bounded file bytes must reach the host before lease cleanup.
 Missing receipts, incomplete watches, ambiguous or reused process identities, and
 unproven retirement fail the cell. Sandbox deletion and host file copy-back cannot
-substitute for remote proof. The observed PRP environment identifier is retained
+substitute for remote proof. The observed ORP environment identifier is retained
 as unverified metadata; the remote process is bound through the exact sandbox,
 run ID, lifecycle, process group and executable digest. Same-UID observer isolation
 is not an adversarial operating-system sandbox test.
@@ -2739,7 +2739,7 @@ command origin before emitting permission evidence; Copilot can emit the
 permission notice first. Both still require the exact tool origin before Stop.
 
 Suite version 4 uses the normalized Product cancellation contract and writes
-`paperclip.e2e.native-active-stop-settlement.v2`. It requires the exact request,
+`outpost.e2e.native-active-stop-settlement.v2`. It requires the exact request,
 item and turn closure with `reason: turn_terminal`, followed by the same stream's
 `turn.cancelled` with `status: cancelled` and `error: null`. The Product harness
 emits these fields; raw backend-only cancellation metadata is not its contract.
@@ -2795,8 +2795,8 @@ the native lifecycle; its normalized input hash must also match the authority.
 Exactly one proposed body must hash to that normalized digest and equal exactly
 one accepted body; identical duplicate proposals or receipts still fail.
 
-Suite 8 writes `paperclip.e2e.copilot-semantic-completion.v2` and requires
-`paperclip.semantic_tool_receipt.v2` under `paperclip_semantic_tool_receipt_v2`.
+Suite 8 writes `outpost.e2e.copilot-semantic-completion.v2` and requires
+`outpost.semantic_tool_receipt.v2` under `paperclip_semantic_tool_receipt_v2`.
 The authority has exactly eight bounded details. An explicit null normalized
 digest is diagnostic only and cannot qualify a successful finish. Legacy v1
 receipts do not qualify fresh runs. This fixture depends on the corresponding
@@ -2872,7 +2872,7 @@ contribute to the existing billing contract. Evidence includes the waiting and
 final task screenshots, saved checkpoints, final observations, source revision,
 profile/model, catalog digest, and SHA-256 fingerprints of both changed skill
 files and the grader/flow in `snapshots/blocker-guidance.json`. Grader version
-`paperclip.blocker-guidance.v6` requires the approved public note, a saved answer
+`outpost.blocker-guidance.v6` requires the approved public note, a saved answer
 before the confirmation wake, and a new worker reply after the waiting checkpoint,
 accepts writable confirmations and multiple questions, and records `inputUx` separately from
 the blocking checks. Direct text input is the preferred UX for these open-ended
@@ -2901,10 +2901,10 @@ workspace so a user's installed skill cannot shadow the managed skill under test
 
 The 26 explicit Pi cells can run against an independently installed public CLI
 and server instead of the source CLI. Supply all four reviewed pins:
-`PAPERCLIP_RUNNER_E2E_INSTALLED_CLI` (canonical `paperclipai/dist/index.js`),
-`PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256` (bare SHA-256),
-`PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT` (canonical resolved public server
-package root), and `PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256` (its
+`OUTPOST_RUNNER_E2E_INSTALLED_CLI` (canonical `paperclipai/dist/index.js`),
+`OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256` (bare SHA-256),
+`OUTPOST_RUNNER_E2E_INSTALLED_SERVER_ROOT` (canonical resolved public server
+package root), and `OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256` (its
 `dist/index.js` SHA-256). The CLI must resolve that exact server dependency, with
 matching public package versions. Build/install provenance and the complete
 installed dependency/assets inventory remain separate required evidence; the
@@ -2946,10 +2946,10 @@ delivery, authentication, reasoning effort or follow-up behavior; the existing
 live journeys must prove those separately.
 
 Installed Pi Daytona cells also require the published plugin fixture inputs
-`PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN` (canonical package root),
-`PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_AUTHORITY` (canonical JSON file),
-and `PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_AUTHORITY_SHA256`.
-The authority schema `paperclip.e2e.installed-daytona-plugin/v1` pins a canonical
+`OUTPOST_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN` (canonical package root),
+`OUTPOST_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_AUTHORITY` (canonical JSON file),
+and `OUTPOST_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_AUTHORITY_SHA256`.
+The authority schema `outpost.e2e.installed-daytona-plugin/v1` pins a canonical
 `graphRoot` and four public packages (`plugin`, `sdk`, `shared`, `daytona`).
 Each has `root`, `packageSha256`, `entry`, and `entrySha256`; `plugin` also has
 `manifestSha256` and `workerSha256`. Roots must be the named packages beneath
@@ -2981,95 +2981,6 @@ in force. The installed lane invokes Playwright's public JavaScript bin directly
 with the current Node; pnpm's generated bin shim would inject `NODE_PATH` into
 the WebServer. Arbitrary ambient `NODE_OPTIONS` and `NODE_PATH` remain rejected.
 
-
-## Production hiring templates
-
-`hiring-templates` adds two explicit-only local cells:
-
-- `hiring-templates.runner-codex.local.hire-coder-template-reuse`
-- `hiring-templates.runner-acpx-claude.local.hire-coder-template-reuse`
-
-The fixture creates a CEO through the public API without an instructions bundle
-override, using production permission defaults and a personal managed AI
-connection. Chromium sends the same user request on candidate and baseline:
-use `paperclip-create-agent`, read its skill, drafting guide, review checklist
-and coder example, fill its name/company/manager/issue-prefix placeholders,
-hire one permanent coder with that example, and delegate a
-saved JSON label-normalization fixture. Reading the optional references is an
-explicit fixture user request. It is not an additional production requirement.
-A follow-up delegates a second fixture to the same coder with underscore
-separators while preserving the original. A final read-only chat turn requests
-recorded task status. Three CEO turns and two actual worker executions make
-**five required work turns per cell**, plus at most **two strictly attributed
-automatic task-completion turns** (seven total maximum), with a **15-minute
-deadline** and 1,000-cent
-company/CEO budget hard stops. Normal managed-account fixture cleanup and
-company-wide cancellation apply. Both cells opt into the existing native API
-tools. No model-authored code is executed by the grading host.
-
-The independent oracle checks every JSON input and computed value, authorship,
-two distinct completed tasks, project/reporting identity, exactly three user-requested
-CEO turns and one coder execution per task,
-managed execution-account attribution, original document preservation, and
-worker reuse. Bounded completion turns must have the same company, managed
-account, responsible user, chat generation and known completed tasks; unique
-server delivery/update receipts; valid completion timing; and a run-attributed
-chat reply. One completion turn may batch both tasks. Unknown, duplicate,
-failed, retried or extra work runs, and notification-created tasks fail. Every
-actual run remains in usage/cost accounting. The hiring scorer and final chat
-count guard use the same rule. All other chat count guards stay unchanged.
-
-The versioned `paperclip.hiring-templates.v3` oracle separately checks the production CEO bundle, assigned hiring
-skill, source hashes, completed pre-hire read receipts, the saved source-derived
-coder example, and durable instruction/skill selections.
-
-`loadDefaultAgentInstructionsBundle("ceo")` determines the expected files and
-bytes on each evaluated revision. A historical four-file CEO bundle and long
-coder example are admissible; the candidate is not imposed on the baseline.
-Instruction bytes and word counts are measurements, without a size pass/fail
-threshold. The definition digest fingerprints the cases, flow, grader, shared
-turn-accounting helper and final chat guard;
-source evidence also fingerprints the loader, generic execution contract,
-selected CEO files and production hiring references. Use the same fixture
-revision, scenario nonce, profile/model, managed account method and local
-environment when comparing candidate and baseline, and record each evaluated
-source SHA. Porting the fixture to a baseline is harness preparation, not a
-baseline runtime qualification.
-
-`hiring-template-source.json`, `hiring-template-initial.json`, and
-`hiring-template.json` retain source/bundle bytes, hashes, saved child documents,
-assigned skills, completed public run events, read receipts, budgets and grades
-inside the access-controlled evidence package. The final grade separates
-`outcomePassed` from `comparisonStatus` (`comparable` or `uncomparable`), with
-`outcome` and `coverage` matcher paths in the normal report. Missing, wrong,
-failed, post-hire or unidentifiable reads make source coverage uncomparable even
-when task outcomes pass. The existing machine failure classifier remains
-unchanged: a coverage-only failed attempt must be counted as an uncomparable
-pair, not presented as a workflow behavior regression or template equivalence.
-The new marked screenshot shows only the synthetic chat/task state; private
-snapshots follow the existing publication boundary.
-
-Read receipt support deliberately recognizes direct `cat`, positive-count
-`head`/`tail`, and printing-only `sed -n` argument forms. Help, version, zero-count,
-editing and unknown arguments do not count. It also recognizes
-canonical file-read events with a preserved relative skill path and completed
-output. ACPX redacts absolute file locations from canonical events; a read whose
-path no longer survives is unprovable and remains uncomparable. Echoing or
-listing a filename and successful task output do not prove a source read. No
-adapter event changes are part of this suite. Unit calibration and discovery do
-not qualify either live provider cell.
-
-```sh
-pnpm test:e2e:runner -- --list --suite hiring-templates
-# Only after separate approval for the bounded live run:
-pnpm test:e2e:runner -- --id hiring-templates.runner-codex.local.hire-coder-template-reuse --max-automatic-retries 0
-pnpm test:e2e:runner -- --id hiring-templates.runner-acpx-claude.local.hire-coder-template-reuse --max-automatic-retries 0
-```
-
-The existing `first-task` suite uses the actual onboarding wizard and captures
-the changed chief-of-staff persona and skill selections; it needs no fixture
-change for that default selection. Hiring from that wizard-created chief of
-staff remains a separate follow-up qualification.
 
 The explicit-only cell `confirmation-replies.runner-codex.daytona.task-card-accept`
 extends that wizard journey to one fresh managed company. Select this exact ID;
@@ -3115,7 +3026,7 @@ This keeps automatic title naming from introducing an unrelated permission
 request before the tested native write. Permission policy, provider prompts,
 command correlation, and no-effect assertions remain unchanged.
 
-Set `PAPERCLIP_RUNNER_E2E_INSTALLED_CLI` to the absolute public consumer's
+Set `OUTPOST_RUNNER_E2E_INSTALLED_CLI` to the absolute public consumer's
 `paperclipai/dist/index.js` for an installed-product acceptance run. Install the
 public package graph and run its ordinary `runtime setup cursor` first. The
 supervisor launches that compiled CLI from its own package directory; repository
@@ -3124,16 +3035,16 @@ native binary overrides are removed from the server environment. Qualification
 admission is rejected, so this path requires production admission. Use the
 existing browser/API cases and encrypted company-secret fixture path.
 
-Install the public `@paperclipai/plugin-daytona` package separately for a Daytona
-smoke. Set `PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN` to its absolute installed
+Install the public `@outpost/plugin-daytona` package separately for a Daytona
+smoke. Set `OUTPOST_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN` to its absolute installed
 package directory when it has its own dependency root. The fixture checks its
 compiled entries and release version before provisioning. The version must match
 the installed CLI by default. If the release uses independent plugin versions,
-set `PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_VERSION` to the exact plugin
+set `OUTPOST_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_VERSION` to the exact plugin
 version in the release record. Record the plugin tarball SHA-256 with that version;
 do not substitute a workspace build or an older installed plugin.
 
-For a diagnosed failure campaign, `PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE=1`
+For a diagnosed failure campaign, `OUTPOST_RUNNER_E2E_KEEP_FAILED_PRIVATE=1`
 retains the attempt's owner-only private directory after a failed case even
 when owned cleanup passed. This does not alter the case or cleanup outcome.
 Private traces and database files must not be published. Unconfirmed cleanup
@@ -3209,8 +3120,8 @@ before creating the task through the browser. No fixture copies the repository
 into an agent workspace.
 
 Set `GITHUB_TOKEN` with read access to that repository, `OPENAI_API_KEY`, and,
-for Daytona, `DAYTONA_API_KEY` and the immutable `PAPERCLIP_E2E_DAYTONA_IMAGE`.
-On macOS, also set `PAPERCLIP_RUNNER_REMOTE_BINARY_PATH` to the verified Linux
+for Daytona, `DAYTONA_API_KEY` and the immutable `OUTPOST_E2E_DAYTONA_IMAGE`.
+On macOS, also set `OUTPOST_RUNNER_REMOTE_BINARY_PATH` to the verified Linux
 runner from that pinned image, as described above.
 Credentials follow the existing encrypted company-secret and redaction paths.
 These tests send the selected private skill instructions to OpenAI and deliver
@@ -3390,7 +3301,7 @@ pnpm test:e2e:runner:dashboard -- /private/report --feedback-review /private/fee
 ```
 
 Alternatively, rebuild the same campaign and selection with
-`PAPERCLIP_E2E_FEEDBACK_REVIEW=/private/feedback-review.json`. Keep its original
+`OUTPOST_E2E_FEEDBACK_REVIEW=/private/feedback-review.json`. Keep its original
 campaign ID. The importer requires exactly one decision per collected group
 and rejects a review if retained attempts or feedback coverage changed. Blank
 templates cannot count as reviewed. Dashboard regeneration and publication
@@ -3443,7 +3354,7 @@ identity; ambiguous provider-request joins are rejected rather than double count
 
 ### Opt-in Braintrust traces
 
-Set `PAPERCLIP_E2E_BRAINTRUST_PROJECT_ID` to the destination project UUID and
+Set `OUTPOST_E2E_BRAINTRUST_PROJECT_ID` to the destination project UUID and
 provide `BRAINTRUST_API_KEY` securely to the launcher. An ambient key alone does
 not enable export. The launcher includes this key in secret scans and removes
 Braintrust variables from the server's inherited environment. Fixture setup
@@ -3462,8 +3373,8 @@ traces. A killed worker can leave a pending receipt, not a claimed successful ex
 
 `accepted` means the OTLP receiver accepted the batch; it does not establish that
 Braintrust indexed it or that native agent spans arrived. Search the project for
-`paperclip.eval.attempt_id` and its trace ID, then verify native records using the
-company ID and `paperclip.eval.run_ids`. The disposable company uses the custom
+`outpost.eval.attempt_id` and its trace ID, then verify native records using the
+company ID and `outpost.eval.run_ids`. The disposable company uses the custom
 OTLP destination at `https://api.braintrust.dev/otel` with a private `x-bt-parent`
 header containing the exported attempt parent. Braintrust attaches independent
 native trace roots beneath that attempt; native children keep their own hierarchy.
@@ -3483,7 +3394,7 @@ credential-header path, outside browser evidence.
 Attempt spans include suite ID and definition hash, profile, case, configured
 provider/model, source revision (or explicit `unknown`), and the runner-spec grader
 path. The source revision identifies that grader's implementation. Worker exports
-are marked `paperclip.eval.outcome_stage=worker`. After evidence packaging,
+are marked `outpost.eval.outcome_stage=worker`. After evidence packaging,
 gateway shutdown and outer cleanup, the supervisor updates the same attempt root
 with its final outcome and adds a finalization span. This preserves failures first
 discovered after the worker returned. The result retains a separate finalization
@@ -3538,7 +3449,7 @@ pnpm test:e2e:runner -- --id feedback-persistence.runner-acpx-claude.local.compl
 
 The default embedded PostgreSQL lane and portable CI behavior are unchanged.
 An explicit local alternative is available with
-`PAPERCLIP_RUNNER_E2E_DATABASE_LANE=owned-docker-postgres`. It requires an
+`OUTPOST_RUNNER_E2E_DATABASE_LANE=owned-docker-postgres`. It requires an
 already running local Unix-socket Docker Linux/arm64 engine and the installed
 official `postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336`
 image (PostgreSQL `18.6-1.pgdg13+2`); the harness never pulls an image or starts
@@ -3559,7 +3470,7 @@ resources. Run only from an audited immutable source snapshot after the
 operator has authorized this infrastructure check:
 
 ```sh
-PAPERCLIP_RUNNER_E2E_SOURCE_SHA=<snapshot-sha> node --import ./cli/node_modules/tsx/dist/loader.mjs tests/runner-e2e/docker-postgres-health.ts --run-owned-infrastructure-health
+OUTPOST_RUNNER_E2E_SOURCE_SHA=<snapshot-sha> node --import ./cli/node_modules/tsx/dist/loader.mjs tests/runner-e2e/docker-postgres-health.ts --run-owned-infrastructure-health
 ```
 
 Its receipt is retained under `results/chat-catalog-campaign/`; it is never a
@@ -3569,7 +3480,7 @@ unknown inspection result is not proof that a resource is absent.
 ### Chat catalog remote OpenCode campaign
 
 The explicit `chat-features` matrix now selects `runner-opencode` with native
-`paperclip_runner`, provider `opencode`, and exact model
+`outpost_runner`, provider `opencode`, and exact model
 `openrouter/deepseek/deepseek-v4.1-flash-1017`. Its credential is an encrypted
 `OPENROUTER_API_KEY` reference. OpenCode remains pinned to the runner-owned
 1.18.34 executable; this candidate does not change the previously qualified
@@ -3671,8 +3582,8 @@ Private JSON configuration files must be mode 600 and must not be committed:
 - Storage configuration: `{ "endpoint": "<local S3 endpoint>", "accessKeyId": "<key>", "secretAccessKey": "<secret>" }`.
 
 ```sh
-PAPERCLIP_ROLLING_TEST_DATABASE_CONFIG=/private/tmp/rolling-database.json \
-PAPERCLIP_ROLLING_TEST_STORAGE_CONFIG=/private/tmp/rolling-storage.json \
+OUTPOST_ROLLING_TEST_DATABASE_CONFIG=/private/tmp/rolling-database.json \
+OUTPOST_ROLLING_TEST_STORAGE_CONFIG=/private/tmp/rolling-storage.json \
 node --import ./cli/node_modules/tsx/dist/loader.mjs tests/runner-e2e/rolling-deployment-smoke.ts
 ```
 

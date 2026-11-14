@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import type { TaskBrowser } from "@paperclipai/shared";
+import type { TaskBrowser } from "@outpost/shared";
 import { taskBrowsersRefetchInterval } from "../hooks/useTaskBrowsers";
 import { refreshTaskBrowsers, taskBrowsersQueryKey } from "./task-browsers-refresh";
 

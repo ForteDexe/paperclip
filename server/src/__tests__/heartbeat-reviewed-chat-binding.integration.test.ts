@@ -24,8 +24,8 @@ import {
   nativeRunResults,
   statusDecisionEffects,
   workAssessments,
-} from "@paperclipai/db";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/db";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import {
   attestReviewedExternalChatRun,
@@ -88,7 +88,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         id: agentId,
         companyId,
         name: "Chat runner",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
         adapterConfig: { provider: "codex" },
         status: "active",
       });
@@ -599,7 +599,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
   async function finalizingPredecessor() {
     const predecessorRunId = randomUUID(), contractId = randomUUID(), resultId = randomUUID(), assessmentId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: ++predecessorContractRevision,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.insert(heartbeatRuns).values({ id: predecessorRunId, companyId, agentId, status: "running",
@@ -701,7 +701,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
           try {
             return await authorize(...args);
           } catch (error) {
-            expect(error).toMatchObject({ message: "paperclip_runner_chat_attachment_binding_denied" });
+            expect(error).toMatchObject({ message: "outpost_runner_chat_attachment_binding_denied" });
             await db.update(chatDeliveries)
               .set({ state: "processed", processedAt: new Date() })
               .where(eq(chatDeliveries.id, deliveryId));

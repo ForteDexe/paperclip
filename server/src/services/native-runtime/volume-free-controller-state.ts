@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { nativeHarnessStateBase } from "./native-harness-backup-stamp.js";
 
 const ownerFile = ".volume-free-owner.json";
-const ownerSchema = "paperclip.volume-free-controller-state.v1";
+const ownerSchema = "outpost.volume-free-controller-state.v1";
 
 export type VolumeFreeControllerStateClaim = "owned" | "claimed" | "unclaimed" | "released" | "absent";
 

@@ -21,16 +21,16 @@ async function invocationToolReads(ctx: ChatCatalogContext, runs: InternalObserv
       ctx.input.api.getRunObservation(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
     const uses = new Map<string, { inputSha256: string; operationId: string }>();
     for (const event of events) {
-      const prp = event.payload?.prpEvent as { eventType?: string; payload?: { name?: unknown; status?: unknown; output?: unknown; item?: Record<string, any> } } | undefined;
-      const item = prp?.payload?.item;
+      const orp = event.payload?.orpEvent as { eventType?: string; payload?: { name?: unknown; status?: unknown; output?: unknown; item?: Record<string, any> } } | undefined;
+      const item = orp?.payload?.item;
       if (item?.type === "tool_use" && item.name === "call_api" && item.input?.apiPayloadRedacted === true && typeof item.input.operationId === "string")
         uses.set(String(item.id), { inputSha256: String(item.input.apiPayloadSha256), operationId: item.input.operationId });
       const use = item?.type === "tool_result" ? uses.get(String(item.tool_use_id)) : undefined;
       if (use && item?.result?.apiOperationId === use.operationId && typeof item.result.status === "number")
         reads.push({ runId: run.id, name: "call_api", at: event.createdAt ?? "", output: "", apiRead: { ...use, ok: item.result.ok === true, status: item.result.status } });
-      if (prp?.eventType !== "tool.execution.completed" || prp.payload?.status !== "completed" || typeof prp.payload.name !== "string") continue;
-      const output = typeof prp.payload.output === "string" ? prp.payload.output : JSON.stringify(prp.payload.output ?? "");
-      reads.push({ runId: run.id, name: prp.payload.name, at: event.createdAt ?? "", output: output.slice(0, 8192) });
+      if (orp?.eventType !== "tool.execution.completed" || orp.payload?.status !== "completed" || typeof orp.payload.name !== "string") continue;
+      const output = typeof orp.payload.output === "string" ? orp.payload.output : JSON.stringify(orp.payload.output ?? "");
+      reads.push({ runId: run.id, name: orp.payload.name, at: event.createdAt ?? "", output: output.slice(0, 8192) });
     }
   }
   return reads;
@@ -110,7 +110,7 @@ export const integratorRoutineInvocationCases = [integratorDefinition("routines"
   if (!o || !task) throw new Error("Missing actual routine result task");
   await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, task.title!, resultHref(o, task.identifier ?? task.id, "issues") ?? resultHref(o, task.id, "issues"));
 }, {
-  oracleVersion: "paperclip.chat-catalog.integrator.routine-invocation.v4",
+  oracleVersion: "outpost.chat-catalog.integrator.routine-invocation.v4",
   sourceFiles: ["chat-catalog-domains/integrator-routine-invocation.ts", "chat-catalog-domains/api-read-receipts.ts", "run-observations.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/routines.yaml"],
   expectedRunCount: 3, expectedHumanMessageCount: 2, attemptTimeoutMs: 720_000,
   async act(ctx, state) {

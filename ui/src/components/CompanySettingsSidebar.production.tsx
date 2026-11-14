@@ -6,7 +6,7 @@ import {
   Puzzle,
   SlidersHorizontal,
 } from "lucide-react";
-import type { PluginRecord } from "@paperclipai/shared";
+import type { PluginRecord } from "@outpost/shared";
 import { pluginsApi } from "@/api/plugins";
 import { Link, NavLink } from "@/lib/router";
 import { INSTANCE_SETTINGS_PATH_PREFIX } from "@/lib/instance-settings";

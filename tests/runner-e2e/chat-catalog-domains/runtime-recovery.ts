@@ -16,7 +16,7 @@ async function settled(ctx: ChatCatalogContext, count: number) {
     reject: ({ runs }) => runs.some(run => ["failed", "cancelled", "timed_out"].includes(run.status)) ? "A continuity provider turn failed" : undefined });
 }
 export async function currentControllerFile(ctx: ChatCatalogContext, name: string) {
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT; if (!root) throw new Error("Continuity inspection requires the isolated attempt root");
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT; if (!root) throw new Error("Continuity inspection requires the isolated attempt root");
   await ctx.refreshIssue(); const source = ctx.issue();
   if (!source) throw new Error("Continuity file inspection requires its actual source");
   const issue = await ctx.input.api.get<{ companyId: string; executionWorkspaceId: string | null }>(`/api/issues/${source.id}`);

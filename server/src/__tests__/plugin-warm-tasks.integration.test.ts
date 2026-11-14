@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issues, plugins, projects, sandboxCreationOperations } from "@paperclipai/db";
+import { agents, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issues, plugins, projects, sandboxCreationOperations } from "@outpost/db";
 import { environmentRuntimeService } from "../services/environment-runtime.js";
 import { environmentService } from "../services/environments.js";
 import { recordSandboxCreationResource } from "../services/sandbox-creation-operations.js";
@@ -13,7 +13,7 @@ import { resolvePluginTaskResume } from "../services/environment-task-runtime.js
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
-const external=resolveExternalTestDatabaseUrl("PAPERCLIP_PLUGIN_WARM_TASKS_TEST_DATABASE_URL");
+const external=resolveExternalTestDatabaseUrl("OUTPOST_PLUGIN_WARM_TASKS_TEST_DATABASE_URL");
 const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("retained Codex plugin task leases",()=>{
  let db:ReturnType<typeof createDb>,stop:()=>Promise<void>;
@@ -28,7 +28,7 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
   let resumeGate:Promise<void>|undefined,releaseResume:(()=>void)|undefined,resumes=0;
   await db.insert(companies).values({id:companyId,name:"Warm fixture",issuePrefix:`W${companyId.slice(0,7)}`});
   for(const id of initialProjects) await db.insert(projects).values({id,companyId,name:"Authorized project"});
-  await db.insert(agents).values({id:agentId,companyId,name:"Codex",adapterType:"paperclip_runner"});
+  await db.insert(agents).values({id:agentId,companyId,name:"Codex",adapterType:"outpost_runner"});
   await db.insert(issues).values({id:issueId,companyId,title:"Warm task",status:"in_progress",assigneeAgentId:agentId});
   await db.insert(heartbeatRuns).values({id:runId,companyId,agentId,nativeIssueId:issueId,invocationSource:"manual",status:"running"});
   const [environment]=await db.insert(environments).values({id:environmentId,name:environmentId,driver:"plugin",status:"active",
@@ -57,7 +57,7 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
     return {kind:"accepted",taskId:p.taskId};
    }} as unknown as PluginWorkerManager;
   const runtime=(orphanCleanupSpoolDir?:string)=>environmentRuntimeService(db,{pluginWorkerManager:workers,orphanCleanupSpoolDir});
-  const acquire=()=>runtime().acquireRunLease({companyId,environment:environment as never,issueId,agentId,heartbeatRunId:runId,persistedExecutionWorkspace:null,adapterType:"paperclip_runner",runnerTaskProjectIds:projectIds,requestedExpiresAt:deadline});
+  const acquire=()=>runtime().acquireRunLease({companyId,environment:environment as never,issueId,agentId,heartbeatRunId:runId,persistedExecutionWorkspace:null,adapterType:"outpost_runner",runnerTaskProjectIds:projectIds,requestedExpiresAt:deadline});
   const first=await acquire();
   const identity={runnerInstanceId:"runner",environmentLeaseId:first.lease.id,runId,normalizedSessionId:"session",turnId:"turn",itemId:"item"};
   await runtime().task({companyId,leaseId:first.lease.id,operation:{kind:"check_project_auth",configurationId:"configuration",provider:"openai",projectIds:initialProjects}});
@@ -82,7 +82,7 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
   expect(next.lease.id).not.toBe(f.first.lease.id);
   const identity={...f.identity,runId,turnId:"next-turn",itemId:"next-item"};
   const operation={kind:"prepare" as const,projectIds:[],priorIdentity:f.identity,accountIdentity:"account",requirements:{
-   schema:"paperclip.runner.launch-requirements.v1" as const,identity,provider:"codex" as const,model:null,instructions:"Current run",runtimeContext:null,settings:{},approvalPolicy:"never" as const,readOnly:false,preparedConversation:false,includeCollaborationModeInstructions:false}};
+   schema:"outpost.runner.launch-requirements.v1" as const,identity,provider:"codex" as const,model:null,instructions:"Current run",runtimeContext:null,settings:{},approvalPolicy:"never" as const,readOnly:false,preparedConversation:false,includeCollaborationModeInstructions:false}};
   await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"read_state",identity:f.identity}})).resolves.toMatchObject({kind:"state"});
   await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation})).resolves.toMatchObject({kind:"prepared"});
   await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation})).resolves.toMatchObject({kind:"prepared"});

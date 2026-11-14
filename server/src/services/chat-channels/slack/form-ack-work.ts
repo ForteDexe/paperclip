@@ -3,7 +3,7 @@ import { readSlackFormOriginalProofs } from "./form-opening-proof.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { chatActions, type Db } from "@paperclipai/db";
+import { chatActions, type Db } from "@outpost/db";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "../../delivery-work-notifications.js";
 import { verifySlackFormFinalizedReceipt } from "./receipt-authority.js";
 import { SlackCloudReceiptError } from "./cloud-event.js";
@@ -171,7 +171,7 @@ export async function reconcileSlackFormNormalAck(db: Db, input: { companyId: st
 function verifyRetainedSlackAckReceipt(compactJws: string): SlackFormFinalizedReceipt {
   try { return verifySlackFormFinalizedReceipt({ compactJws }); }
   catch (error) {
-    if (error instanceof Error && ["PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS is not configured", "PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS is invalid",
+    if (error instanceof Error && ["OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS is not configured", "OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS is invalid",
       "Cloud runtime identity uses an unknown signing key"].includes(error.message)) throw new SlackCloudReceiptError("form_ack_verifier_unavailable", "retry");
     return fail("form_ack_receipt_invalid");
   }

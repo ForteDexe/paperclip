@@ -5,7 +5,7 @@ import path from "node:path";
 import { expect, it, vi } from "vitest";
 
 vi.mock("./plugin.js", async () => {
-  const { NOOP_PLUGIN_TRACER } = await import("@paperclipai/plugin-sdk");
+  const { NOOP_PLUGIN_TRACER } = await import("@outpost/plugin-sdk");
   return { getPluginTracer: () => NOOP_PLUGIN_TRACER };
 });
 import { performSyncOut } from "./file-sync.js";

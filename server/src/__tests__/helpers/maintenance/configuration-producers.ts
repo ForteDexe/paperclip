@@ -1,4 +1,4 @@
-import type { createDb } from '@paperclipai/db';
+import type { createDb } from '@outpost/db';
 import { expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -9,7 +9,7 @@ import type { startMaintenanceServer } from './server-harness.js';
 export async function produceCompletedToolReview(server: Awaited<ReturnType<typeof startMaintenanceServer>>, db: ReturnType<typeof createDb>, companyId: string) {
   await server.api('POST', `/companies/${companyId}/tools/policies`, { name: 'Review harmless qualification writes', policyType: 'require_approval', selectors: { toolName: 'mcp-remote-fixture:update_note' } });
   const readyPath = path.join(server.directory, `tool-review-ready-${randomUUID()}`);
-  const readyProgram = `const fs=require('node:fs');const marker=${JSON.stringify(readyPath)};fs.writeFileSync(marker+'.pending',process.env.PAPERCLIP_RUN_ID,{flag:'wx'});fs.renameSync(marker+'.pending',marker);setTimeout(()=>process.exit(0),60000)`;
+  const readyProgram = `const fs=require('node:fs');const marker=${JSON.stringify(readyPath)};fs.writeFileSync(marker+'.pending',process.env.OUTPOST_RUN_ID,{flag:'wx'});fs.renameSync(marker+'.pending',marker);setTimeout(()=>process.exit(0),60000)`;
   const agent = await server.api<{ id: string }>('POST', `/companies/${companyId}/agents`, { name: 'Owned tool review process', role: 'general', adapterType: 'process',
     adapterConfig: { command: process.execPath, args: ['-e', readyProgram], cwd: server.directory }, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } });
   const issue = await server.api<{ id: string }>('POST', `/companies/${companyId}/issues`, { title: 'Harmless tool review history', status: 'todo', assigneeAgentId: agent.id });

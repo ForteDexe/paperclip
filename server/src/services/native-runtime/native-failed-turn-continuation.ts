@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { agentWakeupRequests, type Db, type heartbeatRuns } from "@paperclipai/db";
+import { agentWakeupRequests, type Db, type heartbeatRuns } from "@outpost/db";
 import { NATIVE_RUN_FAILED_RETRY_CAUSE } from "./status-arbiter.js";
 
 /**

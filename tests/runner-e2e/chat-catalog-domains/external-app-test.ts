@@ -125,7 +125,7 @@ export const appTestExternalCases = [definition("app-permissions.test-as-agent",
       connectionPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/${connection.connectionId}`, resultPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/${connection.connectionId}/permissions` };
   } catch (error) { providers.delete(ctx); await provider.close(); throw error; }
 }, gradeAppTest, {
-  authentication: "human-session", oracleVersion: "paperclip.chat-catalog.app-test.v4",
+  authentication: "human-session", oracleVersion: "outpost.chat-catalog.app-test.v4",
   sourceFiles: ["chat-catalog-domains/external-app-test.ts", "chat-catalog-domains/external-provider.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-support.ts", "../../server/src/routes/tool-access.ts", "../../server/src/services/tool-gateway.ts", "../../server/src/services/tool-access/activity/service.ts", "../../server/src/services/tool-content-guards.ts", "../../server/src/services/tool-approval-execution.ts", "chat-scenarios/app-permissions.yaml"],
   async act(ctx) { await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); },
   observe: observeAppTest,

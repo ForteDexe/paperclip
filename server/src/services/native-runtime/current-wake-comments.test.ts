@@ -10,7 +10,7 @@ import {
   heartbeatRuns,
   issueComments,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 import {
   assertCurrentWakeCommentsRead,
@@ -80,7 +80,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
       name: "Chat agent",
       role: "engineer",
       status: "running",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: {},
       runtimeConfig: {},
       permissions: {},

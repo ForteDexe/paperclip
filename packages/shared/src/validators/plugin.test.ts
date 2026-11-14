@@ -5,7 +5,7 @@ import { pluginApiRouteDeclarationSchema, pluginManagedRoutineDeclarationSchema,
 
 function buildSandboxProviderManifest(driver: Record<string, unknown>) {
   return {
-    id: "paperclip.capability-provider",
+    id: "outpost.capability-provider",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Capability Provider",
@@ -84,7 +84,7 @@ describe("plugin manifest validators", () => {
   });
   it("accepts existing-style plugins that do not request access or authorization capabilities", () => {
     const parsed = pluginManifestV1Schema.parse({
-      id: "paperclip.compat-dashboard",
+      id: "outpost.compat-dashboard",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Compat Dashboard",
@@ -113,7 +113,7 @@ describe("plugin manifest validators", () => {
 
   it("accepts sandbox provider template config bindings", () => {
     const parsed = pluginManifestV1Schema.parse({
-      id: "paperclip.template-provider",
+      id: "outpost.template-provider",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Template Provider",
@@ -146,7 +146,7 @@ describe("plugin manifest validators", () => {
 
   it("rejects template config bindings that replace provider identity", () => {
     const parsed = pluginManifestV1Schema.safeParse({
-      id: "paperclip.bad-template-provider",
+      id: "outpost.bad-template-provider",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Bad Template Provider",
@@ -200,7 +200,7 @@ describe("plugin managed routine validators", () => {
 
 describe("plugin managed skill validators", () => {
   const baseManifest = {
-    id: "paperclip.test-managed-skills",
+    id: "outpost.test-managed-skills",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Managed Skills",

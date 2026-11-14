@@ -11,7 +11,7 @@ mkdir -p "$PC_HOME" "$PC_CACHE"
 trap 'rm -rf "$PC_TEST_ROOT"' EXIT
 
 export HOME="$PC_HOME"
-export PAPERCLIP_HOME="$PC_HOME/.paperclip"
+export OUTPOST_HOME="$PC_HOME/.paperclip"
 export npm_config_cache="$PC_CACHE"
 export npm_config_userconfig="$PC_HOME/.npmrc"
 export PATH="$PC_HOME/.local/bin:$PATH"
@@ -23,14 +23,14 @@ else
 fi
 
 test -x "$PC_HOME/.local/bin/paperclipai"
-test -L "$PAPERCLIP_HOME/cli/current"
-test -f "$PAPERCLIP_HOME/cli/install.json"
+test -L "$OUTPOST_HOME/cli/current"
+test -f "$OUTPOST_HOME/cli/install.json"
 paperclipai --version
 
-mkdir -p "$PAPERCLIP_HOME/instances/default"
-touch "$PAPERCLIP_HOME/instances/default/user-data-marker"
+mkdir -p "$OUTPOST_HOME/instances/default"
+touch "$OUTPOST_HOME/instances/default/user-data-marker"
 (cd "$REPO_ROOT" && pnpm paperclipai uninstall)
 
-test ! -e "$PAPERCLIP_HOME/cli"
+test ! -e "$OUTPOST_HOME/cli"
 test ! -e "$PC_HOME/.local/bin/paperclipai"
-test -f "$PAPERCLIP_HOME/instances/default/user-data-marker"
+test -f "$OUTPOST_HOME/instances/default/user-data-marker"

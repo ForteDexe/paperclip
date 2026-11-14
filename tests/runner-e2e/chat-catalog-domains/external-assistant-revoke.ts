@@ -52,7 +52,7 @@ export const personalRevokeExternalCases=[definition("assistant-connections.revo
   return {before,task,delegationRequestId,oldGrantId:fixture.old.id,otherGrantId:fixture.other.id,personId:fixture.old.userId,sameHuman:fixture.old.userId===fixture.other.userId,oldCreatedTaskId:task.id,workerRunId:running.runs[0]!.id,workerWasReallyWaiting:true,agentManagementStatus};
  }catch(error){if(fixture.gate)await releaseRuntimeWorker(fixture.gate);for(const value of [fixture.old,fixture.other])if(value){await value.client.close();await ctx.input.api.delete(`/api/mcp/connections/${value.id}`,{allowNotFound:true});}fixtures.delete(ctx);throw error;}
 },gradePersonalRevoke,{
- authentication:"human-session",oracleVersion:"paperclip.chat-catalog.external-revoke-personal-grant.v2",expectedRunCount:2,minimumRunCount:2,attemptTimeoutMs:540000,
+ authentication:"human-session",oracleVersion:"outpost.chat-catalog.external-revoke-personal-grant.v2",expectedRunCount:2,minimumRunCount:2,attemptTimeoutMs:540000,
  sourceFiles:["chat-catalog-domains/external-assistant-revoke.ts","chat-catalog-domains/external-assistant-connections.ts","chat-catalog-domains/runtime-busy-worker.ts","chat-catalog-domains/runtime-support.ts","chat-stories.ts","chat-catalog-domains/external-secret-scan.ts","chat-catalog-domains/identity-support.ts","chat-catalog-domains/external-support.ts","chat-catalog-domains/internal-support.ts","public-mcp-client.ts","run-observations.ts","../../server/src/routes/public-mcp.ts","../../server/src/services/public-mcp/oauth.ts","chat-scenarios/assistant-connections.yaml"],
  async act(ctx,state){
   await waitForReply({...ctx,allRuns:async()=>(await ctx.allRuns()).filter(run=>run.contextSnapshot?.issueId===ctx.issue()?.id)});const f=fixtures.get(ctx)!;

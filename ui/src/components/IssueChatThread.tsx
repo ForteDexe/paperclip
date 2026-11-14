@@ -57,7 +57,7 @@ import type {
   IssueWorkMode,
   IssueWorkProduct,
   IssueAssigneeAdapterOverrides,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import type { ActiveRunForIssue, LiveRunForIssue } from "../api/heartbeats";
 import { findUIAdapter } from "../adapters/registry";
 import { useLiveRunTranscripts } from "./transcript/useLiveRunTranscripts";
@@ -216,7 +216,7 @@ import type {
   IssueCommentMetadata,
   IssueCommentPresentation,
   SourceTrustMetadata,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   describeToolInput,
   displayToolName,
@@ -226,7 +226,7 @@ import {
   summarizeToolInput,
   summarizeToolResult,
 } from "../lib/transcriptPresentation";
-import { buildAgentMentionHref } from "@paperclipai/shared";
+import { buildAgentMentionHref } from "@outpost/shared";
 import { useComposerStop } from "@/hooks/useComposerStop";
 import { useComposerSubmitKey } from "@/hooks/useComposerSubmitKey";
 import { agentUrl, cn, formatDateTime, formatShortDate } from "../lib/utils";
@@ -556,10 +556,10 @@ interface IssueChatComposerProps {
 
 interface IssueChatThreadProps {
   executionBlocked?: boolean;
-  interruption?: import("@paperclipai/shared").TaskInterruptionPresentation | null;
+  interruption?: import("@outpost/shared").TaskInterruptionPresentation | null;
   retryPreparing?: boolean;
   /** Browser sessions are placed chronologically by the default task thread. */
-  browsers?: import("@paperclipai/shared").TaskBrowser[];
+  browsers?: import("@outpost/shared").TaskBrowser[];
   onOpenBrowser?: (browserId: string) => void;
   hasOlderComments?: boolean;
   comments: IssueChatComment[];
@@ -688,7 +688,7 @@ interface IssueChatThreadProps {
   includeSucceededRunsWithoutOutput?: boolean;
   onInterruptQueued?: (runId: string | null) => Promise<IssueQueuedCommentQueue | void>;
   onCancelQueued?: (commentId: string) => void;
-  /** Authoritative PRP queue. The classic thread intentionally ignores it. */
+  /** Authoritative ORP queue. The classic thread intentionally ignores it. */
   queuedCommentQueue?: IssueQueuedCommentQueue | null;
   onEditQueuedComment?: (
     commentId: string,
@@ -2651,7 +2651,7 @@ function IssueChatAssistantMessage({
               </Badge>
             ) : null}
           </div>
-          {/* Canonical conference-room agent bubble (BoardChat.tsx:712). */}
+          {/* Canonical agent chat bubble. */}
           <div
             className={cn(
               "min-w-0 break-words px-3 py-2 text-sm overflow-x-auto overflow-y-visible [border-radius:14px_14px_14px_4px]",

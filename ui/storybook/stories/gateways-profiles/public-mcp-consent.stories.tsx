@@ -33,7 +33,7 @@ export const ChooseOrganization: Story = { play: async ({ canvasElement }) => {
   await expect(c.getByRole("checkbox")).toBeChecked();
   await expect(c.getByRole("button", { name: "Connect organization" })).toBeEnabled();
 } };
-export const Claude: Story = { parameters: { fixture: { request: { clientName: "Claude", clientOrigin: "https://claude.ai", redirectOrigin: "https://claude.ai", companies: [request.companies[0]], setupUrl: "https://my.paperclip.app/orgs/new" } } } };
+export const Claude: Story = { parameters: { fixture: { request: { clientName: "Claude", clientOrigin: "https://claude.ai", redirectOrigin: "https://claude.ai", companies: [request.companies[0]], setupUrl: "https://my.outpost.app/orgs/new" } } } };
 export const SeparateCallbackOrigin: Story = { parameters: { fixture: { request: { clientName: "Claude Code", clientOrigin: "https://claude.ai", redirectOrigin: "http://localhost:57843", companies: [request.companies[0]] } } } };
 export const UnknownAssistant: Story = { parameters: { fixture: { request: { clientName: "Assistant", clientOrigin: null, redirectOrigin: "https://assistant.example" } } } };
 export const OpenCodeOrganization: Story = { parameters: { fixture: { request: { clientName: "OpenCode", redirectOrigin: "http://127.0.0.1:19876", companies: [{ ...request.companies[0], name: "Paperclip Storybook" }] } } } };
@@ -58,7 +58,7 @@ export const SwitchingOrganizationsResetsConsent: Story = { play: async context 
 export const ReadOnlyRequest: Story = { parameters: { fixture: { request: { clientName: "Claude", redirectOrigin: "https://claude.ai", requestedWrite: false, offlineAccess: false } } } };
 export const SignInRequired: Story = { parameters: { fixture: { request: { requiresSignIn: true, companies: [] } } } };
 export const NoOrganizations: Story = { parameters: { fixture: { request: { companies: [] } } } };
-export const NoOrganizationsWithSetupUrl: Story = { parameters: { fixture: { request: { companies: [], setupUrl: "https://my.paperclip.app/orgs/new" } } }, play: async ({ canvasElement }) => {
+export const NoOrganizationsWithSetupUrl: Story = { parameters: { fixture: { request: { companies: [], setupUrl: "https://my.outpost.app/orgs/new" } } }, play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await c.findByText(/This account has no available organizations/);
   await expect(c.queryByRole("link", { name: "Create a hosted organization" })).not.toBeInTheDocument();
@@ -112,7 +112,7 @@ export const HostedReadOnly: Story = { parameters: { fixture: { request: { reque
   await expect(c.getByRole("checkbox")).not.toBeChecked();
   await expect(c.getByRole("button", { name: "Connect organization" })).toBeEnabled();
 } };
-export const HostedOrganizationUnavailable: Story = { parameters: { fixture: { request: { requestedCompanyId: request.companies[0].id, companies: [], setupUrl: "https://my.paperclip.app/orgs/new" } } }, play: async ({ canvasElement }) => {
+export const HostedOrganizationUnavailable: Story = { parameters: { fixture: { request: { requestedCompanyId: request.companies[0].id, companies: [], setupUrl: "https://my.outpost.app/orgs/new" } } }, play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await expect(await c.findByText(/selected organization is no longer available/)).toBeVisible();
   await expect(c.getByRole("button", { name: "Connect organization" })).toBeDisabled();

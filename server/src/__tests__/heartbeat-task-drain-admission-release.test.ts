@@ -22,7 +22,7 @@ import {
   heartbeatRuns,
   issues,
   plugins,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -252,7 +252,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
     const counterDir = mkdtempSync(join(tmpdir(), "drain-executor-"));
     const counter = join(counterDir, "executions");
     await db.update(agents).set({ adapterConfig: { command: process.execPath,
-      args: ["-e", `require("node:fs").appendFileSync(${JSON.stringify(counter)}, process.env.PAPERCLIP_RUN_ID + "\\n")`] } })
+      args: ["-e", `require("node:fs").appendFileSync(${JSON.stringify(counter)}, process.env.OUTPOST_RUN_ID + "\\n")`] } })
       .where(eq(agents.id, agentId));
     startTaskDrain({});
     await heartbeat.wakeup(agentId, {

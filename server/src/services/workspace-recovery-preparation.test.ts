@@ -1,10 +1,10 @@
 import { appendHeartbeatRunEvent } from "./heartbeat-run-events.js";
-import { heartbeatRunEvents, agents, completionContracts, companies, environmentLeases, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, workspaceOperations, executionWorkspaces, executionWorkspaceSnapshots } from "@paperclipai/db";
+import { heartbeatRunEvents, agents, completionContracts, companies, environmentLeases, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, workspaceOperations, executionWorkspaces, executionWorkspaceSnapshots } from "@outpost/db";
 import { prepareHeartbeatWorkspace } from "./heartbeat/workspace-preparation.js";
 import { selectHeartbeatEnvironment } from "./heartbeat/environment-selection.js";
 import { attachPreservedRemoteWorkspaceSnapshots } from "./remote-workspace-recovery-attachments.js";
 import { Readable } from "node:stream";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
 import { buildEnvironmentLeaseContext } from "./environment-runtime.js";
 import { createHeartbeatWorkspaceResolver, resolveExecutionWorkspaceReuseRequestForIssue } from "./heartbeat/workspaces.js";
 import { environmentService } from "./environments.js";
@@ -25,9 +25,9 @@ import path from "node:path";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/paperclip-runner/testing.js";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { EnvironmentLease } from "@outpost/shared";
 import { recoverRetainedWorkspace } from "./workspace-recovery.js";
 import { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
 import { registerWorkspaceRecoveryWork } from "./workspace-recovery-work.js";
@@ -107,7 +107,7 @@ describe("automatic retained workspace recovery", () => {
 
   it.each(["retained_history", "ordinary_followup", "retired_followup"])("restores the newest recovered tick bytes after a later workspace selection: %s", async kind => {
     vi.stubEnv("DATABASE_URL", connectionString);
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "62".repeat(32));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "62".repeat(32));
     try {
       const f = await failedRemotePreparation();
       const tickLog = Array.from({ length: 12 }, (_, i) => `2026-11-06T07:${String(21 + i).padStart(2, "0")}:00Z\n`).join("");
@@ -141,7 +141,7 @@ describe("automatic retained workspace recovery", () => {
       const [placeholder] = await db.insert(executionWorkspaces).values({ companyId: f.companyId,
         sourceIssueId: f.issueId, name: "Later empty placeholder", providerType: "cloud_sandbox",
         mode: "isolated_workspace", strategyType: "project_primary", cwd: `/workspaces/${randomUUID()}`,
-        metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1,
+        metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1,
           snapshotId: null, source: { kind: "empty" }, writerRunId: f.runId, dirty: false, location: null },
         ...(kind === "retained_history" ? { remoteWorkspaceRecoverySourceRunIds: [oldRunId] } : {}),
           remoteWorkspaceSnapshotRepositories: { snapshotId: randomUUID(), repositories: [] } },
@@ -316,7 +316,7 @@ describe("automatic retained workspace recovery", () => {
             const [migration] = await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
               executionWorkspaceId: placeholder.id, phase: "remote_workspace_migration", status: "succeeded",
               metadata: { legacyRecoverySources: [{ runId: related.id, issueId: earlierChild.id }] } }).returning();
-            const marker = { schema: "paperclip.legacy-workspace-recovery-migration.v1", operationId: migration.id };
+            const marker = { schema: "outpost.legacy-workspace-recovery-migration.v1", operationId: migration.id };
             await db.update(heartbeatRuns).set({ runnerProfileJson: { legacyWorkspaceRecoveryMigration:
               { ...marker, workspaceId: placeholder.id } } }).where(eq(heartbeatRuns.id, related.id));
             await db.update(executionWorkspaces).set({ metadata: { ...saved.metadata, legacyWorkspaceRecoveryMigration: marker,
@@ -650,7 +650,7 @@ describe("automatic retained workspace recovery", () => {
       sessionIdBefore: source.sessionIdBefore,
       startedAt: new Date(), finishedAt: new Date(), executionStage: "preparing", errorCode: "setup_failed",
       error: "The workspace still has an unfinished writer or save operation.",
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
       contextSnapshot: { issueId: f.issueId, source: "issue.continuation_recovery" },
       resultJson: { stopReason: "adapter_failed", executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
     }).returning();
@@ -751,7 +751,7 @@ describe("automatic retained workspace recovery", () => {
         }
         const agentId = gate === "foreign_company" || gate === "foreign_agent" ? randomUUID() : f.source.agentId;
         if (agentId !== f.source.agentId) await db.insert(agents).values({ id: agentId, companyId,
-          name: "Other owner", adapterType: "paperclip_runner" });
+          name: "Other owner", adapterType: "outpost_runner" });
         const issueId = gate === "foreign_company" || gate === "foreign_task" || gate === "conflicting_binding" ? randomUUID() : f.issueId;
         if (issueId !== f.issueId) await db.insert(issues).values({ id: issueId, companyId, title: "Other work" });
         const [bridge] = await db.insert(heartbeatRuns).values({ companyId, agentId, issueId,

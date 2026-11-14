@@ -18,7 +18,7 @@ type Check = { id: string; passed: boolean; detail: string };
 
 /** Select only the exact native callback, including either production ACPX bridge. */
 export function findCursorNativeRequest(rows: Row[], method: CursorNativeMethod, requestId?: string): Row | undefined {
-  return rows.map(row => row.payload?.prpEvent).find(event => event?.eventType === "runtime_request.created"
+  return rows.map(row => row.payload?.orpEvent).find(event => event?.eventType === "runtime_request.created"
     && hasAcpxNativeOrigin(event.payload?.request?.origin, "cursor", method)
     && (!requestId || event.payload.request.requestId === requestId));
 }
@@ -70,7 +70,7 @@ export async function prepareCursorRemoteAction(input: {
 
 /** Match canonical omission of an unanswered optional feedback field. */
 export function cursorNativePlanResponse(planId: string, decision: "accept" | "reject" | "cancel", feedback: string) {
-  return { schema: "paperclip.question_response.v1", answers: { [planId]: { selectedOptionIds: [decision] }, ...(decision === "reject" ? { reason: { text: feedback } } : {}) } };
+  return { schema: "outpost.question_response.v1", answers: { [planId]: { selectedOptionIds: [decision] }, ...(decision === "reject" ? { reason: { text: feedback } } : {}) } };
 }
 
 /** Independent bounded snapshot; symlinks are rejected without following them. */
@@ -299,7 +299,7 @@ export async function runCursorNativeFlow(input: {
       for (const tree of trees) await page.getByRole("checkbox", { name: tree, exact: true }).last().click();
       const answers = Object.fromEntries(questions.map((question: Row, index: number) => [question.id, { selectedOptionIds: (index === 0 ? [color] : trees).map(label => question.options.find((option: Row) => option.label === label)?.id) }]));
       await page.getByRole("button", { name: card.payload.questionSet.submitLabel ?? "Submit answers", exact: true }).last().click();
-      await delivery(card, event, { schema: "paperclip.question_response.v1", answers });
+      await delivery(card, event, { schema: "outpost.question_response.v1", answers });
       expectedMarker = `CURSOR-NATIVE-${nonce}-${color.toLowerCase()}-${trees.map(tree => tree.toLowerCase()).sort().join("+")}`;
       await sampleWorkspace("question-delivered");
     } else if (design.method === "cursor/create_plan") {
@@ -333,7 +333,7 @@ export async function runCursorNativeFlow(input: {
       const event = findCursorNativeRequest(state.runEvents, "session/request_permission", native.requestId)!; const request = event.payload.request; deniedRequest = request; denialTurnId = event.turnId;
       check("native-permission-identity", state.runs.length === 1 && request.details?.toolCallId === native.toolCallId && native.turnId === event.turnId && native.declineOffered && request.choices.some((choice: Row) => choice.key === "decline"), "Presented native permission is bound to the exact absolute-target command and supported denial choice");
       await sampleDenied("pending"); await page.reload();
-      const reloaded = await load(); check("permission-reconnect", Boolean(findCursorNativeRequest(reloaded.runEvents, "session/request_permission", request.requestId)) && !reloaded.runEvents.some(row => row.payload?.prpEvent?.eventType === "runtime_request.resolved" && row.payload.prpEvent.payload?.requestId === request.requestId), "Reconnect preserves the unresolved native permission");
+      const reloaded = await load(); check("permission-reconnect", Boolean(findCursorNativeRequest(reloaded.runEvents, "session/request_permission", request.requestId)) && !reloaded.runEvents.some(row => row.payload?.orpEvent?.eventType === "runtime_request.resolved" && row.payload.orpEvent.payload?.requestId === request.requestId), "Reconnect preserves the unresolved native permission");
       await sampleDenied("browser-reconnected"); await input.capture("cursor-permission", "Native write permission awaiting denial", "cursor-permission.png");
       const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true }); await expect(card).toHaveCount(1);
       const label = request.choices.find((choice: Row) => choice.key === "decline").label;

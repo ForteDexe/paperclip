@@ -8,7 +8,7 @@ import {
   instanceExperimentalSettingsSchema,
   instanceGeneralSettingsSchema,
   type WorkTimelineResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { MemoryRouter } from "@/lib/router";
 import { ONBOARDING_STORAGE_KEY } from "@/components/OnboardingWizard";
 import { STORYBOOK_COMPANY_ID } from "../fixtures/onboardingDraft";
@@ -137,7 +137,7 @@ function installStorybookApiFixtures() {
             status: "active",
             user: {
               id: "user-board",
-              email: "board@paperclip.local",
+              email: "board@outpost.local",
               name: "Board Operator",
               image: null,
             },
@@ -147,7 +147,7 @@ function installStorybookApiFixtures() {
             status: "active",
             user: {
               id: "user-product",
-              email: "product@paperclip.local",
+              email: "product@outpost.local",
               name: "Product Lead",
               image: null,
             },
@@ -532,8 +532,8 @@ function installStorybookApiFixtures() {
           },
         },
         {
-          type: "paperclip_runner",
-          label: "Paperclip Runner",
+          type: "outpost_runner",
+          label: "Outpost Runner",
           source: "builtin",
           modelsCount: 0,
           loaded: true,

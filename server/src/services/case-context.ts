@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { agents, caseDocuments, caseHandoffs, caseIssueLinks, cases, documents, heartbeatRuns, issueComments, issueWorkProducts, issues, museAgentBindings, type Db } from "@paperclipai/db";
+import { agents, caseDocuments, caseHandoffs, caseIssueLinks, cases, documents, heartbeatRuns, issueComments, issueWorkProducts, issues, museAgentBindings, type Db } from "@outpost/db";
 import { forbidden } from "../errors.js";
 import { authorizationService, issueReadSqlCondition, type AuthorizationActor } from "./authorization.js";
 import { assertCaseTrustedForExecution, canActorReadCase } from "./case-access.js";
@@ -164,7 +164,7 @@ export function caseFactsFingerprint(facts: unknown): string {
 }
 
 export interface CaseProjectionMarker {
-  schema: "paperclip.case-projection.v1";
+  schema: "outpost.case-projection.v1";
   caseId: string;
   factsSha256: string;
   incomingHandoffId: string | null;
@@ -175,7 +175,7 @@ const CASE_PROJECTION_PREFIX = "Outpost workflow case projection: ";
 
 function caseProjectionMarker(context: CaseExecutionContext): CaseProjectionMarker {
   return {
-    schema: "paperclip.case-projection.v1", caseId: context.id, factsSha256: context.factsSha256,
+    schema: "outpost.case-projection.v1", caseId: context.id, factsSha256: context.factsSha256,
     incomingHandoffId: context.incomingHandoff?.id ?? null,
     incomingInstructionsSha256: context.incomingHandoff
       ? createHash("sha256").update(JSON.stringify({ instructions: context.incomingHandoff.instructions,
@@ -207,7 +207,7 @@ export function readCaseProjectionMarker(execution: {
       ? JSON.parse(execution.continuationPrompt)?.workflowCase?.projection
       : execution.task.prompt.startsWith(CASE_PROJECTION_PREFIX)
         ? JSON.parse(execution.task.prompt.slice(CASE_PROJECTION_PREFIX.length).split("\n", 1)[0]!) : null;
-    if (!value || value.schema !== "paperclip.case-projection.v1" || typeof value.caseId !== "string" ||
+    if (!value || value.schema !== "outpost.case-projection.v1" || typeof value.caseId !== "string" ||
       !/^[a-f0-9]{64}$/.test(value.factsSha256) ||
       (value.incomingHandoffId !== null && typeof value.incomingHandoffId !== "string") ||
       (value.incomingInstructionsSha256 !== null && !/^[a-f0-9]{64}$/.test(value.incomingInstructionsSha256))) return null;

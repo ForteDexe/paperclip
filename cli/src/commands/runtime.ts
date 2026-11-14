@@ -13,8 +13,8 @@ export async function resolvePiProvisioner(serverUrl: string): Promise<string> {
   const root = resolve(dirname(entry), "..");
   const manifest = join(root, "package.json");
   const info = await lstat(manifest);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@paperclipai/server") throw new Error("Pi setup server package identity is invalid");
-  const provisioner = join(root, "dist/vendor/paperclip-runner/cli/provision-pi.cjs");
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@outpost/server") throw new Error("Pi setup server package identity is invalid");
+  const provisioner = join(root, "dist/vendor/outpost-runner/cli/provision-pi.cjs");
   if (await realpath(provisioner) !== provisioner || !(await lstat(provisioner)).isFile()) throw new Error("Pi setup entrypoint escapes its server package");
   return provisioner;
 }
@@ -37,7 +37,7 @@ export function buildPiSetupEnvironment(source: NodeJS.ProcessEnv = process.env)
 }
 
 export async function setupPiRuntime(): Promise<void> {
-  const provisioner = await resolvePiProvisioner(import.meta.resolve("@paperclipai/server"));
+  const provisioner = await resolvePiProvisioner(import.meta.resolve("@outpost/server"));
   // Only explicit setup downloads. Enable Node's proxy handling for the helper;
   // provider keys, npm configuration, HOME and Node injection remain excluded.
   const child = spawn(process.execPath, ["--use-env-proxy", provisioner], {
@@ -66,14 +66,14 @@ export async function resolveCursorProvisioner(serverUrl: string): Promise<strin
   const root = resolve(dirname(entry), "..");
   const manifest = join(root, "package.json");
   const info = await lstat(manifest);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@paperclipai/server") throw new Error("Cursor setup server package identity is invalid");
-  const provisioner = join(root, "dist/vendor/paperclip-runner/cli/provision-cursor.cjs");
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@outpost/server") throw new Error("Cursor setup server package identity is invalid");
+  const provisioner = join(root, "dist/vendor/outpost-runner/cli/provision-cursor.cjs");
   if (await realpath(provisioner) !== provisioner || !(await lstat(provisioner)).isFile()) throw new Error("Cursor setup entrypoint escapes its server package");
   return provisioner;
 }
 
 export async function setupCursorRuntime(): Promise<void> {
-  const provisioner = await resolveCursorProvisioner(import.meta.resolve("@paperclipai/server"));
+  const provisioner = await resolveCursorProvisioner(import.meta.resolve("@outpost/server"));
   const child = spawn(process.execPath, [provisioner], {
     stdio: "inherit", env: { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8" },
   });
@@ -101,14 +101,14 @@ export async function resolveAntigravityProvisioner(serverUrl: string): Promise<
   const root = resolve(dirname(entry), "..");
   const manifest = join(root, "package.json");
   const info = await lstat(manifest);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@paperclipai/server") throw new Error("Antigravity setup server package identity is invalid");
-  const provisioner = join(root, "dist/vendor/paperclip-runner/cli/provision-antigravity.cjs");
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@outpost/server") throw new Error("Antigravity setup server package identity is invalid");
+  const provisioner = join(root, "dist/vendor/outpost-runner/cli/provision-antigravity.cjs");
   if (await realpath(provisioner) !== provisioner || !(await lstat(provisioner)).isFile()) throw new Error("Antigravity setup entrypoint escapes its server package");
   return provisioner;
 }
 
 export async function setupAntigravityRuntime(): Promise<void> {
-  const provisioner = await resolveAntigravityProvisioner(import.meta.resolve("@paperclipai/server"));
+  const provisioner = await resolveAntigravityProvisioner(import.meta.resolve("@outpost/server"));
   const child = spawn(process.execPath, ["--use-env-proxy", provisioner], {
     // Setup only downloads public assets. Reuse the existing network allowlist;
     // runtime credentials and process-loader settings never reach this child.
@@ -138,14 +138,14 @@ export async function resolveKimiProvisioner(serverUrl: string): Promise<string>
   const root = resolve(dirname(entry), "..");
   const manifest = join(root, "package.json");
   const info = await lstat(manifest);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@paperclipai/server") throw new Error("Kimi setup server package identity is invalid");
-  const provisioner = join(root, "dist/vendor/paperclip-runner/cli/provision-kimi.cjs");
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || JSON.parse(await readFile(manifest, "utf8")).name !== "@outpost/server") throw new Error("Kimi setup server package identity is invalid");
+  const provisioner = join(root, "dist/vendor/outpost-runner/cli/provision-kimi.cjs");
   if (await realpath(provisioner) !== provisioner || !(await lstat(provisioner)).isFile()) throw new Error("Kimi setup entrypoint escapes its server package");
   return provisioner;
 }
 
 export async function setupKimiRuntime(): Promise<void> {
-  const provisioner = await resolveKimiProvisioner(import.meta.resolve("@paperclipai/server"));
+  const provisioner = await resolveKimiProvisioner(import.meta.resolve("@outpost/server"));
   const child = spawn(process.execPath, ["--use-env-proxy", provisioner], {
     stdio: "inherit", env: buildPiSetupEnvironment(),
   });
@@ -171,7 +171,7 @@ export function registerRuntimeCommands(program: Command): void {
     .description("Import a verified Linux Pi companion into the installed server (no downloads)")
     .requiredOption("--sha256 <digest>", "SHA256 of companion.json from the trusted release")
     .action(async (directory: string, options: { sha256: string }) => {
-      const modulePath = await resolveRemoteCompanionImporter(import.meta.resolve("@paperclipai/server"));
+      const modulePath = await resolveRemoteCompanionImporter(import.meta.resolve("@outpost/server"));
       const importer = await import(pathToFileURL(modulePath).href) as { importRemotePiCompanion(input: { directory: string; sha256: string; checkCancelled: () => void }): Promise<unknown> };
       let cancelled = false;
       const cancel = () => { cancelled = true; };

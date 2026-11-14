@@ -12,7 +12,7 @@ import { notifyInstructionCollection } from "../services/instruction-collection-
 import { notifyNativeEnvironmentSettlement } from "../services/native-environment-settlement-notifications.js";
 import { idleWorkSnapshot, trackIdleWork } from "../services/task-admission.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
-import { applyPendingMigrations } from "@paperclipai/db";
+import { applyPendingMigrations } from "@outpost/db";
 import { touchSkillVersionCache, lastUsedAt, skillVersionCachePaths } from "../services/skill-version-cache.js";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
@@ -27,7 +27,7 @@ import {
   companySkillVersions,
   createDb,
   heartbeatRuns,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -39,7 +39,7 @@ import {
   skillVersionRetentionService,
 } from "../services/skill-version-retention.ts";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_SKILL_RETENTION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_SKILL_RETENTION_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -72,11 +72,11 @@ describeEmbeddedPostgres("skill version snapshot retention", () => {
   beforeAll(async () => {
     if (!external) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-skill-version-retention-");
     if (external) await applyPendingMigrations(external);
-    oldPaperclipHome = process.env.PAPERCLIP_HOME;
-    oldPaperclipInstanceId = process.env.PAPERCLIP_INSTANCE_ID;
+    oldPaperclipHome = process.env.OUTPOST_HOME;
+    oldPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
     paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-skill-version-retention-home-"));
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
+    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_INSTANCE_ID = "default";
     db = createDb(external ?? tempDb!.connectionString, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 20_000);
 
@@ -103,10 +103,10 @@ describeEmbeddedPostgres("skill version snapshot retention", () => {
   });
 
   afterAll(async () => {
-    if (oldPaperclipHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = oldPaperclipHome;
-    if (oldPaperclipInstanceId === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-    else process.env.PAPERCLIP_INSTANCE_ID = oldPaperclipInstanceId;
+    if (oldPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = oldPaperclipHome;
+    if (oldPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+    else process.env.OUTPOST_INSTANCE_ID = oldPaperclipInstanceId;
     if (paperclipHome) await fs.rm(paperclipHome, { recursive: true, force: true });
     await db?.$client.end({ timeout: 1 });
     await tempDb?.cleanup();

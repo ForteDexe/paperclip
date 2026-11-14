@@ -68,7 +68,7 @@ The production correction exposes native question field types at the schema
 root and preserves every method-specific constraint and runtime validator.
 Empty arguments, stringified options and cross-method fields remain invalid.
 All three previous closure hashes are reproduced from the retained full
-manifest and reviewed Node pins; only `extensions/paperclip.js` changes.
+manifest and reviewed Node pins; only `extensions/outpost.js` changes.
 Historical Pi profile-18 decoding retains its exact stored identity; current
 launch admission still rejects it. Later changes are tests, harness and docs.
 Shipping packages and image stay frozen at the source above.
@@ -1087,7 +1087,7 @@ qualify changed shipping inputs. Keep rollout held and do not merge or release.
 ## Sandbox GitHub housekeeping correction — 2026-10-06
 
 The shipping correction moves sandbox GitHub launchers, upload locks and
-per-command configuration below `.paperclip-runtime/paperclip-runner/github`.
+per-command configuration below `.paperclip-runtime/outpost-runner/github`.
 One shared path now binds staging, the native callback bridge and cleanup.
 Local and SSH locations keep their existing behavior. The native watcher,
 excluded subtree, exact byte grades, timeouts and lifecycle assertions do not
@@ -1191,7 +1191,7 @@ Build and recursive typecheck pass at the shipping source. Fixture head
 `6c09e4c87` has 53 successful GitHub checks, two skips, Greptile 5/5 and no
 unresolved review threads. The first full local workspace run retains 15,042
 passes, 87 skips and five plugin auto-build failures. Its launcher globally set
-`PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD=1`. Removing that test-environment flag makes
+`OUTPOST_DISABLE_PLUGIN_AUTOBUILD=1`. Removing that test-environment flag makes
 all 11 affected tests pass with unchanged source and assertions. The corrected
 full `pnpm test:run` child reaches terminal failure after its launcher was
 interrupted: 12,920 passes, 2,210 skips, four failed tests and 36 failed files.
@@ -1530,7 +1530,7 @@ question and accepts the actual browser answer, then fails with
 `native_remote_recovery_lease_mismatch`. Recovery was acquiring another sandbox
 under the admitted ephemeral lease policy. The source correction reads and
 validates the original active lease before any provider acquisition, retaining
-the downstream process-generation and authenticated PRP identity checks.
+the downstream process-generation and authenticated ORP identity checks.
 The focused recovery suite passes 630 tests and the source-bound server
 typecheck passes. The canonical cleanup failure remains failed; a separate
 owned-resource check confirms the original sandbox is absent.
@@ -2474,7 +2474,7 @@ Keep rollout held until every release gate is proven.
   notice-projection source hash, so its 115 focused passes do not qualify it.
   Restore that source byte-for-byte and coalesce only the board's consecutive
   identical display rows, scoped to the complete run, turn and session. Both raw
-  PRP facts remain. Different reasons/severity, retry activity and later turns
+  ORP facts remain. Different reasons/severity, retry activity and later turns
   remain observable. The frozen binding/extension tests pass 11 cases (one
   optional host probe skipped); UI projection tests pass 145 cases. Token gates
   pass. No profile, wrapper, deadline, terminal or approval-authority change occurs.

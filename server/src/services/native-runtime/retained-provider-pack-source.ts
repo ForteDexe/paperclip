@@ -211,7 +211,7 @@ async function cached(cache: string, pointer: string, manifest: ProviderPackIden
     throw error;
   }
   const publication = JSON.parse(bytes.toString()) as Published;
-  if (publication.schema !== "paperclip.retained-provider-pack-source.v1" || publication.verifiedTarPaths !== true || publication.providerPackDigest !== manifest.digest
+  if (publication.schema !== "outpost.retained-provider-pack-source.v1" || publication.verifiedTarPaths !== true || publication.providerPackDigest !== manifest.digest
     || publication.sourceRevision !== manifest.payload.runnerSourceRevision || !new RegExp(`^${manifest.digest.slice(7)}-[A-Za-z0-9]{6}$`).test(publication.entry)
     || !/^[a-f0-9]{64}$/.test(publication.receiptSha256)
     || [publication.imageIndexDigest, publication.imageManifestDigest, publication.imageConfigDigest, publication.transportLayerDigest].some(value => !/^sha256:[a-f0-9]{64}$/.test(value))) fail();
@@ -270,7 +270,7 @@ export async function resolveProviderPackUploadSource(input: {
   signal?: AbortSignal;
 }): Promise<{ root: string; archiveOnly: boolean }> {
   const manifest = input.manifest;
-  if (manifest?.schema !== "paperclip-runner/remote-provider-pack/v1" || manifest.digest !== `sha256:${digest(canonicalProviderPackJson(manifest.payload))}`) fail();
+  if (manifest?.schema !== "outpost-runner/remote-provider-pack/v1" || manifest.digest !== `sha256:${digest(canonicalProviderPackJson(manifest.payload))}`) fail();
   input.signal?.throwIfAborted();
   const configured = JSON.parse((await readStable(join(input.root, "provider-pack.json"))).toString()) as ProviderPackIdentity;
   if (configured?.schema !== manifest.schema || configured.digest !== `sha256:${digest(canonicalProviderPackJson(configured.payload))}`

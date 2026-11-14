@@ -33,11 +33,11 @@ export function isSessionFault(value: string): value is SessionFaultKind {
 
 /** Server environment a wave of these faults needs. It applies to the whole server. */
 export function sessionFaultServerEnvironment(faults: readonly SessionFaultKind[] | undefined): Record<string, string> {
-  return faults?.includes("SR1U") ? { PAPERCLIP_TEST_WARM_RETIREMENT_FAULT: "unconfirmed" } : {};
+  return faults?.includes("SR1U") ? { OUTPOST_TEST_WARM_RETIREMENT_FAULT: "unconfirmed" } : {};
 }
 
 export function runnerBindFaultServerEnvironment(armed: boolean | undefined): Record<string, string> {
-  return armed ? { PAPERCLIP_TEST_RUNNER_BIND_FAULT: "first_launch" } : {};
+  return armed ? { OUTPOST_TEST_RUNNER_BIND_FAULT: "first_launch" } : {};
 }
 
 /** What the board changed, recorded on the task's question. */

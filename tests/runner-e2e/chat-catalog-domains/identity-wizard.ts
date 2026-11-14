@@ -132,8 +132,8 @@ export async function runIdentityWizardInPrivateBrowser(input: WizardInput & { r
   const agent = await pollUntil({ label: "wizard first agent independently ready", deadlineAt: input.deadlineAt,
     load: () => get<Agent>(`/api/agents/${provisional.id}`), accept: row => row.lifecycleState === "ready" && ["idle", "active"].includes(row.status) });
   const actualHarness = agent.adapterType === "claude_local" || agent.adapterType === "codex_local" ? agent.adapterType
-    : agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "acpx" && agent.adapterConfig.acpxAgent === "claude" ? "claude_local"
-      : agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "codex" ? "codex_local" : undefined;
+    : agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "acpx" && agent.adapterConfig.acpxAgent === "claude" ? "claude_local"
+      : agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "codex" ? "codex_local" : undefined;
   if (actualHarness !== input.harness || agent.companyId !== company.id || JSON.stringify(agent).includes(input.credential)) throw new Error("Public ready agent differs from the requested harness/company or exposes its credential; contents withheld");
   const accounts = await get<AiConnectionList>(`/api/companies/${company.id}/ai-connections`);
   const responsibleCompany = await get<Company>(`/api/companies/${company.id}`);

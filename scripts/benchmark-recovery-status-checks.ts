@@ -13,7 +13,7 @@
  * workspace recovery proof also compares every condition the change touched,
  * for every recovery action of the fixture.
  *
- *   pnpm --filter @paperclipai/server exec tsx ../scripts/benchmark-recovery-status-checks.ts --baseline-ref=<commit>
+ *   pnpm --filter @outpost/server exec tsx ../scripts/benchmark-recovery-status-checks.ts --baseline-ref=<commit>
  *
  * Options: --fixture=<name> (repeatable), --samples=<n>, --skip-hash-plan, --out=<file>.
  */
@@ -210,20 +210,20 @@ async function seedWorkspaceRecovery(db: Db, fixture: Fixture, now: Date) {
         jsonb_strip_nulls(jsonb_build_object(
           'runId', case when i.n % 97 = 5 then upper(r.id::text) else r.id::text end,
           'filler', ${filler(Number(fixture.evidenceBytes), "i.n")},
-          'workspaceRestoreRecovery', case when i.n % 50 = 7 then jsonb_build_object('schema', 'paperclip.workspace-restore-recovery.v1') end,
+          'workspaceRestoreRecovery', case when i.n % 50 = 7 then jsonb_build_object('schema', 'outpost.workspace-restore-recovery.v1') end,
           'bootstrapPreparationSettledAt', case when k = 19 then '2026-01-01T00:00:00Z' end,
           'bootstrapPreparationContinuation', case when k = 19 then 'pending' end,
-          'systemRecovery', jsonb_build_object('schema', 'paperclip.system-recovery.v1', 'policyVersion', 1, 'sourceRunId', r.id::text,
+          'systemRecovery', jsonb_build_object('schema', 'outpost.system-recovery.v1', 'policyVersion', 1, 'sourceRunId', r.id::text,
             'generationId', 'gen-' || i.n, 'revision', 2,
             'state', case when k < 12 or k = 19 then 'complete' when k = 17 then 'scheduled' else 'exhausted' end,
             'nextAttemptAt', case when k = 17 then $3::bigint + 60000 * (1 + i.n % 30) end,
             'failure', case when k in (12, 13) then jsonb_build_object('code', (array['source_unavailable','historical_source_missing','source_binding_invalid'])[1 + i.n % 3],
                 'retryClass', case when i.n % 11 = 0 then 'recheck_evidence' else 'service_required' end)
               when k in (14, 15, 16, 18) then jsonb_build_object('code', 'agent_stop_unconfirmed', 'retryClass', 'recheck_evidence') end),
-          'workspaceRecovery', jsonb_build_object('schema', 'paperclip.workspace-recovery.v1', 'runId', r.id::text,
+          'workspaceRecovery', jsonb_build_object('schema', 'outpost.workspace-recovery.v1', 'runId', r.id::text,
             'status', case when k < 12 then 'recovered' else 'blocked' end,
             'requestIds', case when k = 18 then jsonb_build_array('req-' || i.n) else '[]'::jsonb end),
-          'stopProofRecovery', case when k in (14, 15, 16) then jsonb_build_object('schema', 'paperclip.stop-proof-recovery.v1',
+          'stopProofRecovery', case when k in (14, 15, 16) then jsonb_build_object('schema', 'outpost.stop-proof-recovery.v1',
             'rearms', case when k = 16 then 4 else i.n % 4 end, 'nextRearmAt', $3::bigint + 60000 * (5 + i.n % 50)) end,
           'retainedSourceFallbackCheck', case when k in (12, 13, 16) then (array[
               jsonb_build_object('generationId', 'gen-' || i.n, 'checkedAt', $3::bigint - 600000),

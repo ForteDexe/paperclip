@@ -114,7 +114,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * CR2's fixed in-sandbox script. Arguments: `$1` the run id the Runner listens for, `$2` the provider pattern.
- * It finds the `paperclip-runnerd` whose listen path names this run, walks its descendants, SIGKILLs only the
+ * It finds the `outpost-runnerd` whose listen path names this run, walks its descendants, SIGKILLs only the
  * ones whose arguments contain the pattern, and prints the process table with start times before and after.
  * Exit 3: no Runner for this run here (another task's sandbox). Exit 4: the Runner has no provider process.
  * Exit 5: a selected process was still alive after the signal; `== killed` is printed only for confirmed deaths.
@@ -123,7 +123,7 @@ export const PROVIDER_KILL_SCRIPT = [
   "set -u",
   "run_id=$1; pattern=$2",
   'runner=""; for p in $(ps -eo pid= 2>/dev/null); do a=$(tr "\\000" " " < /proc/$p/cmdline 2>/dev/null) || continue;'
-    + ' case "$a" in *paperclip-runnerd*"/connect/$run_id"*) runner=$p; break;; esac; done',
+    + ' case "$a" in *outpost-runnerd*"/connect/$run_id"*) runner=$p; break;; esac; done',
   'test -n "$runner" || exit 3',
   'all=$runner; frontier=$runner; while test -n "$frontier"; do next=""; for p in $frontier; do next="$next $(ps -o pid= --ppid "$p" 2>/dev/null | tr "\\n" " ")"; done;'
     + ' frontier=$(echo $next); all="$all $frontier"; done',
@@ -222,7 +222,7 @@ export function findDaytonaPluginWorker(rows: ReadonlyArray<{ pid: number; ppid:
   descendants: (root: number) => number[]): { pid: number; command: string } | null {
   const under = new Set(descendants(serverPid));
   const matches = rows.filter(row => under.has(row.pid) && /daytona/i.test(row.command) && /\bnode\b|\.m?js\b/.test(row.command)
-    && !/paperclip-runnerd/.test(row.command));
+    && !/outpost-runnerd/.test(row.command));
   // The worker itself, not a child it spawned: its parent is not another match.
   const ids = new Set(matches.map(row => row.pid));
   const roots = matches.filter(row => !ids.has(row.ppid));

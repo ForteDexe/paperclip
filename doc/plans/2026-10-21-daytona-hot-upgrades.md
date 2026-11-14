@@ -80,7 +80,7 @@ branch `codex/daytona-hot-upgrades`.
 
 ## Architecture and delivery sequence
 
-1. Retain the native execution lifecycle and PRP protocol. Add durable controller
+1. Retain the native execution lifecycle and ORP protocol. Add durable controller
    persistence at the transport's effect boundary: authentication, commands and
    control-event acknowledgements must be recoverable before becoming visible to the peer.
    Streaming output uses the authenticated cursor contract described above.
@@ -341,7 +341,7 @@ one removed key instead of 4,097 retained keys. A controlled 32-event burst make
 one checkpoint commit with 33 records instead of 32 checkpoint commits. These are
 fixture byte and transaction counts, not production throughput, WAL, encryption
 size, CPU, or cost measurements. Low-rate events may still commit individually.
-Reproduce the size comparison with `PAPERCLIP_CHECKPOINT_COST_REPORT=1` and the
+Reproduce the size comparison with `OUTPOST_CHECKPOINT_COST_REPORT=1` and the
 `keeps the checkpoint header` test in the runner package; use Vitest's
 `--disableConsoleIntercept` to print the report.
 
@@ -485,14 +485,14 @@ startup wiring; final-head validation is tracked in the PR.
 
 ### Warm attachment ownership (2026-10-24)
 
-Checkpoint record identity follows the attached PRP run. Its write lease follows
+Checkpoint record identity follows the attached ORP run. Its write lease follows
 the currently admitted business run. These identities differ while a replacement
 controller adopts a completed warm session before attaching the next turn. Both
 plugin tasks and built-in drivers use the same registration helper, and a reused
 backend resolves current authority when it registers instead of capturing the
 previous run's lease. Losing that authority still fences subsequent writes.
 
-The recovery integration suite accepts `PAPERCLIP_TEST_DATABASE_URL` for an
+The recovery integration suite accepts `OUTPOST_TEST_DATABASE_URL` for an
 explicit disposable Postgres instance when native embedded Postgres is unavailable.
 It creates and removes a fresh database for each invocation; it does not reuse the
 URL's database as fixture storage. This option changes test setup only.

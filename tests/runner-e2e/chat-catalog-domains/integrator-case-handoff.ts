@@ -107,7 +107,7 @@ export const integratorCaseHandoffCases = [integratorDefinition("cases", "cases.
   const task = state.task as Entity; const row = state.case as CaseRecord;
   await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, task.title!);
   await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/cases/${row.identifier}`, row.title);
-}, { oracleVersion: "paperclip.chat-catalog.case-handoff.structural.v2", sourceFiles: ["chat-catalog-domains/integrator-case-handoff.ts", "chat-catalog-domains/internal-run-brief.ts", "chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-support.ts", "chat-scenarios/cases.yaml"],
+}, { oracleVersion: "outpost.chat-catalog.case-handoff.structural.v2", sourceFiles: ["chat-catalog-domains/integrator-case-handoff.ts", "chat-catalog-domains/internal-run-brief.ts", "chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-support.ts", "chat-scenarios/cases.yaml"],
   respondingAgent: { kind: "case-primary-owner", name: "Morgan", role: "engineer", canAssignTasks: true },
   expectedRunCount: 4, attemptTimeoutMs: 900_000, runPolicy: { kind: "terminal-counts", terminalStatusCounts: { cancelled: 1, succeeded: 3 } },
   async act(ctx, state) {

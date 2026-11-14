@@ -8,7 +8,7 @@ import type { Page } from "@playwright/test";
  * browser would. Keys mirror ui/src/components/GitHubStarPrompt.tsx (checked
  * by chat-returning-browser.test.ts).
  */
-export const RETURNING_BROWSER_SEEN_KEYS = ["paperclip.github-star-prompt.seen"] as const;
+export const RETURNING_BROWSER_SEEN_KEYS = ["outpost.github-star-prompt.seen"] as const;
 const SEEN_AT = "2026-01-01T00:00:00.000Z";
 
 function markSeen({ origin, keys, seenAt }: { origin: string; keys: readonly string[]; seenAt: string }) {

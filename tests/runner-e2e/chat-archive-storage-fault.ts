@@ -8,7 +8,7 @@ import { DOCKER_DATABASE_ENV } from "./docker-postgres.js";
  * Test-only storage fault for `inbox-search.archive-partial-failure`.
  *
  * The native runner calls the product API on the server's own loopback
- * listener, so a fault placed in front of PAPERCLIP_API_URL never sees the
+ * listener, so a fault placed in front of OUTPOST_API_URL never sees the
  * agent's archive requests. This fault sits below every route instead: a
  * temporary trigger on the case-owned database makes the product's own archive
  * write fail with a Postgres I/O error. The trigger is scoped to one company,
@@ -70,7 +70,7 @@ $fault$`,
 }
 
 export async function ownedDatabaseUrl(env: NodeJS.ProcessEnv) {
-  const temporary = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT, config = env.PAPERCLIP_CONFIG, home = env.PAPERCLIP_HOME, instance = env.PAPERCLIP_INSTANCE_ID;
+  const temporary = env.OUTPOST_RUNNER_E2E_TEMP_ROOT, config = env.OUTPOST_CONFIG, home = env.OUTPOST_HOME, instance = env.OUTPOST_INSTANCE_ID;
   if (!(temporary && config && home && instance && path.isAbsolute(temporary) && path.isAbsolute(config) && path.isAbsolute(home) && /^[A-Za-z0-9_-]+$/.test(instance))) throw new Error("Archive storage fault requires the owned runner instance");
   const [root, actualConfig, actualHome] = await Promise.all([realpath(temporary), realpath(config), realpath(home)]);
   if (actualHome !== path.join(root, "paperclip-home") || actualConfig !== path.join(actualHome, "instances", instance, "config.json")) throw new Error("Archive storage fault refuses an unowned instance");
@@ -86,7 +86,7 @@ export async function ownedDatabaseUrl(env: NodeJS.ProcessEnv) {
 
 export async function armArchiveStorageFault(input: { executionId: string; binding: ArchiveFaultBinding; env?: NodeJS.ProcessEnv }): Promise<ArchiveStorageFault> {
   const env = input.env ?? process.env;
-  let selected: unknown; try { selected = JSON.parse(env.PAPERCLIP_RUNNER_E2E_EXECUTION_IDS ?? "null"); } catch { selected = null; }
+  let selected: unknown; try { selected = JSON.parse(env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "null"); } catch { selected = null; }
   if (!reviewedChatExecutionIds(ARCHIVE_SCENARIO).includes(input.executionId) || !Array.isArray(selected) || selected.length !== 1 || selected[0] !== input.executionId)
     throw new Error("Archive storage fault is allowed only when its own case is the single selected execution");
   const statements = archiveStorageFaultSql(randomBytes(6).toString("hex"), input.binding);

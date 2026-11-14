@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, isNotNull, lte, or, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
-import { toolActionRequests, toolInvocations, type Db } from "@paperclipai/db";
+import { toolActionRequests, toolInvocations, type Db } from "@outpost/db";
 import { writeToolReviewChange } from "./tool-review-work-notifications.js";
 import { TOOL_APPROVAL_CONNECTION_REQUIRED } from "./tool-approval-connection.js";
 

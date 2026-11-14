@@ -10,14 +10,14 @@ import {
   companies,
   createDb,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { agentService } from "../services/agents.ts";
 import { approvalService } from "../services/approvals.ts";
-import { paperclipRunnerSupportsPlatform } from "@paperclipai/shared";
+import { paperclipRunnerSupportsPlatform } from "@outpost/shared";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -73,7 +73,7 @@ describeEmbeddedPostgres("pending approval agent config integrity", () => {
     const legacy = await lifecycle.requestHire(companyId, { name: "Legacy Codex", adapterType: "codex_local", runner: "legacy", adapterConfig: { extraArgs: ["--search"] }, status: "pending_approval" });
     const reviewedLegacy = await lifecycle.requestHire(companyId, { name: "Historical approved hire", adapterType: "codex_local", adapterConfig: {}, status: "pending_approval" }, { runnerResolved: true });
     if (paperclipRunnerSupportsPlatform("codex_local", process.platform, process.arch)) {
-      expect(native).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex", modelReasoningEffort: "high" } });
+      expect(native).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "codex", modelReasoningEffort: "high" } });
     } else {
       expect(native).toMatchObject({ adapterType: "codex_local", adapterConfig: { modelReasoningEffort: "high" } });
     }

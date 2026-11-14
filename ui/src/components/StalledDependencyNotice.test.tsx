@@ -5,7 +5,7 @@ import { act } from "react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { IssueBlockerStalledWakeContext } from "@paperclipai/shared";
+import type { IssueBlockerStalledWakeContext } from "@outpost/shared";
 import { StalledDependencyNotice } from "./StalledDependencyNotice";
 import { ApiError } from "../api/client";
 

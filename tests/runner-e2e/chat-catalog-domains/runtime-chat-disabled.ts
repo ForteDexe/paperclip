@@ -56,7 +56,7 @@ export function gradeConferenceRoomOff(value: unknown) {
 }
 export const runtimeDisabledChatCases: readonly IdentityBoundaryCase[] = [{
   scenarioId: "agent-chat.chat-disabled", journeyKind: "browser-boundary", boundaryTarget: "authenticated-harness", authentication: "human-session",
-  oracleVersion: "paperclip.chat-catalog.runtime-conference-off.v3", expectedRunCount: 0, expectedHumanMessageCount: 0, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000,
+  oracleVersion: "outpost.chat-catalog.runtime-conference-off.v3", expectedRunCount: 0, expectedHumanMessageCount: 0, turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000,
   sourceFiles: ["chat-catalog-domains/runtime-chat-disabled.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-boundary-contract.ts", "live-fixtures.ts", "chat-scenarios/agent-chat.yaml"],
   grade: gradeConferenceRoomOff,
   async run(ctx) {

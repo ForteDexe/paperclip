@@ -101,7 +101,7 @@ export function gradeChatContinuity(scope: ChatContinuityScope, points: ChatCont
     .filter(run => !chatContinuityResetRun(run)).every(run => {
     const provider = run.runnerProfileJson?.nativeExecutionInput?.provider;
     return run.runtimeMode === "native" && provider?.kind === scope.provider && provider?.model === scope.model
-      && run.contextSnapshot?.paperclipEnvironment?.id === scope.environmentId
+      && run.contextSnapshot?.outpostEnvironment?.id === scope.environmentId
       && run.nativePhase === "committed"
       && nonempty(run.nativeSessionId);
   });

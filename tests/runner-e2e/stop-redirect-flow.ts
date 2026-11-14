@@ -5,7 +5,7 @@ type Row = Record<string, any>;
 /** Work emitted by a retired turn, excluding accounting and control-plane bookkeeping. */
 export function nativeWorkEvents<T extends Row>(events: T[], binding?: NativePrpRunBinding): T[] {
   return events.filter(row => {
-    const event = row.payload?.prpEvent;
+    const event = row.payload?.orpEvent;
     const kind = event?.eventType;
     if (kind === "item.completed" && row.eventType === kind
       && isBoundNativePrpEventRow(row, binding) && event.payload?.kind === "usage") return false;
@@ -16,13 +16,13 @@ export function nativeWorkEvents<T extends Row>(events: T[], binding?: NativePrp
 /** Detect post-cancellation output even if it arrived before the first snapshot. */
 export function nativeCancellationHasNoLaterWork(events: Row[], binding?: NativePrpRunBinding): boolean {
   const work = nativeWorkEvents(events, binding);
-  const cancellation = work.findIndex(row => row.payload.prpEvent.eventType === "turn.cancelled");
+  const cancellation = work.findIndex(row => row.payload.orpEvent.eventType === "turn.cancelled");
   return cancellation >= 0 && cancellation === work.length - 1;
 }
 
 /** A claimed run is not proof that a cancellable native turn has started. */
 export function activeNativeTurnStarted(run: Row | undefined, events: Row[]): boolean {
-  const latestTurn = events.map(row => row.payload?.prpEvent?.eventType)
+  const latestTurn = events.map(row => row.payload?.orpEvent?.eventType)
     .filter(kind => ["turn.started", "turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"].includes(kind)).at(-1);
   return run?.runtimeMode === "native" && run.status === "running" && latestTurn === "turn.started";
 }
@@ -52,7 +52,7 @@ export function nativeStopAcknowledged(run: Row, companyId: string, issueId: str
   const startup = result.startupCancellation;
   const cancellation = result.cancellation;
   return run.runtimeMode === "native" && run.status === "cancelled" && run.companyId === companyId && (run.nativeIssueId ?? run.issueId) === issueId
-    && stop?.schema === "paperclip.native-cancellation.v1" && stop.companyId === companyId
+    && stop?.schema === "outpost.native-cancellation.v1" && stop.companyId === companyId
     && stop.runId === run.id && stop.issueId === issueId && stop.scope === "run" && stop.dispatched === true
     && stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only"
     && stop.effects?.length === 1 && stop.effects[0] === "release_run_resources"

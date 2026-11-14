@@ -17,8 +17,8 @@ import {
   issueThreadInteractions,
   issueWorkProducts,
   issues,
-} from "@paperclipai/db";
-import type { AttentionItem } from "@paperclipai/shared";
+} from "@outpost/db";
+import type { AttentionItem } from "@outpost/shared";
 import { DEFAULT_DECISION_SHELF_DAYS } from "../services/decision-retention.js";
 import {
   getEmbeddedPostgresTestSupport,
@@ -28,7 +28,7 @@ import { errorHandler } from "../middleware/index.js";
 import { decisionQueueRoutes } from "../routes/decision-queues.js";
 import { decisionQueueService } from "../services/decision-queues.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_DECISION_QUEUES_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_DECISION_QUEUES_TEST_DATABASE_URL");
 const embeddedPostgresSupport = external ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 

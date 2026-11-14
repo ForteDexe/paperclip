@@ -1,4 +1,4 @@
-import { applyPendingMigrations, closeRegisteredClients, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
+import { applyPendingMigrations, closeRegisteredClients, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
@@ -8,19 +8,19 @@ import path from "node:path";
 import { constants as fsConstants } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, executionWorkspaces, executionWorkspaceRepositories, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, companies, createDb, executionWorkspaces, executionWorkspaceRepositories, heartbeatRuns, issues } from "@outpost/db";
 import { executionWorkspaceService } from "../services/execution-workspaces.js";
 import { executionWorkspaceRepositoryService } from "../services/execution-workspace-repositories.js";
 import * as remoteWorkspaces from "../services/remote-workspaces.js";
-import type { EnvironmentLease } from "@paperclipai/shared";
-import { listLocalProjectRepositories } from "@paperclipai/adapter-utils/ssh";
-import { readManagedWorkspaceRepositories, disposeGitWorkspaceSnapshot } from "@paperclipai/adapter-utils/git-workspace-sync";
-import { captureDirectorySnapshot, disposeDirectorySnapshot, withDirectoryPublicationLock } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import type { EnvironmentLease } from "@outpost/shared";
+import { listLocalProjectRepositories } from "@outpost/adapter-utils/ssh";
+import { readManagedWorkspaceRepositories, disposeGitWorkspaceSnapshot } from "@outpost/adapter-utils/git-workspace-sync";
+import { captureDirectorySnapshot, disposeDirectorySnapshot, withDirectoryPublicationLock } from "@outpost/adapter-utils/workspace-restore-merge";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const catalog = vi.hoisted(() => ({ available: true }));
 vi.mock("../services/tool-access.js", () => ({ toolAccessService: () => ({ listProjectRepositories: async () => ({ repositories: catalog.available ? [{ id: "123", fullName: "team/source", url: "https://github.com/team/source", connections: [] }] : [] }) }) }));
-const externalDatabaseUrl = process.env.PAPERCLIP_TASK_REPOSITORIES_TEST_DATABASE_URL;
+const externalDatabaseUrl = process.env.OUTPOST_TASK_REPOSITORIES_TEST_DATABASE_URL;
 if (externalDatabaseUrl && new URL(externalDatabaseUrl).pathname !== "/remote_workspace_repositories_test") {
   throw new Error("Remote repository tests require the disposable remote_workspace_repositories_test database");
 }
@@ -31,7 +31,7 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
   let companyId: string, issueId: string, workspaceId: string, agentId: string, cwd: string;
   const actor = { type: "board" as const, source: "local_implicit" as const, userId: "local-board" };
   beforeAll(async () => {
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", "enforce");
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     if (externalDatabaseUrl) await applyPendingMigrations(externalDatabaseUrl);
     temporary = externalDatabaseUrl ? { connectionString: externalDatabaseUrl,
       cleanup: () => closeRegisteredClients(externalDatabaseUrl) }
@@ -58,7 +58,7 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
     await db.insert(issues).values({ id: taskId, companyId, title: "Remote repositories" });
     await db.insert(executionWorkspaces).values({ id: remoteWorkspaceId, companyId, sourceIssueId: taskId,
       name: "Remote task", cwd: remoteCwd, mode: "isolated_workspace", strategyType: "project_primary", providerType: "cloud_sandbox",
-      metadata: { remoteWorkspace: { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null,
+      metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null,
         source: { kind: "empty" }, writerRunId: runId, dirty: true,
         location: { leaseId, environmentId, providerLeaseId: "remote-allocation", remoteCwd } } } });
     await db.update(issues).set({ executionWorkspaceId: remoteWorkspaceId }).where(eq(issues.id, taskId));

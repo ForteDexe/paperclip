@@ -1,7 +1,7 @@
 import { readNativeRemoteExecutionOwnership } from "./native-runner-ownership.js";
 import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
-import { heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import { confirmNativeControllerStoppedSchema } from "@paperclipai/shared";
+import { heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { confirmNativeControllerStoppedSchema } from "@outpost/shared";
 import { conflict } from "../../errors.js";
 import { persistActivity, publishActivity } from "../activity-log.js";
 import { notifyLiveRunRecovery } from "../live-run-recovery-notifications.js";

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Issue, IssueComment, IssueDocumentSummary } from "@paperclipai/shared";
+import type { Issue, IssueComment, IssueDocumentSummary } from "@outpost/shared";
 import { TaskChatThread } from "@/components/TaskChatThread";
 import { storybookAgents, storybookIssues } from "../../fixtures/paperclipData";
 import { queryKeys } from "@/lib/queryKeys";

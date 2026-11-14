@@ -21,7 +21,7 @@ import {
   issueQuestionResponseDeliveries,
   issueThreadInteractions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -34,7 +34,7 @@ import {
   questionResponseDeliveryService,
 } from "../services/question-response-delivery.js";
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_QUESTION_DELIVERY_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_QUESTION_DELIVERY_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported
   ? describe
@@ -225,7 +225,7 @@ describeEmbeddedPostgres("question response delivery", () => {
             },
           ],
           questionSet: {
-            schema: "paperclip.question_set.v1",
+            schema: "outpost.question_set.v1",
             title: "Server choices",
             questions: [
               {
@@ -523,7 +523,7 @@ describeEmbeddedPostgres("question response delivery", () => {
 
   it("resolves an in-flight native input request before creating a continuation", async () => {
     const seeded = await seed({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       runtimeMode: "native",
       sourceStatus: "running",
     });
@@ -549,9 +549,9 @@ describeEmbeddedPostgres("question response delivery", () => {
     expect(wakeup).not.toHaveBeenCalled();
   });
 
-  it("keeps native input delivery pending while its PRP session is unavailable", async () => {
+  it("keeps native input delivery pending while its ORP session is unavailable", async () => {
     const seeded = await seed({
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       runtimeMode: "native",
       sourceStatus: "running",
     });
@@ -1228,7 +1228,7 @@ describeEmbeddedPostgres("question response delivery", () => {
     const seeded = await seed();
     const envelope = buildQuestionResponseDeliveryEnvelope(seeded.interaction);
     expect(envelope.response).toEqual({
-      schema: "paperclip.question_response.v1",
+      schema: "outpost.question_response.v1",
       answers: {
         purpose: { text: "Internal API" },
         runtime: { selectedOptionIds: ["node"] },

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
-import { executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, workspaceOperations, type Db } from "@paperclipai/db";
+import { executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, workspaceOperations, type Db } from "@outpost/db";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { adapterExecutionControls } from "./adapter-execution-control.js";
 import { assertCurrentWorkspaceSourceHeld, managedProjectSourceIdentity, withWorkspaceSourceLocks } from "./workspace-source-lock.js";
@@ -48,14 +48,14 @@ export function validateImportedWorkspaceChildren(raw: unknown): ImportedWorkspa
 }
 
 export async function offlineWorkspaceMigrationBlockers(db: ReadDb) {
-  if (process.env.PAPERCLIP_EPHEMERAL_MIGRATION !== "true") return ["offline_maintenance_required"];
+  if (process.env.OUTPOST_EPHEMERAL_MIGRATION !== "true") return ["offline_maintenance_required"];
   const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
     .where(offlineMigrationExecutionWhere()).limit(1);
   return active ? ["active_execution_requires_drain"] : [];
 }
 
 export type WorkspaceMigrationCohort = {
-  schema: "paperclip.remote-workspace-cohort.v1";
+  schema: "outpost.remote-workspace-cohort.v1";
   id: string; companyId: string; sourceProof: string;
   members: Array<{ workspaceId: string; operationId: string }>;
 };

@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 
 import { SANDBOX_PLATFORM_PROBE_METADATA_KEY } from "./environment-custom-image-runtime.js";
 import { and, asc, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   agents,
   builtInManagedResources,
@@ -27,7 +27,7 @@ import {
   instanceSettings,
   issues,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   ENVIRONMENT_DRIVERS,
   ENVIRONMENT_LEASE_CLEANUP_STATUSES,
@@ -43,7 +43,7 @@ import {
   type EnvironmentLeasePolicy,
   type EnvironmentLeaseStatus,
   type UpdateEnvironment,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { conflict, forbidden } from "../errors.js";
 import { logActivity } from "./activity-log.js";
 import { isCloudManagedInstance } from "./cloud-instance.js";
@@ -143,7 +143,7 @@ export interface KubernetesEnvironmentConfigInput {
    * environment config and validated by the sandbox config schema.
    */
   timeoutMs?: number;
-  adapters?: import("@paperclipai/shared").AdapterRegistryEntry[];
+  adapters?: import("@outpost/shared").AdapterRegistryEntry[];
   [key: string]: unknown;
 }
 
@@ -171,7 +171,7 @@ export interface ManagedSandboxEnvironmentInput {
   stockVersion?: string;
   /**
    * Asserts the caller's deployment gives no operator any path to hand-edit
-   * this row (currently only true for the PAPERCLIP_MANAGED_CONFIG applier,
+   * this row (currently only true for the OUTPOST_MANAGED_CONFIG applier,
    * where `enableManagedSandboxOnly` removes the tenant's own environment
    * choice entirely). When set, a plain content-hash mismatch against a real
    * prior binding is treated as ordinary stock drift instead of an operator
@@ -637,7 +637,7 @@ export function environmentService(db: Db) {
         );
         if (operatorReaffirmedArchive) stockStatus = "operator_modified";
 
-        // `platformFullyManaged` callers (currently: the PAPERCLIP_MANAGED_CONFIG
+        // `platformFullyManaged` callers (currently: the OUTPOST_MANAGED_CONFIG
         // applier) assert that nothing in their deployment can hand-edit this
         // row — the product gives a cloud-harness tenant no path to it, unlike
         // the general self-hosted contract this function otherwise protects

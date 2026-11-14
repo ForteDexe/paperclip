@@ -7,16 +7,16 @@ import {
   inArray,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   assets,
   chatPublications,
   issueAttachments,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   SafeChatPublicationPayload,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   isAllowedContentType,

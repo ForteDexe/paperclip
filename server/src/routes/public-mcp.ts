@@ -9,7 +9,7 @@ import { z } from "zod";
 import { type PublicMcpEvents } from "../services/public-mcp/events.js";
 import type { PublicMcpToolExtension } from "../services/public-mcp/dot-runner.js";
 import { McpEventError } from "../services/public-mcp/event-webhooks.js";
-import { DOT_RUNNER_MCP_PATH, mcpConsentSchema, mcpInvitation, mcpSetupUrl } from "@paperclipai/shared";
+import { DOT_RUNNER_MCP_PATH, mcpConsentSchema, mcpInvitation, mcpSetupUrl } from "@outpost/shared";
 import { renderMcpSetup, mcpSetupMarkdown } from "../services/public-mcp/setup.js";
 import { McpOAuthError, type PublicMcpOAuth } from "../services/public-mcp/oauth.js";
 import { McpApiError, McpCapabilityError, publicMcpCapabilities, type createPublicMcpExecutor } from "../services/public-mcp/capabilities.js";
@@ -216,8 +216,8 @@ export function publicMcpManagementRoutes(oauth: PublicMcpOAuth, agentOAuth?: Pu
   });
   router.get(["/mcp/requests/:id", "/dot-mcp/requests/:id"], async (req, res) => {
     let setupUrl: string | null = null;
-    if (process.env.PAPERCLIP_CLOUD_API_ORIGIN) {
-      const base = new URL(process.env.PAPERCLIP_CLOUD_API_ORIGIN);
+    if (process.env.OUTPOST_CLOUD_API_ORIGIN) {
+      const base = new URL(process.env.OUTPOST_CLOUD_API_ORIGIN);
       if (base.protocol === "https:") setupUrl = new URL("/orgs/new", base).toString();
     }
     res.json(await (await requestOAuth(String(req.params.id), req.path.startsWith("/dot-mcp/"))).describeRequest(String(req.params.id), req.actor, setupUrl));

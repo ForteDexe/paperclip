@@ -131,7 +131,7 @@ const settings = privilegedDefinition("instance-operations.instance-settings", "
     remainingPrivilegedObservationBudget(ctx);
   },
 });
-settings.oracleVersion = "paperclip.chat-catalog.privileged.instance-settings.v2";
+settings.oracleVersion = "outpost.chat-catalog.privileged.instance-settings.v2";
 settings.observe = async (ctx, state) => {
   const o = await observeInternal(ctx, state), key = probeKeys.get(ctx);
   state.probeCredentialAbsent = !!key && !o.reply.includes(key.token);

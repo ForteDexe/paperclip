@@ -1,7 +1,7 @@
 import type { PluginWorkspaceParams, PluginWorkspacePrepareParams, PluginWorkspacePrepareResult, PluginWorkspaceResult } from "./workspace-provider.js";
 import type { PluginEnvironmentTaskParams, PluginEnvironmentTaskResult } from "./environment-tasks.js";
-import type { AgentLifecycleRequest, AgentLifecycleResult } from "@paperclipai/shared";
-import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@paperclipai/shared";
+import type { AgentLifecycleRequest, AgentLifecycleResult } from "@outpost/shared";
+import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@outpost/shared";
 /**
  * `definePlugin` — the top-level helper for authoring a Paperclip plugin.
  *
@@ -15,7 +15,7 @@ import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@paper
  * @example
  * ```ts
  * // dist/worker.ts
- * import { definePlugin } from "@paperclipai/plugin-sdk";
+ * import { definePlugin } from "@outpost/plugin-sdk";
  *
  * export default definePlugin({
  *   async setup(ctx) {
@@ -411,7 +411,7 @@ export interface PluginDefinition {
   onWorkspacePrepare?(params: PluginWorkspacePrepareParams): Promise<PluginWorkspacePrepareResult>;
   onWorkspaceOperation?(params: PluginWorkspaceParams): Promise<PluginWorkspaceResult>;
 
-  /** Provide Runner execution: prepare resources, start Runner, connect via PRP, and manage task lifecycle. */
+  /** Provide Runner execution: prepare resources, start Runner, connect via ORP, and manage task lifecycle. */
   onEnvironmentTask?(params: PluginEnvironmentTaskParams): Promise<PluginEnvironmentTaskResult>;
 
   /** Called to test reachability or readiness of a plugin-hosted environment. */
@@ -604,7 +604,7 @@ export interface PaperclipPlugin {
  *
  * @example
  * ```ts
- * import { definePlugin } from "@paperclipai/plugin-sdk";
+ * import { definePlugin } from "@outpost/plugin-sdk";
  *
  * export default definePlugin({
  *   async setup(ctx) {

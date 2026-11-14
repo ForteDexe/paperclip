@@ -7,7 +7,7 @@ dist-preview/
 dist-flow-preview/
 server/ui-dist/
 server/dist-runtime/
-packages/paperclip-runner/runner/target/
+packages/outpost-runner/runner/target/
 ui/storybook-static/
 ui/storybook/generated/
 ui/storybook/.storybook/preview.tsx
@@ -92,11 +92,11 @@ test-results/
 # Retained local lifecycle behavior measurements
 .lifecycle-baseline/
 # Copilot assets are generated from pinned platform packages during installation.
-/packages/paperclip-runner/provider-assets/
+/packages/outpost-runner/provider-assets/
 /server/provider-assets/
 
 # Local native Runner test/session state
-.paperclip-runner-prp/
+.outpost-runner-orp/
 
 # Opt-in CI timing artifacts
 .ci-profile/

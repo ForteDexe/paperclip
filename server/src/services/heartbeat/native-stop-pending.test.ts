@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import { heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { heartbeatRuns } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../errors.js";
 import { cancelNativeSession, NativeCancellationPendingRecoveryError } from "../native-runtime/index.js";

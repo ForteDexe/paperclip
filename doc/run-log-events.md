@@ -22,7 +22,7 @@ span is added. Retry, cancellation and authorization behavior stay unchanged.
 
 ## Startup reuse evidence
 
-`run.startup.reuse` uses schema `paperclip.startup-reuse.v1`. Each receipt names
+`run.startup.reuse` uses schema `outpost.startup-reuse.v1`. Each receipt names
 one layer: `environment` (the lease), `workspace`, `runner`, `provider_process`,
 or `provider_session`. Its state is `reused`, `fresh`, `unknown`, or
 `not_applicable`. Reasons use a closed set: `verified_reuse`, `created`,
@@ -113,7 +113,7 @@ earlier output timing. The event contains no text or provider identifiers.
 
 ## Speed budget breaches
 
-`run.performance.budget_exceeded` (schema `paperclip.run-performance-budget.v1`,
+`run.performance.budget_exceeded` (schema `outpost.run-performance-budget.v1`,
 level `warn`) records one native run that exceeded its p95 speed budget. The
 budgets come from the Phase 0 local baseline and are listed in
 `doc/plans/2026-11-07-durable-ownership-and-reconciliation.md` ("Speed budgets").
@@ -162,8 +162,8 @@ They also become native Observability spans only with an operator OTLP endpoint.
 - `runner.runtime.stage`: controller-side launch preparation before the Runner
   process exists (runtime context, provider home, launch profiles; on resume, the
   durable-state checks and authority rotation as well).
-- `runner.process.launch`: from spawning `paperclip-runnerd` until its first
-  authenticated connection to the PRP control plane. An exact adoption of a live
+- `runner.process.launch`: from spawning `outpost-runnerd` until its first
+  authenticated connection to the ORP control plane. An exact adoption of a live
   Runner records no launch, so this span keeps meaning a fresh Runner process
   (see startup reuse above).
 - `provider.session.load`: from that authentication until the provider session
@@ -178,10 +178,10 @@ own `runner.runtime.stage` and `runner.process.launch` spans. These rows stay in
 the instance run log; with an operator OTLP endpoint they are also Observability
 spans. They are not Telemetry.
 
-## Native PRP Run-Log Events
+## Native ORP Run-Log Events
 
 Provider startup command failures and failed provider turns can carry a
-`providerFailure` cause with schema `paperclip.provider-failure.v1`. The cause
+`providerFailure` cause with schema `outpost.provider-failure.v1`. The cause
 retains a normalized category, a bounded and redacted provider explanation, the
 startup/turn phase, and available status, code, request ID, or retry time. Provider
 adapters extract these fields; arbitrary exception objects, request bodies,
@@ -223,19 +223,19 @@ directory, redacts secrets in each patch, and bounds a patch to 32 KiB and one
 call to 32 files. Counts cover the whole patch even when the patch is shortened.
 Codex `fileChange` items produce these rows. Claude Edit and Write calls produce
 them from the ACP `diff` content. Codex `turn/diff/updated` also records the
-whole-turn diff as `workspace.change.updated` (`paperclip.workspace.diff.v1`).
+whole-turn diff as `workspace.change.updated` (`outpost.workspace.diff.v1`).
 The task chat shows each patch under its edit row. It ends the turn with the
 change set, or with one built from the edit rows when the harness reports no
 whole-turn diff.
 
-`auth.credentials.updated` is a runner-produced PRP event for a change to a
+`auth.credentials.updated` is a runner-produced ORP event for a change to a
 supported credential store, including account identity changes and later token
 refreshes on the new account. The bundled transport awaits a host commit callback
 before acknowledging delivery, including during warm idle and provider cleanup.
 The callback writes directly to the bound run through the shared run-log writer.
 Its separate credential source namespace avoids collisions with driver-normalized
-source sequences and deduplicates retries using the original PRP event identity.
-The original envelope is retained in `prpEvent`. Its payload contains only a
+source sequences and deduplicates retries using the original ORP event identity.
+The original envelope is retained in `orpEvent`. Its payload contains only a
 provider, an opaque binding ID, a revision, and a detection method. It contains
 no credentials, account identity, file path, or credential fingerprint. The
 consumer can use the event to read the updated credentials through its existing
@@ -270,11 +270,11 @@ system stream with `warn` severity. Its payload contains `requestedModel`,
 provider launch, not a failed turn or a retry. The same substitution appears as
 a system warning in the task conversation. It remains local run-log data.
 
-The hidden native coordinator writes each validated PRP event to the bound
+The hidden native coordinator writes each validated ORP event to the bound
 run's existing event stream before it acknowledges the runner. The row keeps
-the PRP `eventType`, source instance, source event ID, source sequence, protocol
+the ORP `eventType`, source instance, source event ID, source sequence, protocol
 schema version, and a SHA-256 digest of the canonical stored envelope. Its
-payload is `{ "prpEvent": <canonical PRP event> }`.
+payload is `{ "orpEvent": <canonical ORP event> }`.
 
 Native API tool events omit HTTP request and response bodies from durable history.
 This includes serialized provider `contentItems`, legacy HTTP receipts and
@@ -710,7 +710,7 @@ in `metadata.saveTiming.storage`:
 
 A restore also records its step durations, `bytes` and `requests` on its
 `remote_workspace_restore` workspace operation, in `metadata.restoreTiming`
-(schema `paperclip.remote-workspace-restore-timing.v1`). A save that reuses an
+(schema `outpost.remote-workspace-restore-timing.v1`). A save that reuses an
 earlier upload still reads it back; that read-back is counted in `verifyMs`.
 A throttled part send counts in `throttled` even when it ends the retries,
 and a multipart abort sent during cleanup counts in `requests`.
@@ -838,7 +838,7 @@ Provider rate-limit windows use `provider.notice.recorded` with category
 (`_claude/rateLimit`) when it uses a subscription sign-in. The runner merges
 sparse Codex updates and records a notice only when the windows change. The
 notice has one `rateLimits` detail: a JSON snapshot with schema
-`paperclip.provider.rate_limits.v1` (windows with used percent and reset time,
+`outpost.provider.rate_limits.v1` (windows with used percent and reset time,
 credits, and the reached window). Chat does not show the notice. The server
 keeps the latest snapshot in the agent's runtime state under
 `providerRateLimits`, and the task properties pane shows it as the assignee's
@@ -1020,7 +1020,7 @@ or resolver error. Recording the diagnostic never contacts a destination.
 
 ## Runtime activity
 
-`runtime.activity.recorded` is a P1 Runner PRP event with a closed
+`runtime.activity.recorded` is a P1 Runner ORP event with a closed
 `{ namespace, activityKey }` payload. `namespace` groups a producer's activity
 types under a stable name. `activityKey` identifies an activity within that group.
 Consumers use the pair to select a response to activity in the current run.
@@ -1053,7 +1053,7 @@ text is scanned and no synthetic receipt is written.
 
 `GET /api/heartbeat-runs/:runId/events?view=plugin-panels` reads these events and
 returns only installed agent task-panel contributions under normal run-read and
-telemetry-read authorization. Ordinary PRP reads/live delivery retain run-secret
+telemetry-read authorization. Ordinary ORP reads/live delivery retain run-secret
 and current-user redaction. The task page uses one history read on mount/reconnect
 and the existing live transcript stream, then makes a bounded plugin readiness
 check. No panel discovery timer scans runs or provider state while connected.

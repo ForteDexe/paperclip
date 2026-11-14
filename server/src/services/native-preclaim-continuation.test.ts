@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { agentWakeupRequests, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults } from "@paperclipai/db";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import { agentWakeupRequests, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults } from "@outpost/db";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { appendHeartbeatRunEvent } from "./heartbeat-run-events.js";
 import { recoverRetainedWorkspace } from "./workspace-recovery.js";
 import { adoptSystemRecovery } from "./system-recovery.js";
@@ -35,7 +35,7 @@ async function preClaimNativeFailure() {
   await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", attempt: 0, leaseOwner: null, leaseExpiresAt: null,
     failureCode: "native_continuation_requires_reconciliation", failureDetail: null })
     .where(eq(nativeRunFinalizations.runId, f.runId));
-  const recovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id] };
+  const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] };
   const remoteWorkspace = source.runnerProfileJson!.remoteWorkspace as { remoteCwd: string };
   await db.update(heartbeatRuns).set({
     status: "failed", finishedAt: new Date(), error: "The operation was aborted",
@@ -81,17 +81,17 @@ async function sweep() {
 describe("native run that failed before its first coordinator claim", () => {
   useWorkspaceRecoveryFixture(targets);
   // A published remote workspace: the shape staging persists and restores.
-  const priorEnv = { databaseUrl: process.env.DATABASE_URL, masterKey: process.env.PAPERCLIP_SECRETS_MASTER_KEY };
+  const priorEnv = { databaseUrl: process.env.DATABASE_URL, masterKey: process.env.OUTPOST_SECRETS_MASTER_KEY };
   beforeEach(() => {
     const local = storageBackend.getStorageService();
     vi.spyOn(storageBackend, "getStorageService").mockReturnValue({ ...local, provider: "s3" });
-    process.env.DATABASE_URL = connectionString; process.env.PAPERCLIP_SECRETS_MASTER_KEY = "63".repeat(32);
+    process.env.DATABASE_URL = connectionString; process.env.OUTPOST_SECRETS_MASTER_KEY = "63".repeat(32);
   });
   afterEach(() => {
     vi.restoreAllMocks();
     if (priorEnv.databaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = priorEnv.databaseUrl;
-    if (priorEnv.masterKey === undefined) delete process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    else process.env.PAPERCLIP_SECRETS_MASTER_KEY = priorEnv.masterKey;
+    if (priorEnv.masterKey === undefined) delete process.env.OUTPOST_SECRETS_MASTER_KEY;
+    else process.env.OUTPOST_SECRETS_MASTER_KEY = priorEnv.masterKey;
   });
 
   it("continues automatically exactly once after its saved work is recovered", async () => {

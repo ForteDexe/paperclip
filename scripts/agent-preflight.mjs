@@ -6,17 +6,17 @@
 //
 // It replaces this sequence, with the same results:
 //   pnpm install --frozen-lockfile
-//   pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
-//   pnpm --filter @paperclipai/paperclip-runner run ensure:eval-build-deps
-//   pnpm --filter @paperclipai/paperclip-runner run build:rust
-//   pnpm --filter @paperclipai/paperclip-runner build
-//   pnpm --filter @paperclipai/paperclip-runner run build:runner-binaries
+//   pnpm --filter @outpost/plugin-sdk ensure-build-deps
+//   pnpm --filter @outpost/outpost-runner run ensure:eval-build-deps
+//   pnpm --filter @outpost/outpost-runner run build:rust
+//   pnpm --filter @outpost/outpost-runner build
+//   pnpm --filter @outpost/outpost-runner run build:runner-binaries
 //
 // Steps:
 //   install       skipped when the lockfile, manifests, patches and toolchain
 //                 match the last successful install in this worktree
 //   plugin sdk    skipped when ensure-plugin-build-deps finds the SDK and
-//                 @paperclipai/shared outputs match their source fingerprints
+//                 @outpost/shared outputs match their source fingerprints
 //   runner build  skipped when the Runner's own build stamp is current;
 //                 restored from the cache when another worktree built the same
 //                 inputs; otherwise built, then published
@@ -26,7 +26,7 @@
 //
 // A restored Runner build skips the build's lint checks (protocol coverage,
 // traceability and similar). They depend only on the same inputs, and CI runs
-// them; run `pnpm --filter @paperclipai/paperclip-runner build` for them locally.
+// them; run `pnpm --filter @outpost/outpost-runner build` for them locally.
 //
 // Usage: node scripts/agent-preflight.mjs [--no-cache] [--force-install] [--skip-rust-debug] [--explain]
 
@@ -43,7 +43,7 @@ import { DEBUG_INPUTS, debugContract } from "./runner-debug-crate-cache.mjs";
 import {
   assessRunnerBuild, buildInputsStampPath, collectBuildOutputFiles, computeBuildInputsDigest, expectedBuildOutputs,
   findChangedBuildOutput, writeBuildInputsStamp,
-} from "../packages/paperclip-runner/scripts/build-inputs.mjs";
+} from "../packages/outpost-runner/scripts/build-inputs.mjs";
 
 const PREFLIGHT_SCRIPTS = ["scripts/agent-preflight.mjs", "scripts/agent-build-cache.mjs"];
 const SEED_INPUTS = [`${RUNNER_PACKAGE}/runner/Cargo.lock`, `${RUNNER_PACKAGE}/runner/Cargo.toml`,
@@ -103,12 +103,12 @@ function installStep(root, options, toolchain) {
 
 // --- plugin SDK build -----------------------------------------------------
 
-// @paperclipai/plugin-sdk exports its built dist rather than its TypeScript
+// @outpost/plugin-sdk exports its built dist rather than its TypeScript
 // source, so plugin workers can load it under plain Node. Apart from the
 // Runner and eval kernel, which the Runner build step covers, it is the only
 // workspace package the server imports that way. The server (and anything that imports
 // server modules, such as the restart-chaos harness) cannot start without it.
-// ensure-plugin-build-deps builds it and its @paperclipai/shared dependency,
+// ensure-plugin-build-deps builds it and its @outpost/shared dependency,
 // skips both when its content fingerprints show the outputs are current, and
 // takes the same lock as its other callers (CI, `paperclipai run`, typecheck).
 // The two packages compile in about two seconds, so they skip the shared
@@ -238,7 +238,7 @@ function runnerBuildStep(root, cache, toolchain) {
     for (const tree of DIST_TREES) removeTree(path.join(root, tree));
     log("cached Runner build did not match; building");
   }
-  const seconds = exec("pnpm", ["--filter", "@paperclipai/paperclip-runner", "build"], root);
+  const seconds = exec("pnpm", ["--filter", "@outpost/outpost-runner", "build"], root);
   const after = assessRunnerBuild({ repoRoot: root, packageRoot });
   if (!after.current || after.stamp.digest !== inputs.digest) return { step: "runner-build", action: "built", seconds };
   writeJson(keyFile, { key, recordedAt: after.stamp.recordedAt });

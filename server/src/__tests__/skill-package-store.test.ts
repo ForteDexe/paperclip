@@ -9,9 +9,9 @@ import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, companies, companySkills, companySkillVersions, companySkillRepositorySnapshots as snapshots,
-  skillPackageDeletions, createDb, withDedicatedDbConnection } from "@paperclipai/db";
-import * as dbModule from "@paperclipai/db";
-import type { CompanySkill, CompanySkillVersionFileInventoryEntry } from "@paperclipai/shared";
+  skillPackageDeletions, createDb, withDedicatedDbConnection } from "@outpost/db";
+import * as dbModule from "@outpost/db";
+import type { CompanySkill, CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import * as storageModule from "../storage/index.js";
 import { createStorageService } from "../storage/service.js";
@@ -37,7 +37,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   let db: ReturnType<typeof createDb>;
   let home: string;
   let storage: storageModule.StorageService;
-  const previousHome = process.env.PAPERCLIP_HOME;
+  const previousHome = process.env.OUTPOST_HOME;
   const files: CompanySkillVersionFileInventoryEntry[] = [
     { path: "skills/one/SKILL.md", kind: "skill", content: "---\nname: one\ndescription: Test one\n---\nUse ../../shared/run.sh\n" },
     { path: "skills/two/SKILL.md", kind: "skill", content: "---\nname: two\ndescription: Test two\n---\nUse ../../shared/run.sh\n" },
@@ -49,13 +49,13 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     database = await startEmbeddedPostgresTestDatabase("skill-packages-");
     db = createDb(database.connectionString, { maxConnections: 1 });
     home = await fs.mkdtemp(path.join(os.tmpdir(), "skill-packages-"));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     storage = createStorageService(createLocalDiskStorageProvider(path.join(home, "objects")));
   });
   afterEach(() => vi.restoreAllMocks());
   afterAll(async () => {
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = previousHome;
     await db?.$client.end({ timeout: 1 });
     await database?.cleanup();
     if (home) await fs.rm(home, { recursive: true, force: true });

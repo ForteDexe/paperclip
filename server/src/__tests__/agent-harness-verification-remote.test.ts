@@ -2,19 +2,19 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 
 // Keep the real directory, command and adapter checks. Runtime staging is a
 // separate operation and must not copy files or contact a provider in this test.
-vi.mock("@paperclipai/adapter-utils/execution-target", async importOriginal => ({
-  ...await importOriginal<typeof import("@paperclipai/adapter-utils/execution-target")>(),
+vi.mock("@outpost/adapter-utils/execution-target", async importOriginal => ({
+  ...await importOriginal<typeof import("@outpost/adapter-utils/execution-target")>(),
   prepareAdapterExecutionTargetRuntime: async () => ({
     workspaceRemoteDir: "/workspace", runtimeRootDir: "/workspace/.paperclip-runtime",
     assetDirs: {}, restoreWorkspace: async () => {},
   }),
 }));
 
-import { testEnvironment } from "@paperclipai/adapter-opencode-local/server";
+import { testEnvironment } from "@outpost/adapter-opencode-local/server";
 import { assertHarnessTestPassed } from "../services/agent-harness-verification.js";
 import { lifecycleFailureMessage, lifecycleVerificationNeedsRetry } from "../modules/agent-lifecycle/application/failure.js";
 
@@ -71,7 +71,7 @@ describe("Runner mismatch during verification", () => {
   it("waits for the Runner update instead of parking verification", async () => {
     const { runnerRevisionMismatchTestResult } = await import("../services/runner-revision-mismatch.js");
     let error: unknown;
-    try { assertHarnessTestPassed(runnerRevisionMismatchTestResult("paperclip_runner")); } catch (caught) { error = caught; }
+    try { assertHarnessTestPassed(runnerRevisionMismatchTestResult("outpost_runner")); } catch (caught) { error = caught; }
     expect(error).toMatchObject({ code: "runner_revision_mismatch" });
     expect(lifecycleVerificationNeedsRetry(context, error)).toBe(false);
     expect(lifecycleFailureMessage(context, error)).toContain("will check again automatically");

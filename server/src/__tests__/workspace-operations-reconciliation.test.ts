@@ -13,9 +13,9 @@ import {
   issues,
   projects,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
-import { subscribeDatabaseWork } from "@paperclipai/db/work-signals";
+import { subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { getWorkspaceOperationLogStore } from "../services/workspace-operation-log-store.js";
 import {
@@ -71,7 +71,7 @@ describe("workspace runtime control serialization", () => {
   });
 });
 
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_WORKSPACE_OPERATIONS_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_OPERATIONS_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -158,7 +158,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   it("keeps the finalization record when its write loses a deadlock to an issue-then-run locker", async () => {
     const scope = await seedFinalizationWorkspace();
     const agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: scope.companyId, name: "Finalizer", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId: scope.companyId, name: "Finalizer", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId: scope.companyId, title: "Finalize", status: "in_progress",
       assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: runId, companyId: scope.companyId, agentId, status: "running",

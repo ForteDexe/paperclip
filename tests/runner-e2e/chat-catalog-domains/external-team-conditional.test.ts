@@ -138,7 +138,7 @@ it.each(["wrong key", "wrong source hash", "wrong version", "foreign version", "
 });
 it("the public observer reads actual saved skill/version and member bindings before recovery admission", async () => {
   const { o, saved, version, member, target } = recovered();
-  const originalAgent = { id: "original", companyId: "company", name: "CTO", urlKey: "cto", adapterType: "paperclip_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {}, metadata: null };
+  const originalAgent = { id: "original", companyId: "company", name: "CTO", urlKey: "cto", adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {}, metadata: null };
   const local = { id: "local", name: "Existing company launch checklist", companyId: "company", key: "company/local", slug: target.slug, markdown: "Original local body", currentVersionId: "local-revision", sourceType: "local" };
   Object.assign(o.state, { conflictAgentId: originalAgent.id, conflictAgentBefore: originalAgent, localSkillId: local.id, localSkillBefore: local });
   const get = vi.fn(async (url: string) => {

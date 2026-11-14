@@ -6,7 +6,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
-import { companies, companyTransferRuns, createDb } from "@paperclipai/db";
+import { companies, companyTransferRuns, createDb } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -81,7 +81,7 @@ vi.mock("../services/company-import-transfers.js", async (importOriginal) => {
   };
 });
 
-const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_IMPORT_TRANSFER_TEST_DATABASE_URL");
+const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_IMPORT_TRANSFER_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported
   ? describe

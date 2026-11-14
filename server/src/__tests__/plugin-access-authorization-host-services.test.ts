@@ -10,7 +10,7 @@ import {
   createDb,
   invites,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { buildHostServices } from "../services/plugin-host-services.js";
 import {
   getEmbeddedPostgresTestSupport,

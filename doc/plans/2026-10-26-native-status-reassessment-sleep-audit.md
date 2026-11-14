@@ -420,7 +420,7 @@ The old periodic reassessment remains enabled until this full slice is ready.
 
 ## Authoritative run-event producer checkpoint
 
-Event references may become accepted/rejected only when a persisted PRP event
+Event references may become accepted/rejected only when a persisted ORP event
 has `sourceKind: control_plane` and the corresponding evidence verdict. The
 classifier now exposes that existing pure verdict interpretation to the append
 boundary, including its existing whitespace normalization. The append boundary
@@ -432,7 +432,7 @@ runner-authored claims do not activate reassessment.
 The writer audit found three insertion paths. The native coordinator store accepts
 only `sourceKind: runner` and rejects control-plane events, so its append path
 cannot produce an authoritative verdict and needs no added signal. Scheduled
-retry cancellation inserts ordinary lifecycle diagnostics without PRP evidence.
+retry cancellation inserts ordinary lifecycle diagnostics without ORP evidence.
 The shared append path owns the supported control-plane verdict writes. Event
 rows are otherwise immutable in production; agent/company deletion owns removal
 of their run history rather than producing new evidence for surviving runs.

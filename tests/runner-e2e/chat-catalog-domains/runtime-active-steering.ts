@@ -41,7 +41,7 @@ export function gradeActiveSteering(value: unknown) {
   const s = o.state, before = s.queueBefore as IssueQueuedCommentQueue, after = s.queueAfterAction as IssueQueuedCommentQueue;
   const entry = before?.entries.find(row => row.comment.id === s.targetId), unsupported = before?.steeringDisposition === "unsupported";
   c.add("saved-owned-message-honest-active-target", !!entry && entry.comment.body === direction && entry.comment.authorUserId === s.humanId && !entry.comment.authorAgentId
-    && before.entries.length === 1 && before.issueId === (s.task as Entity).id && before.targetRunId === s.workerRunId && before.protocol === "paperclip_runner_v1"
+    && before.entries.length === 1 && before.issueId === (s.task as Entity).id && before.targetRunId === s.workerRunId && before.protocol === "outpost_runner_v1"
     && ["available", "unsupported"].includes(before.steeringDisposition) && s.workerWasReallyWaiting === true
     && (unsupported ? s.steerControlEnabled === false && s.continuationControlVisible === true : s.steerControlEnabled === true),
   "The running task's queue states the harness's real steering capability for the exact saved human message: an enabled Steer control when it can steer, otherwise no usable Steer control and a visible supported continuation control.");
@@ -75,7 +75,7 @@ export const runtimeActiveSteeringCases = [runtimeDefinition("steering.steer-act
   await submitTaskReply(ctx.input.page, direction);
   const before = await pollUntil({ label: "Running task queue states its harness steering capability for the saved human blue message", deadlineAt: Date.now() + 30_000,
     load: () => ctx.input.api.get<IssueQueuedCommentQueue>(`/api/issues/${task.id}/queued-comments`),
-    accept: q => q.entries.length === 1 && q.entries[0]?.comment.body === direction && q.targetRunId === state.workerRunId && q.protocol === "paperclip_runner_v1"
+    accept: q => q.entries.length === 1 && q.entries[0]?.comment.body === direction && q.targetRunId === state.workerRunId && q.protocol === "outpost_runner_v1"
       && ["available", "unsupported"].includes(q.steeringDisposition) });
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
   if (before.entries[0]?.comment.authorUserId !== session.user.id || before.entries[0].comment.authorAgentId) throw new Error("Steering fixture lacks actual human message ownership");
@@ -87,7 +87,7 @@ export const runtimeActiveSteeringCases = [runtimeDefinition("steering.steer-act
   await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
   return { ...state, humanId: session.user.id, queueBefore: before, targetId, ...controls };
 }, gradeActiveSteering, {
-  authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 720_000, oracleVersion: "paperclip.chat-catalog.runtime.steer-active.v7",
+  authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, attemptTimeoutMs: 720_000, oracleVersion: "outpost.chat-catalog.runtime.steer-active.v7",
   setupPolicy: runtimeQueueCases[0]!.setupPolicy, verifySetup: runtimeQueueCases[0]!.verifySetup,
   sourceFiles: ["chat-catalog-domains/runtime-active-steering.ts", "chat-catalog-domains/runtime-rendered-artifact.ts", "chat-catalog-domains/runtime-queue.ts", "chat-catalog-domains/runtime-interruption.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "registered-artifact.ts", "chat-scenarios/steering.yaml"],
   async act(ctx, state) {

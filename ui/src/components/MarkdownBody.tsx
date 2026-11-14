@@ -11,7 +11,7 @@ import Markdown, { defaultUrlTransform, type Components, type Options } from "re
 import remarkGfm from "remark-gfm";
 import { cn } from "../lib/utils";
 import { MarkdownUrlLink } from "./MarkdownUrlLink";
-import { recognizeLinkPreview, type LinkPreviewState } from "@paperclipai/shared";
+import { recognizeLinkPreview, type LinkPreviewState } from "@outpost/shared";
 import { Link, useCaseHref } from "@/lib/router";
 import { useTheme } from "../context/ThemeContext";
 import { useOptionalCompany } from "../context/CompanyContext";
@@ -55,7 +55,7 @@ import type {
   Agent,
   ExternalObjectLivenessState,
   ExternalObjectStatusCategory,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 function MarkdownAgentMention({ agentId, children, style }: {
   agentId: string;

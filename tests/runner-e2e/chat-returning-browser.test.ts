@@ -10,7 +10,7 @@ it("uses the product's own star prompt seen key", () => {
 });
 
 function fakePage(url: string) {
-  const storage = new Map<string, string>([["paperclip.github-star-prompt.seen", "kept"]]);
+  const storage = new Map<string, string>([["outpost.github-star-prompt.seen", "kept"]]);
   const scripts: Array<{ script: (arg: never) => void; arg: unknown }> = [];
   const run = (script: (arg: never) => void, arg: unknown, origin: string) => {
     const previous = (globalThis as { window?: unknown }).window;
@@ -29,20 +29,20 @@ function fakePage(url: string) {
 it("marks the prompt seen for later app documents and the open app page, never other origins", async () => {
   const open = fakePage("http://127.0.0.1:3100/COM/issues/COM-1"); open.storage.clear();
   await markReturningBrowser(open.page, "http://127.0.0.1:3100");
-  expect(open.storage.get("paperclip.github-star-prompt.seen")).toBeTruthy();
+  expect(open.storage.get("outpost.github-star-prompt.seen")).toBeTruthy();
   expect(open.scripts).toHaveLength(1);
 
   const blank = fakePage("about:blank"); blank.storage.clear();
   await markReturningBrowser(blank.page, "http://127.0.0.1:3100");
   expect(blank.storage.size).toBe(0);
   blank.load("https://github.com"); expect(blank.storage.size).toBe(0);
-  blank.load("http://127.0.0.1:3100"); expect(blank.storage.get("paperclip.github-star-prompt.seen")).toBeTruthy();
+  blank.load("http://127.0.0.1:3100"); expect(blank.storage.get("outpost.github-star-prompt.seen")).toBeTruthy();
 });
 
 it("keeps a choice the browser already saved", async () => {
   const open = fakePage("http://127.0.0.1:3100/");
   await markReturningBrowser(open.page, "http://127.0.0.1:3100");
-  expect(open.storage.get("paperclip.github-star-prompt.seen")).toBe("kept");
+  expect(open.storage.get("outpost.github-star-prompt.seen")).toBe("kept");
 });
 
 it("does nothing for a page stand-in without a browser context", async () => {

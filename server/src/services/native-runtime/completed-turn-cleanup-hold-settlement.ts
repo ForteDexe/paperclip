@@ -1,6 +1,6 @@
 import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
-import { agentWakeupRequests, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@paperclipai/db";
-import type { ExecutionReconciliation } from "@paperclipai/shared";
+import { agentWakeupRequests, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import type { ExecutionReconciliation } from "@outpost/shared";
 import { logActivity } from "../activity-log.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 import { issueService } from "../issues.js";

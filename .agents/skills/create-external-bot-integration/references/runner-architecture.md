@@ -175,7 +175,7 @@ not revoke a replacement binding accidentally.
 
 Report “Paperclip authority revoked” separately from “external bot stopped.” A
 fence acknowledgment proves receipt, not termination of all provider activity.
-Likewise, sandboxing the Paperclip Runner does not confine the bot's native Slack
+Likewise, sandboxing the Outpost Runner does not confine the bot's native Slack
 or provider computer. Those tools retain their own permissions. If strict total
 capability isolation is required, use a suitably isolated bot/account and verify
 the provider's actual controls; Paperclip cannot enforce it with prompt text.
@@ -213,11 +213,11 @@ equivalents before editing; do not paste line numbers from historical notes.
 | --- | --- |
 | Bot broker and tool definitions | `server/src/services/dot-runner-broker.ts` |
 | Prototype public MCP bridge | `server/src/services/public-mcp/dot-runner.ts` |
-| Rust assignment backend | `packages/paperclip-runner/runner/crates/runner-core/src/dot_provider_backend.rs` |
-| TypeScript Runner driver | `packages/paperclip-runner/src/drivers/dot/runnerd-dot-driver.ts` |
-| Driver/backend selection | `packages/paperclip-runner/src/backends/native-backend-factory.ts` |
-| Per-turn instructions | `packages/paperclip-runner/src/backends/runtime-context.ts` |
-| Governed tool authority | `server/src/services/native-runtime/paperclip-runner-tool-authority.ts` |
+| Rust assignment backend | `packages/outpost-runner/runner/crates/runner-core/src/dot_provider_backend.rs` |
+| TypeScript Runner driver | `packages/outpost-runner/src/drivers/dot/runnerd-dot-driver.ts` |
+| Driver/backend selection | `packages/outpost-runner/src/backends/native-backend-factory.ts` |
+| Per-turn instructions | `packages/outpost-runner/src/backends/runtime-context.ts` |
+| Governed tool authority | `server/src/services/native-runtime/outpost-runner-tool-authority.ts` |
 | Admission, wake, terminal reconciliation | `server/src/services/heartbeat.ts`, `server/src/services/heartbeat/queue.ts`, `server/src/services/heartbeat/run-lifecycle.ts` |
 | Real Rust/DB and managed qualification | `server/src/__tests__/dot-runner.test.ts` |
 

@@ -56,7 +56,7 @@ npm install. Report only the combinations actually exercised.
 
 For hosted testing accounts, read [QA accounts and credentials](references/hosted-qa-accounts.md).
 The testing environment has an AgentMail inbox on the allowed `paperclipbots.com`
-domain and a persistent QA workspace at `https://qa.test.paperclip.app`. Use the
+domain and a persistent QA workspace at `https://qa.test.outpost.app`. Use the
 dedicated QA identity and normal email-code login. The expected 1Password service
 account needs read and item-creation/update access; verify those capabilities
 before promising that new credentials have been saved. Keep concrete secret
@@ -88,7 +88,7 @@ Run from the repository root with Node 24.11+, Python 3, `lsof`, and dependencie
 installed with `pnpm install --frozen-lockfile`. Browser driving uses the existing
 `@playwright/test` dependency. If Chromium is unavailable, run
 `node node_modules/@playwright/test/cli.js install chromium`, or select an installed
-browser with `PAPERCLIP_PLAYWRIGHT_CHANNEL=chrome`.
+browser with `OUTPOST_PLAYWRIGHT_CHANNEL=chrome`.
 
 Create separate, unique data and evidence directories. Keep the evidence outside
 the data directory:

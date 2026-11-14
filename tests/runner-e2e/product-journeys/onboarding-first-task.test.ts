@@ -25,7 +25,7 @@ function fixture(options: Options = {}) {
   const run = (id: string, issueId: string): Row => ({
     id, companyId: "company", agentId: "agent", nativeIssueId: issueId, runtimeMode: "native", status: "succeeded",
     startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z", usageJson: { inputTokens: 1, outputTokens: 1 },
-    contextSnapshot: { issueId, aiConnection: { connectionId: "connection", method: "api_key" }, paperclipEnvironment: { id: "environment" } },
+    contextSnapshot: { issueId, aiConnection: { connectionId: "connection", method: "api_key" }, outpostEnvironment: { id: "environment" } },
   });
   const state = () => {
     const accepted = phase === "accepted";
@@ -318,7 +318,7 @@ describe("Cloud canonical onboarding first task", () => {
       const run = withBoardBlockedChild(state);
       if (mode === "stale-version") state.tasks[1]!.statusVersion++;
       if (mode === "newer-producer") state.runs.push({ ...run, id: "newer-child-run", createdAt: "2026-01-01T00:00:02Z",
-        finishedAt: "2026-01-01T00:00:03Z", resultJson: { finalizationPhase: "committed", prpReportedWorkDisposition: "completed" } });
+        finishedAt: "2026-01-01T00:00:03Z", resultJson: { finalizationPhase: "committed", orpReportedWorkDisposition: "completed" } });
       if (mode === "agent-owner") state.tasks[1]!.unblockDescriptor.owner = { agentId: "other-agent" };
     } });
     await expect(onboardingFirstTask(f.input)).resolves.toMatchObject({ artifact: { originatingRunId: "child-run" } });
@@ -607,7 +607,7 @@ function workspaceDeferral(): Row {
     processStartedAt: null, sessionIdAfter: null, externalRunId: null, exitCode: null, signal: null,
     startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z", lastOutputSeq: 0,
     usageJson: { ledgerScope: { companyId: "company", agentId: "agent", issueId: "child" } }, costUsd: null,
-    runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+    runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
     contextSnapshot: { issueId: "child" }, resultJson: {
       executionRecovery: { kind: "workspace_wait", providerWorkStarted: false },
       cancellation: { source: "control_plane", expected: true, initiator: { type: "system" } },
@@ -628,7 +628,7 @@ function withBoardBlockedChild(state: Parameters<NonNullable<Options["mutate"]>>
     unblockDescriptor: { owner: "board", action: "Provide an accessible delivery artifact." } });
   const run = state.runs.find(run => run.id === "child-run")!;
   Object.assign(run, { createdAt: "2026-01-01T00:00:00Z", nativePhase: "committed", resultJson: {
-    finalizationPhase: "committed", prpReportedWorkDisposition: "blocked",
+    finalizationPhase: "committed", orpReportedWorkDisposition: "blocked",
     finalizationReasonCode: "current_track_blocker_waiting", authoritativeDecision: "blocked",
     issueStatusAfter: "blocked", statusVersionAfter: 2,
   } });

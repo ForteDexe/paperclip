@@ -1,9 +1,9 @@
-import { OPENROUTER_ATTRIBUTION_HEADERS, isOpenRouterUrl, openRouterClaudeHeaders, openRouterCodexHeaders } from "@paperclipai/shared/openrouter-attribution";
+import { OPENROUTER_ATTRIBUTION_HEADERS, isOpenRouterUrl, openRouterClaudeHeaders, openRouterCodexHeaders } from "@outpost/shared/openrouter-attribution";
 import {
   aiRoutingBaseUrl,
   aiRoutingModel,
   type AiProviderRouting,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 /** Projects one authoritative connection into an isolated harness environment. */
 export function managedProviderRouting(
@@ -25,8 +25,8 @@ export function managedProviderRouting(
     env.AWS_EC2_METADATA_DISABLED = "true";
     env.AWS_BEARER_TOKEN_BEDROCK = credential;
   } else if (harness === "codex_local") {
-    env.PAPERCLIP_AI_PROVIDER_KEY = credential;
-    codexConfig = `model_provider = "paperclip"\n[model_providers.paperclip]\nname = "Outpost connection"\nbase_url = ${JSON.stringify(baseUrl)}\nwire_api = "responses"\nrequires_openai_auth = false\n${route.auth === "none" ? "" : 'env_key = "PAPERCLIP_AI_PROVIDER_KEY"\n'}`;
+    env.OUTPOST_AI_PROVIDER_KEY = credential;
+    codexConfig = `model_provider = "paperclip"\n[model_providers.paperclip]\nname = "Outpost connection"\nbase_url = ${JSON.stringify(baseUrl)}\nwire_api = "responses"\nrequires_openai_auth = false\n${route.auth === "none" ? "" : 'env_key = "OUTPOST_AI_PROVIDER_KEY"\n'}`;
     if (openrouter) codexConfig += openRouterCodexHeaders();
   } else if (harness === "claude_local") {
     env.ANTHROPIC_BASE_URL = baseUrl;
@@ -49,8 +49,8 @@ export function managedProviderRouting(
     const provider = route.kind === "openrouter" ? "openrouter" : "paperclip";
     if (route.kind === "openrouter") env.OPENROUTER_API_KEY = credential;
     else {
-      env.PAPERCLIP_AI_PROVIDER_KEY = credential;
-      env.PAPERCLIP_AI_PROVIDER_URL = baseUrl;
+      env.OUTPOST_AI_PROVIDER_KEY = credential;
+      env.OUTPOST_AI_PROVIDER_URL = baseUrl;
     }
     const id = model.startsWith(`${provider}/`)
       ? model.slice(provider.length + 1)

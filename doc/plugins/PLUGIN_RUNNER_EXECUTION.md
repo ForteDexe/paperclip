@@ -1,8 +1,8 @@
 # Plugin Runner execution
 
-Core can run `paperclip_runner` tasks in a plugin environment.
+Core can run `outpost_runner` tasks in a plugin environment.
 The plugin owns the execution host and its files.
-Core owns run identity, selected policy, assigned tools, and the PRP journal.
+Core owns run identity, selected policy, assigned tools, and the ORP journal.
 
 ## Managed AI connection required
 
@@ -71,7 +71,7 @@ resources to execution-host paths. Use `bindRunnerLaunchResources` and
 `createRunnerProviderLaunch` when the built-in descriptor builder is suitable.
 
 Core checks the returned requirements digest and descriptor before it registers
-PRP or submits the task. A failed check does not enable a fallback launch.
+ORP or submits the task. A failed check does not enable a fallback launch.
 Recovery within the same run must return the exact saved configuration.
 
 The plugin supplies executable paths and the provider workspace in the
@@ -95,7 +95,7 @@ must reject conflicting project or parent authentication settings. It must keep
 the checked configuration fixed until submission. See
 [launch authentication validation](PLUGIN_ENVIRONMENT_TASKS.md#launch-authentication-validation).
 
-Core sends authorized project IDs, the PRP identity, launch limits, and the
+Core sends authorized project IDs, the ORP identity, launch limits, and the
 bootstrap ticket through `submit`. It does not send a process command.
 The plugin must submit each task at most once. A lost reply requires status
 reconciliation for the same task.
@@ -106,7 +106,7 @@ Core can transfer a selected Codex account or a direct Claude credential.
 Other managed routes fail closed until they have a typed credential contract.
 Do not put credentials in task metadata, journals, logs, or errors.
 
-Assigned MCP tools run through the Core gateway over PRP.
+Assigned MCP tools run through the Core gateway over ORP.
 The gateway credentials stay on Core.
 The plugin must preserve the MCP binding identity in the prepared context.
 
@@ -135,7 +135,7 @@ These operations do not accept paths. Core checks the active lease and retained
 source task before it calls the plugin. The existing Runner transport validates
 state identity and suspension before it rotates authority.
 
-For controller replacement, Core restores its encrypted PRP journal from Postgres
+For controller replacement, Core restores its encrypted ORP journal from Postgres
 and reuses the original active task lease. The task owner checks running status
 and exact Runner identity, then reacquires the connection. It does not call
 `prepare`, `submit`, or `stop`. The running artifact remains pinned even if
@@ -153,7 +153,7 @@ in the existing backends. Missing or incompatible retained state fails closed.
 ## Setup verification
 
 Core creates a private probe lease with an expiry.
-It runs the same describe, prepare, submit, and WSS/PRP path.
+It runs the same describe, prepare, submit, and WSS/ORP path.
 The probe checks provider authentication and the selected model with tools denied.
 Core bounds Runner lifetime to the remaining probe time.
 It then requires suspension, confirmed termination, and task cleanup.
@@ -311,7 +311,7 @@ property. The reason must come from `WORKSPACE_OPERATION_FAILURE_REASONS`:
 | `storage_pending`, `runtime_unavailable`, `remote_incomplete`, `context_changed`, `deadline_exceeded` | Yes |
 
 ```ts
-import { PluginWorkspaceOperationError } from "@paperclipai/plugin-sdk";
+import { PluginWorkspaceOperationError } from "@outpost/plugin-sdk";
 
 throw new PluginWorkspaceOperationError("storage_grant_unavailable", "Project mount grants unavailable");
 ```
@@ -354,7 +354,7 @@ fingerprint includes the authorized project set; changing it retires the previou
 task before checkpoint recovery. Adoption and each warm handoff require a current,
 configuration-bound project-auth check against the exact retained mount scope. Core atomically
 hands its retained provider identity to one new run lease, revalidates current
-project authentication, prepares the new run's resources, and uses PRP
+project authentication, prepares the new run's resources, and uses ORP
 `run.attach`. Preparation includes the exact `priorIdentity` and stable
 `accountIdentity`. The provider journals that transition idempotently before
 allowing the new authority. The original ingress address remains unchanged.
@@ -362,7 +362,7 @@ Runner accepts `connection: { mode: "external" }` on warm attachment to preserve
 the process owner's listener and TLS settings while rotating the run identity.
 
 Core permits connection refresh for the saved successful run while its warm task
-lease is retained, unexpired, and not retiring or stopped. PRP authentication
+lease is retained, unexpired, and not retiring or stopped. ORP authentication
 still applies. A superseded lease cannot acquire a connection. Retention does
 not authorize preparation or submission of new work through the completed lease.
 
@@ -446,13 +446,13 @@ precedes in-memory session selection so a replacement cannot inherit the stopped
 session. Core saves the fresh provider expiry and forwards and enforces any
 caller-imposed deadline. A missing
 or unreachable computer never authorizes a replacement. Controller recovery can
-adopt a verified surviving idle process through its authenticated PRP connection;
+adopt a verified surviving idle process through its authenticated ORP connection;
 ambiguous transitions remain fenced by the existing durable recovery checks.
 
 Changes to account, credential generation, workspace, runtime or process policy
 retire the old owner before recovery. A new authority epoch archives the stopped
 checkpoint under its stable archive key and preserves provider session files.
-Warm status monitoring relies on PRP after startup and does not poll an idle
+Warm status monitoring relies on ORP after startup and does not poll an idle
 Launcher. ACPX uses this task-provider contract; other execution transports retain
 their provider-specific lifecycle policies.
 
@@ -490,7 +490,7 @@ Unconfigured providers continue ordinary work without authenticated GitHub acces
 Managed GitHub command providers must retain the qualified provider executable
 and arguments. Supply helper discovery through the task environment instead of
 wrapping that executable. Claude ACPX preserves explicit `BASH_ENV`, `ZDOTDIR`,
-`GH_CONFIG_DIR`, and `PAPERCLIP_GITHUB_LAUNCHER_DIR` selectors across the sidecar
+`GH_CONFIG_DIR`, and `OUTPOST_GITHUB_LAUNCHER_DIR` selectors across the sidecar
 boundary. It does not forward GitHub tokens or broker capabilities to the provider.
 The helper reads the current task capability at invocation, including after warm
 reuse. These selectors must come from the trusted environment owner.
@@ -507,6 +507,6 @@ Launcher capability before advertising managed GitHub commands. The installed
 Runner must match the factory's source revision.
 
 The helper projection is marked by the controller-owned
-`PAPERCLIP_GITHUB_LAUNCHER_DIR`. Task overrides cannot supply that marker or the
+`OUTPOST_GITHUB_LAUNCHER_DIR`. Task overrides cannot supply that marker or the
 shell selectors. Run preparation strips stored bindings before secret resolution,
 and configured task-environment projections reject the shell selectors too.

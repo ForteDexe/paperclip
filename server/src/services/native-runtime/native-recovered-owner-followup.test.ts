@@ -9,8 +9,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import {
   agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunnerCheckpoints, nativeRunResults,
-} from "@paperclipai/db";
-import { DurablePrpControlPlane, type PersistedNativeSession } from "../../vendor/paperclip-runner/index.js";
+} from "@outpost/db";
+import { DurablePrpControlPlane, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { startRecoveryPostgres, recoveryPostgresSupport } from "../../__tests__/helpers/recovery-postgres.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
@@ -27,7 +27,7 @@ import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 
 const toolDefinitions = vi.hoisted(() => vi.fn());
 vi.mock("../../runtime-api.js", async importOriginal => ({ ...await importOriginal<typeof import("../../runtime-api.js")>(), resolveLocalRuntimeApiUrl: () => "http://127.0.0.1:43219" }));
-vi.mock("./paperclip-runner-tool-authority.js", () => ({
+vi.mock("./outpost-runner-tool-authority.js", () => ({
   PaperclipRunnerToolAuthority: class {
     readonly binding = {};
     definitions() { return toolDefinitions(); }
@@ -54,33 +54,33 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
   let db: ReturnType<typeof createDb>;
   let home: ReturnType<typeof createIsolatedTestHome>;
   let stateDirectory: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
-  const previousStateDirectory = process.env.PAPERCLIP_RUNNER_STATE_DIR;
+  const previousHome = process.env.OUTPOST_HOME;
+  const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
   const companyId = randomUUID(), agentId = randomUUID();
 
   beforeAll(async () => {
     home = createIsolatedTestHome();
-    process.env.PAPERCLIP_HOME = home.home;
+    process.env.OUTPOST_HOME = home.home;
     database = await startRecoveryPostgres("native-recovered-owner-");
     db = createDb(database.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Recovered owner", issuePrefix: "ROF" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "paperclip_runner",
+    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
   }, 60_000);
   afterAll(async () => {
     await database?.cleanup();
     home?.cleanup();
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = previousHome;
   });
   beforeEach(async () => {
     stateDirectory = await mkdtemp(join(tmpdir(), "native-recovered-owner-state-"));
-    process.env.PAPERCLIP_RUNNER_STATE_DIR = stateDirectory;
+    process.env.OUTPOST_RUNNER_STATE_DIR = stateDirectory;
     toolDefinitions.mockReset().mockRejectedValue(new Error(ADMITTED));
   });
   afterEach(async () => {
-    if (previousStateDirectory === undefined) delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-    else process.env.PAPERCLIP_RUNNER_STATE_DIR = previousStateDirectory;
+    if (previousStateDirectory === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR;
+    else process.env.OUTPOST_RUNNER_STATE_DIR = previousStateDirectory;
     await rm(stateDirectory, { recursive: true, force: true });
   });
 
@@ -303,7 +303,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     expect(oldCheckpoint).not.toBeNull();
     oldCheckpoint!.restoreSessionDirectory(root);
     const path = join(root, "control-plane", "control-plane-state.json");
-    if (external) await writeFile(path, JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1", identity: prior.identity }));
+    if (external) await writeFile(path, JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity: prior.identity }));
     const originalBytes = await readFile(path, "utf8");
     const providerFiles = new Map<string, string>();
     for (const directory of resolveNativeHarnessPersistenceProfile(latest.execution).directories) {
@@ -314,7 +314,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
         providerFiles.set(file, bytes);
       }
     }
-    const runnerBytes = JSON.stringify({ schema: "paperclip.runner.durable.state.v1", ...latest.identity,
+    const runnerBytes = JSON.stringify({ schema: "outpost.runner.durable.state.v1", ...latest.identity,
       lifecycle: "suspended", outbox: [], pendingTerminalDelivery: null, pendingProviderCleanup: null });
     await writeFile(join(backupRoot, "runner", "runner-state.json"), runnerBytes);
     const manifestBytes = JSON.stringify(buildNativeHarnessBackupManifest({ backupRoot, execution: latest.execution,
@@ -360,12 +360,12 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
 
   it("rehydrates a same-source external marker before reading the suspended resumed sandbox", async () => {
     const fixture = await staleProjection("codex", true), { latest, followUp, root, path } = fixture;
-    await writeFile(path, JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1", identity: latest.identity }));
+    await writeFile(path, JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity: latest.identity }));
     await db.insert(environments).values({ id: followUp.environmentId, name: `retained-${followUp.environmentId}`, driver: "sandbox" });
     await db.insert(environmentLeases).values({ companyId, environmentId: followUp.environmentId,
       issueId: fixture.prior.issueId, heartbeatRunId: latest.runId, provider: "daytona", providerLeaseId: followUp.providerLeaseId,
       status: "released", metadata: { remoteCwd: "/workspace" } });
-    const runnerState = { schema: "paperclip.runner.durable.state.v1", ...latest.identity, lifecycle: "suspended", outbox: [],
+    const runnerState = { schema: "outpost.runner.durable.state.v1", ...latest.identity, lifecycle: "suspended", outbox: [],
       pendingTerminalDelivery: null, pendingProviderCleanup: null, warmTransition: null };
     followUp.remoteExecute.mockResolvedValueOnce({ exitCode: 0, timedOut: false,
       stdout: Buffer.from(JSON.stringify(runnerState)).toString("base64"), stderr: "" });
@@ -380,7 +380,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
 
   it("preserves a same-source marker with a different turn identity before any remote read", async () => {
     const fixture = await staleProjection("codex", true), { latest, followUp, root, path } = fixture;
-    const marker = JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1",
+    const marker = JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1",
       identity: { ...latest.identity, itemId: "foreign-item" } });
     await writeFile(path, marker);
     expect(await followUp.start("resumed")).toBe("native_runner_checkpoint_projection_held:prior_identity");
@@ -408,10 +408,10 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
       controller.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, owner));
       await controller.flushCheckpoint();
       const path = join(root, "control-plane", "control-plane-state.json");
-      expect(JSON.parse(await readFile(path, "utf8")).schema).toBe("paperclip.runner.external-control-plane-state.v1");
+      expect(JSON.parse(await readFile(path, "utf8")).schema).toBe("outpost.runner.external-control-plane-state.v1");
       await mkdir(join(root, "runner"), { recursive: true });
       await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({
-        schema: "paperclip.runner.durable.state.v1", ...identity, lifecycle: "suspended" }));
+        schema: "outpost.runner.durable.state.v1", ...identity, lifecycle: "suspended" }));
       expect(await followUp.start()).toBe(ADMITTED);
       const restored = JSON.parse(await readFile(path, "utf8"));
       expect(restored.identity).toEqual(identity);
@@ -425,7 +425,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const prior = await seedRecoveredPriorRun(), followUp = await admitFollowUp(prior);
     const root = scopedRunnerdStateRoot(prior.executionFor(followUp.runId)), path = join(root, "control-plane", "control-plane-state.json");
     await mkdir(join(root, "control-plane"), { recursive: true });
-    const marker = JSON.stringify({ schema: "paperclip.runner.external-control-plane-state.v1", identity: {
+    const marker = JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity: {
       runId: followUp.runId, runnerInstanceId: followUp.native.runnerInstanceId, environmentLeaseId: followUp.native.environmentLeaseId,
       normalizedSessionId: followUp.native.normalizedSessionId, turnId: followUp.native.turnId, itemId: followUp.native.itemId,
     } });
@@ -870,7 +870,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     await rename(join(stateDirectory, "quarantine", copy!), root);
     await mkdir(join(root, "runner"));
     await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({
-      schema: "paperclip.runner.durable.state.v1", lifecycle: "ready", ...prior.identity }));
+      schema: "outpost.runner.durable.state.v1", lifecycle: "ready", ...prior.identity }));
     await db.update(nativeRunFinalizations).set({ phase: "committed" }).where(eq(nativeRunFinalizations.runId, prior.runId));
     expect(await followUp.start()).toBe(stranded("runner_lifecycle_not_suspended"));
     expect(await quarantined()).toHaveLength(1);
@@ -910,7 +910,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     await writeFile(join(epoch, "runner-state.json"), "{}\n", { mode: 0o600 });
     await mkdir(join(root, "diagnostics"), { mode: 0o700 });
     // The launch preparation saved for the retired identity.
-    const preparation = JSON.stringify({ schema: "paperclip.runner.launch-preparation-store.v1", entries: [] });
+    const preparation = JSON.stringify({ schema: "outpost.runner.launch-preparation-store.v1", entries: [] });
     await writeFile(join(root, "launch-preparation.json"), preparation, { mode: 0o600 });
     expect(await followUp.start()).toBe(ADMITTED);
     expect(await archivedOwners(root)).toEqual([prior.runId]);
@@ -976,7 +976,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     await rm(join(stateDirectory, "quarantine"), { recursive: true, force: true });
     await mkdir(join(root, "runner"), { recursive: true });
     await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({
-      schema: "paperclip.runner.durable.state.v1", lifecycle: "ready", ...prior.identity }));
+      schema: "outpost.runner.durable.state.v1", lifecycle: "ready", ...prior.identity }));
     return { prior, followUp, root };
   }
 
@@ -991,15 +991,15 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
         await mkdir(join(root, "control-plane"), { recursive: true, mode: 0o700 });
         await mkdir(join(root, "runner"), { recursive: true, mode: 0o700 });
         await writeFile(join(root, "control-plane", "control-plane-state.json"), JSON.stringify({
-          schema: "paperclip.runner.durable.control-plane-state.v2", identity,
-          bootstrapHistory: { schema: "paperclip.runner.bootstrap-history.v1", originIdentity: identity, credentialsIssued: 1, adopted: false },
+          schema: "outpost.runner.durable.control-plane-state.v2", identity,
+          bootstrapHistory: { schema: "outpost.runner.bootstrap-history.v1", originIdentity: identity, credentialsIssued: 1, adopted: false },
           commands: [
             { commandId: "prepare", type: "run.prepare", status: "completed", result: { status: "prepared" } },
             { commandId: "open", type: "session.open", status: "completed", result: { result: { status: "started", processId: runner.pid } } },
           ],
           committedEvents: [{ sourceSeq: 1, sourceEventId: "opened-1", eventType: "session.started", priority: 1, envelope: identity }],
           ackedSourceSeq: 1, connectionCount: 1 }));
-        await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.state.v1",
+        await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1",
           ...identity, lifecycle: "ready", outbox: [], processedCommands: {
             prepare: { commandType: "run.prepare", status: "completed", result: { status: "prepared" } },
             open: { commandType: "session.open", status: "completed", result: { status: "started", processId: runner.pid } } } }));
@@ -1026,14 +1026,14 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
       `epoch-${createHash("sha256").update(JSON.stringify(priorIdentity)).digest("hex").slice(0, 24)}`);
     await mkdir(epoch, { recursive: true, mode: 0o700 });
     await rename(join(root, "control-plane"), join(epoch, "control-plane"));
-    await writeFile(join(epoch, "runner-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.state.v1", ...priorIdentity,
+    await writeFile(join(epoch, "runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1", ...priorIdentity,
       lifecycle: "suspended", outbox: [], pendingTerminalDelivery: null, pendingProviderCleanup: null }));
     await mkdir(join(root, "runner"), { recursive: true, mode: 0o700 });
     await writeFile(join(root, "runner", "codex-provider-state.json"), "{}");
     const identity = { ...priorIdentity, runId: followUp.runId, turnId: `turn-${followUp.runId}`, itemId: `item-${followUp.runId}` };
     if (!archiveOnly) await mkdir(join(root, "control-plane"), { mode: 0o700 });
-    const undelivered = JSON.stringify({ schema: "paperclip.runner.durable.control-plane-state.v2", identity,
-      bootstrapHistory: { schema: "paperclip.runner.bootstrap-history.v1", originIdentity: identity, credentialsIssued: 0, adopted: false },
+    const undelivered = JSON.stringify({ schema: "outpost.runner.durable.control-plane-state.v2", identity,
+      bootstrapHistory: { schema: "outpost.runner.bootstrap-history.v1", originIdentity: identity, credentialsIssued: 0, adopted: false },
       runAttachTemplate: {}, tickets: {}, leases: {},
       commands: [{ commandId: "attach", controllerSeq: 1, type: "run.attach", status: "pending", payload: {} }],
       committedEvents: [], ackedSourceSeq: 0, connectionCount, commandDeliveryCounts: {} });
@@ -1103,7 +1103,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     try {
       const { prior, followUp } = await seedUnsuspendedLocalOwner(await stoppedRunnerProcess());
       await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: prior.runId, seq: 901, eventType: "provider.event",
-        stream: "system", payload: { prpEvent: { payload: { processId: provider.pid,
+        stream: "system", payload: { orpEvent: { payload: { processId: provider.pid,
           processStartedAt: provider.processStartedAt.toISOString() } } } });
       expect(await followUp.startLocal()).toBe(stranded("provider_process_alive"));
     } finally {

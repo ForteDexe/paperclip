@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
-import { parseFrontmatterMarkdown } from "@paperclipai/shared/frontmatter";
+import { parseFrontmatterMarkdown } from "@outpost/shared/frontmatter";
 import { executeRunnerApi } from "../services/native-runtime/runner-api-client.js";
-import type { CatalogTeam } from "@paperclipai/shared";
+import type { CatalogTeam } from "@outpost/shared";
 
 const companyPrefix = vi.hoisted(() => vi.fn());
 const testDb = { select: () => ({ from: () => ({ where: () => ({ limit: companyPrefix }) }) }) };
@@ -117,8 +117,8 @@ describe("teamsCatalogService", () => {
     expect(prepared.source.files["COMPANY.md"]).toEqual(expect.stringContaining("Core Exec Team"));
     expect(prepared.source.files["agents/ceo/AGENTS.md"]).toEqual(expect.stringContaining("paperclipai/bundled/paperclip-operations/task-planning"));
     expect(prepared.source.files["agents/cto/AGENTS.md"]).toEqual(expect.stringContaining("paperclipai/bundled/software-development/github-pr-workflow"));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
   });
 
   it.each(["core-exec-team", "product-engineering", "product-design", "content-machine"])(
@@ -165,8 +165,8 @@ describe("teamsCatalogService", () => {
     });
 
     expect(mockAgentService.list).toHaveBeenCalledWith("company-1");
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"ceo\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"ceo\""));
   });
 
   it("preserves package-declared Paperclip sidecar permissions while adding generated catalog provenance", async () => {
@@ -174,10 +174,10 @@ describe("teamsCatalogService", () => {
 
     const prepared = await svc.prepareCatalogTeamSource("company-1", "product-engineering");
 
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("permissions:"));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("catalogTeam:"));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("permissions:"));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("catalogTeam:"));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
   });
 
   it("preserves package sidecar permissions when generated target-manager metadata is merged onto the same root agent", async () => {
@@ -187,11 +187,11 @@ describe("teamsCatalogService", () => {
       targetManagerAgentId: "manager-1",
     });
 
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("permissions:"));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
-    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("permissions:"));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
   });
 
   it("rejects missing target-manager slugs instead of emitting unresolved reparent metadata", async () => {
@@ -335,8 +335,8 @@ describe("teamsCatalogService", () => {
   });
 
   it("uses the configured safe adapter default for bundled agents", async () => {
-    const previousDefault = process.env.PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE;
-    process.env.PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE = "opencode_local";
+    const previousDefault = process.env.OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE;
+    process.env.OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE = "opencode_local";
     try {
       const svc = teamsCatalogService(testDb as any);
 
@@ -350,9 +350,9 @@ describe("teamsCatalogService", () => {
       });
     } finally {
       if (previousDefault === undefined) {
-        delete process.env.PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE;
+        delete process.env.OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE;
       } else {
-        process.env.PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE = previousDefault;
+        process.env.OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE = previousDefault;
       }
     }
   });

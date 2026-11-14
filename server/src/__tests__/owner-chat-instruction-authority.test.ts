@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents, agentWakeupRequests, authUsers, companies, companyMemberships, createDb,
   heartbeatRuns, issueComments, issues, principalPermissionGrants, runIdentityContexts,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { authorizeInstructionCommit, resolveInstructionActor } from "../services/agent-instruction-authorization.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
@@ -20,18 +20,18 @@ describe("owner-chat instruction authority", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let home: string;
-  const previousHome = process.env.PAPERCLIP_HOME;
+  const previousHome = process.env.OUTPOST_HOME;
   const initial = "# Ralph\nOriginal instructions\n";
 
   beforeAll(async () => {
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "owner-chat-instructions-")));
-    process.env.PAPERCLIP_HOME = home;
+    process.env.OUTPOST_HOME = home;
     database = await startEmbeddedPostgresTestDatabase("owner-chat-instructions-db-");
     db = createDb(database.connectionString);
   }, 60_000);
   afterAll(async () => {
-    if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
-    else process.env.PAPERCLIP_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = previousHome;
     await database?.cleanup();
     if (home) {
       const makeWritable = async (dir: string) => {

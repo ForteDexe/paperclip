@@ -6,7 +6,7 @@ import {
   definePlugin,
   PluginEnvironmentCreationCleanupError,
   readEnvironmentCreationCleanupError,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 import type {
   PluginEnvironmentCreationCleanup,
   PluginEnvironmentAcquireLeaseParams,
@@ -25,7 +25,7 @@ import type {
   PluginEnvironmentTerminationReceipt,
   PluginEnvironmentValidateConfigParams,
   PluginEnvironmentValidationResult,
-} from "@paperclipai/plugin-sdk";
+} from "@outpost/plugin-sdk";
 
 interface BoxdDriverConfig {
   apiKey: string | null;

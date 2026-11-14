@@ -7,8 +7,8 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { activityLog, agentWakeupRequests, agents, approvals, budgetIncidents, budgetPolicies, costEvents, companies, companyMemberships, createDb, documents, withDedicatedDbConnection,
-  heartbeatRuns, instanceSettings, issueComments, issueWorkProducts, issues, projects, statusCards, statusCardUpdates, documentRevisions } from "@paperclipai/db";
-import { companySearchQuerySchema, statusCardRefreshPolicySchema } from "@paperclipai/shared";
+  heartbeatRuns, instanceSettings, issueComments, issueWorkProducts, issues, projects, statusCards, statusCardUpdates, documentRevisions } from "@outpost/db";
+import { companySearchQuerySchema, statusCardRefreshPolicySchema } from "@outpost/shared";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -18,7 +18,7 @@ import { issueService } from "../services/issues.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_STATUS_CARD_EVALUATION_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_STATUS_CARD_EVALUATION_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("status-card evaluation work", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;

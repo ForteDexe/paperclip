@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { createExternalReviewWaitReader, type ExternalReviewWait } from "./external-review-wait.js";
 
 const db = {} as Db;

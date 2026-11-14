@@ -9,9 +9,9 @@ export interface WebhookHumanReceipt { processIsolation: true; testRunnerAttache
 export async function finishPrivateWebhook(input: { baseURL: string; route: string; routineId: string; triggerId: string; setupPending: boolean; signingMode: string; nonce: string; cookies: Cookie[] }, registerSecret: (value: string) => void): Promise<WebhookHumanReceipt> {
   const dir = await mkdtemp(path.join(tmpdir(), "paperclip-routine-webhook-private-"));
   try {
-    const channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL;
+    const channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
     const request = path.join(dir, "request.json");
-    await writeFile(request, JSON.stringify({ ...input, channel, executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()) }), { mode: 0o600 });
+    await writeFile(request, JSON.stringify({ ...input, channel, executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()) }), { mode: 0o600 });
     const worker = fileURLToPath(new URL("./integrator-webhook-private-worker.ts", import.meta.url)); const loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url));
     let output: string;
     try { output = (await promisify(execFile)(process.execPath, ["--import", loader, worker, request], { timeout: 120_000, maxBuffer: 8192, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test", DO_NOT_TRACK: "1", HOME: dir, TMPDIR: dir } })).stdout; }

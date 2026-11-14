@@ -35,7 +35,7 @@ function invoke(action: "accept" | "decline") {
     value: {
       type: "fileUpload",
       action,
-      context: { schema: "paperclip.teams.file-consent.v1", token, action },
+      context: { schema: "outpost.teams.file-consent.v1", token, action },
       ...(action === "accept"
         ? {
             uploadInfo: {
@@ -128,7 +128,7 @@ describe("pinned Teams file-consent invoke boundary", () => {
       authorization = "Bearer synthetic-service-token",
     ) =>
       adapter.handleWebhook(
-        new Request("https://paperclip.test/chat-webhook", {
+        new Request("https://outpost.test/chat-webhook", {
           method: "POST",
           headers: { "content-type": "application/json", authorization },
           body: JSON.stringify(activity),

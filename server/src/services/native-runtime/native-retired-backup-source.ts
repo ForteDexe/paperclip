@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, ne, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRunEvents, heartbeatRuns, type Db } from "@paperclipai/db";
+import { environmentLeases, heartbeatRunEvents, heartbeatRuns, type Db } from "@outpost/db";
 import { retiredReusableLeasePredecessors } from "../environment-lease-handoff.js";
 import { hasRemoteTerminationReceipt } from "../remote-execution-termination.js";
 import { hasConfirmedSandboxStopAndRetain } from "../sandbox-stop-and-retain.js";
@@ -111,7 +111,7 @@ async function supersedeIdleWarmSource(db: Db, lease: typeof environmentLeases.$
   const { reusableSandboxLease: scope, ...metadata } = lease.metadata ?? {};
   const [claimed] = await db.update(environmentLeases).set({
     metadata: { ...metadata, [SUPERSEDED_REUSABLE_SANDBOX_KEY]: {
-      schema: "paperclip.reusable-sandbox-lease-superseded.v1", reason: "harness_backup_restored_elsewhere",
+      schema: "outpost.reusable-sandbox-lease-superseded.v1", reason: "harness_backup_restored_elsewhere",
       supersededByRunId: input.currentRunId, supersededByProviderLeaseId: input.targetProviderLeaseId ?? null,
       manifestSha256: input.manifestSha256, reusableSandboxLease: scope ?? null, supersededAt: new Date().toISOString(),
     } },

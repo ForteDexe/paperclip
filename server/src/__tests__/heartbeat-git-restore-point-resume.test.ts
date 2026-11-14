@@ -20,7 +20,7 @@ import {
   issues,
   projectWorkspaces,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { drainHeartbeatRunsToQuiescence } from "./helpers/drain-heartbeat-runs.js";
 import { heartbeatService } from "../services/heartbeat.ts";
@@ -71,9 +71,9 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
 
   async function seed(options: { closedParent?: boolean; terminalArchive?: boolean } = {}) {
     const home = path.join(root, randomUUID());
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "31".repeat(32));
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
     const companyId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const workspaceId = randomUUID(), runId = randomUUID(), wakeupId = randomUUID();
     const issuePrefix = `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
@@ -106,7 +106,7 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
       strategyType: "git_worktree", name: "Stalled work", status: "active", providerType: "git_worktree", cwd: realized.cwd, providerRef: realized.cwd,
       repoUrl, baseRef: "origin/main", branchName: realized.branchName,
       metadata: { createdByRuntime: realized.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: realized.baseRefSha,
-        isolatedRemoteSource: { schema: "paperclip.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId, executionWorkspacePreference: "reuse_existing", updatedAt: idleSince })
       .where(eq(issues.id, issueId));
     const childId = randomUUID();

@@ -72,10 +72,10 @@ export function summarizeViolations(violations: readonly Pick<EvidencedViolation
  * instance, not the operator's, for the duration of the check.
  */
 async function withWaveInstance<T>(instance: { paperclipHome: string; instanceId: string }, run: () => Promise<T>): Promise<T> {
-  const keys = ["PAPERCLIP_HOME", "PAPERCLIP_INSTANCE_ID", "SANDBOX_ORPHAN_CLEANUP_SPOOL_DIR"] as const;
+  const keys = ["OUTPOST_HOME", "OUTPOST_INSTANCE_ID", "SANDBOX_ORPHAN_CLEANUP_SPOOL_DIR"] as const;
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
-  process.env.PAPERCLIP_HOME = instance.paperclipHome;
-  process.env.PAPERCLIP_INSTANCE_ID = instance.instanceId;
+  process.env.OUTPOST_HOME = instance.paperclipHome;
+  process.env.OUTPOST_INSTANCE_ID = instance.instanceId;
   delete process.env.SANDBOX_ORPHAN_CLEANUP_SPOOL_DIR;
   try { return await run(); } finally {
     for (const key of keys) {

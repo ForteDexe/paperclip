@@ -27,7 +27,7 @@ import type {
   AdapterExecutionTargetProcessSessionBridgeHandle,
   AdapterManagedRuntimeAsset,
   PreparedAdapterExecutionTargetRuntime,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@outpost/adapter-utils/execution-target";
 import type {
   AcpRunContext,
   AcquiredRunResources,
@@ -134,7 +134,7 @@ export interface SandboxRunSiteOptions {
   readonly onReuseLog: () => Promise<void>;
 
   /** Start the host-side paperclip callback bridge. */
-  readonly startPaperclipBridge: (
+  readonly startOutpostBridge: (
     runtimeRootDir: string | null,
   ) => Promise<AdapterExecutionTargetPaperclipBridgeHandle | null>;
   /** Start the host-side process-session bridge with a deferred launch env. */
@@ -143,14 +143,14 @@ export interface SandboxRunSiteOptions {
     launchEnv: () => Promise<Record<string, string>>;
   }) => Promise<AdapterExecutionTargetProcessSessionBridgeHandle | null>;
   /** Wrap each concurrent bridge start in the run's startup step timer. */
-  readonly measureBridgeStep: <T>(step: "bridge.paperclip" | "bridge.process-session", run: () => Promise<T>) => Promise<T>;
+  readonly measureBridgeStep: <T>(step: "bridge.outpost" | "bridge.process-session", run: () => Promise<T>) => Promise<T>;
   /**
    * Finalize the run's branded launch environment from the bridge contribution.
    * The engine owns `finalizeLaunchEnvironment`, so it stays the sole consumer of
    * a contribution; the site calls this capability at the sequencing point.
    */
   readonly finalizeLaunchEnv: (contributions: readonly LaunchEnvironmentContribution[]) => Record<string, string>;
-  readonly onPaperclipBridgeLog: () => Promise<void>;
+  readonly onOutpostBridgeLog: () => Promise<void>;
 
   /** Stop both bridges and run the managed-home copy-back on teardown. */
   readonly stopBridges: (input: {
@@ -336,25 +336,25 @@ export function createSandboxRunSite(options: SandboxRunSiteOptions): SandboxRun
       // process-session launch — is sequenced by `launchEnv`, a memoized thunk the
       // process-session bridge awaits right before its launch.
       const stagedRootDir = staged?.stagedRuntime.runtimeRootDir ?? null;
-      const paperclipStart = options.measureBridgeStep("bridge.paperclip", () =>
-        options.startPaperclipBridge(stagedRootDir),
+      const outpostStart = options.measureBridgeStep("bridge.outpost", () =>
+        options.startOutpostBridge(stagedRootDir),
       );
-      // The single sequencing point (paperclip env → process-session launch),
+      // The single sequencing point (outpost env → process-session launch),
       // memoized so the merge runs exactly once whether the process-session bridge
       // consumes it at launch or `startTransport` finalizes it below.
       let launchEnvPromise: Promise<Record<string, string>> | null = null;
       let launchEnv: Record<string, string> = {};
       const finalizeLaunchEnv = (): Promise<Record<string, string>> =>
         (launchEnvPromise ??= (async () => {
-          const paperclip = await paperclipStart;
+          const outpost = await outpostStart;
           // The paperclip bridge token is run-scoped: it lives for this run only and
           // never enters a reuse payload (Amendment B). The site hands it to the
           // engine's `finalizeLaunchEnv`, the sole consumer of a contribution, and
           // retains nothing.
           const contributions: LaunchEnvironmentContribution[] = [];
-          if (paperclip) {
-            contributions.push({ scope: "run", env: paperclip.env } as unknown as RunScopedContribution);
-            await options.onPaperclipBridgeLog();
+          if (outpost) {
+            contributions.push({ scope: "run", env: outpost.env } as unknown as RunScopedContribution);
+            await options.onOutpostBridgeLog();
           }
           launchEnv = options.finalizeLaunchEnv(contributions);
           return launchEnv;
@@ -363,12 +363,12 @@ export function createSandboxRunSite(options: SandboxRunSiteOptions): SandboxRun
         options.startProcessSessionBridge({ runtimeRootDir: stagedRootDir, launchEnv: finalizeLaunchEnv }),
       );
       // Settle BOTH starts, so a partial failure can stop whichever bridge started.
-      const [paperclip, processSession] = await Promise.allSettled([paperclipStart, processSessionStart]);
-      controlBridge = paperclip.status === "fulfilled" ? paperclip.value : null;
+      const [outpost, processSession] = await Promise.allSettled([outpostStart, processSessionStart]);
+      controlBridge = outpost.status === "fulfilled" ? outpost.value : null;
       agentBridge = processSession.status === "fulfilled" ? processSession.value : null;
       const failure =
-        paperclip.status === "rejected"
-          ? paperclip.reason
+        outpost.status === "rejected"
+          ? outpost.reason
           : processSession.status === "rejected"
             ? processSession.reason
             : null;

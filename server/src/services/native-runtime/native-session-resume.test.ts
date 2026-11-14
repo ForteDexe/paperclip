@@ -24,14 +24,14 @@ import {
   nativeHarnessBackups,
   nativeRunFinalizations,
   nativeRunResults,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 import {
   CodexAppServerDriver,
   HarnessDriverBackend,
   createCodexTaskEnvelope,
   createRunnerdCodexTransport as createCapabilityRunnerdCodexTransport,
-} from "@paperclipai/paperclip-runner";
+} from "@outpost/outpost-runner";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase as startEmbeddedDatabase,
@@ -44,11 +44,11 @@ import {
   parseNativeExecutionInput,
   type NativeExecutionInput,
   type NativeSession,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import {
   runnerPrpWebSocketInternals,
   setupRunnerPrpWebSocketServer,
-} from "../../realtime/runner-prp-ws.js";
+} from "../../realtime/runner-orp-ws.js";
 import {
   appendRetainedNativeCleanupEvent,
   createRunnerdBackend,
@@ -80,12 +80,12 @@ import {
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 
-const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_TEST_DATABASE_URL");
+const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_TEST_DATABASE_URL");
 
 async function startEmbeddedPostgresTestDatabase(prefix: string) {
   const externalUrl = externalTestDatabaseUrl;
   if (!externalUrl) return startEmbeddedDatabase(prefix);
-  const { closeRegisteredClients } = await import("@paperclipai/db");
+  const { closeRegisteredClients } = await import("@outpost/db");
   return { connectionString: externalUrl, cleanup: async () => {
     const db = createDb(externalUrl);
     try { await db.execute(sql`TRUNCATE TABLE companies CASCADE`); }
@@ -143,7 +143,7 @@ function execution(
     completionContract: {
       id: "70000000-0000-4000-8000-000000000007",
       sha256: `sha256:${"a".repeat(64)}`,
-      schemaVersion: "paperclip.run-result.v1",
+      schemaVersion: "outpost.run-result.v1",
       contract: {
         revision: "1",
         objective: "Test session resumption",
@@ -213,12 +213,12 @@ function previousRun(overrides: Record<string, unknown> = {}) {
           agentId,
         },
         semanticResult: {
-          schema: "paperclip.run-result.v1",
+          schema: "outpost.run-result.v1",
           reportedWorkDisposition: "done",
           summary: "old",
         },
         terminal: {
-          schema: "paperclip.prp.terminal.v1",
+          schema: "outpost.orp.terminal.v1",
           turnTerminalState: "completed",
           runTerminalState: "succeeded",
           reportedWorkDisposition: "done",
@@ -320,7 +320,7 @@ describe("a source whose provider state was not saved after its result was accep
   const withPolicy = (policy: "resume_failure" | "governed_wait" | "same_session", overrides: Record<string, unknown> = {}) => {
     const source = previousRun(overrides);
     const checkpoint = (source.runnerProfileJson as Record<string, unknown>).sessionCheckpoint as Record<string, unknown>;
-    if (policy === "governed_wait") checkpoint.semanticResult = { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded",
+    if (policy === "governed_wait") checkpoint.semanticResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
       summary: "Waiting for a response.", continuation: { kind: "response_wake", idempotencyKey: "interaction-response:one" } };
     if (policy === "same_session") checkpoint.goal = { status: "paused", objective: "Keep working" };
     return source;
@@ -378,7 +378,7 @@ const embeddedSupport = await getEmbeddedPostgresTestSupport();
 const databaseSupported = Boolean(externalTestDatabaseUrl) || embeddedSupport.supported;
 const recoveryFakeCodex = resolve(
   import.meta.dirname,
-  "../../../../packages/paperclip-runner/test/fixtures/fake-final-burst-codex-app-server.mjs",
+  "../../../../packages/outpost-runner/test/fixtures/fake-final-burst-codex-app-server.mjs",
 );
 
 (databaseSupported && existsSync(defaultCapabilityRunnerdBinary())
@@ -424,7 +424,7 @@ const recoveryFakeCodex = resolve(
           companyId,
           name: "Fixture",
           status: "active",
-          adapterType: "paperclip_runner",
+          adapterType: "outpost_runner",
         });
       await db
         .insert(issues)
@@ -454,7 +454,7 @@ const recoveryFakeCodex = resolve(
         // Reuse the credential-free provider fixture available in every checkout.
         codexCommand: process.execPath,
         codexArgs: [recoveryFakeCodex, join(scratch, "fake.json"), "16"],
-        prpIdentity: {
+        orpIdentity: {
           runId,
           runnerInstanceId,
           normalizedSessionId,
@@ -566,7 +566,7 @@ const recoveryFakeCodex = resolve(
       )!;
       expect(receipt.sourceSeq).toBe(1);
       expect(receipt.sourceInstanceId).not.toBe(runnerInstanceId);
-      expect(receipt.payload).not.toHaveProperty("prpEvent");
+      expect(receipt.payload).not.toHaveProperty("orpEvent");
       expect(
         Object.keys(
           receipt.payload!.nativeCleanupEvent as Record<string, unknown>,
@@ -629,7 +629,7 @@ const recoveryFakeCodex = resolve(
     const bin = join(scratch, "bin");
     const workspace = join(scratch, "workspace");
     const sourceHome = join(scratch, "source-home");
-    const previousStateBase = process.env.PAPERCLIP_RUNNER_STATE_DIR;
+    const previousStateBase = process.env.OUTPOST_RUNNER_STATE_DIR;
     const server = createServer();
     let firstSession: NativeSession | undefined;
     const ownedSessions = new Set<NativeSession>();
@@ -644,11 +644,11 @@ const recoveryFakeCodex = resolve(
     // The production resolver prefers installed Codex over PATH. Explicitly
     // bind this disposable fixture so it can never invoke a real provider.
     const codexCommandResolver = await vi.importActual<{ resolveCodexCommand: () => string }>(
-      "../../../../packages/paperclip-runner/src/drivers/codex/codex-command.js",
+      "../../../../packages/outpost-runner/src/drivers/codex/codex-command.js",
     );
     const resolveFixtureCodex = vi.spyOn(codexCommandResolver, "resolveCodexCommand")
       .mockReturnValue(join(bin, "codex"));
-    process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
+    process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
     try {
       await Promise.all(
         [bin, workspace, sourceHome].map((path) =>
@@ -678,7 +678,7 @@ const recoveryFakeCodex = resolve(
         );
         return {
           ...value,
-          schema: "paperclip.native-execution-input.v2",
+          schema: "outpost.native-execution-input.v2",
           provider: { kind: "codex", model: "gpt-5.6-luna" },
           completionContract: {
             ...value.completionContract,
@@ -711,7 +711,7 @@ const recoveryFakeCodex = resolve(
         companyId,
         name: "Recovery runner",
         status: "active",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
       });
       await db.insert(issues).values({
         id: issueId,
@@ -725,7 +725,7 @@ const recoveryFakeCodex = resolve(
         companyId,
         issueId,
         revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         policyVersion: "damaged-recovery-v1",
         risk: "standard",
         completionAuthority: "server_arbiter",
@@ -809,7 +809,7 @@ const recoveryFakeCodex = resolve(
       // an unacknowledged input whose digest predates bounded sanitization.
       const badPayload = {
         semantic_tool: {
-          schema: "paperclip.prp.semantic_tool.v1",
+          schema: "outpost.orp.semantic_tool.v1",
           schemaVersion: 1,
           phase: "input",
           input: { summary: "bounded historical answer" },
@@ -817,7 +817,7 @@ const recoveryFakeCodex = resolve(
         },
       };
       const envelope = {
-        protocol: "paperclip.runner",
+        protocol: "outpost.runner",
         version: 1,
         kind: "event",
         runnerInstanceId: runner.runnerInstanceId,
@@ -827,7 +827,7 @@ const recoveryFakeCodex = resolve(
         turnId: runner.turnId,
         itemId: runner.itemId,
         payload: {
-          schema: "paperclip.prp.event.v1",
+          schema: "outpost.orp.event.v1",
           sourceEventId: "historical-bad-input-44",
           sourceSeq: 44,
           sourceInstanceId: runner.runnerInstanceId,
@@ -1142,8 +1142,8 @@ const recoveryFakeCodex = resolve(
       server.closeAllConnections();
       await new Promise<void>((done) => server.close(() => done()));
       if (previousStateBase === undefined)
-        delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-      else process.env.PAPERCLIP_RUNNER_STATE_DIR = previousStateBase;
+        delete process.env.OUTPOST_RUNNER_STATE_DIR;
+      else process.env.OUTPOST_RUNNER_STATE_DIR = previousStateBase;
       await database.cleanup();
       if (closeFailures.length) {
         // Retain exact fixture state if owned retirement cannot be proven.
@@ -1169,7 +1169,7 @@ const recoveryFakeCodex = resolve(
           const source = previousRun();
           const sourceExecution = source.runnerProfileJson.nativeExecutionInput;
           await db.insert(completionContracts).values({ id: sourceExecution.completionContract.id, companyId, issueId,
-            revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "unsaved-state-v1", risk: "standard",
+            revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "unsaved-state-v1", risk: "standard",
             completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
             contractJson: { ...sourceExecution.completionContract.contract }, canonicalSha256: sourceExecution.completionContract.sha256,
             createdByActorType: "system", createdByActorId: "test" });
@@ -1839,8 +1839,8 @@ describe("rebindNativeSessionCheckpoint", () => {
   );
 
   it.each([
-    ["paperclip.native-execution-input.v4", "paperclip.native-execution-input.v5"],
-    ["paperclip.native-execution-input.v5", "paperclip.native-execution-input.v4"],
+    ["outpost.native-execution-input.v4", "outpost.native-execution-input.v5"],
+    ["outpost.native-execution-input.v5", "outpost.native-execution-input.v4"],
   ] as const)("retains a recoverable %s session when the constructor defaults to %s", (priorSchema, currentSchema) => {
     const prior = previousRun();
     const profile = prior.runnerProfileJson as Record<string, unknown>;
@@ -2164,7 +2164,7 @@ describe("rebindNativeSessionCheckpoint", () => {
     const profile = source.runnerProfileJson as Record<string, unknown>;
     const checkpoint = profile.sessionCheckpoint as Record<string, unknown>;
     checkpoint.semanticResult = {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary: "Waiting for a response.",
       continuation: {
@@ -2198,7 +2198,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       timeUsedSeconds: 12,
     };
     checkpoint.semanticResult = {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary: "Paused at a quiescent boundary.",
       continuation: {
@@ -2427,7 +2427,7 @@ describe("buildNativeExecutionInput wake projection", () => {
     };
     const prepared = buildNativeExecutionInput(args);
     const resumed = JSON.stringify(buildNativeModelEnvelope(prepared, { resumedSession: true }));
-    expect(resumed).toContain("paperclip.native-continuation.v1");
+    expect(resumed).toContain("outpost.native-continuation.v1");
     expect(resumed).toContain(message.body);
     expect(resumed).not.toContain(config.instructions);
     expect(resumed).not.toContain("OLD_REQUEST");
@@ -2505,7 +2505,7 @@ describe("buildNativeExecutionInput wake projection", () => {
       completionContract: {
         id: "70000000-0000-4000-8000-000000000007",
         sha256: `sha256:${"a".repeat(64)}`,
-        schemaVersion: "paperclip.run-result.v1",
+        schemaVersion: "outpost.run-result.v1",
         contract: {
           revision: "2",
           objective: "Respond to the latest comment",
@@ -2641,15 +2641,15 @@ describe("buildNativeExecutionInput wake projection", () => {
     });
 
     expect(codex).toMatchObject({
-      schema: "paperclip.native-execution-input.v5",
+      schema: "outpost.native-execution-input.v5",
       provider: { kind: "codex", approvalPolicy: "on-request" },
     });
     expect(opencode).toMatchObject({
-      schema: "paperclip.native-execution-input.v5",
+      schema: "outpost.native-execution-input.v5",
       provider: { kind: "opencode", permissionMode: "ask" },
     });
     expect(acpx).toMatchObject({
-      schema: "paperclip.native-execution-input.v5",
+      schema: "outpost.native-execution-input.v5",
       provider: { kind: "acpx", permissionMode: "deny-all" },
     });
     expect(claudeManaged).toMatchObject({
@@ -2684,7 +2684,7 @@ describe("buildNativeExecutionInput wake projection", () => {
     expect(
       JSON.stringify([codex, opencode, claudeManaged, agentCore, acpx]),
     ).not.toMatch(
-      /OPENAI_API_KEY|ANTHROPIC_API_KEY|AWS_SECRET_ACCESS_KEY|PAPERCLIP_API_KEY/,
+      /OPENAI_API_KEY|ANTHROPIC_API_KEY|AWS_SECRET_ACCESS_KEY|OUTPOST_API_KEY/,
     );
   });
 
@@ -2739,7 +2739,7 @@ describe("buildNativeExecutionInput wake projection", () => {
       completionContract: {
         id: "70000000-0000-4000-8000-000000000007",
         sha256: `sha256:${"a".repeat(64)}`,
-        schemaVersion: "paperclip.run-result.v1",
+        schemaVersion: "outpost.run-result.v1",
         contract: {
           revision: "1",
           objective: "Finish after the child",

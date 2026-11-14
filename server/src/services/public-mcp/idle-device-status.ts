@@ -1,5 +1,5 @@
 import {eq} from "drizzle-orm";
-import {mcpOauthDeviceRequests as devices,type Db} from "@paperclipai/db";
+import {mcpOauthDeviceRequests as devices,type Db} from "@outpost/db";
 import {deriveLocalEncryptedInstanceSecret} from "../../secrets/local-encrypted-provider.js";
 import {mcpDeviceStatusEntrySchema,mcpDeviceStatusFingerprint,mcpDeviceStatusGeneration,mcpDeviceStatusKeyId} from "./device-status-contract.js";
 import type {McpClientMirrorReceipt} from "./client-mirror-contract.js";

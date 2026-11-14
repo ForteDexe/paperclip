@@ -1,5 +1,5 @@
-import type { PaperclipTurnContext } from "@paperclipai/adapter-utils/server-utils";
-import { resolvePaperclipRunnerCursorMode, resolvePaperclipRunnerPiThinkingLevel } from "@paperclipai/adapter-utils";
+import type { PaperclipTurnContext } from "@outpost/adapter-utils/server-utils";
+import { resolvePaperclipRunnerCursorMode, resolvePaperclipRunnerPiThinkingLevel } from "@outpost/adapter-utils";
 import { createHash } from "node:crypto";
 import { buildNativeContinuationPrompt } from "./native-continuation.js";
 import {
@@ -28,16 +28,16 @@ import type {
   NativePlanningContext,
   NativeRuntimeContextSnapshot,
   StrictCompletionContractInput,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import {
   parseNativeExecutionInput,
   resolveQualifiedAcpxProfile,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import {
   isPaperclipExternalChatContractTurn,
   isPaperclipExternalChatQuestionResponseTurn,
   selectPaperclipPromptSections,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 
 const NATIVE_GITHUB_ATTACHMENT_RECOVERY_GUIDANCE = [
   "## GitHub attachment recovery navigation",
@@ -112,7 +112,7 @@ export interface BuildNativeExecutionInput {
   grokEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
   grokDisableWebSearch?: boolean;
   model?: string | null;
-  cursorCloud?: import("../../vendor/paperclip-runner/index.js").NativeCursorCloudConfig;
+  cursorCloud?: import("../../vendor/outpost-runner/index.js").NativeCursorCloudConfig;
   managedProfile?: Extract<
     NativeExecutionInputV5["provider"],
     { kind: "claude_managed" }
@@ -258,9 +258,9 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
   const workflowCase = input.caseContext && previousCaseProjection
     ? projectCaseContinuation(input.caseContext, previousCaseProjection) : null;
   const prepared = {
-    schema: input.grokEffort !== undefined || input.grokDisableWebSearch !== undefined ? "paperclip.native-execution-input.v10"
-      : input.claudeEffort !== undefined ? "paperclip.native-execution-input.v9"
-      : input.homeMode === "preconfigured" ? "paperclip.native-execution-input.v7" : "paperclip.native-execution-input.v5",
+    schema: input.grokEffort !== undefined || input.grokDisableWebSearch !== undefined ? "outpost.native-execution-input.v10"
+      : input.claudeEffort !== undefined ? "outpost.native-execution-input.v9"
+      : input.homeMode === "preconfigured" ? "outpost.native-execution-input.v7" : "outpost.native-execution-input.v5",
     ...(input.grokEffort !== undefined || input.grokDisableWebSearch !== undefined || input.claudeEffort !== undefined || input.homeMode === "preconfigured" ? { homeMode: input.homeMode ?? "isolated" } : {}),
     ...((input.initialCommunicationGuidance || input.freshSessionHandoff) ? {
       initialCommunicationGuidance: [input.initialCommunicationGuidance, input.freshSessionHandoff].filter(Boolean).join("\n\n"),
@@ -390,11 +390,11 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     runtimeContext: input.runtimeContext,
   };
   return parseNativeExecutionInput(input.provider === "muse" ? { ...prepared,
-    schema: "paperclip.native-execution-input.v8", provider: { kind: "muse", model: null, binding: input.museBinding, bridgeRevision: "muse-v1" },
+    schema: "outpost.native-execution-input.v8", provider: { kind: "muse", model: null, binding: input.museBinding, bridgeRevision: "muse-v1" },
     workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
     session: { ...prepared.session, driverKind: "muse_external", lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } }
   } : ["openai_dot", "grok_bot"].includes(input.provider ?? "") ? { ...prepared,
-    schema: "paperclip.native-execution-input.v6", provider: { kind: input.provider, model: null, binding: input.dotBinding },
+    schema: "outpost.native-execution-input.v6", provider: { kind: input.provider, model: null, binding: input.dotBinding },
     workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
     session: { ...prepared.session, driverKind: input.provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp", lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } }
   } : prepared) as NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 | NativeExecutionInputV8 | NativeExecutionInputV9 | NativeExecutionInputV10;

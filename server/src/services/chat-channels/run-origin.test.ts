@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { agents, chatConversations, chatEndpoints, chatMessageLinks, companies, createDb, heartbeatRuns, issueComments,
-  issues, runIdentityContexts } from "@paperclipai/db";
-import type { ChatProvider } from "@paperclipai/shared";
+  issues, runIdentityContexts } from "@outpost/db";
+import type { ChatProvider } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { seedGitHubReviewWait } from "../../__tests__/helpers/github-review-wait.js";
 import { HttpError } from "../../errors.js";

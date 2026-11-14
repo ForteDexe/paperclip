@@ -14,7 +14,7 @@ import { fenceActiveCompanyAgentStopsInTransaction } from "./agent-lifecycle.js"
 import { publishAccountingActivities } from "./accounting-transaction.js";
 import { budgetServiceInTransaction, type BudgetServiceHooks } from "./budgets.js";
 import { and, count, eq, gte, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   companies,
   companyLogos,
@@ -24,7 +24,7 @@ import {
   issues,
   heartbeatRuns,
   costEvents,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { notFound, unprocessable } from "../errors.js";
 import { isCloudManagedInstance } from "./cloud-instance.js";
 import { notifyCloudOfPrimaryCompanyLifecycleChange } from "./cloud-lifecycle-sync.js";
@@ -39,7 +39,7 @@ import {
 import { environmentService } from "./environments.js";
 import { logActivity, type ActivityPublication } from "./activity-log.js";
 import { builtInAgentService } from "./built-in-agents.js";
-import type { Company } from "@paperclipai/shared";
+import type { Company } from "@outpost/shared";
 
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

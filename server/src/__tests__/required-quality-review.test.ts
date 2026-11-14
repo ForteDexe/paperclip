@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, assets, companies, createDb, documents, heartbeatRuns, issueAttachments, issueThreadInteractionIdempotencyKeys, issueThreadInteractions, issues } from "@paperclipai/db";
-import { requiredQualityReviewSchema } from "@paperclipai/shared";
+import { agents, assets, companies, createDb, documents, heartbeatRuns, issueAttachments, issueThreadInteractionIdempotencyKeys, issueThreadInteractions, issues } from "@outpost/db";
+import { requiredQualityReviewSchema } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
 import { issueService } from "../services/issues.js";
@@ -13,8 +13,8 @@ import { instanceSettingsService } from "../services/instance-settings.js";
 import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.js";
 import { readRequiredQualityReview } from "../services/required-quality-review.js";
 import { nativeCompletionFeedback } from "../services/native-runtime/native-completion-feedback.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/paperclip-runner-tool-authority.js";
-import type { PrpStructuredRunResult } from "../vendor/paperclip-runner/index.js";
+import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import type { PrpStructuredRunResult } from "../vendor/outpost-runner/index.js";
 
 // Issue writes and the `issues` row type take the policy as a plain JSON record.
 function executionPolicyRecord(input: unknown): Record<string, unknown> | null {
@@ -32,7 +32,7 @@ const support = await getEmbeddedPostgresTestSupport();
   async function fixture(required = true) {
     const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = "local-board";
     await db.insert(companies).values({ id: companyId, name: "Quality", issuePrefix: `Q${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", status: "idle", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", status: "idle", adapterType: "outpost_runner" });
     const [task] = await db.insert(issues).values({ id: issueId, companyId, title: "Review outputs", status: "in_progress", assigneeAgentId: agentId,
       createdByUserId: userId, reviewPolicy: null,
       executionPolicy: required ? executionPolicyRecord({ requiredQualityReview: requirement }) : null }).returning();
@@ -304,7 +304,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture(), runId = randomUUID();
     await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
-    const done: PrpStructuredRunResult = { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Outputs ready", completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [] };
+    const done: PrpStructuredRunResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Outputs ready", completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [] };
     await expect(nativeCompletionFeedback(db, runId, done)).rejects.toThrow("Required human quality review is incomplete");
     await f.approve("copy"); await f.approve("visual");
     await expect(nativeCompletionFeedback(db, runId, done)).resolves.toContain("Completion report accepted");

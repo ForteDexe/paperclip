@@ -14,10 +14,10 @@ import signal
 import stat
 import sys
 
-PACK = '/opt/paperclip-runner/provider-pack'
+PACK = '/opt/outpost-runner/provider-pack'
 ENTRY = 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
 NODE = 'node/bin/node'
-EXTENSION = 'extensions/paperclip.js'
+EXTENSION = 'extensions/outpost.js'
 GUARD = '.paperclip-native-module-guard.cjs'
 
 
@@ -119,8 +119,8 @@ def inspect(config):
     root = proc(expected['pid'], boot)
     require(root == expected and os.getpgid(root['pid']) == root['pid'], 'root_changed')
     root_args = argv(root['pid'])
-    runtime_root = binding['remoteCwd'] + '/.paperclip-runtime/paperclip-runner'
-    runner = runtime_root + '/bin/paperclip-runnerd'
+    runtime_root = binding['remoteCwd'] + '/.paperclip-runtime/outpost-runner'
+    runner = runtime_root + '/bin/outpost-runnerd'
     require(root_args[0] == runner and flag(root_args, '--run-id') == binding['runId']
             and flag(root_args, '--environment-lease-id') == config['runtimeEnvironmentLeaseId']
             and flag(root_args, '--lifecycle-mode') == 'per_turn', 'root_binding')
@@ -213,7 +213,7 @@ def terminate(config):
         fields = dict(line.split(':', 1) for line in Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines() if ':' in line)
         require(int(fields.get('Pid', '-1').strip()) == pid, 'pidfd_retired')
         signal.pidfd_send_signal(fd, signal.SIGKILL, None, 0)
-        return {'schema': 'paperclip.e2e.pi-provider-death.v1', 'binding': config['binding'], 'runtimeEnvironmentLeaseId': config['runtimeEnvironmentLeaseId'],
+        return {'schema': 'outpost.e2e.pi-provider-death.v1', 'binding': config['binding'], 'runtimeEnvironmentLeaseId': config['runtimeEnvironmentLeaseId'],
                 **before, 'signalled': True, 'signal': 'SIGKILL', 'targetKind': 'pi_native_child', 'workerSignalled': False}
     finally:
         os.close(fd)

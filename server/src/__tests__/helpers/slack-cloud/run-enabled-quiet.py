@@ -1,7 +1,7 @@
 import pathlib, json, hashlib, subprocess, os, sys, time, signal, shutil, tempfile, secrets, socket, re, urllib.request, urllib.parse, traceback
 O=pathlib.Path(__file__).resolve().parent
 A=O.parents[4]
-D=pathlib.Path(os.environ['PAPERCLIP_CLOUD_REPO_ROOT']).resolve()
+D=pathlib.Path(os.environ['OUTPOST_CLOUD_REPO_ROOT']).resolve()
 assert D.is_dir() and (D/'package.json').is_file()
 MODE='callback'
 assert len(sys.argv)==2, 'One exact whole qualification; pass a fresh output directory'
@@ -9,10 +9,10 @@ OUT=pathlib.Path(sys.argv[1]).resolve()
 assert not OUT.exists(), 'Fresh output directory required'
 OUT.mkdir(parents=True)
 sha=lambda p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
-F={'node24':str(pathlib.Path(os.environ['PAPERCLIP_SLACK_NODE24']).resolve()),'node22':str(pathlib.Path(os.environ['PAPERCLIP_SLACK_NODE22']).resolve())}
+F={'node24':str(pathlib.Path(os.environ['OUTPOST_SLACK_NODE24']).resolve()),'node22':str(pathlib.Path(os.environ['OUTPOST_SLACK_NODE22']).resolve())}
 for key in ['node24','node22']:assert pathlib.Path(F[key]).is_file();F[key+'SHA']=sha(F[key])
 # Fail closed before git metadata, Node children, or any database owner.
-app_url=os.environ['PAPERCLIP_SLACK_TEST_DATABASE_URL'];cloud_url=os.environ['SLACK_EVENT_TEST_DATABASE_URL'];admin_url=os.environ['PAPERCLIP_TEST_POSTGRES_ADMIN_URL']
+app_url=os.environ['OUTPOST_SLACK_TEST_DATABASE_URL'];cloud_url=os.environ['SLACK_EVENT_TEST_DATABASE_URL'];admin_url=os.environ['OUTPOST_TEST_POSTGRES_ADMIN_URL']
 ap=urllib.parse.urlparse(app_url);cp=urllib.parse.urlparse(cloud_url);ad=urllib.parse.urlparse(admin_url)
 assert ap.port is not None and 1 <= ap.port <= 65535, 'Explicit valid fixture port required before child entry'
 for u in [ap,cp,ad]:assert u.scheme in ('postgres','postgresql') and u.hostname=='127.0.0.1' and u.port==ap.port and not u.query and not u.fragment
@@ -49,9 +49,9 @@ def events(p):
  return [json.loads(line) for line in pathlib.Path(p).read_text().splitlines() if line.strip()]
 def closed_env(label,peer=None,databases=False):
  home=PRIVATE/label;home.mkdir();(home/'tmp').mkdir();(home/'cache').mkdir()
- env={'PATH':str(pathlib.Path(F['node24']).parent)+':/usr/bin:/bin:/usr/sbin:/sbin','LANG':'en_US.UTF-8','HOME':str(home),'TMPDIR':str(home/'tmp'),'XDG_CACHE_HOME':str(home/'cache'),'PAPERCLIP_HOME':str(home),'NODE_OPTIONS':'','NODE_ENV':'test','CI':'true','FORCE_COLOR':'0','SLACK_GATE_PROCESS_LOG':str(OUT/(label+'-guard.jsonl'))}
+ env={'PATH':str(pathlib.Path(F['node24']).parent)+':/usr/bin:/bin:/usr/sbin:/sbin','LANG':'en_US.UTF-8','HOME':str(home),'TMPDIR':str(home/'tmp'),'XDG_CACHE_HOME':str(home/'cache'),'OUTPOST_HOME':str(home),'NODE_OPTIONS':'','NODE_ENV':'test','CI':'true','FORCE_COLOR':'0','SLACK_GATE_PROCESS_LOG':str(OUT/(label+'-guard.jsonl'))}
  if peer:env['SLACK_FORM_FIXTURE_PEER_ORIGIN']=peer
- if databases:env.update({'PAPERCLIP_SLACK_TEST_DATABASE_URL':app_url,'SLACK_EVENT_TEST_DATABASE_URL':cloud_url,'PAPERCLIP_TEST_POSTGRES_ADMIN_URL':admin_url})
+ if databases:env.update({'OUTPOST_SLACK_TEST_DATABASE_URL':app_url,'SLACK_EVENT_TEST_DATABASE_URL':cloud_url,'OUTPOST_TEST_POSTGRES_ADMIN_URL':admin_url})
  return env
 def spawn(label,argv,env):
  auth=authority()
@@ -129,7 +129,7 @@ def journey():
  scopes=json.loads((OUT/'owned-scopes.log').read_text().splitlines()[-1])['scopes'];assert scopes and all(s=='commands' or re.fullmatch('[a-z_]+:[a-z_]+',s) for s in scopes)
  sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close();assert port not in (5432,55448)
  tenant='http://127.0.0.1:'+str(port)
- env=closed_env('cloud',tenant,True);env.update({'PAPERCLIP_CLOUD_REPO_ROOT':str(D),'SLACK_FORM_FIXTURE_SCOPES':','.join(scopes),'SLACK_GATE_PROCESS_LOG':str(OUT/'cloud-guard.jsonl'),'SLACK_PEER_CONTROL_LOG':str(OUT/'cloud-transport.jsonl')})
+ env=closed_env('cloud',tenant,True);env.update({'OUTPOST_CLOUD_REPO_ROOT':str(D),'SLACK_FORM_FIXTURE_SCOPES':','.join(scopes),'SLACK_GATE_PROCESS_LOG':str(OUT/'cloud-guard.jsonl'),'SLACK_PEER_CONTROL_LOG':str(OUT/'cloud-transport.jsonl')})
  host=spawn('cloud',[F['node22'],'--require',str(O/'transport-observer.cjs'),'--require',guard,str(O/'enabled-quiet-host.mjs'),str(PRIVATE/'state.json')],env)
  state=ready(host,PRIVATE/'state.json',90)
  origin=urllib.parse.urlparse(state['origin']);assert origin.scheme=='http' and origin.hostname=='127.0.0.1' and origin.port not in (port,5432,55448)

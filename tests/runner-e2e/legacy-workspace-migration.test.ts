@@ -43,6 +43,6 @@ describe("legacy workspace migration qualification", () => {
     expect(new Set(cells.map(cell => cell.suite.id)).size).toBe(2);
     expect(cells.every(cell => cell.suite.manualOnly && cell.task.flow === "continuation" && cell.task.expectedRunCount === 2)).toBe(true);
     expect(remoteWorkspaceStorageServerEnvironment({ executions: [cells[0]!], instanceId: "migration-test",
-      env: { PAPERCLIP_RUNNER_E2E_WORKSPACE_STORAGE_BUCKET: "owned-migration-bucket" } })).toMatchObject({ PAPERCLIP_STORAGE_PROVIDER: "s3" });
+      env: { OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_BUCKET: "owned-migration-bucket" } })).toMatchObject({ OUTPOST_STORAGE_PROVIDER: "s3" });
   });
 });

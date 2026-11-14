@@ -17,7 +17,7 @@ Public keys use SPKI PEM and private keys use PKCS#8 PEM. `keyId` is `sha256:`
 followed by the base64url SHA-256 digest of the public key's SPKI DER bytes.
 Private material is encrypted using the existing `local_encrypted` provider and
 stored separately from company secrets. The wrapping key is the stack's
-`PAPERCLIP_SECRETS_MASTER_KEY` or the local instance's secrets master-key file.
+`OUTPOST_SECRETS_MASTER_KEY` or the local instance's secrets master-key file.
 The file is published atomically with mode `0600` on first use. No per-agent
 Cloud secret or Cloud registry record is needed.
 
@@ -28,12 +28,12 @@ restarts preserve the keypair.
 
 ## Managed runs
 
-Paperclip supplies these server-owned environment variables:
+Outpost supplies these server-owned environment variables:
 
 ```text
-PAPERCLIP_AGENT_KEY_ID
-PAPERCLIP_AGENT_PUBLIC_KEY
-PAPERCLIP_AGENT_PRIVATE_KEY
+OUTPOST_AGENT_KEY_ID
+OUTPOST_AGENT_PUBLIC_KEY
+OUTPOST_AGENT_PRIVATE_KEY
 ```
 
 The two key values are multiline PEM strings. Runtime-only adapter context and
@@ -62,7 +62,7 @@ An agent can sign using an ordinary cryptographic library, for example Node.js:
 
 ```js
 import { sign } from "node:crypto";
-const signature = sign(null, challengeBytes, process.env.PAPERCLIP_AGENT_PRIVATE_KEY);
+const signature = sign(null, challengeBytes, process.env.OUTPOST_AGENT_PRIVATE_KEY);
 ```
 
 This identity does not change Paperclip bearer-token authentication. There is no
@@ -103,7 +103,7 @@ use the same name-only allowlist, including runs without an agent identity.
 Codex login keys (`OPENAI_API_KEY`, `CODEX_API_KEY`), managed provider keys,
 observability credentials, and private runtime transport credentials remain
 outside that service-secret opt-in. Unassigned host secrets are not added.
-The three identity variables and the short-lived, scoped `PAPERCLIP_API_KEY`
+The three identity variables and the short-lived, scoped `OUTPOST_API_KEY`
 retain their runtime delivery. Secret values remain in the child environment;
 the shell policy contains only variable names. Removing a configured variable
 removes its shell access at the next launch.

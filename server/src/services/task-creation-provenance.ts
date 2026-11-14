@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { activityLog, agents, heartbeatRuns, issues, projects, routineRuns, type Db } from "@paperclipai/db";
-import { isUuidLike } from "@paperclipai/shared";
+import { activityLog, agents, heartbeatRuns, issues, projects, routineRuns, type Db } from "@outpost/db";
+import { isUuidLike } from "@outpost/shared";
 import { verifyLocalAgentJwt } from "../agent-auth-jwt.js";
 import { agentRunWritesRevoked } from "../agent-run-cancellation.js";
 import { unauthorized } from "../errors.js";

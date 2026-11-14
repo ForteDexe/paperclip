@@ -29,7 +29,7 @@ it.each(["release", "cancel", "stop", "destroy", "resume", "stalled-close"] as c
       nodePaths: [path.join(repoRoot, "server/node_modules")],
       alias: {
         "@daytonaio/sdk": path.join(repoRoot, "server/src/__tests__/fixtures/daytona-worker-lifecycle-sdk.mjs"),
-        "@paperclipai/plugin-sdk": path.join(repoRoot, "packages/plugins/sdk/dist/index.js"),
+        "@outpost/plugin-sdk": path.join(repoRoot, "packages/plugins/sdk/dist/index.js"),
       },
       banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
     });
@@ -41,8 +41,8 @@ it.each(["release", "cancel", "stop", "destroy", "resume", "stalled-close"] as c
       instanceInfo: { instanceId: "fixture-instance", hostVersion: "0.0.0" },
       apiVersion: 1,
       hostHandlers: {},
-      env: { PAPERCLIP_DAYTONA_FIXTURE_JOURNAL: journal, PAPERCLIP_DAYTONA_FIXTURE_SAVED_FILE: savedFile,
-        PAPERCLIP_DAYTONA_FIXTURE_HANG_CLOSE: mode === "stalled-close" ? "1" : "0" },
+      env: { OUTPOST_DAYTONA_FIXTURE_JOURNAL: journal, OUTPOST_DAYTONA_FIXTURE_SAVED_FILE: savedFile,
+        OUTPOST_DAYTONA_FIXTURE_HANG_CLOSE: mode === "stalled-close" ? "1" : "0" },
       duplexChannelLimits: { closeTimeoutMs: 500 },
     });
     const pid = worker.diagnostics().pid;

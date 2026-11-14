@@ -18,7 +18,7 @@ describe("actual interrupted and continued execution calibration", () => {
   it("does not match reply wording", () => { const o = valid(); o.reply = `Attempt one [open](${o.links[1]}) stopped early.\nAttempt two [open](${o.links[2]}) finished the website task.`; expect(gradeRunHistory(o).passed).toBe(true); });
   it("rejects a reply that never read the task's run history", () => { const o = valid(); o.runHistoryRead = false; expect(gradeRunHistory(o).passed).toBe(false); });
   it("recognizes only a completed runner read of this task's runs or an exact run detail", () => {
-    const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { prpEvent: { sourceKind: "runner", payload: { status, output } } } });
+    const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { status, output } } } });
     const issueRuns = JSON.stringify({ text: JSON.stringify({ result: { apiOperationId: "GET /api/issues/{id}/runs", data: [{ contextIssueId: "task", runId: "interrupted" }] } }) });
     const detail = JSON.stringify({ text: JSON.stringify({ result: { apiOperationId: "GET /api/heartbeat-runs/{runId}", data: { id: "continuation" } } }) });
     expect(readTaskRunHistory([event(issueRuns)], "task", ["interrupted", "continuation"])).toBe(true);

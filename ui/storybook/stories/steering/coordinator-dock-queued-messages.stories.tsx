@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { IssueQueuedCommentEntry, IssueQueuedCommentQueue } from "@paperclipai/shared";
+import type { IssueQueuedCommentEntry, IssueQueuedCommentQueue } from "@outpost/shared";
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
 import { TaskChatComposerDock } from "@/components/task-chat/TaskChatComposerDock";
 import { TaskChatQueuedMessages } from "@/components/task-chat/TaskChatQueuedMessages";
@@ -54,7 +54,7 @@ function CoordinatorDockQueue({ count, mobile }: { count: number; mobile: boolea
     state: "deferred",
     targetRunId: "active-run",
     revision: "story-revision",
-    protocol: "paperclip_runner_v1",
+    protocol: "outpost_runner_v1",
     steeringDisposition: "available",
     entries,
   };

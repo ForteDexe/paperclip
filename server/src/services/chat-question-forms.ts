@@ -1,14 +1,14 @@
 import { projectSafeChatPublicationText } from "./chat-publication-projection.js";
 import { randomBytes } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { chatActions } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { chatActions } from "@outpost/db";
 import type {
   AskUserQuestionsAnswer,
   AskUserQuestionsInteraction,
   AskUserQuestionsQuestion,
   PaperclipQuestionSetQuestion,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   Modal,
   CardText,

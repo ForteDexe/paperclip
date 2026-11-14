@@ -60,7 +60,7 @@ describe("chat reload and new-session evidence", () => {
     ["foreign recall run", (f) => { f.points[2]!.runs[1]!.agentId = "foreign"; }],
     ["different provider", (f) => { f.points[2]!.runs[1]!.runnerProfileJson.nativeExecutionInput.provider.kind = "other"; }],
     ["different model", (f) => { f.points[5]!.runs[3]!.runnerProfileJson.nativeExecutionInput.provider.model = "other"; }],
-    ["different environment", (f) => { f.points[5]!.runs[3]!.contextSnapshot.paperclipEnvironment.id = "other"; }],
+    ["different environment", (f) => { f.points[5]!.runs[3]!.contextSnapshot.outpostEnvironment.id = "other"; }],
     ["uncommitted native phase", (f) => { f.points[5]!.runs[3]!.nativePhase = "finalizing"; }],
     ["missing session proof", (f) => { delete f.points[0]!.runs[0]!.nativeSessionId; }],
     ["unintended session replacement on reload", (f) => { f.points[2]!.runs[1]!.nativeSessionId = "replacement"; }],

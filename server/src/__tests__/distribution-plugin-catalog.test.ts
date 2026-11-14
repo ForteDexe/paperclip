@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync, realpathSyn
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import type { PaperclipPluginManifestV1 } from "@outpost/shared";
 import { distributionBundleDigest, distributionPluginActivationGuard, readDistributionPluginCatalog } from "../services/distribution-plugin-catalog.js";
 import { BUNDLED_PLUGIN_CATALOG, resolveBundledPluginInstalls } from "../services/bundled-plugins.js";
 
@@ -36,7 +36,7 @@ describe("image-owned plugin catalogs", () => {
   });
   it("rejects duplicate keys, plugin identities and built-in replacement", () => {
     const { root, entry, save } = fixture();
-    for (const plugins of [[entry, entry], [{ ...entry, key: "daytona" }], [{ ...entry, pluginKey: "paperclip.daytona-sandbox-provider" }]]) {
+    for (const plugins of [[entry, entry], [{ ...entry, key: "daytona" }], [{ ...entry, pluginKey: "outpost.daytona-sandbox-provider" }]]) {
       save(plugins);
       expect(() => readDistributionPluginCatalog(root, BUNDLED_PLUGIN_CATALOG)).toThrow(/Duplicate or built-in/);
     }

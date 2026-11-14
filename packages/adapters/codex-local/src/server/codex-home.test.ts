@@ -2,10 +2,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { prepareAdapterExecutionTargetRuntime } from "@paperclipai/adapter-utils/execution-target";
-import { runChildProcess } from "@paperclipai/adapter-utils/server-utils";
+import { prepareAdapterExecutionTargetRuntime } from "@outpost/adapter-utils/execution-target";
+import { runChildProcess } from "@outpost/adapter-utils/server-utils";
 import { execute as executeCodex } from "./execute.js";
-import { buildProviderObservabilityLaunch } from "@paperclipai/adapter-utils/agent-observability";
+import { buildProviderObservabilityLaunch } from "@outpost/adapter-utils/agent-observability";
 import { randomUUID } from "node:crypto";
 import {
   CODEX_SYNC_ALLOWLIST,
@@ -75,8 +75,8 @@ describe("codex managed home", () => {
         prepareManagedCodexHome(
           {
             CODEX_HOME: sharedCodexHome,
-            PAPERCLIP_HOME: paperclipHome,
-            PAPERCLIP_INSTANCE_ID: "default",
+            OUTPOST_HOME: paperclipHome,
+            OUTPOST_INSTANCE_ID: "default",
           },
           async () => {},
           "company-1",
@@ -177,8 +177,8 @@ describe("codex managed home", () => {
         prepareManagedCodexHome(
           {
             CODEX_HOME: sharedCodexHome,
-            PAPERCLIP_HOME: paperclipHome,
-            PAPERCLIP_INSTANCE_ID: "default",
+            OUTPOST_HOME: paperclipHome,
+            OUTPOST_INSTANCE_ID: "default",
           },
           async () => {},
           "company-1",
@@ -225,8 +225,8 @@ describe("codex managed home", () => {
       await prepareManagedCodexHome(
         {
           CODEX_HOME: sharedCodexHome,
-          PAPERCLIP_HOME: paperclipHome,
-          PAPERCLIP_INSTANCE_ID: "default",
+          OUTPOST_HOME: paperclipHome,
+          OUTPOST_INSTANCE_ID: "default",
         },
         async () => {},
         "company-1",
@@ -286,8 +286,8 @@ describe("codex managed home", () => {
 
 describe("isManagedCodexHomePath", () => {
   const env = {
-    PAPERCLIP_HOME: "/srv/paperclip",
-    PAPERCLIP_INSTANCE_ID: "default",
+    OUTPOST_HOME: "/srv/paperclip",
+    OUTPOST_INSTANCE_ID: "default",
   } satisfies NodeJS.ProcessEnv;
   const companyRoot = path.resolve(
     "/srv/paperclip/instances/default/companies/company-1",
@@ -662,8 +662,8 @@ describe("seedManagedCodexHome", () => {
       );
       const env = {
         CODEX_HOME: sharedCodexHome,
-        PAPERCLIP_HOME: path.join(root, "paperclip-home"),
-        PAPERCLIP_INSTANCE_ID: "default",
+        OUTPOST_HOME: path.join(root, "paperclip-home"),
+        OUTPOST_INSTANCE_ID: "default",
       };
       const stored = subscriptionAuth("acct-same", "stored", "2026-07-09T01:00:00Z");
       await fs.mkdir(sharedCodexHome, { recursive: true });
@@ -698,8 +698,8 @@ describe("seedManagedCodexHome", () => {
       );
       const env = {
         CODEX_HOME: sharedCodexHome,
-        PAPERCLIP_HOME: path.join(root, "paperclip-home"),
-        PAPERCLIP_INSTANCE_ID: "default",
+        OUTPOST_HOME: path.join(root, "paperclip-home"),
+        OUTPOST_INSTANCE_ID: "default",
       };
       const stored = subscriptionAuth("acct-bound-id", "stored", "2026-07-09T01:00:00Z");
       await fs.mkdir(sharedCodexHome, { recursive: true });
@@ -766,8 +766,8 @@ describe("reconcileManagedCodexHome", () => {
     await fs.writeFile(sharedAuth, '{"OPENAI_API_KEY":"shared"}', "utf8");
     const env = {
       CODEX_HOME: sharedCodexHome,
-      PAPERCLIP_HOME: paperclipHome,
-      PAPERCLIP_INSTANCE_ID: "default",
+      OUTPOST_HOME: paperclipHome,
+      OUTPOST_INSTANCE_ID: "default",
     } satisfies NodeJS.ProcessEnv;
     return { root, sharedCodexHome, sharedAuth, agentHome, agentAuth, env };
   }
@@ -943,8 +943,8 @@ describe("evaluateCodexCredentialReadiness", () => {
     const managedAgentHome = path.join(companyRoot, "agents", "agent-1", "codex-home");
     const env: NodeJS.ProcessEnv = {
       CODEX_HOME: sharedCodexHome,
-      PAPERCLIP_HOME: paperclipHome,
-      PAPERCLIP_INSTANCE_ID: "default",
+      OUTPOST_HOME: paperclipHome,
+      OUTPOST_INSTANCE_ID: "default",
     };
     await fs.mkdir(sharedCodexHome, { recursive: true });
     return { root, sharedCodexHome, managedCompanyHome, managedAgentHome, env };
@@ -1058,16 +1058,16 @@ describe("evaluateCodexCredentialReadiness", () => {
       const zeroHome = path.join(root, "agent-zero");
       await writeManagedCodexMcpConfig({
         codexHome: alphaHome,
-        apiBaseUrl: "https://paperclip.example",
+        apiBaseUrl: "https://outpost.example",
         gateways: [{
           name: "alpha",
-          endpointPath: "https://paperclip.example/api/tool-gateway/gateways/alpha/mcp",
+          endpointPath: "https://outpost.example/api/tool-gateway/gateways/alpha/mcp",
           bearerToken: "alpha-token",
         }],
       });
       await writeManagedCodexMcpConfig({
         codexHome: zeroHome,
-        apiBaseUrl: "https://paperclip.example",
+        apiBaseUrl: "https://outpost.example",
         gateways: [{
           name: "stale",
           endpointPath: "/api/tool-gateway/gateways/stale/mcp",
@@ -1076,7 +1076,7 @@ describe("evaluateCodexCredentialReadiness", () => {
       });
       await writeManagedCodexMcpConfig({
         codexHome: zeroHome,
-        apiBaseUrl: "https://paperclip.example",
+        apiBaseUrl: "https://outpost.example",
         gateways: [],
       });
 
@@ -1101,7 +1101,7 @@ describe("evaluateCodexCredentialReadiness", () => {
 
       await writeManagedCodexMcpConfig({
         codexHome: root,
-        apiBaseUrl: "https://paperclip.example",
+        apiBaseUrl: "https://outpost.example",
         gateways: [],
       });
 
@@ -1185,7 +1185,7 @@ describe("stageCodexHomeForSync", () => {
     const home = path.join(root, "instances", "default", "companies", companyId, "codex-home");
     const captured = path.join(root, "captured-profile.json");
     try {
-      vi.stubEnv("PAPERCLIP_HOME", root); vi.stubEnv("PAPERCLIP_INSTANCE_ID", "default");
+      vi.stubEnv("OUTPOST_HOME", root); vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
       vi.stubEnv("CODEX_HOME", path.join(root, "source-home"));
       await fs.mkdir(home, { recursive: true });
       for (const name of ["selected", "ignored", "legacy"]) {

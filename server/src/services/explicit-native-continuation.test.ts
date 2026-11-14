@@ -22,7 +22,7 @@ import {
   applyPendingMigrations, approvals, issueApprovals, issueThreadInteractions, chatConversations, chatEndpoints, toolApplications, toolConnections,
   agentWakeupRequests, agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions,
   issues, nativeRunFinalizations, nativeRunResults, completionContracts, environmentLeases, environments, issueRelations, issueTreeHolds, issueTreeHoldMembers, workspaceOperations, type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase, getEmbeddedPostgresTestSupport } from "../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../__tests__/helpers/external-test-database.js";
 import { admitExplicitNativeContinuation } from "./explicit-native-continuation.js";
@@ -35,7 +35,7 @@ import { heartbeatService, persistHeartbeatRunProcessMetadata, type HeartbeatEnv
 import { getExecutionBlocker } from "./execution-blocker.js";
 import { createDurableChatWakeupRequest } from "./durable-chat-wakeup.js";
 import { recordNativeFinalizationFailure } from "./native-runtime/native-run-finalizer.js";
-const externalUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_CONTINUATION_TEST_DATABASE_URL");
+const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_CONTINUATION_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("explicit native conversation continuation", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -53,7 +53,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const sourceRunId = randomUUID(), successorRunId = randomUUID();
     const commentId: string = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Explicit turn", defaultResponsibleUserId: "board", issuePrefix: `E${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native", role: "engineer", adapterType: "paperclip_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Native", role: "engineer", adapterType: "outpost_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
     await db.insert(issues).values({ id: issueId, companyId, title: "Deploy", status: "blocked", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId,
       nativeIssueId: issueId, runtimeMode: "native", status: "failed", processPid: 999999999,
@@ -180,7 +180,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   it("keeps admission and the complete locked session profile while omitting prompt data", async () => {
     const f = await seed();
     const payload = randomBytes(128 * 1024).toString("base64");
-    const profile = { adapterDispatch: { adapterType: "paperclip_runner", adapterConfig: { instructions: payload } },
+    const profile = { adapterDispatch: { adapterType: "outpost_runner", adapterConfig: { instructions: payload } },
       nativeExecutionInput: { task: { description: payload } }, sessionCheckpoint: { providerSessionId: "retained" },
       nativeToolContractFingerprint: "retained-fingerprint" };
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, prompt: payload },
@@ -191,7 +191,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(projected.blocked).toEqual(baseline.blocked);
     expect(projected.reads).toHaveLength(2);
     expect(projected.reads.map(rows => rows[0].contextSnapshot)).toEqual([{ issueId: f.issueId }, { issueId: f.issueId }]);
-    expect(projected.reads[0][0].runnerProfileJson).toEqual({ adapterDispatch: { adapterType: "paperclip_runner" } });
+    expect(projected.reads[0][0].runnerProfileJson).toEqual({ adapterDispatch: { adapterType: "outpost_runner" } });
     expect(projected.reads[1][0].runnerProfileJson).toEqual(profile);
     expect(Buffer.byteLength(JSON.stringify(projected.reads))).toBeLessThan(Buffer.byteLength(JSON.stringify(baseline.reads)) / 2);
     const [stored] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceRunId));
@@ -320,7 +320,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const f = await seed(), nextAgentId = randomUUID(), queueId = randomUUID();
     await db.delete(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
     await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.sourceRunId));
-    await db.insert(agents).values({ id: nextAgentId, companyId: f.companyId, name: "Replacement", role: "engineer", adapterType: "paperclip_runner", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
+    await db.insert(agents).values({ id: nextAgentId, companyId: f.companyId, name: "Replacement", role: "engineer", adapterType: "outpost_runner", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
     await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: nextAgentId, status: "running" });
     await db.update(issues).set({ status: "in_progress", assigneeAgentId: kind === "different_owner" ? f.agentId : nextAgentId }).where(eq(issues.id, f.issueId));
     await db.update(heartbeatRuns).set({ status: kind === "running_source" ? "running" : "cancelled", errorCode: "issue_reassigned",
@@ -360,7 +360,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const [source] = await db.update(heartbeatRuns).set({ status: "cancelled",
       processPid: gate === "process_running" ? process.pid : gate === "identity_missing" ? null : 999999999, resultJson: {
       cancelledByActorType: "user", cancelledByUserId: "board", nativeCancellation: {
-        schema: "paperclip.native-cancellation.v1", runId: f.sourceRunId, companyId: f.companyId,
+        schema: "outpost.native-cancellation.v1", runId: f.sourceRunId, companyId: f.companyId,
         issueId: f.issueId, scope: "run", reasonCode: "cancellation_run_only", dispatched: true,
         dispatchState: gate === "unacknowledged" ? "requested" : "acknowledged",
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
@@ -1208,7 +1208,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       await db.update(heartbeatRuns).set({ errorCode: "native_session_cleanup_quarantined" }).where(eq(heartbeatRuns.id, f.sourceRunId));
       const retire = vi.fn(() => mode !== "changed");
       const verify = vi.spyOn(nativeExecutor, "verifyStoppedNativeSessionForContinuation").mockResolvedValue(
-        mode === "unproven" ? null : { evidence: { runId: f.sourceRunId, schema: "paperclip.stopped_native_conversation.v1" }, retire });
+        mode === "unproven" ? null : { evidence: { runId: f.sourceRunId, schema: "outpost.stopped_native_conversation.v1" }, retire });
       try {
         const result = mode === "retry"
           ? await db.transaction(tx => admitExplicitNativeContinuation({ ...f, db: tx as unknown as typeof db,
@@ -1236,18 +1236,18 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       // before recording its process identity, so there is no PID to verify.
       const f = await seed();
       const stateBase = await mkdtemp(join(tmpdir(), "unidentified-runner-"));
-      const previous = process.env.PAPERCLIP_RUNNER_STATE_DIR;
-      process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
+      const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
+      process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
       let child: ReturnType<typeof spawn> | undefined;
       try {
         const nativeSessionId = randomUUID();
         const execution = {
-          schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+          schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
           binding: { companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, runId: f.sourceRunId, executionWorkspaceId: "workspace" },
           task: { identifier: "TEST", title: "Continue", description: null, prompt: "Continue", workMode: "standard" },
           workspace: { cwd: stateBase, repoUrl: null, repoRef: null, branchName: null },
           session: { normalizedSessionId: nativeSessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-          completionContract: { id: "contract", sha256: "sha", schemaVersion: "paperclip.completion-contract.v1",
+          completionContract: { id: "contract", sha256: "sha", schemaVersion: "outpost.completion-contract.v1",
             contract: { revision: "1", objective: "Continue", criteria: [{ id: "objective", requirement: "Continue" }] } },
           interactionResponses: [], credentialBindings: [],
         };
@@ -1265,13 +1265,13 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
             ? `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`).join(",")}}`
             : JSON.stringify(value);
           const root = join(stateBase, createHash("sha256").update(canonical({
-            schema: "paperclip.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
+            schema: "outpost.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
             workspace: { kind: "managed", executionWorkspaceId: "workspace" },
             provider: { driverKind: "codex_app_server", identity: { kind: "codex" } }, normalizedSessionId: nativeSessionId,
           })).digest("hex"));
           await mkdir(join(root, "control-plane"), { recursive: true });
           await writeFile(join(root, "control-plane/control-plane-state.json"), JSON.stringify({
-            schema: "paperclip.runner.durable.control-plane-state.v1", identity: { runId: f.sourceRunId } }));
+            schema: "outpost.runner.durable.control-plane-state.v1", identity: { runId: f.sourceRunId } }));
         }
         const admitted = await admit(f, kind === "dry_run");
         if (kind === "absent" || kind === "dry_run") expect(admitted).toMatchObject({ previousRunId: f.sourceRunId });
@@ -1280,8 +1280,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         expect(await hasNativeLocalProcessStop(db, f.companyId, f.sourceRunId)).toBe(kind === "absent");
       } finally {
         if (child) { const exited = once(child, "exit"); child.kill("SIGKILL"); await exited; }
-        if (previous === undefined) delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-        else process.env.PAPERCLIP_RUNNER_STATE_DIR = previous;
+        if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR;
+        else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
         await rm(stateBase, { recursive: true, force: true });
       }
     },
@@ -1292,18 +1292,18 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     "starts a Retry after restarts cut off a relaunch whose earlier runners were proven stopped (%s)", async kind => {
       const f = await seed();
       const stateBase = await mkdtemp(join(tmpdir(), "relaunched-runner-"));
-      const previous = process.env.PAPERCLIP_RUNNER_STATE_DIR;
-      process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
+      const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
+      process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
       let child: ReturnType<typeof spawn> | undefined;
       try {
         const nativeSessionId = randomUUID();
         const execution = {
-          schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+          schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
           binding: { companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, runId: f.sourceRunId, executionWorkspaceId: "workspace" },
           task: { identifier: "TEST", title: "Continue", description: null, prompt: "Continue", workMode: "standard" },
           workspace: { cwd: stateBase, repoUrl: null, repoRef: null, branchName: null },
           session: { normalizedSessionId: nativeSessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-          completionContract: { id: "contract", sha256: "sha", schemaVersion: "paperclip.completion-contract.v1",
+          completionContract: { id: "contract", sha256: "sha", schemaVersion: "outpost.completion-contract.v1",
             contract: { revision: "1", objective: "Continue", criteria: [{ id: "objective", requirement: "Continue" }] } },
           interactionResponses: [], credentialBindings: [],
         };
@@ -1321,7 +1321,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
           ? `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`).join(",")}}`
           : JSON.stringify(value);
         const root = join(stateBase, createHash("sha256").update(canonical({
-          schema: "paperclip.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
+          schema: "outpost.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
           workspace: { kind: "managed", executionWorkspaceId: "workspace" },
           provider: { driverKind: "codex_app_server", identity: { kind: "codex" } }, normalizedSessionId: nativeSessionId,
         })).digest("hex"));
@@ -1329,9 +1329,9 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         await mkdir(join(root, "runner"), { recursive: true });
         await mkdir(join(root, "runner/process-lineage"), { recursive: true });
         await writeFile(join(root, "control-plane/control-plane-state.json"), JSON.stringify({
-          schema: "paperclip.runner.durable.control-plane-state.v1", identity: { runId: f.sourceRunId } }));
-        await writeFile(join(root, "runner/runner-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.state.v1" }));
-        await writeFile(join(root, `runner/process-lineage/writer-${deadPid}.json`), JSON.stringify({ schema: "paperclip.runner.process-lineage-writer.v1" }));
+          schema: "outpost.runner.durable.control-plane-state.v1", identity: { runId: f.sourceRunId } }));
+        await writeFile(join(root, "runner/runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1" }));
+        await writeFile(join(root, `runner/process-lineage/writer-${deadPid}.json`), JSON.stringify({ schema: "outpost.runner.process-lineage-writer.v1" }));
         const requestedAt = new Date(Math.floor(Date.now() / 1000) * 1000 - 59_500);
         const earlier = new Date(requestedAt.getTime() - 30_000), later = new Date(requestedAt.getTime() + 30_250);
         const stateTimes: Partial<Record<typeof kind, Date>> = { state_after_request: later,
@@ -1361,8 +1361,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         expect(await hasNativeLocalProcessStop(db, f.companyId, f.sourceRunId)).toBe(kind === "proven" || kind === "coarse_before_request");
       } finally {
         if (child) { const exited = once(child, "exit"); child.kill("SIGKILL"); await exited; }
-        if (previous === undefined) delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-        else process.env.PAPERCLIP_RUNNER_STATE_DIR = previous;
+        if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR;
+        else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
         await rm(stateBase, { recursive: true, force: true });
       }
     },
@@ -1372,17 +1372,17 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     "recovers a historical run without process metadata only from exact suspended state (%s)", async kind => {
       const f = await seed();
       const stateBase = await mkdtemp(join(tmpdir(), "historical-native-followup-"));
-      const previous = process.env.PAPERCLIP_RUNNER_STATE_DIR;
-      process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
+      const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
+      process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
       try {
         const nativeSessionId = randomUUID(), runnerInstanceId = randomUUID();
         const execution = {
-          schema: "paperclip.native-execution-input.v1", provider: { kind: "codex", model: null },
+          schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
           binding: { companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, runId: f.sourceRunId, executionWorkspaceId: "workspace" },
           task: { identifier: "TEST", title: "Continue", description: null, prompt: "Continue", workMode: "standard" },
           workspace: { cwd: stateBase, repoUrl: null, repoRef: null, branchName: null },
           session: { normalizedSessionId: nativeSessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-          completionContract: { id: "contract", sha256: "sha", schemaVersion: "paperclip.completion-contract.v1",
+          completionContract: { id: "contract", sha256: "sha", schemaVersion: "outpost.completion-contract.v1",
             contract: { revision: "1", objective: "Continue", criteria: [{ id: "objective", requirement: "Continue" }] } },
           interactionResponses: [], credentialBindings: [],
         };
@@ -1394,7 +1394,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
           ? `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`).join(",")}}`
           : JSON.stringify(value);
         const root = join(stateBase, createHash("sha256").update(canonical({
-          schema: "paperclip.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
+          schema: "outpost.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
           workspace: { kind: "managed", executionWorkspaceId: "workspace" },
           provider: { driverKind: "codex_app_server", identity: { kind: "codex" } }, normalizedSessionId: nativeSessionId,
         })).digest("hex"));
@@ -1403,11 +1403,11 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
           await mkdir(join(root, "runner"), { recursive: true });
           const identity = { runId: kind === "wrong_run" ? randomUUID() : f.sourceRunId, runnerInstanceId,
             normalizedSessionId: nativeSessionId, environmentLeaseId: "workspace" };
-          await writeFile(join(root, "control-plane/control-plane-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.control-plane-state.v1", identity }));
-          await writeFile(join(root, "runner/runner-state.json"), JSON.stringify({ schema: "paperclip.runner.durable.state.v1",
+          await writeFile(join(root, "control-plane/control-plane-state.json"), JSON.stringify({ schema: "outpost.runner.durable.control-plane-state.v1", identity }));
+          await writeFile(join(root, "runner/runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1",
             ...identity, lifecycle: kind === "ready" ? "ready" : "suspended", outbox: kind === "pending_output" ? [{}] : [] }));
           await writeFile(join(root, "runner/codex-provider-state.json"), JSON.stringify({
-            schema: "paperclip.runner.codex-provider-state.v1", lifecycle: "prepared",
+            schema: "outpost.runner.codex-provider-state.v1", lifecycle: "prepared",
             threadId: kind === "wrong_thread" ? "another-thread" : "exact-thread", providerSessionId: "backend-account",
             activeProviderTurnId: kind === "active_provider" ? "unfinished-turn" : null, ambiguousTurnStartPending: false,
             config: { provider: "codex", driver: "codex_app_server" }, pendingEvents: [], queuedEvents: [],
@@ -1440,8 +1440,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         expect(action.evidence.automaticRecovery).toMatchObject({ actionOutcome: "unknown", replay: "explicit_user_continuation" });
         expect(await hasNativeLocalProcessStop(db, f.companyId, f.sourceRunId)).toBe(false);
       } finally {
-        if (previous === undefined) delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
-        else process.env.PAPERCLIP_RUNNER_STATE_DIR = previous;
+        if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR;
+        else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
         await rm(stateBase, { recursive: true, force: true });
       }
     },
@@ -1482,7 +1482,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const f = await seedCancelledStartup();
     await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.sourceRunId));
     await db.update(heartbeatRuns).set({ runtimeMode: "legacy", runtimeModeResolvedAt: null, nativeIssueId: null,
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
       resultJson: { startupCancellation: { beforeNativeSelection: true }, startupPreparationSettledAt: new Date().toISOString() },
     }).where(eq(heartbeatRuns.id, f.sourceRunId));
     expect(await admit(f)).toMatchObject({ previousRunId: f.sourceRunId });
@@ -1494,7 +1494,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await db.delete(environmentLeases).where(eq(environmentLeases.heartbeatRunId, f.sourceRunId));
     await db.update(heartbeatRuns).set({ runtimeMode: "legacy", runtimeModeResolvedAt: null,
       nativeIssueId: null, nativeSessionId: null, executionStage: "preparing", errorCode: "operator_interrupted",
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
       resultJson: retainedReceipt ? { operatorInterrupted: true, stopReason: "cancelled",
         startupCancellation: { beforeNativeSelection: true, requestedAt: "2026-09-11T10:00:00Z" } } : null,
     }).where(eq(heartbeatRuns.id, f.sourceRunId));
@@ -1521,7 +1521,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       runtimeMode: "legacy", status: "cancelled", executionStage: "settled", errorCode: "workspace_busy",
       createdAt: new Date("2026-09-11T09:57:00Z"), startedAt: new Date("2026-09-11T09:57:00Z"),
       finishedAt: new Date("2026-09-11T09:58:00Z"), contextSnapshot: { issueId: f.issueId },
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" }, chatControlRecoveryAdmission: {} },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" }, chatControlRecoveryAdmission: {} },
       usageJson: { ledgerScope: { issueId: f.issueId, projectId: null, billingCode: null } },
       resultJson: { executionRecovery: { kind: "workspace_wait", providerWorkStarted: false } } });
     await db.update(heartbeatRuns).set({ runtimeMode: "legacy", nativeIssueId: null, nativeSessionId: null,
@@ -1703,7 +1703,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         kind === "parent_receipt" ? {} : { executionRecovery: { kind: "workspace_wait", providerWorkStarted: true } } })
         .where(eq(heartbeatRuns.id, f.parentRunId));
       if (kind === "parent_reason") await db.update(heartbeatRuns).set({ errorCode: "cancelled" }).where(eq(heartbeatRuns.id, f.parentRunId));
-      if (kind === "profile") await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } } })
+      if (kind === "profile") await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } } })
         .where(eq(heartbeatRuns.id, f.sourceRunId));
       if (kind === "owner") await db.update(heartbeatRuns).set({ controllerBootId: randomUUID() }).where(eq(heartbeatRuns.id, f.sourceRunId));
       if (kind === "operator_stop") await db.update(heartbeatRuns).set({ resultJson: { stopReason: "cancelled",
@@ -1718,7 +1718,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       if (kind === "retry_binding") await db.update(heartbeatRuns).set({ retryOfRunId: null }).where(eq(heartbeatRuns.id, f.sourceRunId));
       if (kind === "parent_output") await db.update(heartbeatRuns).set({ lastOutputSeq: 1 }).where(eq(heartbeatRuns.id, f.parentRunId));
       if (kind === "parent_profile") await db.update(heartbeatRuns).set({ runnerProfileJson: {
-        adapterDispatch: { adapterType: "paperclip_runner" }, remoteWorkspace: {} } }).where(eq(heartbeatRuns.id, f.parentRunId));
+        adapterDispatch: { adapterType: "outpost_runner" }, remoteWorkspace: {} } }).where(eq(heartbeatRuns.id, f.parentRunId));
       if (kind === "parent_later") await db.update(heartbeatRuns).set({ finishedAt: new Date("2026-09-11T10:01:00Z") }).where(eq(heartbeatRuns.id, f.parentRunId));
       if (kind === "restore") await db.update(heartbeatRuns).set({ resultJson: { stopReason: "cancelled",
         workspaceRestoreFailure: "restore_unsafe_archive" } }).where(eq(heartbeatRuns.id, f.sourceRunId));
@@ -1884,7 +1884,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       if (Object.keys(patch).length) await db.update(heartbeatRuns).set(patch).where(eq(heartbeatRuns.id, f.sourceRunId));
       if (kind === "launch" || kind === "invoked") await db.insert(heartbeatRunEvents).values({ companyId: f.companyId,
         agentId: f.agentId, runId: f.sourceRunId, seq: 1,
-        eventType: kind === "launch" ? PROCESS_START_REQUESTED : "adapter.invoke", payload: { adapterType: "paperclip_runner" } });
+        eventType: kind === "launch" ? PROCESS_START_REQUESTED : "adapter.invoke", payload: { adapterType: "outpost_runner" } });
       if (kind === "coordinator") {
         await db.update(heartbeatRuns).set({ nativeIssueId: f.issueId }).where(eq(heartbeatRuns.id, f.sourceRunId));
         await db.insert(nativeRunFinalizations).values({ companyId: f.companyId,
@@ -2441,7 +2441,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     if (phase === "before_selection") {
       await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.sourceRunId));
       await db.update(heartbeatRuns).set({ runtimeMode: "legacy", runtimeModeResolvedAt: null, nativeIssueId: null,
-        runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+        runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
         resultJson: { startupCancellation: { beforeNativeSelection: true }, startupPreparationSettledAt: new Date().toISOString() },
       }).where(eq(heartbeatRuns.id, f.sourceRunId));
     }
@@ -2458,7 +2458,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     "requires a fully committed failed result and verified stop for a new turn (%s)", async scenario => {
       const f = await seed(), contractId = randomUUID(), resultId = randomUUID();
       await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-        revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test",
+        revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
         risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
         contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
       await db.update(heartbeatRuns).set({ completionContractId: contractId,
@@ -2487,7 +2487,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   async function seedResultBeforeTerminalFailure(f: Fixture) {
     const contractId = randomUUID(), resultId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test",
+      revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId, errorCode: "provider_transport_failed" })
@@ -2623,14 +2623,14 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
     const lease = { id: randomUUID(), companyId: f.companyId, heartbeatRunId: f.sourceRunId,
       provider: "daytona", providerLeaseId: randomUUID() };
-    const reference = { schema: "paperclip.native-workspace-sync/v3", state: "finalized", workspaceId: randomUUID(),
+    const reference = { schema: "outpost.native-workspace-sync/v3", state: "finalized", workspaceId: randomUUID(),
       leaseId: lease.id, providerLeaseId: lease.providerLeaseId, remoteCwd: "/workspaces/task",
       descriptorSha256: "12".repeat(32), baselineSha256: "34".repeat(32), finalHostSha256: "56".repeat(32),
       resourceDisposition: "destroy" };
     const recovery = { ...createSystemRecovery(f.sourceRunId, origin === "task_retry" ? requestId : null),
       state: "complete" as const, preservationOperationIds: [operationId] };
     await db.update(issueRecoveryActions).set({ status: "cancelled", cause: "native_workspace_sync_out_retry_exhausted",
-      evidence: { runId: f.sourceRunId, workspaceRecovery: { schema: "paperclip.workspace-recovery.v1",
+      evidence: { runId: f.sourceRunId, workspaceRecovery: { schema: "outpost.workspace-recovery.v1",
         runId: f.sourceRunId, status: "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] },
         systemRecovery: recovery, automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } },
     }).where(eq(issueRecoveryActions.id, action.id));
@@ -2652,7 +2652,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     if (origin !== "message") await db.insert(agentWakeupRequests).values({ id: requestId, companyId: f.companyId, agentId: f.agentId,
       source: "on_demand", triggerDetail: "manual", status: "deferred_issue_execution",
       reason: origin === "task_retry" ? "task_retry" : "issue_commented", requestedByActorType: "user", requestedByActorId: f.actorId,
-      payload: { issueId: f.issueId, ...(origin === "task_retry" ? { taskRetry: { schema: "paperclip.task-retry.v1",
+      payload: { issueId: f.issueId, ...(origin === "task_retry" ? { taskRetry: { schema: "outpost.task-retry.v1",
         generationId: requestId, sourceRunId: f.sourceRunId, actorId: f.actorId, actorSource: "session", strategy: "evaluate" } }
         : { commentId: f.commentId, executionWait: { reason: "finalizing_saved_result" },
           _paperclipWakeContext: { source: "issue.comment", issueId: f.issueId, wakeReason: "issue_commented",
@@ -2866,7 +2866,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     }
     if (fault === "unfinished") await db.update(workspaceOperations).set({ status: "running" }).where(eq(workspaceOperations.id, f.operationId));
     if (fault === "unrecovered") await db.update(issueRecoveryActions).set({ evidence: { ...f.action.evidence,
-      runId: f.sourceRunId, systemRecovery: f.recovery, workspaceRecovery: { schema: "paperclip.workspace-recovery.v1",
+      runId: f.sourceRunId, systemRecovery: f.recovery, workspaceRecovery: { schema: "outpost.workspace-recovery.v1",
         runId: f.sourceRunId, status: "blocked", stage: "restoring_files", attempt: 1, requestIds: [] },
     } }).where(eq(issueRecoveryActions.id, f.action.id));
     if (fault === "committing") await db.update(nativeRunFinalizations).set({ phase: "result_accepted" })
@@ -2983,7 +2983,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       const f = await seed(), settings = instanceSettingsService(db), previous = await settings.getExperimental();
       const retire = vi.fn(() => true);
       const verify = vi.spyOn(nativeExecutor, "verifyStoppedNativeSessionForContinuation").mockResolvedValue(
-        scenario === "verified" ? { evidence: { runId: f.sourceRunId, schema: "paperclip.stopped_native_conversation.v1" }, retire } : null);
+        scenario === "verified" ? { evidence: { runId: f.sourceRunId, schema: "outpost.stopped_native_conversation.v1" }, retire } : null);
       try {
         await settings.updateExperimental({ enableAgentChat: true });
         const boundaryId = randomUUID();
@@ -3059,7 +3059,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await db.insert(environmentLeases).values({ ...lease, status: "active", leasePolicy: "ephemeral" });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceRunId));
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...run.runnerProfileJson,
-      nativeWorkspaceSync: { schema: "paperclip.native-workspace-sync/v1", state: "prepared",
+      nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v1", state: "prepared",
         descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null,
         workspaceId: randomUUID(), leaseId: lease.id, providerLeaseId: lease.providerLeaseId,
         remoteCwd: "/work", resourceDisposition: "destroy" },

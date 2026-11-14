@@ -6,8 +6,8 @@
 -const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 +const repoRoot = path.resolve(required("BENCH_CANDIDATE_ROOT"));
 @@ -187 +188 @@
--    const byPool = Object.fromEntries(["benchmark-application", "paperclip-controller-lease", "paperclip-runner-checkpoint"].map(pool => {
-+    const byPool = Object.fromEntries(["benchmark-application", "benchmark-replacement-application", "paperclip-controller-lease", "paperclip-runner-checkpoint"].map(pool => {
+-    const byPool = Object.fromEntries(["benchmark-application", "paperclip-controller-lease", "outpost-runner-checkpoint"].map(pool => {
++    const byPool = Object.fromEntries(["benchmark-application", "benchmark-replacement-application", "paperclip-controller-lease", "outpost-runner-checkpoint"].map(pool => {
 @@ -250,0 +252 @@
 +  const replacementDb = createDb(u, { maxConnections: 10, applicationName: "benchmark-replacement-application" });
 @@ -256,0 +259 @@

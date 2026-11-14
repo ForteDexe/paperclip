@@ -7,7 +7,7 @@ import os from "node:os";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRuns, issues, nativeHarnessBackups, nativeRunFinalizations, type Db } from "@paperclipai/db";
+import { environmentLeases, heartbeatRuns, issues, nativeHarnessBackups, nativeRunFinalizations, type Db } from "@outpost/db";
 import { createLocalEncryptedCipher } from "../../secrets/local-encrypted-provider.js";
 import type { StorageService } from "../../storage/types.js";
 import { lockNativeRunnerCheckpointOwner, validateNativeRunnerCheckpointOwner, type NativeRunnerCheckpointFenceOwner } from "./native-runner-checkpoint.js";
@@ -27,7 +27,7 @@ import type { SettledControllerArchiveOwner } from "./native-controller-archive-
 import type { SettledNativeHarnessBackupOwner } from "./native-harness-preservation-source.js";
 import { logActivity, publishActivity, type ActivityPublication } from "../activity-log.js";
 
-const SCHEMA = "paperclip.native-harness-object.v1";
+const SCHEMA = "outpost.native-harness-object.v1";
 type Binding = { companyId: string; scopeDigest: string; id: string };
 type Reference = Binding & {
   schema: typeof SCHEMA; objectKey: string; sha256: string; byteSize: number;
@@ -46,7 +46,7 @@ const scope = (binding: Pick<Binding, "companyId" | "scopeDigest">) => and(
 
 export function durableNativeHarnessStorage(): StorageService | null {
   if (loadConfig().storageProvider === "s3") return getStorageService();
-  if (process.env.PAPERCLIP_EPHEMERAL_SERVER === "true") fail("durable_storage_required");
+  if (process.env.OUTPOST_EPHEMERAL_SERVER === "true") fail("durable_storage_required");
   return null;
 }
 
@@ -59,7 +59,7 @@ export async function verifyRecoverableNativeHarnessBackup(input: {
   if (!storage) return verifyNativeHarnessBackupStamp(stamp, input.providerLeaseId);
   const durable = await verifyDurableNativeHarnessBackup({ db: input.db, storage, companyId: input.companyId,
     scopeDigest: stamp.sessionScopeSha256, manifestSha256: stamp.manifestSha256, downloadIdleTimeoutMs: NATIVE_HARNESS_DOWNLOAD_IDLE_TIMEOUT_MS });
-  return durable || process.env.PAPERCLIP_EPHEMERAL_SERVER !== "true" && verifyNativeHarnessBackupStamp(stamp, input.providerLeaseId);
+  return durable || process.env.OUTPOST_EPHEMERAL_SERVER !== "true" && verifyNativeHarnessBackupStamp(stamp, input.providerLeaseId);
 }
 function reference(row: Row): Reference {
   const ref = row.reference as Reference;

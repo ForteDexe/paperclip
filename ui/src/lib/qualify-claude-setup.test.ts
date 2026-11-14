@@ -5,7 +5,7 @@ import { qualifyClaudeSetup } from "./qualify-claude-setup";
 const image = `registry.example.test/runtime@sha256:${"a".repeat(64)}`;
 const discovery = (runner: "paperclip" | "legacy", overrides = {}) => [
   { type: "claude_local", defaultRunner: runner, supportedRunners: [runner], ...overrides },
-  { type: "paperclip_runner" },
+  { type: "outpost_runner" },
 ] as AdapterInfo[];
 function setup() {
   return {

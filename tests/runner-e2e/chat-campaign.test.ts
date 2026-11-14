@@ -149,7 +149,7 @@ it("gates source acceptance on actual baseline/build receipts, not merely test s
 });
 it("admits declared published operator transitions but rejects wrong observed targets and arbitrary installed substitution", () => {
   const campaign = freezeChatCampaign(root, base), scenario = campaign.scenarios.find(s => s.id === "instance-operations.update-instance")!;
-  const publication = (version: string, h: string): CampaignPublishedIdentity => ({ version, treeSha256: h.repeat(64), artifacts: ["paperclipai", "@paperclipai/server"].map(name => ({ package: name as "paperclipai" | "@paperclipai/server", version, integrity: "sha512-YWJj", entrySha256: h.repeat(64) })) });
+  const publication = (version: string, h: string): CampaignPublishedIdentity => ({ version, treeSha256: h.repeat(64), artifacts: ["paperclipai", "@outpost/server"].map(name => ({ package: name as "paperclipai" | "@outpost/server", version, integrity: "sha512-YWJj", entrySha256: h.repeat(64) })) });
   const source = publication("1.0.0", "a"), target = publication("1.0.1", "b");
   const valid: CampaignAttempt = { ...attempt(1, "installed"), productIdentity: { kind: "published-release", declaredLane: "published-global-npm", source, target, observed: target, receiptPaths: ["tests/runner-e2e/results/fixture/installed.json"], coreCandidate: false } };
   expect(campaignProductIdentityEligible(scenario, valid, base)).toBe(true);

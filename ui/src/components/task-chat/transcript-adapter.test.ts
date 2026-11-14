@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TranscriptEntry } from "@/adapters";
-import type { HeartbeatRunEvent } from "@paperclipai/shared";
+import type { HeartbeatRunEvent } from "@outpost/shared";
 import {
   assembleThreadItems,
   attachSettledTurns,
@@ -77,7 +77,7 @@ describe("accepted native response-wake answers", () => {
     "**Before release**\n- Test and rehearse rollback.\n\n**During release**\n- Deploy incrementally and watch errors.\n\n**After release**\n- Verify workflows and record follow-ups.";
   function fixture(mode = "accepted") {
     const result = {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary,
       completionClaim: { objectiveSatisfied: true, remainingWork: [] },
@@ -109,8 +109,8 @@ describe("accepted native response-wake answers", () => {
         eventType,
         createdAt: new Date(TS),
         payload: {
-          prpEvent: {
-            schema: "paperclip.prp.event.v1",
+          orpEvent: {
+            schema: "outpost.orp.event.v1",
             schemaVersion: 1,
             runId,
             eventType,
@@ -130,10 +130,10 @@ describe("accepted native response-wake answers", () => {
       }) satisfies HeartbeatRunEvent;
     const accepted = event(3, "run.result.accepted", { result });
     if (mode === "mismatched_run")
-      accepted.payload.prpEvent.runId = "other-run";
+      accepted.payload.orpEvent.runId = "other-run";
     if (mode === "forged_kind")
-      accepted.payload.prpEvent.eventType = "item.completed";
-    if (mode === "missing_source") accepted.payload.prpEvent.sourceEventId = "";
+      accepted.payload.orpEvent.eventType = "item.completed";
+    if (mode === "missing_source") accepted.payload.orpEvent.sourceEventId = "";
     const events = [
       event(1, "item.completed", {
         kind: "agentMessage",
@@ -151,7 +151,7 @@ describe("accepted native response-wake answers", () => {
         ? []
         : [
             event(4, "run.terminal", {
-              schema: "paperclip.prp.terminal.v1",
+              schema: "outpost.orp.terminal.v1",
               turnTerminalState: "completed",
               runTerminalState:
                 mode === "failed_terminal" ? "failed" : "succeeded",
@@ -803,13 +803,13 @@ describe("transcriptToTaskChatItems protocol surfaces", () => {
           eventType: "research.completed",
           status: "completed",
           title: "Research",
-          summary: "PRP",
+          summary: "ORP",
           payload: {
             researchId: "research-1",
             sources: [
               {
                 title: "Protocol notes",
-                url: "https://example.com/prp",
+                url: "https://example.com/orp",
                 snippet: "Canonical event details",
               },
               { title: "Unsafe", url: "file:///etc/passwd" },
@@ -855,7 +855,7 @@ describe("transcriptToTaskChatItems protocol surfaces", () => {
     ).toEqual([
       {
         label: "Protocol notes",
-        href: "https://example.com/prp",
+        href: "https://example.com/orp",
         description: "Canonical event details",
       },
     ]);
@@ -1322,8 +1322,8 @@ describe("buildTurnTimelineRows (DOT-217)", () => {
       id: 1, companyId: "company", runId, agentId: "agent", seq: 1,
       eventType: "item.completed", stream: "system", level: "info", color: null, message: null,
       createdAt: new Date(TS),
-      payload: { prpEvent: {
-        schema: "paperclip.prp.event.v1", sourceEventId: "write-boundary", sourceInstanceId: "runner-1",
+      payload: { orpEvent: {
+        schema: "outpost.orp.event.v1", sourceEventId: "write-boundary", sourceInstanceId: "runner-1",
         sourceKind: "runner", sourceSeq: 1, runId, normalizedSessionId: "session-1", eventType: "item.completed",
         schemaVersion: 1, priority: 1, emittedAt: TS,
         payload: { kind: "tool_result", item: { id: "write-plan", tool_use_id: "write-plan", type: "tool_result",
@@ -1510,7 +1510,7 @@ describe("transcriptToTaskChatItems native usage", () => {
           outputTokens: 10,
           cachedTokens: 5,
           costUsd: 0.02,
-          subtype: "paperclip_runner_usage",
+          subtype: "outpost_runner_usage",
           isError: false,
           errors: [],
         },
@@ -1544,7 +1544,7 @@ describe("transcriptToTaskChatItems native usage", () => {
           outputTokens: 20,
           cachedTokens: 0,
           costUsd: 0,
-          subtype: "paperclip_runner_session_usage",
+          subtype: "outpost_runner_session_usage",
           isError: false,
           errors: [],
         },
@@ -1627,14 +1627,14 @@ describe("buildTurnSummary tool counting", () => {
     const runUsage = {
       kind: "result",
       ts: TS,
-      subtype: "paperclip_runner_usage",
+      subtype: "outpost_runner_usage",
       inputTokens: 40,
       outputTokens: 10,
     } as TranscriptEntry;
     const sessionUsage = {
       kind: "result",
       ts: TS,
-      subtype: "paperclip_runner_session_usage",
+      subtype: "outpost_runner_session_usage",
       inputTokens: 800,
       outputTokens: 200,
     } as TranscriptEntry;
@@ -1912,7 +1912,7 @@ describe("settledRunChildren (PAP-361)", () => {
           outputTokens: 10,
           cachedTokens: 0,
           costUsd: 0,
-          subtype: "paperclip_runner_usage",
+          subtype: "outpost_runner_usage",
           isError: false,
           errors: [],
         } as TranscriptEntry,
@@ -1945,7 +1945,7 @@ describe("settledRunChildren (PAP-361)", () => {
           outputTokens: 10,
           cachedTokens: 0,
           costUsd: 0,
-          subtype: "paperclip_runner_usage",
+          subtype: "outpost_runner_usage",
           isError: false,
           errors: [],
         } as TranscriptEntry,
@@ -2017,7 +2017,7 @@ describe("settledRunChildren (PAP-361)", () => {
           outputTokens: 10,
           cachedTokens: 0,
           costUsd: 0,
-          subtype: "paperclip_runner_usage",
+          subtype: "outpost_runner_usage",
           isError: false,
           errors: [],
         } as TranscriptEntry,
@@ -2067,7 +2067,7 @@ describe("settledRunChildren (PAP-361)", () => {
   });
 });
 
-describe("paperclip runner semantic channels", () => {
+describe("outpost runner semantic channels", () => {
   it("concatenates fragmented reasoning deltas into logical lines", () => {
     const parsed = transcriptToTaskChatItems(
       [
@@ -2917,7 +2917,7 @@ describe("harness status notices", () => {
     kind: "provider_activity", ts: TS, family: "provider_notice", eventType: "provider.notice.recorded",
     status: payload.severity === "error" ? "failed" : "informational", title: "Provider notice",
     summary: String(payload.summary ?? ""),
-    payload: { schema: "paperclip.provider.notice.v1", noticeId, scope: "turn", userActionable: false, ...payload },
+    payload: { schema: "outpost.provider.notice.v1", noticeId, scope: "turn", userActionable: false, ...payload },
   });
   const read: TranscriptEntry = { kind: "tool_call", ts: TS, toolUseId: "read-1", name: "read_file", input: { path: "a.ts" } };
   const retry = notice("error:retry:turn-1", {

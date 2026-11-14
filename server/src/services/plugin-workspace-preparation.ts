@@ -1,5 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { parseWorkspacePrepareResult, parseWorkspaceProviderResult, type PluginWorkspaceParams } from "@paperclipai/plugin-sdk";
+import { parseWorkspacePrepareResult, parseWorkspaceProviderResult, type PluginWorkspaceParams } from "@outpost/plugin-sdk";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { WorkspaceProviderFailureError, workspaceProviderCallFailure } from "./workspace-provider-failure.js";
 

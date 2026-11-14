@@ -11,12 +11,12 @@ import { createHeartbeatRunControl } from "./run-control.js";
 import { callbacks as controlCallbacks } from "./__tests__/run-control-fixtures.js";
 import { objectLogFixture } from "./__tests__/object-log-fixture.js";
 import { createNativeUsageDelivery } from "../native-runtime/native-usage-delivery.js";
-import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { createHash, randomUUID } from "node:crypto";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 import { createNativeRunLogCoverageVerifier, formatNativeRunLogEvent } from "../native-runtime/native-run-log-export.js";
-import type { Db } from "@paperclipai/db";
-import { activityLog, agents, agentWakeupRequests, approvals, issueApprovals, budgetReservations, caseHandoffs, cases, companies, completionContracts, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, heartbeatRunEvents, issueComments, issueQuestionResponseDeliveries, issueRecoveryActions, issues, issueThreadInteractions, nativeRunFinalizations } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, approvals, issueApprovals, budgetReservations, caseHandoffs, cases, companies, completionContracts, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, heartbeatRunEvents, issueComments, issueQuestionResponseDeliveries, issueRecoveryActions, issues, issueThreadInteractions, nativeRunFinalizations } from "@outpost/db";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -31,7 +31,7 @@ import { EnvironmentRunError, environmentRunOrchestrator } from "../environment-
 import { ReusableSandboxResumeError } from "../reusable-sandbox-resume-error.js";
 import { PluginWorkerUnavailableError } from "../plugin-worker-unavailable-error.js";
 import { ReviewedChatBindingDeniedError, ReviewedChatBindingNotReadyError } from "../reviewed-chat-binding-diagnostics.js";
-import { environmentTaskErrorCodeData, JsonRpcCallError, PluginEnvironmentTaskError, PluginWorkspaceOperationError, workspaceOperationErrorData } from "@paperclipai/plugin-sdk";
+import { environmentTaskErrorCodeData, JsonRpcCallError, PluginEnvironmentTaskError, PluginWorkspaceOperationError, workspaceOperationErrorData } from "@outpost/plugin-sdk";
 import { RUNNER_REVISION_MISMATCH_RETRY } from "../runner-revision-mismatch.js";
 import { STORAGE_CREDENTIALS_REJECTED_HELD_MESSAGE, STORAGE_UNAVAILABLE_CODE, STORAGE_UNAVAILABLE_EXHAUSTED_MESSAGE, STORAGE_UNAVAILABLE_HELD_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE, STORAGE_UNAVAILABLE_RETRY } from "../../storage/storage-unavailable.js";
 import { withS3FailureDiagnostics } from "../../storage/s3-failure.js";
@@ -60,7 +60,7 @@ const diagnosticNativeFixture = vi.hoisted(() => ({
   enabled: false,
   retireWarm: false,
   beforeWarmClose: undefined as (() => Promise<void>) | undefined,
-  backendOptions: undefined as Parameters<typeof import("../../vendor/paperclip-runner/index.js").createNativeSessionBackend>[1],
+  backendOptions: undefined as Parameters<typeof import("../../vendor/outpost-runner/index.js").createNativeSessionBackend>[1],
 }));
 vi.mock("../native-runtime/native-codex-runner.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../native-runtime/native-codex-runner.js")>();
@@ -70,8 +70,8 @@ vi.mock("../native-runtime/native-codex-runner.js", async importOriginal => {
     resolvePaperclipRunnerBinaryAsync: async () => diagnosticNativeFixture.enabled ? process.execPath : actual.resolvePaperclipRunnerBinaryAsync(),
   };
 });
-vi.mock("../../vendor/paperclip-runner/index.js", async importOriginal => {
-  const actual = await importOriginal<typeof import("../../vendor/paperclip-runner/index.js")>();
+vi.mock("../../vendor/outpost-runner/index.js", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../vendor/outpost-runner/index.js")>();
   return { ...actual,
     createNativeSessionBackend: (...args: Parameters<typeof actual.createNativeSessionBackend>) => {
       if (!diagnosticNativeFixture.enabled) return actual.createNativeSessionBackend(...args);
@@ -152,14 +152,14 @@ it("constructs completion handlers without querying or starting work", () => {
 });
 
 const support = await getEmbeddedPostgresTestSupport();
-describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)("heartbeat run completion boundary", () => {
+describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("heartbeat run completion boundary", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: Db;
   beforeAll(async () => {
     // Keep the accounting transaction real without reading provider receipt files.
     vi.spyOn(usageReceipts, "indexPendingUsageReceipts").mockResolvedValue(new Map());
     vi.spyOn(usageReceipts, "recoverPendingRunUsageReceipts").mockResolvedValue([]);
-    const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
+    const external = process.env.OUTPOST_TEST_DATABASE_URL;
     if (external) db = createDb(external);
     else {
       database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-completion");
@@ -292,7 +292,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
     await handlers.onLog("stdout", "accepted output for this exact run\n");
     const { execution, issue } = await admitNativeExecution(f);
     await db.update(issues).set({ assigneeAgentId: f.run.agentId, executionRunId: f.run.id, status: "in_progress" }).where(eq(issues.id, issue.id));
-    vi.stubEnv("PAPERCLIP_HOME", join(workspace, "synthetic-controller-home"));
+    vi.stubEnv("OUTPOST_HOME", join(workspace, "synthetic-controller-home"));
     onTestFinished(() => { vi.unstubAllEnvs(); });
     execution.workspace.cwd = workspace;
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, f.run.id));
@@ -320,12 +320,12 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
     let completed = false;
     const diagnosticWrites: Promise<void>[] = [];
     const finishing = (async () => {
-      const event: PrpEvent = { schema: "paperclip.prp.event.v1", schemaVersion: 1,
+      const event: PrpEvent = { schema: "outpost.orp.event.v1", schemaVersion: 1,
         sourceInstanceId: randomUUID(), sourceEventId: randomUUID(), sourceSeq: 1, sourceKind: "runner",
         runId: f.run.id, normalizedSessionId: execution.session.normalizedSessionId,
         eventType: "item.delta", priority: 2, emittedAt: new Date().toISOString(), payload: { text: "canonical accepted output 再開" } };
       const persisted = await appendHeartbeatRunEvent(db, { companyId: f.run.companyId, runId: f.run.id,
-        agentId: f.run.agentId, eventType: event.eventType, payload: { prpEvent: event },
+        agentId: f.run.agentId, eventType: event.eventType, payload: { orpEvent: event },
         nativeSource: { sourceInstanceId: event.sourceInstanceId, sourceEventId: event.sourceEventId,
           sourceSeq: event.sourceSeq, protocolSchemaVersion: 1, canonicalPayload: event as unknown as Record<string, unknown> } });
       if (!stalledAppend) await handlers.onPersistedNativeLog!(persisted.row.seq, formatNativeRunLogEvent(event));
@@ -338,7 +338,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
         runnerEnvironment: { HOME: workspace, CODEX_HOME: join(workspace, "synthetic-codex-home") } });
       await db.update(heartbeatRuns).set({ status: "succeeded", nativePhase: "committed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
       Object.assign(f.run, await read(f.run.id));
-      f.agent.adapterType = "paperclip_runner";
+      f.agent.adapterType = "outpost_runner";
       f.input.sessionCodec = getAdapterSessionCodec(f.agent.adapterType);
       f.input.adapterResult = adapter;
       const completionDeps: Dependencies = { ...f.deps, runLogStore: store };
@@ -417,7 +417,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
   });
 
   async function admitNativeExecution(f: Awaited<ReturnType<typeof fixture>>) {
-    await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, f.agent.id));
+    await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, f.agent.id));
     const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Interrupted native task" }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: issue.id, issueId: issue.id,
       contextSnapshot: { issueId: issue.id } }).where(eq(heartbeatRuns.id, f.run.id));
@@ -425,13 +425,13 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
     const native = await prepareNativeHeartbeatRun({ db, run: f.run, issue, environmentLeaseId: randomUUID() });
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issue.id));
     const binding = { companyId: f.run.companyId, runId: f.run.id, issueId: issue.id, agentId: f.agent.id, executionWorkspaceId: f.run.id };
-    const execution = { schema: "paperclip.native-execution-input.v1", binding,
+    const execution = { schema: "outpost.native-execution-input.v1", binding,
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: issue.id, title: issue.title, description: null, prompt: "Complete the task.", workMode: "standard" },
       workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: native.normalizedSessionId, driverKind: "codex_app_server", protocolVersion: 1,
         lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
-      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "paperclip.completion-contract.v1",
+      completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue, { revision: contract.revision }) },
       interactionResponses: [], credentialBindings: [] };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, f.run.id));
@@ -534,7 +534,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
     f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.companyId, issue.id);
     // The finalizer's saved shape, unchanged from the previous release.
     f.input.adapterResult.resultJson = {
-      nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded",
+      nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
         summary: "Waiting for the approval decision.",
         continuation: { kind: "response_wake", summary: "Wait for the decision.", idempotencyKey: "hire-wait" } },
       finalizationPhase: "committed", finalizationReasonCode: reasonCode,
@@ -709,14 +709,14 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
   it("retains native completion metadata when reconciliation already committed the same terminal status", async () => {
     const finishedAt = new Date("2026-10-09T12:00:00Z");
     const f = await fixture({ runtimeMode: "native", status: "succeeded", finishedAt, resultJson: { durable: "accepted" }, usageJson: { durableReceipt: "native" } });
-    await db.update(agents).set({ adapterType: "paperclip_runner" }).where(eq(agents.id, f.agent.id));
-    f.agent.adapterType = "paperclip_runner";
+    await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, f.agent.id));
+    f.agent.adapterType = "outpost_runner";
     f.input.sessionCodec = getAdapterSessionCodec(f.agent.adapterType);
     const nativeSessionId = randomUUID(), providerSessionId = randomUUID();
     f.input.adapterResult.sessionId = nativeSessionId;
     delete f.input.adapterResult.sessionParams;
     f.input.adapterResult.sessionDisplayId = providerSessionId;
-    f.input.adapterResult.nativeFinalization = { schema: "paperclip.native-finalization.v1", runtimeMode: "native", runId: f.run.id, companyId: f.run.companyId, issueId: "unused", result: {}, terminal: { schema: "paperclip.prp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: null, sourceInstanceId: "test", normalizedSessionId: nativeSessionId, providerSessionId, driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, workspaceFinalizeStatus: "succeeded" };
+    f.input.adapterResult.nativeFinalization = { schema: "outpost.native-finalization.v1", runtimeMode: "native", runId: f.run.id, companyId: f.run.companyId, issueId: "unused", result: {}, terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: null, sourceInstanceId: "test", normalizedSessionId: nativeSessionId, providerSessionId, driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, workspaceFinalizeStatus: "succeeded" };
     await f.completion.completeRun(f.input);
     expect(await read(f.run.id)).toMatchObject({ status: "succeeded", finishedAt, sessionIdAfter: providerSessionId, resultJson: { durable: "accepted" }, usageJson: { durableReceipt: "native", inputTokens: 20 } });
     expect(f.deps.updateRuntimeState).toHaveBeenCalledOnce();
@@ -758,7 +758,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
     f.input.issueId = issue.id;
     f.input.issueRef = issue;
     f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.companyId, issue.id);
-    f.input.adapterResult.resultJson = { nativeResult: { schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "The complete answer" } };
+    f.input.adapterResult.resultJson = { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "The complete answer" } };
     f.deps.findRunIssueComment.mockResolvedValue(earlier);
     f.deps.issuesSvc.addComment.mockImplementation(async (issueId, body) => {
       const [comment] = await db.insert(issueComments).values({ companyId: f.run.companyId, issueId,
@@ -814,15 +814,15 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
 
   it.each(["execution", "setup"] as const)("retains a provider startup cause at the outer %s settlement boundary", async phase => {
     const f = await fixture();
-    const providerFailure = { schema: "paperclip.provider-failure.v1", provider: "anthropic", phase: "startup",
+    const providerFailure = { schema: "outpost.provider-failure.v1", provider: "anthropic", phase: "startup",
       category: "rate_limit", message: "This request would exceed your account's rate limit.", httpStatus: 429, retryability: "unknown" };
-    const error = Object.assign(new Error("PRP command session.open failed"), {
+    const error = Object.assign(new Error("ORP command session.open failed"), {
       runnerCommandResult: { result: { code: "command_execution_failed", providerFailure } },
     });
     f.deps.runLogStore.finalize.mockRejectedValueOnce(new Error("secondary log cleanup failure"));
     if (phase === "setup") await f.completion.failRunSetup(f.setup(error));
     else await f.completion.failRun(f.failure(error));
-    expect(await read(f.run.id)).toMatchObject({ status: "failed", error: "PRP command session.open failed",
+    expect(await read(f.run.id)).toMatchObject({ status: "failed", error: "ORP command session.open failed",
       resultJson: { providerFailure } });
   });
 
@@ -999,7 +999,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
   });
 
   describe("a same-run exact-checkpoint resume refused before its provider claim", () => {
-    const originalMessage = "PRP command turn.start failed: ACPX turn start failed closed: classification=session_resume_required";
+    const originalMessage = "ORP command turn.start failed: ACPX turn start failed closed: classification=session_resume_required";
     const refusal = "Plugin Runner retained session is not authorized";
     async function resumeClaim(recoveryHistory: Array<Record<string, unknown>>, attempt = 1) {
       const f = await fixture({ runtimeMode: "native" });
@@ -1105,7 +1105,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
     const intentAuditId = randomUUID();
     await db.insert(activityLog).values({ id: intentAuditId, companyId: f.run.companyId, actorType: "user", actorId: "test-board",
       action: "native.cancellation_intent_recorded", entityType: "heartbeat_run", entityId: f.run.id, runId: f.run.id, agentId: f.agent.id });
-    const nativeCancellation = { schema: "paperclip.native-cancellation.v1", ...binding, scope: "run", reasonCode: "cancellation_run_only",
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", ...binding, scope: "run", reasonCode: "cancellation_run_only",
       intentId: `native-cancellation:${randomUUID()}`, intentAuditId, dispatchState: "pending", dispatched: false, effects: ["release_run_resources"] };
     await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id, phase: "observed", attempt: 1 });
     await reserveRunBudget(db, f.run.companyId, f.run.id, null);
@@ -1188,7 +1188,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
   it.each(["run", "company", "issue", "task_scope"] as const)("does not preserve a foreign or task-scoped cancellation projection (%s)", async mismatch => {
     const f = await fixture({ runtimeMode: "native" });
     const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Scoped metadata" }).returning();
-    const nativeCancellation = { schema: "paperclip.native-cancellation.v1", scope: mismatch === "task_scope" ? "issue" : "run",
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", scope: mismatch === "task_scope" ? "issue" : "run",
       reasonCode: "cancellation_run_only", runId: mismatch === "run" ? randomUUID() : f.run.id,
       companyId: mismatch === "company" ? randomUUID() : f.run.companyId, issueId: mismatch === "issue" ? randomUUID() : issue.id,
       dispatchState: "pending", dispatched: false };
@@ -1201,7 +1201,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
 
   it("keeps ordinary adapter pre-provider receipts outside setup-history checks", async () => {
     const f = await fixture({ runtimeMode: "native", costAccountingPending: true,
-      runnerProfileJson: { nativeExecutionInput: { schema: "paperclip.native-execution-input.v1" } } });
+      runnerProfileJson: { nativeExecutionInput: { schema: "outpost.native-execution-input.v1" } } });
     await reserveRunBudget(db, f.run.companyId, f.run.id, null);
     await f.completion.completeRun({ ...f.input, adapterResult: { exitCode: 1, signal: null, timedOut: false,
       errorCode: "provider_not_started", executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
@@ -1286,7 +1286,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
       { id: acknowledgementAuditId, companyId: f.run.companyId, actorType: "system", actorId: "native-session-cancellation",
         action: "native.cancellation_dispatch_acknowledged", entityType: "heartbeat_run", entityId: f.run.id, runId: f.run.id, agentId: f.agent.id },
     ]);
-    const nativeCancellation = { schema: "paperclip.native-cancellation.v1", companyId: f.run.companyId, runId: f.run.id, issueId: issue.id,
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", companyId: f.run.companyId, runId: f.run.id, issueId: issue.id,
       scope: "run", reasonCode: "cancellation_run_only", intentAuditId, acknowledgementAuditId, dispatched: true, dispatchState: "acknowledged" };
     const startupCancellation = { requestedAt: new Date().toISOString(), beforeNativeSelection: false,
       budgetEnforcement: { companyId: f.run.companyId, scopeType: "agent", scopeId: f.agent.id, policyId: randomUUID(), version: 1 } };
@@ -1460,7 +1460,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
 
   it.each([false, true])("selects the answer retry from the real delivery producer and heartbeat queue (legacy context=%s)", async legacy => {
     const f = await fixture();
-    await db.update(agents).set({ adapterType: "paperclip_runner", status: "idle",
+    await db.update(agents).set({ adapterType: "outpost_runner", status: "idle",
       runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } }).where(eq(agents.id, f.agent.id));
     const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Answer delivery retry",
       status: "in_progress", assigneeAgentId: f.agent.id, responsibleUserId: "local-board" }).returning();
@@ -1727,7 +1727,7 @@ describe.skipIf(!support.supported && !process.env.PAPERCLIP_TEST_DATABASE_URL)(
   it("routes a lease acquisition refused by a stopped provider worker through bounded bootstrap recovery", async () => {
     const f = await fixture();
     const refusal = new PluginWorkerUnavailableError({ pluginId: "plugin-1", workerStatus: null,
-      message: 'Sandbox provider "daytona" is installed via plugin "paperclip.daytona-sandbox-provider", but its worker is not running.' });
+      message: 'Sandbox provider "daytona" is installed via plugin "outpost.daytona-sandbox-provider", but its worker is not running.' });
     const wrapped = new EnvironmentRunError("lease_acquire_failed",
       `Failed to acquire lease for environment "Paperclip Sandbox" (sandbox): ${refusal.message}`, { cause: refusal });
     f.deps.scheduleBoundedRetryForRun.mockResolvedValueOnce({ outcome: "not_scheduled", reason: "Fixture scheduler boundary", issueId: null });

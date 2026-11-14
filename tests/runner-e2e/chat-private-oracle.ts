@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
-export const CHAT_ORACLE_KEY_ENV = "PAPERCLIP_CHAT_ORACLE_COMMITMENT_KEY";
+export const CHAT_ORACLE_KEY_ENV = "OUTPOST_CHAT_ORACLE_COMMITMENT_KEY";
 /** Audited with external owner: these actual private values select expected
  * Notion answers/provider contract. IDs, origins and credential references are
  * provenance, never included. New semantic consumers require an explicit edit. */
@@ -20,8 +20,8 @@ export function privateOracleIdentity(provider: string, declaredFields: readonly
   const fields = oracleSemanticFields(provider, declaredFields); if (!fields.length) return;
   if (fields.some(field => typeof prerequisites[field] !== "string" || !prerequisites[field]?.trim())) throw new Error("Selected private oracle expectations unavailable");
   const key = readKey(env); const mac = (value: string) => createHmac("sha256", key).update(value).digest("hex");
-  return { provider, fields, keyIdentity: mac("paperclip.chat-catalog.oracle-key.v1"),
-    commitment: mac(JSON.stringify({ schema: "paperclip.chat-catalog.oracle-expectations.v1", provider, fields: fields.map(field => [field, prerequisites[field]]) })) };
+  return { provider, fields, keyIdentity: mac("outpost.chat-catalog.oracle-key.v1"),
+    commitment: mac(JSON.stringify({ schema: "outpost.chat-catalog.oracle-expectations.v1", provider, fields: fields.map(field => [field, prerequisites[field]]) })) };
 }
 /** Host reconciliation must re-read the existing campaign key and actual
  * private expectations. A lost/replaced key or changed oracle input cannot

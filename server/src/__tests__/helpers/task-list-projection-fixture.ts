@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, chatConversations, chatEndpoints, companies, issues, toolApplications, toolConnections, type Db } from "@paperclipai/db";
+import { agents, chatConversations, chatEndpoints, companies, issues, toolApplications, toolConnections, type Db } from "@outpost/db";
 import type { issueService } from "../../services/issues.js";
 
 export type ProjectionQuery = { sql: string; params: unknown[] };

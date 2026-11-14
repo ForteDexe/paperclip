@@ -5,7 +5,7 @@ import {
   issueRecoveryActions,
   issues,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { taskClosedByAgentSql, TEMPORARY_REFUSAL_TRIGGERS } from "../work-intent-outbox.js";
 import { deliveredQueuedCommentIds } from "../queued-comment-delivery.js";
 import { logger } from "../../middleware/logger.js";

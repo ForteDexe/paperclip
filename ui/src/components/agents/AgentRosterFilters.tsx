@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Filter } from "lucide-react";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@outpost/shared";
 import { aiConnectionsApi } from "@/api/ai-connections";
 import { agentRosterFilterFields, buildAgentRosterIndex, emptyAgentRosterFilters, matchesAgentRosterFilters, type AgentRosterFilterField, type AgentRosterFilters as FilterState, type AgentRosterOption } from "@/lib/agent-roster-filters";
 import { cn } from "@/lib/utils";

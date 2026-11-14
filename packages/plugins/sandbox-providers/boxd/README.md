@@ -1,4 +1,4 @@
-# `@paperclipai/plugin-boxd`
+# `@outpost/plugin-boxd`
 
 boxd sandbox provider for Outpost. [boxd](https://boxd.sh) runs each sandbox
 as an isolated KVM microVM. This package lives alongside E2B, Daytona and the
@@ -12,7 +12,7 @@ Once a stable release is available, install the package from the Plugins page
 by name, or use the CLI:
 
 ```sh
-paperclipai plugin install @paperclipai/plugin-boxd
+paperclipai plugin install @outpost/plugin-boxd
 ```
 
 Before the first stable release, the `latest` tag can still point to the
@@ -20,8 +20,8 @@ Before the first stable release, the `latest` tag can still point to the
 no plugin functionality. Check the published tags and choose a real release:
 
 ```sh
-npm view @paperclipai/plugin-boxd dist-tags --json
-paperclipai plugin install @paperclipai/plugin-boxd --version <published-version>
+npm view @outpost/plugin-boxd dist-tags --json
+paperclipai plugin install @outpost/plugin-boxd --version <published-version>
 ```
 
 Replace `<published-version>` with the version shown for the desired tag, such
@@ -45,7 +45,7 @@ From the Outpost checkout, with your instance running:
 
 ```sh
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/paperclip/packages/plugins/sandbox-providers/boxd
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin inspect paperclip.boxd-sandbox-provider
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin inspect outpost.boxd-sandbox-provider
 ```
 
 ## Configure an environment

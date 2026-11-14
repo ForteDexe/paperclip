@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { IssueAttachment, IssueWorkProduct } from "@paperclipai/shared";
+import type { IssueAttachment, IssueWorkProduct } from "@outpost/shared";
 import { IssuePropertiesArtifactsTab } from "@/components/issue-properties/IssuePropertiesArtifactsTab";
 import { RichWorkProductCard } from "@/components/task-chat/RichWorkProductCard";
 import { ImageGalleryModal, type GalleryMediaItem } from "@/components/ImageGalleryModal";
@@ -37,7 +37,7 @@ const videos = [...media, ["Motion concept — Sep 21", manila], ["Motion concep
 }));
 const files = [
   product("Style exploration notes.txt", 20, { metadata: { contentType: "text/plain", byteSize: 2400, downloadPath: "data:text/plain,Five%20Paperclip%20Ships%20style%20directions", contentPath: "data:text/plain,Five%20Paperclip%20Ships%20style%20directions" } }),
-  product("Preview the daily ships page", 21, { type: "preview_url", url: "https://paperclip.ing", metadata: null }),
+  product("Preview the daily ships page", 21, { type: "preview_url", url: "https://outpost.ing", metadata: null }),
   product("Source package is still being prepared", 22, { status: "pending" }),
 ];
 const images = [manilaImage, nightImage].map((src, index) => product(index ? "Night Pills — cover image" : "Manila Ledger — cover image", index + 10, {

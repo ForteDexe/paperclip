@@ -21,7 +21,7 @@ export async function teamRuntimeCatalogServerEnvironment(input: { executionIds:
   const source = path.join(input.repositoryRoot, "packages/teams-catalog"), target = teamRuntimeCatalogRoot(input.temporaryRoot);
   await mkdir(target, { recursive: true });
   for (const entry of ["package.json", "catalog", "generated"]) await cp(path.join(source, entry), path.join(target, entry), { recursive: true, force: false, errorOnExist: true });
-  return { PAPERCLIP_TEAMS_CATALOG_DIR: target, PAPERCLIP_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE: "paperclip_runner" };
+  return { OUTPOST_TEAMS_CATALOG_DIR: target, OUTPOST_TEAMS_CATALOG_DEFAULT_ADAPTER_TYPE: "outpost_runner" };
 }
 
 /** Add runtime/account metadata only; preserve other file bytes and non-runtime sidecar fields. */
@@ -35,7 +35,7 @@ export async function normalizeTeamRuntimeCatalog(input: { temporaryRoot: string
     const derived = await readFile(path.join(packageDir, source.path, file.path));
     if (!shipped.equals(derived)) throw new Error("Team runtime fixture changed a shipped non-runtime file");
   }
-  const sidecarPath = path.join(packageDir, source.path, ".paperclip.yaml");
+  const sidecarPath = path.join(packageDir, source.path, ".outpost.yaml");
   const originalSidecar = YAML.parse(await readFile(sidecarPath, "utf8"));
   const sidecar = structuredClone(originalSidecar);
   sidecar.agents ??= {};
@@ -53,7 +53,7 @@ export async function normalizeTeamRuntimeCatalog(input: { temporaryRoot: string
   const built = await buildCatalogManifest({ packageDir, generatedAt: original.generatedAt, catalogSkills: skills.skills });
   if (built.errors.length) throw new Error(`Derived runtime catalog is invalid: ${built.errors.join("; ")}`);
   const effective = built.manifest.teams.find(team => team.id === source.id)!;
-  const withoutRuntime = (team: CatalogTeam) => ({ ...team, contentHash: "", fileCount: 0, files: team.files.filter(file => file.path !== ".paperclip.yaml") });
+  const withoutRuntime = (team: CatalogTeam) => ({ ...team, contentHash: "", fileCount: 0, files: team.files.filter(file => file.path !== ".outpost.yaml") });
   if (!isDeepStrictEqual(withoutRuntime(effective), withoutRuntime(source)) || effective.contentHash === source.contentHash || built.manifest.teams.some(team => team.id !== source.id && !isDeepStrictEqual(team, original.teams.find((row: CatalogTeam) => row.id === team.id)))) throw new Error("Derived catalog changed non-runtime team metadata");
   await writeFile(path.join(packageDir, "generated/catalog.json"), JSON.stringify(built.manifest, null, 2) + "\n");
   return {

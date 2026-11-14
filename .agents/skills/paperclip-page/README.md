@@ -71,32 +71,32 @@ Required for live publishes:
 
 ```bash
 export AWS_REGION=us-east-1
-export PAPERCLIP_PAGE_BUCKET=paperclip-pages-prod
-export PAPERCLIP_PAGE_BASE_URL=https://pages.paperclip.ing
-export PAPERCLIP_PAGE_AWS_ACCESS_KEY_ID=...
-export PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY=...
+export OUTPOST_PAGE_BUCKET=paperclip-pages-prod
+export OUTPOST_PAGE_BASE_URL=https://pages.outpost.ing
+export OUTPOST_PAGE_AWS_ACCESS_KEY_ID=...
+export OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY=...
 ```
 
 Optional:
 
 ```bash
-export PAPERCLIP_PAGE_DEFAULT_PREFIX=""
-export PAPERCLIP_PAGE_AWS_PROFILE=paperclip-page-uploader
-export PAPERCLIP_PAGE_AWS_SESSION_TOKEN=...  # only with the namespaced key pair
+export OUTPOST_PAGE_DEFAULT_PREFIX=""
+export OUTPOST_PAGE_AWS_PROFILE=paperclip-page-uploader
+export OUTPOST_PAGE_AWS_SESSION_TOKEN=...  # only with the namespaced key pair
 ```
 
 Credential resolution order inside `publish.sh`:
 
-1. `PAPERCLIP_PAGE_AWS_ACCESS_KEY_ID` + `PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY`
+1. `OUTPOST_PAGE_AWS_ACCESS_KEY_ID` + `OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY`
    (scoped to the helper's `aws` calls; the surrounding process identity is
    untouched)
-2. `PAPERCLIP_PAGE_AWS_PROFILE`, passed to `aws` as `--profile` (ambient
+2. `OUTPOST_PAGE_AWS_PROFILE`, passed to `aws` as `--profile` (ambient
    `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` /
    `AWS_PROFILE` are stripped from the helper's `aws` calls so the named
    profile always wins)
 3. The ambient AWS credential chain
 
-Setting both the namespaced key pair and `PAPERCLIP_PAGE_AWS_PROFILE` is an
+Setting both the namespaced key pair and `OUTPOST_PAGE_AWS_PROFILE` is an
 error.
 
 Recommended Paperclip secret names:
@@ -104,8 +104,8 @@ Recommended Paperclip secret names:
 - `paperclip-page-aws-access-key-id`
 - `paperclip-page-aws-secret-access-key`
 
-Bind those secrets into publisher agents as `PAPERCLIP_PAGE_AWS_ACCESS_KEY_ID`
-and `PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY`. Never bind them as the global
+Bind those secrets into publisher agents as `OUTPOST_PAGE_AWS_ACCESS_KEY_ID`
+and `OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY`. Never bind them as the global
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` names: static env keys override
 `AWS_PROFILE` in the AWS CLI and every SDK, so global names silently switch the
 whole agent run — and every subprocess — to the page-uploader identity and
@@ -122,7 +122,7 @@ create buckets, mutate IAM, change DNS, or manage CloudFront.
 export AWS_PROFILE=paperclip-admin
 export AWS_REGION=us-east-1
 export BUCKET=paperclip-pages-prod
-export DOMAIN=pages.paperclip.ing
+export DOMAIN=pages.outpost.ing
 export UPLOADER_USER=paperclip-page-uploader
 export CLOUDFRONT_COMMENT="Paperclip pages"
 
@@ -457,7 +457,7 @@ endpoint.
 
 Cloudflare UI:
 
-- Open the `paperclip.ing` zone.
+- Open the `outpost.ing` zone.
 - Add `CNAME`:
   - Name: `pages`
   - Target: the CloudFront domain, for example `d111111abcdef8.cloudfront.net`
@@ -467,7 +467,7 @@ Cloudflare UI:
 API equivalent:
 
 ```bash
-export CF_ZONE_ID=<paperclip.ing-zone-id>
+export CF_ZONE_ID=<outpost.ing-zone-id>
 export CF_API_TOKEN=<token-with-zone-dns-edit>
 
 curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
@@ -490,18 +490,18 @@ curl -I "https://$DOMAIN/404.html"
 Create secrets from environment variables so values do not land in shell history:
 
 ```bash
-export PAPERCLIP_PAGE_AWS_ACCESS_KEY_ID="$(jq -r '.AccessKey.AccessKeyId' /tmp/paperclip-page-uploader-key.json)"
-export PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY="$(jq -r '.AccessKey.SecretAccessKey' /tmp/paperclip-page-uploader-key.json)"
+export OUTPOST_PAGE_AWS_ACCESS_KEY_ID="$(jq -r '.AccessKey.AccessKeyId' /tmp/paperclip-page-uploader-key.json)"
+export OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY="$(jq -r '.AccessKey.SecretAccessKey' /tmp/paperclip-page-uploader-key.json)"
 
 npx paperclipai secrets create \
   --company-id <company-id> \
   --name paperclip-page-aws-access-key-id \
-  --value-env PAPERCLIP_PAGE_AWS_ACCESS_KEY_ID
+  --value-env OUTPOST_PAGE_AWS_ACCESS_KEY_ID
 
 npx paperclipai secrets create \
   --company-id <company-id> \
   --name paperclip-page-aws-secret-access-key \
-  --value-env PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY
+  --value-env OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY
 ```
 
 Bind runtime env to publishing agents. Use the namespaced names — never the
@@ -510,20 +510,20 @@ host `AWS_PROFILE` identity for the entire agent run:
 
 ```json
 {
-  "PAPERCLIP_PAGE_AWS_ACCESS_KEY_ID": {
+  "OUTPOST_PAGE_AWS_ACCESS_KEY_ID": {
     "type": "secret_ref",
     "secretId": "<access-key-secret-id>",
     "version": "latest"
   },
-  "PAPERCLIP_PAGE_AWS_SECRET_ACCESS_KEY": {
+  "OUTPOST_PAGE_AWS_SECRET_ACCESS_KEY": {
     "type": "secret_ref",
     "secretId": "<secret-key-secret-id>",
     "version": "latest"
   },
   "AWS_REGION": { "type": "plain", "value": "us-east-1" },
-  "PAPERCLIP_PAGE_BUCKET": { "type": "plain", "value": "paperclip-pages-prod" },
-  "PAPERCLIP_PAGE_BASE_URL": { "type": "plain", "value": "https://pages.paperclip.ing" },
-  "PAPERCLIP_PAGE_DEFAULT_PREFIX": { "type": "plain", "value": "" }
+  "OUTPOST_PAGE_BUCKET": { "type": "plain", "value": "paperclip-pages-prod" },
+  "OUTPOST_PAGE_BASE_URL": { "type": "plain", "value": "https://pages.outpost.ing" },
+  "OUTPOST_PAGE_DEFAULT_PREFIX": { "type": "plain", "value": "" }
 }
 ```
 

@@ -235,7 +235,7 @@ function buildConnectionErrorMessage(input: {
     "Try:",
     "- Start Outpost with `pnpm dev` (from a source checkout) or `npx paperclipai run`.",
     `- Verify the server is reachable with \`curl ${healthUrl}\`.`,
-    `- If Outpost is running elsewhere, pass \`--api-base ${input.apiBase.replace(/\/+$/, "")}\` or set \`PAPERCLIP_API_URL\`.`,
+    `- If Outpost is running elsewhere, pass \`--api-base ${input.apiBase.replace(/\/+$/, "")}\` or set \`OUTPOST_API_URL\`.`,
   );
   return lines.join("\n");
 }

@@ -11,7 +11,7 @@ import {
 import type {
   GitHubChatConfiguration,
   GitHubTaskReview,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   githubChatApi,
   type GitHubConfigurationRecord,

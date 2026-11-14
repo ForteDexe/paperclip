@@ -1,5 +1,5 @@
-import type { AggregatorAppsResponse, ArcadeDiscoverySetupInput } from "@paperclipai/shared/aggregator-apps";
-import type { ComposioAppAccountInput, ComposioAppSetupInput, ComposioAppSetupResult, ComposioAppSnapshot, ComposioAppsResponse } from "@paperclipai/shared";
+import type { AggregatorAppsResponse, ArcadeDiscoverySetupInput } from "@outpost/shared/aggregator-apps";
+import type { ComposioAppAccountInput, ComposioAppSetupInput, ComposioAppSetupResult, ComposioAppSnapshot, ComposioAppsResponse } from "@outpost/shared";
 import type {
   ToolApplication,
   ConfigureRailwaySsh,
@@ -67,7 +67,7 @@ import type {
   ConnectionGrantsResponse,
   ToolConnectionCreateCapabilities,
   ToolAppMetadataPreflightResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { api, detachInflightGet, type RequestOptions } from "./client";
 
 /**
@@ -162,7 +162,7 @@ export interface CreateToolConnectionInput {
 }
 
 export interface UpdateToolConnectionInput {
-  agentInstructions?: import("@paperclipai/shared").ConnectionAgentInstructions | null;
+  agentInstructions?: import("@outpost/shared").ConnectionAgentInstructions | null;
   name?: string;
   status?: ToolConnection["status"];
   config?: Record<string, unknown>;
@@ -311,7 +311,7 @@ export const toolsApi = {
       asCurrentUser?: boolean;
       asAgentId?: string;
       interactionId?: string;
-      workspaceServices?: import("@paperclipai/shared").GoogleWorkspaceServiceSelection;
+      workspaceServices?: import("@outpost/shared").GoogleWorkspaceServiceSelection;
     } = {},
   ) =>
     api.post<ToolOAuthStartResult>(`/tools/oauth/${connectionId}/start`, input),
@@ -328,7 +328,7 @@ export const toolsApi = {
     enabledCatalogEntryIds: string[];
     askFirstCatalogEntryIds: string[];
     reviewedCatalogEntryIds?: string[];
-    agentInstructions?: import("@paperclipai/shared").ConnectionAgentInstructions | null;
+    agentInstructions?: import("@outpost/shared").ConnectionAgentInstructions | null;
     access: "all_agents" | { agentIds: string[] };
   }) =>
     api.post<FinishToolAppResult>(

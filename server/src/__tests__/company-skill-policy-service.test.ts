@@ -7,7 +7,7 @@ import {
   companySkillPolicies,
   createDb,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { companySkillPolicyService, normalizeSkillPolicySourceType } from "../services/company-skill-policy.js";
 

@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog, agents, companies, createDb, environmentLeases, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns,
   issueRecoveryActions, issues, nativeRunFinalizations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { confirmNativeControllerStopped, NATIVE_CONTROLLER_HOST_UNVERIFIED, requestNativeControllerStopConfirmation }
   from "./native-controller-host-recovery.js";
@@ -39,7 +39,7 @@ describe("native controller rows saved before their host was recorded", () => {
   }
 
   it("records each use of the single-host fallback in the run log", async () => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "");
     const { companyId, agentId, runId, coordinator } = await seed();
     const decision = await evaluateNativeControllerTakeover({ owner: coordinator, now: new Date() });
     expect(decision).toMatchObject({ allowed: true, legacyHostFallback: true });
@@ -52,7 +52,7 @@ describe("native controller rows saved before their host was recorded", () => {
   });
 
   it("asks the board on an ephemeral server and resumes only after it confirms the exact controller stopped", async () => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     const { companyId, issueId, runId, coordinator } = await seed();
     expect(await evaluateNativeControllerTakeover({ owner: coordinator, now: new Date() }))
       .toEqual({ allowed: false, reason: "controller_host_unrecorded" });
@@ -80,7 +80,7 @@ describe("native controller rows saved before their host was recorded", () => {
       stopEvidence, actorId: "board-user" })).rejects.toMatchObject({ status: 409 });
   });
   it("keeps an observed no-checkpoint source recoverable after a controller-only confirmation", async () => {
-    vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+    vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
     const { companyId, agentId, issueId, runId, coordinator } = await seed();
     // Historical initial state: the previous release published its real
     // controller-only action for an observed run with no checkpoint. There
@@ -106,7 +106,7 @@ describe("native controller rows saved before their host was recorded", () => {
     expect(active).toEqual([expect.objectContaining({ cause: "native_restart_recovery_blocked", ownerType: "board",
       returnOwnerAgentId: agentId, attemptCount: 0, wakePolicy: null, monitorPolicy: null,
       evidence: expect.objectContaining({ runId, reason: "controller_process_space_unverified",
-        controllerAuthority: expect.objectContaining({ schema: "paperclip.native-controller-authority.v1",
+        controllerAuthority: expect.objectContaining({ schema: "outpost.native-controller-authority.v1",
           digest: expect.stringMatching(/^[a-f0-9]{64}$/) }) }) })]);
     expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, runId)))
       .toEqual([]);
@@ -114,7 +114,7 @@ describe("native controller rows saved before their host was recorded", () => {
 
   it.each(["newer-owner", "newer-source"] as const)(
     "keeps a stale controller-only confirmation from changing %s", async kind => {
-      vi.stubEnv("PAPERCLIP_EPHEMERAL_SERVER", "true");
+      vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
       const { companyId, agentId, issueId, runId, coordinator } = await seed();
       await requestNativeControllerStopConfirmation(db, coordinator);
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
@@ -182,7 +182,7 @@ describe("native controller rows saved before their host was recorded", () => {
     expect(attention.evidence.reason).toBe(scope === "same-task"
       ? "remote_controller_process_space_unverified" : "controller_process_space_unverified");
     if (scope === "same-task") expect(attention.evidence.controllerAuthority).toBeUndefined();
-    else expect(attention.evidence.controllerAuthority).toMatchObject({ schema: "paperclip.native-controller-authority.v1" });
+    else expect(attention.evidence.controllerAuthority).toMatchObject({ schema: "outpost.native-controller-authority.v1" });
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)))[0])
       .toMatchObject({ phase: "observed", resultId: null, leaseOwner: coordinator.leaseOwner });
   });

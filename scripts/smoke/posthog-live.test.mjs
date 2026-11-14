@@ -11,23 +11,23 @@ import {
 } from "./posthog-live-lib.mjs";
 
 const COMPLETE_ENV = {
-  PAPERCLIP_API_URL: "https://paperclip.example.test/api",
-  INTEGRATIONS_POSTHOG_PAPERCLIP_E2E_EMAIL: "operator@example.test",
-  INTEGRATIONS_POSTHOG_PAPERCLIP_DEV_LOGIN_PASSWORD: "not-a-real-password",
+  OUTPOST_API_URL: "https://outpost.example.test/api",
+  INTEGRATIONS_POSTHOG_OUTPOST_E2E_EMAIL: "operator@example.test",
+  INTEGRATIONS_POSTHOG_OUTPOST_DEV_LOGIN_PASSWORD: "not-a-real-password",
   INTEGRATIONS_POSTHOG_POSTHOG_PROJECT_ID: "483530",
 };
 
 test("preflight reports only missing binding names", () => {
   assert.throws(
     () => preflightPosthogLive({
-      PAPERCLIP_API_URL: "https://paperclip.example.test/api",
-      INTEGRATIONS_POSTHOG_PAPERCLIP_DEV_LOGIN_PASSWORD: "present",
+      OUTPOST_API_URL: "https://outpost.example.test/api",
+      INTEGRATIONS_POSTHOG_OUTPOST_DEV_LOGIN_PASSWORD: "present",
     }),
     (error) => {
       assert.ok(error instanceof PosthogLivePreflightError);
       assert.equal(error.code, "missing_environment");
       assert.deepEqual(error.details.missing, [
-        "INTEGRATIONS_POSTHOG_PAPERCLIP_E2E_EMAIL",
+        "INTEGRATIONS_POSTHOG_OUTPOST_E2E_EMAIL",
         "INTEGRATIONS_POSTHOG_POSTHOG_PROJECT_ID",
       ]);
       assert.doesNotMatch(error.message, /present/);
@@ -43,7 +43,7 @@ test("preflight rejects credential-bearing and non-HTTPS remote URLs", () => {
     "http://example.test",
   ]) {
     assert.throws(
-      () => preflightPosthogLive({ ...COMPLETE_ENV, PAPERCLIP_API_URL: baseUrl }),
+      () => preflightPosthogLive({ ...COMPLETE_ENV, OUTPOST_API_URL: baseUrl }),
       (error) => error instanceof PosthogLivePreflightError && error.code === "unsafe_base_url",
     );
   }
@@ -54,13 +54,13 @@ test("preflight rejects credential-bearing and non-HTTPS remote URLs", () => {
 });
 
 test("preflight derives the current Paperclip origin and accepts an explicit target", () => {
-  assert.equal(preflightPosthogLive(COMPLETE_ENV).baseUrl, "https://paperclip.example.test");
+  assert.equal(preflightPosthogLive(COMPLETE_ENV).baseUrl, "https://outpost.example.test");
   assert.equal(
-    preflightPosthogLive(COMPLETE_ENV, { baseUrl: "https://other-paperclip.example.test" }).baseUrl,
-    "https://other-paperclip.example.test",
+    preflightPosthogLive(COMPLETE_ENV, { baseUrl: "https://other-outpost.example.test" }).baseUrl,
+    "https://other-outpost.example.test",
   );
   assert.throws(
-    () => preflightPosthogLive({ ...COMPLETE_ENV, PAPERCLIP_API_URL: "" }),
+    () => preflightPosthogLive({ ...COMPLETE_ENV, OUTPOST_API_URL: "" }),
     (error) => error instanceof PosthogLivePreflightError && error.code === "missing_base_url",
   );
 });
@@ -78,12 +78,12 @@ test("preflight fails closed unless the PostHog project is exactly 483530", () =
 test("live smoke arguments accept a target URL without another environment binding", () => {
   assert.deepEqual(parsePosthogLiveArguments([]), {});
   assert.deepEqual(
-    parsePosthogLiveArguments(["https://paperclip.example.test"]),
-    { baseUrl: "https://paperclip.example.test" },
+    parsePosthogLiveArguments(["https://outpost.example.test"]),
+    { baseUrl: "https://outpost.example.test" },
   );
   assert.deepEqual(
-    parsePosthogLiveArguments(["--base-url", "https://paperclip.example.test"]),
-    { baseUrl: "https://paperclip.example.test" },
+    parsePosthogLiveArguments(["--base-url", "https://outpost.example.test"]),
+    { baseUrl: "https://outpost.example.test" },
   );
   assert.throws(
     () => parsePosthogLiveArguments(["--unknown"]),

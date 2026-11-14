@@ -3,24 +3,24 @@ import { hasMigratedLegacyWorkspaceSource } from "../legacy-workspace-recovery-m
 import { notifyCancelledWorkspacePreservation } from "../cancelled-workspace-preservation-notifications.js";
 import { notifyEnvironmentCleanup } from "../environment-cleanup-notifications.js";
 import { measureRunPhase } from "../execution-preparation-timing.js";
-import { emitStartupReuse, type StartupReuseReason } from "@paperclipai/adapter-utils/startup-reuse";
-import type { AdapterRuntimeEvent } from "@paperclipai/adapter-utils";
-import type { WorkspaceCheckpointMetrics } from "@paperclipai/adapter-utils/workspace-checkpoint";
-import type { RuntimeSpanRunner } from "@paperclipai/adapter-utils/acpx-engine/startup-timing";
+import { emitStartupReuse, type StartupReuseReason } from "@outpost/adapter-utils/startup-reuse";
+import type { AdapterRuntimeEvent } from "@outpost/adapter-utils";
+import type { WorkspaceCheckpointMetrics } from "@outpost/adapter-utils/workspace-checkpoint";
+import type { RuntimeSpanRunner } from "@outpost/adapter-utils/acpx-engine/startup-timing";
 import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { environmentLeases, heartbeatRuns } from "@paperclipai/db";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { environmentLeases, heartbeatRuns } from "@outpost/db";
+import type { EnvironmentLease } from "@outpost/shared";
 import {
   prepareAdapterExecutionTargetRuntime,
   type AdapterExecutionTarget,
   type PreparedAdapterExecutionTargetRuntime,
-} from "@paperclipai/adapter-utils/execution-target";
-import { disposeGitWorkspaceSnapshot, type GitWorkspaceSnapshot } from "@paperclipai/adapter-utils/git-workspace-sync";
+} from "@outpost/adapter-utils/execution-target";
+import { disposeGitWorkspaceSnapshot, type GitWorkspaceSnapshot } from "@outpost/adapter-utils/git-workspace-sync";
 import {
   directorySnapshotSha256,
   disposeDirectorySnapshot,
@@ -29,21 +29,21 @@ import {
   serializeDirectorySnapshot,
   type DirectorySnapshot,
   type SerializedDirectorySnapshot,
-} from "@paperclipai/adapter-utils/workspace-restore-merge";
+} from "@outpost/adapter-utils/workspace-restore-merge";
 import type {
   WorkspaceDurableSeedPaths,
   WorkspaceInboundMode,
-} from "@paperclipai/adapter-utils/sandbox-managed-runtime";
-import { assertWorkspaceManifestDiskSpace, isPathManifest, manifestFileSha256, readManifestRecords, type PathManifest, type WorkspacePaths } from "@paperclipai/adapter-utils/workspace-manifest";
+} from "@outpost/adapter-utils/sandbox-managed-runtime";
+import { assertWorkspaceManifestDiskSpace, isPathManifest, manifestFileSha256, readManifestRecords, type PathManifest, type WorkspacePaths } from "@outpost/adapter-utils/workspace-manifest";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 import { parseObject } from "../../adapters/utils.js";
 import type { NativeRestartRecoveryClaim } from "./native-restart-recovery.js";
 
-const LEGACY_DESCRIPTOR_SCHEMA = "paperclip.native-workspace-sync/v1";
-const PREVIOUS_DESCRIPTOR_SCHEMA = "paperclip.native-workspace-sync/v2";
-const DESCRIPTOR_SCHEMA = "paperclip.native-workspace-sync/v3";
+const LEGACY_DESCRIPTOR_SCHEMA = "outpost.native-workspace-sync/v1";
+const PREVIOUS_DESCRIPTOR_SCHEMA = "outpost.native-workspace-sync/v2";
+const DESCRIPTOR_SCHEMA = "outpost.native-workspace-sync/v3";
 type DescriptorSchema = typeof DESCRIPTOR_SCHEMA | typeof PREVIOUS_DESCRIPTOR_SCHEMA | typeof LEGACY_DESCRIPTOR_SCHEMA;
-const STAMP_SCHEMA = "paperclip.native-workspace-stamp/v1";
+const STAMP_SCHEMA = "outpost.native-workspace-stamp/v1";
 const STATE_ROOT_NAME = "native-workspace-sync";
 const DESCRIPTOR_NAME = "descriptor";
 const WORKSPACE_SEED_NAME = "workspace-seed.tar";
@@ -693,7 +693,7 @@ async function writeRemoteStamp(input: {
   const runtimeDir = path.posix.join(
     input.target.remoteCwd,
     ".paperclip-runtime",
-    "paperclip-runner",
+    "outpost-runner",
   );
   const stampPath = path.posix.join(runtimeDir, REMOTE_STAMP_NAME);
   const tempPath = `${stampPath}.tmp`;
@@ -726,7 +726,7 @@ async function remoteStampMatches(input: {
   const stampPath = path.posix.join(
     input.target.remoteCwd,
     ".paperclip-runtime",
-    "paperclip-runner",
+    "outpost-runner",
     REMOTE_STAMP_NAME,
   );
   // File hashes do not detect empty commits or branch changes. A fresh host
@@ -827,7 +827,7 @@ async function prepareRuntime(input: {
   return measureRunPhase(phase[input.mode], () => prepareAdapterExecutionTargetRuntime({
     runId: input.runId,
     target: input.target,
-    adapterKey: "paperclip-runner",
+    adapterKey: "outpost-runner",
     workspaceLocalDir: input.workspaceLocalDir,
     workspaceRemoteDir: input.target.remoteCwd,
     workspaceInboundMode: input.mode,
@@ -861,7 +861,7 @@ async function finalizePreparedRuntime(input: {
   return measureRunPhase("execution.workspace_commit", async () => {
     await input.assertOwnership?.();
     const finalSnapshot =
-      await import("@paperclipai/adapter-utils/workspace-restore-merge").then(
+      await import("@outpost/adapter-utils/workspace-restore-merge").then(
         ({ captureDirectorySnapshotOffThread: captureDirectorySnapshot }) =>
           captureDirectorySnapshot(input.descriptor.binding.localCwd, {
             exclude: input.runtime.workspaceSyncSnapshot?.baseline.exclude ?? [],

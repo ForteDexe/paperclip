@@ -4,9 +4,9 @@
   "description": "Review your team, delegate work and retrieve durable results in Outpost.",
   "author": {
     "name": "Outpost",
-    "url": "https://paperclip.ing"
+    "url": "https://outpost.ing"
   },
-  "homepage": "https://paperclip.ing",
+  "homepage": "https://outpost.ing",
   "repository": "https://github.com/paperclipai/paperclip",
   "license": "MIT",
   "skills": "./skills/",

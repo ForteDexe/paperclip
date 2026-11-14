@@ -1,5 +1,5 @@
 import { resolveLoginCommandKey } from "./login-command.js";
-import type { Environment } from "@paperclipai/shared";
+import type { Environment } from "@outpost/shared";
 import type { EnvironmentRuntimeService } from "./environment-runtime.js";
 
 /**
@@ -64,7 +64,7 @@ export function buildLoginLeaseAcquireArgs(
     ...(pluginLogin ? { purpose: "login" as const, loginCommandKey: resolveLoginCommandKey(options.metadata.adapterType ?? "") } : {}),
     companyId: options.metadata.companyId,
     environment: options.metadata.environment,
-    adapterType: pluginLogin ? "paperclip_runner" : options.metadata.adapterType ?? null,
+    adapterType: pluginLogin ? "outpost_runner" : options.metadata.adapterType ?? null,
     agentId: options.targetAgentId ?? null,
     // A null issue, a null heartbeat run, and a null execution workspace disable
     // lease reuse, so this allocation has its own cleanup ownership.

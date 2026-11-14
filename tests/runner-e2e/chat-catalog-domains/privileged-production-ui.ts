@@ -11,16 +11,16 @@ const execute = promisify(execFile);
 /** A real production UI build, isolated static listener, and read-only API proxy.
  * It shares only the already-owned test API; it never starts another database. */
 export async function startOwnedProductionUi(ctx: ChatCatalogContext) {
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root) throw new Error("Production route proof requires the owned attempt directory");
-  const sourceRevision = process.env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA;
+  const sourceRevision = process.env.OUTPOST_RUNNER_E2E_SOURCE_SHA;
   if (!sourceRevision || !/^[a-f0-9]{40}$/.test(sourceRevision)) throw new Error("Production UI proof requires the pinned full candidate source revision");
   const directory = await mkdtemp(path.join(await realpath(root), "production-ui-"));
   const repository = fileURLToPath(new URL("../../../", import.meta.url)), out = path.join(directory, "dist");
   try {
     await execute(process.execPath, [path.join(repository, "ui/node_modules/vite/bin/vite.js"), "build", "--mode", "production", "--outDir", out], {
       cwd: path.join(repository, "ui"), timeout: 180_000, maxBuffer: 2_097_152,
-      env: { PATH: process.env.PATH, HOME: directory, NODE_ENV: "production", PAPERCLIP_TELEMETRY_DISABLED: "1", PAPERCLIP_BUILD_COMMIT: sourceRevision },
+      env: { PATH: process.env.PATH, HOME: directory, NODE_ENV: "production", OUTPOST_TELEMETRY_DISABLED: "1", OUTPOST_BUILD_COMMIT: sourceRevision },
     });
   } catch { await rm(directory, { recursive: true }); throw new Error("Owned production UI build failed; private build output withheld"); }
   async function inventory(current: string): Promise<Array<{ path: string; sha256: string }>> {

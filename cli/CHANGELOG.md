@@ -6,17 +6,17 @@
 
 - Stable release preparation for 0.3.1
 - Updated dependencies
-  - @paperclipai/adapter-utils@0.3.1
-  - @paperclipai/adapter-claude-local@0.3.1
-  - @paperclipai/adapter-codex-local@0.3.1
-  - @paperclipai/adapter-cursor-local@0.3.1
-  - @paperclipai/adapter-gemini-local@0.3.1
-  - @paperclipai/adapter-openclaw-gateway@0.3.1
-  - @paperclipai/adapter-opencode-local@0.3.1
-  - @paperclipai/adapter-pi-local@0.3.1
-  - @paperclipai/db@0.3.1
-  - @paperclipai/shared@0.3.1
-  - @paperclipai/server@0.3.1
+  - @outpost/adapter-utils@0.3.1
+  - @outpost/adapter-claude-local@0.3.1
+  - @outpost/adapter-codex-local@0.3.1
+  - @outpost/adapter-cursor-local@0.3.1
+  - @outpost/adapter-gemini-local@0.3.1
+  - @outpost/adapter-openclaw-gateway@0.3.1
+  - @outpost/adapter-opencode-local@0.3.1
+  - @outpost/adapter-pi-local@0.3.1
+  - @outpost/db@0.3.1
+  - @outpost/shared@0.3.1
+  - @outpost/server@0.3.1
 
 ## 0.3.0
 
@@ -28,16 +28,16 @@
 
 - Updated dependencies [6077ae6]
 - Updated dependencies
-  - @paperclipai/shared@0.3.0
-  - @paperclipai/adapter-utils@0.3.0
-  - @paperclipai/adapter-claude-local@0.3.0
-  - @paperclipai/adapter-codex-local@0.3.0
-  - @paperclipai/adapter-cursor-local@0.3.0
-  - @paperclipai/adapter-openclaw-gateway@0.3.0
-  - @paperclipai/adapter-opencode-local@0.3.0
-  - @paperclipai/adapter-pi-local@0.3.0
-  - @paperclipai/db@0.3.0
-  - @paperclipai/server@0.3.0
+  - @outpost/shared@0.3.0
+  - @outpost/adapter-utils@0.3.0
+  - @outpost/adapter-claude-local@0.3.0
+  - @outpost/adapter-codex-local@0.3.0
+  - @outpost/adapter-cursor-local@0.3.0
+  - @outpost/adapter-openclaw-gateway@0.3.0
+  - @outpost/adapter-opencode-local@0.3.0
+  - @outpost/adapter-pi-local@0.3.0
+  - @outpost/db@0.3.0
+  - @outpost/server@0.3.0
 
 ## 0.2.7
 
@@ -45,13 +45,13 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.7
-  - @paperclipai/adapter-utils@0.2.7
-  - @paperclipai/db@0.2.7
-  - @paperclipai/adapter-claude-local@0.2.7
-  - @paperclipai/adapter-codex-local@0.2.7
-  - @paperclipai/adapter-openclaw@0.2.7
-  - @paperclipai/server@0.2.7
+  - @outpost/shared@0.2.7
+  - @outpost/adapter-utils@0.2.7
+  - @outpost/db@0.2.7
+  - @outpost/adapter-claude-local@0.2.7
+  - @outpost/adapter-codex-local@0.2.7
+  - @outpost/adapter-openclaw@0.2.7
+  - @outpost/server@0.2.7
 
 ## 0.2.6
 
@@ -59,13 +59,13 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.6
-  - @paperclipai/adapter-utils@0.2.6
-  - @paperclipai/db@0.2.6
-  - @paperclipai/adapter-claude-local@0.2.6
-  - @paperclipai/adapter-codex-local@0.2.6
-  - @paperclipai/adapter-openclaw@0.2.6
-  - @paperclipai/server@0.2.6
+  - @outpost/shared@0.2.6
+  - @outpost/adapter-utils@0.2.6
+  - @outpost/db@0.2.6
+  - @outpost/adapter-claude-local@0.2.6
+  - @outpost/adapter-codex-local@0.2.6
+  - @outpost/adapter-openclaw@0.2.6
+  - @outpost/server@0.2.6
 
 ## 0.2.5
 
@@ -73,13 +73,13 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.5
-  - @paperclipai/adapter-utils@0.2.5
-  - @paperclipai/db@0.2.5
-  - @paperclipai/adapter-claude-local@0.2.5
-  - @paperclipai/adapter-codex-local@0.2.5
-  - @paperclipai/adapter-openclaw@0.2.5
-  - @paperclipai/server@0.2.5
+  - @outpost/shared@0.2.5
+  - @outpost/adapter-utils@0.2.5
+  - @outpost/db@0.2.5
+  - @outpost/adapter-claude-local@0.2.5
+  - @outpost/adapter-codex-local@0.2.5
+  - @outpost/adapter-openclaw@0.2.5
+  - @outpost/server@0.2.5
 
 ## 0.2.4
 
@@ -87,13 +87,13 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.4
-  - @paperclipai/adapter-utils@0.2.4
-  - @paperclipai/db@0.2.4
-  - @paperclipai/adapter-claude-local@0.2.4
-  - @paperclipai/adapter-codex-local@0.2.4
-  - @paperclipai/adapter-openclaw@0.2.4
-  - @paperclipai/server@0.2.4
+  - @outpost/shared@0.2.4
+  - @outpost/adapter-utils@0.2.4
+  - @outpost/db@0.2.4
+  - @outpost/adapter-claude-local@0.2.4
+  - @outpost/adapter-codex-local@0.2.4
+  - @outpost/adapter-openclaw@0.2.4
+  - @outpost/server@0.2.4
 
 ## 0.2.3
 
@@ -101,13 +101,13 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.3
-  - @paperclipai/adapter-utils@0.2.3
-  - @paperclipai/db@0.2.3
-  - @paperclipai/adapter-claude-local@0.2.3
-  - @paperclipai/adapter-codex-local@0.2.3
-  - @paperclipai/adapter-openclaw@0.2.3
-  - @paperclipai/server@0.2.3
+  - @outpost/shared@0.2.3
+  - @outpost/adapter-utils@0.2.3
+  - @outpost/db@0.2.3
+  - @outpost/adapter-claude-local@0.2.3
+  - @outpost/adapter-codex-local@0.2.3
+  - @outpost/adapter-openclaw@0.2.3
+  - @outpost/server@0.2.3
 
 ## 0.2.2
 
@@ -115,13 +115,13 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.2
-  - @paperclipai/adapter-utils@0.2.2
-  - @paperclipai/db@0.2.2
-  - @paperclipai/adapter-claude-local@0.2.2
-  - @paperclipai/adapter-codex-local@0.2.2
-  - @paperclipai/adapter-openclaw@0.2.2
-  - @paperclipai/server@0.2.2
+  - @outpost/shared@0.2.2
+  - @outpost/adapter-utils@0.2.2
+  - @outpost/db@0.2.2
+  - @outpost/adapter-claude-local@0.2.2
+  - @outpost/adapter-codex-local@0.2.2
+  - @outpost/adapter-openclaw@0.2.2
+  - @outpost/server@0.2.2
 
 ## 0.2.1
 
@@ -129,10 +129,10 @@
 
 - Version bump (patch)
 - Updated dependencies
-  - @paperclipai/shared@0.2.1
-  - @paperclipai/adapter-utils@0.2.1
-  - @paperclipai/db@0.2.1
-  - @paperclipai/adapter-claude-local@0.2.1
-  - @paperclipai/adapter-codex-local@0.2.1
-  - @paperclipai/adapter-openclaw@0.2.1
-  - @paperclipai/server@0.2.1
+  - @outpost/shared@0.2.1
+  - @outpost/adapter-utils@0.2.1
+  - @outpost/db@0.2.1
+  - @outpost/adapter-claude-local@0.2.1
+  - @outpost/adapter-codex-local@0.2.1
+  - @outpost/adapter-openclaw@0.2.1
+  - @outpost/server@0.2.1

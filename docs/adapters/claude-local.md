@@ -56,7 +56,7 @@ default because those providers use different model IDs. Host environment
 settings apply only to local targets when resolving the model.
 
 The default does not change explicitly configured agent models or the separate
-Paperclip Runner's qualified provider profiles.
+Outpost Runner's qualified provider profiles.
 
 ## Prompt Templates
 

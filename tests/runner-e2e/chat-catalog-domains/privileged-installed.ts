@@ -18,8 +18,8 @@ export function validInstalledReceipt(r: InstalledOperatorReceipt) {
 }
 /** Receipt identifies the *actual source server*, not another healthy fixture. */
 export async function ownedInstalledTarget(ctx: ChatCatalogContext) {
-  const ref = process.env.PAPERCLIP_CHAT_OPERATOR_INSTALL_RECEIPT, temp = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
-  if (!ref || !temp) throw new Error("Requires actual owned published source target and PAPERCLIP_CHAT_OPERATOR_INSTALL_RECEIPT (private mode0600; CLI/server hashes, version and live PID)");
+  const ref = process.env.OUTPOST_CHAT_OPERATOR_INSTALL_RECEIPT, temp = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
+  if (!ref || !temp) throw new Error("Requires actual owned published source target and OUTPOST_CHAT_OPERATOR_INSTALL_RECEIPT (private mode0600; CLI/server hashes, version and live PID)");
   const root = await realpath(temp), receiptFile = await realpath(ref), info = await stat(receiptFile);
   if (!receiptFile.startsWith(root + path.sep) || !info.isFile() || info.mode & 0o077) throw new Error("Installed operator receipt must be private and inside the owned attempt");
   const r = JSON.parse(await readFile(receiptFile, "utf8")) as InstalledOperatorReceipt;
@@ -28,7 +28,7 @@ export async function ownedInstalledTarget(ctx: ChatCatalogContext) {
   if (![cli, server].every(file => file.startsWith(root + path.sep))) throw new Error("Installed operation refuses artifacts outside its owned attempt");
   const launch = installedReleaseLaunch(cli);
   const serverManifest = JSON.parse(await readFile(path.resolve(server, "../../package.json"), "utf8"));
-  if (launch.version !== r.version || serverManifest.name !== "@paperclipai/server" || serverManifest.version !== r.version
+  if (launch.version !== r.version || serverManifest.name !== "@outpost/server" || serverManifest.version !== r.version
     || createHash("sha256").update(await readFile(cli)).digest("hex") !== r.cliSha256
     || createHash("sha256").update(await readFile(server)).digest("hex") !== r.serverSha256) throw new Error("Installed artifact identity differs from receipt");
   const row = (await execute("ps", ["-p", String(r.serverPid), "-o", "uid=", "-o", "command="], { timeout: 5000 })).stdout.trim();
@@ -52,10 +52,10 @@ export async function ownedInstalledTarget(ctx: ChatCatalogContext) {
   await inventory(prefix);
   const treeSha256 = createHash("sha256").update(JSON.stringify(entries)).digest("hex");
   if (treeSha256 !== r.installationTreeSha256) throw new Error("Actual installed source dependency tree differs from its pinned artifact receipt");
-  const config = process.env.PAPERCLIP_CONFIG;
+  const config = process.env.OUTPOST_CONFIG;
   if (!config || !(await realpath(config)).startsWith(root + path.sep)) throw new Error("Installed operation requires the owned source config");
-  const environment: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: root, PAPERCLIP_HOME: root, PAPERCLIP_CONFIG: config,
-    PAPERCLIP_TELEMETRY_DISABLED: "1", PAPERCLIP_NO_BROWSER: "1", NO_COLOR: "1", NPM_CONFIG_PREFIX: path.resolve(launch.cwd, "../../..") };
+  const environment: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: root, OUTPOST_HOME: root, OUTPOST_CONFIG: config,
+    OUTPOST_TELEMETRY_DISABLED: "1", OUTPOST_NO_BROWSER: "1", NO_COLOR: "1", NPM_CONFIG_PREFIX: path.resolve(launch.cwd, "../../..") };
   return { receipt: r, cli, server, root, treeSha256, environment,
     async command(args: string[], timeout = 180_000) {
       try { return (await execute(process.execPath, [cli, ...args], { cwd: launch.cwd, env: environment, timeout, maxBuffer: 1_048_576 })).stdout; }

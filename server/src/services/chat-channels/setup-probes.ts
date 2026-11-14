@@ -20,7 +20,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatActions,
@@ -33,11 +33,11 @@ import {
   heartbeatRuns,
   issueComments,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatEndpoint,
   ChatEndpointSetupState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   conflict,

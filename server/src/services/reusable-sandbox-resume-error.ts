@@ -1,4 +1,4 @@
-import { readEnvironmentResumeErrorDiagnostic } from "@paperclipai/plugin-sdk";
+import { readEnvironmentResumeErrorDiagnostic } from "@outpost/plugin-sdk";
 import { sandboxProviderFailureLabel } from "./remote-workspace-transport.js";
 
 /**

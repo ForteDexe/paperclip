@@ -138,7 +138,7 @@ function agentActor(overrides: Record<string, unknown> = {}) {
 function readyPlugin() {
   mockRegistry.getById.mockResolvedValue({
     id: pluginId,
-    pluginKey: "paperclip.example",
+    pluginKey: "outpost.example",
     version: "1.0.0",
     status: "ready",
   });
@@ -159,16 +159,16 @@ describe("plugin install and upgrade authz", () => {
     const byPackageName = new Map<string, { experimental: boolean; hasBuiltEntrypoints: boolean }>(
       res.body.map((plugin: { packageName: string; experimental: boolean; hasBuiltEntrypoints: boolean }) => [plugin.packageName, plugin]),
     );
-    expect(packageNames).toContain("@paperclipai/plugin-workspace-diff");
-    expect(packageNames).toContain("@paperclipai/plugin-llm-wiki");
-    expect(packageNames).toContain("@paperclipai/plugin-modal");
-    expect(packageNames).toContain("@paperclipai/plugin-authoring-smoke-example");
-    expect(packageNames).not.toContain("@paperclipai/plugin-sdk");
-    expect(byPackageName.get("@paperclipai/plugin-workspace-diff")?.experimental).toBe(true);
-    expect(byPackageName.get("@paperclipai/plugin-llm-wiki")?.experimental).toBe(true);
-    expect(byPackageName.get("@paperclipai/plugin-modal")?.experimental).toBe(true);
-    expect(byPackageName.get("@paperclipai/plugin-authoring-smoke-example")?.experimental).toBe(false);
-    expect(typeof byPackageName.get("@paperclipai/plugin-workspace-diff")?.hasBuiltEntrypoints).toBe("boolean");
+    expect(packageNames).toContain("@outpost/plugin-workspace-diff");
+    expect(packageNames).toContain("@outpost/plugin-llm-wiki");
+    expect(packageNames).toContain("@outpost/plugin-modal");
+    expect(packageNames).toContain("@outpost/plugin-authoring-smoke-example");
+    expect(packageNames).not.toContain("@outpost/plugin-sdk");
+    expect(byPackageName.get("@outpost/plugin-workspace-diff")?.experimental).toBe(true);
+    expect(byPackageName.get("@outpost/plugin-llm-wiki")?.experimental).toBe(true);
+    expect(byPackageName.get("@outpost/plugin-modal")?.experimental).toBe(true);
+    expect(byPackageName.get("@outpost/plugin-authoring-smoke-example")?.experimental).toBe(false);
+    expect(typeof byPackageName.get("@outpost/plugin-workspace-diff")?.hasBuiltEntrypoints).toBe("boolean");
   }, 20_000);
 
   it("rejects plugin installation for non-admin board users", async () => {
@@ -190,7 +190,7 @@ describe("plugin install and upgrade authz", () => {
 
   it("allows instance admins to install plugins", async () => {
     const pluginId = "11111111-1111-4111-8111-111111111111";
-    const pluginKey = "paperclip.example";
+    const pluginKey = "outpost.example";
     const discovered = {
       manifest: {
         id: pluginKey,
@@ -385,7 +385,7 @@ describe("plugin install and upgrade authz", () => {
     const pluginId = "11111111-1111-4111-8111-111111111111";
     mockRegistry.getById.mockResolvedValue({
       id: pluginId,
-      pluginKey: "paperclip.example",
+      pluginKey: "outpost.example",
       version: "1.0.0",
     });
     mockLifecycle.upgrade.mockResolvedValue({
@@ -426,11 +426,11 @@ describe("scoped plugin API routes", () => {
     mockRegistry.getById.mockResolvedValue(null);
     mockRegistry.getByKey.mockResolvedValue({
       id: pluginId,
-      pluginKey: "paperclip.example",
+      pluginKey: "outpost.example",
       version: "1.0.0",
       status: "ready",
       manifestJson: {
-        id: "paperclip.example",
+        id: "outpost.example",
         capabilities: ["api.routes.register"],
         apiRoutes: [
           {
@@ -458,7 +458,7 @@ describe("scoped plugin API routes", () => {
     );
 
     const res = await request(app)
-      .get("/api/plugins/paperclip.example/api/smoke")
+      .get("/api/plugins/outpost.example/api/smoke")
       .query({ companyId: "company-1" });
 
     expect(res.status).toBe(202);
@@ -485,11 +485,11 @@ describe("plugin local folder routes", () => {
   function readyLocalFolderPlugin() {
     mockRegistry.getById.mockResolvedValue({
       id: pluginId,
-      pluginKey: "paperclip.example",
+      pluginKey: "outpost.example",
       version: "1.0.0",
       status: "ready",
       manifestJson: {
-        id: "paperclip.example",
+        id: "outpost.example",
         capabilities: ["local.folders"],
         localFolders: [
           {
@@ -552,7 +552,7 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: {},
         runContext: {
           agentId: agentA,
@@ -606,7 +606,7 @@ describe("plugin tool and bridge authz", () => {
         toolDeps: {
           toolDispatcher: {
             listToolsForAgent: vi.fn(),
-            getTool: vi.fn(() => ({ name: "paperclip.example:search" })),
+            getTool: vi.fn(() => ({ name: "outpost.example:search" })),
             executeTool,
           },
         },
@@ -615,7 +615,7 @@ describe("plugin tool and bridge authz", () => {
       const res = await request(app)
         .post("/api/plugins/tools/execute")
         .send({
-          tool: "paperclip.example:search",
+          tool: "outpost.example:search",
           parameters: {},
           runContext: {
             agentId: agentA,
@@ -641,7 +641,7 @@ describe("plugin tool and bridge authz", () => {
       toolDeps: {
         toolDispatcher: {
           listToolsForAgent: vi.fn(),
-          getTool: vi.fn(() => ({ name: "paperclip.example:search" })),
+          getTool: vi.fn(() => ({ name: "outpost.example:search" })),
           executeTool,
         },
       },
@@ -650,7 +650,7 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: { q: "test" },
         runContext: {
           agentId: agentA,
@@ -662,7 +662,7 @@ describe("plugin tool and bridge authz", () => {
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
-      "paperclip.example:search",
+      "outpost.example:search",
       { q: "test" },
       {
         agentId: agentA,
@@ -684,7 +684,7 @@ describe("plugin tool and bridge authz", () => {
       toolDeps: {
         toolDispatcher: {
           listToolsForAgent: vi.fn(),
-          getTool: vi.fn(() => ({ name: "paperclip.example:search" })),
+          getTool: vi.fn(() => ({ name: "outpost.example:search" })),
           executeTool,
         },
       },
@@ -693,14 +693,14 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: {},
         runContext: { agentId: agentA, runId: runA, companyId: companyA, projectId: "" },
       });
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
-      "paperclip.example:search",
+      "outpost.example:search",
       {},
       { agentId: agentA, runId: runA, companyId: companyA, projectId: "" },
     );
@@ -719,7 +719,7 @@ describe("plugin tool and bridge authz", () => {
       toolDeps: {
         toolDispatcher: {
           listToolsForAgent: vi.fn(),
-          getTool: vi.fn(() => ({ name: "paperclip.example:search" })),
+          getTool: vi.fn(() => ({ name: "outpost.example:search" })),
           executeTool,
         },
       },
@@ -728,14 +728,14 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: {},
         runContext: { agentId: agentA, runId: runA, companyId: companyA, ...project },
       });
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
-      "paperclip.example:search",
+      "outpost.example:search",
       {},
       { agentId: agentA, runId: runA, companyId: companyA, projectId: "" },
     );
@@ -752,7 +752,7 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: {},
         runContext: { agentId: agentA, runId: runA, companyId: companyA, projectId: 42 },
       });
@@ -1006,7 +1006,7 @@ describe("plugin tool and bridge authz", () => {
       message: "missing source_objects column",
       details: {
         pluginId,
-        pluginKey: "paperclip.example",
+        pluginKey: "outpost.example",
         bridgeMethod: "getData",
         dataKey: "source-objects",
         bridgeCode: "UNKNOWN",
@@ -1107,7 +1107,7 @@ describe("plugin tool and bridge authz", () => {
         toolDeps: {
           toolDispatcher: {
             listToolsForAgent: vi.fn(),
-            getTool: vi.fn(() => ({ name: "paperclip.example:search", pluginDbId: pluginId })),
+            getTool: vi.fn(() => ({ name: "outpost.example:search", pluginDbId: pluginId })),
             executeTool,
           },
         },
@@ -1117,14 +1117,14 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: { q: "test" },
         runContext: { agentId: agentA, runId: runA, companyId: companyA, projectId: projectA },
       });
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
-      "paperclip.example:search",
+      "outpost.example:search",
       { q: "test" },
       { agentId: agentA, runId: runA, companyId: companyA, projectId: projectA },
     );
@@ -1140,7 +1140,7 @@ describe("plugin tool and bridge authz", () => {
         toolDeps: {
           toolDispatcher: {
             listToolsForAgent: vi.fn(),
-            getTool: vi.fn(() => ({ name: "paperclip.example:search", pluginDbId: pluginId })),
+            getTool: vi.fn(() => ({ name: "outpost.example:search", pluginDbId: pluginId })),
             executeTool,
           },
         },
@@ -1150,7 +1150,7 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: {},
         runContext: { agentId: agentA, runId: runA, companyId: companyB, projectId: projectA },
       });
@@ -1172,7 +1172,7 @@ describe("plugin tool and bridge authz", () => {
         toolDeps: {
           toolDispatcher: {
             listToolsForAgent: vi.fn(),
-            getTool: vi.fn(() => ({ name: "paperclip.example:search", pluginDbId: pluginId })),
+            getTool: vi.fn(() => ({ name: "outpost.example:search", pluginDbId: pluginId })),
             executeTool,
           },
         },
@@ -1182,7 +1182,7 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post("/api/plugins/tools/execute")
       .send({
-        tool: "paperclip.example:search",
+        tool: "outpost.example:search",
         parameters: {},
         runContext: { agentId: otherAgent, runId: runA, companyId: companyA, projectId: projectA },
       });
@@ -1195,10 +1195,10 @@ describe("plugin tool and bridge authz", () => {
 describe("operator-hidden plugin management floor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.plugins";
+    process.env.OUTPOST_HIDDEN_SETTINGS = "instance.plugins";
   });
   afterEach(() => {
-    delete process.env.PAPERCLIP_HIDDEN_SETTINGS;
+    delete process.env.OUTPOST_HIDDEN_SETTINGS;
   });
 
   const instanceAdmin = () => boardActor({ isInstanceAdmin: true, userId: "instance-admin" });
@@ -1208,7 +1208,7 @@ describe("operator-hidden plugin management floor", () => {
     readyPlugin();
 
     const attempts: Array<[string, request.Test]> = [
-      ["install", request(app).post("/api/plugins/install").send({ packageName: "@paperclipai/plugin-modal" })],
+      ["install", request(app).post("/api/plugins/install").send({ packageName: "@outpost/plugin-modal" })],
       ["uninstall", request(app).delete(`/api/plugins/${pluginId}`)],
       ["enable", request(app).post(`/api/plugins/${pluginId}/enable`)],
       ["disable", request(app).post(`/api/plugins/${pluginId}/disable`).send({})],

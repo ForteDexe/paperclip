@@ -84,7 +84,7 @@ export const navigationIdentityCases = [
       return { ...state, privateTask, observerId: observer.id };
     } catch (error) { await observer.dispose(); searchObservers.delete(ctx); throw error; }
   }, gradeNavigation, {
-    authentication: "human-session", oracleVersion: "paperclip.chat-catalog.identity.quick-search.v2",
+    authentication: "human-session", oracleVersion: "outpost.chat-catalog.identity.quick-search.v2",
     sourceFiles: ["chat-catalog-domains/identity-navigation-preferences.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/navigation-preferences.yaml"],
     async act(ctx, state) {
       await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); const source = ctx.input.page.url();

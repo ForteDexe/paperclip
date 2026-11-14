@@ -12,7 +12,7 @@ const baseInput = {
   image: "ghcr.io/paperclipai/agent-runtime-claude:v1",
   envSecretName: "pc-01h00000000000000000000000-env",
   serviceAccountName: "paperclip-tenant-sa",
-  labels: { "paperclip.io/run-id": "r1" },
+  labels: { "outpost.io/run-id": "r1" },
   resources: {
     requests: { cpu: "250m", memory: "512Mi" },
     limits: { cpu: "2", memory: "4Gi" },
@@ -115,11 +115,11 @@ describe("buildSandboxCrManifest", () => {
 
   it("applies provided labels to CR metadata and pod template labels (with role=agent added)", () => {
     const cr = buildSandboxCrManifest(baseInput);
-    expect(cr.metadata.labels["paperclip.io/run-id"]).toBe("r1");
+    expect(cr.metadata.labels["outpost.io/run-id"]).toBe("r1");
     expect(
-      cr.spec.podTemplate.metadata.labels["paperclip.io/run-id"],
+      cr.spec.podTemplate.metadata.labels["outpost.io/run-id"],
     ).toBe("r1");
-    expect(cr.spec.podTemplate.metadata.labels["paperclip.io/role"]).toBe(
+    expect(cr.spec.podTemplate.metadata.labels["outpost.io/role"]).toBe(
       "agent",
     );
   });

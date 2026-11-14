@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, or, sql } from "drizzle-orm";
-import { chatEndpoints, chatSlackRegistrations, toolConnections, type Db } from "@paperclipai/db";
-import { createPaperclipCloudConnector, paperclipCloudConnectorConfigFromEnv, PaperclipCloudConnectorError, type PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
+import { chatEndpoints, chatSlackRegistrations, toolConnections, type Db } from "@outpost/db";
+import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv, PaperclipCloudConnectorError, type PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
 import type { CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
 import type { createChatCredentials } from "../credentials.js";
 import type { InternalSetupState } from "../runtime-types.js";
@@ -30,8 +30,8 @@ function slackCloudEnrollmentIsActive(endpoint: { status: string }, connection: 
 }
 
 export async function stageSlackCloudEnrollmentIntent(db: Db, endpointId: string, actorUserId: string | null | undefined) {
-  let config: ReturnType<typeof paperclipCloudConnectorConfigFromEnv>;
-  try { config = paperclipCloudConnectorConfigFromEnv(); } catch { config = null; }
+  let config: ReturnType<typeof outpostCloudConnectorConfigFromEnv>;
+  try { config = outpostCloudConnectorConfigFromEnv(); } catch { config = null; }
   const [current] = await db.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints)
     .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
     .where(eq(chatEndpoints.id, endpointId)).limit(1);
@@ -71,7 +71,7 @@ export async function stageSlackCloudEnrollmentIntent(db: Db, endpointId: string
 }
 
 export async function reconcilePendingSlackCloudEnrollments(db: Db, now: Date): Promise<number | null> {
-  const config = paperclipCloudConnectorConfigFromEnv();
+  const config = outpostCloudConnectorConfigFromEnv();
   if (!config) return null;
   const recoverable = and(
     sql`${chatEndpoints.setup}->'slackCloudIntent'->>'nextAttemptAt' is null`,
@@ -145,7 +145,7 @@ export function createSlackCloudEnrollment(db: Db, options: {
   resolveCredentials: ReturnType<typeof createChatCredentials>["resolveCredentials"];
   runtimeGeneration(setup: InternalSetupState): number;
   connector?: Pick<PaperclipCloudConnector, "slackEventsAvailable" | "slackEventEnrollment">;
-  onCommitted?(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], values: { endpointId: string; active: boolean; subject: string; instanceId: string; environment: import("../../paperclip-cloud-connector.js").PaperclipCloudConnectorEnvironment }): Promise<void>;
+  onCommitted?(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], values: { endpointId: string; active: boolean; subject: string; instanceId: string; environment: import("../../paperclip-cloud-connector.js").OutpostCloudConnectorEnvironment }): Promise<void>;
 }) {
   return async (endpointId: string, _actorUserId: string | null | undefined, lease: CredentialMutationLeaseGuard) => {
     const [current] = await db.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints)
@@ -153,7 +153,7 @@ export function createSlackCloudEnrollment(db: Db, options: {
       .where(eq(chatEndpoints.id, endpointId)).limit(1);
     if (!current || current.endpoint.provider !== "slack") return;
     const endpoint = current.endpoint, setup = endpoint.setup as InternalSetupState, intent = setup.slackCloudIntent;
-    const config = paperclipCloudConnectorConfigFromEnv();
+    const config = outpostCloudConnectorConfigFromEnv();
     if (!config || !intent) return;
     const identity = { companyId: intent.companyId, endpointId: intent.endpointId, publicId: intent.publicId,
       connectionId: intent.connectionId, runtimeGeneration: intent.runtimeGeneration };

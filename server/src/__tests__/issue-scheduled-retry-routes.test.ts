@@ -28,7 +28,7 @@ import {
   issueRelations,
   issueTreeHolds,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -38,7 +38,7 @@ import { issueRoutes } from "../routes/issues.js";
 import { runningProcesses } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 
-const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_RETRY_CANCELLATION_TEST_DATABASE_URL");
+const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_RETRY_CANCELLATION_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
@@ -447,7 +447,7 @@ describeEmbeddedPostgres("issue scheduled retry routes", () => {
     it("observes a real worktree activation without polling disabled settings", async () => {
       const f = await seedIssueWithRetry({ agentStatus: "paused" });
       await writeIntent(f);
-      const runtimeEnv = { PAPERCLIP_IN_WORKTREE: "true", PAPERCLIP_INSTANCE_ID: "sleep39-activation" };
+      const runtimeEnv = { OUTPOST_IN_WORKTREE: "true", OUTPOST_INSTANCE_ID: "sleep39-activation" };
       const settings = instanceSettingsService(db, { runtimeEnv });
       await settings.updateExperimental({ enableWorktreeRunExecution: false });
       const service = heartbeatService(db, { runtimeEnv });

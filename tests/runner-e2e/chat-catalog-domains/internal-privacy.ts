@@ -273,7 +273,7 @@ function sharePrivateTask(): ChatCatalogCase {
     await ctx.input.api.post(`/api/issues/${t.id}/access-grants`, { subjectType: "agent", subjectId: ctx.input.fixtures.agent.id });
     return { project: p, task: t, ownerId, observerId: observer.id };
   }, gradeTaskSharing);
-  return { ...base, authentication: "human-session", oracleVersion: "paperclip.chat-catalog.share-private-task.v2", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
+  return { ...base, authentication: "human-session", oracleVersion: "outpost.chat-catalog.share-private-task.v2", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
     async observe(ctx, state): Promise<TaskSharingObservation> {
       if (!observer) throw new Error("Missing actual Riley observer");
       const o = await observeInternal(ctx, state); const t = entity(state, "task");

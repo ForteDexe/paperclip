@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Agent, Company, InstanceExperimentalSettings } from "@paperclipai/shared";
+import type { Agent, Company, InstanceExperimentalSettings } from "@outpost/shared";
 import {
   assertTestDriveDatabaseIsolation,
   bootstrapTestDrive,
@@ -140,30 +140,30 @@ describe("test-drive data isolation", () => {
   it("discards inherited Paperclip routing while preserving a custom key source", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-env-"));
     cleanupDirectories.push(root);
-    process.env.PAPERCLIP_HOME = "/normal/home";
-    process.env.PAPERCLIP_CONFIG = "/normal/config.json";
-    process.env.PAPERCLIP_IN_WORKTREE = "true";
-    process.env.PAPERCLIP_TEST_PROVIDER_KEY = "secret-value";
+    process.env.OUTPOST_HOME = "/normal/home";
+    process.env.OUTPOST_CONFIG = "/normal/config.json";
+    process.env.OUTPOST_IN_WORKTREE = "true";
+    process.env.OUTPOST_TEST_PROVIDER_KEY = "secret-value";
     process.env.DATABASE_URL = "postgres://normal-instance";
 
     const prepared = await prepareTestDriveEnvironment(
-      { dataDir: root, apiKeyEnv: "PAPERCLIP_TEST_PROVIDER_KEY" },
+      { dataDir: root, apiKeyEnv: "OUTPOST_TEST_PROVIDER_KEY" },
       os.tmpdir(),
     );
 
     expect(prepared.dataDir).toBe(path.resolve(root));
     expect(prepared.linkedWorktree).toBe(false);
-    expect(process.env.PAPERCLIP_HOME).toBe(path.resolve(root));
-    expect(process.env.PAPERCLIP_CONFIG).toBe(
+    expect(process.env.OUTPOST_HOME).toBe(path.resolve(root));
+    expect(process.env.OUTPOST_CONFIG).toBe(
       path.join(path.resolve(root), "instances", "default", "config.json"),
     );
-    expect(process.env.PAPERCLIP_IN_WORKTREE).toBe("false");
-    expect(process.env.PAPERCLIP_DISABLE_CWD_ENV_FILE).toBe("true");
-    expect(process.env.PAPERCLIP_DEPLOYMENT_MODE).toBe("local_trusted");
-    expect(process.env.PAPERCLIP_DEPLOYMENT_EXPOSURE).toBe("private");
-    expect(process.env.PAPERCLIP_BIND).toBe("loopback");
+    expect(process.env.OUTPOST_IN_WORKTREE).toBe("false");
+    expect(process.env.OUTPOST_DISABLE_CWD_ENV_FILE).toBe("true");
+    expect(process.env.OUTPOST_DEPLOYMENT_MODE).toBe("local_trusted");
+    expect(process.env.OUTPOST_DEPLOYMENT_EXPOSURE).toBe("private");
+    expect(process.env.OUTPOST_BIND).toBe("loopback");
     expect(process.env.HOST).toBe("127.0.0.1");
-    expect(process.env.PAPERCLIP_TEST_PROVIDER_KEY).toBe("secret-value");
+    expect(process.env.OUTPOST_TEST_PROVIDER_KEY).toBe("secret-value");
     expect(process.env.DATABASE_URL).toBeUndefined();
     expect(Number(process.env.PORT)).toBeGreaterThanOrEqual(3100);
   });
@@ -488,9 +488,9 @@ describe("test-drive foreground lifecycle", () => {
     { host: "127.0.0.1", listenPort: 3107, origin: "http://127.0.0.1:3107" },
     { host: "::1", listenPort: 43210, origin: "http://[::1]:43210" },
   ])("bootstraps and opens the selected local listener when $host advertises a public callback URL", async ({ host, listenPort, origin }) => {
-    process.env.PAPERCLIP_HOME = "/tmp/test-drive-public-callback";
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = "/tmp/test-drive-public-callback";
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
     const publicServer = { ...server, host, listenPort, apiUrl: "https://callbacks.example.test" };
     const requests: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
@@ -514,9 +514,9 @@ describe("test-drive foreground lifecycle", () => {
   });
 
   it("skips service-manager integration for an auto-created directory and opens after initialization", async () => {
-    process.env.PAPERCLIP_HOME = "/tmp/test-drive-lifecycle";
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = "/tmp/test-drive-lifecycle";
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
     process.env.ANTHROPIC_API_KEY = "secret";
     const events: string[] = [];
     let runOptions: RunOptions | undefined;
@@ -554,9 +554,9 @@ describe("test-drive foreground lifecycle", () => {
   });
 
   it("retains the managed-instance collision guard for an explicitly reused directory", async () => {
-    process.env.PAPERCLIP_HOME = "/tmp/test-drive-reused";
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = "/tmp/test-drive-reused";
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
     let runOptions: RunOptions | undefined;
     const api = {
       get: vi.fn(async <T>() => [company("existing", "Existing")] as T),
@@ -580,9 +580,9 @@ describe("test-drive foreground lifecycle", () => {
   it("uses the credential snapshot captured before downstream server initialization", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-credential-"));
     cleanupDirectories.push(root);
-    process.env.PAPERCLIP_HOME = root;
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = root;
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
     process.env.ANTHROPIC_API_KEY = "upstream-secret";
     const { api, calls } = freshBootstrapApi();
 
@@ -603,9 +603,9 @@ describe("test-drive foreground lifecycle", () => {
   });
 
   it("redacts a literal key from downstream errors", async () => {
-    process.env.PAPERCLIP_HOME = "/tmp/test-drive-redaction";
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = "/tmp/test-drive-redaction";
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
 
     await expect(testDriveCommand({
       apiKey: "literal-secret",
@@ -620,9 +620,9 @@ describe("test-drive foreground lifecycle", () => {
   });
 
   it("redacts a custom environment key when its option name has whitespace", async () => {
-    process.env.PAPERCLIP_HOME = "/tmp/test-drive-custom-env-redaction";
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = "/tmp/test-drive-custom-env-redaction";
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
     process.env.CUSTOM_TEST_DRIVE_KEY = "custom-secret";
 
     await expect(testDriveCommand({
@@ -638,9 +638,9 @@ describe("test-drive foreground lifecycle", () => {
   });
 
   it("honors --no-browser after successful initialization", async () => {
-    process.env.PAPERCLIP_HOME = "/tmp/test-drive-no-browser";
-    process.env.PAPERCLIP_INSTANCE_ID = "default";
-    process.env.PAPERCLIP_IN_WORKTREE = "false";
+    process.env.OUTPOST_HOME = "/tmp/test-drive-no-browser";
+    process.env.OUTPOST_INSTANCE_ID = "default";
+    process.env.OUTPOST_IN_WORKTREE = "false";
     const api = {
       get: vi.fn(async <T>() => [company("existing", "Existing")] as T),
       post: vi.fn(),

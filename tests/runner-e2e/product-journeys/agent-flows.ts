@@ -76,7 +76,7 @@ export function validateAgentTaskState(context: JourneyContext, issueId: string,
     if (run.companyId !== context.company.id || run.agentId !== agent.id || boundIssueId !== issueId) throw new JourneyError("failed", "agent_run_binding_mismatch");
     // The retired wake stays in the raw record and in the run limit above.
     if (retiredBeforeProviderStart(run)) continue;
-    if (!active(run) && (run.runtimeMode !== "native" || run.contextSnapshot?.paperclipEnvironment?.id !== context.environmentId
+    if (!active(run) && (run.runtimeMode !== "native" || run.contextSnapshot?.outpostEnvironment?.id !== context.environmentId
       || provider?.kind !== agent.provider || provider?.model !== agent.model)) throw new JourneyError("failed", "agent_run_binding_mismatch");
     if (!["queued", "running", "succeeded"].includes(run.status) && !(run.status === "cancelled" && allowedCancelled.includes(run.id))) throw new JourneyError("failed", "agent_run_failed");
   }
@@ -284,8 +284,8 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
           const events = await runActivity();
           await retain("stop-cancellation-events.json", events);
           return events;
-        }, events => events.some(row => row.payload?.prpEvent?.eventType === "turn.cancelled"), "stop_native_terminal_not_retained");
-        check("stop-native-terminal-retained", beforeEvents.some(row => row.payload?.prpEvent?.eventType === "turn.cancelled"));
+        }, events => events.some(row => row.payload?.orpEvent?.eventType === "turn.cancelled"), "stop_native_terminal_not_retained");
+        check("stop-native-terminal-retained", beforeEvents.some(row => row.payload?.orpEvent?.eventType === "turn.cancelled"));
         if (!nativeCancellationHasNoLaterWork(beforeEvents, boundary)) check("stopped-run-no-later-events", false);
       },
       beforeRedirect: async () => {

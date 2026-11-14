@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, chmodSync, realpathSync, 
 import path from "node:path";
 import os from "node:os";
 import { createPrivateDiagnosticStream, diagnosticSecrets, isProductDeliveredSecret, PRIVATE_DIAGNOSTICS_ENV, readPrivateDiagnosticSecrets, readProductDeliveredSecrets, registerProductDeliveredSecret, stagePrivateDiagnostics, trackedPrivateSecrets } from "./private-diagnostics.js";
-import { buildPaperclipServerEnvironment } from "./harness-env.js";
+import { buildOutpostServerEnvironment } from "./harness-env.js";
 const roots: string[] = []; afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 function registry() { const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "diagnostic-control-"))); roots.push(root); mkdirSync(path.join(root, "selected-private-inputs"), { mode: 0o700 }); return { root, file: stagePrivateDiagnostics(root, ["selected-case"], []) }; }
 describe("private diagnostic output boundary", () => {
@@ -18,9 +18,9 @@ describe("private diagnostic output boundary", () => {
     expect(safe).toContain("HTTP503: π provider unavailable"); expect(stream.redactedSecret()).toBe(true); expect(stream.failed()).toBe(false);
   });
   it("synchronously registers a generated cookie before first output and rereads at final flush", () => {
-    const { root, file } = registry(); const secrets = trackedPrivateSecrets([], "selected-case", { [PRIVATE_DIAGNOSTICS_ENV]: file, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: root });
-    expect(buildPaperclipServerEnvironment({ [PRIVATE_DIAGNOSTICS_ENV]: file })[PRIVATE_DIAGNOSTICS_ENV]).toBeUndefined();
-    expect(buildPaperclipServerEnvironment({}, { [PRIVATE_DIAGNOSTICS_ENV]: file })[PRIVATE_DIAGNOSTICS_ENV]).toBeUndefined();
+    const { root, file } = registry(); const secrets = trackedPrivateSecrets([], "selected-case", { [PRIVATE_DIAGNOSTICS_ENV]: file, OUTPOST_RUNNER_E2E_TEMP_ROOT: root });
+    expect(buildOutpostServerEnvironment({ [PRIVATE_DIAGNOSTICS_ENV]: file })[PRIVATE_DIAGNOSTICS_ENV]).toBeUndefined();
+    expect(buildOutpostServerEnvironment({}, { [PRIVATE_DIAGNOSTICS_ENV]: file })[PRIVATE_DIAGNOSTICS_ENV]).toBeUndefined();
     const outputs: string[] = []; const stream = createPrivateDiagnosticStream(() => readPrivateDiagnosticSecrets(file, root), value => outputs.push(value));
     const cookie = "generated-session-canary-982726351"; secrets.push(cookie);
     expect(readPrivateDiagnosticSecrets(file, root)).toContain(cookie);
@@ -30,7 +30,7 @@ describe("private diagnostic output boundary", () => {
   });
   it("fails closed for case mismatch, unsafe permissions, missing registry, oversized lines and late writes", () => {
     const { root, file } = registry();
-    expect(() => trackedPrivateSecrets([], "different-case", { [PRIVATE_DIAGNOSTICS_ENV]: file, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: root })).toThrow(/mismatch/);
+    expect(() => trackedPrivateSecrets([], "different-case", { [PRIVATE_DIAGNOSTICS_ENV]: file, OUTPOST_RUNNER_E2E_TEMP_ROOT: root })).toThrow(/mismatch/);
     chmodSync(file, 0o644); expect(() => readPrivateDiagnosticSecrets(file, root)).toThrow(/permissions/); chmodSync(file, 0o600);
     const outputs: string[] = []; const stream = createPrivateDiagnosticStream(() => { throw new Error("private lookup failed"); }, value => outputs.push(value), 64);
     stream.write(Buffer.from("sensitive\n")); stream.write(Buffer.alloc(100, "x")); stream.end(); stream.write(Buffer.from("late private bytes\n"));
@@ -75,7 +75,7 @@ it("preserves independently registered overlapping roots and rejects unbound exp
 
 describe("product-delivered credential registration", () => {
   it("stays a private secret for redaction while durably recording its database-only scope", () => {
-    const { root, file } = registry(); const env = { [PRIVATE_DIAGNOSTICS_ENV]: file, PAPERCLIP_RUNNER_E2E_TEMP_ROOT: root };
+    const { root, file } = registry(); const env = { [PRIVATE_DIAGNOSTICS_ENV]: file, OUTPOST_RUNNER_E2E_TEMP_ROOT: root };
     const secrets = trackedPrivateSecrets(["ordinary-private-canary-1234"], "selected-case", env);
     registerProductDeliveredSecret(secrets, "pcp_invite_registered-delivered-canary", env);
     expect(readPrivateDiagnosticSecrets(file, root)).toEqual(expect.arrayContaining(["ordinary-private-canary-1234", "pcp_invite_registered-delivered-canary"]));

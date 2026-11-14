@@ -10,7 +10,7 @@ if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash |
   throw new Error("Supply a deployed HTTPS /mcp/paperclip URL, or HTTP loopback for development.");
 }
 const root = path.dirname(fileURLToPath(import.meta.url));
-const identity = { name: "paperclip", version: "0.1.0", description: "Review your team, delegate work and retrieve durable results in Outpost.", author: { name: "Outpost", url: "https://paperclip.ing" }, homepage: "https://paperclip.ing", repository: "https://github.com/paperclipai/paperclip", license: "MIT" };
+const identity = { name: "paperclip", version: "0.1.0", description: "Review your team, delegate work and retrieve durable results in Outpost.", author: { name: "Outpost", url: "https://outpost.ing" }, homepage: "https://outpost.ing", repository: "https://github.com/paperclipai/paperclip", license: "MIT" };
 const presentation = { displayName: "Outpost", shortDescription: "Your persistent team behind your assistant.", longDescription: "Use your Outpost crew as yourself. Review tasks, delegate work to agents, add feedback and retrieve documents. Delegation can start autonomous work using your configured execution capacity.", developerName: "Outpost", category: "Productivity", capabilities: ["Read", "Write"], defaultPrompt: "Review my Outpost crew and show what needs my attention." };
 const json = (file, data) => writeFile(file, JSON.stringify(data, null, 2) + "\n");
 for (const vendor of ["openai", "claude"]) {

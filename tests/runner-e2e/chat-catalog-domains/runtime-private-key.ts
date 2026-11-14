@@ -34,8 +34,8 @@ export function validatePrivateKeyReceipt(value: unknown): PrivateKeyReceipt {
 export async function privateKeyBrowser(input: { mode: "agent-key" | "canary"; baseURL: string; profileURL?: string; companyId?: string; agentId?: string; sourceIssueId?: string; cookies: Cookie[]; canary?: string }) {
   const directory = await mkdtemp(path.join(tmpdir(), "paperclip-private-key-"));
   try {
-    const request = path.join(directory, "request.json"), channel = process.env.PAPERCLIP_PLAYWRIGHT_CHANNEL;
-    await writeFile(request, JSON.stringify({ ...input, executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()), channel }), { mode: 0o600 });
+    const request = path.join(directory, "request.json"), channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
+    await writeFile(request, JSON.stringify({ ...input, executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()), channel }), { mode: 0o600 });
     const worker = fileURLToPath(new URL("./runtime-private-key-worker.ts", import.meta.url)), loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url));
     let output: string;
     try { output = (await promisify(execFile)(process.execPath, ["--import", loader, worker, request], { timeout: 150_000, maxBuffer: 16_384,

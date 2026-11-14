@@ -77,7 +77,7 @@ const inspect = privilegedDefinition("cli-operations.inspect-run-cli", "privileg
   }, grade: gradeInspectRunCli,
   async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },
 });
-inspect.oracleVersion = "paperclip.chat-catalog.cli-run.v2";
+inspect.oracleVersion = "outpost.chat-catalog.cli-run.v2";
 inspect.expectedRunCount = 2; inspect.expectedHumanMessageCount = 1; inspect.attemptTimeoutMs = 600_000;
 inspect.runPolicy = { kind: "terminal-counts", terminalStatusCounts: { succeeded: 1, cancelled: 1 } };
 inspect.sourceFiles = [...inspect.sourceFiles, "chat-catalog-domains/privileged-cli-support.ts", "chat-catalog-domains/runtime-busy-worker.ts", "../../cli/src/index.ts"];

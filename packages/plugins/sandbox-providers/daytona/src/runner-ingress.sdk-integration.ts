@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { createRequest, definePlugin, isJsonRpcResponse, JsonRpcCallError, parseMessage,
-  readEnvironmentRunnerIngressFailure, serializeMessage, startWorkerRpcHost, type JsonRpcResponse } from "@paperclipai/plugin-sdk";
+  readEnvironmentRunnerIngressFailure, serializeMessage, startWorkerRpcHost, type JsonRpcResponse } from "@outpost/plugin-sdk";
 import plugin, { __resetDaytonaSandboxHandleCacheForTest } from "./plugin.js";
 
 describe("Daytona ingress SDK failure over worker RPC", () => {

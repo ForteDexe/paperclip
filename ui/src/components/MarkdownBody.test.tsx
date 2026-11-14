@@ -12,12 +12,12 @@ import {
   buildSkillMentionHref,
   buildUserMentionHref,
   appearanceForPalette,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { ThemeProvider } from "../context/ThemeContext";
 import { companyPathFromProtocolRelativeHref, MarkdownBody } from "./MarkdownBody";
 import { StatusIcon } from "./StatusIcon";
 import { taskStatusIconProps } from "../lib/task-status-presentation";
-import type { IssueBlockerAttention } from "@paperclipai/shared";
+import type { IssueBlockerAttention } from "@outpost/shared";
 import { MarkdownWordStreaming } from "./MarkdownWordStreaming";
 import { queryKeys } from "../lib/queryKeys";
 import type { WorkspaceFileAvailabilityTarget } from "../lib/workspace-file-availability";
@@ -556,7 +556,7 @@ describe("MarkdownBody", () => {
     const html = renderMarkdown("See [[wiki/entities/paperclip]].");
 
     expect(html).toContain("[[wiki/entities/paperclip]]");
-    expect(html).not.toContain('href="/wiki/page/wiki/entities/paperclip.md"');
+    expect(html).not.toContain('href="/wiki/page/wiki/entities/outpost.md"');
   });
 
   it("renders wiki links with a custom resolver when enabled", () => {
@@ -569,7 +569,7 @@ describe("MarkdownBody", () => {
       },
     );
 
-    expect(html).toContain('href="/wiki/page/wiki/entities/paperclip.md"');
+    expect(html).toContain('href="/wiki/page/wiki/entities/outpost.md"');
     expect(html).toContain('data-paperclip-wiki-link="true"');
     expect(html).toContain('data-paperclip-wiki-target="wiki/entities/paperclip"');
     expect(html).toContain(">Outpost</a>");

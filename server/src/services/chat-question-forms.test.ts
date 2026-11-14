@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AskUserQuestionsInteraction } from "@paperclipai/shared";
+import type { AskUserQuestionsInteraction } from "@outpost/shared";
 import { modalToAdaptiveCard } from "@chat-adapter/teams/modals";
 import { modalToDiscordPayload } from "@chat-adapter/discord";
 import {
@@ -69,7 +69,7 @@ function interaction(
         },
       ],
       questionSet: {
-        schema: "paperclip.question_set.v1",
+        schema: "outpost.question_set.v1",
         title: "Deployment details",
         submitLabel: "Continue",
         questions: [

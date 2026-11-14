@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
-import type { SandboxManagedRuntimeAssetProvision } from "@paperclipai/adapter-utils/sandbox-managed-runtime";
-import { shellQuote } from "@paperclipai/adapter-utils/ssh";
+import type { AdapterExecutionContext } from "@outpost/adapter-utils";
+import type { SandboxManagedRuntimeAssetProvision } from "@outpost/adapter-utils/sandbox-managed-runtime";
+import { shellQuote } from "@outpost/adapter-utils/ssh";
 import { buildCodexAuthInboundProvision, CODEX_AUTH_MERGE_EXTRACT_SCRIPT_NAME } from "./codex-auth-merge-scripts.js";
-import { resolvePaperclipInstanceRootForAdapter } from "@paperclipai/adapter-utils/server-utils";
+import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
 import { isCodexAuthCachePath, readSubscriptionAccountId } from "./codex-auth-cache.js";
 
 const TRUTHY_ENV_RE = /^(1|true|yes|on)$/i;
@@ -163,7 +163,7 @@ export function resolveSharedCodexHomeDir(
 }
 
 function isWorktreeMode(env: NodeJS.ProcessEnv): boolean {
-  return TRUTHY_ENV_RE.test(env.PAPERCLIP_IN_WORKTREE ?? "");
+  return TRUTHY_ENV_RE.test(env.OUTPOST_IN_WORKTREE ?? "");
 }
 
 export function resolveManagedCodexHomeDir(
@@ -171,8 +171,8 @@ export function resolveManagedCodexHomeDir(
   companyId?: string,
 ): string {
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return companyId
@@ -194,8 +194,8 @@ export function isManagedCodexHomePath(
 ): boolean {
   if (!companyId) return false;
   const instanceRoot = resolvePaperclipInstanceRootForAdapter({
-    homeDir: nonEmpty(env.PAPERCLIP_HOME) ?? undefined,
-    instanceId: nonEmpty(env.PAPERCLIP_INSTANCE_ID) ?? undefined,
+    homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
+    instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   const companyRoot = path.resolve(instanceRoot, "companies", companyId);
@@ -791,14 +791,14 @@ export async function seedManagedCodexHome(
           // the same-identity symlink heal this call could not decide.
           await onLog(
             "stdout",
-            `[paperclip] Keeping the existing subscription auth.json in Codex home "${targetHome}" (shared source read failed: ${sourceReadErrorCode}); the next seed with a readable source reconciles it.\n`,
+            `[outpost] Keeping the existing subscription auth.json in Codex home "${targetHome}" (shared source read failed: ${sourceReadErrorCode}); the next seed with a readable source reconciles it.\n`,
           );
         }
       }
       if (keepPromotedAuth) {
         await onLog(
           "stdout",
-          `[paperclip] Keeping the promoted subscription auth.json in Codex home "${targetHome}".\n`,
+          `[outpost] Keeping the promoted subscription auth.json in Codex home "${targetHome}".\n`,
         );
       } else {
         await fs.rm(authPath, { force: true });
@@ -825,7 +825,7 @@ export async function seedManagedCodexHome(
 
     await onLog(
       "stdout",
-      `[paperclip] Using ${isWorktreeMode(env) ? "worktree-isolated" : "Outpost-managed"} Codex home "${targetHome}" (seeded from "${sourceHome}").\n`,
+      `[outpost] Using ${isWorktreeMode(env) ? "worktree-isolated" : "Outpost-managed"} Codex home "${targetHome}" (seeded from "${sourceHome}").\n`,
     );
   }
 
@@ -837,13 +837,13 @@ export async function seedManagedCodexHome(
       // configured OPENAI_API_KEY; the binding wins for this home.
       await onLog(
         "stdout",
-        `[paperclip] Refusing to write an API-key auth.json into credential-store entry "${targetHome}"; the bound account's stored login stays authoritative.\n`,
+        `[outpost] Refusing to write an API-key auth.json into credential-store entry "${targetHome}"; the bound account's stored login stays authoritative.\n`,
       );
     } else {
       await writeApiKeyAuthJson(targetHome, apiKey);
       await onLog(
         "stdout",
-        `[paperclip] Wrote API-key auth.json into Codex home "${targetHome}" from configured OPENAI_API_KEY.\n`,
+        `[outpost] Wrote API-key auth.json into Codex home "${targetHome}" from configured OPENAI_API_KEY.\n`,
       );
     }
   }

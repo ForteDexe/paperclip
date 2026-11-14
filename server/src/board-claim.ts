@@ -1,9 +1,9 @@
 import { notifyMuseContactVerification } from "./modules/external-agents/index.js";
 import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { companies, companyMemberships, instanceUserRoles } from "@paperclipai/db";
-import type { DeploymentMode } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { companies, companyMemberships, instanceUserRoles } from "@outpost/db";
+import type { DeploymentMode } from "@outpost/shared";
 import { ensureHumanRoleDefaultGrants } from "./services/principal-access-compatibility.js";
 import { notifyChatCompanyAuthorityChange } from "./services/chat-run-milestone-notifications.js";
 

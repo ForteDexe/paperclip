@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { materializeAsset } from "./runtime-context.js";
-import { taskBridgeApiRequest } from "./paperclip-runner-tool-authority.js";
+import { taskBridgeApiRequest } from "./outpost-runner-tool-authority.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -171,7 +171,7 @@ if sys.argv[1] != "completion":
   it.skipIf(!workspaceCommandSandboxAvailable())("runs useful commands but denies files outside the workspace and injected credentials", async () => {
     const directory = await root(), outside = await root();
     const secret = join(outside, "private.txt"); await writeFile(secret, "PRIVATE");
-    const success = await executeWorkspaceTool(directory, "workspace_run", { program: "/bin/sh", args: ["-c", "printf hello > output.txt; printf '%s' \"${PAPERCLIP_SECRETS_MASTER_KEY-unset}\"" ] }, authorize);
+    const success = await executeWorkspaceTool(directory, "workspace_run", { program: "/bin/sh", args: ["-c", "printf hello > output.txt; printf '%s' \"${OUTPOST_SECRETS_MASTER_KEY-unset}\"" ] }, authorize);
     expect(success).toMatchObject({ exitCode: 0, output: "unset", stopped: null });
     expect(await readFile(join(directory, "output.txt"), "utf8")).toBe("hello");
     const read = await executeWorkspaceTool(directory, "workspace_run", { program: "/bin/cat", args: [secret] }, authorize);

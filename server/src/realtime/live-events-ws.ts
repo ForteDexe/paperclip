@@ -5,9 +5,9 @@ import type { IncomingMessage, Server as HttpServer } from "node:http";
 import { createRequire } from "node:module";
 import type { Duplex } from "node:stream";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentApiKeys, companyMemberships, instanceUserRoles, heartbeatRuns, projects } from "@paperclipai/db";
-import { issueActivityChangesTaskIdentity, type DeploymentMode, type LiveEvent } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import { agentApiKeys, companyMemberships, instanceUserRoles, heartbeatRuns, projects } from "@outpost/db";
+import { issueActivityChangesTaskIdentity, type DeploymentMode, type LiveEvent } from "@outpost/shared";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
 import { logger } from "../middleware/logger.js";
 import { activityToastIdentity } from "./activity-toast-identity.js";
@@ -374,7 +374,7 @@ export function setupLiveEventsWebSocketServer(
       const visible = await visibleEvent(event, reads);
       if (!visible || visible.type !== "heartbeat.run.event") return visible;
       const payload = visible.payload.payload;
-      if (!payload || typeof payload !== "object" || Array.isArray(payload) || !("prpEvent" in payload)) return visible;
+      if (!payload || typeof payload !== "object" || Array.isArray(payload) || !("orpEvent" in payload)) return visible;
       return redactRunEvent(visible, reads);
     },
       decorate: async visible => {

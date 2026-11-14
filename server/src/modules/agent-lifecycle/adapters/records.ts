@@ -2,7 +2,7 @@ import { preserveAgentInteractionPermissions } from "../../../lib/agent-interact
 import type { LifecycleEffects } from "./effects.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, agentApiKeys, companies, type Db } from "@paperclipai/db";
+import { agents, agentApiKeys, companies, type Db } from "@outpost/db";
 import { conflict, notFound } from "../../../errors.js";
 import { agentRecordQueries, type CreateAgentOptions, type CreateAgentData } from "../../../lib/agent-records.js";
 import { isAgentSetupDraft, canConfigureAgentConnection } from "../domain/policy.js";

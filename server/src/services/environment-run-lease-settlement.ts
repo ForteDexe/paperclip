@@ -1,5 +1,5 @@
 import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
-import { environmentLeases, environments, heartbeatRuns, nativeRunFinalizations, nativeRunResults, type Db } from "@paperclipai/db";
+import { environmentLeases, environments, heartbeatRuns, nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
 import { currentControllerBootId } from "./controller-process-identity.js";
 import { writeEnvironmentCleanup } from "./environment-cleanup-notifications.js";
 import { pendingCleanupMetadataObjectSql } from "./environment-cleanup-state.js";

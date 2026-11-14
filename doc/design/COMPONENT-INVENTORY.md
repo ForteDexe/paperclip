@@ -310,7 +310,7 @@ Grouped by area; one line each.
 | `SystemNoticeUxLab.tsx` | System-notice showcase |
 | `IssueChatUxLab.tsx` / `RunTranscriptUxLab.tsx` | Chat + transcript showcases |
 | `DesignGuide.tsx` | Design-system showcase/reference page |
-| `BoardChat.tsx` / `BoardClaim.tsx` | Board (concierge) chat + claim flow |
+| `BoardClaim.tsx` | Initial user claim flow |
 | `NotFound.tsx` | 404 page |
 | `CliAuth.tsx` | CLI auth handoff page |
 | `JoinRequestQueue.tsx` | Join-request queue |
@@ -334,7 +334,7 @@ Grouped by area; one line each.
 |---|---|---|---|
 | `ToastViewport.tsx` + `context/ToastContext.tsx` | shadcn's `sonner`-based toast pattern (not currently installed) | Install `sonner`/toast primitive, migrate `useToastActions`/`useToastState` call sites to it | Low if the registry's toast is restyled to match current `toneClasses`/`toneDotClasses` tint system; the current implementation already has custom tone colors (`sky`/`emerald`/`amber`/`red`) that would need to carry over as variant props — a naive swap would look different unless those tones are preserved |
 | `components/StatusBadge.tsx` (`StatusBadge`, `AgentStatusBadge`) | shadcn `Badge` primitive (installed, `ui/badge.tsx`) | Keep as a distinct component (status badges need the `.status-chip` color-mix mechanic Badge's variant system doesn't support) but consider having it render `<Badge>` internally with a custom class rather than a bare `<span>`, for consistency of base styles (focus ring, disabled states, etc.) | Low — internal implementation change only if done carefully; skip if it risks the WCAG-tuned status hues |
-| Hand-rolled bordered-container `<div>`/`<ul>` patterns (`rounded-md border bg-card`-shaped) found in ~26 files (`pages/AdapterManager.tsx`, `pages/TeamCatalog.tsx`, `pages/InstanceAccess.tsx`, `pages/BootstrapSetupUxLab.tsx`, `pages/ResponsibleUserDenialUxLab.tsx`, `pages/CliAuth.tsx`, `pages/BoardClaim.tsx`, `pages/BoardChat.tsx`, `pages/InstanceGeneralSettings.tsx`, `pages/ProjectWorkspaceDetail.tsx`, `pages/Timeline.tsx`, `pages/PluginManager.tsx`, `pages/JoinRequestQueue.tsx`, `pages/InstanceExperimentalSettings.tsx`, `App.tsx`, `components/BootstrapPendingPage.tsx`, `components/IssuePlanDecompositionsSection.tsx`, `components/BlockedInboxView.tsx`, `components/ApprovalCard.tsx`, + ~7 more) vs. shadcn `Card` (installed, only imported in 21 files) | `Card`/`CardContent` | Low-to-medium — many of these are `<ul>` list wrappers, not literal card content; a swap would need per-site judgment, not a blanket codemod. Flagging the cluster, not asserting every site should change. |
+| Hand-rolled bordered-container `<div>`/`<ul>` patterns (`rounded-md border bg-card`-shaped) found across many files (`pages/AdapterManager.tsx`, `pages/TeamCatalog.tsx`, `pages/InstanceAccess.tsx`, `pages/BootstrapSetupUxLab.tsx`, `pages/ResponsibleUserDenialUxLab.tsx`, `pages/CliAuth.tsx`, `pages/BoardClaim.tsx`, `pages/InstanceGeneralSettings.tsx`, `pages/ProjectWorkspaceDetail.tsx`, `pages/Timeline.tsx`, `pages/PluginManager.tsx`, `pages/JoinRequestQueue.tsx`, `pages/InstanceExperimentalSettings.tsx`, `App.tsx`, `components/BootstrapPendingPage.tsx`, `components/IssuePlanDecompositionsSection.tsx`, `components/BlockedInboxView.tsx`, `components/ApprovalCard.tsx`, and others) vs. shadcn `Card` (installed, only imported in 21 files) | `Card`/`CardContent` | Low-to-medium — many of these are `<ul>` list wrappers, not literal card content; a swap would need per-site judgment, not a blanket codemod. Flagging the cluster, not asserting every site should change. |
 | Hand-rolled pill/badge-shaped `<span>`s (`rounded-full px-2 text-[...]`) outside `Badge` usage, ~34 files | `Badge` (installed, 35 files already use it) | `Badge` with a custom `className` for color | Low if colors are preserved as `className` overrides |
 | `plugins/launchers.tsx` generic plugin-shell overlay (`role="dialog"`, hand-rolled backdrop `bg-black/45`, manual z-index math, `rounded-xl`/`rounded-2xl`) | `Dialog` / `Sheet` / `Popover` (all installed) | Case-by-case: this component multiplexes dialog/drawer/popover shell types from one plugin-host abstraction, which none of the three installed primitives do individually — a clean swap likely means keeping the multiplexer but delegating each `shellType` branch to the matching installed primitive instead of a fully custom `<div>` tree | Medium — this is the most structurally custom overlay in the codebase; recommend closer human review before treating it as a simple swap |
 
@@ -372,7 +372,7 @@ All of the below are **leads for human review**, not verdicts, per KNOWN-DUPLICA
 
 ### 5.3 Corrections after closer inspection
 
-- `OnboardingWizardVariant.tsx` (10 lines) is **not** a duplicate of `OnboardingWizard.tsx` (1,786 lines) — it's a thin routing wrapper (`export function OnboardingWizardVariant() { return <OnboardingWizard />; }`) left over from a since-retired experimental-flag variant (per its own doc comment: "Conference-room chat is now the only surface left behind `enableConferenceRoomChat`; onboarding stays available without that experimental flag"). Both are routed in `App.tsx`. **No action needed** — this is a naming leftover, not visual/logic duplication; candidate for a trivial rename-and-inline cleanup in a future non-visual refactor, out of scope here.
+- `OnboardingWizardVariant.tsx` (10 lines) is **not** a duplicate of `OnboardingWizard.tsx` (1,786 lines) — it is a thin routing wrapper (`export function OnboardingWizardVariant() { return <OnboardingWizard />; }`). Both are routed in `App.tsx`. **No action needed** — this is a naming leftover, not visual/logic duplication; candidate for a trivial rename-and-inline cleanup in a future non-visual refactor, out of scope here.
 - `components/IssueProperties.tsx` is a 1-line re-export barrel (`export { IssueProperties } from "./issue-properties";`) — not a duplicate of `components/issue-properties/IssueProperties.tsx`, just a compatibility import path.
 
 ### 5.4 Finance card family — needs closer human review
@@ -381,7 +381,7 @@ All of the below are **leads for human review**, not verdicts, per KNOWN-DUPLICA
 
 ### 5.5 Feature-gate wrapper pattern (not a duplicate, but a repeated pattern)
 
-`CloudAccessGate.tsx`, `ConferenceRoomChatGate.tsx`, `PipelinesExperimentalGate.tsx` each independently implement the same "render children only if flag X is enabled, else render fallback" shape. Not byte-identical (each checks a different flag/hook), so not a strict duplicate, but a strong candidate for a shared `FeatureGate`/`ExperimentalGate` primitive that takes a flag-check function as a prop. Flagged as a recommendation, not built here.
+`CloudAccessGate.tsx` and `PipelinesExperimentalGate.tsx` independently implement the same "render children only if flag X is enabled, else render fallback" shape. Not byte-identical (each checks a different flag/hook), so not a strict duplicate, but a candidate for a shared `FeatureGate`/`ExperimentalGate` primitive that takes a flag-check function as a prop. Flagged as a recommendation, not built here.
 
 ---
 

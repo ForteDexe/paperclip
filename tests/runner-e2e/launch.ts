@@ -264,7 +264,7 @@ async function prepareProviderPath(
   const toolBin = path.join(temporaryRoot, "provider-bin");
   await mkdir(toolBin, { recursive: true });
   const runnerRequire = createRequire(
-    path.join(repositoryRoot, "packages/paperclip-runner/package.json"),
+    path.join(repositoryRoot, "packages/outpost-runner/package.json"),
   );
   const codexAcpPackage = runnerRequire.resolve(
     "@agentclientprotocol/codex-acp/package.json",
@@ -288,7 +288,7 @@ async function prepareProviderPath(
   );
   const packageBin = path.join(
     repositoryRoot,
-    "packages/paperclip-runner/node_modules/.bin",
+    "packages/outpost-runner/node_modules/.bin",
   );
   return [toolBin, packageBin, inheritedPath]
     .filter(Boolean)
@@ -433,7 +433,7 @@ function syntheticResult(
 ): RunnerE2EResult {
   const finishedAtMs = Date.now();
   return {
-    schema: "paperclip.runner-e2e.result/v2",
+    schema: "outpost.runner-e2e.result/v2",
     executionId: execution.id,
     suiteId: execution.suite.id,
     suiteDefinitionHash: execution.suiteDefinitionHash,
@@ -475,9 +475,9 @@ async function runAttempt(input: {
   operations?: EvalOperations;
 }): Promise<RunnerE2EResult[]> {
   const { executions, attempt, campaignId, options } = input;
-  const accountingCampaignId = input.operations?.manifest.limits.campaignId ?? process.env.PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID ?? campaignId;
+  const accountingCampaignId = input.operations?.manifest.limits.campaignId ?? process.env.OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID ?? campaignId;
   const accountingAttemptId = randomBytes(16).toString("hex");
-  const traceConfig = evalBraintrustConfig({ ...process.env, PAPERCLIP_E2E_OTLP_RELAY_URL: undefined });
+  const traceConfig = evalBraintrustConfig({ ...process.env, OUTPOST_E2E_OTLP_RELAY_URL: undefined });
   const execution = executions[0];
   if (!execution) throw new Error("A runner E2E cell must contain a task case");
   if (
@@ -537,9 +537,9 @@ async function runAttempt(input: {
       "config.json",
     );
     const port = await reserveRunnerE2EServerPort();
-    if (process.env.PAPERCLIP_RUNNER_E2E_POSTGRES_ADMIN_URL) {
+    if (process.env.OUTPOST_RUNNER_E2E_POSTGRES_ADMIN_URL) {
       externalDatabase = await createExternalControllerDatabase({
-        adminUrl: process.env.PAPERCLIP_RUNNER_E2E_POSTGRES_ADMIN_URL, temporaryRoot, configPath, serverPort: port,
+        adminUrl: process.env.OUTPOST_RUNNER_E2E_POSTGRES_ADMIN_URL, temporaryRoot, configPath, serverPort: port,
       });
     }
     await Promise.all([
@@ -566,12 +566,12 @@ async function runAttempt(input: {
     const betterAuthSecret = secret(48);
     gateway = await input.operations?.start(execution, accountingAttemptId, attempt);
     const credentialSources = {
-      PAPERCLIP_E2E_GATEWAY_TOKEN: gateway?.token,
-      PAPERCLIP_E2E_OTLP_RELAY_TOKEN: gateway?.observability?.token,
+      OUTPOST_E2E_GATEWAY_TOKEN: gateway?.token,
+      OUTPOST_E2E_OTLP_RELAY_TOKEN: gateway?.observability?.token,
       ...Object.fromEntries([...CREDENTIAL_NAMES, ...EVAL_OBSERVABILITY_SECRET_NAMES].map((name) => [name, process.env[name]])),
-      PAPERCLIP_AGENT_JWT_SECRET: agentJwtSecret,
-      PAPERCLIP_DECISION_SIGNING_SECRET: decisionSigningSecret,
-      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: toolActionSigningSecret,
+      OUTPOST_AGENT_JWT_SECRET: agentJwtSecret,
+      OUTPOST_DECISION_SIGNING_SECRET: decisionSigningSecret,
+      OUTPOST_TOOL_ACTION_SIGNING_SECRET: toolActionSigningSecret,
       BETTER_AUTH_SECRET: betterAuthSecret,
     };
     const credentials = normalizedSecrets(Object.values(credentialSources));
@@ -606,29 +606,29 @@ async function runAttempt(input: {
       [DOCKER_DATABASE_ENV]: dockerDatabase?.filename,
       [PRIVATE_DIAGNOSTICS_ENV]: diagnosticRegistry,
       PATH: providerPath,
-      PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify(
+      OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify(
         executions.map((candidate) => candidate.id),
       ),
-      PAPERCLIP_RUNNER_E2E_ATTEMPT: String(attempt),
-      PAPERCLIP_E2E_ACCOUNTING_CAMPAIGN_ID: accountingCampaignId,
-      PAPERCLIP_E2E_ACCOUNTING_ATTEMPT_ID: accountingAttemptId,
-      PAPERCLIP_RUNNER_E2E_INSTALLED_STARTUP_ONLY: options.installedStartupOnly ? "1" : undefined,
-      PAPERCLIP_RUNNER_E2E_PUBLIC_MCP: executions.some(candidate => candidate.task.flow === "public_mcp" || candidate.suite.id === "chat-features" && findChatCatalogCase(candidate.task.id)?.authentication === "human-session") ? "1" : "0",
-      PAPERCLIP_RUNNER_E2E_PORT: String(port),
-      PAPERCLIP_RUNNER_E2E_TEMP_ROOT: temporaryRoot,
-      PAPERCLIP_RUNNER_E2E_PRIVATE_DIR: privateDir,
+      OUTPOST_RUNNER_E2E_ATTEMPT: String(attempt),
+      OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID: accountingCampaignId,
+      OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID: accountingAttemptId,
+      OUTPOST_RUNNER_E2E_INSTALLED_STARTUP_ONLY: options.installedStartupOnly ? "1" : undefined,
+      OUTPOST_RUNNER_E2E_PUBLIC_MCP: executions.some(candidate => candidate.task.flow === "public_mcp" || candidate.suite.id === "chat-features" && findChatCatalogCase(candidate.task.id)?.authentication === "human-session") ? "1" : "0",
+      OUTPOST_RUNNER_E2E_PORT: String(port),
+      OUTPOST_RUNNER_E2E_TEMP_ROOT: temporaryRoot,
+      OUTPOST_RUNNER_E2E_PRIVATE_DIR: privateDir,
       [AGENT_FILESYSTEM_SANDBOX_ENV]: agentFilesystemSandbox ? JSON.stringify(agentFilesystemSandbox) : undefined,
       PWTEST_CACHE_DIR: playwrightCacheDirectory(temporaryRoot),
-      PAPERCLIP_RUNNER_E2E_WORKSPACE: workspace,
-      PAPERCLIP_RUNNER_E2E_SERVER_LOG: path.join(temporaryRoot, "artifacts-private", "server.log"),
-      PAPERCLIP_RUNNER_BINARY: runnerBinary,
-      PAPERCLIP_RUNNER_REMOTE_BINARY_PATH:
+      OUTPOST_RUNNER_E2E_WORKSPACE: workspace,
+      OUTPOST_RUNNER_E2E_SERVER_LOG: path.join(temporaryRoot, "artifacts-private", "server.log"),
+      OUTPOST_RUNNER_BINARY: runnerBinary,
+      OUTPOST_RUNNER_REMOTE_BINARY_PATH:
         installedCli ? undefined : resolvePaperclipRemoteRunnerBinaryForHarness(executions, runnerBinary),
       // Vite's optimized dependency cache embeds revision query strings. A
       // private per-attempt cache prevents an earlier cell or local rebuild
       // from producing `504 Outdated Optimize Dep` during browser bootstrap.
-      PAPERCLIP_VITE_CACHE_DIR: path.join(temporaryRoot, "vite-cache"),
-      PAPERCLIP_RUNNER_E2E_TEST_TIMEOUT_MS: String(
+      OUTPOST_VITE_CACHE_DIR: path.join(temporaryRoot, "vite-cache"),
+      OUTPOST_RUNNER_E2E_TEST_TIMEOUT_MS: String(
         Math.max(
           ...executions.map(
             (candidate) =>
@@ -636,12 +636,12 @@ async function runAttempt(input: {
           ),
         ),
       ),
-      PAPERCLIP_HOME: paperclipHome,
-      PAPERCLIP_INSTANCE_ID: instanceId,
-      PAPERCLIP_CONFIG: configPath,
-      PAPERCLIP_AGENT_JWT_SECRET: agentJwtSecret,
-      PAPERCLIP_DECISION_SIGNING_SECRET: decisionSigningSecret,
-      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: toolActionSigningSecret,
+      OUTPOST_HOME: paperclipHome,
+      OUTPOST_INSTANCE_ID: instanceId,
+      OUTPOST_CONFIG: configPath,
+      OUTPOST_AGENT_JWT_SECRET: agentJwtSecret,
+      OUTPOST_DECISION_SIGNING_SECRET: decisionSigningSecret,
+      OUTPOST_TOOL_ACTION_SIGNING_SECRET: toolActionSigningSecret,
       BETTER_AUTH_SECRET: betterAuthSecret,
     };
     if (gateway) {
@@ -1044,7 +1044,7 @@ async function runAttempt(input: {
       await keepInstance(temporaryRoot, { owner: "runner-e2e-launch", reason: "recovery_state" });
       cleanupError = new Error(`Preserving private recovery state after unconfirmed cleanup: ${temporaryRoot}`);
     } else if (shouldKeepFailedDiagnostics({
-      enabled: process.env.PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE === "1",
+      enabled: process.env.OUTPOST_RUNNER_E2E_KEEP_FAILED_PRIVATE === "1",
       expectedResults: executions.length,
       results: publishedResults,
     })) {
@@ -1053,7 +1053,7 @@ async function runAttempt(input: {
       await keepInstance(temporaryRoot, { owner: "runner-e2e-launch", reason: "keep" });
       console.warn(`Retained private failed-case diagnostics: ${temporaryRoot}`);
     } else if (
-      temporaryRoot.startsWith(`${temporaryParent}${path.sep}paperclip-runner-e2e-`)
+      temporaryRoot.startsWith(`${temporaryParent}${path.sep}outpost-runner-e2e-`)
     ) {
       for (let cleanupAttempt = 1; cleanupAttempt <= 3; cleanupAttempt += 1) {
         try {
@@ -1222,7 +1222,7 @@ async function main() {
   if (options.installedStartupOnly) {
     assertInstalledStartupOnly(process.env, executions, options);
     assertRunnerE2EPrerequisites(executions);
-    const campaignId = cleanId(process.env.PAPERCLIP_E2E_CAMPAIGN_ID ?? `installed-startup-${Date.now()}`);
+    const campaignId = cleanId(process.env.OUTPOST_E2E_CAMPAIGN_ID ?? `installed-startup-${Date.now()}`);
     await runAttempt({ executions, attempt: 1, campaignId, options });
     console.log(`PASS installed launch chain (no provider qualification) -> ${path.join(resultsRoot, campaignId, "installed-startup-only")}`);
     return;
@@ -1243,7 +1243,7 @@ async function main() {
     return;
   }
 
-  if (process.env.PAPERCLIP_E2E_OPERATIONS_MANIFEST && executions.some(execution => execution.task.flow === "provider_connection")) throw new Error("Provider connection campaign has no budgeted routing qualification");
+  if (process.env.OUTPOST_E2E_OPERATIONS_MANIFEST && executions.some(execution => execution.task.flow === "provider_connection")) throw new Error("Provider connection campaign has no budgeted routing qualification");
   if (executions.some(execution => execution.task.flow === "antigravity_agent_journey")) {
     if (options.connectionConfig || options.githubReviewConfig || options.provisionGitHubRepository) throw new Error("Use --antigravity-journey-config for the Antigravity journey.");
     const { runAntigravityJourneyCampaign } = await import("./antigravity-journey-launch.js");
@@ -1272,7 +1272,7 @@ async function main() {
   assertNativeCompletionSelection(executions);
   assertNativeInstructionSelection(executions);
   const campaignId = cleanId(
-    process.env.PAPERCLIP_E2E_CAMPAIGN_ID ??
+    process.env.OUTPOST_E2E_CAMPAIGN_ID ??
       `local-${new Date().toISOString().replace(/[:.]/g, "-")}`,
   );
   await loadLocalEnvironment(process.env);
@@ -1297,7 +1297,7 @@ async function main() {
   }
 
   assertRemoteNativeEvidencePrerequisites(executions, process.env);
-  const missingCredentials = process.env.PAPERCLIP_E2E_OPERATIONS_MANIFEST ? [] : [
+  const missingCredentials = process.env.OUTPOST_E2E_OPERATIONS_MANIFEST ? [] : [
     ...new Set(
       executions.flatMap((execution) => chatLaunchCredentialNames(execution, execution.suite.id === "chat-features" ? findChatCatalogCase(execution.task.id) : undefined)),
     ),
@@ -1309,10 +1309,10 @@ async function main() {
   }
   if (
     executions.some((execution) => execution.environment.id === "daytona") &&
-    !isImmutableDaytonaImage(process.env.PAPERCLIP_E2E_DAYTONA_IMAGE)
+    !isImmutableDaytonaImage(process.env.OUTPOST_E2E_DAYTONA_IMAGE)
   ) {
     throw new Error(
-      "PAPERCLIP_E2E_DAYTONA_IMAGE must be an immutable image@sha256 digest for Daytona cells",
+      "OUTPOST_E2E_DAYTONA_IMAGE must be an immutable image@sha256 digest for Daytona cells",
     );
   }
 
@@ -1341,8 +1341,8 @@ async function main() {
     `Running ${executions.length} isolated execution(s) with max parallelism ${requestedParallelism}`,
   );
   const attempts: RunnerE2EResult[] = [];
-  const operations = process.env.PAPERCLIP_E2E_OPERATIONS_MANIFEST
-    ? await openEvalOperations(process.env.PAPERCLIP_E2E_OPERATIONS_MANIFEST, executions, options.maxAutomaticRetries, process.env) : undefined;
+  const operations = process.env.OUTPOST_E2E_OPERATIONS_MANIFEST
+    ? await openEvalOperations(process.env.OUTPOST_E2E_OPERATIONS_MANIFEST, executions, options.maxAutomaticRetries, process.env) : undefined;
   let finalResults: RunnerE2EResult[] = [];
   let campaignFailed = false;
   try {

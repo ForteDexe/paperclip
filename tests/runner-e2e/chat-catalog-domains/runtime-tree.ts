@@ -69,7 +69,7 @@ async function setupTree(ctx: Parameters<typeof busyRuntimeWorker>[0]): Promise<
   return { ...first, second, parent, manualWorker, manualChild, manualHold: manual.hold, humanId: session.user.id, syntheticBudgetReceiptId: budgetReceipt.id, syntheticAccountingCostCents: 125, syntheticAccountingOrigin: "public-imported-synthetic-fixture" };
 }
 export const runtimeTreeCases = ["task-coordination.pause-tree", "steering.stop-versus-pause"].map(id => runtimeDefinition(id, setupTree, gradeTreePause, {
-  oracleVersion: "paperclip.chat-catalog.tree-pause.v4", authentication: "human-session", expectedRunCount: 5, runPolicy: { kind: "terminal-counts", terminalStatusCounts: { succeeded: 1, cancelled: 4 } }, attemptTimeoutMs: 900_000,
+  oracleVersion: "outpost.chat-catalog.tree-pause.v4", authentication: "human-session", expectedRunCount: 5, runPolicy: { kind: "terminal-counts", terminalStatusCounts: { succeeded: 1, cancelled: 4 } }, attemptTimeoutMs: 900_000,
   sourceFiles: ["chat-catalog-domains/runtime-tree.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", `chat-scenarios/${id.split(".")[0]}.yaml`],
   setupPolicy: { readiness: "preserve-scenario", funding: "preserve-scenario", invariantCheckIds: ["lead-ready", "two-real-native-workers", "independent-child-pause-budget", "active-branches-funded"] },
   async verifySetup(ctx, state) {

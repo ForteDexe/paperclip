@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Repeat } from "lucide-react";
 import { expect, within } from "storybook/test";
-import { appearanceForPalette, type Agent } from "@paperclipai/shared";
+import { appearanceForPalette, type Agent } from "@outpost/shared";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { buildPinnedNavigationItems } from "@/components/CoordinatorSidebar";
 import { PinnedNavigationList } from "@/components/PinnedNavigationList";

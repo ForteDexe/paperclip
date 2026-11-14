@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { chromium } from "@playwright/test";
 import { expect, it } from "vitest";
 import { acceptCompanySecretBindingApproval } from "./external-company-secret.js";
-it.skipIf(process.env.PAPERCLIP_CHAT_EVAL_SECRET_ROUTE_CANARY !== "1")("submits the visible intended binding card and checks its real human response receipt", async () => {
- const browser=await chromium.launch({headless:true,...process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}});
+it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY !== "1")("submits the visible intended binding card and checks its real human response receipt", async () => {
+ const browser=await chromium.launch({headless:true,...process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}});
  const payload={version:1,prompt:"Bind Deployment API key to Morgan as env.DEPLOYMENT_API_KEY?"};
  const marker={interactionId:"approval",proposalId:"proposal",sourceRunId:"second",initialRunId:"first",userId:"person",secretId:"secret",targetAgentId:"morgan",configPath:"env.DEPLOYMENT_API_KEY",payloadHash:createHash("sha256").update(JSON.stringify(payload)).digest("hex"),humanInputId:"saved",humanInputKind:"comment" as const};
  try{for(const scenario of ["accepted","wrong person","failed POST"]){

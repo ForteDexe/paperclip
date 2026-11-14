@@ -1,5 +1,5 @@
-import { resolvePaperclipRunnerIdleTimeoutMs } from "@paperclipai/adapter-utils";
-import type { Environment } from "@paperclipai/shared";
+import { resolvePaperclipRunnerIdleTimeoutMs } from "@outpost/adapter-utils";
+import type { Environment } from "@outpost/shared";
 import { REMOTE_RUNNER_RECONNECT_GRACE_MS } from "./native-runtime/native-runner-recovery-contract.js";
 import { defaultsRemoteSandboxRunToWarm, resolveWarmProviderSelection } from "./native-runtime/native-warm-capability.js";
 
@@ -67,7 +67,7 @@ export function runnerLifecycleDefaultNeedsLeaseProbe(
   admittedLifecycleMode?: "warm" | "per_turn",
   managedAiCredentialIdentity?: string,
 ): boolean {
-  if (adapterType !== "paperclip_runner" || environment.driver !== "sandbox") return false;
+  if (adapterType !== "outpost_runner" || environment.driver !== "sandbox") return false;
   if (explicitLifecycleMode(environment.config ?? {}, adapterConfig, admittedLifecycleMode)) return false;
   return sandboxRunDefaultsToWarm(adapterConfig, { reusableLeaseSupported: true, managedAiCredentialIdentity });
 }
@@ -84,7 +84,7 @@ export function resolveRunnerEnvironmentForRun<T extends Pick<Environment, "driv
   managedAiCredentialIdentity?: string,
   defaultContext: Pick<RunnerLifecycleDefaultContext, "reusableLeaseSupported"> = {},
 ): T {
-  if (adapterType !== "paperclip_runner" || !["sandbox", "plugin"].includes(environment.driver)) return environment;
+  if (adapterType !== "outpost_runner" || !["sandbox", "plugin"].includes(environment.driver)) return environment;
   const config = environment.config ?? {};
   const lifecycleMode = resolveRunnerLifecycleModeForRun(environment, adapterConfig, admittedLifecycleMode,
     { ...defaultContext, managedAiCredentialIdentity });
@@ -117,7 +117,7 @@ export function resolveWarmRunnerIdleTimeoutMsForRun(
   admittedLifecycleMode?: "warm" | "per_turn",
   defaultContext: RunnerLifecycleDefaultContext = {},
 ): number | undefined {
-  if (adapterType !== "paperclip_runner" || environment.driver !== "sandbox") return undefined;
+  if (adapterType !== "outpost_runner" || environment.driver !== "sandbox") return undefined;
   const config = environment.config ?? {};
   if (resolveRunnerLifecycleModeForRun(environment, adapterConfig, admittedLifecycleMode, defaultContext) !== "warm") return undefined;
   return resolvePaperclipRunnerIdleTimeoutMs(config.runnerIdleTimeoutMs ?? adapterConfig.idleTimeoutMs);
@@ -135,6 +135,6 @@ export function resolveRunnerReconnectGraceMsForRun(
   environment: Pick<Environment, "driver">,
   adapterType: string,
 ): number | undefined {
-  if (adapterType !== "paperclip_runner" || environment.driver !== "sandbox") return undefined;
+  if (adapterType !== "outpost_runner" || environment.driver !== "sandbox") return undefined;
   return REMOTE_RUNNER_RECONNECT_GRACE_MS;
 }

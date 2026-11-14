@@ -1,4 +1,4 @@
-import { defaultConnectionAgentInstructions, getConnectableAppDefinition, instanceExperimentalSettingsSchema } from "@paperclipai/shared";
+import { defaultConnectionAgentInstructions, getConnectableAppDefinition, instanceExperimentalSettingsSchema } from "@outpost/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { storybookAgents } from "./paperclipData";
@@ -53,7 +53,7 @@ export function installConnectionGuidanceFixtures(client: QueryClient, provider:
   const gallery = { apps: [app], capabilities };
   const settings = { ...instanceExperimentalSettingsSchema.parse({}), enableMemoryConnectors: true };
   const directory = { users: [{ principalId: "user-storybook", status: "active", user: {
-    id: "user-storybook", email: "board@paperclip.local", name: "Riley Board", image: null,
+    id: "user-storybook", email: "board@outpost.local", name: "Riley Board", image: null,
   } }] };
   client.setQueryData(queryKeys.instance.experimentalSettings, settings);
   const responses = new Map<string, () => unknown>([

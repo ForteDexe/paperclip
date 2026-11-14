@@ -268,7 +268,7 @@ function operatorStoppedRun() {
     nativeIssueId: issue.id, errorCode: "cancelled", resultJson: {
       cancelledByActorType: "user", cancelledByUserId: "board",
       executionCancellation: { state: "requested" },
-      nativeCancellation: { schema: "paperclip.native-cancellation.v1", runId: run.id,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: run.id,
         companyId: issue.companyId, issueId: issue.id, scope: "run",
         reasonCode: "cancellation_run_only", dispatched: true, dispatchState: "acknowledged",
         intentAuditId: "intent", acknowledgementAuditId: "ack" },
@@ -309,7 +309,7 @@ describe("intentional native Stop presentation", () => {
 });
 
 it("preserves a provider explanation on a failed task without changing retry authority", () => {
-  const providerFailure = { schema: "paperclip.provider-failure.v1", provider: "anthropic", phase: "startup",
+  const providerFailure = { schema: "outpost.provider-failure.v1", provider: "anthropic", phase: "startup",
     category: "rate_limit", message: "API error: 429 This request would exceed your account's rate limit.",
     httpStatus: 429, retryability: "unknown" };
   const failedRun = { ...run, errorCode: "native_session_interrupted", resultJson: { providerFailure } };
@@ -370,7 +370,7 @@ describe("saved-work recovery step", () => {
   const now = Date.parse("2026-01-01T12:00:00Z");
   const failed = { ...run, errorCode: "setup_failed", resultJson: null };
   const system = (phase: string, state: string, nextAttemptAt: number | null) => ({
-    schema: "paperclip.system-recovery.v1", policyVersion: 1, sourceRunId: "33333333-3333-4333-8333-333333333333", revision: 3,
+    schema: "outpost.system-recovery.v1", policyVersion: 1, sourceRunId: "33333333-3333-4333-8333-333333333333", revision: 3,
     generationId: "44444444-4444-4444-8444-444444444444", intentId: null, phase, state, attemptId: null, attempts: 2,
     retriesUsed: 1, firstFailureAt: now - 60_000, nextAttemptAt, deadlineAt: now + 600_000, providerCooldownAt: null,
     failure: null, preservationOperationIds: [], freshAttemptRunId: null });

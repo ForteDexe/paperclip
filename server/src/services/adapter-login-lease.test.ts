@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Environment } from "@paperclipai/shared";
+import type { Environment } from "@outpost/shared";
 import { buildLoginLeaseAcquireArgs } from "./adapter-login-lease.js";
 
 // A minimal environment stand-in. The helper copies the reference without a
@@ -8,14 +8,14 @@ const ENVIRONMENT = { id: "env-1", name: "Sandbox", driver: "sandbox" } as unkno
 
 describe("buildLoginLeaseAcquireArgs", () => {
   it("keeps plugin probes as ordinary Runner allocations", () => {
-    const args = buildLoginLeaseAcquireArgs({ metadata: { companyId: "co", environment: { ...ENVIRONMENT, driver: "plugin" }, adapterType: "paperclip_runner" } });
+    const args = buildLoginLeaseAcquireArgs({ metadata: { companyId: "co", environment: { ...ENVIRONMENT, driver: "plugin" }, adapterType: "outpost_runner" } });
     expect(args.purpose).toBeUndefined();
     expect(args.loginCommandKey).toBeUndefined();
-    expect(args.adapterType).toBe("paperclip_runner");
+    expect(args.adapterType).toBe("outpost_runner");
   });
   it("binds an explicit browser login to its command and Runner target", () => {
     const args = buildLoginLeaseAcquireArgs({ browserLogin: true, metadata: { companyId: "co", environment: { ...ENVIRONMENT, driver: "plugin" }, adapterType: "codex_local" }, targetAgentId: "computer" });
-    expect(args).toMatchObject({ purpose: "login", loginCommandKey: "codex", adapterType: "paperclip_runner", agentId: "computer" });
+    expect(args).toMatchObject({ purpose: "login", loginCommandKey: "codex", adapterType: "outpost_runner", agentId: "computer" });
   });
   it("sets the fixed lease arguments that both login services share", () => {
     const args = buildLoginLeaseAcquireArgs({

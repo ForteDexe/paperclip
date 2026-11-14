@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { createInviteRateLimiter } from "./invite-rate-limit.js";
 import { eq, sql } from "drizzle-orm";
-import { activityLog, authUsers, boardApiKeys, cliAuthChallenges, companies, companyMemberships, createDb, getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
-import type { Db } from "@paperclipai/db";
+import { activityLog, authUsers, boardApiKeys, cliAuthChallenges, companies, companyMemberships, createDb, getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "@outpost/db";
+import type { Db } from "@outpost/db";
 import { boardAuthService } from "./board-auth.js";
 import { subscribeCompanyLiveEvents } from "./live-events.js";
 
@@ -48,7 +48,7 @@ describe("boardAuthService touchBoardApiKey", () => {
   });
 });
 
-const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
+const external = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const databaseSuite = support.supported ? describe : describe.skip;
 
@@ -224,7 +224,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
 
   it("keeps instance-admin approval and current full-Board key authentication compatible", async () => {
     const f = await fixture();
-    const { instanceUserRoles } = await import("@paperclipai/db");
+    const { instanceUserRoles } = await import("@outpost/db");
     await db.delete(companyMemberships).where(eq(companyMemberships.principalId, f.userId));
     await db.insert(instanceUserRoles).values({ userId: f.userId, role: "instance_admin" });
     const created = await f.service.createCliAuthChallenge({ command: "paperclipai auth login", requestedAccess: "instance_admin_required", requestedCompanyId: f.companyId });

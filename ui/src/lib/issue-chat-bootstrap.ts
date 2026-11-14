@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
-import { ISSUE_CHAT_BOOTSTRAP_MAX_IDS } from "@paperclipai/shared";
+import { ISSUE_CHAT_BOOTSTRAP_MAX_IDS } from "@outpost/shared";
 import { api } from "@/api/client";
 import { issuesApi } from "@/api/issues";
 import { EARLY_CHAT_BOOTSTRAP_GLOBAL } from "@/lib/issue-detail-preload-events";

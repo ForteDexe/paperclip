@@ -1,6 +1,6 @@
 import { projectInstanceSecretService } from "./project-instance-secrets.js";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { createOwnedDatabaseListener, type OwnedDatabaseListener, agents, companies, pluginCompanySettings, pluginConfig, plugins, projects, type Db } from "@paperclipai/db";
+import { createOwnedDatabaseListener, type OwnedDatabaseListener, agents, companies, pluginCompanySettings, pluginConfig, plugins, projects, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import { pluginLifecycleInbox } from "./plugin-lifecycle-inbox.js";
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";

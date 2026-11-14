@@ -21,16 +21,16 @@ export function taskWorkspaceProfile(profile: RunnerProfileFixture): RunnerProfi
 export function taskWorkspacePrompt(nonce: string, turn: 1 | 2 | 3, native: boolean) {
   const files = taskWorkspaceFiles(nonce);
   const inspect = native ? "Use get_workspace to inspect your admitted task workspace."
-    : "GET /api/issues/$PAPERCLIP_TASK_ID/workspace through the authenticated public API to inspect your task workspace.";
+    : "GET /api/issues/$OUTPOST_TASK_ID/workspace through the authenticated public API to inspect your task workspace.";
   const api = native ? "Use the real Paperclip semantic tools."
-    : 'Use the injected PAPERCLIP_API_URL, PAPERCLIP_API_KEY and PAPERCLIP_RUN_ID for the public API. Normalize API_ORIGIN="${PAPERCLIP_API_URL%/}"; API_ORIGIN="${API_ORIGIN%/api}". Include Authorization: Bearer and X-Paperclip-Run-Id on API requests. Never print credentials.';
+    : 'Use the injected OUTPOST_API_URL, OUTPOST_API_KEY and OUTPOST_RUN_ID for the public API. Normalize API_ORIGIN="${OUTPOST_API_URL%/}"; API_ORIGIN="${API_ORIGIN%/api}". Include Authorization: Bearer and X-Paperclip-Run-Id on API requests. Never print credentials.';
   const content = turn === 1 ? [
     "This is the first of three separately requested steps. Do only this step now; a later user message will request the next step.",
     inspect,
     `In the current task directory write ${files.note} with exactly ${JSON.stringify(files.noteBytes(1))}. Keep task files outside AGENT_HOME.`,
     "Stage a repository for the NEXT normal admission; do not clone it yourself, create a project, switch roots, wait for a new run, or wake this task.",
     native ? `Call prepare_repository twice with exactly {repository:{kind:"url",url:"${TASK_REPOSITORY_URL}"},requestKey:"repository-${nonce}"}. Both calls must report the same preparation receipt and next_normal_admission.`
-      : `POST /api/issues/$PAPERCLIP_TASK_ID/workspace/repositories twice with the same JSON {"repository":{"kind":"url","url":"${TASK_REPOSITORY_URL}"},"requestKey":"repository-${nonce}"}. Both replies must return the same operationId and next_normal_admission.`,
+      : `POST /api/issues/$OUTPOST_TASK_ID/workspace/repositories twice with the same JSON {"repository":{"kind":"url","url":"${TASK_REPOSITORY_URL}"},"requestKey":"repository-${nonce}"}. Both replies must return the same operationId and next_normal_admission.`,
     "Inspect the workspace again. Its identity/root must be unchanged and the repository should still be pending. The repository need not exist yet. The objective of this step is staged preparation, not a completed clone.",
   ] : turn === 2 ? [
     "Continue this same task after the controller restart. Do only step two now.", inspect,

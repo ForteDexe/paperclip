@@ -5,12 +5,12 @@
  * final workspace save see what a full sandbox returns, and leaves every decision after that to
  * the product: the save's own failure handling, finalization, saved-work recovery and Retry.
  *
- * Arming (test mode only), in the same style as `@paperclipai/shared/crash-points`:
+ * Arming (test mode only), in the same style as `@outpost/shared/crash-points`:
  *
- *   PAPERCLIP_DISK_FULL_FAULT_CONTROL=<file>  each final save reads this file. A line that equals
+ *   OUTPOST_DISK_FULL_FAULT_CONTROL=<file>  each final save reads this file. A line that equals
  *                                             the save's issue id or run id arms that save. No file,
  *                                             or no matching line, means disarmed.
- *   PAPERCLIP_DISK_FULL_FAULT_RECEIPT=<file>  optional; one JSON line is appended per faulted save.
+ *   OUTPOST_DISK_FULL_FAULT_RECEIPT=<file>  optional; one JSON line is appended per faulted save.
  *
  * While a save is armed, every sandbox command its capture runs exits 1 with the exact message the
  * in-sandbox capture script writes on ENOSPC, and the provider's file download fails with tar's
@@ -26,8 +26,8 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { REMOTE_WORKSPACE_SANDBOX_DISK_FULL, type RemoteWorkspaceTarget } from "./remote-workspace-transport.js";
 
-export const DISK_FULL_FAULT_CONTROL_ENV = "PAPERCLIP_DISK_FULL_FAULT_CONTROL";
-export const DISK_FULL_FAULT_RECEIPT_ENV = "PAPERCLIP_DISK_FULL_FAULT_RECEIPT";
+export const DISK_FULL_FAULT_CONTROL_ENV = "OUTPOST_DISK_FULL_FAULT_CONTROL";
+export const DISK_FULL_FAULT_RECEIPT_ENV = "OUTPOST_DISK_FULL_FAULT_RECEIPT";
 /** The provider download's failure on a full disk: tar cannot write its archive. */
 export const DISK_FULL_FAULT_SYNC_OUT_MESSAGE = "tar: workspace archive: Cannot write: No space left on device";
 

@@ -833,7 +833,7 @@ test.describe.serial("native chat adapter UI", () => {
       await expect
         .poll(() => mock.linkIntentPrincipalId)
         .toBe(`principal-${provider.provider}`);
-      const confirmationUrl = `https://paperclip.example.test/${seed.prefix}/chat-identity/confirm?token=e2e-redacted`;
+      const confirmationUrl = `https://outpost.example.test/${seed.prefix}/chat-identity/confirm?token=e2e-redacted`;
       await expect(
         page.getByText(confirmationUrl, { exact: true }),
       ).toBeVisible();
@@ -1042,7 +1042,7 @@ test.describe("iMessage Photon setup and management", () => {
         enableChatConnectors: true,
       });
       await page.addInitScript(
-        (value) => localStorage.setItem("paperclip.theme", value),
+        (value) => localStorage.setItem("outpost.theme", value),
         theme,
       );
       await page.goto(`/${seed.prefix}/apps`);

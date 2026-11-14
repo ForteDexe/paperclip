@@ -12,7 +12,7 @@ import { privateClaudeOperation } from "./runtime-claude-private.js";
 export function cloudChoiceMatches(reply: string) {
   return /Claude\s*(?:Code)?/i.test(reply) && /(?:cloud|hosted|remote)\s+(?:computer|machine|environment|execution|runtime)|running (?:in|on) (?:the )?cloud/i.test(reply)
     && /which|do you mean|did you mean|choose|prefer|clarif|whether/i.test(reply) && /engineer|hire|role|developer/i.test(reply) && reply.length < 1200
-    && !/claude_local|paperclip_runner|adapterType|acpxAgent|supply.*(?:adapter|internal).*id/i.test(reply)
+    && !/claude_local|outpost_runner|adapterType|acpxAgent|supply.*(?:adapter|internal).*id/i.test(reply)
     && !/(?:already|I(?:['’]ve| have))\s+(?:created|hired|selected|assigned)|(?:cloud code)\s+(?:definitely|always|clearly)\s+means/i.test(reply);
 }
 export function gradeCloudChoice(value: unknown) {

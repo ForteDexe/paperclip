@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip.chat-catalog-preservation/v1",
+  "schema": "outpost.chat-catalog-preservation/v1",
   "productionBaseline": "39e811c9c5226979fce42e052a27cfb28301018a",
   "canonicalEvalBase": "0098da56f4c10f3154ed4ed96b1404fdf7a021ca",
   "scenarioCount": 244,

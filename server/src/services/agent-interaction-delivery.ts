@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, lte, or, sql } from "drizzle-orm";
-import { activityLog, agents, agentWakeupRequests, caseHandoffs, heartbeatRunEvents, heartbeatRuns, issueComments, issueThreadInteractions, issues, statusDecisions, type Db } from "@paperclipai/db";
+import { activityLog, agents, agentWakeupRequests, caseHandoffs, heartbeatRunEvents, heartbeatRuns, issueComments, issueThreadInteractions, issues, statusDecisions, type Db } from "@outpost/db";
 import { forbidden } from "../errors.js";
 import { agentInteractionDenial, type AgentInteractionDenial, type AgentInteractionInput } from "./agent-interaction-policy.js";
 import { withQueuedCommentIdsInRunContext, withQueuedCommentIdsInWakePayload } from "./issue-queued-comment-queue.js";

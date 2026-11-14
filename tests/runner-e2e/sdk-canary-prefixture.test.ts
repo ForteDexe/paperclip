@@ -7,7 +7,7 @@ import type { MatrixExecution } from "./types.js";
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const revision = "a".repeat(40);
 const build = (): SdkCanaryBuildObservation => ({ ...pins, sourceRevision: revision, retainedManifestSha256: pins.compiledManifestSha256 });
-const execution = () => ({ id: SDK_CANARY, profile: { id: "runner-opencode", provider: "opencode", adapterType: "paperclip_runner", credential: "OPENROUTER_API_KEY", generation: "native", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, suite: { id: "chat-features" }, environment: { id: "local" }, task: { id: "plugins.use-plugin-tool", flow: "agent_chat", turnTimeoutMs: 0, expectedRunCount: 2, attemptTimeoutMs: { local: 480_000 } } }) as MatrixExecution;
+const execution = () => ({ id: SDK_CANARY, profile: { id: "runner-opencode", provider: "opencode", adapterType: "outpost_runner", credential: "OPENROUTER_API_KEY", generation: "native", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, suite: { id: "chat-features" }, environment: { id: "local" }, task: { id: "plugins.use-plugin-tool", flow: "agent_chat", turnTimeoutMs: 0, expectedRunCount: 2, attemptTimeoutMs: { local: 480_000 } } }) as MatrixExecution;
 type Fingerprint = Parameters<typeof assertSdkCanaryFingerprintMatches>[1];
 // A synthetic value for lifecycle controls only; never computed or reported as an actual case fingerprint.
 const fingerprint = () => ({ fingerprintKind: "complete-execution-and-oracle-closure", digest: "b".repeat(64), definitionDigest: "b".repeat(64), graderDigest: "b".repeat(64), sources: [{ file: "packages/plugins/sdk/dist/index.js", sha256: "c".repeat(64) }] }) as unknown as Fingerprint;

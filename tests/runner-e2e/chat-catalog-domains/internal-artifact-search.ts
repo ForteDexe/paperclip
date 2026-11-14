@@ -35,7 +35,7 @@ export function buildHistoricalWebsiteImport(deliveryAt: string, nonce: string) 
   });
   // The production portability reader implements block YAML, not a generic
   // JSON/YAML parser. Keep keys plain and values JSON-compatible quoted scalars.
-  files[".paperclip.yaml"] = stringify({ schemaVersion: 7, tasks }, { defaultKeyType: "PLAIN", defaultStringType: "QUOTE_DOUBLE", lineWidth: 0, indentSeq: true });
+  files[".outpost.yaml"] = stringify({ schemaVersion: 7, tasks }, { defaultKeyType: "PLAIN", defaultStringType: "QUOTE_DOUBLE", lineWidth: 0, indentSeq: true });
   return { files, receipts };
 }
 export function historicalWebsitePreviewMatches(value: unknown, bundle: ReturnType<typeof buildHistoricalWebsiteImport>): boolean {
@@ -155,7 +155,7 @@ function findArtifact(): ChatCatalogCase {
       originalTasks: records, distractors: records.slice(1), privateTask: records[3], privateAttachment: files[3], privateMarker: `${ctx.input.nonce}-restricted-final` };
     await ctx.input.evidence("chat-catalog-public-historical-delivery-import.json", { preview, imported, state, provenance: "Synthetic historical migration through supported public company import. Original source completion/comment dates are preserved; attachments are re-uploaded at import time, not falsely backdated." }); return state;
   }, gradeArtifactSearch);
-  return { ...base, oracleVersion: "paperclip.chat-catalog.find-artifact.v2", authentication: "human-session", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-artifact-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
+  return { ...base, oracleVersion: "outpost.chat-catalog.find-artifact.v2", authentication: "human-session", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-artifact-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
     async observe(ctx, state): Promise<SearchObservation> {
       if (!key) throw new Error("Historical search probe was not created during setup"); const o = await observeInternal(ctx, state); const file = state.finalAttachment as IssueAttachment;
       const read = async (path: string) => { const url = new URL(path, ctx.input.api.baseURL); if (url.origin !== ctx.input.api.baseURL || !url.pathname.startsWith("/api/")) throw new Error("Historical probe escaped fixture API");

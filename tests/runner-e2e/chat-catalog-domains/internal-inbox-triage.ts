@@ -116,7 +116,7 @@ function triageCase(scenarioId: string): ChatCatalogCase {
       const unanswered = originalTasks.at(-1)!;
       const question = await ctx.input.api.post<Entity>(`/api/issues/${unanswered.id}/interactions`, createIssueThreadInteractionSchema.parse({
         kind: "ask_user_questions", title: "Unanswered launch decision", continuationPolicy: "none", resolverPolicy: "human_only", addresseeUserId: session.user.id,
-        payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "paperclip.question_set.v1", questions: [{ id: "launch-choice", prompt: "Which launch copy should we use?", answerMode: "text", required: true }] } },
+        payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "launch-choice", prompt: "Which launch copy should we use?", answerMode: "text", required: true }] } },
       }));
       const root = `/api/companies/${ctx.input.fixtures.company.id}`;
       const response = await other.request(`${root}/issues`, "POST", { title: "Riley's separate Done task", status: "done", projectId: p.id });
@@ -176,7 +176,7 @@ function triageCase(scenarioId: string): ChatCatalogCase {
     }
     return { ...o, ownerItems, policy, phaseReply, unrestorableStatus, questions: questionRows, otherPersonItems: await response.json() as InboxItem[] };
   };
-  return { ...base, ...(scenarioId === "inbox-search.restore-archive" ? { oracleVersion: "paperclip.chat-catalog.inbox.restore-archive.v2" } : {}),
+  return { ...base, ...(scenarioId === "inbox-search.restore-archive" ? { oracleVersion: "outpost.chat-catalog.inbox.restore-archive.v2" } : {}),
     authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, expectedHumanMessageCount: 2,
     ...(scenarioId === "inbox-search.restore-archive" ? { setupHumanMessageCount: 1 } : {}), attemptTimeoutMs: 600_000, observe,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-inbox-triage.ts", "chat-catalog-domains/identity-auth.ts", "../../packages/shared/src/validators/issue.ts"],

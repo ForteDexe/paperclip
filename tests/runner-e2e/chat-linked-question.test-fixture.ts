@@ -12,7 +12,7 @@ export function valid(): Input {
       activity: [{ id: "action", companyId: "company", action: "issue.thread_interaction_created", entityType: "issue", entityId: "source", actorType: "agent", actorId: "ceo", agentId: "ceo", runId: "run", details: { interactionId: "question", interactionKind: "ask_user_questions" } } as never] },
     interactions: [{ id: "question", companyId: "company", issueId: "source", kind: "ask_user_questions", status: "pending", createdByAgentId: "ceo", createdByUserId: null,
       sourceRunId: "run", originCommentIds: ["human"], addresseeUserId: "person", addresseeAgentId: null, effectiveResolverPolicy: "human_only", createdAt: "2026-10-28T12:00:30Z",
-      payload: { version: 1, questionSet: { schema: "paperclip.question_set.v1", description: "Choose [Launch Landing page](/RUN/issues/RUN-1) or [Experiments Landing page](/RUN/issues/experiment-task) for High priority.",
+      payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", description: "Choose [Launch Landing page](/RUN/issues/RUN-1) or [Experiments Landing page](/RUN/issues/experiment-task) for High priority.",
         questions: [{ id: "which-task", prompt: "Which Landing page task should be High priority?", answerMode: "text", required: true }] } } } as never] };
 }
 export function dom() {

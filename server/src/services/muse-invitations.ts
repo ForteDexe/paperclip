@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
-import { activityLog, agents, companies, museAgentBindings, type Db } from "@paperclipai/db";
+import { activityLog, agents, companies, museAgentBindings, type Db } from "@outpost/db";
 import { agentService } from "./agents.js";
 import { createAgentLifecycle, scheduleAgentLifecycle } from "./agent-lifecycle.js";
-import { withDedicatedDbConnection } from "@paperclipai/db";
+import { withDedicatedDbConnection } from "@outpost/db";
 import { approvalService } from "./approvals.js";
 import { accessService } from "./access.js";
 import { agentInstructionsService } from "./agent-instructions.js";
@@ -17,7 +17,7 @@ export function museInvitationService(db: Db) {
     const rows = await database.select({ agent: agents, binding: museAgentBindings })
       .from(agents).leftJoin(museAgentBindings, and(eq(museAgentBindings.agentId, agents.id), isNull(museAgentBindings.revokedAt)))
       .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated"),
-        eq(agents.adapterType, "paperclip_runner"), sql`${agents.adapterConfig}->>'provider' = 'muse'`,
+        eq(agents.adapterType, "outpost_runner"), sql`${agents.adapterConfig}->>'provider' = 'muse'`,
         sql`((${recoverIncomplete} and ${agents.metadata}->'museInvitation'->>'operatorId' = ${operatorId}
           and ${agents.lifecycleOperation}->>'responsibleUserId' = ${operatorId}) or exists (select 1 from ${activityLog} where ${activityLog.companyId} = ${agents.companyId}
           and ${activityLog.entityId} = ${agents.id}::text and ${activityLog.entityType} = 'agent'
@@ -55,7 +55,7 @@ export function museInvitationService(db: Db) {
         }
         const svc = agentService(database);
         let created = existing ?? await createAgentLifecycle(database).requestHire(companyId, {
-          name: input.name, role: input.role, adapterType: "paperclip_runner",
+          name: input.name, role: input.role, adapterType: "outpost_runner",
           adapterConfig: { provider: "muse", lifecycleMode: "per_turn", allowUnmeteredProvider: true,
             dotWorkspaceAccess: false, dotAttachmentAccess: false },
           runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },

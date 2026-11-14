@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import type { Db, agents, agentTaskSessions, heartbeatRuns } from "@paperclipai/db";
-import { FAST_RESPONSE_AGENT_GUIDANCE, fastResponseHistoryBody, isValidIanaTimeZone } from "@paperclipai/shared";
-import type { PaperclipTurnContext } from "@paperclipai/adapter-utils/server-utils";
+import type { Db, agents, agentTaskSessions, heartbeatRuns } from "@outpost/db";
+import { FAST_RESPONSE_AGENT_GUIDANCE, fastResponseHistoryBody, isValidIanaTimeZone } from "@outpost/shared";
+import type { PaperclipTurnContext } from "@outpost/adapter-utils/server-utils";
 import { parseObject } from "../../adapters/utils.js";
 import { isConversation } from "../agent-conversations.js";
 import { chatCompletionInstruction } from "../chat-completion-delivery.js";
@@ -15,7 +15,7 @@ import { getTaskPlanContext } from "../task-plan-context.js";
 import { caseExecutionMarkdown, getCaseExecutionContext } from "../case-context.js";
 import type { TrustPresetResolution } from "../trust-preset-resolver.js";
 import { liveVoiceExecutionGuidance } from "../voice/voice-execution-guidance.js";
-import { buildPaperclipWakePayload, ConfigurationIncompleteFailure, readHeartbeatWakeComments, PAPERCLIP_WAKE_PAYLOAD_KEY, type createHeartbeatRunPreparation } from "./run-preparation.js";
+import { buildPaperclipWakePayload, ConfigurationIncompleteFailure, readHeartbeatWakeComments, OUTPOST_WAKE_PAYLOAD_KEY, type createHeartbeatRunPreparation } from "./run-preparation.js";
 import { buildPaperclipTaskMarkdown } from "./task-markdown.js";
 import { deriveCommentId, extractWakeCommentIds } from "../../modules/run-dispatch/index.js";
 import { workspacePreferenceService } from "../workspace-preferences.js";
@@ -37,7 +37,7 @@ export interface HeartbeatTaskContextInput {
   policy: {
     recovering?: boolean;
     trustPreset: Pick<TrustPresetResolution, "kind">;
-    experimentalInstanceSettings: { enableSimplifiedEnglishInteractions?: boolean; enableCases?: boolean; enableConferenceRoomChat?: boolean; enableStatusCards?: boolean };
+    experimentalInstanceSettings: { enableSimplifiedEnglishInteractions?: boolean; enableCases?: boolean; enableStatusCards?: boolean };
   };
   services: {
     issuesSvc: Pick<ReturnType<typeof issueService>, "getAncestors">;
@@ -175,9 +175,9 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       true,
   });
   if (paperclipWakePayload) {
-    context[PAPERCLIP_WAKE_PAYLOAD_KEY] = paperclipWakePayload;
+    context[OUTPOST_WAKE_PAYLOAD_KEY] = paperclipWakePayload;
   } else {
-    delete context[PAPERCLIP_WAKE_PAYLOAD_KEY];
+    delete context[OUTPOST_WAKE_PAYLOAD_KEY];
   }
   const safeWakeComments = (paperclipWakePayload?.comments ?? []).flatMap(
     (comment) =>
@@ -236,7 +236,7 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
     && !input.policy.recovering
     ? await workspacePreferenceService(db).get(issueContext.conversationUserId)
     : null;
-  const coordinatorWorkspace = agent.adapterType === "paperclip_runner" && isConversation(issueContext)
+  const coordinatorWorkspace = agent.adapterType === "outpost_runner" && isConversation(issueContext)
     && issueContext?.conversationUserId
     ? input.policy.recovering
       ? context.paperclipCoordinatorWorkspaceEnabled === true
@@ -255,7 +255,6 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   const taskMarkdownInput = {
     coordinatorWorkspace: Boolean(coordinatorWorkspace),
     personTimeZone,
-    conferenceRoomEnabled: experimentalInstanceSettings.enableConferenceRoomChat === true,
     statusCardsEnabled: experimentalInstanceSettings.enableStatusCards === true,
     casesEnabled: experimentalInstanceSettings.enableCases === true,
     conversationConfirmations: issueRef && isConversation(issueContext)
@@ -281,7 +280,7 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
     slackCommand: issueContext?.chatAssignedAgentId === agent.id
       ? issueContext.chatSlackCommand
       : null,
-    nativeRunner: agent.adapterType === "paperclip_runner",
+    nativeRunner: agent.adapterType === "outpost_runner",
     interaction: {
       kind: readNonEmptyString(context.interactionKind),
       status: readNonEmptyString(context.interactionStatus),

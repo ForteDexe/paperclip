@@ -18,7 +18,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   agentWakeupRequests,
@@ -30,13 +30,13 @@ import {
   chatExternalPrincipals,
   heartbeatRuns,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   SafeChatPublicationPayload,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   isUuidLike,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import { logger } from "../../../middleware/logger.js";
 

@@ -1,5 +1,5 @@
-import type { AdapterEnvironmentTestResult } from "@paperclipai/adapter-utils";
-import { readEnvironmentTaskErrorCode } from "@paperclipai/plugin-sdk";
+import type { AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
+import { readEnvironmentTaskErrorCode } from "@outpost/plugin-sdk";
 
 export const RUNNER_REVISION_MISMATCH_CODE = "runner_revision_mismatch";
 

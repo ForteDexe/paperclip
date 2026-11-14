@@ -1,8 +1,8 @@
-import { codexLocalReasoningEffortsForModel, isCodexLocalFastModeSupported, isCodexLocalKnownModel } from "@paperclipai/adapter-codex-local";
-import { claudeLocalReasoningEffortsForModel } from "@paperclipai/adapter-claude-local";
-import { DEFAULT_GROK_LOCAL_MODEL, grokLocalReasoningEffortsForModel } from "@paperclipai/adapter-grok-local";
-import { DEFAULT_KIMI_LOCAL_MODEL, modelSupportsEffort, KIMI_SUPPORTED_EFFORTS } from "@paperclipai/adapter-kimi-local";
-import { AGENT_PALETTE_IDS, appearanceForPalette } from "@paperclipai/shared";
+import { codexLocalReasoningEffortsForModel, isCodexLocalFastModeSupported, isCodexLocalKnownModel } from "@outpost/adapter-codex-local";
+import { claudeLocalReasoningEffortsForModel } from "@outpost/adapter-claude-local";
+import { DEFAULT_GROK_LOCAL_MODEL, grokLocalReasoningEffortsForModel } from "@outpost/adapter-grok-local";
+import { DEFAULT_KIMI_LOCAL_MODEL, modelSupportsEffort, KIMI_SUPPORTED_EFFORTS } from "@outpost/adapter-kimi-local";
+import { AGENT_PALETTE_IDS, appearanceForPalette } from "@outpost/shared";
 
 export type ModelOption = { id: string; label: string; detail?: string };
 export type ComposerAgent = {
@@ -63,7 +63,7 @@ export const composerAgents: ComposerAgent[] = [
     { id: "sonnet-4.6", label: "Sonnet 4.6" },
   ], manualPattern: "Cursor model ID" },
   { id: "cursor-cloud", name: "Cloudy", role: "Remote engineering", harness: "Cursor Cloud", adapterType: "cursor_cloud", defaultLabel: "Account default", models: [], manualPattern: "Cursor Cloud model ID" },
-  { id: "runner", name: "Runa", role: "Operations", harness: "Paperclip Runner", adapterType: "paperclip_runner", provider: "Codex profile", defaultModel: "gpt-6.1-sol", models: codexModels, manualPattern: "Codex model ID" },
+  { id: "runner", name: "Runa", role: "Operations", harness: "Outpost Runner", adapterType: "outpost_runner", provider: "Codex profile", defaultModel: "gpt-6.1-sol", models: codexModels, manualPattern: "Codex model ID" },
   { id: "grok", name: "Grok", role: "Investigation", harness: "Grok CLI", adapterType: "grok_local", defaultModel: "grok-build", models: [
     { id: "grok-build", label: "Grok Build" },
     { id: "grok-4.7", label: "Grok 4.7" },

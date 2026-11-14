@@ -6,7 +6,7 @@ MIN_NODE_MINOR=11
 MIN_NODE_PATCH=0
 MIN_NODE_VERSION="${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}.${MIN_NODE_PATCH}"
 DEFAULT_NODE_MAJOR=24
-PAPERCLIP_PACKAGE="paperclipai"
+OUTPOST_PACKAGE="paperclipai"
 PUBLIC_NPM_REGISTRY="https://registry.npmjs.org"
 HOMEBREW_INSTALL_COMMIT="99e13e96cbbdc1ac1ac09c0a40b450bf219ef3aa"
 HOMEBREW_INSTALL_SHA256="99287f194a8b3c9e6b0203a11a5fa54518be57209343e6bb954dec4635796d9d"
@@ -35,9 +35,9 @@ usage() {
 Install Paperclip on macOS, Linux, or WSL2.
 
 Usage:
-  curl -fsSLO https://paperclip.ing/install.sh
+  curl -fsSLO https://outpost.ing/install.sh
   bash install.sh [options]
-  curl -fsSL https://paperclip.ing/install.sh | bash -s -- --no-prompt [options]
+  curl -fsSL https://outpost.ing/install.sh | bash -s -- --no-prompt [options]
 
 Options:
   --canary                 Install the canary channel
@@ -49,8 +49,8 @@ Options:
   --verbose                Enable verbose installer output
   -h, --help               Show this help
 
-Every option also has a PAPERCLIP_INSTALL_* environment equivalent, for example
-PAPERCLIP_INSTALL_VERSION=2026.722.0 and PAPERCLIP_INSTALL_NO_PROMPT=1.
+Every option also has a OUTPOST_INSTALL_* environment equivalent, for example
+OUTPOST_INSTALL_VERSION=2026.722.0 and OUTPOST_INSTALL_NO_PROMPT=1.
 
 To install from a git branch, tag, or commit, use the Paperclip CLI directly:
 npx paperclipai install --ref <ref>
@@ -58,11 +58,11 @@ EOF
 }
 
 log() {
-  printf '[paperclip] %s\n' "$*"
+  printf '[outpost] %s\n' "$*"
 }
 
 fail() {
-  printf '[paperclip] error: %s\n' "$*" >&2
+  printf '[outpost] error: %s\n' "$*" >&2
   exit 1
 }
 
@@ -93,15 +93,15 @@ cleanup() {
 
 trap cleanup EXIT
 
-CANARY="$(parse_bool PAPERCLIP_INSTALL_CANARY "${PAPERCLIP_INSTALL_CANARY:-}")"
-VERSION="${PAPERCLIP_INSTALL_VERSION:-}"
-REF="${PAPERCLIP_INSTALL_REF:-}"
-REPO="${PAPERCLIP_INSTALL_REPO:-}"
-NO_ONBOARD="$(parse_bool PAPERCLIP_INSTALL_NO_ONBOARD "${PAPERCLIP_INSTALL_NO_ONBOARD:-}")"
-NO_PROMPT="$(parse_bool PAPERCLIP_INSTALL_NO_PROMPT "${PAPERCLIP_INSTALL_NO_PROMPT:-}")"
-INSTALL_SERVICE="$(parse_bool PAPERCLIP_INSTALL_INSTALL_SERVICE "${PAPERCLIP_INSTALL_INSTALL_SERVICE:-}")"
-DRY_RUN="$(parse_bool PAPERCLIP_INSTALL_DRY_RUN "${PAPERCLIP_INSTALL_DRY_RUN:-}")"
-VERBOSE="$(parse_bool PAPERCLIP_INSTALL_VERBOSE "${PAPERCLIP_INSTALL_VERBOSE:-}")"
+CANARY="$(parse_bool OUTPOST_INSTALL_CANARY "${OUTPOST_INSTALL_CANARY:-}")"
+VERSION="${OUTPOST_INSTALL_VERSION:-}"
+REF="${OUTPOST_INSTALL_REF:-}"
+REPO="${OUTPOST_INSTALL_REPO:-}"
+NO_ONBOARD="$(parse_bool OUTPOST_INSTALL_NO_ONBOARD "${OUTPOST_INSTALL_NO_ONBOARD:-}")"
+NO_PROMPT="$(parse_bool OUTPOST_INSTALL_NO_PROMPT "${OUTPOST_INSTALL_NO_PROMPT:-}")"
+INSTALL_SERVICE="$(parse_bool OUTPOST_INSTALL_INSTALL_SERVICE "${OUTPOST_INSTALL_INSTALL_SERVICE:-}")"
+DRY_RUN="$(parse_bool OUTPOST_INSTALL_DRY_RUN "${OUTPOST_INSTALL_DRY_RUN:-}")"
+VERBOSE="$(parse_bool OUTPOST_INSTALL_VERBOSE "${OUTPOST_INSTALL_VERBOSE:-}")"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -211,7 +211,7 @@ has_supported_node() {
 }
 
 print_command() {
-  printf '[paperclip] +'
+  printf '[outpost] +'
   printf ' %q' "$@"
   printf '\n'
 }
@@ -223,7 +223,7 @@ confirm_command() {
   fi
 
   local answer
-  printf '[paperclip] Run this command? [y/N] ' >/dev/tty
+  printf '[outpost] Run this command? [y/N] ' >/dev/tty
   IFS= read -r answer </dev/tty || answer=""
   case "$answer" in
     y|Y|yes|YES|Yes) ;;
@@ -360,11 +360,11 @@ else
   log "Installed Node.js $(node --version)"
 fi
 
-PACKAGE_SPEC="$PAPERCLIP_PACKAGE@latest"
+PACKAGE_SPEC="$OUTPOST_PACKAGE@latest"
 if [ "$CANARY" = "1" ]; then
-  PACKAGE_SPEC="$PAPERCLIP_PACKAGE@canary"
+  PACKAGE_SPEC="$OUTPOST_PACKAGE@canary"
 elif [ -n "$VERSION" ]; then
-  PACKAGE_SPEC="$PAPERCLIP_PACKAGE@$VERSION"
+  PACKAGE_SPEC="$OUTPOST_PACKAGE@$VERSION"
 fi
 
 INSTALL_ARGS=(install)

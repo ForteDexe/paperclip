@@ -1,8 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { workflows, type Db } from "@paperclipai/db";
+import { workflows, type Db } from "@outpost/db";
 import type { z } from "zod";
-import type { createWorkflowSchema, updateWorkflowSchema } from "@paperclipai/shared";
+import type { createWorkflowSchema, updateWorkflowSchema } from "@outpost/shared";
 import { conflict, notFound } from "../errors.js";
 import { casesDisabledError } from "./cases-disabled.js";
 import { instanceSettingsService } from "./instance-settings.js";

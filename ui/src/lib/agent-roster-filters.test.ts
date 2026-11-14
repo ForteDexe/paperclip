@@ -1,4 +1,4 @@
-import type { Agent, AiConnectionList } from "@paperclipai/shared";
+import type { Agent, AiConnectionList } from "@outpost/shared";
 import { describe, expect, it } from "vitest";
 import { buildAgentRosterIndex, emptyAgentRosterFilters, matchesAgentRosterFilters } from "./agent-roster-filters";
 
@@ -13,7 +13,7 @@ const binding = (id = connectionId) => ({ provider: "openai", method: "api_key",
 describe("agent roster filters", () => {
   it("intersects all four filters using connection identity even when names are equal", () => {
     const agents = [
-      agent("match", { adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: " custom-model " }, runtimeConfig: { aiConnection: binding() } }),
+      agent("match", { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: " custom-model " }, runtimeConfig: { aiConnection: binding() } }),
       agent("other-connection", { adapterConfig: { model: "custom-model" }, runtimeConfig: { aiConnection: binding(otherConnectionId) } }),
       agent("other-model", { adapterConfig: { model: "another-model" }, runtimeConfig: { aiConnection: binding() } }),
       agent("other-status", { status: "paused", adapterConfig: { model: "custom-model" }, runtimeConfig: { aiConnection: binding() } }),
@@ -36,7 +36,7 @@ describe("agent roster filters", () => {
       agent("responsible", { runtimeConfig: { aiConnection: { mode: "responsible_user", provider: "openai", method: "subscription" } } }),
       agent("pool", { runtimeConfig: { aiConnection: { mode: "router", connectionId } } }),
       agent("pending", { status: "paused", adapterType: "process", pauseReason: "setup", metadata: {
-        setupAdapterPending: true, setupAdapterChoice: { adapterType: "paperclip_runner", runnerProvider: "antigravity", runner: "auto" },
+        setupAdapterPending: true, setupAdapterChoice: { adapterType: "outpost_runner", runnerProvider: "antigravity", runner: "auto" },
       } }), agent("hidden", { status: "terminated", adapterConfig: { model: "hidden-model" } }), agent("approval", { status: "pending_approval" }),
     ];
     const { byAgentId, options } = buildAgentRosterIndex(agents);

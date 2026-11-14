@@ -99,7 +99,7 @@ it("keeps the unchanged 256MiB packaging/archive caps with one canonical large a
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=", "base64");
   await writeFile(path.join(f.cell, "final-state.png"), png);
   const descriptor = fullCatalogCases.find(row => row.executionId === id)!;
-  await writeFile(path.join(f.cell, "result.json"), JSON.stringify({ schema: "paperclip.runner-e2e.result/v2", executionId: id, suiteId: "chat-features", suiteDefinitionHash: "c".repeat(64),
+  await writeFile(path.join(f.cell, "result.json"), JSON.stringify({ schema: "outpost.runner-e2e.result/v2", executionId: id, suiteId: "chat-features", suiteDefinitionHash: "c".repeat(64),
     source: { sha: catalogTargetSha, ref: "refs/heads/master", workflowRunUrl: "https://github.com/paperclipai/paperclip/actions/runs/123" }, attempt: 1, status: "failed", error: "original failed assertion", cleanup: "passed", evidenceValid: false,
     runIds: [], profileId: "runner-opencode", environmentId: "local", caseId: descriptor.scenario, provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", runtimeMode: "native",
     startedAt: "2026-11-01T00:00:00Z", finishedAt: "2026-11-01T00:00:01Z", durationMs: 1000, matcherResults: [], screenshots: [] }));
@@ -133,14 +133,14 @@ it("keeps the unchanged 256MiB packaging/archive caps with one canonical large a
   const report = path.join(f.root, "normalized"), repository = path.resolve(import.meta.dirname, "../..");
   const cli = createRequire(path.join(repository, "cli/package.json")).resolve("tsx/cli");
   const reportProcess = await promisify(execFile)(process.execPath, ["--import", path.join(path.dirname(cli), "loader.mjs"), path.join(repository, "tests/runner-e2e/report.ts")], { cwd: repository, timeout: 30000, env: { PATH: process.env.PATH, CI: "1", NODE_OPTIONS: "", NODE_PATH: "",
-    PAPERCLIP_RUNNER_E2E_REPORT_ROOT: selected, PAPERCLIP_RUNNER_E2E_REPORT_OUT: report, PAPERCLIP_RUNNER_E2E_EXPECTED_IDS: JSON.stringify([id]),
-    PAPERCLIP_E2E_CAMPAIGN_ID: "gha-123-1", PAPERCLIP_RUNNER_E2E_SOURCE_SHA: catalogTargetSha, PAPERCLIP_RUNNER_E2E_SOURCE_REF: "refs/heads/master" } }).then(() => 0, error => error.code);
+    OUTPOST_RUNNER_E2E_REPORT_ROOT: selected, OUTPOST_RUNNER_E2E_REPORT_OUT: report, OUTPOST_RUNNER_E2E_EXPECTED_IDS: JSON.stringify([id]),
+    OUTPOST_E2E_CAMPAIGN_ID: "gha-123-1", OUTPOST_RUNNER_E2E_SOURCE_SHA: catalogTargetSha, OUTPOST_RUNNER_E2E_SOURCE_REF: "refs/heads/master" } }).then(() => 0, error => error.code);
   expect(reportProcess).toBe(1);
   const binding = { runId: "123", attempt: "1", workflowSha: "a".repeat(40), targetSha: catalogTargetSha, catalog: "full" as const };
   const projection = path.join(f.root, "projection");
   const exported = await exportCompletionPilot(report, projection, binding, [id]);
   expect(exported.privateEvidence[0]!.finalScreenshot!.sha256).toBe(createHash("sha256").update(png).digest("hex"));
-  const allure = await exportPilotAllure(projection, path.join(f.root, "allure"), binding, { schema: "paperclip.chat-completion-testops-selection/v1", ...binding, projectId: 1, planId: 10, jobId: 11, launchId: 12, allureJobRunId: "77", cases: [{ ...descriptor, caseId: 100 }] });
+  const allure = await exportPilotAllure(projection, path.join(f.root, "allure"), binding, { schema: "outpost.chat-completion-testops-selection/v1", ...binding, projectId: 1, planId: 10, jobId: 11, launchId: 12, allureJobRunId: "77", cases: [{ ...descriptor, caseId: 100 }] });
   expect(allure[0]!.status).toBe("failed");
   expect(JSON.parse(await readFile(path.join(projection, "normalized-results.json"), "utf8")).results[0].status).toBe("failed");
 }, 120_000);
@@ -227,12 +227,12 @@ it("rejects unrecognized command credentials in a registered plain-text file", a
   await expect(packageEvidence({ privateDir: f.cell, uploadDir: path.join(f.root, "upload"), secrets: [], expectPassScreenshot: false, privateCell: { owner, layout: "original" } })).rejects.toThrow("requires redaction");
 });
 
-it.skipIf(!process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE)("seals an actual failed browser screenshot, trace and blob report without losing declared attachments", async () => {
+it.skipIf(!process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE)("seals an actual failed browser screenshot, trace and blob report without losing declared attachments", async () => {
   const f = await fixture(), tests = path.join(f.root, "browser-tests"); await mkdir(tests);
   const require = createRequire(import.meta.url), pkg = require.resolve("@playwright/test/package.json"), entry = require.resolve("@playwright/test");
   await writeFile(path.join(tests, "failed.spec.cjs"), `const {test,expect}=require(${JSON.stringify(entry)});test('real failed browser result',async({page},info)=>{await page.setContent('<h1>Dummy retained page</h1>');await info.attach('dummy-content',{body:Buffer.from('nonprivate dummy attachment'),contentType:'text/plain'});await test.step('actual failed browser assertion',async()=>expect(await page.locator('h1').innerText()).toBe('different heading'));});`);
   const config = path.join(tests, "config.cjs");
-  await writeFile(config, `module.exports=${JSON.stringify({ testDir: tests, testMatch: "failed.spec.cjs", workers: 1, outputDir: path.join(f.source, "playwright-output"), use: { launchOptions: { executablePath: process.env.PAPERCLIP_RUNNER_E2E_CHROMIUM_EXECUTABLE }, screenshot: "only-on-failure", trace: "retain-on-failure" }, reporter: [["json", { outputFile: path.join(f.source, "framework-report.json") }], ["html", { outputFolder: path.join(f.source, "html-report"), open: "never" }], ["blob", { outputDir: path.join(f.source, "blob-report") }]] })};`);
+  await writeFile(config, `module.exports=${JSON.stringify({ testDir: tests, testMatch: "failed.spec.cjs", workers: 1, outputDir: path.join(f.source, "playwright-output"), use: { launchOptions: { executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE }, screenshot: "only-on-failure", trace: "retain-on-failure" }, reporter: [["json", { outputFile: path.join(f.source, "framework-report.json") }], ["html", { outputFolder: path.join(f.source, "html-report"), open: "never" }], ["blob", { outputDir: path.join(f.source, "blob-report") }]] })};`);
   await promisify(execFile)(process.execPath, [path.join(path.dirname(pkg), "cli.js"), "test", "--config", config], { cwd: tests, env: { PATH: process.env.PATH, CI: "1", NODE_OPTIONS: "", NODE_PATH: "" }, timeout: 30000 }).then(() => { throw new Error("Original should fail"); }, error => { expect(error.code).toBe(1); });
   await rm(path.join(f.cell, "playwright-output"), { recursive: true });
   for (const folder of ["playwright-output", "html-report", "blob-report"]) await cp(path.join(f.source, folder), path.join(f.cell, folder), { recursive: true });

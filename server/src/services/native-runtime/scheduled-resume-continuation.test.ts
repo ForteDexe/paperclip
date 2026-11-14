@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase,
 } from "../../__tests__/helpers/embedded-postgres.js";
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("the durable stop receipt behind a scheduled resume con
     await db.insert(companies).values({ id: companyId, name: "Resume", issuePrefix: "SRC",
       requireBoardApprovalForNewAgents: false });
     await db.insert(agents).values({ id: agentId, companyId, name: "Runner", role: "engineer", status: "active",
-      adapterType: "paperclip_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
+      adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
     const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
     await once(child, "exit");
     deadPid = child.pid!;

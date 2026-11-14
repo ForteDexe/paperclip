@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
-import { agents, budgetResumeClaims, heartbeatRuns, type Db } from "@paperclipai/db";
+import { agents, budgetResumeClaims, heartbeatRuns, type Db } from "@outpost/db";
 import { HttpError } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { logActivity, publishActivity, type ActivityPublication } from "./activity-log.js";

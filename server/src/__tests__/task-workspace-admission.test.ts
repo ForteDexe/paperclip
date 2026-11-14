@@ -12,7 +12,7 @@ describe("task workspace admission authority", () => {
     expect(resolveExecutionWorkspaceMode({ projectPolicy: null, issueSettings: settings, legacyUseProjectWorkspace: null })).toBe("isolated_workspace");
   });
   it.each([
-    { admittedInput: { schema: "paperclip.native-execution-input.v3", binding: { executionWorkspaceId: "old-projectless-run" } }, restarting: false, hasLeaseOwner: false },
+    { admittedInput: { schema: "outpost.native-execution-input.v3", binding: { executionWorkspaceId: "old-projectless-run" } }, restarting: false, hasLeaseOwner: false },
     { admittedInput: null, restarting: true, hasLeaseOwner: false },
     { admittedInput: null, restarting: false, hasLeaseOwner: true },
   ])("defers pending root changes while immutable execution/recovery owns the root", admission => {

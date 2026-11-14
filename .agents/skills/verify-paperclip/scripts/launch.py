@@ -35,12 +35,12 @@ else:
 excluded = {'DATABASE_URL', 'DATABASE_MIGRATION_URL', 'HOST', 'PORT', 'SERVE_UI',
             'BETTER_AUTH_URL', 'BETTER_AUTH_BASE_URL', 'NODE_OPTIONS'}
 env = {key: value for key, value in os.environ.items()
-       if not key.startswith('PAPERCLIP_') and key not in excluded}
-env.update({'PAPERCLIP_HOME': str(data), 'PAPERCLIP_INSTANCE_ID': 'default',
-            'PAPERCLIP_DISABLE_CWD_ENV_FILE': 'true', 'PAPERCLIP_NO_BROWSER': 'true',
-            'PAPERCLIP_OPEN_ON_LISTEN': 'false', 'PAPERCLIP_UPDATE_CHECK': '0',
-            'PAPERCLIP_TELEMETRY_DISABLED': '1', 'PAPERCLIP_DEPLOYMENT_MODE': 'local_trusted',
-            'PAPERCLIP_DEPLOYMENT_EXPOSURE': 'private', 'PAPERCLIP_BIND': 'loopback',
+       if not key.startswith('OUTPOST_') and key not in excluded}
+env.update({'OUTPOST_HOME': str(data), 'OUTPOST_INSTANCE_ID': 'default',
+            'OUTPOST_DISABLE_CWD_ENV_FILE': 'true', 'OUTPOST_NO_BROWSER': 'true',
+            'OUTPOST_OPEN_ON_LISTEN': 'false', 'OUTPOST_UPDATE_CHECK': '0',
+            'OUTPOST_TELEMETRY_DISABLED': '1', 'OUTPOST_DEPLOYMENT_MODE': 'local_trusted',
+            'OUTPOST_DEPLOYMENT_EXPOSURE': 'private', 'OUTPOST_BIND': 'loopback',
             'HOST': '127.0.0.1', 'PORT': str(port)})
 record = {'dataDir': str(data), 'evidenceDir': str(evidence), 'repo': str(repo),
           'launcherPid': os.getpid(), 'port': port, 'url': f'http://127.0.0.1:{port}',

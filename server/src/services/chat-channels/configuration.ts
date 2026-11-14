@@ -37,7 +37,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 
 import {
   chatConversations,
@@ -45,13 +45,13 @@ import {
   chatEndpoints,
   toolApplications,
   toolConnections,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   ChatEndpoint,
   ChatEndpointSetupState,
   ChatProvider,
   ConfigureChatEndpointInput,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
 import {
   MAX_ATTACHMENT_BYTES,
@@ -582,7 +582,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
       !isSupportedTelegramWebhookBaseUrl(getWebhookPublicBaseUrl())
     ) {
       throw unprocessable(
-        "Telegram webhooks require PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL to use HTTPS on port 443, 80, 88, or 8443",
+        "Telegram webhooks require OUTPOST_CHAT_WEBHOOK_PUBLIC_URL to use HTTPS on port 443, 80, 88, or 8443",
         {
           code: "chat_telegram_webhook_url_unsupported",
           provider: "telegram",

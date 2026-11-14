@@ -43,7 +43,7 @@ export const runtimeRetirementCases = [runtimeDefinition("agents.retire-agent", 
   if (!revisions.length || revisions.some(row => row.createdByAgentId || row.createdByRunId)) throw new Error("Historical human fixture provenance is invalid");
   return { ...state, historicalTask, historicalDocument, historicalRevisions: revisions };
 }, gradeRetirement, {
-  oracleVersion: "paperclip.chat-catalog.runtime-retirement.v3",
+  oracleVersion: "outpost.chat-catalog.runtime-retirement.v3",
   sourceFiles: ["chat-catalog-domains/runtime-retirement.ts", "chat-catalog-domains/runtime-busy-worker.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],
   expectedRunCount: 2, attemptTimeoutMs: 600_000,
   runPolicy: { kind: "terminal-counts", terminalStatusCounts: { succeeded: 1, cancelled: 1 } },

@@ -73,7 +73,7 @@ export async function runChatSetupHealth(input: { api: RunnerApi; fixtures: Live
     let diagnosticFailure = false;
     try {
       const probes = await readChatReadinessReceipts(input.temporaryRoot, f.company.id);
-      await input.evidence("chat-setup-health.json", { schema: "paperclip.chat-setup-health/v1", scope: "diagnostic-outside-244",
+      await input.evidence("chat-setup-health.json", { schema: "outpost.chat-setup-health/v1", scope: "diagnostic-outside-244",
         companyId: f.company.id, agentId: f.agent.id, probes, publicState: "not-yet-verified",
         setupProbeUsage: "unavailable outside heartbeat accounting; never zero" });
     } catch { diagnosticFailure = true; }
@@ -98,11 +98,11 @@ export async function runChatSetupHealth(input: { api: RunnerApi; fixtures: Live
     const comments = (await Promise.all(sourceIds.map(id => api.get<Array<{ authorUserId?: string | null }>>(`/api/issues/${id}/comments?order=asc`, { timeout: 5_000 })))).flat();
     const agent = agents.find(row => row.id === f.agent.id);
     const state = { ready, agentCount: agents.length, configMatches: agent?.companyId === f.company.id && agent.defaultEnvironmentId === f.environment.id
-      && agent.adapterType === "paperclip_runner" && agent.adapterConfig?.provider === "opencode" && agent.adapterConfig?.model === CHAT_OPENCODE_MODEL,
+      && agent.adapterType === "outpost_runner" && agent.adapterConfig?.provider === "opencode" && agent.adapterConfig?.model === CHAT_OPENCODE_MODEL,
       issues: issues.length, conversations: conversations.length, comments: comments.length, humanComments: comments.filter(row => row.authorUserId).length,
       runs: runs.length, probes };
     const checks = gradeSetupHealth(state);
-    await input.evidence("chat-setup-health.json", { schema: "paperclip.chat-setup-health/v1", scope: "diagnostic-outside-244", companyId: f.company.id,
+    await input.evidence("chat-setup-health.json", { schema: "outpost.chat-setup-health/v1", scope: "diagnostic-outside-244", companyId: f.company.id,
       agentId: f.agent.id, state, checks, canonicalQueries: state.humanComments,
       setupProbeUsage: "One ordinary automatic lifecycle hello is expected. Provider tokens and cost are unavailable outside heartbeat accounting; never reported as zero." });
     await input.evidence("api-state.json", { scope: "diagnostic-outside-244", capturePhase: "after-public-pause",

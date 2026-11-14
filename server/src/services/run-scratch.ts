@@ -108,10 +108,10 @@ export function buildHeartbeatRunScratchEnv(
   scratch: HeartbeatRunScratch,
 ): HeartbeatRunScratchEnvResult {
   const env: Record<string, string> = {
-    PAPERCLIP_RUN_SCRATCH_DIR: scratch.dir,
-    PAPERCLIP_TASK_SCRATCH_DIR: scratch.dir,
-    PAPERCLIP_SCRATCH_DIR: scratch.dir,
-    PAPERCLIP_TMPDIR: scratch.dir,
+    OUTPOST_RUN_SCRATCH_DIR: scratch.dir,
+    OUTPOST_TASK_SCRATCH_DIR: scratch.dir,
+    OUTPOST_SCRATCH_DIR: scratch.dir,
+    OUTPOST_TMPDIR: scratch.dir,
   };
   const tempKeysApplied: string[] = [];
   for (const key of TEMP_ENV_KEYS) {

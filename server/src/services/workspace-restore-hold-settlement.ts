@@ -1,6 +1,6 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { environmentLeases, heartbeatRuns, issueRecoveryActions, workspaceOperations, type Db } from "@paperclipai/db";
-import { remoteWorkspaceRunReferenceSchema } from "@paperclipai/shared";
+import { environmentLeases, heartbeatRuns, issueRecoveryActions, workspaceOperations, type Db } from "@outpost/db";
+import { remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { retiredReusableLeasePredecessors } from "./environment-lease-handoff.js";
 import { nativeWorkspaceExportPendingForLease } from "./native-runtime/native-workspace-finalization-state.js";
 import { readNativeWorkspaceSyncReference } from "./native-runtime/native-workspace-sync.js";

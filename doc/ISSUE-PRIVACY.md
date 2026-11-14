@@ -53,7 +53,7 @@ content within its company scope. Ordinary users, agent API keys, and plugins
 cannot use that permit. Cloud enforces the inspection grant, expiration,
 revocation, replay protection, and audit trail; this path does not create a task
 grant or a task break-glass notice. Operators who require task ACLs on every
-content read must leave `PAPERCLIP_CUSTOMER_SUCCESS_INSPECTION_ENABLED` disabled.
+content read must leave `OUTPOST_CUSTOMER_SUCCESS_INSPECTION_ENABLED` disabled.
 See [Cloud customer-success inspection support](CUSTOMER-SUCCESS-INSPECTION.md).
 
 ## Agent runs and shared-agent residual risk
@@ -127,7 +127,7 @@ oversight capability; none exists today.
 
 ## Rollout modes
 
-`PAPERCLIP_ISSUE_PRIVACY_MODE=enforce` is the default. `shadow` records
+`OUTPOST_ISSUE_PRIVACY_MODE=enforce` is the default. `shadow` records
 structured would-deny decisions without enforcing them and exists only for
 rollout diagnosis. `off` disables the task predicate. Operators should not use
 `shadow` or `off` when private-task confidentiality is required.

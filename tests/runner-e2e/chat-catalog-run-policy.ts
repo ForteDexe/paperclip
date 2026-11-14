@@ -81,7 +81,7 @@ export function gradeChatCatalogRuns(input: {
       && actual.companyId === input.companyId && actual.agentId === expected.workerId && actual.agentId !== input.leadId
       && taskId(actual) === expected.taskId && expected.taskId !== source?.id && actual.errorCode === "issue_reassigned"
       && actual.resultJson?.reassignmentStopConfirmed === true
-      && acknowledgement?.schema === "paperclip.native-cancellation.v1" && acknowledgement.runId === actual.id
+      && acknowledgement?.schema === "outpost.native-cancellation.v1" && acknowledgement.runId === actual.id
       && acknowledgement.issueId === expected.taskId && acknowledgement.companyId === input.companyId
       && acknowledgement.dispatchState === "acknowledged" && typeof acknowledgement.acknowledgedAt === "string" && Number.isFinite(Date.parse(acknowledgement.acknowledgedAt))
       && typeof acknowledgement.intentAuditId === "string" && acknowledgement.intentAuditId.length > 0

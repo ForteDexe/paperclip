@@ -5,7 +5,7 @@ import {
   usePluginStream,
   type PluginPageProps,
   type PluginSidebarProps,
-} from "@paperclipai/plugin-sdk/ui";
+} from "@outpost/plugin-sdk/ui";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 type Room = {

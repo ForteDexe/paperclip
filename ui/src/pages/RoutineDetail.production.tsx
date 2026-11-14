@@ -70,9 +70,9 @@ import type {
   RoutineDetail as RoutineDetailType,
   RoutineEnvConfig,
   RoutineVariable,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 
-const LAST_SECTION_STORAGE_KEY = "paperclip.routineLastSection";
+const LAST_SECTION_STORAGE_KEY = "outpost.routineLastSection";
 
 export function buildRoutineProjectOptions(
   projects: ReadonlyArray<{ id: string; name: string; description?: string | null; archivedAt?: Date | string | null }>,

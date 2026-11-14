@@ -28,7 +28,7 @@ import {
   issues,
   labels,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -71,7 +71,7 @@ describeEmbeddedPostgres("cases routes", () => {
 
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  const previousAgentJwtSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const previousAgentJwtSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   const liveEventUnsubscribers: Array<() => void> = [];
 
   const storage: StorageService = {
@@ -97,7 +97,7 @@ describeEmbeddedPostgres("cases routes", () => {
   };
 
   beforeAll(async () => {
-    process.env.PAPERCLIP_AGENT_JWT_SECRET = "cases-routes-test-secret";
+    process.env.OUTPOST_AGENT_JWT_SECRET = "cases-routes-test-secret";
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-cases-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
@@ -130,9 +130,9 @@ describeEmbeddedPostgres("cases routes", () => {
   afterAll(async () => {
     await tempDb?.cleanup();
     if (previousAgentJwtSecret === undefined) {
-      delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
+      delete process.env.OUTPOST_AGENT_JWT_SECRET;
     } else {
-      process.env.PAPERCLIP_AGENT_JWT_SECRET = previousAgentJwtSecret;
+      process.env.OUTPOST_AGENT_JWT_SECRET = previousAgentJwtSecret;
     }
   });
 
@@ -208,15 +208,15 @@ describeEmbeddedPostgres("cases routes", () => {
     expect(denied.body.remediation).toContain("[Experimental settings](/<prefix>/company/settings/instance/experimental)");
     expect(denied.body.remediation).toContain("Agent credentials cannot change that setting");
     // Hiding only the Cases switch keeps the page, so the denial must not send the person there.
-    const previousHidden = process.env.PAPERCLIP_HIDDEN_SETTINGS;
-    process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.experimental.enableCases";
+    const previousHidden = process.env.OUTPOST_HIDDEN_SETTINGS;
+    process.env.OUTPOST_HIDDEN_SETTINGS = "instance.experimental.enableCases";
     try {
       const hiddenDenial = await http.get(`/api/companies/${company.id}/cases`).expect(403);
       expect(hiddenDenial.body.remediation).toContain("An instance operator controls it.");
       expect(hiddenDenial.body.remediation).not.toContain("/instance/experimental");
     } finally {
-      if (previousHidden === undefined) delete process.env.PAPERCLIP_HIDDEN_SETTINGS;
-      else process.env.PAPERCLIP_HIDDEN_SETTINGS = previousHidden;
+      if (previousHidden === undefined) delete process.env.OUTPOST_HIDDEN_SETTINGS;
+      else process.env.OUTPOST_HIDDEN_SETTINGS = previousHidden;
     }
     await http.get(`/api/companies/${company.id}/cases/types`).expect(403);
     await http.post(`/api/companies/${company.id}/cases`).send({ caseType: "bug", title: "Bug" }).expect(403);
@@ -1110,7 +1110,7 @@ describeEmbeddedPostgres("cases routes", () => {
       companyId: company.id, caseId: record.id, issueId: work[index]!.id, version: 1,
       fromAgentId: sender.id, toAgentId: recipient.id, phase: "verification", instructions: "Check the saved work.",
       actorType: "user" as const, actorId: "board-user", wakeupRequestId: randomUUID(),
-      actorContext: { schema: "paperclip.case-handoff-actor.v1", companyId: company.id, actorType: "user", actorId: "board-user",
+      actorContext: { schema: "outpost.case-handoff-actor.v1", companyId: company.id, actorType: "user", actorId: "board-user",
         source: "session", runId: null, keyId: null, sessionId: "INTERNAL_SESSION_CANARY", keyScope: { kind: "standard" },
         onBehalfOfUserId: null, authorizingUserId: null },
       idempotencyKey: randomUUID(), inputFingerprint: "a".repeat(64), state: "pending_dispatch" as const,

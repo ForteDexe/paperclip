@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { copilotAttachedFinishReady, copilotFinishAttemptBeforeCommandExit, onlyCopilotAttachedOperations, readCopilotSemanticCompletion } from "./copilot-semantic-evidence.js";
 import { readCopilotToolEvidence } from "./copilot-evidence.js";
 import { copilotActionNotices, findCopilotFixtureCommand } from "./copilot-protection-evidence.js";
-import { validatePrpStructuredRunResult } from "../../packages/paperclip-runner/src/protocol/replay-contract.js";
+import { validatePrpStructuredRunResult } from "../../packages/outpost-runner/src/protocol/replay-contract.js";
 import { runnerSuites, suiteDefinitionHash } from "./catalog.js";
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 const canonical = (v: any): string => Array.isArray(v) ? `[${v.map(canonical).join(",")}]` : v !== null && typeof v === "object" ? `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}` : JSON.stringify(v);
@@ -12,23 +12,23 @@ const rawInput = { summary: "EXACT-MARKER", reportedWorkDisposition: "done", com
 const validation = validatePrpStructuredRunResult(rawInput);
 if (!validation.ok) throw new Error("Semantic fixture input must pass the production validator");
 const result = validation.result;
-const receipt = { schema: "paperclip.semantic_tool_receipt.v2", operationId: "paperclip_finish", callIdentitySha256: hash("3"), inputSha256: hash(canonical(rawInput)), normalizedInputSha256: hash(canonical(result)), resultSha256: hash("opaque original returned encoding"), outcome: "returned" };
+const receipt = { schema: "outpost.semantic_tool_receipt.v2", operationId: "paperclip_finish", callIdentitySha256: hash("3"), inputSha256: hash(canonical(rawInput)), normalizedInputSha256: hash(canonical(result)), resultSha256: hash("opaque original returned encoding"), outcome: "returned" };
 function row(seq: number, eventType: string, payload: any, overrides: any = {}) {
-  const e = { schema: "paperclip.prp.event.v1", eventType, runId: "run", turnId: "turn", normalizedSessionId: "normalized", sourceInstanceId: "source", sourceKind: "runner", sourceSeq: seq, emittedAt: "2026-09-30T12:00:00Z", payload, ...overrides };
-  return { companyId: "company", runId: "run", seq, eventType, sourceInstanceId: e.sourceInstanceId, sourceSeq: e.sourceSeq, payload: { prpEvent: e } };
+  const e = { schema: "outpost.orp.event.v1", eventType, runId: "run", turnId: "turn", normalizedSessionId: "normalized", sourceInstanceId: "source", sourceKind: "runner", sourceSeq: seq, emittedAt: "2026-09-30T12:00:00Z", payload, ...overrides };
+  return { companyId: "company", runId: "run", seq, eventType, sourceInstanceId: e.sourceInstanceId, sourceSeq: e.sourceSeq, payload: { orpEvent: e } };
 }
 function notice(seq: number, toolCallId: string, status: string, fields: any = {}) {
-  return row(seq, "provider.notice.recorded", { schema: "paperclip.provider.notice.v1", category: "copilot_tool_evidence_v1", scope: "turn", provenance: { method: "session/update", eventType: "tool", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "tool", toolCallId, status, ...fields }).map(([name, value]) => ({ name, value: String(value) })) });
+  return row(seq, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "copilot_tool_evidence_v1", scope: "turn", provenance: { method: "session/update", eventType: "tool", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "tool", toolCallId, status, ...fields }).map(([name, value]) => ({ name, value: String(value) })) });
 }
 function fixture() {
   const rows = [notice(1, "command", "pending", { operation: "execute" }), notice(2, "finish-native", "pending"), row(3, "run.result.proposed", structuredClone(result), { itemId: "item-run" }),
-    row(4, "provider.notice.recorded", { schema: "paperclip.provider.notice.v1", category: "paperclip_semantic_tool_receipt_v2", scope: "turn", provenance: { method: "paperclip/semantic_tool_result", eventType: "semantic_result", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "semantic_result", ...receipt }).map(([name, value]) => ({ name, value })) }),
+    row(4, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "paperclip_semantic_tool_receipt_v2", scope: "turn", provenance: { method: "paperclip/semantic_tool_result", eventType: "semantic_result", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "semantic_result", ...receipt }).map(([name, value]) => ({ name, value })) }),
     notice(5, "finish-native", "completed", { semanticOperationId: receipt.operationId, semanticCallIdentitySha256: receipt.callIdentitySha256, semanticInputSha256: receipt.inputSha256, semanticNormalizedInputSha256: receipt.normalizedInputSha256, semanticResultSha256: receipt.resultSha256, semanticOutcome: receipt.outcome }),
     row(6, "turn.completed", {}), row(7, "run.result.accepted", { result: structuredClone(result) }, { sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 1 })];
   const expected = { companyId: "company", runId: "run", turnId: "turn", nativeSessionId: "native", command: readCopilotToolEvidence(rows, "run")[0]!, summary: "EXACT-MARKER" };
   return { rows, expected };
 }
-const frame = (r: any) => r.payload.prpEvent;
+const frame = (r: any) => r.payload.orpEvent;
 function setField(r: any, key: string, value: string) { frame(r).payload.details.find((d: any) => d.name === key).value = value; }
 describe("Copilot semantic completion public-event oracle", () => {
   it("attests the retained v15 context read before independently accepting its exact finish", async () => {
@@ -38,7 +38,7 @@ describe("Copilot semantic completion public-event oracle", () => {
     const proof = readCopilotSemanticCompletion(retained.rows, { companyId: retained.rows[0].companyId,
       runId: command.runId, turnId: command.turnId, nativeSessionId: command.sessionId, command,
       summary: retained.summary, requireContextRead: true });
-    expect(proof).toMatchObject({ schema: "paperclip.e2e.copilot-semantic-completion.v4", contextRead: { canonicalSeqs: expect.any(Array) } });
+    expect(proof).toMatchObject({ schema: "outpost.e2e.copilot-semantic-completion.v4", contextRead: { canonicalSeqs: expect.any(Array) } });
     expect(proof.contextRead!.completedSeq).toBeLessThan(command.seq);
     expect(onlyCopilotAttachedOperations(copilotActionNotices(notices, command, undefined, retained.rows), command, proof)).toBe(true);
     for (const invalid of ["missing", "duplicate", "error", "foreign", "late", "mutating", "wrong-input", "missing-canonical", "failed-canonical", "native-mutation", "canonical-mutation", "not-read-only", "source-sequence-drift", "extra-context-call"]) {
@@ -70,7 +70,7 @@ describe("Copilot semantic completion public-event oracle", () => {
   });
   it("versions semantic completion and current-mainline denial settlement independently", () => {
     const suite = runnerSuites.find(s => s.id === "copilot-protection")!;
-    expect(suite.definitionMetadata).toMatchObject({ version: 24, titleCreation: "explicit-search-composer", taskBinding: "browser-creation-response-id", remoteBootstrapContext: "already-exposed-dedicated-tool-no-http-substitution", semanticCompletionEvidence: "paperclip.e2e.copilot-semantic-completion.v4", denialSettlementEvidence: "paperclip.e2e.copilot-denial-settlement.v4" });
+    expect(suite.definitionMetadata).toMatchObject({ version: 24, titleCreation: "explicit-search-composer", taskBinding: "browser-creation-response-id", remoteBootstrapContext: "already-exposed-dedicated-tool-no-http-substitution", semanticCompletionEvidence: "outpost.e2e.copilot-semantic-completion.v4", denialSettlementEvidence: "outpost.e2e.copilot-denial-settlement.v4" });
     expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, version: 8 } }));
   });
   it("joins exact native lifecycle, authoritative callback, proposed content and accepted control-plane result", () => {
@@ -83,10 +83,10 @@ describe("Copilot semantic completion public-event oracle", () => {
     expect(rawInput).not.toHaveProperty("schema");
     expect(rawInput).not.toHaveProperty("artifacts");
     expect(rawInput).not.toHaveProperty("attentionRequests");
-    expect(result).toMatchObject({ schema: "paperclip.run_result.v1", artifacts: [], attentionRequests: [] });
+    expect(result).toMatchObject({ schema: "outpost.run_result.v1", artifacts: [], attentionRequests: [] });
     expect(receipt.inputSha256).not.toBe(receipt.normalizedInputSha256);
     expect(readCopilotSemanticCompletion(rows, expected)).toMatchObject({
-      schema: "paperclip.e2e.copilot-semantic-completion.v2",
+      schema: "outpost.e2e.copilot-semantic-completion.v2",
       inputSha256: receipt.inputSha256, normalizedInputSha256: receipt.normalizedInputSha256,
     });
     // Same authenticated raw/native join is necessary but cannot substitute for
@@ -114,7 +114,7 @@ describe("Copilot semantic completion public-event oracle", () => {
   it.each(["only", "alongside-v2"])("rejects legacy v1 authority %s as fresh qualification", mode => {
     const f = fixture(), old = structuredClone(f.rows[3]!);
     frame(old).payload.category = "paperclip_semantic_tool_receipt_v1";
-    setField(old, "schema", "paperclip.semantic_tool_receipt.v1");
+    setField(old, "schema", "outpost.semantic_tool_receipt.v1");
     frame(old).payload.details = frame(old).payload.details.filter((d: any) => d.name !== "normalizedInputSha256");
     if (mode === "only") f.rows[3] = old; else f.rows.push(old);
     expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow();

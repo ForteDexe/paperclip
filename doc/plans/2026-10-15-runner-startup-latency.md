@@ -113,7 +113,7 @@ was deployed only to the dedicated QA tenant by
 Image build [38807675425](https://github.com/paperclipai/paperclip/actions/runs/38807675425)
 ran in the cloud; the retained image artifact is 4,372,269,316 bytes.
 
-The strict 48-step user journey on [CLA-3](https://claude-runner-default-qa-oct-15.test.paperclip.app/CLA/issues/CLA-3)
+The strict 48-step user journey on [CLA-3](https://claude-runner-default-qa-oct-15.test.outpost.app/CLA/issues/CLA-3)
 produced two successful useful files and preserved the provider session.
 Performance acceptance remains **failed**: the follow-up exceeded the unchanged
 30-second native-startup target. No paid retries were started.
@@ -178,7 +178,7 @@ verified that source at 22:33:54 UTC, request
 `d47ba355-9f90-4499-92cb-9bd5ce350c93`. No local Docker or Rust build was used.
 
 The 39-step ordinary-UI journey on
-[CLA-4](https://claude-runner-default-qa-oct-15.test.paperclip.app/CLA/issues/CLA-4)
+[CLA-4](https://claude-runner-default-qa-oct-15.test.outpost.app/CLA/issues/CLA-4)
 completed both tasks, independently downloaded both files, checked the original
 again, and reloaded the saved result. Correctness passed. Performance acceptance
 is still **failed** against the unchanged target of both startup spans below 30s.
@@ -208,9 +208,9 @@ $1 run reservation; another run must not be started without budget reconciliatio
 Evidence is retained at `/private/tmp/claude-startup-user-20261015-layers/` and
 attached to the task:
 
-- [Screenshot report](https://claude-runner-default-qa-oct-15.test.paperclip.app/api/attachments/25f950a0-257e-4a66-97d0-f30bb6094983/content?download=1)
-- [Journey JSON](https://claude-runner-default-qa-oct-15.test.paperclip.app/api/attachments/20e42fc1-0466-4e5c-9c6a-91bc5e3c3f4b/content?download=1)
-- [Independent checks](https://claude-runner-default-qa-oct-15.test.paperclip.app/api/attachments/fa3a1f36-445a-4205-a3de-bb144d167ab9/content?download=1)
+- [Screenshot report](https://claude-runner-default-qa-oct-15.test.outpost.app/api/attachments/25f950a0-257e-4a66-97d0-f30bb6094983/content?download=1)
+- [Journey JSON](https://claude-runner-default-qa-oct-15.test.outpost.app/api/attachments/20e42fc1-0466-4e5c-9c6a-91bc5e3c3f4b/content?download=1)
+- [Independent checks](https://claude-runner-default-qa-oct-15.test.outpost.app/api/attachments/fa3a1f36-445a-4205-a3de-bb144d167ab9/content?download=1)
 
 The rendered report and gallery navigation were visually checked. It records
 the failed performance target, including the earlier recorder binding error and

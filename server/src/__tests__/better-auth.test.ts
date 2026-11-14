@@ -10,14 +10,14 @@ import {
   shouldDisableSecureAuthCookies,
 } from "../auth/better-auth.js";
 
-const ORIGINAL_INSTANCE_ID = process.env.PAPERCLIP_INSTANCE_ID;
-const ORIGINAL_PUBLIC_URL = process.env.PAPERCLIP_PUBLIC_URL;
+const ORIGINAL_INSTANCE_ID = process.env.OUTPOST_INSTANCE_ID;
+const ORIGINAL_PUBLIC_URL = process.env.OUTPOST_PUBLIC_URL;
 
 afterEach(() => {
-  if (ORIGINAL_INSTANCE_ID === undefined) delete process.env.PAPERCLIP_INSTANCE_ID;
-  else process.env.PAPERCLIP_INSTANCE_ID = ORIGINAL_INSTANCE_ID;
-  if (ORIGINAL_PUBLIC_URL === undefined) delete process.env.PAPERCLIP_PUBLIC_URL;
-  else process.env.PAPERCLIP_PUBLIC_URL = ORIGINAL_PUBLIC_URL;
+  if (ORIGINAL_INSTANCE_ID === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+  else process.env.OUTPOST_INSTANCE_ID = ORIGINAL_INSTANCE_ID;
+  if (ORIGINAL_PUBLIC_URL === undefined) delete process.env.OUTPOST_PUBLIC_URL;
+  else process.env.OUTPOST_PUBLIC_URL = ORIGINAL_PUBLIC_URL;
 });
 
 describe("Better Auth legacy account issuer", () => {
@@ -42,8 +42,8 @@ describe("Better Auth cookie scoping", () => {
     expect(deriveAuthCookiePrefix("PAP-1601-worktree")).toBe("paperclip-PAP-1601-worktree");
   });
 
-  it("uses PAPERCLIP_INSTANCE_ID for the Better Auth cookie prefix", () => {
-    process.env.PAPERCLIP_INSTANCE_ID = "sat-worktree";
+  it("uses OUTPOST_INSTANCE_ID for the Better Auth cookie prefix", () => {
+    process.env.OUTPOST_INSTANCE_ID = "sat-worktree";
 
     const advanced = buildBetterAuthAdvancedOptions({ disableSecureCookies: false });
 
@@ -56,7 +56,7 @@ describe("Better Auth cookie scoping", () => {
   });
 
   it("keeps local http auth cookies non-secure while preserving the scoped prefix", () => {
-    process.env.PAPERCLIP_INSTANCE_ID = "pap-worktree";
+    process.env.OUTPOST_INSTANCE_ID = "pap-worktree";
 
     expect(buildBetterAuthAdvancedOptions({ disableSecureCookies: true })).toEqual({
       cookiePrefix: "paperclip-pap-worktree",
@@ -121,20 +121,20 @@ describe("Better Auth cookie scoping", () => {
       deploymentExposure: "private",
       authBaseUrlMode: "auto",
       authPublicBaseUrl: undefined,
-      publicUrl: "https://paperclip.example.test",
+      publicUrl: "https://outpost.example.test",
     })).toBe(false);
 
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
       deploymentExposure: "public",
       authBaseUrlMode: "explicit",
-      authPublicBaseUrl: "http://paperclip.local.test:3100",
+      authPublicBaseUrl: "http://outpost.local.test:3100",
       publicUrl: undefined,
     })).toBe(true);
   });
 
   it("disables secure cookies when no canonical public auth URL is configured", () => {
-    delete process.env.PAPERCLIP_PUBLIC_URL;
+    delete process.env.OUTPOST_PUBLIC_URL;
 
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
@@ -144,7 +144,7 @@ describe("Better Auth cookie scoping", () => {
   });
 
   it("derives secure cookie behavior from the configured public auth URL", () => {
-    delete process.env.PAPERCLIP_PUBLIC_URL;
+    delete process.env.OUTPOST_PUBLIC_URL;
 
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
@@ -154,17 +154,17 @@ describe("Better Auth cookie scoping", () => {
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
       authBaseUrlMode: "explicit",
-      authPublicBaseUrl: "https://paperclip.example.test",
+      authPublicBaseUrl: "https://outpost.example.test",
     } as Parameters<typeof shouldDisableSecureAuthCookies>[0])).toBe(false);
   });
 
   it("uses the caller-resolved public URL for cookie security", () => {
-    process.env.PAPERCLIP_PUBLIC_URL = "https://ignored.example.test";
+    process.env.OUTPOST_PUBLIC_URL = "https://ignored.example.test";
 
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
       authBaseUrlMode: "explicit",
-      authPublicBaseUrl: "https://paperclip.example.test",
+      authPublicBaseUrl: "https://outpost.example.test",
       publicUrl: "http://paperclip-dev:46259",
     } as Parameters<typeof shouldDisableSecureAuthCookies>[0])).toBe(true);
   });

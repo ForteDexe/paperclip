@@ -15,7 +15,7 @@ const count = (value: unknown): value is number => Number.isSafeInteger(value) &
 const invalid = (): never => { throw new Error("Invalid retained experiment evidence"); };
 
 function attemptProjection(result: RunnerE2EResult, projectId: string) {
-  if (result.schema !== "paperclip.runner-e2e.result/v2"
+  if (result.schema !== "outpost.runner-e2e.result/v2"
       || ![result.executionId, result.suiteId, result.profileId, result.caseId, result.provider,
         result.accountingIdentity?.campaignId, result.accountingIdentity?.attemptId].every(identifier)
       || !modelName(result.model)
@@ -53,7 +53,7 @@ function attemptProjection(result: RunnerE2EResult, projectId: string) {
 }
 
 export function buildBraintrustExperiment(projectId: string, campaign: RunnerE2ECampaign, originals: readonly RunnerE2EResult[]) {
-  if (!uuid.test(projectId) || campaign.schema !== "paperclip.runner-e2e.campaign/v2" || !identifier(campaign.campaignId)
+  if (!uuid.test(projectId) || campaign.schema !== "outpost.runner-e2e.campaign/v2" || !identifier(campaign.campaignId)
       || campaign.accounting?.scope !== "retained_attempts" || !Array.isArray(campaign.accounting.attempts)
       || !count(campaign.accounting.missingAttempts) || !Array.isArray(campaign.expected)
       || campaign.expected.length === 0 || !campaign.expected.every(identifier)

@@ -6,8 +6,8 @@ import { CREDENTIAL_NAMES, type CredentialName, type MatrixExecution } from "./t
 import type { ChatCatalogDescriptor } from "./chat-catalog-registry.js";
 import { runtimePrivateProviders, runtimePrivateReferenceNames, validateRuntimePrivateRequirement, type RuntimePrivateProvider } from "./chat-runtime-private-requirements.js";
 
-export const CHAT_PRIVATE_INPUTS_ENV = "PAPERCLIP_CHAT_PRIVATE_INPUTS";
-const externalConfigEnv = "PAPERCLIP_CHAT_CATALOG_EXTERNAL_CONFIG";
+export const CHAT_PRIVATE_INPUTS_ENV = "OUTPOST_CHAT_PRIVATE_INPUTS";
+const externalConfigEnv = "OUTPOST_CHAT_CATALOG_EXTERNAL_CONFIG";
 export interface ChatExternalInputRequirement { provider: "notion" | "slack" | "agentmail" | "vault" | "github" | RuntimePrivateProvider; fields: readonly string[] }
 type PrivateInputDescriptor = Pick<ChatCatalogDescriptor, "requiredCredentials" | "externalInput"> & Partial<Pick<ChatCatalogDescriptor, "scenarioId">>;
 export interface ChatPrivateInputs {
@@ -62,7 +62,7 @@ export function stageChatPrivateInputs(input: { execution: MatrixExecution; desc
     }
     envelope.declaredReferenceNames = [...new Set(names)].sort();
     for (const name of new Set(names)) {
-      if (!/^PAPERCLIP_CHAT_EVAL_[A-Z0-9_]+$/.test(name)) throw new Error("External credential reference is not a declared private environment name");
+      if (!/^OUTPOST_CHAT_EVAL_[A-Z0-9_]+$/.test(name)) throw new Error("External credential reference is not a declared private environment name");
       const value = input.env[name]?.trim(); if (!value) { envelope.setupBlockers!.push(`missing-external-reference:${name}`); continue; }
       envelope.references[name] = value; input.secrets.push(value);
     }
@@ -76,7 +76,7 @@ export function stageChatPrivateInputs(input: { execution: MatrixExecution; desc
   return { filename, requirements };
 }
 export function readChatPrivateInputs(executionId: string, secrets: string[], env: NodeJS.ProcessEnv = process.env): ChatPrivateInputs {
-  const reference = env[CHAT_PRIVATE_INPUTS_ENV], root = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const reference = env[CHAT_PRIVATE_INPUTS_ENV], root = env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!reference) return { credentials: Object.freeze({}), read: () => undefined, configuration: () => undefined };
   if (!root) throw new Error("Selected private input ownership root is missing");
   const envelope = readPrivateJson(reference, root) as PrivateEnvelope;
@@ -86,13 +86,13 @@ export function readChatPrivateInputs(executionId: string, secrets: string[], en
     if (typeof value !== "string" || !value.trim()) throw new Error("Invalid private credential value; contents withheld");
     secrets.push(value);
   }
-  if (envelope.setupBlockers?.some(value => !/^(?:missing-credential:[A-Z0-9_]+|missing-external-reference:PAPERCLIP_CHAT_EVAL_[A-Z0-9_]+|missing-external-field:[a-zA-Z]+:[a-zA-Z][a-zA-Z0-9]*|(?:unavailable-external-configuration|unavailable-oracle-commitment):[a-zA-Z]+)$/.test(value))) throw new Error("Invalid private setup blocker receipt");
+  if (envelope.setupBlockers?.some(value => !/^(?:missing-credential:[A-Z0-9_]+|missing-external-reference:OUTPOST_CHAT_EVAL_[A-Z0-9_]+|missing-external-field:[a-zA-Z]+:[a-zA-Z][a-zA-Z0-9]*|(?:unavailable-external-configuration|unavailable-oracle-commitment):[a-zA-Z]+)$/.test(value))) throw new Error("Invalid private setup blocker receipt");
   return { setupBlockers: Object.freeze(envelope.setupBlockers ?? []), credentials: Object.freeze(envelope.credentials), read: name => envelope.references[name] ?? envelope.credentials[name as CredentialName],
     configuration: name => name === "external-provider" ? envelope.external : undefined };
 }
 export function scrubChatPrivateEnvironment(env: NodeJS.ProcessEnv, executions: readonly MatrixExecution[], removeReference = false) {
   delete env[CHAT_ORACLE_KEY_ENV];
-  for (const key of Object.keys(env)) if (key.startsWith("PAPERCLIP_CHAT_EVAL_") || key === externalConfigEnv || removeReference && [CHAT_PRIVATE_INPUTS_ENV, "PAPERCLIP_CHAT_INSTALLED_PLAN", "PAPERCLIP_CHAT_OPERATOR_INSTALL_RECEIPT", "PAPERCLIP_CHAT_INSTALLED_SOURCE_CONFIG"].includes(key)) delete env[key];
+  for (const key of Object.keys(env)) if (key.startsWith("OUTPOST_CHAT_EVAL_") || key === externalConfigEnv || removeReference && [CHAT_PRIVATE_INPUTS_ENV, "OUTPOST_CHAT_INSTALLED_PLAN", "OUTPOST_CHAT_OPERATOR_INSTALL_RECEIPT", "OUTPOST_CHAT_INSTALLED_SOURCE_CONFIG"].includes(key)) delete env[key];
   if (executions.length) {
     const profileNames = new Set(executions.flatMap(execution => [execution.profile.credential, execution.environment.credential].filter(Boolean)));
     for (const name of CREDENTIAL_NAMES) if (!profileNames.has(name)) delete env[name];
@@ -101,7 +101,7 @@ export function scrubChatPrivateEnvironment(env: NodeJS.ProcessEnv, executions: 
 }
 /** Public fingerprint projection contains reference names and field names only. */
 export function chatPrivateInputNameIdentity(executionId: string, env: NodeJS.ProcessEnv = process.env) {
-  const reference = env[CHAT_PRIVATE_INPUTS_ENV], root = env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const reference = env[CHAT_PRIVATE_INPUTS_ENV], root = env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!reference) return null;
   if (!root) throw new Error("Selected private input ownership root is missing");
   const envelope = readPrivateJson(reference, root) as PrivateEnvelope;

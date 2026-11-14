@@ -92,7 +92,7 @@ export const navigationBoundaryIdentityCases: readonly ChatCatalogCase[] = [
       return { project: p, stale, similar, restricted, restrictedMarker, stalePath: path, deletedStatus: await status(ctx, `/api/issues/${stale.id}`), observerRestrictedStatus };
     } catch (error) { await observer.dispose(); observers.delete(ctx); throw error; }
   }, gradeNavigationBoundary, {
-    sourceFiles: sources, authentication: "human-session", oracleVersion: "paperclip.chat-catalog.identity.broken-link.v3",
+    sourceFiles: sources, authentication: "human-session", oracleVersion: "outpost.chat-catalog.identity.broken-link.v3",
     async act(ctx, state) {
       await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); const source = ctx.input.page.url(); const path = String(state.stalePath);
       await ctx.input.page.goto(path, { waitUntil: "domcontentloaded" });
@@ -135,7 +135,7 @@ export const navigationBoundaryIdentityCases: readonly ChatCatalogCase[] = [
         observerBeforePublicationId: observerPublication?.id, invalidAuditCompanyStatus };
     } catch (error) { try { await observer.dispose(); } finally { observers.delete(ctx); const id = otherCompanies.get(ctx); if (id) await ctx.input.api.delete(`/api/companies/${id}`, { allowNotFound: true }); otherCompanies.delete(ctx); } throw error; }
   }, gradeNavigationBoundary, {
-    sourceFiles: [...sources, "chat-announcement-fixture.ts", "harness-env.ts", "../../packages/shared/src/announcements.ts", "../../server/src/services/announcement-feed.ts", "../../server/src/routes/announcements.ts", "../../ui/src/pages/Projects.tsx", "../../ui/src/components/AnnouncementWell.tsx"], authentication: "human-session", oracleVersion: "paperclip.chat-catalog.announcement-dismissal.v3",
+    sourceFiles: [...sources, "chat-announcement-fixture.ts", "harness-env.ts", "../../packages/shared/src/announcements.ts", "../../server/src/services/announcement-feed.ts", "../../server/src/routes/announcements.ts", "../../ui/src/pages/Projects.tsx", "../../ui/src/components/AnnouncementWell.tsx"], authentication: "human-session", oracleVersion: "outpost.chat-catalog.announcement-dismissal.v3",
     async act(ctx, state) {
       await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); const publication = state.publication as Publication; const source = ctx.input.page.url();
       state.beforeHumanPublicationId = (await ctx.input.api.get<Publication | null>("/api/announcements/current"))?.id;

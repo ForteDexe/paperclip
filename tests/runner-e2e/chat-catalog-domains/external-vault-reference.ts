@@ -426,7 +426,7 @@ export const vaultReferenceExternalCases = [
     },
     gradeVaultReference,
     {
-      oracleVersion: "paperclip.chat-catalog.external-vault-reference.v9", authentication: "human-session",
+      oracleVersion: "outpost.chat-catalog.external-vault-reference.v9", authentication: "human-session",
       expectedRunCount: 3,
       minimumRunCount: 2,
       expectedHumanMessageCount: 2,

@@ -149,37 +149,37 @@ async function prepareDaytona(plan: WavePlan, timeline: Timeline): Promise<Recor
   }
   timeline.add("daytona_vcpu_plan", { cpuPerSandbox: plan.options.daytonaCpu, concurrency: plan.options.concurrency,
     taskVcpu: plan.options.concurrency * (plan.options.daytonaCpu ?? 0) });
-  return { PAPERCLIP_RUNNER_REMOTE_BINARY_PATH: artifacts.runnerdPath, PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH: artifacts.providerPackPath };
+  return { OUTPOST_RUNNER_REMOTE_BINARY_PATH: artifacts.runnerdPath, OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH: artifacts.providerPackPath };
 }
 
 function preflight(plan: WavePlan) {
   const missing = [...new Set([...plan.tasks.map(task => CREDENTIAL_FOR_ADAPTER[task.adapter]),
     ...(plan.options.env === "daytona" ? ["DAYTONA_API_KEY"] : [])])].filter(key => !process.env[key]);
   if (missing.length) throw new Error(`Missing credentials ${missing.join(", ")}. Run: set -a; source ~/.secrets; set +a`);
-  const runner = process.env.PAPERCLIP_RUNNER_BINARY
-    ?? path.join(repositoryRoot, "packages/paperclip-runner/runner/target/debug/paperclip-runnerd");
-  if (!existsSync(runner)) throw new Error(`Runner binary missing at ${runner}. Run: pnpm --filter @paperclipai/paperclip-runner run build:runner-binaries`);
+  const runner = process.env.OUTPOST_RUNNER_BINARY
+    ?? path.join(repositoryRoot, "packages/outpost-runner/runner/target/debug/outpost-runnerd");
+  if (!existsSync(runner)) throw new Error(`Runner binary missing at ${runner}. Run: pnpm --filter @outpost/outpost-runner run build:runner-binaries`);
   // K14: the older checkout must be prepared (installed and built) before the wave, like this one.
   // `--server-from` runs the whole wave on another prepared checkout, prepared like an upgrade's older build.
   const upgradeFrom = plan.options.upgradeFrom ?? plan.options.serverFrom;
   // One runner binary for both builds would not test the older runner's saved state.
-  if (upgradeFrom && process.env.PAPERCLIP_RUNNER_BINARY) {
-    throw new Error("--upgrade-from runs each build's own runner; unset PAPERCLIP_RUNNER_BINARY");
+  if (upgradeFrom && process.env.OUTPOST_RUNNER_BINARY) {
+    throw new Error("--upgrade-from runs each build's own runner; unset OUTPOST_RUNNER_BINARY");
   }
   if (upgradeFrom) {
-    for (const required of ["tests/runner-e2e/server-entry.ts", "node_modules", "packages/paperclip-runner/runner/target/debug/paperclip-runnerd"]) {
+    for (const required of ["tests/runner-e2e/server-entry.ts", "node_modules", "packages/outpost-runner/runner/target/debug/outpost-runnerd"]) {
       if (!existsSync(path.join(upgradeFrom, required))) {
         throw new Error(`--upgrade-from ${upgradeFrom} is not a prepared checkout (missing ${required}). `
           + "Create it with `git worktree add <dir> <commit>`, then run `node scripts/agent-preflight.mjs` in it.");
       }
     }
     if (path.resolve(upgradeFrom) === repositoryRoot) throw new Error("--upgrade-from must be a different checkout than the one running the harness");
-    const oldBuild = spawnSync(process.execPath, [path.join(upgradeFrom, "packages/paperclip-runner/scripts/build-verified-provider-entrypoints.mjs")],
+    const oldBuild = spawnSync(process.execPath, [path.join(upgradeFrom, "packages/outpost-runner/scripts/build-verified-provider-entrypoints.mjs")],
       { cwd: upgradeFrom, stdio: "inherit" });
     if (oldBuild.status !== 0) throw new Error("Verified provider entrypoint build failed in the --upgrade-from checkout");
   }
   // Same provider bundle preparation as tests/runner-e2e/verified-provider-bundles.setup.mjs.
-  const build = spawnSync(process.execPath, [path.join(repositoryRoot, "packages/paperclip-runner/scripts/build-verified-provider-entrypoints.mjs")],
+  const build = spawnSync(process.execPath, [path.join(repositoryRoot, "packages/outpost-runner/scripts/build-verified-provider-entrypoints.mjs")],
     { cwd: repositoryRoot, stdio: "inherit" });
   if (build.status !== 0) throw new Error("Verified provider entrypoint build failed");
 }
@@ -852,7 +852,7 @@ async function main(): Promise<number> {
       }
       // Evidence carries run and wake error text; CI uploads this file.
       await writeFile(path.join(waveDir, "crash-point.json"), `${redactKnownSecrets(JSON.stringify({
-        schema: "paperclip.restart-chaos.crash-point/v2", gitSha, gitDirty,
+        schema: "outpost.restart-chaos.crash-point/v2", gitSha, gitDirty,
         // The server kills itself without warning, so no pre-fault workspace
         // snapshot exists: R2 checks workspace failures, not lost files.
         notMeasured: { R2_lost_files: "no pre-fault workspace snapshot: the crash point fires inside the server" },

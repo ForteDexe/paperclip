@@ -22,12 +22,12 @@ it("accepts the QA editor's escaped underscore while rejecting lost, duplicate, 
 function state() {
   return { currentIssue: { id: "owned-task", companyId: "qa-company", assigneeAgentId: "owned-agent", status: "done" },
     taskRuns: [{ id: "run", issueId: "owned-task", companyId: "qa-company", agentId: "owned-agent", status: "succeeded", runtimeMode: "native",
-      contextSnapshot: { paperclipEnvironment: { id: "qa-daytona" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "qa-model" } } } }],
+      contextSnapshot: { outpostEnvironment: { id: "qa-daytona" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "qa-model" } } } }],
     comments: [], interactions: [], attachments: [] };
 }
 describe("deployed agent journey evidence", () => {
   it.each(["tool.execution.started", "turn.started", "message.delta", "item.delta", "item.completed"])("rejects %s after cancellation even when cleanup's first snapshot already contains it", eventType => {
-    const event = (type: string) => ({ id: type, payload: { prpEvent: { eventType: type } } });
+    const event = (type: string) => ({ id: type, payload: { orpEvent: { eventType: type } } });
     const stopped = [event("turn.started"), event("item.delta"), event("turn.cancelled")];
     expect(nativeCancellationHasNoLaterWork(stopped)).toBe(true);
     expect(nativeCancellationHasNoLaterWork([...stopped, event("usage.reported")])).toBe(true);
@@ -36,7 +36,7 @@ describe("deployed agent journey evidence", () => {
   });
   it("requires an active native turn before the Stop boundary, including the native completion race", () => {
     const run = { runtimeMode: "native", status: "running" };
-    const event = (eventType: string) => ({ payload: { prpEvent: { eventType } } });
+    const event = (eventType: string) => ({ payload: { orpEvent: { eventType } } });
     expect(activeNativeTurnStarted(run, [])).toBe(false);
     expect(activeNativeTurnStarted(run, [event("session.opened")])).toBe(false);
     expect(activeNativeTurnStarted(run, [event("turn.started")])).toBe(true);
@@ -47,7 +47,7 @@ describe("deployed agent journey evidence", () => {
     expect(activeNativeTurnStarted({ ...run, runtimeMode: "legacy" }, [event("turn.started")])).toBe(false);
   });
   it.each(["tool.execution.started", "turn.started", "message.delta", "item.delta", "item.completed"])("rejects a quiet-Stop claim when the retired turn emits %s", eventType => {
-    const event = (type: string) => ({ id: type, payload: { prpEvent: { eventType: type, payload: { text: "old turn kept writing" } } } });
+    const event = (type: string) => ({ id: type, payload: { orpEvent: { eventType: type, payload: { text: "old turn kept writing" } } } });
     const before = [event("turn.cancelled")];
     expect(nativeWorkEvents([...before, event(eventType)])).not.toEqual(nativeWorkEvents(before));
     expect(nativeWorkEvents([...before, event("usage.reported")])).toEqual(nativeWorkEvents(before));
@@ -59,7 +59,7 @@ describe("deployed agent journey evidence", () => {
       (s: ReturnType<typeof state>) => { s.currentIssue.assigneeAgentId = "other"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.issueId = "other"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.agentId = "other"; },
-      (s: ReturnType<typeof state>) => { s.taskRuns[0]!.contextSnapshot.paperclipEnvironment.id = "local"; },
+      (s: ReturnType<typeof state>) => { s.taskRuns[0]!.contextSnapshot.outpostEnvironment.id = "local"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.runnerProfileJson.nativeExecutionInput.provider.model = "other"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.runtimeMode = "legacy"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.status = "failed"; },
@@ -128,7 +128,7 @@ describe("deployed agent journey evidence", () => {
     const run = { id: "run", companyId: "qa-company", issueId: "owned-task", status: "cancelled", runtimeMode: "native", resultJson: { cancelledByActorType: "user", cancelledByUserId: "qa-user",
       cancellation: { source: "operator", expected: true, initiator: { type: "user", id: "qa-user" } },
       startupCancellation: { requestedAt: "2026-10-29T00:00:00Z", beforeNativeSelection: false }, nativeCancellation: {
-      schema: "paperclip.native-cancellation.v1", intentId: "native-cancellation:00000000-0000-4000-8000-000000000001", companyId: "qa-company", runId: "run", issueId: "owned-task", scope: "run",
+      schema: "outpost.native-cancellation.v1", intentId: "native-cancellation:00000000-0000-4000-8000-000000000001", companyId: "qa-company", runId: "run", issueId: "owned-task", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent", acknowledgementAuditId: "ack" } } };
     expect(nativeStopAcknowledged(run, "qa-company", "owned-task", "qa-user")).toBe(true);
     for (const change of [{ dispatchState: "pending" }, { runId: "other" }, { scope: "task" }, { effects: [] }, { acknowledgementAuditId: "intent" }]) {
@@ -140,14 +140,14 @@ describe("deployed agent journey evidence", () => {
   });
   it.each(Object.keys(agentJourneyRuns))("retained %s successes require every story check and the exact run receipts", id => {
     const count = agentJourneyRuns[id as keyof typeof agentJourneyRuns];
-    const result = { schema: "paperclip.runner-e2e.result/v2", executionId: `product-journeys.qa.configured-agent.daytona.${id}`,
+    const result = { schema: "outpost.runner-e2e.result/v2", executionId: `product-journeys.qa.configured-agent.daytona.${id}`,
       suiteId: "product-journeys", suiteDefinitionHash: "test", profileId: "configured-agent", environmentId: "daytona", caseId: id,
       provider: "opencode", model: "qa-model", runtimeMode: "native", status: "passed", cleanup: "passed", attempt: 1,
       startedAt: "2026-10-29T00:00:00Z", finishedAt: "2026-10-29T00:00:01Z", durationMs: 1000,
       runIds: Array.from({ length: count }, (_, index) => `owned-run-${index}`),
       productJourney: { outcome: "passed", startingState: "recipe", privacy: "private", resourceDisposition: "retained",
         phases: [{ phase: "journey", outcome: "passed" }], checks: journeyRequiredChecks[id]!.map(id => ({ id, passed: true })),
-        deployment: { kind: "cloud", targetId: "qa", origin: "https://qa.test.paperclip.app", commit: "a".repeat(40),
+        deployment: { kind: "cloud", targetId: "qa", origin: "https://qa.test.outpost.app", commit: "a".repeat(40),
           cloudRelease: "b".repeat(40), runtimeImage: "pinned-image", configurationHash: "test" } } };
     expect(() => validateRetainedRunnerResult(result)).not.toThrow();
     for (let index = 0; index < result.productJourney.checks.length; index++) {

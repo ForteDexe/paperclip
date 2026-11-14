@@ -46,8 +46,8 @@ task, start an agent, or perform a repair.
 
 - Backend run failures must already reach your Sentry project. For self-hosted
   instances, configure the backend Sentry DSN and a supported
-  `PAPERCLIP_SENTRY_RUN_FAILURES` mode, such as `unexpected`.
-- Set the instance's canonical `PAPERCLIP_PUBLIC_URL` so events have usable
+  `OUTPOST_SENTRY_RUN_FAILURES` mode, such as `unexpected`.
+- Set the instance's canonical `OUTPOST_PUBLIC_URL` so events have usable
   `task_url` and `run_url` tags.
 - Choose an agent with access to the source tasks and repository. Install the
   `fix-failed-paperclip-run` skill if that is your repair workflow.
@@ -111,7 +111,7 @@ Copy the generated webhook URL and secret key. Keep the trigger in setup mode.
 The URL has this form:
 
 ```text
-https://paperclip.example.com/api/routine-triggers/public/<publicId>/fire
+https://outpost.example.com/api/routine-triggers/public/<publicId>/fire
 ```
 
 The normal app-webhook mode supports an `Authorization: Bearer` header. No
@@ -191,7 +191,7 @@ and company, send its current standard run JWT in the optional source header:
 ```sh
 curl --fail-with-body "$WEBHOOK_URL" \
   -H "Authorization: Bearer $WEBHOOK_SECRET" \
-  -H "X-Paperclip-Source-Run-Token: $PAPERCLIP_API_KEY" \
+  -H "X-Paperclip-Source-Run-Token: $OUTPOST_API_KEY" \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: build-123' \
   -H 'X-Paperclip-Idempotency-Scope: routine' \

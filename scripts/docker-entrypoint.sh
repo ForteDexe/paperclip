@@ -55,7 +55,7 @@ remap_uid=0
 remap_gid=0
 [ "$(id -u node)" -ne "$PUID" ] && remap_uid=1
 [ "$(id -g node)" -ne "$PGID" ] && remap_gid=1
-app_home="${PAPERCLIP_HOME:-/paperclip}"
+app_home="${OUTPOST_HOME:-/paperclip}"
 move_home=0
 if { [ "$remap_uid" -eq 1 ] || [ "$remap_gid" -eq 1 ]; } \
     && [ -n "$node_home" ] && [ "${node_home%/}" = "${app_home%/}" ]; then
@@ -98,7 +98,7 @@ fi
 # Any mismatch repairs the whole tree. After a clean probe or a repair, the
 # marker records the verified node UID/GID, so later boots skip the full
 # walk. Delete the marker to force a full probe on the next boot.
-home_dir="${PAPERCLIP_HOME:-/paperclip}"
+home_dir="${OUTPOST_HOME:-/paperclip}"
 ownership_marker="$home_dir/.paperclip-ownership-verified"
 ownership_shallow_depth=3
 

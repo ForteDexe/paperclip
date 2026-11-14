@@ -71,13 +71,13 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY,
   type HeartbeatRunStatusPhase,
   type RequestConfirmationResult,
   type RunLivenessState,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   agents,
   agentRuntimeState,
@@ -99,7 +99,7 @@ import {
   issueWorkProducts,
   routines,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { logger } from "../../middleware/logger.js";
 import { publishLiveEvent } from "../live-events.js";
 import {
@@ -184,11 +184,11 @@ import {
 } from "../../redaction.js";
 import {
   type RuntimeStatusUpdate,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 import {
   UNMANAGED_BACKGROUND_TASK_LIVENESS_REASON,
   UNMANAGED_BACKGROUND_TASK_STOP_REASON,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@outpost/adapter-utils/server-utils";
 import {
   clearHeartbeatRunRuntimeStatus,
   getHeartbeatRunRuntimeStatus,
@@ -698,7 +698,7 @@ function preserveNativeExecutionObligationsSql(incoming: Record<string, unknown>
     and ${projected}->'executionRecovery'->>'providerWorkStarted' = 'false'
     then ${projected} - 'executionRecovery' else ${projected} end` : projected;
   return sql`case when ${heartbeatRuns.runtimeMode} = 'native'
-    and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'schema' = 'paperclip.native-cancellation.v1'
+    and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'schema' = 'outpost.native-cancellation.v1'
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'scope' = 'run'
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'reasonCode' = 'cancellation_run_only'
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'runId' = ${heartbeatRuns.id}::text
@@ -2408,10 +2408,10 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       )
       .limit(200));
     for (const row of rows) {
-      const prpEvent = parseObject(parseObject(row.payload).prpEvent);
+      const orpEvent = parseObject(parseObject(row.payload).orpEvent);
       const candidate = readCompletedAssistantMessageCandidate({
         seq: row.seq,
-        prpEvent,
+        orpEvent,
         proposedItemIds,
       });
       if (candidate) candidates.push(candidate);

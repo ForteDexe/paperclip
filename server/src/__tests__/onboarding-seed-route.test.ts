@@ -9,7 +9,7 @@ import {
   goals,
   issues,
   projects,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
 import { logActivity } from "../services/activity-log.js";
 import {
@@ -122,8 +122,8 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
   });
 
   it("uses the qualified Claude default for an unsupported seed adapter override", async () => {
-    const previous = process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE;
-    process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE = "paperclip_runner";
+    const previous = process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE;
+    process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE = "outpost_runner";
     try {
       const { companyId, app } = await seedCompany();
 
@@ -132,32 +132,32 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
       expect(response.status).toBe(200);
       const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
       expect(companyAgents).toHaveLength(1);
-      expect(companyAgents[0]).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } });
+      expect(companyAgents[0]).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } });
     } finally {
       if (previous === undefined) {
-        delete process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE;
+        delete process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE;
       } else {
-        process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE = previous;
+        process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE = previous;
       }
     }
   });
 
   it("uses the creation default for server-seeded Codex", async () => {
-    const previous = process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE;
-    process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE = "codex_local";
+    const previous = process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE;
+    process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE = "codex_local";
     try {
       const { companyId, app } = await seedCompany();
       const response = await post(app, companyId, SEED);
       expect(response.status).toBe(200);
       const [agent] = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
-      expect(agent).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex" } });
+      expect(agent).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
       expect(agent?.adapterConfig).toMatchObject({ paperclipSkillSync: { desiredSkills: [] } });
       expect((await post(app, companyId, SEED)).body.changed).toBe(false);
       const [replayed] = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
       expect(replayed?.adapterConfig).toEqual(agent?.adapterConfig);
     } finally {
-      if (previous === undefined) delete process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE;
-      else process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE = previous;
+      if (previous === undefined) delete process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE;
+      else process.env.OUTPOST_ONBOARDING_SEED_ADAPTER_TYPE = previous;
     }
   });
 

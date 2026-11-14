@@ -10,7 +10,7 @@ import {
   buildRoutineMentionHref,
   buildSkillMentionHref,
   buildUserMentionHref,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { composerImageFiles } from "../../support/composerImageFiles";
 import { composerSkills as SKILLS } from "../../support/composerSkills";

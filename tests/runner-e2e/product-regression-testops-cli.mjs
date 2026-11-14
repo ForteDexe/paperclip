@@ -107,7 +107,7 @@ export async function productTestOps(command, argument, env = process.env, exec 
       plan = await readJson(planFile, 65_536);
     }
     const cases = manualCases ?? selectProductRegression(plan, env.TESTOPS_CASE || 'all', true, planKey, plans);
-    const selection = { schema: 'paperclip.product-regression-testops-selection/v1',
+    const selection = { schema: 'outpost.product-regression-testops-selection/v1',
       runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, workflowSha: env.GITHUB_SHA,
       targetSha: env.SOURCE_SHA, ...context, ...job, cases };
     validateSelection(selection, env, plans);

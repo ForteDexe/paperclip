@@ -3,7 +3,7 @@ import { replaceSlackFormReceiptSignature } from "./form-signature-refresh.js";
 import { parseSlackFormRetirementReceipt } from "./ack-retirement-receipt.js";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, sql } from "drizzle-orm";
-import { chatActions, type Db } from "@paperclipai/db";
+import { chatActions, type Db } from "@outpost/db";
 import { verifySlackFormRetirementReceipt } from "./receipt-authority.js";
 import { notifyDeliveryWork, DELIVERY_QUEUES } from "../../delivery-work-notifications.js";
 import { parseSlackFormPublicEnrollment, parseSlackFormBinding, sameSlackFormBinding } from "./cloud-forms.js";
@@ -29,7 +29,7 @@ export function assertSlackFormRetirementWorkAuthority(row: Row, identity: Slack
 export function verifyRetainedSlackFormRetirement(compactJws: string) {
   try { return verifySlackFormRetirementReceipt({ compactJws }); }
   catch (error) {
-    if (error instanceof Error && ["PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS is not configured", "PAPERCLIP_CLOUD_RUNTIME_IDENTITY_JWKS is invalid",
+    if (error instanceof Error && ["OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS is not configured", "OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS is invalid",
       "Cloud runtime identity uses an unknown signing key"].includes(error.message)) return retry("form_retirement_verifier_unavailable");
     throw new SlackCloudReceiptError("form_retirement_receipt_invalid", "attention");
   }

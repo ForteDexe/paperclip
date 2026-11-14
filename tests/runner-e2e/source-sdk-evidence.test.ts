@@ -42,7 +42,7 @@ it.each([true, false])("retains exact synthetic compiler output before admission
   await expect(readFile(path.join(f.repositoryRoot, "packages/plugins/sdk/dist/index.js"))).rejects.toThrow();
   await f.prepare();
   const receipt = JSON.parse(await readFile(path.join(f.temporaryRoot, "artifacts-private/source-sdk-build/receipt.json"), "utf8"));
-  expect(receipt).toMatchObject({ schema: "paperclip.source-plugin-sdk/v1", executionId, sourceRevision }); expect(receipt.certifiedTargets).toHaveLength(2);
+  expect(receipt).toMatchObject({ schema: "outpost.source-plugin-sdk/v1", executionId, sourceRevision }); expect(receipt.certifiedTargets).toHaveLength(2);
   expect(receipt.buildHelperSha256).toBe(hash(await readFile(path.join(f.repositoryRoot, "scripts/ensure-plugin-build-deps.mjs"))));
   const packaged = await packageEvidence({ privateDir: path.join(f.temporaryRoot, "case"), uploadDir: f.uploadDir, secrets: [], expectPassScreenshot: pass });
   expect(packaged.leaks).toEqual([]);

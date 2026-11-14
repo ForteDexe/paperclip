@@ -1,13 +1,13 @@
-import { parsePaperclipQuestionResponse } from "../../packages/paperclip-runner/src/contracts/question-set.js";
-import { normalizeCursorPlanRequest } from "../../packages/paperclip-runner/src/drivers/acpx/cursor-extensions.js";
+import { parsePaperclipQuestionResponse } from "../../packages/outpost-runner/src/contracts/question-set.js";
+import { normalizeCursorPlanRequest } from "../../packages/outpost-runner/src/drivers/acpx/cursor-extensions.js";
 import { cursorNativePlanResponse, findCursorNativeRequest, hasCursorNativeCardBinding } from "./cursor-native-flow.js";
 import { cursorDeniedCommand, type CursorToolNotice } from "./cursor-native-evidence.js";
 import { describe, expect, it } from "vitest";
 import { cursorNativeCaseDesigns, cursorNativePrompt, hasDeliveredCursorNativeRequest, hasCursorPlanDecision, hasCursorDenialBoundary, CURSOR_DENIAL_SAMPLE_PHASES, hasExactCursorNativeResponse } from "./cursor-native-cases.js";
 
 const proof = (adapter = "acpx-runtime") => {
-  const wrap = (eventType: string, sourceSeq: number, payload: unknown) => ({ runId: "run", protocolSchemaVersion: 1, payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "run", turnId: "turn", eventType, sourceSeq, payload,
+  const wrap = (eventType: string, sourceSeq: number, payload: unknown) => ({ runId: "run", protocolSchemaVersion: 1, payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, runId: "run", turnId: "turn", eventType, sourceSeq, payload,
   } } });
   return [wrap("runtime_request.created", 1, { request: { requestId: "request", turnId: "turn", type: "input", status: "pending", origin: { adapter, provider: "cursor", method: "cursor/ask_question" } } }),
     wrap("runtime_request.resolved", 2, { requestId: "request", turnId: "turn", action: "submit" })];
@@ -22,24 +22,24 @@ describe("prepared Cursor native qualification", () => {
   it("requires correlated native origin and response delivery evidence", () => { expect(grade(proof())).toBe(true); expect(grade([])).toBe(false); });
   it("rejects semantic substitutions and permission fallbacks", () => {
     for (const method of ["request_human_input", "session/request_permission", "cursor/create_plan"]) {
-      const rows = proof(); (rows[0]!.payload.prpEvent.payload as any).request.origin.method = method; expect(grade(rows)).toBe(false);
+      const rows = proof(); (rows[0]!.payload.orpEvent.payload as any).request.origin.method = method; expect(grade(rows)).toBe(false);
     }
   });
   it("rejects missing, duplicated and expired delivery", () => {
     const rows = proof(); expect(grade(rows.slice(0, 1))).toBe(false); expect(grade([...rows, rows[1]])).toBe(false);
-    rows[1]!.payload.prpEvent.eventType = "runtime_request.expired"; expect(grade(rows)).toBe(false);
+    rows[1]!.payload.orpEvent.eventType = "runtime_request.expired"; expect(grade(rows)).toBe(false);
   });
   it("rejects mismatched run, turn and event ordering", () => {
     let rows = proof(); rows[1]!.runId = "foreign"; expect(grade(rows)).toBe(false);
-    rows = proof(); rows[1]!.payload.prpEvent.turnId = "stale"; expect(grade(rows)).toBe(false);
-    rows = proof(); rows[1]!.payload.prpEvent.sourceSeq = 0; expect(grade(rows)).toBe(false);
+    rows = proof(); rows[1]!.payload.orpEvent.turnId = "stale"; expect(grade(rows)).toBe(false);
+    rows = proof(); rows[1]!.payload.orpEvent.sourceSeq = 0; expect(grade(rows)).toBe(false);
   });
 });
 
 it("binds plan decisions to the full revision and rejects stale answers", () => {
   const id = `plan-${"a".repeat(64)}`;
   const questionSet = { questions: [{ id }] };
-  const answer = { schema: "paperclip.question_response.v1", answers: { [id]: { selectedOptionIds: ["accept"] } } };
+  const answer = { schema: "outpost.question_response.v1", answers: { [id]: { selectedOptionIds: ["accept"] } } };
   expect(hasCursorPlanDecision(questionSet, answer, "accept")).toBe(true);
   expect(hasCursorPlanDecision({ questions: [{ id: `plan-${"b".repeat(64)}` }] }, answer, "accept")).toBe(false);
   expect(hasCursorPlanDecision(questionSet, answer, "reject")).toBe(false);
@@ -61,8 +61,8 @@ it.each(["acpx-runtime", "acpx-runtime-sidecar"])("requires supported denial cho
 });
 
 it("requires exact delivered answer bytes rather than a saved or different answer", () => {
-  const rows = proof(); const response = { schema: "paperclip.question_response.v1", answers: { q: { selectedOptionIds: ["chosen"] } } };
-  (rows[1]!.payload.prpEvent.payload as any).response = response;
+  const rows = proof(); const response = { schema: "outpost.question_response.v1", answers: { q: { selectedOptionIds: ["chosen"] } } };
+  (rows[1]!.payload.orpEvent.payload as any).response = response;
   const input = { events: rows, runId: "run", turnId: "turn", requestId: "request", method: "cursor/ask_question" as const, action: "submit" as const, response };
   expect(hasExactCursorNativeResponse(input)).toBe(true);
   expect(hasExactCursorNativeResponse({ ...input, response: { ...response, answers: { q: { selectedOptionIds: ["other"] } } } })).toBe(false);
@@ -76,8 +76,8 @@ it.each(["accept", "cancel", "reject"] as const)("recognizes canonical delivered
   const response = cursorNativePlanResponse(planId, decision, "  Keep exact feedback 漢字\nSecond line  ");
   const delivered = parsePaperclipQuestionResponse(native.questionSet, response);
   const rows = proof();
-  (rows[0]!.payload.prpEvent.payload as any).request.origin.method = "cursor/create_plan";
-  (rows[1]!.payload.prpEvent.payload as any).response = delivered;
+  (rows[0]!.payload.orpEvent.payload as any).request.origin.method = "cursor/create_plan";
+  (rows[1]!.payload.orpEvent.payload as any).response = delivered;
   const input = { events: rows, runId: "run", turnId: "turn", requestId: "request", method: "cursor/create_plan" as const, action: "submit" as const, response };
   expect(hasCursorPlanDecision(native.questionSet, response, decision)).toBe(true);
   expect(hasExactCursorNativeResponse(input)).toBe(true);
@@ -93,11 +93,11 @@ it.each(["accept", "cancel", "reject"] as const)("recognizes canonical delivered
 it.each(["acpx-runtime", "acpx-runtime-sidecar"])("recognizes a native plan and its durable card via %s", adapter => {
   const input = normalizeCursorPlanRequest({ toolCallId: "native-plan", name: "Fixture plan", plan: "Verify complete Markdown.", todos: [{ id: "first", content: "Read", status: "pending" }, { id: "second", content: "Check", status: "pending" }] }).questionSet;
   const rows = proof(adapter);
-  const request = (rows[0]!.payload.prpEvent.payload as any).request;
+  const request = (rows[0]!.payload.orpEvent.payload as any).request;
   request.origin.method = "cursor/create_plan";
   request.input = input;
   const event = findCursorNativeRequest(rows, "cursor/create_plan", "request")!;
-  expect(event).toBe(rows[0]!.payload.prpEvent);
+  expect(event).toBe(rows[0]!.payload.orpEvent);
   expect(hasDeliveredCursorNativeRequest({ events: rows, runId: "run", turnId: "turn", requestId: "request", method: "cursor/create_plan", action: "submit" })).toBe(true);
   const reorder = (value: any): any => Array.isArray(value) ? value.map(reorder) : value !== null && typeof value === "object"
     ? Object.fromEntries(Object.entries(value).reverse().map(([key, nested]) => [key, reorder(nested)])) : value;
@@ -119,18 +119,18 @@ it.each(["acpx-runtime", "acpx-runtime-sidecar"])("recognizes a native plan and 
 it.each(["acpx-runtime", "acpx-runtime-sidecar"])("rejects foreign native request identity or origin via %s", adapter => {
   for (const patch of [{ adapter: "unknown" }, { adapter: "acpx-runtime-sidecar-unknown" }, { adapter: "semantic" }, { provider: "pi" }, { method: "request_human_input" }]) {
     const rows = proof(adapter);
-    Object.assign((rows[0]!.payload.prpEvent.payload as any).request.origin, patch);
+    Object.assign((rows[0]!.payload.orpEvent.payload as any).request.origin, patch);
     expect(grade(rows)).toBe(false);
     expect(findCursorNativeRequest(rows, "cursor/ask_question", "request")).toBeUndefined();
   }
   for (const patch of [{ requestId: "foreign" }, { turnId: "stale" }]) {
     const rows = proof(adapter);
-    Object.assign((rows[0]!.payload.prpEvent.payload as any).request, patch);
+    Object.assign((rows[0]!.payload.orpEvent.payload as any).request, patch);
     expect(grade(rows)).toBe(false);
   }
   const rows = proof(adapter);
   expect(grade([...rows, rows[0]!])).toBe(false);
   expect(grade([...rows, rows[1]!])).toBe(false);
-  rows[1]!.payload.prpEvent.turnId = "stale";
+  rows[1]!.payload.orpEvent.turnId = "stale";
   expect(grade(rows)).toBe(false);
 });

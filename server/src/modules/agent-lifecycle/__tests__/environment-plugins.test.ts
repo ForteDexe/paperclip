@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, companies, companyMemberships, environments, heartbeatRuns, instanceSettings, plugins, principalPermissionGrants, createDb, type Db } from "@paperclipai/db";
+import { agents, companies, companyMemberships, environments, heartbeatRuns, instanceSettings, plugins, principalPermissionGrants, createDb, type Db } from "@outpost/db";
 import express from "express";
 import request from "supertest";
 import { agentRoutes } from "../../../routes/agents.js";
@@ -172,7 +172,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it.each(["board", "agent"] as const)("lets a configuration-authorized %s migrate without separate manual-pause authority", async type => {
-    const id = await agent(otherEnvironmentId, { status: "running", adapterType: "paperclip_runner",
+    const id = await agent(otherEnvironmentId, { status: "running", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" }, lifecycleRequiredPluginIds: [] });
     const principalId = type === "agent" ? await agent(otherEnvironmentId) : randomUUID();
     await db.insert(companyMemberships).values({ companyId, principalType: type === "board" ? "user" : "agent",
@@ -190,7 +190,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it.each(["board", "agent"] as const)("rejects a %s without configuration permission before saving the environment or pausing", async type => {
-    const id = await agent(otherEnvironmentId, { status: "running", adapterType: "paperclip_runner",
+    const id = await agent(otherEnvironmentId, { status: "running", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" }, lifecycleRequiredPluginIds: [] });
     const principalId = type === "agent" ? await agent(otherEnvironmentId) : randomUUID();
     await db.insert(companyMemberships).values({ companyId, principalType: type === "board" ? "user" : "agent", principalId, membershipRole: "member", status: "active" });

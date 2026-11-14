@@ -10,10 +10,10 @@ import {
   executionWorkspaces,
   projects,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { setTimeout as delay } from "node:timers/promises";
-import { subscribeDatabaseWork } from "@paperclipai/db/work-signals";
+import { subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import {
   RUNTIME_CONTROL_STALE_AFTER_MS,

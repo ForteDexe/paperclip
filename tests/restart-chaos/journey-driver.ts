@@ -66,19 +66,19 @@ export function questionAnswer(interaction: Json, choice: string): { questionId:
 
 /** The scripted Q3 agent: one connected-app call, then report the reviewed result. Adapted from tests/e2e/connection-reviews.spec.ts. */
 export function q3AgentScript(connectionId: string, title: string): string {
-  // The supervisor pins PAPERCLIP_API_URL to the wave's own loopback server.
+  // The supervisor pins OUTPOST_API_URL to the wave's own loopback server.
   return `
-const base = process.env.PAPERCLIP_API_URL.replace(/\\/+$/, "").replace(/\\/api$/, "") + "/api";
-const headers = { authorization: "Bearer " + process.env.PAPERCLIP_API_KEY, "content-type": "application/json", "x-paperclip-run-id": process.env.PAPERCLIP_RUN_ID };
+const base = process.env.OUTPOST_API_URL.replace(/\\/+$/, "").replace(/\\/api$/, "") + "/api";
+const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-paperclip-run-id": process.env.OUTPOST_RUN_ID };
 const api = async (path, method = "GET", body) => {
   const response = await fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) throw new Error(method + " " + path + " " + response.status + ": " + await response.text());
   return await response.json();
 };
-let issueId = process.env.PAPERCLIP_TASK_ID;
+let issueId = process.env.OUTPOST_TASK_ID;
 try {
 // This agent is hired for one task: find it by its own assignment.
-const assigned = await api("/companies/" + process.env.PAPERCLIP_COMPANY_ID + "/issues?assigneeAgentId=" + process.env.PAPERCLIP_AGENT_ID);
+const assigned = await api("/companies/" + process.env.OUTPOST_COMPANY_ID + "/issues?assigneeAgentId=" + process.env.OUTPOST_AGENT_ID);
 issueId ??= (Array.isArray(assigned) ? assigned : assigned.issues ?? []).find(item => item.title?.includes(${JSON.stringify(title)}))?.id;
 if (!issueId) throw new Error("No assigned task names " + ${JSON.stringify(title)});
 const review = (await api("/issues/" + issueId + "/interactions")).find(item => item.payload?.toolAction);
@@ -91,7 +91,7 @@ if (review) {
   if (executed) await api("/issues/" + issueId, "PATCH", { status: "done" });
   process.exit(0);
 }
-const session = await api("/tool-gateway/sessions", "POST", { runId: process.env.PAPERCLIP_RUN_ID, ttlMs: 60000 });
+const session = await api("/tool-gateway/sessions", "POST", { runId: process.env.OUTPOST_RUN_ID, ttlMs: 60000 });
 const gatewayHeaders = { "x-paperclip-tool-gateway-token": session.token, "content-type": "application/json" };
 const tools = await (await fetch(base + "/tool-gateway/tools", { headers: gatewayHeaders })).json();
 const tool = tools.find(t => t.connectionId === ${JSON.stringify(connectionId)});

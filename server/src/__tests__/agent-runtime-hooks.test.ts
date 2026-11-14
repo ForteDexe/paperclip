@@ -1,4 +1,4 @@
-import * as databaseModule from "@paperclipai/db";
+import * as databaseModule from "@outpost/db";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, connect, type Socket } from "node:net";
 import { EventEmitter } from "node:events";
@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agents, companies, applyPendingMigrations, closeFileStorageDb, createDb, pluginCompanySettings, pluginConfig, plugins, resourceLifecycleEvents, secretAccessEvents, type Db } from "@paperclipai/db";
+import { activityLog, agents, companies, applyPendingMigrations, closeFileStorageDb, createDb, pluginCompanySettings, pluginConfig, plugins, resourceLifecycleEvents, secretAccessEvents, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import * as instructionModule from "../services/agent-instructions.js";
@@ -20,8 +20,8 @@ import { agentFileStore } from "../services/agent-file-store.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 import { secretService } from "../services/secrets.js";
 
-const externalUrl = process.env.PAPERCLIP_AGENT_RUNTIME_HOOKS_TEST_DATABASE_URL;
-const expectedDatabase = process.env.PAPERCLIP_AGENT_RUNTIME_HOOKS_EXPECTED_DATABASE;
+const externalUrl = process.env.OUTPOST_AGENT_RUNTIME_HOOKS_TEST_DATABASE_URL;
+const expectedDatabase = process.env.OUTPOST_AGENT_RUNTIME_HOOKS_EXPECTED_DATABASE;
 if (externalUrl || expectedDatabase) {
   if (!externalUrl || !expectedDatabase || !/^sleep2_[a-z0-9_]+_test$/.test(expectedDatabase)) {
     throw new Error("Explicit external fixture URL and expected database are required");
@@ -59,7 +59,7 @@ describeDatabase("agent runtime synchronization hooks", () => {
   });
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
   beforeEach(async () => {
-    vi.stubEnv("PAPERCLIP_HOME", home);
+    vi.stubEnv("OUTPOST_HOME", home);
     companyId = randomUUID(); pluginId = randomUUID(); agentId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Runtime fixture", issuePrefix: `R${companyId.slice(0, 6)}` });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "runtime-fixture", version: "1.0.0", status: "ready",
@@ -223,7 +223,7 @@ describeDatabase("agent runtime synchronization hooks", () => {
   });
 
   it("returns the same identity, revision, secrets and failures as the full runtime read", async () => {
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     const scope = { companyId, agentId, pluginId };
     const outcome = (read: Promise<unknown>) => read.then(value => value, (error: { status?: number }) => ({ status: error.status }));
     const same = async (company = companyId, agent = agentId, plugin = pluginId) => {

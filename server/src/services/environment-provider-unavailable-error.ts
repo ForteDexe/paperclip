@@ -1,5 +1,5 @@
-import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES, readEnvironmentAcquireErrorDiagnostic, readEnvironmentAcquisitionDiagnostic } from "@paperclipai/plugin-sdk";
-import type { ProviderFailure } from "@paperclipai/shared";
+import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES, readEnvironmentAcquireErrorDiagnostic, readEnvironmentAcquisitionDiagnostic } from "@outpost/plugin-sdk";
+import type { ProviderFailure } from "@outpost/shared";
 import { getEnvironmentAcquisitionDiagnostic } from "./environment-acquisition-diagnostics.js";
 
 /**
@@ -150,7 +150,7 @@ export class EnvironmentProviderUnavailableError extends Error {
     this.errorCode = input.evidence.errorCode ?? null;
     const providerCode = input.evidence.errorCode ?? (input.evidence.httpStatus === undefined ? input.evidence.reason : undefined);
     this.providerFailure = {
-      schema: "paperclip.provider-failure.v1",
+      schema: "outpost.provider-failure.v1",
       provider: /^[a-zA-Z0-9_.:/-]{1,80}$/.test(input.driver) ? input.driver : "environment",
       phase: "startup",
       category: category(input.evidence),

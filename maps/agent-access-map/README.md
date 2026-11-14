@@ -83,7 +83,7 @@ payloads; [the run-log guide](../../doc/run-log-events.md) describes its fields.
 
 Sources: [API client](../../server/src/services/native-runtime/runner-api-client.ts),
 [catalog](../../server/src/services/native-runtime/runner-api-catalog.ts),
-[native authority](../../server/src/services/native-runtime/paperclip-runner-tool-authority.ts),
+[native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts),
 [credential storage classification](../../server/src/services/native-runtime/runner-api-sensitive-response.ts),
 [snapshot access](../../server/src/services/asset-content-access.ts),
 and [history redaction](../../server/src/services/native-runtime/runner-api-log-redaction.ts). The affected entries remain

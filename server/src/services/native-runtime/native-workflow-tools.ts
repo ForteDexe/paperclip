@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { createWorkflowSchema, updateWorkflowSchema, listWorkflowsSchema, readWorkflowQuerySchema } from "@paperclipai/shared";
-import type { Db } from "@paperclipai/db";
+import { createWorkflowSchema, updateWorkflowSchema, listWorkflowsSchema, readWorkflowQuerySchema } from "@outpost/shared";
+import type { Db } from "@outpost/db";
 import { badRequest } from "../../errors.js";
 import { casesDisabledError } from "../cases-disabled.js";
 import { requireCasesEnabled } from "../workflows.js";

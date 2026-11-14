@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { CREDENTIAL_NAMES, type MatrixExecution } from "./types.js";
 
-export const installedCliKeys = ["PAPERCLIP_RUNNER_E2E_INSTALLED_CLI", "PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256", "PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT", "PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256"] as const;
-const overrideKeys = ["PAPERCLIP_RUNNER_BINARY", "PAPERCLIP_RUNNER_REMOTE_BINARY_PATH", "PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH", "PAPERCLIP_RUNNER_ACPX_QUALIFICATION", "PAPERCLIP_ACPX_BUILTIN_ROOT", "PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT", "PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST"] as const;
+export const installedCliKeys = ["OUTPOST_RUNNER_E2E_INSTALLED_CLI", "OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256", "OUTPOST_RUNNER_E2E_INSTALLED_SERVER_ROOT", "OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256"] as const;
+const overrideKeys = ["OUTPOST_RUNNER_BINARY", "OUTPOST_RUNNER_REMOTE_BINARY_PATH", "OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH", "OUTPOST_RUNNER_ACPX_QUALIFICATION", "OUTPOST_ACPX_BUILTIN_ROOT", "OUTPOST_ACPX_PROVIDER_PACKAGE_ROOT", "OUTPOST_ACPX_PROVIDER_PACKAGE_MANIFEST"] as const;
 const suites = new Set(["extended-harnesses", "pi-native", "pi-controls", "rich-acp-warm-continuity"]);
 const installedCodexCells = new Set([
   "first-task.runner-codex.local.task-card-accept",
@@ -69,23 +69,23 @@ async function readOwned(path: string, maximum: number): Promise<Buffer> {
 export async function verifyInstalledCli(env: NodeJS.ProcessEnv, executions: readonly MatrixExecution[]) {
   if (!usesInstalledCli(env)) return undefined;
   assertInstalledCliSelection(env, executions);
-  const entry = env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI!;
-  const serverRoot = env.PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT!;
+  const entry = env.OUTPOST_RUNNER_E2E_INSTALLED_CLI!;
+  const serverRoot = env.OUTPOST_RUNNER_E2E_INSTALLED_SERVER_ROOT!;
   for (const path of [entry, serverRoot]) if (!isAbsolute(path) || resolve(path) !== path || await realpath(path) !== path) throw new Error("Installed CLI proof paths must be canonical and unlinked");
   if (!entry.endsWith("/dist/index.js")) throw new Error("Installed CLI proof requires published dist/index.js");
   const cliRoot = resolve(dirname(entry), "..");
   const cli = JSON.parse((await readOwned(join(cliRoot, "package.json"), 65536)).toString());
-  const manifest = findPackageJSON("@paperclipai/server", pathToFileURL(entry));
+  const manifest = findPackageJSON("@outpost/server", pathToFileURL(entry));
   if (!manifest || await realpath(manifest) !== join(serverRoot, "package.json")) throw new Error("Installed CLI resolved a foreign server dependency");
   const server = JSON.parse((await readOwned(join(serverRoot, "package.json"), 65536)).toString());
-  if (cli.name !== "paperclipai" || cli.bin?.paperclipai !== "./dist/index.js" || server.name !== "@paperclipai/server" || typeof cli.version !== "string" || cli.version !== server.version || server.exports?.["."]?.import !== "./dist/index.js") throw new Error("Installed CLI/server public package identity differs");
+  if (cli.name !== "paperclipai" || cli.bin?.paperclipai !== "./dist/index.js" || server.name !== "@outpost/server" || typeof cli.version !== "string" || cli.version !== server.version || server.exports?.["."]?.import !== "./dist/index.js") throw new Error("Installed CLI/server public package identity differs");
   const serverEntry = join(serverRoot, "dist/index.js");
   if (await realpath(serverEntry) !== serverEntry) throw new Error("Installed server entrypoint escapes its package");
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const cliSha256 = digest(await readOwned(entry, 64 * 1024 * 1024));
   const serverSha256 = digest(await readOwned(serverEntry, 16 * 1024 * 1024));
-  if (cliSha256 !== env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256 || serverSha256 !== env.PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256) throw new Error("Installed CLI/server bytes differ from their reviewed pins");
-  return { schema: "paperclip.e2e.installed-cli-admission/v1", entry, cliRoot, cliSha256, serverRoot, serverEntry, serverSha256, version: cli.version, defaultRuntimeResolution: true, qualificationOverride: false };
+  if (cliSha256 !== env.OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256 || serverSha256 !== env.OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256) throw new Error("Installed CLI/server bytes differ from their reviewed pins");
+  return { schema: "outpost.e2e.installed-cli-admission/v1", entry, cliRoot, cliSha256, serverRoot, serverEntry, serverSha256, version: cli.version, defaultRuntimeResolution: true, qualificationOverride: false };
 }
 
 export async function probeInstalledCodexStartup(input: {
@@ -106,13 +106,13 @@ export async function probeInstalledCodexStartup(input: {
   }
   if (!inside(join(input.consumerRoot, "node_modules"), input.serverRoot) || !/^[a-f0-9]{64}$/.test(input.expectedRunnerSha256)) throw new Error("Installed Codex startup requires a contained server and reviewed daemon digest");
   const manifest = JSON.parse((await readOwned(join(input.serverRoot, "package.json"), 65536)).toString());
-  if (manifest.name !== "@paperclipai/server" || manifest.exports?.["."]?.import !== "./dist/index.js") throw new Error("Installed Codex startup requires the published server");
-  const vendorRoot = join(input.serverRoot, "dist/vendor/paperclip-runner");
+  if (manifest.name !== "@outpost/server" || manifest.exports?.["."]?.import !== "./dist/index.js") throw new Error("Installed Codex startup requires the published server");
+  const vendorRoot = join(input.serverRoot, "dist/vendor/outpost-runner");
   const entries = [join(vendorRoot, "index.js"), join(input.serverRoot, "dist/services/native-runtime/native-codex-runner.js")];
   for (const filename of entries) if (await realpath(filename) !== filename) throw new Error("Installed Codex startup runtime escapes its package");
   const [runtime, production] = await Promise.all(entries.map(filename => import(pathToFileURL(filename).href)));
   const runnerBinary = await realpath(production.resolvePaperclipRunnerBinary());
-  if (runnerBinary !== join(vendorRoot, "bin", `${process.platform}-${process.arch}`, "paperclip-runnerd")) throw new Error("Installed Codex startup requires the normal platform daemon; no source or flat fallback");
+  if (runnerBinary !== join(vendorRoot, "bin", `${process.platform}-${process.arch}`, "outpost-runnerd")) throw new Error("Installed Codex startup requires the normal platform daemon; no source or flat fallback");
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const runnerSha256 = digest(await readOwned(runnerBinary, 512 * 1024 * 1024));
   if (runnerSha256 !== input.expectedRunnerSha256) throw new Error("Installed Codex startup daemon differs from its reviewed pin");
@@ -120,7 +120,7 @@ export async function probeInstalledCodexStartup(input: {
   const home = join(directory, "home"), codexHome = join(directory, "codex-home"), workspace = join(directory, "workspace");
   for (const filename of [home, codexHome, workspace]) await mkdir(filename, { mode: 0o700 });
   const environment = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin`, HOME: home, CODEX_HOME: codexHome,
-    TMPDIR: directory, LC_ALL: "C", TZ: "UTC", PAPERCLIP_RUNNER_NETWORK_ACCESS: "disabled" };
+    TMPDIR: directory, LC_ALL: "C", TZ: "UTC", OUTPOST_RUNNER_NETWORK_ACCESS: "disabled" };
   let session: any;
   let bundle: any;
   let cleanupConfirmed = false;
@@ -140,8 +140,8 @@ export async function probeInstalledCodexStartup(input: {
       sourceCodexHome: "", runnerBinary, codexCommand, codexArgs: args, closeGraceMs: 10000,
       lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } });
     const driver = new runtime.CodexAppServerDriver({
-      taskEnvelope: { schema: "paperclip.skillless_task.v1", objective: "Credential-free installed startup proof.",
-        completionContract: { revision: "installed-startup-v1", criteria: [] }, constraints: [], expectedResultSchema: "paperclip.run_result.v1" },
+      taskEnvelope: { schema: "outpost.skillless_task.v1", objective: "Credential-free installed startup proof.",
+        completionContract: { revision: "installed-startup-v1", criteria: [] }, constraints: [], expectedResultSchema: "outpost.run_result.v1" },
       model: "gpt-6.1-sol", conversationMode: "direct", requestedCollaborationMode: "plan", approvalPolicy: "never",
       includeCollaborationModeInstructions: false, dynamicTools: [], environment,
       transportFactory: () => bundle.transport, requireProviderSessionIdentity: true,
@@ -151,14 +151,14 @@ export async function probeInstalledCodexStartup(input: {
     const identity = session.ids();
     const evidence = bundle.evidence();
     if (event.value?.eventType !== "session.started" || event.value.payload?.context?.model !== "gpt-6.1-sol" ||
-      event.value.payload?.context?.sandbox?.permissionProfile?.id !== "paperclip-runner-workspace-read-only" ||
+      event.value.payload?.context?.sandbox?.permissionProfile?.id !== "outpost-runner-workspace-read-only" ||
       !identity.driverSessionId || !identity.providerSessionId || evidence.providerDriver !== "codex_app_server" ||
       !(evidence.runnerPid > 0) || !(evidence.codexPid > 0)) throw new Error("Installed Codex startup returned no matching native identity or read-only model context");
     await session.close({ reason: "credential-free installed startup complete" });
     session = undefined;
     if (!bundle.evidence().runnerExited) throw new Error("Installed Codex startup cleanup is incomplete");
     cleanupConfirmed = true;
-    return { schema: "paperclip.e2e.installed-codex-startup/v1", platform: `${process.platform}-${process.arch}`,
+    return { schema: "outpost.e2e.installed-codex-startup/v1", platform: `${process.platform}-${process.arch}`,
       runnerSha256, codexSha256, codexVersion, providerDriver: "codex_app_server", model: "gpt-6.1-sol",
       nativeSessionStarted: true, cleanupConfirmed: true, providerTurns: 0, credentialsUsed: false,
       defaultRuntimeResolution: true, reasoningEffortExercised: false };
@@ -180,7 +180,7 @@ export async function probeInstalledCodexStartup(input: {
       const evidence = bundle?.evidence();
       const bounded = (value: unknown) => String(value).replaceAll(directory, "[private-startup]").slice(0, 2000);
       const primaryMessage = bounded(startupFailure instanceof Error ? startupFailure.message : startupFailure);
-      const diagnostic = { schema: "paperclip.e2e.installed-codex-startup-failure/v1", platform: `${process.platform}-${process.arch}`,
+      const diagnostic = { schema: "outpost.e2e.installed-codex-startup-failure/v1", platform: `${process.platform}-${process.arch}`,
         runnerExited: evidence?.runnerExited ?? null, runnerExitCode: evidence?.runnerExitCode ?? null,
         runnerSignal: evidence?.runnerSignal ?? null,
         diagnostics: (Array.isArray(evidence?.diagnostics) ? evidence.diagnostics : []).slice(-16).map(bounded),

@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { agents, companyMemberships, principalPermissionGrants, type Db } from "@paperclipai/db";
-import { updateAgentPermissionGrantSchema, isUuidLike } from "@paperclipai/shared";
+import { agents, companyMemberships, principalPermissionGrants, type Db } from "@outpost/db";
+import { updateAgentPermissionGrantSchema, isUuidLike } from "@outpost/shared";
 import { and, eq } from "drizzle-orm";
 import { badRequest, conflict, forbidden, notFound } from "../errors.js";
 import { validate } from "../middleware/validate.js";

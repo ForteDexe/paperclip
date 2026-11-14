@@ -74,7 +74,7 @@ describe.skipIf(process.platform === "win32")("run-path file work stays off the 
 
   it("checks the remote daemon's target without blocking while its file is slow to read", async () => {
     // A FIFO whose writer waits stands in for a binary on a stalled disk.
-    const binary = join(root, "paperclip-runnerd");
+    const binary = join(root, "outpost-runnerd");
     execFileSync("mkfifo", [binary]);
     const header = join(root, "header");
     writeFileSync(header, linuxX64Header());

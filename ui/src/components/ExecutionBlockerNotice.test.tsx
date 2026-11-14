@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TaskInterruptionPresentation } from "@paperclipai/shared";
+import type { TaskInterruptionPresentation } from "@outpost/shared";
 import type { AnchorHTMLAttributes } from "react";
 import { ExecutionBlockerNotice } from "./ExecutionBlockerNotice";
 
@@ -116,7 +116,7 @@ describe("ordinary task interruption", () => {
   it("names the recovery step inside a provider failure notice", async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-20T00:00:00Z"));
     await render({ ...failed, state: "retry_scheduled", nextRetryAt: "2026-10-20T00:00:30Z", recoveryStep: "checking_previous_run",
-      providerFailure: { schema: "paperclip.provider-failure.v1", provider: "openai", phase: "startup", category: "overloaded",
+      providerFailure: { schema: "outpost.provider-failure.v1", provider: "openai", phase: "startup", category: "overloaded",
         retryability: "unknown", message: "Try later." } });
     expect(container.textContent).toContain("Checking that the previous attempt stopped. Trying again in 30s…");
     expect(container.textContent).not.toContain("Outpost will retry automatically.");
@@ -174,7 +174,7 @@ describe("ordinary task interruption", () => {
     expect(container.querySelector("button")).toBeNull();
   });
   it("names the budget wait alongside a provider failure while a saved Retry is held", async () => {
-    const providerFailure = { schema: "paperclip.provider-failure.v1" as const, provider: "openai", phase: "startup" as const,
+    const providerFailure = { schema: "outpost.provider-failure.v1" as const, provider: "openai", phase: "startup" as const,
       category: "overloaded" as const, retryability: "transient" as const, message: "Provider overloaded" };
     await render({ ...failed, providerFailure, responsibility: "user", state: "waiting_for_user", userAction: "budget", canRetry: false });
     expect(container.textContent).toContain("Provider overloaded");
@@ -182,7 +182,7 @@ describe("ordinary task interruption", () => {
     expect(container.querySelector("button")).toBeNull();
   });
   it("shows an unknown provider's original explanation as text and preserves read-only access", async () => {
-    const providerFailure = { schema: "paperclip.provider-failure.v1" as const, provider: "new-provider", phase: "startup" as const,
+    const providerFailure = { schema: "outpost.provider-failure.v1" as const, provider: "new-provider", phase: "startup" as const,
       category: "unknown" as const, retryability: "unknown" as const, httpStatus: 429,
       message: "Upstream failure <img src=x onerror=alert(1)>" };
     await render({ ...failed, providerFailure }, { canRetry: false });

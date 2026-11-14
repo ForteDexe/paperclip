@@ -18,20 +18,20 @@ async function fixture(keyFilePath?: (root: string) => string) {
   return { root, configPath, keyFile };
 }
 
-const storage = { PAPERCLIP_STORAGE_PROVIDER: "s3", PAPERCLIP_STORAGE_S3_BUCKET: "chaos-b", PAPERCLIP_STORAGE_S3_ENDPOINT: "http://127.0.0.1:9000",
-  PAPERCLIP_STORAGE_S3_REGION: "us-east-1", PAPERCLIP_STORAGE_S3_PREFIX: "chaos/w1/" };
+const storage = { OUTPOST_STORAGE_PROVIDER: "s3", OUTPOST_STORAGE_S3_BUCKET: "chaos-b", OUTPOST_STORAGE_S3_ENDPOINT: "http://127.0.0.1:9000",
+  OUTPOST_STORAGE_S3_REGION: "us-east-1", OUTPOST_STORAGE_S3_PREFIX: "chaos/w1/" };
 
 describe("ephemeralServerEnvironment", () => {
   it("builds the volume-free environment and keeps one master key across restarts", async () => {
     const { root, configPath, keyFile } = await fixture();
     const first = await ephemeralServerEnvironment({ configPath, temporaryRoot: root, extraEnvironment: storage });
-    expect(first).toMatchObject({ PAPERCLIP_EPHEMERAL_SERVER: "true", PAPERCLIP_DURABLE_AGENT_FILES: "true", PAPERCLIP_SHARED_UI_ASSETS: "true",
-      PAPERCLIP_DATABASE_LISTEN_URL: "postgres://u:p@127.0.0.1:5432/paperclip", RUN_LOG_S3_BUCKET: "chaos-b",
+    expect(first).toMatchObject({ OUTPOST_EPHEMERAL_SERVER: "true", OUTPOST_DURABLE_AGENT_FILES: "true", OUTPOST_SHARED_UI_ASSETS: "true",
+      OUTPOST_DATABASE_LISTEN_URL: "postgres://u:p@127.0.0.1:5432/paperclip", RUN_LOG_S3_BUCKET: "chaos-b",
       RUN_LOG_S3_ENDPOINT: "http://127.0.0.1:9000", RUN_LOG_S3_REGION: "us-east-1", RUN_LOG_S3_PREFIX: "chaos/w1/run-logs" });
-    expect(Buffer.from(first.PAPERCLIP_SECRETS_MASTER_KEY!, "base64")).toHaveLength(32);
-    expect((await readFile(keyFile, "utf8")).trim()).toBe(first.PAPERCLIP_SECRETS_MASTER_KEY);
+    expect(Buffer.from(first.OUTPOST_SECRETS_MASTER_KEY!, "base64")).toHaveLength(32);
+    expect((await readFile(keyFile, "utf8")).trim()).toBe(first.OUTPOST_SECRETS_MASTER_KEY);
     const second = await ephemeralServerEnvironment({ configPath, temporaryRoot: root, extraEnvironment: storage });
-    expect(second.PAPERCLIP_SECRETS_MASTER_KEY).toBe(first.PAPERCLIP_SECRETS_MASTER_KEY);
+    expect(second.OUTPOST_SECRETS_MASTER_KEY).toBe(first.OUTPOST_SECRETS_MASTER_KEY);
   });
 
   it("refuses a key file outside the wave's temporary root and a wave without object storage", async () => {

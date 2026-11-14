@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { chatActions, chatEndpoints, chatPublications, toolConnections, type Db } from "@paperclipai/db";
+import { chatActions, chatEndpoints, chatPublications, toolConnections, type Db } from "@outpost/db";
 import { createSlackFormPublicationStage } from "../services/chat-channels/slack/form-publication.js";
 
 const fixture = vi.hoisted(() => ({ interactions: [] as unknown[] }));

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { ExternalLink, Loader2 } from "lucide-react";
-import type { GitHubAppWizardState } from "@paperclipai/shared";
+import type { GitHubAppWizardState } from "@outpost/shared";
 import { agentsApi } from "@/api/agents";
 import { chatEndpointsApi } from "@/api/chatEndpoints";
 import { githubChatApi } from "@/api/githubChat";

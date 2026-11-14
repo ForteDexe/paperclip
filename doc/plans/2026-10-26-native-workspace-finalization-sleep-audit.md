@@ -174,7 +174,7 @@ Latest-head remote gates and review must be refreshed after the fixture repair.
 
 ## Second accepted-result producer
 
-The follow-on result-commit audit found the PRP coordinator's independent
+The follow-on result-commit audit found the ORP coordinator's independent
 `NativeRunCoordinatorStore.completeRun` writer. Its first accepted-result write
 had no workspace notification; the narrower control-plane producer tests did
 not cover it. Two new real-database cases reproduced the defect: first result

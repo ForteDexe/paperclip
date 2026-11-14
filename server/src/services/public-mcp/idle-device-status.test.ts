@@ -1,6 +1,6 @@
 import {describe,it,expect} from "vitest";
 import {createHash} from "node:crypto";
-import type {Db} from "@paperclipai/db";
+import type {Db} from "@outpost/db";
 import {readIdleMcpDeviceStatus} from "./idle-device-status.js";
 import {mcpDeviceStatusFingerprint,mcpDeviceStatusGeneration,mcpDeviceStatusKeyId} from "./device-status-contract.js";
 import type {McpClientMirrorReceipt} from "./client-mirror-contract.js";

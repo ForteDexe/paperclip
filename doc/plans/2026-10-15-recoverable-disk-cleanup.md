@@ -4,7 +4,7 @@
 
 Automatically expire reproducible skill caches and finished isolated Git workspaces,
 then restore them through normal use. Deliver two reviewed slices and verify actual
-reclamation plus restoration on `paperclip.staging.paperclip.app`. Keep the current
+reclamation plus restoration on `outpost.staging.outpost.app`. Keep the current
 storage architecture, unique work, and recovery data. Git restoration may depend
 on upstream availability; skill restoration must use saved database bytes alone.
 

@@ -1,6 +1,6 @@
 import { chatHistoryActionBlocks } from "./helpers/chat-history-proof.js";
 import { voiceCallReports } from "../services/voice/voice-call-reports.js";
-import { subscribeDatabaseWork } from "@paperclipai/db";
+import { subscribeDatabaseWork } from "@outpost/db";
 import * as voiceReplyNotifications from "../services/voice/voice-reply-notifications.js";
 import { voiceReplySchedule } from "../services/voice/voice-reply-schedule.js";
 import { registerVoiceReplyWork } from "../services/voice/voice-reply-work.js";
@@ -20,11 +20,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { documentService } from "../services/documents.js";
 import { applyConnectorSkills, prepareConnectorSkillDelivery, resolveConnectorAssignments } from "../services/connector-runtime.js";
-import { VOICE_RESULT_NOTIFICATION } from "@paperclipai/shared";
+import { VOICE_RESULT_NOTIFICATION } from "@outpost/shared";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { applyPendingMigrations, chatActions, instanceUserRoles, principalPermissionGrants, environments, chatVoiceInboundCalls, chatVoicePhoneLines, chatVoiceReports, heartbeatRuns, toolProfileBindings, chatVoiceCallbacks, agentWakeupRequests, issueThreadInteractions, issueQuestionResponseDeliveries, issueComments, agents, chatConversations, chatDeliveries, chatEndpoints, chatPublications, chatVoiceReplies, chatVoiceSessions, chatVoiceToolCalls, companies, companyMemberships, companySecrets, connectionGrants, connectionGrantMembers, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, issues, toolApplications, toolConnections, toolConnectionInstalls } from "@paperclipai/db";
+import { applyPendingMigrations, chatActions, instanceUserRoles, principalPermissionGrants, environments, chatVoiceInboundCalls, chatVoicePhoneLines, chatVoiceReports, heartbeatRuns, toolProfileBindings, chatVoiceCallbacks, agentWakeupRequests, issueThreadInteractions, issueQuestionResponseDeliveries, issueComments, agents, chatConversations, chatDeliveries, chatEndpoints, chatPublications, chatVoiceReplies, chatVoiceSessions, chatVoiceToolCalls, companies, companyMemberships, companySecrets, connectionGrants, connectionGrantMembers, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, issues, toolApplications, toolConnections, toolConnectionInstalls } from "@outpost/db";
 import { configureSpekoSessionTools } from "../services/voice/speko-tool-setup.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { chatChannelService } from "../services/chat-channels.js";
@@ -43,8 +43,8 @@ import { createToolGatewayService } from "../services/tool-gateway.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
 import { syncSpekoVoiceTools, spekoToolsForSession, executeSpekoVoiceTool } from "../services/voice/speko-agent-tools.js";
 import type { InternalSetupState } from "../services/chat-channels/runtime-types.js";
-const historyExternal = resolveExternalTestDatabaseUrl("PAPERCLIP_HISTORY_TEST_DATABASE_URL");
-const external = historyExternal ?? resolveExternalTestDatabaseUrl("PAPERCLIP_VOICE_TEST_DATABASE_URL");
+const historyExternal = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
+const external = historyExternal ?? resolveExternalTestDatabaseUrl("OUTPOST_VOICE_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("durable Speko voice sessions", () => {
   let db: ReturnType<typeof createDb>;
@@ -65,7 +65,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID(), callerId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Voice test", issuePrefix: `V${(++companySequence).toString(36).padStart(3, "0")}${companyId.slice(0, 6)}`.toUpperCase() });
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: callerId, status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Existing agent", role: "operator", status: "idle", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Existing agent", role: "operator", status: "idle", adapterType: "outpost_runner" });
     await db.insert(issues).values({ id: issueId, companyId, title: "Existing task", assigneeAgentId: agentId, status: "in_progress" });
     await db.insert(toolApplications).values({ id: applicationId, companyId, applicationKey: `chat:speko:${endpointId}`, name: "Speko", type: "chat", status: "active" });
     await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Speko", uid: endpointId, connectionPurpose: "channel", transport: "voice", config: { provider: "speko" }, status: "active", enabled: true });
@@ -2210,11 +2210,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(markdown).toContain("durable Paperclip continuation");
     expect(markdown).toContain("never blindly redial");
     expect(markdown).not.toContain("+12015551234");
-    for (const adapter of ["paperclip_runner", "claude_local", "codex_local"]) {
+    for (const adapter of ["outpost_runner", "claude_local", "codex_local"]) {
       expect((await prepareConnectorSkillDelivery({ ...config, engine: "cli" }, adapter)).config.paperclipRuntimeSkills).toEqual([skill]);
     }
     expect((await prepareConnectorSkillDelivery(config, "cursor_local")).instructions).toContain("name: speko");
-    expect((await prepareConnectorSkillDelivery(config, "paperclip_runner")).instructions).toContain("name: speko");
+    expect((await prepareConnectorSkillDelivery(config, "outpost_runner")).instructions).toContain("name: speko");
     expect((await resolveConnectorAssignments(db, { ...binding, agentId: randomUUID() })).filter(item => item.key === "speko")).toEqual([]);
     expect((await resolveConnectorAssignments(db, { ...binding, companyId: randomUUID() })).filter(item => item.key === "speko")).toEqual([]);
     // Browser voice guidance remains available when phone callbacks are disabled.
@@ -2311,13 +2311,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("delivers the phone tool to the assigned agent's actual runtime MCP server", async () => {
     const f = await phoneToolFixture();
-    const previousUrl = process.env.PAPERCLIP_API_URL;
-    process.env.PAPERCLIP_API_URL = "http://127.0.0.1:3100";
+    const previousUrl = process.env.OUTPOST_API_URL;
+    process.env.OUTPOST_API_URL = "http://127.0.0.1:3100";
     try {
       const servers = await buildPaperclipRuntimeMcpServers({ db, agent: { id: f.agentId, companyId: f.companyId, name: "Phone tool agent" }, runId: f.runId });
       expect(servers).toHaveLength(1);
       expect(servers[0]).toMatchObject({ url: expect.stringContaining("/mcp/gateways/") });
-    } finally { if (previousUrl === undefined) delete process.env.PAPERCLIP_API_URL; else process.env.PAPERCLIP_API_URL = previousUrl; }
+    } finally { if (previousUrl === undefined) delete process.env.OUTPOST_API_URL; else process.env.OUTPOST_API_URL = previousUrl; }
   });
 
 });

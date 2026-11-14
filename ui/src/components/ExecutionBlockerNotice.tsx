@@ -1,5 +1,5 @@
 import { describeError } from "../api/errors";
-import type { IssueRelationIssueSummary, TaskInterruptionPresentation } from "@paperclipai/shared";
+import type { IssueRelationIssueSummary, TaskInterruptionPresentation } from "@outpost/shared";
 import { AlertCircle } from "lucide-react";
 import { Link } from "@/lib/router";
 import { createIssueDetailPath } from "../lib/issueDetailBreadcrumb";

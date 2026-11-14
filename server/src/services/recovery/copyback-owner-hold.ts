@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { copybackOwnerStamp } from "../native-runtime/native-workspace-owner-stop-proof.js";
 import type { OwnerProof } from "../owner-proof.js";
 import type { InProgressRecord, RecordOwner, SettleOutcome } from "./ownership-registry.js";

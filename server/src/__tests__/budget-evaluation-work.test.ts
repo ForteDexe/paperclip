@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, budgetEvaluationWork, budgetIncidents, budgetPolicies, companies, costEvents, createDb, projects } from "@paperclipai/db";
+import { agents, budgetEvaluationWork, budgetIncidents, budgetPolicies, companies, costEvents, createDb, projects } from "@outpost/db";
 import { budgetService, budgetServiceInTransaction, flushBudgetEvaluationWork } from "../services/budgets.js";
 import { costService, createCostEventInTransaction } from "../services/costs.js";
 import { withAccountingTransaction, withOperationAccountingTransaction } from "../services/accounting-transaction.js";

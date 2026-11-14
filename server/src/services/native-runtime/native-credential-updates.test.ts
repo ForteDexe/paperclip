@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@paperclipai/db";
-import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
+import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 import { appendNativeCredentialUpdate } from "./native-credential-updates.js";
@@ -12,10 +12,10 @@ let db: ReturnType<typeof createDb>;
 const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
 const runnerInstanceId = randomUUID(), normalizedSessionId = randomUUID();
 const event: PrpEvent = {
-  schema: "paperclip.prp.event.v3", schemaVersion: 3, eventType: "auth.credentials.updated",
+  schema: "outpost.orp.event.v3", schemaVersion: 3, eventType: "auth.credentials.updated",
   sourceKind: "runner", sourceInstanceId: runnerInstanceId, sourceEventId: "credential_update_1", sourceSeq: 9,
   runId, normalizedSessionId, priority: 0, emittedAt: "2026-10-15T19:00:00.000Z",
-  payload: { schema: "paperclip.auth.credentials.updated.v1", provider: "codex",
+  payload: { schema: "outpost.auth.credentials.updated.v1", provider: "codex",
     bindingId: "harness-auth", revision: 1, detection: "credential_store" },
 };
 const binding = { companyId, agentId, runnerInstanceId, normalizedSessionId };
@@ -40,7 +40,7 @@ it("persists idle updates idempotently without colliding with normalized events"
   expect(rows).toHaveLength(2);
   expect(rows.find(row => row.eventType === event.eventType)).toMatchObject({
     sourceInstanceId: `${runnerInstanceId}:credentials`, sourceEventId: `credentials:${event.sourceEventId}`,
-    payload: { prpEvent: event },
+    payload: { orpEvent: event },
   });
   await expect(appendNativeCredentialUpdate(db, { ...binding, event: {
     ...event, payload: { ...event.payload, revision: 2 },

@@ -4,7 +4,7 @@ import { observeInternal, type InternalObservation } from "./internal-support.js
 
 export function integratorDefinition(area: string, scenarioId: string, setup: ChatCatalogCase["setup"], observe: ChatCatalogCase["observe"], grade: ChatCatalogCase["grade"], verifyResult: ChatCatalogCase["verifyResult"], extra: Partial<ChatCatalogCase> = {}): ChatCatalogCase {
   return { scenarioId, setup, observe, grade, verifyResult, expectedRunCount: 1, expectedHumanMessageCount: 1,
-    turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000, oracleVersion: "paperclip.chat-catalog.integrator.v1",
+    turnTimeoutMs: 120_000, attemptTimeoutMs: 300_000, oracleVersion: "outpost.chat-catalog.integrator.v1",
     sourceFiles: ["chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", `chat-catalog-domains/integrator-${area}.ts`, `chat-scenarios/${area}.yaml`], ...extra };
 }
 

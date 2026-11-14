@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { IssueAttachment, IssueComment, IssueWorkProduct } from "@paperclipai/shared";
+import type { IssueAttachment, IssueComment, IssueWorkProduct } from "@outpost/shared";
 import { expect, userEvent, within } from "storybook/test";
 import { TaskChatThreadView } from "../../../src/components/task-chat/TaskChatThreadView";
 import { TaskChatPresentationProvider } from "../../../src/components/task-chat/presentation-mode";
@@ -129,7 +129,7 @@ export const ProductionFeed = { render: () => {
   })) as unknown as IssueAttachment[];
   const comments = products.map((p, n) => ({
     id: `receipt-${n}`, body: `Prepared ${p.title} for this response.`, authorType: "agent", authorAgentId: agent.id, createdByRunId: p.createdByRunId,
-    createdAt: new Date(new Date(p.createdAt).getTime() + 100), updatedAt: p.updatedAt, metadata: { version: 1 as const, sections: [], authorizationReason: "paperclip_runner_protocol" },
+    createdAt: new Date(new Date(p.createdAt).getTime() + 100), updatedAt: p.updatedAt, metadata: { version: 1 as const, sections: [], authorizationReason: "outpost_runner_protocol" },
   })) as unknown as IssueComment[];
   return <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-background px-4 text-foreground">
     <TaskChatThread comments={comments} workProducts={products} attachments={attachments} issueStatus="done" onAdd={async () => {}}

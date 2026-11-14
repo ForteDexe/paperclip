@@ -895,13 +895,6 @@ describe("paperclipai CLI invocation safety", () => {
     expect(source).not.toContain("pnpm exec paperclipai auth bootstrap-ceo");
   });
 
-  it("emits the setup form from the board skill", () => {
-    const source = read("skills/paperclip-board/SKILL.md");
-    expect(source).toContain("npx paperclipai board setup");
-    expect(source).not.toContain("pnpm paperclipai board setup");
-    expect(source).not.toContain("pnpm exec paperclipai board setup");
-  });
-
   // ── The safe-invocation note ─────────────────────────────────────────────
 
   it("documents the safe form in doc/CLI.md", () => {

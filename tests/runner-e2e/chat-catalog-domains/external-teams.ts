@@ -9,8 +9,8 @@ const INSTALL_TEAM = "POST /api/companies/{companyId}/teams/catalog/{catalogId}/
 export function teamApiOperations(events: readonly { payload?: Record<string, unknown> | null }[]) {
   const operations: string[] = [];
   for (const event of events) {
-    const prp = event.payload?.prpEvent as { payload?: { item?: { type?: string; result?: { ok?: unknown; apiOperationId?: unknown } } } } | undefined;
-    const item = prp?.payload?.item;
+    const orp = event.payload?.orpEvent as { payload?: { item?: { type?: string; result?: { ok?: unknown; apiOperationId?: unknown } } } } | undefined;
+    const item = orp?.payload?.item;
     if (item?.type === "tool_result" && item.result?.ok === true && typeof item.result.apiOperationId === "string") operations.push(item.result.apiOperationId);
   }
   return operations;
@@ -88,7 +88,7 @@ export const teamExternalCases = ["find-team", "preview-install"].map(id => defi
   },
   // The reply is the result: the catalog has no web page to open from it.
   async verifyResult(ctx, _state, value) { await verifyRenderedReply(ctx, value); },
-  oracleVersion: "paperclip.chat-catalog.team-discovery.v3",
+  oracleVersion: "outpost.chat-catalog.team-discovery.v3",
   sourceFiles: ["chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/external-teams.ts",
     "chat-scenarios/teams.yaml", "run-observations.ts"],
 }));

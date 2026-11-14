@@ -15,7 +15,7 @@ function valid() {
   const agent = (id: string) => ({
     id,
     companyId: "company",
-    adapterType: "paperclip_runner",
+    adapterType: "outpost_runner",
     adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL, timeoutSec: 0, env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } },
     urlKey: id,
     metadata: {
@@ -103,7 +103,7 @@ function valid() {
         localSkillStillOccupiesSlug: true,
       },
       team,
-      selectedRuntime: { profileId: "runner-opencode", adapterType: "paperclip_runner", provider: "opencode", model: CHAT_OPENCODE_MODEL, accountRef: { type: "secret_ref", secretId: "account", version: "latest" } },
+      selectedRuntime: { profileId: "runner-opencode", adapterType: "outpost_runner", provider: "opencode", model: CHAT_OPENCODE_MODEL, accountRef: { type: "secret_ref", secretId: "account", version: "latest" } },
       runtimeReadback: { memberIds: ["coder", "cto"], provider: "opencode", model: CHAT_OPENCODE_MODEL, verifiedBeforeImportedWork: true },
       before,
       first: structuredClone(after),
@@ -130,7 +130,7 @@ describe("real catalog installer oracle", () => {
         o.state.after.agents.push({ ...o.state.after.agents[0]!, id: "copy" });
       },
       (o: ReturnType<typeof valid>) => {
-        o.state.after.agents[0]!.metadata.paperclip.catalogTeam.originHash =
+        o.state.after.agents[0]!.metadata.outpost.catalogTeam.originHash =
           "other-package";
       },
       (o: ReturnType<typeof valid>) => {
@@ -173,7 +173,7 @@ it("the actual public per-slug override schema accepts only the selected runtime
   const payload = catalogTeamInstallSchema.parse({ targetManagerAgentId: "ceo", adapterOverrides: overrides });
   expect(Object.keys(payload.adapterOverrides!)).toEqual(["cto", "coder"]);
   for (const entry of Object.values(payload.adapterOverrides!)) {
-    expect(entry).toEqual({ adapterType: "paperclip_runner", adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL, timeoutSec: 0, lifecycleMode: "per_turn", opencodePermissionMode: "allow", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } } });
+    expect(entry).toEqual({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL, timeoutSec: 0, lifecycleMode: "per_turn", opencodePermissionMode: "allow", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } } });
   }
   expect(JSON.stringify(payload)).not.toContain("must-not-copy"); expect(JSON.stringify(payload)).not.toContain("not-a-team");
 });

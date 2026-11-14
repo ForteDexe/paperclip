@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { makeDirectoryTreeRemovable } from "./directory-cleanup.js";
 
-export const KEPT_INSTANCE_MARKER = ".paperclip-runner-e2e-kept.json";
+export const KEPT_INSTANCE_MARKER = ".outpost-runner-e2e-kept.json";
 export const KEPT_INSTANCE_MAX_AGE_MS = 6 * 60 * 60_000;
-export const RUNNER_E2E_INSTANCE_PREFIX = "paperclip-runner-e2e-";
+export const RUNNER_E2E_INSTANCE_PREFIX = "outpost-runner-e2e-";
 const POSTMASTER_SEARCH_DEPTH = 6;
 
 export type KeepReason = "keep" | "stop_failed" | "recovery_state";

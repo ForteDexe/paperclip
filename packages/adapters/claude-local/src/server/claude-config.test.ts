@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 
 // A shared handle so the managed-config test can force the runtime preparation
 // step to throw an error that carries untrusted markers.
@@ -10,9 +10,9 @@ const { prepareAdapterExecutionTargetRuntime } = vi.hoisted(() => ({
   prepareAdapterExecutionTargetRuntime: vi.fn(),
 }));
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@outpost/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@outpost/adapter-utils/execution-target")>(
+    "@outpost/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -50,8 +50,8 @@ describe("prepareClaudeConfigSeed", () => {
   function createEnv(root: string, sourceDir: string): NodeJS.ProcessEnv {
     return {
       HOME: root,
-      PAPERCLIP_HOME: path.join(root, "paperclip-home"),
-      PAPERCLIP_INSTANCE_ID: "test-instance",
+      OUTPOST_HOME: path.join(root, "paperclip-home"),
+      OUTPOST_INSTANCE_ID: "test-instance",
       CLAUDE_CONFIG_DIR: sourceDir,
     };
   }
@@ -234,12 +234,12 @@ describe("prepareSandboxClaudeProbeRuntime managed-config diagnostics", () => {
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
 
-    for (const key of ["CLAUDE_CONFIG_DIR", "PAPERCLIP_HOME", "PAPERCLIP_INSTANCE_ID"]) {
+    for (const key of ["CLAUDE_CONFIG_DIR", "OUTPOST_HOME", "OUTPOST_INSTANCE_ID"]) {
       savedEnv[key] = process.env[key];
     }
     process.env.CLAUDE_CONFIG_DIR = sourceDir;
-    process.env.PAPERCLIP_HOME = path.join(root, "paperclip-home");
-    process.env.PAPERCLIP_INSTANCE_ID = "test-instance";
+    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_INSTANCE_ID = "test-instance";
 
     prepareAdapterExecutionTargetRuntime.mockRejectedValueOnce(
       new Error(`materialize failed with ${opaqueCredMarker} via ${proxyMarker}`),
@@ -311,7 +311,7 @@ describe("Claude tool shell prefix", () => {
     const { prefixPath, stdout } = await installPrefix();
     await expect(fs.readFile(prefixPath, "utf8")).resolves.toBe(CLAUDE_TOOL_SHELL_PREFIX_SCRIPT);
     expect((await fs.stat(prefixPath)).mode & 0o777).toBe(0o700);
-    expect(stdout).toContain("[paperclip] Installed the Claude tool shell prefix.");
+    expect(stdout).toContain("[outpost] Installed the Claude tool shell prefix.");
     await expect(fs.stat(`${prefixPath}.partial`)).rejects.toMatchObject({ code: "ENOENT" });
   });
 

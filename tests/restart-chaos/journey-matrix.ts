@@ -93,6 +93,6 @@ export function applyJourneyOptions(options: WaveOptions, input: { matrix: boole
 
 export function planMatrixWave(waveId: string, options: WaveOptions, createdAt = new Date()): WavePlan {
   const tasks = withProviderFaultRules(planMatrixTasks(options), options);
-  return { schema: "paperclip.restart-chaos.wave-plan/v1", waveId, seed: options.seed, createdAt: createdAt.toISOString(),
+  return { schema: "outpost.restart-chaos.wave-plan/v1", waveId, seed: options.seed, createdAt: createdAt.toISOString(),
     options: { ...options, tasks: tasks.length }, tasks };
 }

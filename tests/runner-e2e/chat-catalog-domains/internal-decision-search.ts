@@ -79,7 +79,7 @@ function showDecisions(): ChatCatalogCase {
       const p = await project(ctx); const t = await task(ctx, "Riley launch question", p.id);
       const history = await task(ctx, "Completed launch information", p.id);
       const question = (title: string, addresseeUserId: string) => createIssueThreadInteractionSchema.parse({ kind: "ask_user_questions", title, resolverPolicy: "human_only", addresseeUserId, continuationPolicy: "none",
-        payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "paperclip.question_set.v1", questions: [{ id: "launch-input", prompt: title, answerMode: "text", required: true }] } } });
+        payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "launch-input", prompt: title, answerMode: "text", required: true }] } } });
       const pendingQuestion = await ctx.input.api.post<Request>(`/api/issues/${t.id}/interactions`, question("Riley: choose the launch audience", riley.id));
       const informational = await ctx.input.api.post<Request>(`/api/issues/${history.id}/interactions`, question("Confirm receipt of the launch brief", ownerId));
       const completedQuestion = await ctx.input.api.post<Request>(`/api/issues/${history.id}/interactions/${informational.id}/respond`, { answers: [{ questionId: "launch-input", optionIds: [], otherText: "Received the launch brief; no further decision is needed." }] });
@@ -91,7 +91,7 @@ function showDecisions(): ChatCatalogCase {
       return { project: p, task: t, historyTask: history, ownerId, rileyId: riley.id, pendingQuestion, completedQuestion, hiring };
     } catch (error) { await riley.dispose(); riley = undefined; throw error; }
   }, gradeDecisionSearch);
-  return { ...base, authentication: "human-session", oracleVersion: "paperclip.chat-catalog.decision-search.v2", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-decision-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts", "../../packages/shared/src/validators/issue.ts"],
+  return { ...base, authentication: "human-session", oracleVersion: "outpost.chat-catalog.decision-search.v2", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-decision-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts", "../../packages/shared/src/validators/issue.ts"],
     async observe(ctx, state): Promise<DecisionObservation> {
       if (!key || !riley || riley.id !== state.rileyId || riley.id === state.ownerId) throw new Error("Missing distinct authenticated decision resolver or attempt-private probe");
       const o = await observeInternal(ctx, state); const root = `/api/companies/${o.companyId}`;

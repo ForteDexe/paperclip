@@ -1,6 +1,6 @@
 import { SpekoProviderSetup } from "@/components/voice/SpekoProviderSetup";
 import { NativeVoiceConversation } from "@/components/voice/NativeVoiceConversation";
-import { buildSlackAppManifest, defaultSlackAppConfiguration } from "@paperclipai/shared";
+import { buildSlackAppManifest, defaultSlackAppConfiguration } from "@outpost/shared";
 import { SlackAppDetails, SlackSetupAdvanced } from "./SlackAppDetails";
 import { SlackSetup } from "./slack/SlackSetup";
 import { isProvisionedSlackSetup, slackSetupState } from "./slack/setup-state";
@@ -49,7 +49,7 @@ import { useNavigate, useSearchParams } from "@/lib/router";
 import { queryKeys } from "@/lib/queryKeys";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { useCopyAction } from "@/lib/use-copy-action";
-import { isAgentStatusInvokable, slackAppConfigurationSchema, type SlackAppConfiguration } from "@paperclipai/shared";
+import { isAgentStatusInvokable, slackAppConfigurationSchema, type SlackAppConfiguration } from "@outpost/shared";
 import { sanitizedSetupErrorMessage } from "./chat-setup-error";
 import {
   createGitHubPrivateKeyReadGuard,
@@ -922,7 +922,7 @@ function ProviderConnectStep({
       ],
       webApplicationInfo: {
         id: teamsClientId,
-        resource: "https://paperclip.ing",
+        resource: "https://outpost.ing",
       },
       authorization: {
         permissions: {
@@ -1591,7 +1591,7 @@ function ProviderConnectStep({
               Configure one for this instance before creating or connecting your Slack app.
             </p>
             <a
-              href="https://docs.paperclip.ing/reference/deploy/https/"
+              href="https://docs.outpost.ing/reference/deploy/https/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm underline underline-offset-4"
@@ -1793,7 +1793,7 @@ function TryStep({
   agentName: string;
   botLabel?: string | null;
   botUsername?: string | null;
-  slackAccount?: import("@paperclipai/shared").SlackAccountState;
+  slackAccount?: import("@outpost/shared").SlackAccountState;
   photonAllocation?: "dedicated" | "shared";
   providerUrl?: string | null;
   guestIsolationState: "loading" | "enabled" | "disabled" | "unknown";

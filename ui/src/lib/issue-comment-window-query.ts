@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { IssueComment, IssueRecentComments } from "@paperclipai/shared";
+import type { IssueComment, IssueRecentComments } from "@outpost/shared";
 import { issuesApi } from "@/api/issues";
 import { readFromIssueChatBootstrap } from "./issue-chat-bootstrap";
 import { queryKeys } from "./queryKeys";

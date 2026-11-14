@@ -2,8 +2,8 @@ import { and, eq, sql } from "drizzle-orm";
 import {
   executionWorkspaceRepositories, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, nativeRunnerCheckpoints,
   nativeRunResults, workspaceOperations, type Db,
-} from "@paperclipai/db";
-import { remoteWorkspaceRunReferenceSchema, type RemoteWorkspaceAuthority } from "@paperclipai/shared";
+} from "@outpost/db";
+import { remoteWorkspaceRunReferenceSchema, type RemoteWorkspaceAuthority } from "@outpost/shared";
 import { executionStartedEventPredicate } from "./pre-dispatch-execution-evidence.js";
 import { runOwnerFenceHeldSql } from "./remote-workspace-writer-hold.js";
 
@@ -14,7 +14,7 @@ import { runOwnerFenceHeldSql } from "./remote-workspace-writer-hold.js";
  * process) before it can write. A run with none of those changed nothing.
  */
 export const UNCHANGED_BASELINE_KEY = "remoteWorkspaceUnchangedBaseline";
-export const UNCHANGED_BASELINE_SCHEMA = "paperclip.remote-workspace-unchanged-baseline.v1";
+export const UNCHANGED_BASELINE_SCHEMA = "outpost.remote-workspace-unchanged-baseline.v1";
 
 export type UnchangedBaseline = {
   schema: typeof UNCHANGED_BASELINE_SCHEMA; epoch: number; runId: string; snapshotId: string;

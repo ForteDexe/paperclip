@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
-import { environmentLeases, type Db } from "@paperclipai/db";
-import { z, type PluginEnvironmentTaskCredential } from "@paperclipai/plugin-sdk";
+import { environmentLeases, type Db } from "@outpost/db";
+import { z, type PluginEnvironmentTaskCredential } from "@outpost/plugin-sdk";
 import { isDeepStrictEqual } from "node:util";
 import { managedAiCredentialWritebackBindingSchema, syncManagedAiCredentials, type ManagedAiCredentialWritebackBinding } from "./managed-ai-credential-writeback.js";
 
@@ -42,7 +42,7 @@ export async function registerPluginTaskCredentialHandoff(
   });
 }
 
-/** Live PRP updates use durable authority, including while a warm task is idle. */
+/** Live ORP updates use durable authority, including while a warm task is idle. */
 export async function syncPluginTaskCredentialHandoff(
   db: Db,
   scope: Scope,

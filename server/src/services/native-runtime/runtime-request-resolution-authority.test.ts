@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -29,8 +29,8 @@ function createdEvent(requestKind: string) {
   return {
     eventType: "runtime_request.created",
     payload: {
-      prpEvent: {
-        schema: "paperclip.prp.event.v1",
+      orpEvent: {
+        schema: "outpost.orp.event.v1",
         eventType: "runtime_request.created",
         sourceKind: "runner",
         runId: binding.runId,
@@ -67,7 +67,7 @@ describe("native runtime request resolution authority", () => {
     await expect(
       readPendingNativeRuntimeRequest(dbReturning({
         eventType: "runtime_request.resolved",
-        payload: { prpEvent: { payload: { requestId: binding.requestId } } },
+        payload: { orpEvent: { payload: { requestId: binding.requestId } } },
       }), binding),
     ).resolves.toBeNull();
   });

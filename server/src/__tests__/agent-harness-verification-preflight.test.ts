@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, aiProviderDefaults, companies, companyMemberships, connectionGrants, createDb, environments, plugins } from "@paperclipai/db";
-import type { AdapterEnvironmentTestResult } from "@paperclipai/adapter-utils";
+import { agents, aiProviderDefaults, companies, companyMemberships, connectionGrants, createDb, environments, plugins } from "@outpost/db";
+import type { AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
 import { agentHarnessVerificationService } from "../services/agent-harness-verification.js";
 import * as serverAdapters from "../adapters/index.js";
 import * as environmentTests from "../services/agent-environment-test.js";
@@ -39,8 +39,8 @@ describePostgres("saved harness account preflight", () => {
 
   beforeAll(async () => {
     home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-harness-preflight-")));
-    vi.stubEnv("PAPERCLIP_HOME", home);
-    vi.stubEnv("PAPERCLIP_INSTANCE_ID", "harness-preflight-fixture");
+    vi.stubEnv("OUTPOST_HOME", home);
+    vi.stubEnv("OUTPOST_INSTANCE_ID", "harness-preflight-fixture");
     database = await startEmbeddedPostgresTestDatabase("paperclip-harness-preflight-db-");
     db = createDb(database.connectionString);
   }, 90_000);
@@ -144,7 +144,7 @@ describePostgres("saved harness account preflight", () => {
       resolveAdapterTestExecutionContext: allocate,
       testManagedEnvironment: probe,
     }));
-    [agent] = await db.update(agents).set({ adapterType: "paperclip_runner", runtimeConfig,
+    [agent] = await db.update(agents).set({ adapterType: "outpost_runner", runtimeConfig,
       adapterConfig: { provider: "opencode", model: "openrouter/anthropic/claude-sonnet-4.5", ...(homeMode ? { homeMode } : {}) } })
       .where(eq(agents.id, agent.id)).returning();
   }

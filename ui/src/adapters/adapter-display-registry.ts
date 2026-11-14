@@ -6,7 +6,7 @@
  * `getAdapterDisplay()`.
  */
 import type { ComponentType } from "react";
-import { agentHarnessType } from "@paperclipai/shared";
+import { agentHarnessType } from "@outpost/shared";
 import {
   Bot,
   Code,
@@ -85,7 +85,7 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     icon: Code,
     recommended: true,
   },
-  paperclip_runner: {
+  outpost_runner: {
     label: "Outpost Runner",
     description: "Experimental Rust runner with a Codex provider",
     icon: Cpu,
@@ -132,7 +132,7 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     description: "Cursor CLI harness",
     icon: MousePointer2,
   },
-  // Display-only choice: persisted as paperclip_runner with provider openai_dot.
+  // Display-only choice: persisted as outpost_runner with provider openai_dot.
   grok_bot: { label: "Grok Bot", experimental: true, icon: Bot, description: "An existing external Bot in Grok" },
   openai_dot: {
     label: "OpenAI Dot",
@@ -222,7 +222,7 @@ export function getAdapterDisplay(type: string): AdapterDisplayInfo {
 export function agentDisplayAdapterType(agent: { adapterType: string; adapterConfig: Record<string, unknown>; pauseReason?: unknown; metadata?: unknown }): string {
   const pendingSetup = pendingAgentSetupDisplayAdapter(agent);
   if (pendingSetup) return pendingSetup;
-  if (agent.adapterType !== "paperclip_runner") return agent.adapterType;
+  if (agent.adapterType !== "outpost_runner") return agent.adapterType;
   if (agent.adapterConfig.provider === "openai_dot" || agent.adapterConfig.provider === "grok_bot" || agent.adapterConfig.provider === "muse") {
     return agent.adapterConfig.provider;
   }

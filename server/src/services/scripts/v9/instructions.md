@@ -1,13 +1,13 @@
 ---
 name: paperclip-muse
-description: Handle Outpost invitations, tasks, and PAPERCLIP_MUSE wakes through the installed governed client.
+description: Handle Outpost invitations, tasks, and OUTPOST_MUSE wakes through the installed governed client.
 ---
 
 # Outpost for personal Muse — protocol v1, assets v9
 
 These instructions connect a personal Muse agent to a named Outpost and agent. They do not grant access to every Outpost, replace Muse's own permissions, or describe every tool Muse can use. Provider usage details are not imported into Outpost.
 
-Read this file when a user mentions Outpost, Outpost tasks, an assigned Outpost issue, or a `PAPERCLIP_MUSE` wake. A wake starts a work turn: load this paired skill, read the authenticated mailbox, process control, and carry the authorized workflow forward. Its opaque reference is not task content or execution authority.
+Read this file when a user mentions Outpost, Outpost tasks, an assigned Outpost issue, or a `OUTPOST_MUSE` wake. A wake starts a work turn: load this paired skill, read the authenticated mailbox, process control, and carry the authorized workflow forward. Its opaque reference is not task content or execution authority.
 
 ## Standing delegation for the paired company and agent
 
@@ -38,9 +38,9 @@ MUSE_STATE="$HOME/.config/paperclip-muse/$MUSE_BINDING"
 
 Keep all mailbox pages, assignment snapshots, command files, receipts, and work continuation files in this private state directory with mode `0600`. They can contain task data. The client uses an exclusive OS lock, atomic writes, and durable journals.
 
-Model-owned work state belongs only in `$MUSE_STATE/work-continuations/<assignment UUID>.json`. Use schema `paperclip.muse_work_continuation.v1` with the exact `bindingId`, `generation`, `assignmentId`, `runId`, `turnId`, and your `workState` and stable `commandKeys`. Keep this state across interruption and resume only after checking the current authenticated assignment. The client never reads or writes this model-owned namespace.
+Model-owned work state belongs only in `$MUSE_STATE/work-continuations/<assignment UUID>.json`. Use schema `outpost.muse_work_continuation.v1` with the exact `bindingId`, `generation`, `assignmentId`, `runId`, `turnId`, and your `workState` and stable `commandKeys`. Keep this state across interruption and resume only after checking the current authenticated assignment. The client never reads or writes this model-owned namespace.
 
-The helper exclusively owns `$MUSE_STATE/input-receipts-v2/<assignment UUID>/<SHA-256 native request ID>.json` with schema `paperclip.muse_input_receipts.v2`, plus its bounded migration marker. Each file holds one native question receipt. Do not compute these names, create, edit or repurpose helper files or their `inputs` maps for task work state. `answer` validates and saves canonical answer receipts there. Valid bounded older helper aggregates under `input-receipts/` or `continuations/` are copied without changing their receipt IDs, native digest/turn, or prepared consume identity; original files and old model work state remain intact. An interrupted migration retries the same copies, and a conflicting partial target fails safely. A malformed current helper record or ambiguous old receipt stops safely: preserve it and inspect original receipts, never delete it to obtain a new consume identity.
+The helper exclusively owns `$MUSE_STATE/input-receipts-v2/<assignment UUID>/<SHA-256 native request ID>.json` with schema `outpost.muse_input_receipts.v2`, plus its bounded migration marker. Each file holds one native question receipt. Do not compute these names, create, edit or repurpose helper files or their `inputs` maps for task work state. `answer` validates and saves canonical answer receipts there. Valid bounded older helper aggregates under `input-receipts/` or `continuations/` are copied without changing their receipt IDs, native digest/turn, or prepared consume identity; original files and old model work state remain intact. An interrupted migration retries the same copies, and a conflicting partial target fails safely. A malformed current helper record or ambiguous old receipt stops safely: preserve it and inspect original receipts, never delete it to obtain a new consume identity.
 
 Use the supported authd helper path for every authenticated request; never reconstruct bearer HTTP calls or secret injection in model-visible commands.
 
@@ -212,7 +212,7 @@ Use the dedicated `request_user_input` transport command, not a synthetic task c
 
 ```sh
 python3 "$MUSE_CLIENT" --binding "$MUSE_BINDING" command --key "question:$MUSE_ASSIGNMENT:scope-01" <<JSON
-{"command":"request_user_input","assignmentId":"$MUSE_ASSIGNMENT","nativeRequestId":"scope-01","questionSet":{"schema":"paperclip.question_set.v1","title":"Confirm the scope","questions":[{"id":"scope","prompt":"What should this task cover?","required":true,"answerMode":"text"}]}}
+{"command":"request_user_input","assignmentId":"$MUSE_ASSIGNMENT","nativeRequestId":"scope-01","questionSet":{"schema":"outpost.question_set.v1","title":"Confirm the scope","questions":[{"id":"scope","prompt":"What should this task cover?","required":true,"answerMode":"text"}]}}
 JSON
 ```
 
@@ -239,7 +239,7 @@ A definitive rejection of premature native completion because required input is 
 Wait for the native completion tool's accepted receipt. Extract its exact canonical `completionReport`; do not manufacture a report from a progress message or paraphrase/normalize the accepted report. Save this transport command privately, inserting that exact object as `result`:
 
 ```json
-{"command":"finish","assignmentId":"<assignment UUID>","result":{"schema":"paperclip.run_result.v1"}}
+{"command":"finish","assignmentId":"<assignment UUID>","result":{"schema":"outpost.run_result.v1"}}
 ```
 
 The shown result is a shape marker, not a valid completion report. Replace the entire `result` with the accepted native `completionReport` before submitting. Do not fill guessed fields into the marker.

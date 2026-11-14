@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { heartbeatRuns, type Db } from "@paperclipai/db";
-import type { AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import { heartbeatRuns, type Db } from "@outpost/db";
+import type { AdapterExecutionResult } from "@outpost/adapter-utils";
 import { parseObject } from "../../adapters/utils.js";
 import { assertLowTrustRuntimeServicesAllowed } from "../low-trust-runtime-containment.js";
 import {
@@ -148,7 +148,7 @@ export async function startHeartbeatRuntimeServices(db: Db, input: RuntimeServic
     } catch (err) {
       await onLog(
         "stderr",
-        `[paperclip] Failed to post workspace-ready comment: ${err instanceof Error ? err.message : String(err)}\n`,
+        `[outpost] Failed to post workspace-ready comment: ${err instanceof Error ? err.message : String(err)}\n`,
       );
     }
   }
@@ -206,7 +206,7 @@ export async function recordHeartbeatAdapterRuntimeServices(db: Db, input: Runti
       } catch (err) {
         await onLog(
           "stderr",
-          `[paperclip] Failed to post adapter-managed runtime comment: ${err instanceof Error ? err.message : String(err)}\n`,
+          `[outpost] Failed to post adapter-managed runtime comment: ${err instanceof Error ? err.message : String(err)}\n`,
         );
       }
     }

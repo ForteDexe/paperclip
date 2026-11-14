@@ -2,13 +2,13 @@ import { chmod, copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { OpenCodeServerDriver } from "../../../packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.js";
+import { OpenCodeServerDriver } from "../../../packages/outpost-runner/src/drivers/opencode/opencode-server-driver.js";
 import { projectReadCalls } from "./internal-project-defaults.js";
 
 it("accepts project reads emitted by the actual OpenCode MCP event producer", async () => {
   const root = await mkdtemp(join(tmpdir(), "catalog-project-read-producer-"));
   const command = join(root, "fake-opencode.mjs");
-  await copyFile(new URL("../../../packages/paperclip-runner/test/fixtures/fake-opencode-server.mjs", import.meta.url), command);
+  await copyFile(new URL("../../../packages/outpost-runner/test/fixtures/fake-opencode-server.mjs", import.meta.url), command);
   await chmod(command, 0o755);
   const description = "Keyboard navigation; adequate contrast; labeled controls.";
   const driver = new OpenCodeServerDriver({

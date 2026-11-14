@@ -59,7 +59,7 @@ is never graded "environment, ignore".
    ├─ observer: polls issues, runs and run events; grades R1–R6; captures evidence
    └─ ledger: one JSONL line per task execution, plus the fault schedule seed
 
- local control plane (isolated PAPERCLIP_HOME, embedded Postgres, one fixed port)
+ local control plane (isolated OUTPOST_HOME, embedded Postgres, one fixed port)
    └─ dials out to runnerd in each Daytona sandbox (runner ingress, port 43127)
 
  Daytona: one sandbox per run or lease, holding the real runner and provider (Claude, Codex)

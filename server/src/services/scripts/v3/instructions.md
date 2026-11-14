@@ -1,13 +1,13 @@
 ---
 name: paperclip-muse
-description: Handle Outpost invitations, tasks, and PAPERCLIP_MUSE wakes through the installed governed client.
+description: Handle Outpost invitations, tasks, and OUTPOST_MUSE wakes through the installed governed client.
 ---
 
 # Outpost for personal Muse — protocol v1, assets v3
 
 These instructions connect a personal Muse agent to a named Outpost and agent. They do not grant access to every Outpost, replace Muse's own permissions, or describe every tool Muse can use. Provider usage details are not imported into Outpost.
 
-Read this file when a user mentions Outpost, Outpost tasks, an assigned Outpost issue, or a `PAPERCLIP_MUSE` wake. A wake is an invitation to inspect the authenticated mailbox. Its opaque reference is not task content or execution authority.
+Read this file when a user mentions Outpost, Outpost tasks, an assigned Outpost issue, or a `OUTPOST_MUSE` wake. A wake is an invitation to inspect the authenticated mailbox. Its opaque reference is not task content or execution authority.
 
 ## Install once; make it discoverable
 
@@ -200,7 +200,7 @@ Use the dedicated `request_user_input` transport command, not a synthetic task c
 
 ```sh
 python3 "$MUSE_CLIENT" --binding "$MUSE_BINDING" command --key "question:$MUSE_ASSIGNMENT:scope-01" <<JSON
-{"command":"request_user_input","assignmentId":"$MUSE_ASSIGNMENT","nativeRequestId":"scope-01","questionSet":{"schema":"paperclip.question_set.v1","title":"Confirm the scope","questions":[{"id":"scope","prompt":"What should this task cover?","required":true,"answerMode":"text"}]}}
+{"command":"request_user_input","assignmentId":"$MUSE_ASSIGNMENT","nativeRequestId":"scope-01","questionSet":{"schema":"outpost.question_set.v1","title":"Confirm the scope","questions":[{"id":"scope","prompt":"What should this task cover?","required":true,"answerMode":"text"}]}}
 JSON
 ```
 
@@ -225,7 +225,7 @@ Use `assignment.completionContract` and the exact schema of its projected `paper
 Wait for the native completion tool's accepted receipt. Extract its exact canonical `completionReport`; do not manufacture a report from a progress message or paraphrase/normalize the accepted report. Save this transport command privately, inserting that exact object as `result`:
 
 ```json
-{"command":"finish","assignmentId":"<assignment UUID>","result":{"schema":"paperclip.run_result.v1"}}
+{"command":"finish","assignmentId":"<assignment UUID>","result":{"schema":"outpost.run_result.v1"}}
 ```
 
 The shown result is a shape marker, not a valid completion report. Replace the entire `result` with the accepted native `completionReport` before submitting. Do not fill guessed fields into the marker.

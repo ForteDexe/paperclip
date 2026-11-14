@@ -3,7 +3,7 @@ import type {
   SafeExternalChatCard,
   SafeExternalChatCardAction,
   SafeExternalChatCardKind,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { redactSensitiveText } from "../redaction.js";
 
 // Bound sanitization work, not the amount silently delivered. The Board accepts
@@ -382,7 +382,7 @@ function projectCard(
   return {
     interactionId: input.id,
     card: {
-      schema: "paperclip.chat.card.v1",
+      schema: "outpost.chat.card.v1",
       kind: input.card.kind,
       title,
       ...(body ? { body } : {}),

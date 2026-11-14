@@ -17,8 +17,8 @@ import {
   heartbeatRuns,
   issues,
   projects,
-} from "@paperclipai/db";
-import { LOW_TRUST_REVIEW_PRESET } from "@paperclipai/shared";
+} from "@outpost/db";
+import { LOW_TRUST_REVIEW_PRESET } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -117,7 +117,7 @@ it("dispatch retains raw trust before workspace and broker setup", () => {
         companyId,
         name: "Native chat runner",
         role: "engineer",
-        adapterType: "paperclip_runner",
+        adapterType: "outpost_runner",
       });
       await db
         .insert(projects)

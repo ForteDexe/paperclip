@@ -105,7 +105,7 @@ function crossCompanyAlignment(): ChatCatalogCase {
       foreignRequest: `Use the growth goal ${foreignGoal.id} from our other company instead.` };
   });
   return { ...base, coverageGaps: [], expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 420_000,
-    oracleVersion: "paperclip.chat-catalog.internal.goals-align.v3", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/turn-response-card.ts"],
+    oracleVersion: "outpost.chat-catalog.internal.goals-align.v3", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/turn-response-card.ts"],
     async act(ctx, state) {
       const first = await pollUntil({ label: "Initial authorized goal alignment", deadlineAt: Date.now() + 150_000,
         load: () => observeInternal(ctx, state),
@@ -272,7 +272,7 @@ export async function inspectGoalHierarchy(ctx: ChatCatalogContext, state: Recor
 }
 function createGoalTree(): ChatCatalogCase {
   const base = retryDefinition("goals.create-goal-tree", grade_goals, initialGoalTreeCreation, observeGoalPhases);
-  return { ...base, oracleVersion: "paperclip.chat-catalog.goal-hierarchy.v4", observe: observeGoalPhases, async setup(ctx) {
+  return { ...base, oracleVersion: "outpost.chat-catalog.goal-hierarchy.v4", observe: observeGoalPhases, async setup(ctx) {
     await ctx.input.api.patch(`/api/companies/${ctx.input.fixtures.company.id}`, { description: "Our mission is to grow product adoption and help new teams sign up." });
     return base.setup(ctx);
   }, async act(ctx, state) {

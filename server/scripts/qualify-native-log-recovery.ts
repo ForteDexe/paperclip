@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq, sql } from "drizzle-orm";
-import { createDb, heartbeatRuns } from "@paperclipai/db";
+import { createDb, heartbeatRuns } from "@outpost/db";
 import {
   S3Client,
   CreateBucketCommand,
@@ -19,7 +19,7 @@ import {
 import {
   DurablePrpControlPlane,
   decodeDurablePrpCheckpoint,
-} from "../src/vendor/paperclip-runner/index.js";
+} from "../src/vendor/outpost-runner/index.js";
 import { createS3StorageProvider } from "../src/storage/s3-provider.js";
 import { createObjectRunLogStore } from "../src/services/object-run-log-store.js";
 import { createObjectByteJournal } from "../src/services/object-byte-journal.js";
@@ -30,8 +30,8 @@ import { PaperclipControlPlanePort } from "../src/services/native-runtime/paperc
 import { formatNativeRunLogEvent } from "../src/services/native-runtime/native-run-log-export.js";
 import { createNativeRunLogTestTables } from "../src/__tests__/helpers/native-run-log-database.js";
 
-const endpoint = process.env.PAPERCLIP_LOG_TEST_S3_ENDPOINT;
-const databaseUrl = process.env.PAPERCLIP_RUN_EVIDENCE_MIGRATION_DATABASE_URL;
+const endpoint = process.env.OUTPOST_LOG_TEST_S3_ENDPOINT;
+const databaseUrl = process.env.OUTPOST_RUN_EVIDENCE_MIGRATION_DATABASE_URL;
 if (
   !endpoint ||
   !databaseUrl ||
@@ -232,7 +232,7 @@ if (childMode) {
       ],
       {
         cwd: process.cwd(),
-        env: { ...process.env, PAPERCLIP_HOME: home },
+        env: { ...process.env, OUTPOST_HOME: home },
         stdio: ["ignore", "ignore", "pipe", "ipc"],
       },
     );
@@ -293,7 +293,7 @@ if (childMode) {
     const homeA = path.join(root, "web-a"),
       a = await controller(homeA);
     const runner = spawn(
-      path.resolve("packages/paperclip-runner/runner/target/debug/examples/recovery-fixture"),
+      path.resolve("packages/outpost-runner/runner/target/debug/examples/recovery-fixture"),
       [
         "--fixture-script",
         scriptFile,
@@ -325,7 +325,7 @@ if (childMode) {
         "60000",
       ],
       {
-        env: { ...process.env, PAPERCLIP_RUNNER_BOOTSTRAP_TICKET: a.ready.ticket },
+        env: { ...process.env, OUTPOST_RUNNER_BOOTSTRAP_TICKET: a.ready.ticket },
         stdio: ["ignore", "ignore", "pipe"],
       },
     );

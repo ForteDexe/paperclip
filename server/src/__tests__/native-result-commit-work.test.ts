@@ -13,7 +13,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations,
-  statusDecisionEffects, statusDecisions, workspaceOperations, type Db } from "@paperclipai/db";
+  statusDecisionEffects, statusDecisions, workspaceOperations, type Db } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { nativeResultCommitWork } from "../services/native-runtime/native-result-commit-work.js";
 import { finalizeNativeRun, NativeFinalizationDeferredError } from "../services/native-runtime/native-run-finalizer.js";
@@ -21,7 +21,7 @@ import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/paperclip-runner/testing.js";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
@@ -37,11 +37,11 @@ describe("accepted result commit lifecycle", () => {
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), "native-result-commit-"));
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = root;
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_RESULT_COMMIT_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_RESULT_COMMIT_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-result-commit-");
     db = createDb(external ?? temporary!.connectionString);
     await db.insert(companies).values({ id: companyId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Result worker", adapterType: "paperclip_runner" });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Result worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0;
@@ -82,7 +82,7 @@ describe("accepted result commit lifecycle", () => {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
     await db.insert(issues).values({ id: issueId, companyId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "result-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
@@ -111,8 +111,8 @@ describe("accepted result commit lifecycle", () => {
   }
   it.each(["restore", "worktree"])("respects %s suppression and reactivation through heartbeat", async mode => {
     const binding = await seed(); await complete(binding, "control_plane"); await barrier(binding);
-    const runtimeEnv = mode === "restore" ? { PAPERCLIP_DATABASE_RESTORE_IN_PROGRESS: "true" }
-      : { PAPERCLIP_IN_WORKTREE: "true", PAPERCLIP_INSTANCE_ID: "result-suppression-test" };
+    const runtimeEnv = mode === "restore" ? { OUTPOST_DATABASE_RESTORE_IN_PROGRESS: "true" }
+      : { OUTPOST_IN_WORKTREE: "true", OUTPOST_INSTANCE_ID: "result-suppression-test" };
     const settings = instanceSettingsService(db, { runtimeEnv });
     if (mode === "worktree") await settings.updateExperimental({ enableWorktreeRunExecution: false });
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => admitted, canReconcile: () => admitted,

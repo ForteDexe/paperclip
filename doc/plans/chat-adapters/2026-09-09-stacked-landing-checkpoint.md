@@ -55,7 +55,7 @@ untouched.
 
 Base PR [#13092](https://github.com/paperclipai/paperclip/pull/13092) is open
 with 45 changed files. Master reconciliation has exposed additional native
-goal/integrity and PRP-v2 warm-authorization/state-retention defects. James owns
+goal/integrity and ORP-v2 warm-authorization/state-retention defects. James owns
 their landing-only regressions; neither the initial PR head nor historical
 Greptile reviews certify the corrected head. The current-master warm-upgrade
 compatibility boundary must be explicit, not hidden by a fail-closed test.

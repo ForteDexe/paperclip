@@ -9,7 +9,7 @@ import { parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { CHAT_OPENCODE_MODEL } from "./chat-runtime-profile.js";
 import { CHAT_SETUP_HEALTH_ID, CHAT_SETUP_HEALTH_SUITE, gradeSetupHealth, runChatSetupHealth, requestSetupHealthStop, stopSetupHealthIfRequested, SetupHealthAbort, captureSetupHealthProfile } from "./chat-setup-health.js";
 const valid = (): Parameters<typeof gradeSetupHealth>[0] => ({ ready: true, agentCount: 1, configMatches: true, issues: 0, conversations: 0, comments: 0, humanComments: 0, runs: 0,
-  probes: [{ schema: "paperclip.chat-readiness-probe/v1", companyId: "company", sequence: 1, status: "pass", thrown: false,
+  probes: [{ schema: "outpost.chat-readiness-probe/v1", companyId: "company", sequence: 1, status: "pass", thrown: false,
     checks: [{ code: "opencode_hello_probe_passed", level: "info", category: "unknown" as const }], errorCategory: "unknown" as const }] });
 describe("explicit setup-only diagnostic cell", () => {
   it("selects one exact-profile retry-zero cell outside the catalog and --all", () => {
@@ -45,7 +45,7 @@ it.each([[false, false], [true, false], [false, true]])("uses only readiness GET
   const companyId = "11111111-1111-4111-8111-111111111111";
   const probe = { ...valid().probes[0]!, companyId, status: failed ? "fail" : "pass" };
   await writeFile(path.join(temporaryRoot, "artifacts-private", "chat-readiness-probes.jsonl"), JSON.stringify(probe));
-  const agent = { id: "agent", companyId, defaultEnvironmentId: "environment", adapterType: "paperclip_runner",
+  const agent = { id: "agent", companyId, defaultEnvironmentId: "environment", adapterType: "outpost_runner",
     adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL }, status: "idle", lifecycleState: failed ? "verifying" : "ready",
     lifecycleError: failed ? "Execution configuration check failed" : null };
   const get = vi.fn(async (route: string) => {

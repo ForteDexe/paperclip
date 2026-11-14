@@ -153,7 +153,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     if (name === "creation-client.js") { response.writeHead(200, { "Content-Type": "text/javascript" }).end(creationBundle.outputFiles[0]!.text); return; }
     if (name === "creation") { response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end('<!doctype html><html><body><div id="creation-root"></div><script src="/creation-client.js"></script></body></html>'); return; }
     if (name === "api/instance/settings/experimental") { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ enableNativeRunner: true })); return; }
-    if (name === "api/adapters") { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify([{ type: "paperclip_runner", loaded: true, candidateHarnesses: [{ agent: "antigravity", model }] }])); return; }
+    if (name === "api/adapters") { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify([{ type: "outpost_runner", loaded: true, candidateHarnesses: [{ agent: "antigravity", model }] }])); return; }
     if (name === `api/companies/${creationCompanyId}/agents`) {
       if (request.method === "POST") {
         let raw = ""; for await (const chunk of request) raw += chunk;

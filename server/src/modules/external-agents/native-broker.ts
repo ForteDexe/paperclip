@@ -5,11 +5,11 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { sql, and, eq, isNull, gt, inArray } from "drizzle-orm";
 import { agents, companies, issues, authUsers, companyMemberships, heartbeatRuns, nativeRunFinalizations, mcpOauthGrants,
-  dotAgentBindings, dotRunnerOperations, grokBotRoutines, museAgentBindings, museRunnerOperations, externalAgentHolds, type Db } from "@paperclipai/db";
+  dotAgentBindings, dotRunnerOperations, grokBotRoutines, museAgentBindings, museRunnerOperations, externalAgentHolds, type Db } from "@outpost/db";
 import { issueReadSqlCondition } from "../../services/authorization.js";
 import { getNativeReviewAssignment, readNativeReviewAssignmentContext } from "../../services/native-runtime/native-review-participant.js";
 import { conflict, forbidden } from "../../errors.js";
-import { externalOperationDigest, digestPaperclipSemanticContent, parsePaperclipQuestionSet, type ExternalProviderOperation, type ExternalProviderPort, type DotBindingSnapshot } from "../../vendor/paperclip-runner/index.js";
+import { externalOperationDigest, digestPaperclipSemanticContent, parsePaperclipQuestionSet, type ExternalProviderOperation, type ExternalProviderPort, type DotBindingSnapshot } from "../../vendor/outpost-runner/index.js";
 import { consumeDotHistoryReceipt } from "../../services/dot-assignment-follow-up.js";
 import { grokRoutineService, lockGrokRoutineAcceptance } from "../../services/grok-bot/routine.js";
 import { authorizeExternalBotOperator } from "../../services/external-bot-authority.js";
@@ -65,7 +65,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
     const [company]=await database.select().from(companies).where(eq(companies.id,b.companyId));
     const [user]=await database.select({id:authUsers.id}).from(authUsers).where(eq(authUsers.id,b.operatorId));
     const [membership]=await database.select().from(companyMemberships).where(and(eq(companyMemberships.companyId,b.companyId),eq(companyMemberships.principalType,"user"),eq(companyMemberships.principalId,b.operatorId),eq(companyMemberships.status,"active")));
-    if(!agent||["paused","terminated","pending_approval"].includes(agent.status)||agent.adapterType!=="paperclip_runner"||agent.adapterConfig.provider!==actualProvider||agent.adapterConfig[actualProvider==="muse"?"museBindingId":actualProvider==="grok_bot"?"externalBindingId":"dotBindingId"]!==b.id||company?.status!=="active"||!user||!membership||membership.membershipRole==="viewer")throw forbidden("Current external agent or authorizer authority is unavailable.");
+    if(!agent||["paused","terminated","pending_approval"].includes(agent.status)||agent.adapterType!=="outpost_runner"||agent.adapterConfig.provider!==actualProvider||agent.adapterConfig[actualProvider==="muse"?"museBindingId":actualProvider==="grok_bot"?"externalBindingId":"dotBindingId"]!==b.id||company?.status!=="active"||!user||!membership||membership.membershipRole==="viewer")throw forbidden("Current external agent or authorizer authority is unavailable.");
     if(provider==="muse") {
       const [member]=await database.select({id:companyMemberships.id}).from(companyMemberships).where(and(eq(companyMemberships.companyId,b.companyId),eq(companyMemberships.principalType,"agent"),eq(companyMemberships.principalId,b.agentId),eq(companyMemberships.status,"active")));
       const [binding]=await database.select().from(museAgentBindings).where(and(eq(museAgentBindings.id,b.id),eq(museAgentBindings.generation,b.generation),eq(museAgentBindings.companyId,b.companyId),eq(museAgentBindings.agentId,b.agentId),eq(museAgentBindings.operatorId,b.operatorId)));

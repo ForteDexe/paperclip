@@ -10,9 +10,9 @@ import { accountingFaultSql, armAccountingFault } from "./chat-accounting-fault.
 it("refuses every execution except its own single selected case, and any binding it cannot validate", async () => {
   const binding = { companyId: randomUUID(), issueId: randomUUID() };
   const other = "chat-features.runner-opencode.local.budgets-costs.spend-breakdown", own = "chat-features.runner-opencode.local.budgets-costs.repair-cost-recording";
-  await expect(armAccountingFault({ executionId: other, binding, env: { PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([other]) } })).rejects.toThrow("single selected");
-  await expect(armAccountingFault({ executionId: own, binding, env: { PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own, other]) } })).rejects.toThrow("single selected");
-  await expect(armAccountingFault({ executionId: own, binding, env: { PAPERCLIP_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own]) } })).rejects.toThrow("owned runner instance");
+  await expect(armAccountingFault({ executionId: other, binding, env: { OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([other]) } })).rejects.toThrow("single selected");
+  await expect(armAccountingFault({ executionId: own, binding, env: { OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own, other]) } })).rejects.toThrow("single selected");
+  await expect(armAccountingFault({ executionId: own, binding, env: { OUTPOST_RUNNER_E2E_EXECUTION_IDS: JSON.stringify([own]) } })).rejects.toThrow("owned runner instance");
   expect(() => accountingFaultSql("abcdefabcdef", { ...binding, issueId: "x'; drop table issues; --" })).toThrow("exact owned binding");
   expect(() => accountingFaultSql("abcdef", binding)).toThrow("exact owned binding");
 });

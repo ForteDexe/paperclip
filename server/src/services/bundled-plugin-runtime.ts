@@ -16,7 +16,7 @@ export function resolveBundledPluginRuntimeLoader(
     const metadataPath = path.join(directory, "package.json");
     const metadata = fs.lstatSync(metadataPath, { throwIfNoEntry: false });
     if (metadata?.isFile() && metadata.size <= 128 * 1024
-      && JSON.parse(fs.readFileSync(metadataPath, "utf8")).name === "@paperclipai/server") {
+      && JSON.parse(fs.readFileSync(metadataPath, "utf8")).name === "@outpost/server") {
       imageRoot = path.dirname(directory);
       break;
     }

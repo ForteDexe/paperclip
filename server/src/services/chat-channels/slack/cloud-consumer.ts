@@ -1,6 +1,6 @@
 import { completedSlackFormSessionReceipt } from "./form-idle-history.js";
 import { and, gt, inArray, sql } from "drizzle-orm";
-import { chatActions, type Db } from "@paperclipai/db";
+import { chatActions, type Db } from "@outpost/db";
 import { projectSlackFormRetainedOwner, type SlackFormRetainedRow } from "./form-session.js";
 
 export type SlackFormConnectorIdentity = Readonly<{ instanceId: string; environment: "development" | "test" | "staging" | "production" }>;

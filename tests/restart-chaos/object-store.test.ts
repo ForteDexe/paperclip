@@ -11,8 +11,8 @@ const binary = minioBinary();
 describe("object store", () => {
   it("points the server's storage settings at the given endpoint, path-style", () => {
     expect(objectStoreServerEnvironment({ bucket: "b", region: "us-east-1", accessKeyId: "k", secretAccessKey: "s" }, "http://127.0.0.1:9", "chaos/w1/"))
-      .toEqual({ PAPERCLIP_STORAGE_PROVIDER: "s3", PAPERCLIP_STORAGE_S3_BUCKET: "b", PAPERCLIP_STORAGE_S3_REGION: "us-east-1",
-        PAPERCLIP_STORAGE_S3_ENDPOINT: "http://127.0.0.1:9", PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE: "true", PAPERCLIP_STORAGE_S3_PREFIX: "chaos/w1/",
+      .toEqual({ OUTPOST_STORAGE_PROVIDER: "s3", OUTPOST_STORAGE_S3_BUCKET: "b", OUTPOST_STORAGE_S3_REGION: "us-east-1",
+        OUTPOST_STORAGE_S3_ENDPOINT: "http://127.0.0.1:9", OUTPOST_STORAGE_S3_FORCE_PATH_STYLE: "true", OUTPOST_STORAGE_S3_PREFIX: "chaos/w1/",
         AWS_ACCESS_KEY_ID: "k", AWS_SECRET_ACCESS_KEY: "s", AWS_SESSION_TOKEN: "", AWS_CREDENTIAL_EXPIRATION: "", AWS_EC2_METADATA_DISABLED: "true" });
   });
 

@@ -2,11 +2,11 @@ import fs from "node:fs/promises";
 import { isValidLocalEncryptedMasterKey } from "../secrets/local-encrypted-provider.js";
 
 export async function initializeNativeHarnessPrestageKey(keyFilePath: string, env: NodeJS.ProcessEnv = process.env) {
-  const path = env.PAPERCLIP_SECRETS_MASTER_KEY_FILE?.trim() || keyFilePath;
-  const key = env.PAPERCLIP_SECRETS_MASTER_KEY?.trim() || await fs.readFile(path, "utf8");
+  const path = env.OUTPOST_SECRETS_MASTER_KEY_FILE?.trim() || keyFilePath;
+  const key = env.OUTPOST_SECRETS_MASTER_KEY?.trim() || await fs.readFile(path, "utf8");
   if (!isValidLocalEncryptedMasterKey(key)) throw new Error("native_harness_prestage_key_invalid");
-  env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = path;
-  env.PAPERCLIP_SECRETS_MASTER_KEY = key;
+  env.OUTPOST_SECRETS_MASTER_KEY_FILE = path;
+  env.OUTPOST_SECRETS_MASTER_KEY = key;
 }
 
 export function nativeHarnessPrestageDatabaseUrl(source: string) {

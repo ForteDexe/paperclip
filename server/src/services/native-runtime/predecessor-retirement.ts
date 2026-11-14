@@ -10,7 +10,7 @@ export const NATIVE_PREDECESSOR_RETIREMENT_UNPROVEN_CODE = "native_predecessor_r
 
 /** Lease metadata key: the next acquisition replaces this sandbox instead of resuming it. */
 export const REPLACE_BEFORE_REUSE_KEY = "replaceBeforeReuse";
-export const REPLACE_BEFORE_REUSE_SCHEMA = "paperclip.replace-before-reuse.v1";
+export const REPLACE_BEFORE_REUSE_SCHEMA = "outpost.replace-before-reuse.v1";
 
 export class NativePredecessorRetirementUnprovenError extends Error {
   readonly code = NATIVE_PREDECESSOR_RETIREMENT_UNPROVEN_CODE;

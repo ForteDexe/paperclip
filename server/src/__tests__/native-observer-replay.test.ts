@@ -11,10 +11,10 @@ import { WebSocket } from "ws";
 import {
   agents, authUsers, companies, companyMemberships, completionContracts,
   createDb, heartbeatRunEvents, heartbeatRuns, issues, type Db,
-} from "@paperclipai/db";
-import * as schema from "@paperclipai/db/schema/index";
-import type { LiveEvent } from "@paperclipai/shared";
-import type { PrpEvent } from "../vendor/paperclip-runner/index.js";
+} from "@outpost/db";
+import * as schema from "@outpost/db/schema/index";
+import type { LiveEvent } from "@outpost/shared";
+import type { PrpEvent } from "../vendor/outpost-runner/index.js";
 import { setupLiveEventsWebSocketServer } from "../realtime/live-events-ws.js";
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
 import { subscribeCompanyLiveEvents } from "../services/live-events.js";
@@ -27,7 +27,7 @@ const fixturePayloads = [
   ...Array.from({ length: 6 }, (_, index) => ({
     eventType: "tool.execution.started" as const,
     payload: {
-      schema: "paperclip.tool.execution.v1", executionId: `fixture-tool-${index + 1}`,
+      schema: "outpost.tool.execution.v1", executionId: `fixture-tool-${index + 1}`,
       transport: "builtin", operation: "execute", name: "synthetic-tool", target: null,
       namespace: null, readOnly: true, status: "running", durationMs: null, exitCode: null,
       progress: null, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null,
@@ -68,7 +68,7 @@ describe("native event replay observation evidence", () => {
       completionContractId, completionContractSha256: "observer-replay-contract" };
     await db.insert(issues).values({ id: issueId, companyId, title: "Synthetic replay", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(completionContracts).values({ id: completionContractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "fixture-v1", risk: "standard",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "fixture-v1", objective: "Synthetic replay", criteria: [{ id: "objective", requirement: "Replay" }] },
       canonicalSha256: binding.completionContractSha256, createdByActorType: "system", createdByActorId: "test" });
@@ -146,7 +146,7 @@ describe("native event replay observation evidence", () => {
         });
       }
       const events: PrpEvent[] = fixturePayloads.map((entry, index) => ({
-        schema: "paperclip.prp.event.v1", sourceEventId: `fixture:${index + 1}`, sourceSeq: index + 1,
+        schema: "outpost.orp.event.v1", sourceEventId: `fixture:${index + 1}`, sourceSeq: index + 1,
         sourceInstanceId, sourceKind: "runner", runId, normalizedSessionId: sessionId,
         turnId: "fixture-turn", itemId: "answer", eventType: entry.eventType, payload: entry.payload,
         schemaVersion: 1, priority: 0, emittedAt: "2026-10-01T00:00:00.000Z",
@@ -224,7 +224,7 @@ describe("native event replay observation evidence", () => {
       for (const messages of received) {
         expect(messages.map(event => event.payload)).toEqual(events.map(event => ({
           runId, agentId, issueId, seq: event.sourceSeq, eventType: event.eventType,
-          stream: "system", level: "info", payload: redactEventPayload({ prpEvent: event }),
+          stream: "system", level: "info", payload: redactEventPayload({ orpEvent: event }),
         })));
         expect(messages.every(event => event.companyId === companyId)).toBe(true);
         expect(JSON.stringify(messages)).toContain(output.trim());
@@ -301,7 +301,7 @@ describe("native event replay observation evidence", () => {
     churn.observers.activeSubscribers.min = 0;
     expect(compareObserverReplays(first, churn, "observation_load").status).toBe("unmatched");
     process.stdout.write(`OBSERVER_REPLAY ${JSON.stringify({
-      schema: "paperclip.observer_replay.v1",
+      schema: "outpost.observer_replay.v1",
       sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
       node: process.version, platform: process.platform,
       queryScope: "Drizzle statement attempts during ingestion, duplicate replay, and viewer/poll drain, including separately counted delivery-time visibility proofs; excludes seed, handshake, post-interval proof reads, and driver-internal SQL",

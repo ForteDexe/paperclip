@@ -25,10 +25,10 @@ import path from "node:path";
 import express from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, vi } from "vitest";
-import { agents, completionContracts, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, executionWorkspaces } from "@paperclipai/db";
-import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/paperclip-runner/testing.js";
-import type { AdapterSandboxExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type { EnvironmentLease } from "@paperclipai/shared";
+import { agents, completionContracts, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, executionWorkspaces } from "@outpost/db";
+import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
+import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import type { EnvironmentLease } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { lockWorkspaceRecoveryTestDatabase, WORKSPACE_RECOVERY_EXTERNAL_SETUP_TIMEOUT_MS } from "./workspace-recovery-database-lock.js";
 import { prepareNativeWorkspaceSync, resumeNativeWorkspaceSync } from "../native-runtime/native-workspace-sync.js";
@@ -58,11 +58,11 @@ export function useWorkspaceRecoveryFixture(executionTargets: Map<string, Adapte
   targets = executionTargets;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let externalLock: ReturnType<typeof createDb> | undefined;
-  const priorHome = process.env.PAPERCLIP_HOME, priorInstance = process.env.PAPERCLIP_INSTANCE_ID;
-  const external = resolveExternalTestDatabaseUrl("PAPERCLIP_WORKSPACE_RECOVERY_TEST_DATABASE_URL");
+  const priorHome = process.env.OUTPOST_HOME, priorInstance = process.env.OUTPOST_INSTANCE_ID;
+  const external = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_RECOVERY_TEST_DATABASE_URL");
   beforeAll(async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "workspace-recovery-"));
-    process.env.PAPERCLIP_HOME = path.join(root, "home"); process.env.PAPERCLIP_INSTANCE_ID = "recovery";
+    process.env.OUTPOST_HOME = path.join(root, "home"); process.env.OUTPOST_INSTANCE_ID = "recovery";
     if (external) {
       externalLock = await lockWorkspaceRecoveryTestDatabase(external);
       await applyPendingMigrations(external);
@@ -84,8 +84,8 @@ export function useWorkspaceRecoveryFixture(executionTargets: Map<string, Adapte
       }
     };
     await makeWritable(root); await rm(root, { recursive: true, force: true });
-    if (priorHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = priorHome;
-    if (priorInstance === undefined) delete process.env.PAPERCLIP_INSTANCE_ID; else process.env.PAPERCLIP_INSTANCE_ID = priorInstance;
+    if (priorHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = priorHome;
+    if (priorInstance === undefined) delete process.env.OUTPOST_INSTANCE_ID; else process.env.OUTPOST_INSTANCE_ID = priorInstance;
   });
   afterEach(async () => {
     // Discovery is intentionally global and bounded. An unresolved source from
@@ -121,7 +121,7 @@ export async function seed(mode = "native", nativeDescriptor = true, resourceDis
   const companyId = randomUUID(), issueId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), actionId: string = randomUUID();
   await db.insert(companies).values({ id: companyId, name: "Workspace recovery", defaultResponsibleUserId: "board", issuePrefix: `R${companyId.slice(0, 6)}` });
   fixtureCompanyIds.add(companyId);
-  await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "paperclip_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
+  await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
   await db.insert(issues).values({ id: issueId, companyId, assigneeAgentId: agentId, status: "blocked", title: "Recover existing work" });
   await db.insert(heartbeatRuns).values({ id: runId, companyId, issueId, nativeIssueId: mode === "native" ? issueId : null,
     agentId, runtimeMode: mode, status: "failed", finishedAt: new Date(), errorCode: "execution_interrupted", contextSnapshot: { issueId } });
@@ -166,7 +166,7 @@ export async function seed(mode = "native", nativeDescriptor = true, resourceDis
   }
   await writeFile(path.join(remote, "saved.txt"), "finished work\n");
   await writeFile(path.join(host, "newer.txt"), "newer local work\n");
-  const recovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [lease.id] };
+  const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [lease.id] };
   await db.update(heartbeatRuns).set({ resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: recovery,
     conversationContinuation: "continue_conversation_v1" } }).where(eq(heartbeatRuns.id, runId));
   await db.update(environmentLeases).set({ metadata: { ...lease.metadata,
@@ -197,12 +197,12 @@ export async function failedWarmSource(exportOnly = false, hops = 0) {
   const failed = failSystemRecovery(reserveSystemRecoveryAttempt(createSystemRecovery(f.runId, retry.requestId!))!,
     new SystemRecoveryFailure("source_binding_invalid", "service_required"), { now: Date.now() - 86_400_000 });
   await db.update(issueRecoveryActions).set({ evidence: { ...(await action(f.actionId)).evidence, systemRecovery: failed,
-    workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
+    workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
       attempt: 1, attemptLimit: 6, requestIds: [retry.requestId!] } } }).where(eq(issueRecoveryActions.id, f.actionId));
   if (exportOnly) {
     const contractId = randomUUID(), resultId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "standard",
+      revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId, resultJson: {} }).where(eq(heartbeatRuns.id, f.runId));
@@ -285,7 +285,7 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
   const commit = await git(["rev-parse", "HEAD"]);
   targets.get(f.lease.id)!.remoteCwd = remoteCwd;
   f.runtime.resumeRunLease.mockImplementation(async () => ({ providerLeaseId: f.providerLeaseId, metadata: { remoteCwd } }));
-  const authority = { schema: "paperclip.remote-workspace.v1", epoch: 1, snapshotId: null,
+  const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null,
     source: { kind: "empty" }, writerRunId: f.runId, dirty: true,
     location: { environmentId: f.lease.environmentId!, leaseId: f.lease.id, providerLeaseId: f.providerLeaseId, remoteCwd } };
   if (sourceLayout !== "published") await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.companyId, sourceIssueId: f.issueId,
@@ -297,14 +297,14 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
     metadata: { ...lease.metadata, remoteCwd, agentId: source.agentId } }).where(eq(environmentLeases.id, lease.id));
   const contractId = randomUUID(), resultId = randomUUID();
   await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-    revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "test", risk: "low",
+    revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "low",
     completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal",
     contractJson: { revision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
       objective: "Complete the work", criteria: [{ id: "objective", requirement: "Complete the task" }] },
     canonicalSha256: "contract", createdByActorType: "system", createdByActorId: "test" });
   await db.update(heartbeatRuns).set({ completionContractId: contractId, resultJson: {}, runnerProfileJson: {
-    adapterDispatch: { adapterType: "paperclip_runner" },
-    remoteWorkspace: preparedReference ?? { schema: "paperclip.remote-workspace-run.v1", workspaceId, leaseId: lease.id,
+    adapterDispatch: { adapterType: "outpost_runner" },
+    remoteWorkspace: preparedReference ?? { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId: lease.id,
       providerLeaseId: f.providerLeaseId, remoteCwd, epoch: 1, state: "prepared", snapshotId: null },
   } }).where(eq(heartbeatRuns.id, f.runId));
   await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
@@ -322,7 +322,7 @@ export async function interruptedRemotePreparation(interruption: "shutdown" | "l
   const f = await acceptedRemoteExport(sourceLayout);
   await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
   await db.delete(nativeRunResults).where(eq(nativeRunResults.runId, f.runId));
-  const recovery = { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [f.lease.id] };
+  const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] };
   await db.update(heartbeatRuns).set({ runtimeMode: "legacy", nativeIssueId: null, completionContractId: null,
     status: interruption === "process_lost" ? "failed" : "interrupted", executionStage: "preparing",
     errorCode: interruption === "process_lost" ? "process_lost" : interruption === "lease" ? "lease_released_before_terminal" : "server_shutdown_interrupted",

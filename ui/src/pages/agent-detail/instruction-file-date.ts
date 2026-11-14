@@ -1,4 +1,4 @@
-import type { AgentInstructionsFileSummary } from "@paperclipai/shared";
+import type { AgentInstructionsFileSummary } from "@outpost/shared";
 import { formatDate } from "@/lib/utils";
 
 /** Missing historical metadata must never become an invented creation date. */

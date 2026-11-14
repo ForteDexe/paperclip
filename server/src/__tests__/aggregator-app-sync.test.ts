@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { companies, companyMemberships, connectionGrants, createDb, toolApplications, toolCatalogEntries, toolConnections, toolConnectionAppSnapshots } from "@paperclipai/db";
+import { companies, companyMemberships, connectionGrants, createDb, toolApplications, toolCatalogEntries, toolConnections, toolConnectionAppSnapshots } from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
 import { secretService } from "../services/secrets.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
@@ -12,7 +12,7 @@ import { errorHandler } from "../middleware/error-handler.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 // Optional reuse of the explicitly disposable browser-test cluster on hosts with limited PostgreSQL startup resources.
-const acceptanceDatabaseUrl = process.env.PAPERCLIP_AGGREGATOR_TEST_DATABASE_URL;
+const acceptanceDatabaseUrl = process.env.OUTPOST_AGGREGATOR_TEST_DATABASE_URL;
 if (acceptanceDatabaseUrl && !["127.0.0.1", "localhost"].includes(new URL(acceptanceDatabaseUrl).hostname)) throw new Error("The acceptance database must be local and disposable");
 const support = acceptanceDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 if (!support.supported) console.warn(`Managed-account database tests unavailable: ${support.reason}`);

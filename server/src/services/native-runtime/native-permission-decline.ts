@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { heartbeatRunEvents, type Db } from "@paperclipai/db";
-import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { heartbeatRunEvents, type Db } from "@outpost/db";
+import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { nativeProviderLifecycle, type LifecycleRecord } from "./provider-lifecycle.js";
 
 const record = (value: unknown): Record<string, any> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
@@ -20,9 +20,9 @@ export function hasCompletedNativePermissionDecline(rows: readonly unknown[], bi
   const adapter = nativeProviderLifecycle(provider);
   if (!adapter) return false;
   if (terminal.eventType !== "turn.completed" || !terminal.turnId || !terminal.normalizedSessionId || !terminal.sourceInstanceId) return false;
-  const selected = rows.map(record).map(row => ({ row, event: record(record(row.payload).prpEvent) })).filter(({ row, event }) =>
+  const selected = rows.map(record).map(row => ({ row, event: record(record(row.payload).orpEvent) })).filter(({ row, event }) =>
     row.companyId === binding.companyId && row.agentId === binding.agentId && row.runId === binding.runId
-    && row.protocolSchemaVersion === 1 && event.schema === "paperclip.prp.event.v1" && event.schemaVersion === 1
+    && row.protocolSchemaVersion === 1 && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1
     && event.sourceKind === "runner" && event.runId === binding.runId && event.turnId === terminal.turnId
     && event.normalizedSessionId === terminal.normalizedSessionId && event.sourceInstanceId === terminal.sourceInstanceId
     && event.sourceEventId === row.sourceEventId && event.sourceInstanceId === row.sourceInstanceId && event.sourceSeq === row.sourceSeq
@@ -51,8 +51,8 @@ export async function readCompletedNativePermissionDecline(db: Db, binding: Bind
   if (!nativeProviderLifecycle(provider)) return false;
   const rows = await db.select().from(heartbeatRunEvents).where(and(
     eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), eq(heartbeatRunEvents.agentId, binding.agentId),
-    sql`${heartbeatRunEvents.payload}->'prpEvent'->>'turnId' = ${terminal.turnId}`,
-    sql`${heartbeatRunEvents.payload}->'prpEvent'->>'normalizedSessionId' = ${terminal.normalizedSessionId}`,
+    sql`${heartbeatRunEvents.payload}->'orpEvent'->>'turnId' = ${terminal.turnId}`,
+    sql`${heartbeatRunEvents.payload}->'orpEvent'->>'normalizedSessionId' = ${terminal.normalizedSessionId}`,
     eq(heartbeatRunEvents.sourceInstanceId, terminal.sourceInstanceId),
     inArray(heartbeatRunEvents.eventType, TYPES),
   )).orderBy(asc(heartbeatRunEvents.seq)).limit(1001);

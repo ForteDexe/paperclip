@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import type { Db } from "@paperclipai/db";
-import { agents, agentWakeupRequests, browserUseRuns, browserUseSessions, budgetPolicies, companies, connectionGrants, costEvents, environmentLeases, heartbeatRuns, issues, projects, toolApplications, toolConnections } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
+import { agents, agentWakeupRequests, browserUseRuns, browserUseSessions, budgetPolicies, companies, connectionGrants, costEvents, environmentLeases, heartbeatRuns, issues, projects, toolApplications, toolConnections } from "@outpost/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { runningProcesses } from "../../adapters/index.js";
@@ -342,7 +342,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
       const leaseId = randomUUID(), providerLeaseId = randomUUID();
       await db.insert(environmentLeases).values({ id: leaseId, companyId: company.id, heartbeatRunId: run.id,
         provider: "daytona", providerLeaseId, status: "released", releasedAt: new Date(), cleanupStatus: "success",
-        metadata: { remoteExecutionTermination: { schema: "paperclip.remote-termination.v1", companyId: company.id,
+        metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: company.id,
           runId: run.id, leaseId, provider: "daytona", providerLeaseId, state: "stopped", confirmedAt: new Date().toISOString() } },
       });
     }

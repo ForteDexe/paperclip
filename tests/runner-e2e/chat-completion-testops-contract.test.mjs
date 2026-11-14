@@ -38,7 +38,7 @@ function fixture() {
   const event = { repository: { full_name: 'paperclipai/paperclip', private: false, default_branch: 'master' },
     ref: env.GITHUB_REF, sender: { id: 42 }, inputs: { ALLURE_JOB_RUN_ID: '77' } };
   const context = admitDispatch(env, event, 42);
-  const selection = { schema: 'paperclip.chat-completion-testops-selection/v1', ...context, projectId: 1,
+  const selection = { schema: 'outpost.chat-completion-testops-selection/v1', ...context, projectId: 1,
     allureJobRunId: '77', planId: 10, jobId: 11, launchId: 12, cases: cases.map((row, index) => ({ ...row, caseId: 100 + index })) };
   return { env, event, context, selection };
 }

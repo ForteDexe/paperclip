@@ -18,7 +18,7 @@ import { tmpdir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, expect, it } from "vitest";
-import type { CommandManagedRuntimeRunner } from "@paperclipai/adapter-utils/command-managed-runtime";
+import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { prepareRemoteOpenCodeArtifacts } from "./remote-opencode-artifacts.js";
 import {
   canonicalProviderPackJson,
@@ -63,7 +63,7 @@ async function fixture() {
     runnerSourceRevision: "a".repeat(40),
   };
   const manifest = {
-    schema: "paperclip-runner/remote-provider-pack/v1",
+    schema: "outpost-runner/remote-provider-pack/v1",
     payload,
     digest: `sha256:${createHash("sha256").update(canonicalProviderPackJson(payload)).digest("hex")}`,
   } as ProviderPackIdentity;
@@ -272,7 +272,7 @@ it("rejects administrative symlinks and source hash drift before publication", a
     await readdir(
       join(
         f.accountHome,
-        ".paperclip-runtime/paperclip-runner/provider-artifacts",
+        ".paperclip-runtime/outpost-runner/provider-artifacts",
       ),
     ),
   ).toEqual([]);

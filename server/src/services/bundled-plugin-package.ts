@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { PaperclipPluginManifestV1, PluginRecord } from "@paperclipai/shared";
+import type { PaperclipPluginManifestV1, PluginRecord } from "@outpost/shared";
 import type { ResolvedBundledPlugin } from "./bundled-plugins.js";
 import { assertDistributionManifestCapabilities } from "./distribution-plugin-catalog.js";
 

@@ -1,4 +1,4 @@
-import { microsoftTeamsCredentialIdSchema } from "@paperclipai/shared";
+import { microsoftTeamsCredentialIdSchema } from "@outpost/shared";
 import { unprocessable } from "../errors.js";
 
 const MICROSOFT_TEAMS_ID_FIELDS = ["clientId", "tenantId"] as const;

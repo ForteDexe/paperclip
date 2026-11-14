@@ -10,8 +10,8 @@ selections are migrated.
 
 | Adapter | Changes from the audit |
 | --- | --- |
-| Codex | No new selectable model IDs. Codex 0.160.0 through 0.164.0 ship the same bundled model set, which the picker already lists (including GPT-6 Astra, GPT-5.6 Terra, and GPT-5.6 Luna). OpenAI retired `gpt-5.5` (October 14, 2026) and `gpt-5.4` / `gpt-5.4-mini` (August 31, 2026) from Codex with ChatGPT sign-in. The API and API-key Codex sessions still serve them, so they stay in the picker. When the backend rejects one of them for a ChatGPT account, the environment Test (legacy CLI and Paperclip Runner) now names the retirement and the documented replacement instead of suggesting a stale CLI, a plan restriction, or generic account checks. |
-| OpenCode | Add `anthropic/claude-haiku-5-5` and `google/gemini-4-argon` to the static fallback used by remote environments and the Paperclip Runner picker. Both IDs are in the OpenCode model registry (models.dev). |
+| Codex | No new selectable model IDs. Codex 0.160.0 through 0.164.0 ship the same bundled model set, which the picker already lists (including GPT-6 Astra, GPT-5.6 Terra, and GPT-5.6 Luna). OpenAI retired `gpt-5.5` (October 14, 2026) and `gpt-5.4` / `gpt-5.4-mini` (August 31, 2026) from Codex with ChatGPT sign-in. The API and API-key Codex sessions still serve them, so they stay in the picker. When the backend rejects one of them for a ChatGPT account, the environment Test (legacy CLI and Outpost Runner) now names the retirement and the documented replacement instead of suggesting a stale CLI, a plan restriction, or generic account checks. |
+| OpenCode | Add `anthropic/claude-haiku-5-5` and `google/gemini-4-argon` to the static fallback used by remote environments and the Outpost Runner picker. Both IDs are in the OpenCode model registry (models.dev). |
 | Claude Code (direct and Bedrock) | Claude Haiku 5.5 is covered by [#16708](https://github.com/paperclipai/paperclip/pull/16708); this audit does not duplicate it. Haiku 5.5 needs Claude Code 2.1.293 or later and supports all five effort levels. |
 | Gemini CLI | Gemini 4 Argon (`gemini-4-argon`) is generally available on the Gemini API, but Gemini CLI 0.65.0 does not register it. Deferred. |
 | Grok Build, Kimi Code, Cursor | No new verified model IDs. Grok 4.7 and Kimi K3 remain the newest documented models. |
@@ -52,7 +52,7 @@ Research date: October 23, 2026. Harness pins rechecked October 26, 2026.
   entry for 2.1.293 adds `claude-haiku-5-5`.
 - [models.dev](https://models.dev/api.json) lists `anthropic/claude-haiku-5-5`
   and `google/gemini-4-argon`. The OpenCode 1.18.34 executable's bundled
-  snapshot predates both. Paperclip Runner binds the selected model into the
+  snapshot predates both. Outpost Runner binds the selected model into the
   OpenCode provider configuration, so the snapshot does not limit it.
 - [Gemini 4 Argon](https://ai.google.dev/gemini-api/docs/models/gemini-4-argon)
   is generally available since October 13, 2026. Gemini CLI 0.65.0
@@ -96,7 +96,7 @@ Research date: October 23, 2026. Harness pins rechecked October 26, 2026.
   minimum before launch.
 - **OpenCode 1.19.x and 2.x.** OpenCode 1.19.3 generates reasoning variants
   from model options instead of catalog variants, which affects the variants
-  Paperclip Runner binds. OpenCode 2 changes the SDK, event, and plugin
+  Outpost Runner binds. OpenCode 2 changes the SDK, event, and plugin
   contracts. Both need qualification.
 - **ACP bridges.** ACPX 0.20.0, `claude-agent-acp` 0.94.0 (ACP SDK 2.0), and
   `codex-acp` 2.2.2 (breaking tool-call contract in 2.0.0) need a

@@ -2,7 +2,7 @@ import { slackFormRetirementHistoryReceipt } from "./ack-retirement-receipt.js";
 import { isDeepStrictEqual } from "node:util";
 import type { VerifiedIdleCapabilities } from "../../idle-incoming-wake-capability.js";
 import { matchSlackConfiguredCoverage, type SlackConfiguredRequirement } from "./configured-coverage.js";
-import type { chatActions } from "@paperclipai/db";
+import type { chatActions } from "@outpost/db";
 import { parseSlackFormBinding, parseSlackFormPublicEnrollment, sameSlackFormBinding } from "./cloud-forms.js";
 import { parseSlackFormAckWork, assertSlackFormReceiptHistory } from "./form-ack-work.js";
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import { healthRoutes } from "../routes/health.js";
 import * as devServerStatus from "../dev-server-status.js";
 import { serverVersion } from "../version.js";
@@ -97,12 +97,12 @@ describe("GET /health", () => {
 
   it("exposes public stack metadata on cloud-simulated health", async () => {
     const app = createApp(undefined, testServerInfo, undefined, {
-      PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "tenant-token",
-      PAPERCLIP_CLOUD_STACK_ID: "stack-1",
-      PAPERCLIP_STACK_SLUG: "acme",
-      PAPERCLIP_CLOUD_ACCOUNT_GROUP_ID: "account-group-1",
-      PAPERCLIP_PRIMARY_HOST: "acme.paperclip.app",
-      PAPERCLIP_CLOUD_API_ORIGIN: "https://app.paperclip.app",
+      OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "tenant-token",
+      OUTPOST_CLOUD_STACK_ID: "stack-1",
+      OUTPOST_STACK_SLUG: "acme",
+      OUTPOST_CLOUD_ACCOUNT_GROUP_ID: "account-group-1",
+      OUTPOST_PRIMARY_HOST: "acme.outpost.app",
+      OUTPOST_CLOUD_API_ORIGIN: "https://app.outpost.app",
     });
 
     const res = await request(app).get("/health");
@@ -112,13 +112,13 @@ describe("GET /health", () => {
       managed: true,
       managedBy: "paperclip-cloud",
       stackSlug: "acme",
-      cloudBaseUrl: "https://app.paperclip.app",
+      cloudBaseUrl: "https://app.outpost.app",
     });
   });
 
   it("lists operator-hidden settings and drops unknown keys", async () => {
     const app = createApp(undefined, testServerInfo, undefined, {
-      PAPERCLIP_HIDDEN_SETTINGS: "instance.plugins,instance.adapters,instance.bogus",
+      OUTPOST_HIDDEN_SETTINGS: "instance.plugins,instance.adapters,instance.bogus",
     });
 
     const res = await request(app).get("/health");
@@ -138,16 +138,16 @@ describe("GET /health", () => {
 
   it("reveals staging experiments while retaining other Cloud settings restrictions", async () => {
     const env = {
-      PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "tenant-token",
-      PAPERCLIP_PRIMARY_HOST: "team.paperclip.app",
-      PAPERCLIP_HIDDEN_SETTINGS: "instance.plugins,instance.experimental,instance.experimental.*",
+      OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "tenant-token",
+      OUTPOST_PRIMARY_HOST: "team.outpost.app",
+      OUTPOST_HIDDEN_SETTINGS: "instance.plugins,instance.experimental,instance.experimental.*",
     };
     const app = createApp(undefined, testServerInfo, undefined, env);
     const production = await request(app).get("/health");
     expect(production.body.hiddenSettings).toContain("instance.experimental");
     expect(production.body.hiddenSettings).toContain("instance.experimental.enableChatConnectors");
 
-    env.PAPERCLIP_PRIMARY_HOST = "team.staging.paperclip.app";
+    env.OUTPOST_PRIMARY_HOST = "team.staging.outpost.app";
     const staging = await request(app).get("/health");
     expect(staging.body.hiddenSettings).toContain("instance.plugins");
     expect(staging.body.hiddenSettings).toContain("instance.experimental.enableManagedSandboxOnly");
@@ -155,12 +155,12 @@ describe("GET /health", () => {
     expect(staging.body.hiddenSettings).not.toContain("instance.experimental");
     expect(staging.body.hiddenSettings).not.toContain("instance.experimental.enableChatConnectors");
 
-    env.PAPERCLIP_PRIMARY_HOST = "team.paperclip.app";
+    env.OUTPOST_PRIMARY_HOST = "team.outpost.app";
     expect((await request(app).get("/health")).body.hiddenSettings).toEqual(production.body.hiddenSettings);
   });
 
   it("publishes concrete wildcard restrictions to the UI and refreshes changed exceptions", async () => {
-    const env = { PAPERCLIP_HIDDEN_SETTINGS: "instance.plugins,instance.experimental.*,!instance.experimental.enableEnvironments" };
+    const env = { OUTPOST_HIDDEN_SETTINGS: "instance.plugins,instance.experimental.*,!instance.experimental.enableEnvironments" };
     const app = createApp(undefined, testServerInfo, undefined, env);
     const first = await request(app).get("/health");
     expect(first.status).toBe(200);
@@ -169,7 +169,7 @@ describe("GET /health", () => {
     expect(first.body.hiddenSettings).not.toContain("instance.experimental.enableEnvironments");
     expect(first.body.hiddenSettings.some((key: string) => key.includes("*") || key.startsWith("!"))).toBe(false);
 
-    env.PAPERCLIP_HIDDEN_SETTINGS = "instance.experimental.*,!instance.experimental.enableMemoryConnectors";
+    env.OUTPOST_HIDDEN_SETTINGS = "instance.experimental.*,!instance.experimental.enableMemoryConnectors";
     const second = await request(app).get("/health");
     expect(second.body.hiddenSettings).toContain("instance.experimental.enableEnvironments");
     expect(second.body.hiddenSettings).not.toContain("instance.experimental.enableMemoryConnectors");
@@ -571,7 +571,7 @@ describe("GET /health", () => {
   });
 
   it("reports bootstrapStatus ready for cloud-managed instances regardless of instance admin count", async () => {
-    vi.stubEnv("PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN", "test-tenant-server-token");
+    vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-tenant-server-token");
     const { healthRoutes } = await import("../routes/health.js");
     const db = {
       execute: vi.fn().mockResolvedValue([{ "?column?": 1 }]),

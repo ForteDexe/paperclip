@@ -57,7 +57,7 @@ const { transport } = createRunnerdCodexTransport({
   opencodeProxyPath: root + "/" + a.opencodeProxy.path,
   opencodeProxySha256: a.opencodeProxy.sha256,
   opencodeRuntimeDirectory: input.runtime,
-  prpIdentity: input.identity,
+  orpIdentity: input.identity,
   lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60000 },
   ...(input.thread
     ? {
@@ -70,9 +70,9 @@ const { transport } = createRunnerdCodexTransport({
   environment: {
     PATH: "/usr/local/bin:/usr/bin:/bin",
     HOME: input.home ?? "/root",
-    PAPERCLIP_AI_PROVIDER_URL:
+    OUTPOST_AI_PROVIDER_URL:
       "http://127.0.0.1:" + model.address().port + "/v1",
-    PAPERCLIP_AI_PROVIDER_KEY: "local-fixture-only",
+    OUTPOST_AI_PROVIDER_KEY: "local-fixture-only",
     OPENCODE_DISABLE_MODELS_FETCH: "true",
     OPENCODE_DISABLE_DEFAULT_PLUGINS: "true",
   },

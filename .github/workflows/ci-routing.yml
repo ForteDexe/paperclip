@@ -398,7 +398,7 @@ jobs:
           # lag behind its actual first parent. A bare tree diff has no API file cap.
           git init --bare "$directory/repository.git" >/dev/null || fallback
           git -C "$directory/repository.git" fetch --quiet --no-tags --filter=blob:none --depth=2 \
-            https://github.com/paperclipai/paperclip.git "$EVENT_MERGE_SHA" || fallback
+            https://github.com/paperclipai/outpost.git "$EVENT_MERGE_SHA" || fallback
           if [[ "$PROFILE_CI" == 'true' || "$FORCE_FULL_CI" == 'true' ]]; then
             export CI_FORCE_REASON='Full suite requested by label'
           elif [[ "$STACK_JSON" != 'null' && -n "$STACK_JSON" ]]; then

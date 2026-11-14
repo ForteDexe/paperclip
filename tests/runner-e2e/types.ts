@@ -307,7 +307,7 @@ export interface RunnerE2EBillingSummary {
 export interface RunnerE2EResult {
   /** Explicit optional owned Linux/arm64 Docker PG18.6 environment identity. */
   databaseIdentity?: ReturnType<typeof import("./docker-postgres.js").publicDockerDatabaseIdentity>;
-  schema: "paperclip.runner-e2e.result/v1" | "paperclip.runner-e2e.result/v2";
+  schema: "outpost.runner-e2e.result/v1" | "outpost.runner-e2e.result/v2";
   accountingIdentity?: { campaignId: string; attemptId: string };
   executionId: string;
   suiteId?: string;
@@ -457,7 +457,7 @@ export interface RunnerE2ECampaignAccounting {
 }
 
 export interface RunnerE2ECampaign {
-  schema: "paperclip.runner-e2e.campaign/v2";
+  schema: "outpost.runner-e2e.campaign/v2";
   campaignId: string;
   generatedAt: string;
   source: {
@@ -528,7 +528,7 @@ export interface RunnerE2EHistoryCampaign {
 }
 
 export interface RunnerE2EHistoryIndex {
-  schema: "paperclip.runner-e2e.history/v1";
+  schema: "outpost.runner-e2e.history/v1";
   updatedAt: string;
   latestCampaignId: string | null;
   latestGreenCampaignId: string | null;

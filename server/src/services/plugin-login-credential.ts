@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import type { Environment, EnvironmentLease } from "@paperclipai/shared";
+import type { Db } from "@outpost/db";
+import type { Environment, EnvironmentLease } from "@outpost/shared";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { pluginRegistryService } from "./plugin-registry.js";
 

@@ -3,7 +3,7 @@ import { INTERACTION_OWNS_RESPONSE, replyOrCardText, turnResponseCards } from ".
 import { grade_goals } from "./internal-goals.js";
 import { observation as internalObservation } from "./internal-support.js";
 
-const endedOnCard = { schema: "paperclip.run_presentation_decision.v1", commentId: null, reasonCodes: [INTERACTION_OWNS_RESPONSE], commentAction: "none" };
+const endedOnCard = { schema: "outpost.run_presentation_decision.v1", commentId: null, reasonCodes: [INTERACTION_OWNS_RESPONSE], commentAction: "none" };
 const run = (id = "run", resultJson: Record<string, unknown> = { presentationDecision: endedOnCard }) =>
   ({ id, agentId: "ceo", status: "succeeded", resultJson });
 
@@ -60,7 +60,7 @@ describe("pending cards as a turn's response", () => {
   it("reads only the question form the page shows", () => {
     const row = goalQuestion();
     (row.payload.questions[0] as Record<string, unknown>).helpText = "Hidden legacy help";
-    (row.payload as Record<string, unknown>).questionSet = { schema: "paperclip.question_set.v1", questions: [{ id: "goal_choice", prompt: "How should I handle the goal for Launch and COM-1?",
+    (row.payload as Record<string, unknown>).questionSet = { schema: "outpost.question_set.v1", questions: [{ id: "goal_choice", prompt: "How should I handle the goal for Launch and COM-1?",
       required: true, answerMode: "single_select", helpText: "Shown help", options: row.payload.questions[0]!.options.filter(option => !option.freeText).map(({ id, label }) => ({ id, label })),
       customAnswer: { enabled: true, label: "Other instructions" } }] };
     const [card] = cards([row]);

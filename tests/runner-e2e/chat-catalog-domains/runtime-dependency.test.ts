@@ -23,7 +23,7 @@ it("rejects a final answer given without re-reading saved task state", () => { c
 it("rejects an empty final reply", () => { const o = valid(); o.state.finalReply = " "; expect(gradeDesignDependency(o).passed).toBe(false); });
 it("reads Website's saved state only from completed product reads tied to Website", () => {
   const website = { id: "website", identifier: "COM-2", companyId: "company" };
-  const event = (name: string, output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { prpEvent: { sourceKind: "runner", payload: { name, status, output } } } });
+  const event = (name: string, output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name, status, output } } } });
   expect(readTaskState([event("paperclip_get_task", '{"id":"website","status":"done"}')], website)).toBe(true);
   expect(readTaskState([event("paperclip_search_tasks", '{"tasks":[{"identifier":"COM-2"}]}')], website)).toBe(true);
   expect(readTaskState([event("paperclip_get_task", '{"id":"design"}')], website)).toBe(false);
@@ -32,7 +32,7 @@ it("reads Website's saved state only from completed product reads tied to Websit
   expect(readTaskState(savedCall({ operationId: "GET /api/issues/{id}", pathParams: { id: "COM-2" } }, 200), website)).toBe(true);
   expect(readTaskState(savedCall({ operationId: "GET /api/issues/{id}", pathParams: { id: "COM-1" } }, 200), website)).toBe(false);
   expect(readTaskState(savedCall({ operationId: "GET /api/issues/{id}", pathParams: { id: "website" } }, 404), website)).toBe(false);
-  expect(readTaskState([{ eventType: "item.completed", payload: { prpEvent: { sourceKind: "runner", payload: { text: "I read paperclip_get_task website" } } } }], website)).toBe(false);
+  expect(readTaskState([{ eventType: "item.completed", payload: { orpEvent: { sourceKind: "runner", payload: { text: "I read paperclip_get_task website" } } } }], website)).toBe(false);
 });
 
 const interaction = (overrides: Record<string, unknown> = {}) => ({ id: "triage", status: "succeeded", agentId: "morgan",

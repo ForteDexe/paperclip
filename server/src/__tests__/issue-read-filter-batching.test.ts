@@ -4,8 +4,8 @@ import request from "supertest";
 import { inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { issues, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@paperclipai/db";
-import { ISSUE_SUMMARIES_MAX_IDS } from "@paperclipai/shared";
+import { issues, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { ISSUE_SUMMARIES_MAX_IDS } from "@outpost/shared";
 import { issueRoutes } from "../routes/issues.js";
 import { errorHandler } from "../middleware/index.js";
 import { authorizationService, READ_DECISION_CONCURRENCY, type AuthorizationActor } from "../services/authorization.js";
@@ -29,15 +29,15 @@ const PER_TASK_PRIVACY_STATEMENT = /^select "id" from "issues" where \("issues"\
 
 describeEmbeddedPostgres("batched task read filtering", () => {
   const ctx = useEmbeddedPostgres("paperclip-issue-read-batch-");
-  const oldPrivacy = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
+  const oldPrivacy = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
   let f: IssueReadVisibilityFixture;
   beforeAll(async () => {
-    process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
+    process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     f = await seedIssueReadVisibilityFixture(ctx.db, { publicCount: 60 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(() => {
-    if (oldPrivacy === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
-    else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = oldPrivacy;
+    if (oldPrivacy === undefined) delete process.env.OUTPOST_ISSUE_PRIVACY_MODE;
+    else process.env.OUTPOST_ISSUE_PRIVACY_MODE = oldPrivacy;
   });
 
   type Row = Pick<typeof issues.$inferSelect, "id" | "companyId" | "projectId" | "parentId" | "assigneeAgentId" | "assigneeUserId" | "status">;

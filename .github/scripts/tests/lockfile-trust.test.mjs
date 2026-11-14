@@ -270,7 +270,7 @@ test('workflows run the trust policy from trusted code and pass the verified has
   const pr = readFileSync('.github/workflows/pr-trusted.yml', 'utf8');
   assert.match(pr, /git show "\$trusted_base:\.github\/scripts\/lockfile-trust\.mjs" > "\$policy"/);
   assert.match(pr, /BASE_SHA="\$trusted_base" node "\$policy" pr/);
-  assert.match(pr, /PAPERCLIP_CI_PR_AUTHOR: \$\{\{ github\.event\.pull_request\.user\.login \}\}/);
+  assert.match(pr, /OUTPOST_CI_PR_AUTHOR: \$\{\{ github\.event\.pull_request\.user\.login \}\}/);
   assert.doesNotMatch(pr, /github\.head_ref != 'chore\/refresh-lockfile'/);
 
   const refresh = readFileSync('.github/workflows/refresh-lockfile.yml', 'utf8');

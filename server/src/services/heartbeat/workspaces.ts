@@ -13,12 +13,12 @@ import { addNestedRepositoryWorktree, isVerifiedNestedRepositoryBase, nestedRepo
 export { materializeManagedProjectWorkspace } from "../managed-repository-checkout.js";
 import { sql } from "drizzle-orm";
 import { materializeIsolatedTaskDirectory } from "../isolated-task-directory.js";
-import { readConnectionFailure, type GitConnectionFailure } from "@paperclipai/adapter-utils/connection-failure";
+import { readConnectionFailure, type GitConnectionFailure } from "@outpost/adapter-utils/connection-failure";
 import { managedAiSessionFingerprintConfig } from "../ai-connection-runtime.js";
 import {
   PROJECT_REPOSITORIES_DIR,
   readGitWorkspaceSnapshot,
-} from "@paperclipai/adapter-utils/git-workspace-sync";
+} from "@outpost/adapter-utils/git-workspace-sync";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { localRepositoryPath } from "../local-repository-path.js";
@@ -33,11 +33,11 @@ import {
   asc,
   eq,
 } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   type ExecutionWorkspace,
   type ExecutionWorkspaceConfig,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   agents,
   companies,
@@ -45,7 +45,7 @@ import {
   issues,
   projects,
   projectWorkspaces,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { logger } from "../../middleware/logger.js";
 import {
   createGitRemoteAuthProvider,
@@ -1430,7 +1430,7 @@ export function buildAnchorFallbackWorkspaceNotes(input: {
 
 /**
  * Build the plural workspace list that a run exposes to the agent through the
- * `PAPERCLIP_WORKSPACES_JSON` environment variable. The list joins the anchor
+ * `OUTPOST_WORKSPACES_JSON` environment variable. The list joins the anchor
  * project's alternative workspace rows with the read-only referenced (mentioned)
  * project workspaces, so every execution target receives the referenced project
  * paths through the same channel the run already uses for the anchor project.
@@ -1486,7 +1486,7 @@ export function prioritizeProjectWorkspaceCandidatesForRun<
  * the anchor project's workspace exactly as before — the referenced set is inert.
  */
 export const MULTI_PROJECT_WORKSPACE_SYNC_ENV =
-  "PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC";
+  "OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC";
 
 /**
  * True when an environment value explicitly turns a flag off. An unset value is
@@ -1539,7 +1539,7 @@ export function isRemoteExecutionEnvironmentDriver(
  * runs no referenced-project authorization or staging and reverts to the remote drop path.
  */
 export const MULTI_PROJECT_WORKSPACE_SYNC_REMOTE_ENV =
-  "PAPERCLIP_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE";
+  "OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE";
 
 export function isMultiProjectWorkspaceSyncRemoteEnabled(
   env: Record<string, string | undefined> = process.env,
@@ -2119,7 +2119,7 @@ const SESSION_CONFIG_CATEGORIES_KEY = "__paperclipConfigCategories";
 const SESSION_CONFIG_CATEGORY_FINGERPRINTS_KEY =
   "__paperclipConfigCategoryFingerprints";
 
-const PAPERCLIP_SESSION_METADATA_KEYS = new Set([
+const OUTPOST_SESSION_METADATA_KEYS = new Set([
   SESSION_AI_CREDENTIAL_IDENTITY_KEY,
   SESSION_CONFIGURED_MODEL_KEY,
   SESSION_CONFIG_FINGERPRINT_KEY,
@@ -2622,7 +2622,7 @@ export function buildWorkspaceConfigFreshnessOperation(
       previousWorkspaceId: input.previousWorkspaceId,
       activeWorkspaceId: input.activeWorkspaceId,
     },
-    system: `[paperclip] ${(input.workspaceReused && input.decision.action === "replace"
+    system: `[outpost] ${(input.workspaceReused && input.decision.action === "replace"
       ? "reused execution workspace" : workspaceConfigFreshnessActionLabel(input.decision.action))} after config freshness check${categorySummary}: ${reasonSummary}\n`,
   };
 }
@@ -2870,7 +2870,7 @@ export async function buildEffectiveRunSessionConfigMetadata(input: {
   // agents. Fingerprint an unset lifecycle as that stored value so clearing it
   // keeps saved task sessions and their provider history. An explicit change
   // to warm still starts a new session.
-  if (input.adapterType === "paperclip_runner" && effectiveAdapterConfig.lifecycleMode === undefined) {
+  if (input.adapterType === "outpost_runner" && effectiveAdapterConfig.lifecycleMode === undefined) {
     effectiveAdapterConfig.lifecycleMode = "per_turn";
   }
   if (input.managedInstructions && !input.retainManagedInstructionPaths) {
@@ -3219,7 +3219,7 @@ export function stripPaperclipSessionMetadataFromSessionParams(
 ) {
   if (!sessionParams) return null;
   const next = { ...sessionParams };
-  for (const key of PAPERCLIP_SESSION_METADATA_KEYS) {
+  for (const key of OUTPOST_SESSION_METADATA_KEYS) {
     delete next[key];
   }
   return next;
@@ -3590,7 +3590,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
       repoRef: readNonEmptyString(workspace.repoRef),
     }));
 
-    if (opts?.executionEnvironmentDriver === "plugin" && agent.adapterType === "paperclip_runner") {
+    if (opts?.executionEnvironmentDriver === "plugin" && agent.adapterType === "outpost_runner") {
       if (workspaceProjectId) {
         const project = await db.select({ id: projects.id }).from(projects).where(and(
           eq(projects.companyId, agent.companyId), eq(projects.id, workspaceProjectId),
@@ -3831,7 +3831,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
         onBehalfOfUserId: responsibleUserId === "local-board" ? null : responsibleUserId },
       issues: issueService(db), projects: projectService(db), access: authorizationService(db),
     };
-    if (executionEnvironmentDriver === "plugin" && agent.adapterType === "paperclip_runner" &&
+    if (executionEnvironmentDriver === "plugin" && agent.adapterType === "outpost_runner" &&
         issueId && isMultiProjectWorkspaceSyncRemoteEnabled()) {
       const referenced = await resolveRunReferencedProjects(issueId, anchor.projectId, referencedOptions);
       return { ...anchor, additionalWorkspaces: [],

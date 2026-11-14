@@ -76,7 +76,7 @@ and `composio-permissions-connected-apps.png` in this task's visualization folde
 ### Automated checks
 
 - 261 focused UI/provider/API-client tests passed: Browse, AppsConnect, inventory adapters, and HTTP request isolation.
-- 8 database/service/authorization tests passed, with no skips in the final run. These reused the disposable browser-test database because the host had exhausted its 32 PostgreSQL shared-memory slots. The optional `PAPERCLIP_AGGREGATOR_TEST_DATABASE_URL` test override accepts only a local, disposable database.
+- 8 database/service/authorization tests passed, with no skips in the final run. These reused the disposable browser-test database because the host had exhausted its 32 PostgreSQL shared-memory slots. The optional `OUTPOST_AGGREGATOR_TEST_DATABASE_URL` test override accepts only a local, disposable database.
 - 9 shared catalog tests passed.
 - Final `pnpm -r typecheck`, `pnpm build`, token gates, and `git diff --check` passed.
 - `pnpm test:run` was attempted but did not complete successfully. It encountered a timeout in `workspace-git-snapshot-streaming.test.ts`, failures in `heartbeat-run-event-sequencing.test.ts`, and numerous PostgreSQL startup skips; the run ended with exit 130. A separate remote-MCP compatibility run also could not start PostgreSQL. These repository-wide checks are not reported as green.

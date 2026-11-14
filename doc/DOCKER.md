@@ -19,8 +19,8 @@ Build arguments:
 | `USER_UID` | `1000` | UID for the container `node` user (match your host UID to avoid permission issues on bind mounts) |
 | `USER_GID` | `1000` | GID for the container `node` group |
 | `CLI_TOOLS_CACHE_EPOCH` | empty | Refresh the CLI-install layer; CI supplies the current ISO week |
-| `PAPERCLIP_BUILD_VERSION` | empty | Runtime version when Git metadata is unavailable |
-| `PAPERCLIP_BUILD_COMMIT` | empty | Source commit written into the server build stamp and runtime environment |
+| `OUTPOST_BUILD_VERSION` | empty | Runtime version when Git metadata is unavailable |
+| `OUTPOST_BUILD_COMMIT` | empty | Source commit written into the server build stamp and runtime environment |
 
 Changing the build version or commit preserves the CLI-install cache. The
 tool layer refreshes when its weekly epoch, base image, installation command,
@@ -34,7 +34,7 @@ docker build -t paperclip-local \
 
 The image starts the server from a runtime bundle, `server/dist-runtime/index.mjs`,
 with plain `node`. The build creates it from the server's `tsc` output with
-`pnpm --filter @paperclipai/server build:runtime` (`server/scripts/bundle-runtime.mjs`),
+`pnpm --filter @outpost/server build:runtime` (`server/scripts/bundle-runtime.mjs`),
 compiling in the workspace packages that otherwise load as TypeScript source.
 This avoids transpiling them through the tsx loader on every boot. To check a
 build boots, run `scripts/server-boot-smoke.sh node server/dist-runtime/index.mjs`;
@@ -49,15 +49,15 @@ for its immutable multi-platform digest. Downstream services can compose their
 own images from this public base without rebuilding Core.
 
 Stamped standard images include the build-owned remote provider pack at
-`/opt/paperclip-runner/provider-pack` and set
-`PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH` to that directory. Downstream
+`/opt/outpost-runner/provider-pack` and set
+`OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH` to that directory. Downstream
 compositions and the explicit `cloud` target inherit both. The pack is required
 on the controller for remote OpenCode and ACPX runs, even when the sandbox has
 preinstalled providers; setting the environment variable alone cannot repair an
 image that omits the pack. Rebuild and redeploy from a standard image containing
 the pack if runs fail with `runner_remote_provider_artifact_incompatible`.
 
-Local Docker builds must supply a full `PAPERCLIP_BUILD_COMMIT` to include a
+Local Docker builds must supply a full `OUTPOST_BUILD_COMMIT` to include a
 qualified pack. Unstamped builds remain usable for local adapters and skip pack
 generation. The pack stays root-owned and readable by remapped runtime UIDs.
 
@@ -84,9 +84,9 @@ docker build -t paperclip-local . && \
 docker run --name paperclip \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e PAPERCLIP_HOME=/paperclip \
+  -e OUTPOST_HOME=/paperclip \
   -e BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
-  -e PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32) \
+  -e OUTPOST_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32) \
   -v "$(pwd)/data/docker-paperclip:/paperclip" \
   paperclip-local
 ```
@@ -111,7 +111,7 @@ and save them in `docker/.env`. Keep any existing deployment's values unchanged:
 
 ```dotenv
 BETTER_AUTH_SECRET=<session-signing-secret>
-PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=<tool-action-signing-secret>
+OUTPOST_TOOL_ACTION_SIGNING_SECRET=<tool-action-signing-secret>
 ```
 
 Restrict this file to its owner (`chmod 600 docker/.env`) and keep it out of version
@@ -135,13 +135,13 @@ Defaults:
 Optional overrides:
 
 ```sh
-PAPERCLIP_PORT=3200 PAPERCLIP_DATA_DIR=../data/pc \
+OUTPOST_PORT=3200 OUTPOST_DATA_DIR=../data/pc \
   docker compose -f docker/docker-compose.quickstart.yml up --build
 ```
 
-**Note:** `PAPERCLIP_DATA_DIR` is resolved relative to the compose file (`docker/`), so `../data/pc` maps to `data/pc` in the project root.
+**Note:** `OUTPOST_DATA_DIR` is resolved relative to the compose file (`docker/`), so `../data/pc` maps to `data/pc` in the project root.
 
-If you change host port or use a non-local domain, set `PAPERCLIP_PUBLIC_URL` to the external URL you will use in browser/auth flows.
+If you change host port or use a non-local domain, set `OUTPOST_PUBLIC_URL` to the external URL you will use in browser/auth flows.
 
 Pass `OPENAI_API_KEY` and/or `ANTHROPIC_API_KEY` to enable local adapter runs.
 
@@ -155,7 +155,7 @@ docker compose -f docker/docker-compose.yml up --build
 
 PostgreSQL data persists in a named Docker volume (`pgdata`). Paperclip data persists in `paperclip-data`.
 
-Both Compose files pass `PAPERCLIP_TOOL_ACTION_SIGNING_SECRET` to the server.
+Both Compose files pass `OUTPOST_TOOL_ACTION_SIGNING_SECRET` to the server.
 When configured, keep it independent from `BETTER_AUTH_SECRET`. When unset,
 the server derives a separate signing key from its persisted secrets master key.
 Keep that key with database backups, and share the signing key or master key
@@ -179,12 +179,12 @@ For authenticated deployments, set one canonical public URL and let Paperclip de
 services:
   paperclip:
     environment:
-      PAPERCLIP_DEPLOYMENT_MODE: authenticated
-      PAPERCLIP_DEPLOYMENT_EXPOSURE: private
-      PAPERCLIP_PUBLIC_URL: https://desk.koker.net
+      OUTPOST_DEPLOYMENT_MODE: authenticated
+      OUTPOST_DEPLOYMENT_EXPOSURE: private
+      OUTPOST_PUBLIC_URL: https://desk.koker.net
 ```
 
-`PAPERCLIP_PUBLIC_URL` is used as the primary source for:
+`OUTPOST_PUBLIC_URL` is used as the primary source for:
 
 - auth public base URL
 - Better Auth base URL defaults
@@ -201,27 +201,27 @@ public deployments should run the high-entropy CLI invite fallback instead:
 pnpm paperclipai auth bootstrap-ceo
 ```
 
-Granular overrides remain available if needed (`PAPERCLIP_AUTH_PUBLIC_BASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `PAPERCLIP_ALLOWED_HOSTNAMES`).
+Granular overrides remain available if needed (`OUTPOST_AUTH_PUBLIC_BASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `OUTPOST_ALLOWED_HOSTNAMES`).
 
-Set `PAPERCLIP_ALLOWED_HOSTNAMES` explicitly only when you need additional hostnames beyond the public URL host (for example Tailscale/LAN aliases or multiple private hostnames).
+Set `OUTPOST_ALLOWED_HOSTNAMES` explicitly only when you need additional hostnames beyond the public URL host (for example Tailscale/LAN aliases or multiple private hostnames).
 
 ### Optional Vercel Connect credentials
 
 Vercel Connect's backend integration is retained for controlled testing and
 existing Vercel-backed connections, but its new-connection UI is currently
 withheld from **Apps → Browse**. Setting
-`PAPERCLIP_VERCEL_CONNECT_ENABLED=true` does not expose a customer-facing setup
+`OUTPOST_VERCEL_CONNECT_ENABLED=true` does not expose a customer-facing setup
 entry. Native provider setup screens remain unchanged. Vercel-hosted deployments use the
 workload OIDC token Vercel injects. Other hosted and self-hosted deployments
-can provide `PAPERCLIP_VERCEL_CONNECT_ACCESS_TOKEN` as a deployment bootstrap
+can provide `OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN` as a deployment bootstrap
 secret only when that token type is accepted by the live Connect API:
 
 ```yaml
 services:
   paperclip:
     environment:
-      PAPERCLIP_VERCEL_CONNECT_ENABLED: "true"
-      PAPERCLIP_VERCEL_CONNECT_ACCESS_TOKEN: ${PAPERCLIP_VERCEL_CONNECT_ACCESS_TOKEN}
+      OUTPOST_VERCEL_CONNECT_ENABLED: "true"
+      OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN: ${OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN}
 ```
 
 Do not save that access token in a company secret or connection config. It is
@@ -249,7 +249,7 @@ You do not run a shell command or configure a CLI home.
 docker run --name paperclip \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e PAPERCLIP_HOME=/paperclip \
+  -e OUTPOST_HOME=/paperclip \
   -v "$(pwd)/data/docker-paperclip:/paperclip" \
   paperclip-local
 ```
@@ -265,8 +265,8 @@ The `docker/quadlet/` directory contains unit files to run Paperclip + PostgreSQ
 
 | File | Purpose |
 |------|---------|
-| `docker/quadlet/paperclip.pod` | Pod definition — groups containers into a shared network namespace |
-| `docker/quadlet/paperclip.container` | Paperclip server — joins the pod, connects to Postgres at `127.0.0.1` |
+| `docker/quadlet/outpost.pod` | Pod definition — groups containers into a shared network namespace |
+| `docker/quadlet/outpost.container` | Paperclip server — joins the pod, connects to Postgres at `127.0.0.1` |
 | `docker/quadlet/paperclip-db.container` | PostgreSQL 17 — joins the pod, health-checked |
 
 ### Setup
@@ -288,9 +288,9 @@ The `docker/quadlet/` directory contains unit files to run Paperclip + PostgreSQ
 3. Create a secrets env file (keep out of version control):
 
    ```sh
-   cat > ~/.config/containers/systemd/paperclip.env <<EOL
+   cat > ~/.config/containers/systemd/outpost.env <<EOL
    BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-   PAPERCLIP_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32)
+   OUTPOST_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32)
    POSTGRES_USER=paperclip
    POSTGRES_PASSWORD=paperclip
    POSTGRES_DB=paperclip
@@ -346,7 +346,7 @@ Useful overrides:
 
 ```sh
 HOST_PORT=3200 PAPERCLIPAI_VERSION=latest ./scripts/docker-onboard-smoke.sh
-PAPERCLIP_DEPLOYMENT_MODE=authenticated PAPERCLIP_DEPLOYMENT_EXPOSURE=private ./scripts/docker-onboard-smoke.sh
+OUTPOST_DEPLOYMENT_MODE=authenticated OUTPOST_DEPLOYMENT_EXPOSURE=private ./scripts/docker-onboard-smoke.sh
 SMOKE_DETACH=true SMOKE_METADATA_FILE=/tmp/paperclip-smoke.env PAPERCLIPAI_VERSION=latest ./scripts/docker-onboard-smoke.sh
 ```
 
@@ -356,7 +356,7 @@ Notes:
 - Container runtime user id defaults to your local `id -u` so the mounted data dir stays writable while avoiding root runtime.
 - Smoke script defaults to `authenticated/private` mode so `HOST=0.0.0.0` can be exposed to the host.
 - Smoke script defaults host port to `3131` to avoid conflicts with local Paperclip on `3100`.
-- Smoke script also defaults `PAPERCLIP_PUBLIC_URL` to `http://localhost:<HOST_PORT>` so bootstrap invite URLs and auth callbacks use the reachable host port instead of the container's internal `3100`.
+- Smoke script also defaults `OUTPOST_PUBLIC_URL` to `http://localhost:<HOST_PORT>` so bootstrap invite URLs and auth callbacks use the reachable host port instead of the container's internal `3100`.
 - In authenticated mode, the smoke script defaults `SMOKE_AUTO_BOOTSTRAP=true` and drives the real bootstrap path automatically: it signs up a real user, runs `paperclipai auth bootstrap-ceo` inside the container to mint a real bootstrap invite, accepts that invite over HTTP, and verifies board session access.
 - Run the script in the foreground to watch the onboarding flow; stop with `Ctrl+C` after validation.
 - Set `SMOKE_DETACH=true` to leave the container running for automation and optionally write shell-ready metadata to `SMOKE_METADATA_FILE`.
@@ -367,7 +367,7 @@ Notes:
 ## General Notes
 
 - The `docker-entrypoint.sh` adjusts the container `node` user UID/GID at startup to match the values passed via `USER_UID`/`USER_GID`, avoiding permission issues on bind-mounted volumes.
-- Before it drops privileges, the entrypoint makes sure `PAPERCLIP_HOME` is owned by the `node` user. Each boot checks only the home directory and its first three levels. The first boot (and any boot after a UID/GID change) also checks the full tree, and then writes `PAPERCLIP_HOME/.paperclip-ownership-verified`. While that marker is current, later boots skip the full-tree walk, which can take minutes on homes with many files. A mismatch triggers a recursive `chown`. If files deep in the tree get the wrong owner (for example, after a restore as root), delete the marker and restart to force a full check. If a check fails (for example, with an I/O error), the entrypoint does not write the marker, so the next boot checks again.
+- Before it drops privileges, the entrypoint makes sure `OUTPOST_HOME` is owned by the `node` user. Each boot checks only the home directory and its first three levels. The first boot (and any boot after a UID/GID change) also checks the full tree, and then writes `OUTPOST_HOME/.paperclip-ownership-verified`. While that marker is current, later boots skip the full-tree walk, which can take minutes on homes with many files. A mismatch triggers a recursive `chown`. If files deep in the tree get the wrong owner (for example, after a restore as root), delete the marker and restart to force a full check. If a check fails (for example, with an I/O error), the entrypoint does not write the marker, so the next boot checks again.
 - The entrypoint writes timestamped lines when it starts, around the full ownership check or any repair (with the duration), and just before it starts the server, so you can measure the pre-start time from the container log.
 - Paperclip data persists via Docker volumes/bind mounts (compose) or at `~/.local/share/paperclip` (quadlet).
 

@@ -115,11 +115,11 @@ export type {
   LoginRunnerRaceResult,
 } from "./login-runner-lifecycle.js";
 export {
-  PAPERCLIP_RUNNER_IDLE_TIMEOUT_DEFAULT_MS,
-  PAPERCLIP_RUNNER_IDLE_TIMEOUT_MAX_MS,
-  PAPERCLIP_RUNNER_DEFAULT_MODELS,
-  PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES,
-  PAPERCLIP_RUNNER_ACPX_PROFILES,
+  OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS,
+  OUTPOST_RUNNER_IDLE_TIMEOUT_MAX_MS,
+  OUTPOST_RUNNER_DEFAULT_MODELS,
+  OUTPOST_RUNNER_PERMISSION_CAPABILITIES,
+  OUTPOST_RUNNER_ACPX_PROFILES,
   isPaperclipRunnerProvider,
   resolvePaperclipRunnerIdleTimeoutMs,
   resolvePaperclipRunnerModel,
@@ -129,10 +129,10 @@ export {
   resolvePaperclipRunnerPermissionMode,
   resolvePaperclipRunnerCursorMode,
   resolvePaperclipRunnerPiThinkingLevel,
-} from "./paperclip-runner-permissions.js";
+} from "./outpost-runner-permissions.js";
 export {
-  PAPERCLIP_RUNNER_INGRESS_PORT,
-  PAPERCLIP_RUNNER_CONNECT_PATH_PREFIX,
+  OUTPOST_RUNNER_INGRESS_PORT,
+  OUTPOST_RUNNER_CONNECT_PATH_PREFIX,
   PaperclipRunnerTransportError,
   buildDirectRunnerConnectUrl,
   resolvePaperclipRunnerTransport,
@@ -150,7 +150,7 @@ export type {
   PaperclipRunnerPermissionMode,
   PaperclipRunnerPermissionOption,
   PaperclipRunnerProvider,
-} from "./paperclip-runner-permissions.js";
+} from "./outpost-runner-permissions.js";
 // Keep the root adapter-utils entry browser-safe because the UI imports it.
 // The sandbox callback bridge stays available via its dedicated subpath export.
 export type {

@@ -35,7 +35,7 @@ import {
   issues,
   chatPublications,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   aiConnectionCatalogSlug,
   aiConnectionMetadataSchema,
@@ -48,7 +48,7 @@ import {
   type FastResponseHistoryEntry,
   type UpdateFastResponse,
   type FastResponseTestResult,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import { aiConnectionService } from "./ai-connections.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { isAutomaticRecoverySuppressedByPauseHold } from "./recovery/pause-hold-guard.js";
@@ -320,8 +320,8 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
         gt(heartbeatRunEvents.createdAt, request.acceptedAt),
         sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${request.issueId}`,
         inArray(heartbeatRunEvents.eventType, ["item.delta", "item.completed"]),
-        sql`${heartbeatRunEvents.payload}->'prpEvent'->'payload'->>'kind' = 'agentMessage'`,
-        sql`length(coalesce(${heartbeatRunEvents.payload}->'prpEvent'->'payload'->>'text', '')) > 0`,
+        sql`${heartbeatRunEvents.payload}->'orpEvent'->'payload'->>'kind' = 'agentMessage'`,
+        sql`length(coalesce(${heartbeatRunEvents.payload}->'orpEvent'->'payload'->>'text', '')) > 0`,
       ),
     )
     .limit(1);

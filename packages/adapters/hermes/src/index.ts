@@ -13,7 +13,7 @@ import type {
   AdapterRuntimeCommandSpec,
   AdapterSessionManagement,
   ServerAdapterModule,
-} from "@paperclipai/adapter-utils";
+} from "@outpost/adapter-utils";
 
 import { ADAPTER_TYPE, ADAPTER_LABEL } from "./shared/constants.js";
 import {
@@ -130,10 +130,10 @@ to create, comment on, update, or list Outpost tasks.
 
 Configure credentials through Hermes env/profile secrets, never in prompt text:
 
-- \`PAPERCLIP_API_URL\` - Outpost base URL, with or without \`/api\`
-- \`PAPERCLIP_BRIDGE_API_KEY\` - Outpost agent API key created with \`scope.kind = "task_bridge"\`
-- optional fallback \`PAPERCLIP_API_KEY\` - must still be a task_bridge key, never a normal claimed agent key
-- optional \`PAPERCLIP_COMPANY_ID\`, \`PAPERCLIP_AGENT_ID\`, and \`PAPERCLIP_RUN_ID\`
+- \`OUTPOST_API_URL\` - Outpost base URL, with or without \`/api\`
+- \`OUTPOST_BRIDGE_API_KEY\` - Outpost agent API key created with \`scope.kind = "task_bridge"\`
+- optional fallback \`OUTPOST_API_KEY\` - must still be a task_bridge key, never a normal claimed agent key
+- optional \`OUTPOST_COMPANY_ID\`, \`OUTPOST_AGENT_ID\`, and \`OUTPOST_RUN_ID\`
 
 The bridge is separate from adapter execution:
 

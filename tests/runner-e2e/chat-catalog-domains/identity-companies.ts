@@ -28,7 +28,7 @@ export const companyIdentityCases = [identityDefinition("companies.rename-compan
   const companies = await ctx.input.api.get<unknown[]>("/api/companies");
   return { company, otherCompany, companyCount: companies.length, project: p, task: t, membersBefore: await membershipSnapshot(ctx) };
 }, gradeCompanyRename, {
-  oracleVersion: "paperclip.chat-catalog.company-rename.routes.v2",
+  oracleVersion: "outpost.chat-catalog.company-rename.routes.v2",
   async observe(ctx, state) { state.membersAfter = await membershipSnapshot(ctx); return observeIdentity(ctx, state); },
   async verifyResult(ctx) {
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });

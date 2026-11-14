@@ -102,7 +102,7 @@ function assignedSkillReadText(output: string, binding: NativePrpRunBinding, fix
  */
 function nativeOpenCodeSkillLoad(row: Row, bound: Row[], binding: NativePrpRunBinding, fixture: SavedSkillFixture,
   runtimeName: string | undefined, assignment: SavedSkillReadAssignment | undefined, run: Row | undefined): boolean {
-  const event = row.payload.prpEvent, payload = event.payload, input = run?.runnerProfileJson?.nativeExecutionInput;
+  const event = row.payload.orpEvent, payload = event.payload, input = run?.runnerProfileJson?.nativeExecutionInput;
   const skills = Array.isArray(input?.runtimeContext?.skills)
     ? input.runtimeContext.skills.filter((skill: Row) => skill.key === assignment?.key) : [];
   if (!run || run.runtimeMode !== "native" || input?.provider?.kind !== "opencode"
@@ -130,10 +130,10 @@ function nativeOpenCodeSkillLoad(row: Row, bound: Row[], binding: NativePrpRunBi
   if (!path.startsWith("/") || /[\\\u0000-\u001f\u007f?#]/.test(path) || /%[a-f0-9]{2}/i.test(path)
     || path.split("/").some(part => part === "." || part === "..")
     || !path.replace(/\/$/, "").endsWith(`/.claude/skills/${runtimeName}`)) return false;
-  const pair = bound.filter(candidate => ["tool.execution.started", "tool.execution.completed"].includes(candidate.payload.prpEvent.eventType)
-    && candidate.payload.prpEvent.payload?.executionId === payload.executionId);
-  const start = pair.find(candidate => candidate.payload.prpEvent.eventType === "tool.execution.started");
-  const initial = start?.payload.prpEvent, initialPayload = initial?.payload;
+  const pair = bound.filter(candidate => ["tool.execution.started", "tool.execution.completed"].includes(candidate.payload.orpEvent.eventType)
+    && candidate.payload.orpEvent.payload?.executionId === payload.executionId);
+  const start = pair.find(candidate => candidate.payload.orpEvent.eventType === "tool.execution.started");
+  const initial = start?.payload.orpEvent, initialPayload = initial?.payload;
   return Boolean(pair.length === 2 && start && Number.isSafeInteger(start.seq) && start.seq < row.seq
     && initial.sourceSeq < event.sourceSeq && initial.normalizedSessionId === event.normalizedSessionId && initial.itemId === event.itemId
     && initialPayload?.readOnly === false && initialPayload.target === null);
@@ -169,17 +169,17 @@ function codexAssignedSkillReceipts(bound: Row[], binding: NativePrpRunBinding, 
   const expected = { skill: assignment.key, versionId: assignment.versionId, path: "SKILL.md", text: fixture.markdown,
     sha256: createHash("sha256").update(fixture.markdown, "utf8").digest("hex"),
     byteSize: Buffer.byteLength(fixture.markdown), nextOffset: null };
-  const semantic = (row: Row): Row | undefined => row.payload.prpEvent.payload?.semantic_tool;
+  const semantic = (row: Row): Row | undefined => row.payload.orpEvent.payload?.semantic_tool;
   const content = (value: Row, digest: string) => value.content?.digest === digest
     && value.content.redactionDisposition === "digest_only" && Array.isArray(value.content.references)
     && value.content.references.length === 0
     && Object.keys(value.content).sort().join(",") === "digest,redactionDisposition,references";
   const correlated = (row: Row, phase: "input" | "result") => {
-    const event = row.payload.prpEvent, value = semantic(row), correlation = value?.correlation;
+    const event = row.payload.orpEvent, value = semantic(row), correlation = value?.correlation;
     const keys = ["schema", "schemaVersion", "phase", "operationId", "callId", "correlation", "idempotencyKey", "content",
       ...(phase === "input" ? ["input"] : ["outcome", "code", "retryable", "authorizationBoundary", "operationReceiptId"])];
     return Boolean(value && event.eventType === `semantic_tool.${phase}` && value.phase === phase
-      && value.schema === "paperclip.prp.semantic_tool.v1" && value.schemaVersion === 1
+      && value.schema === "outpost.orp.semantic_tool.v1" && value.schemaVersion === 1
       && Object.keys(value).sort().join(",") === keys.sort().join(",")
       && value.operationId === "read_assigned_skill" && typeof value.callId === "string" && value.callId.trim()
       && value.idempotencyKey === null && Number.isSafeInteger(row.seq)
@@ -202,7 +202,7 @@ function codexAssignedSkillReceipts(bound: Row[], binding: NativePrpRunBinding, 
     const pair = bound.filter(row => semantic(row)?.callId === initial.callId);
     const end = pair.find(row => correlated(row, "result"));
     if (pair.length !== 2 || !end || start.seq >= end.seq
-      || start.payload.prpEvent.sourceSeq >= end.payload.prpEvent.sourceSeq) return [];
+      || start.payload.orpEvent.sourceSeq >= end.payload.orpEvent.sourceSeq) return [];
     const result = semantic(end)!;
     if (semanticDigest(initial.correlation) !== semanticDigest(result.correlation)
       || result.outcome !== "succeeded" || result.code !== "semantic_tool_succeeded" || result.retryable !== false
@@ -218,8 +218,8 @@ export function savedSkillReadReceipts(events: Row[], binding: NativePrpRunBindi
   runtimeName?: string, assignment?: SavedSkillReadAssignment, run?: Row) {
   const bound = events.filter(row => isBoundNativePrpEventRow(row, binding));
   const builtin = bound.filter(row => {
-    const event = row.payload.prpEvent, payload = event.payload;
-    if (event.eventType !== "tool.execution.completed" || payload?.schema !== "paperclip.tool.execution.v1"
+    const event = row.payload.orpEvent, payload = event.payload;
+    if (event.eventType !== "tool.execution.completed" || payload?.schema !== "outpost.tool.execution.v1"
       || payload.transport !== "builtin" || payload.status !== "completed"
       || typeof event.turnId !== "string" || !event.turnId.trim()
       || typeof payload.executionId !== "string" || !payload.executionId.trim()
@@ -256,14 +256,14 @@ export function savedSkillReadReceipts(events: Row[], binding: NativePrpRunBindi
     const output = (assignedText ?? (wrappedRead ? wrapped![2]! : payload.output)).split("\n").map((line: string) => line.replace(/^\s*\d+(?:[:|]|→)\s?/, "")).join("\n");
     if (!output.includes(fixture.procedure.trim())) return false;
     return bound.some(start => {
-      const initial = start.payload.prpEvent, p = initial.payload;
+      const initial = start.payload.orpEvent, p = initial.payload;
       return initial.eventType === "tool.execution.started" && start.seq < row.seq
         && initial.sourceInstanceId === event.sourceInstanceId && initial.turnId === event.turnId
         && p?.schema === payload.schema && p.executionId === payload.executionId && p.name === payload.name
         && p.transport === payload.transport && p.operation === payload.operation && p.status === "running"
         && (!(wrappedRead || assignedText !== undefined) || p.readOnly === true);
     });
-  }).map(row => ({ runId: binding.runId, executionId: String(row.payload.prpEvent.payload.executionId), seq: Number(row.seq) }));
+  }).map(row => ({ runId: binding.runId, executionId: String(row.payload.orpEvent.payload.executionId), seq: Number(row.seq) }));
   return [...builtin, ...codexAssignedSkillReceipts(bound, binding, fixture, assignment, run)];
 }
 

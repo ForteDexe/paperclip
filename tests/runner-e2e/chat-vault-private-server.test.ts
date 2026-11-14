@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { CHAT_PRIVATE_INPUTS_ENV } from "./chat-private-inputs.js";
 import {
-  buildPaperclipServerEnvironment,
+  buildOutpostServerEnvironment,
   buildRunnerE2EProcessEnvironment,
 } from "./harness-env.js";
 import {
@@ -30,10 +30,10 @@ function binding() {
       "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
     ],
     credentialEnv: [
-      "PAPERCLIP_CHAT_EVAL_AWS_ACCESS",
-      "PAPERCLIP_CHAT_EVAL_AWS_SECRET",
-      "PAPERCLIP_CHAT_EVAL_AWS_SESSION",
-      "PAPERCLIP_CHAT_EVAL_VAULT_EXPECTED",
+      "OUTPOST_CHAT_EVAL_AWS_ACCESS",
+      "OUTPOST_CHAT_EVAL_AWS_SECRET",
+      "OUTPOST_CHAT_EVAL_AWS_SESSION",
+      "OUTPOST_CHAT_EVAL_VAULT_EXPECTED",
     ],
     prerequisites: {
       provider: "aws_secrets_manager",
@@ -43,16 +43,16 @@ function binding() {
         "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
       secretReference:
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:disposable/deployment-AbCdEf",
-      accessKeyIdEnv: "PAPERCLIP_CHAT_EVAL_AWS_ACCESS",
-      secretAccessKeyEnv: "PAPERCLIP_CHAT_EVAL_AWS_SECRET",
-      sessionTokenEnv: "PAPERCLIP_CHAT_EVAL_AWS_SESSION",
-      expectedValueEnv: "PAPERCLIP_CHAT_EVAL_VAULT_EXPECTED",
+      accessKeyIdEnv: "OUTPOST_CHAT_EVAL_AWS_ACCESS",
+      secretAccessKeyEnv: "OUTPOST_CHAT_EVAL_AWS_SECRET",
+      sessionTokenEnv: "OUTPOST_CHAT_EVAL_AWS_SESSION",
+      expectedValueEnv: "OUTPOST_CHAT_EVAL_VAULT_EXPECTED",
     },
   };
 }
 async function fixture() {
   const root = await mkdtemp(
-    path.join(tmpdir(), "paperclip-runner-e2e-vault-control-"),
+    path.join(tmpdir(), "outpost-runner-e2e-vault-control-"),
   );
   roots.push(root);
   const directory = path.join(root, "selected-private-inputs");
@@ -63,10 +63,10 @@ async function fixture() {
     version: 1,
     executionId: vaultExecutionId,
     references: {
-      PAPERCLIP_CHAT_EVAL_AWS_ACCESS: "ASIA1234567890123456",
-      PAPERCLIP_CHAT_EVAL_AWS_SECRET: "synthetic-selected-secret-key",
-      PAPERCLIP_CHAT_EVAL_AWS_SESSION: "synthetic-selected-session-token",
-      PAPERCLIP_CHAT_EVAL_VAULT_EXPECTED: "synthetic-vault-oracle-only",
+      OUTPOST_CHAT_EVAL_AWS_ACCESS: "ASIA1234567890123456",
+      OUTPOST_CHAT_EVAL_AWS_SECRET: "synthetic-selected-secret-key",
+      OUTPOST_CHAT_EVAL_AWS_SESSION: "synthetic-selected-session-token",
+      OUTPOST_CHAT_EVAL_VAULT_EXPECTED: "synthetic-vault-oracle-only",
     },
     external: { schemaVersion: 1, providers: { vault: b } },
     declaredReferenceNames: b.credentialEnv,
@@ -90,7 +90,7 @@ async function fixture() {
         [CHAT_PRIVATE_INPUTS_ENV]: filename,
         AWS_ACCESS_KEY_ID: "AMBIENT-DO-NOT-USE",
         AWS_PROFILE: "unrelated-personal-profile",
-        PAPERCLIP_SECRETS_AWS_ENDPOINT: "http://unrelated.test",
+        OUTPOST_SECRETS_AWS_ENDPOINT: "http://unrelated.test",
       },
     },
   };
@@ -99,22 +99,22 @@ it("supplies only explicitly selected server credentials/config and excludes ora
   const f = await fixture(),
     env = await readSelectedVaultServerEnvironment(f.input);
   expect(env.AWS_ACCESS_KEY_ID).toBe(
-    f.envelope.references.PAPERCLIP_CHAT_EVAL_AWS_ACCESS,
+    f.envelope.references.OUTPOST_CHAT_EVAL_AWS_ACCESS,
   );
   expect(env.AWS_SECRET_ACCESS_KEY).toBe(
-    f.envelope.references.PAPERCLIP_CHAT_EVAL_AWS_SECRET,
+    f.envelope.references.OUTPOST_CHAT_EVAL_AWS_SECRET,
   );
   expect(env.AWS_SESSION_TOKEN).toBe(
-    f.envelope.references.PAPERCLIP_CHAT_EVAL_AWS_SESSION,
+    f.envelope.references.OUTPOST_CHAT_EVAL_AWS_SESSION,
   );
   expect(env.AWS_EC2_METADATA_DISABLED).toBe("true");
   expect(env.AWS_PROFILE).toBeUndefined();
-  expect(env.PAPERCLIP_SECRETS_AWS_ENDPOINT).toBeUndefined();
+  expect(env.OUTPOST_SECRETS_AWS_ENDPOINT).toBeUndefined();
   expect(JSON.stringify(env)).not.toContain(
-    f.envelope.references.PAPERCLIP_CHAT_EVAL_VAULT_EXPECTED,
+    f.envelope.references.OUTPOST_CHAT_EVAL_VAULT_EXPECTED,
   );
   expect(
-    Object.keys(env).some((name) => name.startsWith("PAPERCLIP_CHAT_EVAL_")),
+    Object.keys(env).some((name) => name.startsWith("OUTPOST_CHAT_EVAL_")),
   ).toBe(false);
   expect(env.AWS_CONFIG_FILE).toBe(env.AWS_SHARED_CREDENTIALS_FILE);
 });
@@ -127,7 +127,7 @@ it("keeps missing selected inputs as reserved setup prerequisites without using 
     }),
   ).toEqual({});
   f.envelope.setupBlockers = [
-    "missing-external-reference:PAPERCLIP_CHAT_EVAL_AWS_ACCESS",
+    "missing-external-reference:OUTPOST_CHAT_EVAL_AWS_ACCESS",
   ];
   await f.save();
   expect(await readSelectedVaultServerEnvironment(f.input)).toEqual({});
@@ -187,12 +187,12 @@ it("scrubs ambient AWS and vault SDK config while preserving explicit unrelated 
     AWS_PROFILE: "personal",
     AWS_CONTAINER_CREDENTIALS_FULL_URI: "https://unrelated.test",
     AWS_WEB_IDENTITY_TOKEN_FILE: "/private/personal-token",
-    PAPERCLIP_SECRETS_AWS_ENDPOINT: "https://unrelated.test",
+    OUTPOST_SECRETS_AWS_ENDPOINT: "https://unrelated.test",
     KEEP: "yes",
   };
-  expect(buildPaperclipServerEnvironment(ambient)).toEqual({ KEEP: "yes" });
+  expect(buildOutpostServerEnvironment(ambient)).toEqual({ KEEP: "yes" });
   expect(
-    buildPaperclipServerEnvironment(ambient, {
+    buildOutpostServerEnvironment(ambient, {
       AWS_ACCESS_KEY_ID: "explicit-selected",
     }).AWS_ACCESS_KEY_ID,
   ).toBe("explicit-selected");
@@ -206,7 +206,7 @@ it("scrubs ambient AWS and vault SDK config while preserving explicit unrelated 
   expect(
     Object.keys(chat).some(
       (name) =>
-        name.startsWith("AWS_") || name.startsWith("PAPERCLIP_SECRETS_AWS_"),
+        name.startsWith("AWS_") || name.startsWith("OUTPOST_SECRETS_AWS_"),
     ),
   ).toBe(false);
   const other = buildRunnerE2EProcessEnvironment(ambient, [
@@ -221,7 +221,7 @@ it("scrubs ambient AWS and vault SDK config while preserving explicit unrelated 
 it("binds the OpenCode vault envelope to the exact selected new execution, never the prior campaign", async () => {
   const f = await fixture();
   f.input.executionIds = [vaultExecutionIds[1]!]; f.envelope.executionId = vaultExecutionIds[1]!; await f.save();
-  expect(await readSelectedVaultServerEnvironment(f.input)).toHaveProperty("AWS_ACCESS_KEY_ID", f.envelope.references.PAPERCLIP_CHAT_EVAL_AWS_ACCESS);
+  expect(await readSelectedVaultServerEnvironment(f.input)).toHaveProperty("AWS_ACCESS_KEY_ID", f.envelope.references.OUTPOST_CHAT_EVAL_AWS_ACCESS);
   f.envelope.executionId = vaultExecutionId; await f.save();
   await expect(readSelectedVaultServerEnvironment(f.input)).rejects.toThrow();
 });

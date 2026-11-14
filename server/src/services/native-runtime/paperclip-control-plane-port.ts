@@ -2,7 +2,7 @@ import { notifyNativeResultCommit } from "../native-result-commit-notifications.
 import { notifyNativeWorkspaceFinalization } from "../native-workspace-finalization-notifications.js";
 import { createAgentIdentityRedactor } from "../agent-identity-redaction.js";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   heartbeatRunEvents,
   heartbeatRuns,
@@ -11,7 +11,7 @@ import {
   nativeRunResults,
   nativeRunnerCheckpoints,
   toolInvocations,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type {
   CompleteControlPlaneRunInput,
   ControlPlanePort,
@@ -22,12 +22,12 @@ import type {
   PrpEvent,
   PrpTerminalState,
   ReplayControlPlaneEventsInput,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import {
   normalizePrpResultSignals,
   validatePrpEvent,
   validatePrpStructuredRunResult,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 import { publishLiveEvent } from "../live-events.js";
 import { nativeSha256 } from "./canonical.js";
@@ -36,7 +36,7 @@ import { createNativeControllerRecovery, NATIVE_CONTROLLER_RECOVERY_MAX_BYTES, t
 import { eligibleNativeTaskSessionPublication, publishNativeTaskSessionInTransaction, NATIVE_TASK_SESSION_PUBLICATION_KEY,
   type NativeTaskSessionPublicationContext, type NativeTaskSessionPublicationIssue } from "./native-task-session-publication.js";
 import { lockNativeRunnerCheckpointOwner, nativeRunnerCheckpointOwnerLock, validateNativeRunnerCheckpointOwner, inspectNativeRunnerUpgradeHeader, type NativeRunnerCheckpointOwner } from "./native-runner-checkpoint.js";
-import { crashPoint } from "@paperclipai/shared/crash-points";
+import { crashPoint } from "@outpost/shared/crash-points";
 import { NATIVE_PROVIDER_DURABLE_EVENT_TYPES } from "./native-retired-backup-source.js";
 
 export interface PaperclipControlPlaneBinding {
@@ -56,9 +56,9 @@ const IDENTITY_DELTA_RETRY_BYTES = 4 * 1024 * 1024;
 
 function isPrpEvent(value: NativeRunEvent | PrpEvent): value is PrpEvent {
   return "schema" in value && [
-    "paperclip.prp.event.v1",
-    "paperclip.prp.event.v2",
-    "paperclip.prp.event.v3",
+    "outpost.orp.event.v1",
+    "outpost.orp.event.v2",
+    "outpost.orp.event.v3",
   ].includes(value.schema);
 }
 
@@ -75,7 +75,7 @@ function record(value: unknown): Record<string, unknown> {
 function assertTerminal(value: unknown): asserts value is PrpTerminalState {
   const terminal = value as Partial<PrpTerminalState> | null;
   if (
-    terminal?.schema !== "paperclip.prp.terminal.v1"
+    terminal?.schema !== "outpost.orp.terminal.v1"
     || !["completed", "failed", "interrupted", "cancelled"].includes(String(terminal.turnTerminalState))
     || !["succeeded", "failed", "cancelled"].includes(String(terminal.runTerminalState))
     || !["done", "blocked", "needs_review", "yielded"].includes(String(terminal.reportedWorkDisposition))
@@ -324,7 +324,7 @@ export class PaperclipControlPlanePort implements ControlPlanePort {
       const header = recovery && selected?.checkpointHeader
         ? inspectNativeRunnerUpgradeHeader(this.#binding, selected.checkpointHeader) : null;
       if (header && (header.normalizedSessionId !== identity.sessionId || header.runnerInstanceId !== this.#binding.sourceInstanceId)) {
-        throw new Error("native_session_checkpoint_prp_binding_mismatch");
+        throw new Error("native_session_checkpoint_orp_binding_mismatch");
       }
       const profile: Record<string, unknown> = {
           ...record(run.runnerProfileJson),
@@ -420,7 +420,7 @@ export class PaperclipControlPlanePort implements ControlPlanePort {
         eventType: event.eventType,
         stream: "system",
         level: event.eventType.includes("failed") ? "error" : "info",
-        payload: { prpEvent: event as unknown as Record<string, unknown> },
+        payload: { orpEvent: event as unknown as Record<string, unknown> },
         nativeSource: {
           sourceInstanceId: event.sourceInstanceId,
           sourceEventId: event.sourceEventId,
@@ -502,7 +502,7 @@ export class PaperclipControlPlanePort implements ControlPlanePort {
       .orderBy(asc(heartbeatRunEvents.sourceSeq))
       .limit(Math.max(1, Math.min(input.limit, 1_000)));
     const events = rows.flatMap((row) => {
-      const candidate = row.payload?.prpEvent;
+      const candidate = row.payload?.orpEvent;
       const parsed = validatePrpEvent(candidate);
       return parsed.ok ? [parsed.event] : [];
     });
@@ -654,9 +654,9 @@ export class PaperclipControlPlanePort implements ControlPlanePort {
           // Publish the accepted contract with its durable receipt. Recovery
           // may settle this run without the original adapter ever returning.
           nativeTerminal: value.terminal,
-          prpTurnTerminalState: value.terminal.turnTerminalState,
-          prpRunTerminalState: value.terminal.runTerminalState,
-          prpReportedWorkDisposition: value.terminal.reportedWorkDisposition,
+          orpTurnTerminalState: value.terminal.turnTerminalState,
+          orpRunTerminalState: value.terminal.runTerminalState,
+          orpReportedWorkDisposition: value.terminal.reportedWorkDisposition,
         },
         updatedAt: new Date(),
       }).where(eq(heartbeatRuns.id, this.#binding.runId));

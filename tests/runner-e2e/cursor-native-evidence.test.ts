@@ -21,21 +21,21 @@ it("quotes fixture paths and refuses relative or multiline targets", () => {
   expect(() => cursorDeniedCommand("relative")).toThrow(); expect(() => cursorDeniedCommand("/fixture/\ncommand")).toThrow();
 });
 it("reads only strict public producer-bound evidence and rejects incompleteness", () => {
-  const rows = denialNotices().map(n => ({ runId: n.runId, seq: n.seq, protocolSchemaVersion: 1, eventType: "provider.notice.recorded", payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: n.runId, turnId: n.turnId, emittedAt: new Date(1).toISOString(), eventType: "provider.notice.recorded",
-    payload: { schema: "paperclip.provider.notice.v1", scope: "turn", category: "cursor_tool_evidence_v1", provenance: { sessionId: n.sessionId, turnId: n.turnId, eventType: n.stage, method: n.stage === "tool" ? "session/update" : "session/request_permission" },
+  const rows = denialNotices().map(n => ({ runId: n.runId, seq: n.seq, protocolSchemaVersion: 1, eventType: "provider.notice.recorded", payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: n.runId, turnId: n.turnId, emittedAt: new Date(1).toISOString(), eventType: "provider.notice.recorded",
+    payload: { schema: "outpost.provider.notice.v1", scope: "turn", category: "cursor_tool_evidence_v1", provenance: { sessionId: n.sessionId, turnId: n.turnId, eventType: n.stage, method: n.stage === "tool" ? "session/update" : "session/request_permission" },
       details: Object.entries(n).filter(([key]) => !["runId", "sessionId", "turnId", "seq"].includes(key)).map(([name, value]) => ({ name, value: String(value) })) },
   } } }));
   expect(grade(readCursorToolEvidence(rows, "run"))).toBe(true);
-  const changed = structuredClone(rows); changed[0]!.payload.prpEvent.payload.provenance.turnId = "other";
+  const changed = structuredClone(rows); changed[0]!.payload.orpEvent.payload.provenance.turnId = "other";
   expect(() => readCursorToolEvidence(changed, "run")).toThrow();
-  const incomplete = structuredClone(rows); incomplete[0]!.payload.prpEvent.payload.details[0] = { name: "stage", value: "evidence_incomplete" };
+  const incomplete = structuredClone(rows); incomplete[0]!.payload.orpEvent.payload.details[0] = { name: "stage", value: "evidence_incomplete" };
   expect(() => readCursorToolEvidence(incomplete, "run")).toThrow(/incomplete/);
   expect(() => readCursorToolEvidence([...rows, rows[0]], "run")).toThrow(/Duplicate/);
 });
 it("requires acknowledged cancellation and an actual correlated terminal after the request", () => {
   const input = { run: { id: "run", status: "cancelled", resultJson: { nativeCancellation: { dispatchState: "acknowledged", dispatched: true, scope: "run" } } }, issue: { status: "in_progress" }, runId: "run", turnId: "turn", requestedAt: 10,
-    events: [{ runId: "run", protocolSchemaVersion: 1, payload: { prpEvent: { runId: "run", turnId: "turn", eventType: "turn.cancelled", schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", emittedAt: new Date(11).toISOString() } } }] };
+    events: [{ runId: "run", protocolSchemaVersion: 1, payload: { orpEvent: { runId: "run", turnId: "turn", eventType: "turn.cancelled", schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", emittedAt: new Date(11).toISOString() } } }] };
   expect(hasCursorCancellation(input)).toBe(true);
   expect(hasCursorCancellation({ ...input, events: [] })).toBe(false); expect(hasCursorCancellation({ ...input, requestedAt: 12 })).toBe(false);
   expect(hasCursorCancellation({ ...input, issue: { status: "done" } })).toBe(false);
@@ -87,15 +87,15 @@ it("allows explicit earlier remote bootstrap reads while rejecting unknown kinds
   const input = { notices: [read, ...rows], runId: "run", turnId: "turn", requestId: "request", toolCallId: "tool", commandSha256: cursorDeniedCommand("/fixture/denied.txt").commandSha256 };
   expect(hasCursorDeniedCommand(input)).toBe(false);
   const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
-  const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
-    payload: { schema: "paperclip.tool.execution.v1", executionId: "bootstrap-read", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
+  const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
+    payload: { schema: "outpost.tool.execution.v1", executionId: "bootstrap-read", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
   } } };
   read.readTargetSha256 = `sha256:${createHash("sha256").update(actionFile).digest("hex")}`;
   const bootstrapReadProof = { actionFile, events: [event] };
   expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof })).toBe(true);
   expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof: { actionFile, events: [] } })).toBe(false);
-  const wrong = structuredClone(event); wrong.payload.prpEvent.payload.target = "unrelated.txt";
+  const wrong = structuredClone(event); wrong.payload.orpEvent.payload.target = "unrelated.txt";
   expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof: { actionFile, events: [wrong] } })).toBe(false);
   const extra = { ...read, toolCallId: "unrelated", seq: 0 };
   expect(hasCursorDeniedCommand({ ...input, notices: [extra, ...input.notices], bootstrapReadProof })).toBe(false);
@@ -115,13 +115,13 @@ it("accepts Cursor's transport-completed denial only with the exact delivered re
   expect(grade([...rows, { ...rows[0]!, seq: 5, toolCallId: "replayed-write" }])).toBe(false);
 });
 it("requires a correlated failed semantic finalization after the delivered denial, never false success", () => {
-  const evidence = { runId: "run", seq: 3, protocolSchemaVersion: 1, eventType: "provider.notice.recorded", payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", emittedAt: new Date(1).toISOString(), eventType: "provider.notice.recorded",
-    payload: { schema: "paperclip.provider.notice.v1", scope: "turn", category: "cursor_tool_evidence_v1", provenance: { sessionId: "session", turnId: "turn", eventType: "permission_delivered", method: "session/request_permission" },
+  const evidence = { runId: "run", seq: 3, protocolSchemaVersion: 1, eventType: "provider.notice.recorded", payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", emittedAt: new Date(1).toISOString(), eventType: "provider.notice.recorded",
+    payload: { schema: "outpost.provider.notice.v1", scope: "turn", category: "cursor_tool_evidence_v1", provenance: { sessionId: "session", turnId: "turn", eventType: "permission_delivered", method: "session/request_permission" },
       details: [{ name: "stage", value: "permission_delivered" }, { name: "toolCallId", value: "tool" }, { name: "requestId", value: "request" }, { name: "outcome", value: "reject_once" }] },
   } } };
-  const terminal = { runId: "run", seq: 5, protocolSchemaVersion: 1, eventType: "turn.completed", payload: { prpEvent: {
-    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", emittedAt: new Date(2).toISOString(), eventType: "turn.completed", payload: { status: "completed", error: null },
+  const terminal = { runId: "run", seq: 5, protocolSchemaVersion: 1, eventType: "turn.completed", payload: { orpEvent: {
+    schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", emittedAt: new Date(2).toISOString(), eventType: "turn.completed", payload: { status: "completed", error: null },
   } } };
   const input = { runId: "run", turnId: "turn", requestId: "request", issue: { id: "issue", status: "in_progress" },
     run: { id: "run", nativeIssueId: "issue", runtimeMode: "native", status: "failed", errorCode: "native_session_interrupted", error: "native_finalization_missing: session returned no semantic result" }, events: [evidence, terminal] };

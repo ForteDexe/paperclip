@@ -357,7 +357,7 @@ export async function runConnectionFlow(input: ConnectionFlowInput) {
   evidence.checkpoints.artifact = true;
   // Artifact upload provenance is a server-owned tool-side effect in both runner generations.
   const events = await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${first.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-  const toolReceipt = events.some(event => event.eventType === "tool.execution.completed" || (event.eventType === "item.completed" && ["tool_result", "command_execution"].includes(event.payload?.prpEvent?.payload?.item?.type)));
+  const toolReceipt = events.some(event => event.eventType === "tool.execution.completed" || (event.eventType === "item.completed" && ["tool_result", "command_execution"].includes(event.payload?.orpEvent?.payload?.item?.type)));
   // Legacy adapters may expose their tool transcript only in the run log; upload attribution is still a durable successful tool effect.
   evidence.checkpoints.tool_receipt = execution.profile.generation === "legacy" || toolReceipt;
   if (!evidence.checkpoints.tool_receipt) throw new ConnectionFailure("native_tool_receipt_missing");

@@ -6,7 +6,7 @@ import { writeToolReviewChange } from "../services/tool-review-work-notification
 import { deleteCompany } from "../services/company-deletion.js";
 import { subscribeDeliveryWork } from "../services/delivery-work-notifications.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
-import type { RequestConfirmationPayload } from "@paperclipai/shared";
+import type { RequestConfirmationPayload } from "@outpost/shared";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -42,7 +42,7 @@ import {
   toolInvocations,
   toolPolicies,
   toolRateLimitCounters,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import type { PluginToolDispatcher } from "../services/plugin-tool-dispatcher.js";
 import type { VercelConnectClient } from "../services/vercel-connect.js";
 import { initializeRunIdentity, reserveSteeredIdentity, reconcileSteeredIdentity } from "../services/run-identity.js";
@@ -70,7 +70,7 @@ import { registerToolReviewRecoveryWork } from "../services/tool-review-recovery
 import { registerToolReviewExpiryWork } from "../services/tool-review-expiry-work.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
-const externalDatabaseUrl = resolveExternalTestDatabaseUrl("PAPERCLIP_TOOL_REVIEW_TEST_DATABASE_URL");
+const externalDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_TOOL_REVIEW_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 const testToolActionSigningSecret = "test-tool-action-signing-secret";
@@ -1231,14 +1231,14 @@ describeEmbeddedPostgres("tool gateway service", () => {
 
       it("retains approved work when the signing key is temporarily unavailable", async () => {
         const pending = await request(); await approve(pending);
-        vi.stubEnv("PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", "");
-        vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "invalid-master-key");
+        vi.stubEnv("OUTPOST_TOOL_ACTION_SIGNING_SECRET", "");
+        vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "invalid-master-key");
         gateway = createToolGatewayService(db);
         await startRecovery();
         expect(coordinator!.nextWakeAt()).not.toBeNull();
         expect((await db.select().from(toolActionRequests))[0].status).toBe("approved");
         expect((await db.select().from(toolInvocations))[0].status).toBe("awaiting_approval");
-        vi.stubEnv("PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", testToolActionSigningSecret);
+        vi.stubEnv("OUTPOST_TOOL_ACTION_SIGNING_SECRET", testToolActionSigningSecret);
         await settle(); await executed(pending); await quiet();
       });
 
@@ -2657,7 +2657,7 @@ describeEmbeddedPostgres("tool gateway service", () => {
   });
 
   it("does not leave unsigned action requests pending when signing is unavailable", async ({ onTestFinished }) => {
-    vi.stubEnv("PAPERCLIP_TOOL_ACTION_SIGNING_SECRET", "");
+    vi.stubEnv("OUTPOST_TOOL_ACTION_SIGNING_SECRET", "");
     const { company, agent, run } = await createRunFixture(db);
     await db.insert(toolPolicies).values(reviewNotePolicyRow(company));
     const gateway = createTestToolGatewayService(db, { toolActionSigningSecret: " " });
@@ -2666,8 +2666,8 @@ describeEmbeddedPostgres("tool gateway service", () => {
     onTestFinished(() => rm(keyDirectory, { recursive: true, force: true }));
     const keyFile = join(keyDirectory, "master.key");
     await writeFile(keyFile, "corrupt-fixture-master-key", { mode: 0o600 });
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", "");
-    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY_FILE", keyFile);
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
+    vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", keyFile);
 
     await expect(gateway.executeTool({
       sessionToken: session.token,

@@ -4,8 +4,8 @@ export function isValidNativePrpEnvelope(
 ) {
   const version = envelope.schemaVersion;
   const validSchema =
-    (envelope.schema === "paperclip.prp.event.v1" && version === 1) ||
-    (envelope.schema === "paperclip.prp.event.v2" && version === 2);
+    (envelope.schema === "outpost.orp.event.v1" && version === 1) ||
+    (envelope.schema === "outpost.orp.event.v2" && version === 2);
   return validSchema && protocolSchemaVersion === version;
 }
 
@@ -16,7 +16,7 @@ export interface NativePrpRunBinding {
 }
 
 export function isBoundNativePrpEventRow(row: Record<string, any>, binding?: NativePrpRunBinding, sourceInstanceId?: string): boolean {
-  const event = row.payload?.prpEvent;
+  const event = row.payload?.orpEvent;
   return Boolean(binding && [binding.runId, binding.companyId, binding.agentId]
     .every(value => typeof value === "string" && value.trim())
     && event && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JsonSchema } from "@paperclipai/shared";
+import type { JsonSchema } from "@outpost/shared";
 import { validateInstanceConfig } from "../services/plugin-config-validator.js";
 
 const SECRET_ID = "11111111-1111-4111-8111-111111111111";

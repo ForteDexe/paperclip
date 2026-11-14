@@ -1,5 +1,5 @@
-import { usdToUnits } from "@paperclipai/shared";
-import type { NativeExecutionInput, PrpEvent } from "../../vendor/paperclip-runner/index.js";
+import { usdToUnits } from "@outpost/shared";
+import type { NativeExecutionInput, PrpEvent } from "../../vendor/outpost-runner/index.js";
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 function numericUsageField(
@@ -170,7 +170,7 @@ export function nativeUsageCostUsd(
   const hasRunDelta = Object.hasOwn(usage, "runDelta") || Object.hasOwn(record(usage.usage), "runDelta");
   const direct = numericUsageField(measurement, ["cacheAdjustedCostUsd", "providerCostUsd", "costUsd"])
     ?? (hasRunDelta ? undefined : numericUsageField(usage, ["cacheAdjustedCostUsd", "providerCostUsd", "costUsd"]));
-  // PRP currently defaults an absent providerCostUsd to zero. That zero is
+  // ORP currently defaults an absent providerCostUsd to zero. That zero is
   // not proof of a free request when the runtime observed token consumption.
   if (direct !== undefined && direct > 0) return direct;
   const normalized = normalizeNativeUsage(usage);

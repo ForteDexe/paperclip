@@ -13,7 +13,7 @@ or a responsible user alone does not grant peer access.
 
 ## Layout
 
-`PAPERCLIP_DURABLE_AGENT_FILES=true` opts managed files into shared storage. This
+`OUTPOST_DURABLE_AGENT_FILES=true` opts managed files into shared storage. This
 requires the database migration that creates `agent_file_roots` and the existing
 S3 application-storage configuration. Postgres holds the current manifest; S3
 holds immutable file bytes. Saves publish their bytes before committing the
@@ -65,7 +65,7 @@ workspace: their independent agent copy therefore lives under the excluded
 workspace sync, Git staging, or task deliverables.
 
 Sandbox transfer scratch lives separately under
-`.paperclip-runtime/paperclip-runner/agent-file-transfers/<agent>/<run>/`.
+`.paperclip-runtime/outpost-runner/agent-file-transfers/<agent>/<run>/`.
 Workspace-staging transfer scratch stays outside `AGENT_HOME`, including
 recovery after controller restart. Remote warm Codex checkpoints may temporarily
 stage changed-file payloads under `AGENT_HOME/.paperclip-runtime/checkpoint-*`;
@@ -338,8 +338,8 @@ unit or matcher results; a passing matcher does not prove a live run.
 ### Explicit migration and object cleanup
 
 Run `server/src/maintenance/agent-files.ts` with the instance's database,
-storage, secrets and original `PAPERCLIP_HOME`. The default migration phase is
-read-only. Set `PAPERCLIP_DURABLE_AGENT_FILES=true` before applying on the original
+storage, secrets and original `OUTPOST_HOME`. The default migration phase is
+read-only. Set `OUTPOST_DURABLE_AGENT_FILES=true` before applying on the original
 host. Migration uses the same agent row lock as file edits and admission:
 
 ```sh
@@ -383,9 +383,9 @@ this maintenance during the bounded rollout.
 The runtime bundle also contains `node server/dist-runtime/ephemeral-migration.mjs`.
 Cloud starts this dedicated process on the original volume after confirming that
 all application deployments have stopped. It never starts app routes, queues or
-agent execution. Set `PAPERCLIP_EPHEMERAL_MIGRATION=true`, a UUID attempt ID in
-`PAPERCLIP_EPHEMERAL_MIGRATION_ID`, and a fresh 32-byte base64url token in
-`PAPERCLIP_EPHEMERAL_MIGRATION_TOKEN`. Use the original home and instance ID,
+agent execution. Set `OUTPOST_EPHEMERAL_MIGRATION=true`, a UUID attempt ID in
+`OUTPOST_EPHEMERAL_MIGRATION_ID`, and a fresh 32-byte base64url token in
+`OUTPOST_EPHEMERAL_MIGRATION_TOKEN`. Use the original home and instance ID,
 external database, shared S3 configuration and existing stable secrets. Durable
 agent files and shared UI assets must be enabled; ephemeral-server mode stays
 false until adoption completes.
@@ -414,8 +414,8 @@ maintenance. Retain the old volume for recovery evidence; it must not become
 writable authority again after shared state advances.
 
 The opt-in `ephemeral-migration.test.ts` uses disposable PostgreSQL and an
-S3-compatible endpoint. Set `PAPERCLIP_TEST_POSTGRES_ADMIN_URL`,
-`PAPERCLIP_TEST_S3_ENDPOINT` and normal AWS credentials to run it. It verifies
+S3-compatible endpoint. Set `OUTPOST_TEST_POSTGRES_ADMIN_URL`,
+`OUTPOST_TEST_S3_ENDPOINT` and normal AWS credentials to run it. It verifies
 multi-page adoption, filesystem destruction, fresh reads, corrupt object rejection,
 and missing-byte/active-execution refusals. The default suite does not contact
 external storage.

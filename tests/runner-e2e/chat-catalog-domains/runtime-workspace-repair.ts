@@ -33,7 +33,7 @@ export function failedExportBound(input: { run: NativeFaultRun; action: IssueRec
 export async function prepareFailedWebsiteExport(ctx: ChatCatalogContext) {
   const target = await createOwnedDaytonaTarget(ctx); targets.set(ctx, target);
   if (target.qualifiedHarness !== "codex") throw new Error("Workspace export fixture requires the selected actual qualified Codex harness");
-  const root = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT;
+  const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root) throw new Error("Remote destination requires the owned attempt root");
   const ownedRoot = await realpath(root), cwd = path.join(ownedRoot, `website-export-${ctx.input.nonce}`);
   await mkdir(cwd, { mode: 0o700 });
@@ -66,7 +66,7 @@ export async function prepareFailedWebsiteExport(ctx: ChatCatalogContext) {
     reject: value => ["succeeded", "cancelled", "timed_out"].includes(value.run.status) ? "Actual remote execution did not produce the required failed export context" : undefined });
   const action = failed.recovery.active!, lease = await api.get<EnvironmentLease>(`/api/environment-leases/${reference.leaseId}`);
   const events = await collectRunEvents<{ seq?: number; payload?: unknown }>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-  const acceptedResult = events.some(row => record(record(row.payload).prpEvent).eventType === "run.result.accepted");
+  const acceptedResult = events.some(row => record(record(row.payload).orpEvent).eventType === "run.result.accepted");
   if (!failedExportBound({ run: failed.run, action, lease, companyId, taskId: task.id, agentId: worker.id, environmentId: target.environmentId, acceptedResult }) || await readFile(path.join(cwd, "website.html"), "utf8") !== newer) throw new Error("The actual export failure lacks accepted result, source attribution or preservation of the newer destination");
   const [artifact] = await readRegisteredArtifacts(api, task.id, run.id, ["website.html"]);
   if (!artifact || artifact.content !== incoming || artifact.sha256 !== digest(incoming)) throw new Error("The actual saved remote attachment is not the retained expected website source");
@@ -129,7 +129,7 @@ export const runtimeWorkspaceRepairCases = [runtimeDefinition("recovery.workspac
     const retainedEvents = await collectRunEvents<{ seq?: number; payload?: unknown }>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${original.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
     s.originalFailureRetained = repaired.run.id === original.id && retainedAction?.cause === (s.action as IssueRecoveryAction).cause && retainedAction.evidence.runId === original.id && (s.originalRun as NativeFaultRun).status === "failed";
     s.originalEventsRetained = (s.originalEventReceipts as Array<{ seq: number; sha256: string }>).every(before => retainedEvents.some(after => after.seq === before.seq && digest(JSON.stringify(after.payload)) === before.sha256));
-    s.acceptedResultNotReplayed = retainedEvents.filter(row => record(record(row.payload).prpEvent).eventType === "run.result.accepted").length === 1 && retainedEvents.filter(row => { const event = record(record(row.payload).prpEvent); return event.eventType === "turn.started" && event.sourceKind === "runner"; }).length === 1;
+    s.acceptedResultNotReplayed = retainedEvents.filter(row => record(record(row.payload).orpEvent).eventType === "run.result.accepted").length === 1 && retainedEvents.filter(row => { const event = record(record(row.payload).orpEvent); return event.eventType === "turn.started" && event.sourceKind === "runner"; }).length === 1;
     const beforeRuns = (await ctx.allRuns()).map(row => row.id), followup = "The board recovery has finished. Please inspect the saved website and recovery receipts, and report exactly which files were recovered, whether my newer human edits were preserved, and any work that is still missing. Do not retry the failed task or claim unsupported recovery.";
     await sendChatMessage(ctx.input.page, followup);
     const finished = await pollUntil({ label: "Factual physical recovery report in its own native reply phase", deadlineAt: Date.now() + 180000, load: async () => { await ctx.refreshIssue(); return { source: ctx.issue(), runs: await ctx.allRuns() }; }, accept: v => v.source?.conversationState === "waiting" && v.runs.length === 3 && v.runs.every(row => row.status === "succeeded") });

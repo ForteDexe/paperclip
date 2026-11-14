@@ -33,7 +33,7 @@ import {
   toolProfileEntries,
   toolProfiles,
   toolRuntimeSlots,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import {
   getEmbeddedPostgresTestSupport,
@@ -678,7 +678,7 @@ describeEmbeddedPostgres("tool connection removal", () => {
     await expect(service.reconnectGalleryApp(connectionId, company.id, { credentialValues: {} }))
       .rejects.toMatchObject({ status: 409 });
     await expect(service.startOAuth(company.id, connectionId, {
-      redirectUri: "https://paperclip.fixture.test/api/tools/oauth/callback",
+      redirectUri: "https://outpost.fixture.test/api/tools/oauth/callback",
       actor: { actorType: "user", actorId: "board-user" },
     })).rejects.toMatchObject({ status: 409 });
 

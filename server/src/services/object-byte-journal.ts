@@ -456,7 +456,7 @@ export function createObjectByteJournal(options: ObjectByteJournalOptions) {
     return {
       // Existing scoped object cleanup also removes these unreferenced metadata objects.
       key: `${objectPrefix}source-prefix-proof-v1-${fingerprint}`,
-      bytes: Buffer.from(JSON.stringify({ schema: "paperclip.run-log.source-prefix-proof.v1", fingerprint })),
+      bytes: Buffer.from(JSON.stringify({ schema: "outpost.run-log.source-prefix-proof.v1", fingerprint })),
     };
   }
   async function hasVerifiedSourcePrefix(snapshot: ObjectJournalHead, signal?: AbortSignal) {

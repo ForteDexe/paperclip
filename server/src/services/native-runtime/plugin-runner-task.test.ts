@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { RunnerProviderLaunchRequirements } from "@paperclipai/paperclip-runner";
-import type { RunnerProcessLaunchSpec } from "../../vendor/paperclip-runner/index.js";
+import type { RunnerProviderLaunchRequirements } from "@outpost/outpost-runner";
+import type { RunnerProcessLaunchSpec } from "../../vendor/outpost-runner/index.js";
 import { createPluginRunnerTaskOwner } from "./plugin-runner-task.js";
 import { NativeExecutionContext } from "./native-execution-context.js";
 
 const ingress = vi.hoisted(() => ({ connect: vi.fn() }));
-vi.mock("../../realtime/runner-prp-outbound.js", () => ({ connectRunnerPrpIngress: ingress.connect }));
+vi.mock("../../realtime/runner-orp-outbound.js", () => ({ connectRunnerPrpIngress: ingress.connect }));
 
 function launchSpec(): RunnerProcessLaunchSpec {
   return { command: "unused", args: [], cwd: "/unused", environment: {}, nativeRunner: {
@@ -19,7 +19,7 @@ function launchSpec(): RunnerProcessLaunchSpec {
 }
 
 const requirements: RunnerProviderLaunchRequirements = {
-  schema: "paperclip.runner.launch-requirements.v1", identity: launchSpec().nativeRunner!.identity,
+  schema: "outpost.runner.launch-requirements.v1", identity: launchSpec().nativeRunner!.identity,
   provider: "codex", model: "fixture", instructions: "Core policy", runtimeContext: null,
   settings: {}, approvalPolicy: "never", readOnly: false, preparedConversation: false,
   includeCollaborationModeInstructions: false,
@@ -41,7 +41,7 @@ function provider() {
       configurationId: "configuration", requirementsDigest: `sha256:${"a".repeat(64)}`, provider: { kind: "codex" },
     } };
     if (operation.kind === "read_state") return { kind: "state", taskId: "task", state: {
-      schema: "paperclip.runner.durable.state.v1", ...operation.identity, lifecycle: "suspended",
+      schema: "outpost.runner.durable.state.v1", ...operation.identity, lifecycle: "suspended",
     } };
     if (operation.kind === "stop") stopped = true;
     if (operation.kind === "status") return { kind: "status", taskId: "task", phase: stopped ? "cancelled" : "running", executionStopped: stopped, sessionStateAvailable: stopped };
@@ -526,7 +526,7 @@ describe("plugin native Runner ownership", () => {
     expect(task.mock.calls.some(([op]) => op.kind === "submit")).toBe(false);
   });
 
-  it("does not connect a released or aborted startup to the PRP authority", async () => {
+  it("does not connect a released or aborted startup to the ORP authority", async () => {
     const { task } = provider();
     ingress.connect.mockClear();
     const controller = new AbortController(); controller.abort();
@@ -839,7 +839,7 @@ it.each((["codex", "claude"] as const).flatMap(harness => ["prepared", "unprepar
     const source = launchRequirements(harness), target = { ...source, identity: { ...source.identity, runId: "successor", turnId: "next-turn", itemId: "next-item" } };
     let nativeIdentity = source.identity;
     task.mockImplementation(async operation => operation.kind === "read_state"
-      ? { kind: "state", taskId: "task", state: { schema: "paperclip.runner.durable.state.v1", lifecycle: "ready", ...nativeIdentity } }
+      ? { kind: "state", taskId: "task", state: { schema: "outpost.runner.durable.state.v1", lifecycle: "ready", ...nativeIdentity } }
       : perform(operation));
     const connect = vi.fn(() => ({ ready: Promise.resolve(), close: async () => {} }));
     ingress.connect.mockImplementation(connect);

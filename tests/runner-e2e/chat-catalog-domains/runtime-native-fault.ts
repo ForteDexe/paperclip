@@ -6,7 +6,7 @@ import type { heartbeatRuns } from "../../../packages/db/src/schema/heartbeat_ru
 import type { HeartbeatRun } from "../../../packages/shared/src/types/heartbeat.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import { readProcessStartedAt } from "../../../server/src/services/hot-restart.js";
-import { defaultCapabilityRunnerdBinary } from "../../../server/src/vendor/paperclip-runner/index.js";
+import { defaultCapabilityRunnerdBinary } from "../../../server/src/vendor/outpost-runner/index.js";
 import { pollUntil } from "../api.js";
 import { collectRunEvents } from "../run-observations.js";
 // The public full-run route selects these persisted native fields; the legacy
@@ -55,8 +55,8 @@ export const NATIVE_INFRASTRUCTURE_FAULT_CODES = ["native_runner_process_exited"
 export function retainedFaultCode(events: readonly Record<string, unknown>[]): string | null {
   for (const row of events) {
     if (!["error", "turn.failed", "session.failed"].includes(String(row.eventType))) continue;
-    const payload = (row.payload ?? {}) as Record<string, any>, prp = (payload.prpEvent?.payload ?? {}) as Record<string, any>;
-    const messages = [row.message, payload.error?.message, prp.message, prp.error?.message].filter((value): value is string => typeof value === "string");
+    const payload = (row.payload ?? {}) as Record<string, any>, orp = (payload.orpEvent?.payload ?? {}) as Record<string, any>;
+    const messages = [row.message, payload.error?.message, orp.message, orp.error?.message].filter((value): value is string => typeof value === "string");
     const code = NATIVE_INFRASTRUCTURE_FAULT_CODES.find(candidate => messages.some(message => new RegExp(`(?:^|[\\s:])${candidate}(?::|$)`).test(message)));
     if (code) return code;
   }
@@ -71,7 +71,7 @@ export function nativeFaultOutcome(run: Pick<NativeFaultRun, "status" | "finishe
 /** Authoring primitive only: this function is invoked solely inside the coordinator's selected live attempt. */
 export async function verifyOwnedNativeRunner(ctx: ChatCatalogContext, binding: { runId: string; issueId: string; agentId: string }) {
   if (ctx.input.execution.environment.id !== "local" || typeof process.getuid !== "function") throw new Error("Owned infrastructure fault requires a supported local UID/process identity");
-  const isolated = process.env.PAPERCLIP_RUNNER_E2E_TEMP_ROOT; if (!isolated) throw new Error("Owned infrastructure fault requires the explicit isolated attempt root");
+  const isolated = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT; if (!isolated) throw new Error("Owned infrastructure fault requires the explicit isolated attempt root");
   const expected = { companyId: ctx.input.fixtures.company.id, agentId: binding.agentId, issueId: binding.issueId, uid: process.getuid(), executable: await realpath(defaultCapabilityRunnerdBinary()), root: await realpath(isolated) };
   const load = () => ctx.input.api.get<NativeFaultRun>(`/api/heartbeat-runs/${binding.runId}`);
   const first = await load(), observed = await processIdentity(first);

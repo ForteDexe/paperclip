@@ -1,11 +1,11 @@
-import { createDb } from "@paperclipai/db";
+import { createDb } from "@outpost/db";
 import { createAgentLifecycle } from "../src/services/agent-lifecycle.js";
 import {
   companies,
   goals,
   projects,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required");

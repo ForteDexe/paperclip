@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants, closeSync, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { parseNativeAcpxDistributionEntries } from "../../packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.js";
+import { parseNativeAcpxDistributionEntries } from "../../packages/outpost-runner/src/drivers/acpx/native-distribution-integrity.js";
 import { isPerTurnRunProcess, type RunProcessAuthority } from "./native-local-fixtures.js";
 import { expectedNativeBootstrap, expectedNativeModuleGuard, KIMI_FAULT_ENTRY, kimiFaultRuntimeContract } from "./kimi-provider-fault-contract.js";
 
@@ -162,7 +162,7 @@ export function terminateKimiLocalProvider(input: { authority: RunProcessAuthori
     const stat = lstatSync(path);
     demand(stat.isDirectory() && !stat.isSymbolicLink() && (stat.mode & 0o222) === 0 && realpathSync(path) === path, "snapshot_seal");
   }
-  const metadata = JSON.parse(readFileSync(new URL("../../packages/paperclip-runner/provider-assets/kimi/darwin-arm64/native-closure.json", import.meta.url), "utf8"));
+  const metadata = JSON.parse(readFileSync(new URL("../../packages/outpost-runner/provider-assets/kimi/darwin-arm64/native-closure.json", import.meta.url), "utf8"));
   const entries = parseNativeAcpxDistributionEntries(metadata, contract.closureSha256);
   const node = sealedFile(join(before.distribution, "node/bin/node"), 256 * 1024 * 1024);
   const entry = sealedFile(join(before.distribution, KIMI_FAULT_ENTRY), 256 * 1024 * 1024);
@@ -177,7 +177,7 @@ export function terminateKimiLocalProvider(input: { authority: RunProcessAuthori
   demand(JSON.stringify(fresh) === JSON.stringify(before), "native_identity_changed");
   process.kill(fresh.target.pid, "SIGKILL");
   const identity = ({ pid, ppid, pgid, startUs, bootId }: KimiLocalProcess) => ({ pid, ppid, pgid, startUs, bootId });
-  return { schema: "paperclip.e2e.kimi-local-provider-death.v1", runId: input.authority.runId, target: identity(before.target), ancestry: before.ancestry.map(identity),
+  return { schema: "outpost.e2e.kimi-local-provider-death.v1", runId: input.authority.runId, target: identity(before.target), ancestry: before.ancestry.map(identity),
     nodeSha256: node.digest, entrypointSha256: entry.digest, closureSha256: contract.closureSha256,
     guardLoaderSha256: contract.guardLoaderSha256, guardSha256: guard.digest, bootstrapSha256: bootstrap.digest,
     entrypointAttribution: "pinned_native_bootstrap_parent", signalled: true, signal: "SIGKILL", targetKind: "kimi_native_child", workerSignalled: false };

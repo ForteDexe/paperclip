@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@outpost/db";
 import {
   assets,
   agentApiKeys,
@@ -29,7 +29,7 @@ import {
   invites,
   joinRequests,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   EXTERNAL_AGENT_TOOL_GUIDANCE,
   acceptInviteSchema,
@@ -49,8 +49,8 @@ import {
   updateUserCompanyAccessSchema,
   PERMISSION_KEYS,
   isUuidLike,
-} from "@paperclipai/shared";
-import type { DeploymentExposure, DeploymentMode, HumanCompanyMembershipRole } from "@paperclipai/shared";
+} from "@outpost/shared";
+import type { DeploymentExposure, DeploymentMode, HumanCompanyMembershipRole } from "@outpost/shared";
 import {
   forbidden,
   conflict,
@@ -64,7 +64,7 @@ import { runtimeCanonicalOrigin } from "../services/cloud-runtime-identity.js";
 
 /**
  * Floor: when the hosting operator hides the Instance Access surface
- * (`instance.access` in PAPERCLIP_HIDDEN_SETTINGS), instance-admin user
+ * (`instance.access` in OUTPOST_HIDDEN_SETTINGS), instance-admin user
  * management is rejected alongside it — user administration then belongs to
  * the operator's own control plane. Applies to the Access page's reads too;
  * invite and company-membership routes are company-scoped and stay open.
@@ -262,8 +262,8 @@ function listAvailableSkills(): AvailableSkill[] {
 
   const skills: AvailableSkill[] = [];
   const retiredBundledSkillNames = new Set([
-    "agentmail", "complain", "first-task", "paperclip-board",
-    "paperclip-converting-plans-to-tasks", "paperclip-create-agent",
+    "agentmail", "complain", "first-task",
+    "paperclip-converting-plans-to-tasks",
     "para-memory-files", "slack", "suggestion-box",
   ]);
 
@@ -683,10 +683,10 @@ export function canReplayOpenClawGatewayInviteAccept(input: {
 export function assertLegacyAgentInviteAdapterType(
   adapterType: string | null | undefined,
 ) {
-  if (adapterType === "paperclip_runner") {
+  if (adapterType === "outpost_runner") {
     throw badRequest(
       "Outpost Runner is not available through agent invite onboarding.",
-      { code: "paperclip_runner_invite_onboarding_disabled" },
+      { code: "outpost_runner_invite_onboarding_disabled" },
     );
   }
 }
@@ -1953,8 +1953,8 @@ export function buildInviteOnboardingTextDocument(
     - Set agentDefaultsPayload.paperclipApiUrl to the Outpost base URL Hermes can reach.
     - Use hermes_local when Outpost should start Hermes on the Outpost host.
     - Use hermes_gateway when Outpost should call an already-running Hermes API server.
-    - After board approval, claim the Outpost API key once with the claim endpoint below and save it as PAPERCLIP_API_KEY. Store the parsed token field from the raw HTTP JSON response before printing or summarizing it; do not copy token values from chat, transcript, or tool-output previews. A token value containing literal ... or [redacted] is a masked display preview, not a valid key. Do not rotate or invent an Outpost key manually.
-    - Hermes-originated Outpost API usage means Hermes calls Outpost with PAPERCLIP_API_URL and PAPERCLIP_API_KEY after approval/key claim. Do not confuse that with agentDefaultsPayload.apiBaseUrl, which points Outpost to Hermes.
+    - After board approval, claim the Outpost API key once with the claim endpoint below and save it as OUTPOST_API_KEY. Store the parsed token field from the raw HTTP JSON response before printing or summarizing it; do not copy token values from chat, transcript, or tool-output previews. A token value containing literal ... or [redacted] is a masked display preview, not a valid key. Do not rotate or invent an Outpost key manually.
+    - Hermes-originated Outpost API usage means Hermes calls Outpost with OUTPOST_API_URL and OUTPOST_API_KEY after approval/key claim. Do not confuse that with agentDefaultsPayload.apiBaseUrl, which points Outpost to Hermes.
 
     Hermes Gateway payload example:
     {
@@ -1975,7 +1975,7 @@ export function buildInviteOnboardingTextDocument(
     - LAN/private network: use reachable private addresses, for example agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642" and agentDefaultsPayload.paperclipApiUrl = "http://192.168.1.10:3100".
     - Private overlay: use overlay DNS names, for example agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642" and agentDefaultsPayload.paperclipApiUrl = "http://paperclip-host.tailnet-name.ts.net:3100".
     - Docker: if Outpost runs in Docker and Hermes runs on the host, use agentDefaultsPayload.apiBaseUrl = "http://host.docker.internal:8642"; if both run in Compose, use the Hermes service name.
-    - Reverse proxy/TLS: use HTTPS origins, for example agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example" and agentDefaultsPayload.paperclipApiUrl = "https://paperclip.example".
+    - Reverse proxy/TLS: use HTTPS origins, for example agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example" and agentDefaultsPayload.paperclipApiUrl = "https://outpost.example".
 
     Expected response includes:
     - request id
@@ -1995,7 +1995,7 @@ export function buildInviteOnboardingTextDocument(
       "claimSecret": "<one-time-claim-secret>"
     }
 
-    On successful claim, save the full JSON response somewhere private for your runtime and set PAPERCLIP_API_KEY and PAPERCLIP_API_URL for future Outpost API calls. The response body includes the full token exactly once, but runtime displays and tool summaries may mask or truncate it. Write the raw response token directly to private storage before logging anything, then verify it with an authenticated Outpost API call. Do not persist displayed previews containing literal ... or [redacted].
+    On successful claim, save the full JSON response somewhere private for your runtime and set OUTPOST_API_KEY and OUTPOST_API_URL for future Outpost API calls. The response body includes the full token exactly once, but runtime displays and tool summaries may mask or truncate it. Write the raw response token directly to private storage before logging anything, then verify it with an authenticated Outpost API call. Do not persist displayed previews containing literal ... or [redacted].
 
     Important:
     - claim secrets expire
@@ -2162,7 +2162,7 @@ function toUserProfile(
 }
 
 async function resolveActorEmail(db: Db, req: Request): Promise<string | null> {
-  if (isLocalImplicit(req)) return "local@paperclip.local";
+  if (isLocalImplicit(req)) return "local@outpost.local";
   const userId = req.actor.userId;
   if (!userId) return null;
   const user = await db

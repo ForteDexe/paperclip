@@ -110,7 +110,7 @@ async function runWave(options: WaveOptions, waveDir: string, timeline: Timeline
   let stopFailed = false;
   const records: EpTaskRecord[] = [];
   try {
-    await supervisor.start({ PAPERCLIP_CHAOS_LEASE_FAULT_CONTROL: control });
+    await supervisor.start({ OUTPOST_CHAOS_LEASE_FAULT_CONTROL: control });
     const api = new ChaosApi(supervisor.baseUrl);
     const lab: ChaosLab = await seedChaosLab({ api, env: "local", waitForReadyAgents: true, adapters: [...new Set(options.adapters)],
       concurrency: options.tasks, budgetCents: 3_000, fixtureRoot: path.join(supervisor.paths.temporaryRoot, "fixtures"),
@@ -181,7 +181,7 @@ async function main(): Promise<number> {
   const { options, keep } = parseEnvProviderWaveArgs(process.argv.slice(2));
   const missing = [...new Set(options.adapters.map(adapter => CREDENTIAL_FOR_ADAPTER[adapter]))].filter(key => !process.env[key]);
   if (missing.length) throw new Error(`Missing credentials ${missing.join(", ")}. Run: set -a; source ~/.secrets; set +a`);
-  const runner = process.env.PAPERCLIP_RUNNER_BINARY ?? path.join(repositoryRoot, "packages/paperclip-runner/runner/target/debug/paperclip-runnerd");
+  const runner = process.env.OUTPOST_RUNNER_BINARY ?? path.join(repositoryRoot, "packages/outpost-runner/runner/target/debug/outpost-runnerd");
   if (!existsSync(runner)) throw new Error(`Runner binary missing at ${runner}. Run: node scripts/agent-preflight.mjs`);
   const waveId = `${waveIdFor(options.seed)}-ep`;
   const waveDir = path.join(resultsRoot, waveId);

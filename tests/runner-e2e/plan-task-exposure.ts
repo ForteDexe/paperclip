@@ -29,18 +29,18 @@ export function planExposure(input: { runs: PlanRow[]; evidence: PlanRow[]; lead
   const records = input.evidence.filter(r => r.runId === initial?.id);
   const events: PlanRow[] = records.length === 1 && Array.isArray(records[0].events) ? records[0].events : [];
   const submitted = events.filter(e => e.runId === initial?.id && e.eventType === "turn.submitted");
-  const prp = submitted.length === 1 ? submitted[0].payload?.prpEvent : undefined;
-  const actual = prp?.payload?.skillInputs ?? [];
+  const orp = submitted.length === 1 ? submitted[0].payload?.orpEvent : undefined;
+  const actual = orp?.payload?.skillInputs ?? [];
   const accepts = events.filter(e => e.runId === initial?.id && e.eventType === "turn.accepted");
-  const acceptedTurn = accepts.length === 1 ? accepts[0].payload?.prpEvent : undefined;
+  const acceptedTurn = accepts.length === 1 ? accepts[0].payload?.orpEvent : undefined;
   const accepted = typeof acceptedTurn?.turnId === "string" && acceptedTurn.turnId.length > 0 &&
     acceptedTurn.payload?.turnId === acceptedTurn.turnId && events.some(e => e.runId === initial?.id && e.eventType === "turn.started" &&
-      e.payload?.prpEvent?.turnId === acceptedTurn.turnId);
+      e.payload?.orpEvent?.turnId === acceptedTurn.turnId);
   const expected = input.invocations;
   const matched = Array.isArray(actual) && actual.length === expected.length && expected.every(wanted => actual.filter((s: PlanRow) =>
     s.type === "skill" && s.name === wanted.name && typeof s.path === "string" &&
     path.isAbsolute(s.path) && s.path.endsWith(`/runtime-context-assets/bundles/${wanted.assetDigest}/SKILL.md`)).length === 1);
-  return { id: "assigned-guidance-delivered", passed: Boolean(initial && prp && accepted && matched),
+  return { id: "assigned-guidance-delivered", passed: Boolean(initial && orp && accepted && matched),
     detail: `Initial lead run must submit exactly ${expected.length} native skill inputs tied to the verified immutable file digests, and have a provider-accepted turn. This verifies the submission contract, not model consumption.`,
     selectedCount: expected.length, observedInputCount: Array.isArray(actual) ? actual.length : null };
 }

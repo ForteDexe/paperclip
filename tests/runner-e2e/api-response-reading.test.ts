@@ -34,7 +34,7 @@ describe("saved API response pagination oracle", () => {
   const assetId = "source-asset";
   const bytes = Buffer.from(JSON.stringify({ id: sourceIssueId, description: "synthetic padding ".repeat(2000) }));
   const operation = "GET /api/assets/{assetId}/content";
-  const event = (eventType: string, payload: unknown) => ({ eventType, payload: { prpEvent: { payload } } });
+  const event = (eventType: string, payload: unknown) => ({ eventType, payload: { orpEvent: { payload } } });
   const call = (id: string, input: unknown, result: unknown, status = "completed") => [
     event("item.started", { item: { id, type: "tool_use", name: "call_api", input } }),
     event("item.completed", { item: { id, type: "tool_result", tool_use_id: id, result } }),

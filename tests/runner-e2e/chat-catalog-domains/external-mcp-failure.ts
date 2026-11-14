@@ -112,7 +112,7 @@ export const mcpFailureExternalCases = [
     },
     gradeUnreachableMcp,
     {
-      oracleVersion: "paperclip.chat-catalog.external.unreachable-mcp.v2",
+      oracleVersion: "outpost.chat-catalog.external.unreachable-mcp.v2",
       sourceFiles: [
         "../../ui/src/App.tsx",
         "../../ui/src/pages/apps/Browse.tsx",

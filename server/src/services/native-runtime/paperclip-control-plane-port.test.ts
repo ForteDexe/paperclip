@@ -1,6 +1,6 @@
 import { nativeResponsePresentationWork } from "./native-response-presentation-work.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
-import { plugins } from "@paperclipai/db";
+import { plugins } from "@outpost/db";
 import { readTaskPanelActivations } from "../plugin-task-panels.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, asc, eq, sql } from "drizzle-orm";
@@ -8,8 +8,8 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { renderPaperclipWakePrompt } from "@paperclipai/adapter-utils/server-utils";
-import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@paperclipai/shared";
+import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@outpost/shared";
 import { readCompletedAssistantMessageCandidate, resolveHeartbeatRunResponse, selectHeartbeatRunFinalAgentMessage } from "../heartbeat-run-summary.js";
 import {
   activityLog,
@@ -34,7 +34,7 @@ import {
   statusDecisionEffects,
   statusDecisions,
   workAssessments,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import {
   executeNativeSession,
   parseNativeExecutionInput,
@@ -42,13 +42,13 @@ import {
   type PrpEvent,
   type PrpStructuredRunResult,
   type PrpTerminalState,
-} from "../../vendor/paperclip-runner/index.js";
+} from "../../vendor/outpost-runner/index.js";
 import {
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
   CONTROL_PLANE_CONFORMANCE_OPEN,
   runControlPlanePortConformance,
-} from "../../vendor/paperclip-runner/testing.js";
+} from "../../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
@@ -61,7 +61,7 @@ import { documentService } from "../documents.js";
 import { claimNativeReviewExecutionLock, getNativeReviewAssignment } from "./native-review-participant.js";
 import { claimQueuedNativeReviewRun } from "./native-review-dispatch.js";
 import { stageNativeRunnerWakeAttachments } from "./native-runner-file-handoff.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import { ensureNativeCompletionContract, nativeCompletionSource } from "./completion-contracts.js";
 import { commitNativeStatusDecision } from "./status-decision-committer.js";
@@ -79,7 +79,7 @@ import {
   subscribeCompanyLiveEvents,
 } from "../live-events.js";
 
-const external = resolveExternalTestDatabaseUrl("PAPERCLIP_CONTROL_PLANE_TEST_DATABASE_URL");
+const external = resolveExternalTestDatabaseUrl("OUTPOST_CONTROL_PLANE_TEST_DATABASE_URL");
 
 describe("PaperclipControlPlanePort conformance", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>> | null = null;
@@ -132,7 +132,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId: identity.issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -172,7 +172,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId: taskIssueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -225,7 +225,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId: workspaceFailureIssueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -264,7 +264,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId: governanceIssueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -371,7 +371,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     const yielded = nativeGovernedWaitResult({ interaction: { id: interaction.id,
       title: interaction.title ?? null, summary: interaction.summary ?? null }, completionContract: contract });
     const event = (sourceSeq: number, eventType: PrpEvent["eventType"], payload: Record<string, unknown>): PrpEvent => ({
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceInstanceId: runnerId, sourceSeq,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceInstanceId: runnerId, sourceSeq,
       sourceKind: "runner", runId: identity.runId, normalizedSessionId: identity.sessionId, ...(mode === "unscoped terminal" ? {} : { turnId: "park-turn" }),
       eventType, schemaVersion: 1, priority: 0, emittedAt: new Date().toISOString(), payload,
     });
@@ -394,13 +394,13 @@ describe("PaperclipControlPlanePort conformance", () => {
     const options = { backend, controlPlane: port, timeoutMs: 2_000,
       ...(mode === "checkpoint timeout" ? { checkpointTimeoutMs: 1_000 } : {}),
       runnerInstanceId: runnerId, controlPlaneInstanceId: "park-control",
-      input: parseNativeExecutionInput({ schema: "paperclip.native-execution-input.v1", binding: {
+      input: parseNativeExecutionInput({ schema: "outpost.native-execution-input.v1", binding: {
         companyId: identity.companyId, runId: identity.runId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "park-workspace" },
         task: { identifier: "PARK-1", title: "Wait for a human", description: null, prompt: "Wait for a human", workMode: "standard" },
         workspace: { cwd: process.cwd(), repoUrl: null, repoRef: null, branchName: null },
         session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1 },
         provider: { kind: "codex", model: null }, interactionResponses: [], credentialBindings: [],
-        completionContract: { id: fixtureContractId, sha256: contractSha, schemaVersion: "paperclip.completion-contract.v1", contract } }),
+        completionContract: { id: fixtureContractId, sha256: contractSha, schemaVersion: "outpost.completion-contract.v1", contract } }),
       resolveGovernedWait: ({ event }: { event: PrpEvent }) => {
         const result = observation.consume(event);
         triggerConsumed ||= result !== null;
@@ -471,7 +471,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       sourceInstanceId: runnerId, controlPlaneSourceInstanceId: "observer-control" };
     const port = new PaperclipControlPlanePort(db, binding, options);
     await port.openRun({ identity, backendKind: "mock", sourceInstanceId: runnerId });
-    const event: PrpEvent = { schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:1`, sourceInstanceId: runnerId,
+    const event: PrpEvent = { schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:1`, sourceInstanceId: runnerId,
       sourceSeq: 1, sourceKind: "runner", runId: identity.runId, normalizedSessionId: identity.sessionId,
       turnId: "observer-turn", eventType: "turn.interrupted", schemaVersion: 1, priority: 0,
       emittedAt: new Date().toISOString(), payload: { status: "interrupted", error: null } };
@@ -674,9 +674,9 @@ describe("PaperclipControlPlanePort conformance", () => {
     expect(statements.filter(statement => /^(?:with|select)\b/i.test(statement.trim()))).toHaveLength(1);
     const [saved] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, identity.runId));
     expect(saved.runnerProfileJson).toMatchObject({ unrelated: "preserve", sessionCheckpoint: snapshot,
-      nativeControllerRecovery: { schema: "paperclip.native-controller-recovery.v1", snapshotSha256: nativeSha256(saved.runnerProfileJson?.sessionCheckpoint),
+      nativeControllerRecovery: { schema: "outpost.native-controller-recovery.v1", snapshotSha256: nativeSha256(saved.runnerProfileJson?.sessionCheckpoint),
         checkpoint: null, processConfigDigest: null } });
-    // Missing PRP is an explicit incomplete publication, never fabricated authority.
+    // Missing ORP is an explicit incomplete publication, never fabricated authority.
     await db.update(nativeRunFinalizations).set({ controllerGeneration: 2 }).where(eq(nativeRunFinalizations.runId, identity.runId));
     await expect(port.checkpointSession({ ...snapshot, providerSessionId: "stale" })).rejects.toThrow("checkpoint_owner_lost");
     await expect(port.completeRun({ result: CONTROL_PLANE_CONFORMANCE_RESULT, terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL }))
@@ -758,7 +758,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     });
     await port.openRun({ identity, backendKind: "mock", sourceInstanceId: runnerId });
     const mutate = () => operation === "event" || operation === "deferred event" ? port.appendEvent({
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, eventType: "turn.interrupted", schemaVersion: 1,
       turnId: "revoked-turn",
@@ -813,7 +813,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     const binding = { ...identity, completionContractId: contractId, completionContractSha256: contractSha,
       sourceInstanceId: runnerId, controlPlaneSourceInstanceId: `panel-${identity.runId}` };
     const event: PrpEvent = {
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, eventType: "runtime.activity.recorded", schemaVersion: 1,
       priority: 1, emittedAt: new Date().toISOString(),
@@ -858,7 +858,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       status: 200, ok: true, data: { credentials: "private-history-fixture-value" } };
     const wireResult = { success: true, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
     const event: PrpEvent = {
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, eventType: "item.completed", schemaVersion: 1,
       priority: 0, emittedAt: new Date().toISOString(),
@@ -907,7 +907,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       inputSchemaGuidance: "Invalid tool arguments. Check these input schema locations: /required (missing title).",
     };
     const event: PrpEvent = {
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, eventType: "harness.diagnostic", schemaVersion: 1,
       priority: 0, emittedAt: new Date().toISOString(), payload,
@@ -921,7 +921,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     expect(port.normalizeReplayPayload(payload)).toEqual(port.normalizeReplayPayload(observed[0]!.payload));
     const saved = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, identity.runId));
     expect(saved).toHaveLength(1);
-    expect((saved[0]!.payload?.prpEvent as unknown as PrpEvent).payload).toEqual(payload);
+    expect((saved[0]!.payload?.orpEvent as unknown as PrpEvent).payload).toEqual(payload);
     expect(JSON.stringify(saved)).not.toContain("private-diagnostic-debug");
     await expect(port.appendEvent({ ...event, payload: {
       ...payload, inputSchemaGuidance: "Invalid tool arguments. Check these input schema locations: /properties/title/type.",
@@ -947,11 +947,11 @@ describe("PaperclipControlPlanePort conformance", () => {
     }, { privateKeyPem, onCommittedEvent: async event => { observed.push(event); } });
     await port.openRun({ identity, backendKind: "mock", sourceInstanceId: runnerId });
     await port.appendEvent({
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:1`, sourceSeq: 1,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, eventType: "tool.execution.started", schemaVersion: 1,
       priority: 0, emittedAt: new Date().toISOString(), payload: {
-        schema: "paperclip.tool.execution.v1", executionId: "identity-output", transport: "builtin",
+        schema: "outpost.tool.execution.v1", executionId: "identity-output", transport: "builtin",
         operation: "execute", name: "diagnostic", target: null, namespace: null, readOnly: true,
         status: "running", durationMs: null, exitCode: null, progress: null,
         output: privateKeyPem, outputBytes: Buffer.byteLength(privateKeyPem), outputTruncated: false,
@@ -968,7 +968,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     ] as const) {
       for (const [index, chunk] of chunks.entries()) {
         const event: PrpEvent = {
-          schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceSeq: sourceSeq++,
+          schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceSeq: sourceSeq++,
           sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
           normalizedSessionId: identity.sessionId, turnId: "identity-turn", itemId,
           eventType: "item.delta", schemaVersion: 1, priority: 1, emittedAt: new Date().toISOString(),
@@ -983,14 +983,14 @@ describe("PaperclipControlPlanePort conformance", () => {
       }
     }
     await port.appendEvent({
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceSeq: sourceSeq++,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceSeq: sourceSeq++,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, turnId: "tail-turn", itemId: "reasoning-item",
       eventType: "item.delta", schemaVersion: 1, priority: 1, emittedAt: new Date().toISOString(),
       payload: { kind: "reasoning", text: "Thinking-" },
     });
     const terminal: PrpEvent = {
-      schema: "paperclip.prp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceSeq: sourceSeq++,
+      schema: "outpost.orp.event.v1", sourceEventId: `${runnerId}:${sourceSeq}`, sourceSeq: sourceSeq++,
       sourceInstanceId: runnerId, sourceKind: "runner", runId: identity.runId,
       normalizedSessionId: identity.sessionId, turnId: "tail-turn",
       eventType: "turn.completed", schemaVersion: 1, priority: 0, emittedAt: new Date().toISOString(),
@@ -1106,7 +1106,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -1170,7 +1170,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       sourceInstanceId: runnerInstanceId,
     });
     const progressEvent: PrpEvent = {
-      schema: "paperclip.prp.event.v1",
+      schema: "outpost.orp.event.v1",
       sourceEventId: "safe-progress-signal:1",
       sourceSeq: 1,
       sourceInstanceId: runnerInstanceId,
@@ -1183,7 +1183,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       priority: 0,
       emittedAt: "2026-09-08T10:30:00.000Z",
       payload: {
-        schema: "paperclip.tool.execution.v1",
+        schema: "outpost.tool.execution.v1",
         executionId: "safe-progress-execution",
         transport: "builtin",
         operation: "execute",
@@ -1216,7 +1216,7 @@ describe("PaperclipControlPlanePort conformance", () => {
         eventType: "tool.execution.started",
         stream: "system",
         level: "info",
-        payload: { prpEvent: progressEvent },
+        payload: { orpEvent: progressEvent },
       }]);
 
       await expect(port.appendEvent(progressEvent)).resolves.toMatchObject({
@@ -1255,7 +1255,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       })).resolves.toMatchObject({ disposition: "committed" });
       expect(observed).toHaveLength(2);
       expect(observed[1]).toMatchObject({ seq: 3, eventType: "item.delta", payload: {
-        prpEvent: { eventType: "item.delta", payload: { text: "still writing" } },
+        orpEvent: { eventType: "item.delta", payload: { text: "still writing" } },
       } });
       expect(committedCallbacks).toEqual([
         "safe-progress-signal:1",
@@ -1288,7 +1288,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -1328,7 +1328,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       controlPlaneSourceInstanceId: "runtime-question-recovery-control",
     };
     const questionEvent: PrpEvent = {
-      schema: "paperclip.prp.event.v1",
+      schema: "outpost.orp.event.v1",
       sourceEventId: "runtime-question-recovery:1",
       sourceSeq: 1,
       sourceInstanceId: runnerInstanceId,
@@ -1347,7 +1347,7 @@ describe("PaperclipControlPlanePort conformance", () => {
         reason: "provider_process_lost",
         replayAllowed: false,
         request: {
-          schema: "paperclip.runtime_request.v2",
+          schema: "outpost.runtime_request.v2",
           requestKind: "runtime",
           requestId: "runtime-question-recovery-request",
           type: "input",
@@ -1356,7 +1356,7 @@ describe("PaperclipControlPlanePort conformance", () => {
           turnId: "runtime-question-recovery-turn",
           itemId: "runtime-question-recovery-item",
           input: {
-            schema: "paperclip.question_set.v1",
+            schema: "outpost.question_set.v1",
             title: "Choose a recovery option",
             questions: [
               {
@@ -1426,7 +1426,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     taskResult.evidence = [{ kind: "work_product", ref: evidenceRef }];
     taskResult.verification[0]!.artifactRef = evidenceRef;
     const event = (sourceSeq: number, eventType: PrpEvent["eventType"], payload: Record<string, unknown>): PrpEvent => ({
-      schema: "paperclip.prp.event.v1",
+      schema: "outpost.orp.event.v1",
       sourceEventId: `phase6-task:${sourceSeq}`,
       sourceSeq,
       sourceInstanceId: taskRunnerId,
@@ -1476,7 +1476,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       },
     };
     const execution = parseNativeExecutionInput({
-      schema: "paperclip.native-execution-input.v4",
+      schema: "outpost.native-execution-input.v4",
       executionMode: "default",
       planningContext: null,
       binding: {
@@ -1509,7 +1509,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       completionContract: {
         id: taskContractId,
         sha256: "phase6-task-contract",
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "phase6-v1", objective: "Complete one native task", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       },
       interactionResponses: [],
@@ -1541,7 +1541,7 @@ describe("PaperclipControlPlanePort conformance", () => {
     expect(answers).toHaveLength(1);
     const finalAgentMessage = selectHeartbeatRunFinalAgentMessage({
       candidates: answers.flatMap((row) => {
-        const candidate = readCompletedAssistantMessageCandidate({ seq: row.seq, prpEvent: row.payload?.prpEvent });
+        const candidate = readCompletedAssistantMessageCandidate({ seq: row.seq, orpEvent: row.payload?.orpEvent });
         return candidate ? [candidate] : [];
       }),
     });
@@ -1657,7 +1657,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "strict-binding-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -1878,7 +1878,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v1",
       risk: "standard",
       completionAuthority: "server_arbiter",
@@ -2254,7 +2254,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       originKind: onboarding ? ONBOARDING_FIRST_TASK_ORIGIN_KIND : "manual", status: "in_progress", assigneeAgentId: agentId,
       responsibleUserId: userId, workMode: "standard" });
     await db.insert(completionContracts).values({ id: localContractId, companyId, issueId, revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v3", risk: "low", completionAuthority: "agent_claim_policy",
+      schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v3", risk: "low", completionAuthority: "agent_claim_policy",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "first-task-native-finish-v1",
         objective: onboarding ? "Understand the user request, propose one task, and honor their decision" : "Complete the requested ordinary task",
         criteria: [{ id: "objective", requirement: objective ?? "Complete the requested workflow" }] },
@@ -2627,7 +2627,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -2752,7 +2752,7 @@ describe("PaperclipControlPlanePort conformance", () => {
         title: parentId ? "Revised child" : "Deliver revised child result", status: "in_progress",
         assigneeAgentId: agentId, workMode: "standard" });
       await db.insert(completionContracts).values({ id: localContractId, companyId: identity.companyId,
-        issueId, revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v3",
+        issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v3",
         risk: "low", completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal",
         contractJson: { revision: "handoff-race-v1", objective: "Deliver the requested result",
           criteria: [{ id: "objective", requirement: "Complete the requested work" }] },
@@ -2879,7 +2879,7 @@ describe("PaperclipControlPlanePort conformance", () => {
       companyId: identity.companyId,
       issueId: childIssueId,
       revision: 1,
-      schemaVersion: "paperclip.completion-contract.v1",
+      schemaVersion: "outpost.completion-contract.v1",
       policyVersion: "phase6-v3",
       risk: "low",
       completionAuthority: "agent_claim_policy",
@@ -3161,7 +3161,7 @@ describe("PaperclipControlPlanePort conformance", () => {
         companyId: identity.companyId,
         issueId,
         revision: 1,
-        schemaVersion: "paperclip.completion-contract.v1",
+        schemaVersion: "outpost.completion-contract.v1",
         policyVersion: "phase6-v1",
         risk: "standard",
         completionAuthority: "server_arbiter",

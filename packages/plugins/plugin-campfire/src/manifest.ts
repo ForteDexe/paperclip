@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
 
 export const PLUGIN_ID = "forted.campfire";
 export const STREAM_CHANNEL = "campfire:rooms";

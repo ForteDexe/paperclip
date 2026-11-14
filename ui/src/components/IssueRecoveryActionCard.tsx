@@ -3,10 +3,10 @@ import { issuesApi } from "../api/issues";
 import { describeError } from "../api/errors";
 import { Checkbox } from "./ui/checkbox";
 import { NativeSelect } from "./ui/select";
-import type { Issue } from "@paperclipai/shared";
-import { isNativeWorkspaceExportRepairCause } from "@paperclipai/shared";
+import type { Issue } from "@outpost/shared";
+import { isNativeWorkspaceExportRepairCause } from "@outpost/shared";
 import { useWorkspaceIsolationControls } from "@/hooks/useWorkspaceIsolationControls";
-import { requiresExecutionReconciliation } from "@paperclipai/shared";
+import { requiresExecutionReconciliation } from "@outpost/shared";
 import { useMemo, useState } from "react";
 import type {
   Agent,
@@ -16,7 +16,7 @@ import type {
   IssueRecoveryActionOutcome,
   IssueRecoveryActionStatus,
   IssueScheduledRetry,
-} from "@paperclipai/shared";
+} from "@outpost/shared";
 import {
   Eye,
   GitBranch,

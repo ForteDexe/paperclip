@@ -184,7 +184,7 @@ export const planReviewIdentityCases: readonly ChatCatalogCase[] = ["questions-a
       supersedeOnUserComment: false, target: { type: "issue_document", issueId: source.id, documentId: plan.id, key: "plan", revisionId: plan.latestRevisionId, revisionNumber: plan.latestRevisionNumber } } }));
   await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); return { sourceId: source.id, personId: session.user.id, worker, plan, original, scopeMarker };
 }, gradePlanReview, {
-  sourceFiles: [...sources, "../../server/src/services/chat-completion-delivery.ts", "chat-catalog-domains/turn-response-card.ts"], authentication: "human-session", oracleVersion: "paperclip.chat-catalog.plan-review.v7", expectedRunCount: 3, minimumRunCount: scenarioId.endsWith("review-plan") ? 2 : 1, attemptTimeoutMs: 600_000,
+  sourceFiles: [...sources, "../../server/src/services/chat-completion-delivery.ts", "chat-catalog-domains/turn-response-card.ts"], authentication: "human-session", oracleVersion: "outpost.chat-catalog.plan-review.v7", expectedRunCount: 3, minimumRunCount: scenarioId.endsWith("review-plan") ? 2 : 1, attemptTimeoutMs: 600_000,
   runPolicy: { kind: "source-settled-with-active-work", maximumActiveWorkerRuns: 1 },
   async act(ctx, state) {
     const originalDeadline = ctx.observationDeadlineAt;

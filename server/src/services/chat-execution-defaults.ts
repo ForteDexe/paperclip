@@ -1,5 +1,5 @@
-import { chatExecutionDefaultsSchema, type ChatExecutionDefaults } from "@paperclipai/shared";
-import { type Db, projects } from "@paperclipai/db";
+import { chatExecutionDefaultsSchema, type ChatExecutionDefaults } from "@outpost/shared";
+import { type Db, projects } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { projectReadSqlCondition, type AuthorizationActor } from "./authorization.js";
 import { executionWorkspaceService } from "./execution-workspaces.js";

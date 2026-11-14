@@ -23,8 +23,8 @@ import {
 
 const cleanups: Array<() => Promise<void>> = [];
 const historyExternalVariables = {
-  master0346: ["PAPERCLIP_DB_HISTORY_MASTER_REFERENCE_URL", "PAPERCLIP_DB_HISTORY_MASTER_TARGET_URL"],
-  muse0348: ["PAPERCLIP_DB_HISTORY_MUSE_REFERENCE_URL", "PAPERCLIP_DB_HISTORY_MUSE_TARGET_URL"],
+  master0346: ["OUTPOST_DB_HISTORY_MASTER_REFERENCE_URL", "OUTPOST_DB_HISTORY_MASTER_TARGET_URL"],
+  muse0348: ["OUTPOST_DB_HISTORY_MUSE_REFERENCE_URL", "OUTPOST_DB_HISTORY_MUSE_TARGET_URL"],
 } as const;
 const anyHistoryExternal = Object.values(historyExternalVariables).flat().some(name => process.env[name]);
 const historyExternal = anyHistoryExternal ? Object.fromEntries(Object.entries(historyExternalVariables).map(([baseline, names]) => {
@@ -261,7 +261,7 @@ describeEmbeddedPostgres("merged Muse migration histories", () => {
     const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Retained migration company', 'MRG') RETURNING id`;
     const [agent] = await sql`
       INSERT INTO agents (company_id, name, adapter_type, adapter_config)
-      VALUES (${company.id}, 'Retained Muse', 'paperclip_runner', '{"provider":"muse"}'::jsonb) RETURNING id
+      VALUES (${company.id}, 'Retained Muse', 'outpost_runner', '{"provider":"muse"}'::jsonb) RETURNING id
     `;
     const [task] = await sql`
       INSERT INTO issues (company_id, title, assignee_agent_id)
@@ -1924,7 +1924,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             risk, completion_authority, incomplete_criteria_policy, contract_json,
             canonical_sha256, created_by_actor_type, created_by_actor_id
           ) VALUES (
-            ${companyId}, ${otherIssueId}, 1, 'paperclip.completion-contract.v1',
+            ${companyId}, ${otherIssueId}, 1, 'outpost.completion-contract.v1',
             'policy-v1', 'low', 'server', 'review', ${JSON.stringify({ criteria: [] })}::jsonb,
             'cross-company-contract-sha', 'system', 'migration-test'
           )
@@ -1936,7 +1936,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             risk, completion_authority, incomplete_criteria_policy, contract_json,
             canonical_sha256, created_by_actor_type, created_by_actor_id
           ) VALUES (
-            ${contractId}, ${companyId}, ${issueId}, 1, 'paperclip.completion-contract.v1',
+            ${contractId}, ${companyId}, ${issueId}, 1, 'outpost.completion-contract.v1',
             'policy-v1', 'low', 'server', 'review', ${JSON.stringify({ criteria: [] })}::jsonb,
             'contract-sha', 'system', 'migration-test'
           )
@@ -1948,7 +1948,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             canonical_sha256, created_by_actor_type, created_by_actor_id
           ) VALUES (
             ${otherContractId}, ${otherCompanyId}, ${otherIssueId}, 1,
-            'paperclip.completion-contract.v1', 'policy-v1', 'low', 'server', 'review',
+            'outpost.completion-contract.v1', 'policy-v1', 'low', 'server', 'review',
             ${JSON.stringify({ criteria: [] })}::jsonb, 'other-contract-sha',
             'system', 'migration-test'
           )

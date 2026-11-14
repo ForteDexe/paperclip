@@ -21,7 +21,7 @@ It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec i
 - Plugin-owned JSON API routes must be declared in the manifest and are mounted
   only under `/api/plugins/:pluginId/api/*`.
 - The host provides a small shared React component kit through
-  `@paperclipai/plugin-sdk/ui`; use it for common Paperclip controls before
+  `@outpost/plugin-sdk/ui`; use it for common Paperclip controls before
   building custom versions.
 - `ctx.assets` is not supported in the current runtime.
 
@@ -66,7 +66,7 @@ lifecycle command commits. The lifecycle module owns admission, progress, and
 retries; a plugin does not need a readiness data handler or a polling job.
 
 ```ts
-import { definePlugin } from "@paperclipai/plugin-sdk";
+import { definePlugin } from "@outpost/plugin-sdk";
 import { reconcileResources } from "./resources.js";
 
 export default definePlugin({
@@ -221,9 +221,9 @@ That creates `<output>/plugin-name/` with:
 - `esbuild.config.mjs`
 - `rollup.config.mjs`
 
-Inside this monorepo, the scaffold uses `workspace:*` for `@paperclipai/plugin-sdk`.
+Inside this monorepo, the scaffold uses `workspace:*` for `@outpost/plugin-sdk`.
 
-Outside this monorepo, the scaffold snapshots `@paperclipai/plugin-sdk` from the local Paperclip checkout into a `.paperclip-sdk/` tarball so you can build and test a plugin without publishing anything to npm first. Pass `--sdk-path /absolute/path/to/paperclip/packages/plugins/sdk` if you have more than one Paperclip checkout.
+Outside this monorepo, the scaffold snapshots `@outpost/plugin-sdk` from the local Paperclip checkout into a `.paperclip-sdk/` tarball so you can build and test a plugin without publishing anything to npm first. Pass `--sdk-path /absolute/path/to/paperclip/packages/plugins/sdk` if you have more than one Paperclip checkout.
 
 ## Local development workflow
 
@@ -242,7 +242,7 @@ pnpm build
 
 ### CreateOS sandbox provider
 
-The in-repo [`@paperclipai/plugin-createos`](../../packages/plugins/sandbox-providers/createos/README.md)
+The in-repo [`@outpost/plugin-createos`](../../packages/plugins/sandbox-providers/createos/README.md)
 package implements environment lifecycle hooks and incremental managed-process
 output and binary workspace transfers using CreateOS's public HTTP API. It does
 not advertise interactive login or template capture. Install
@@ -251,7 +251,7 @@ the built package by local path; its optional managed-image catalog key is
 
 ### boxd sandbox provider
 
-The in-repo [`@paperclipai/plugin-boxd`](../../packages/plugins/sandbox-providers/boxd/README.md)
+The in-repo [`@outpost/plugin-boxd`](../../packages/plugins/sandbox-providers/boxd/README.md)
 package implements the environment lifecycle hooks on isolated boxd microVMs
 through the `@boxd-sh/sdk` package. It supports reusable leases: a released
 machine is suspended and the next run resumes it with its disk, memory and
@@ -388,7 +388,7 @@ routine; if a ref is still missing, the routine resolution reports
 `missing_refs` instead of guessing.
 
 ```ts
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const manifest: PaperclipPluginManifestV1 = {
   id: "example.research-plugin",
@@ -475,7 +475,7 @@ In the worker, expose a small setup action or settings-page action that
 reconciles the resources for the selected company:
 
 ```ts
-import { definePlugin } from "@paperclipai/plugin-sdk";
+import { definePlugin } from "@outpost/plugin-sdk";
 
 export default definePlugin({
   setup(ctx) {
@@ -522,7 +522,7 @@ UI:
 - `usePluginStream`
 - `usePluginToast`
 - `useHostContext`
-- typed slot props from `@paperclipai/plugin-sdk/ui`
+- typed slot props from `@outpost/plugin-sdk/ui`
 
 Mount surfaces currently wired in the host include:
 
@@ -561,7 +561,7 @@ the user chose as soon as they navigate away.
 
 ## Shared host components
 
-Use shared components from `@paperclipai/plugin-sdk/ui` when the plugin needs a
+Use shared components from `@outpost/plugin-sdk/ui` when the plugin needs a
 Paperclip-native control. The host owns the implementation, so plugins inherit
 the board's current styling, ordering, recent selections, and dark-mode behavior
 without importing `ui/src` internals.
@@ -582,7 +582,7 @@ Currently exposed components include:
 - `ManagedRoutinesList` for plugin-owned routine settings pages.
 
 ```tsx
-import { AssigneePicker, ProjectPicker } from "@paperclipai/plugin-sdk/ui";
+import { AssigneePicker, ProjectPicker } from "@outpost/plugin-sdk/ui";
 
 export function PluginAssignmentControls({ companyId }: { companyId: string }) {
   const [assignee, setAssignee] = useState("");
@@ -614,7 +614,7 @@ data the plugin actually has.
 
 ### When to use the shared `FileTree`
 
-Use `FileTree` from `@paperclipai/plugin-sdk/ui` whenever the plugin only needs
+Use `FileTree` from `@outpost/plugin-sdk/ui` whenever the plugin only needs
 to render a serializable file/directory list and react to selection or
 expand/collapse. The host owns the implementation, so plugin UI inherits the
 board's icons, indent, focus ring, and dark-mode styling without importing host
@@ -624,7 +624,7 @@ internals.
 import {
   FileTree,
   type FileTreeNode,
-} from "@paperclipai/plugin-sdk/ui";
+} from "@outpost/plugin-sdk/ui";
 
 const nodes: FileTreeNode[] = [
   { name: "AGENTS.md", path: "AGENTS.md", kind: "file", children: [] },
@@ -826,9 +826,9 @@ transfer API. Native agent execution is a separate integration.
 ## Plugin-provided Runner execution
 
 Plugins can [provide Runner execution through environment drivers](PLUGIN_RUNNER_EXECUTION.md).
-Core can select this path for `paperclip_runner` agents assigned to a saved plugin
+Core can select this path for `outpost_runner` agents assigned to a saved plugin
 environment. The plugin owns project volumes and starts Runner from structured
-task launch inputs. Core connects PRP and verifies cancellation and durable cleanup.
+task launch inputs. Core connects ORP and verifies cancellation and durable cleanup.
 Resource transfer and credential synchronization use a separate workflow.
 Persistent computers keep their agent home and session files between runs. No remote shell, file-command,
 or workspace hook is required. The guide defines the task operations, lease

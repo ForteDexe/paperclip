@@ -4,7 +4,7 @@ import {
   createRunnerAttachmentGrant, RUNNER_ATTACHMENT_DOWNLOAD_PATH, runnerAttachmentDownloadRoutes,
 } from "./runner-attachment-download.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
-import type { PrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
+import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -38,7 +38,7 @@ import {
   issues,
   issueWorkProducts,
   type Db,
-} from "@paperclipai/db";
+} from "@outpost/db";
 
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createLocalDiskStorageProvider } from "../../storage/local-disk-provider.js";
@@ -52,7 +52,7 @@ import {
   stageNativeRunnerWakeAttachments,
 } from "./native-runner-file-handoff.js";
 import { validateNativeDeliverableEvidence } from "./native-deliverable-feedback.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("native runner file handoff", () => {
   let temporary: Awaited<
@@ -69,7 +69,7 @@ describe("native runner file handoff", () => {
   const runId = "00000000-0000-4000-8000-000000009104";
 
   beforeAll(async () => {
-    const external = resolveExternalTestDatabaseUrl("PAPERCLIP_NATIVE_HANDOFF_TEST_DATABASE_URL");
+    const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_HANDOFF_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-runner-file-handoff-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
     temporaryRoot = await mkdtemp(
@@ -89,7 +89,7 @@ describe("native runner file handoff", () => {
       id: agentId,
       companyId,
       name: "Native file agent",
-      adapterType: "paperclip_runner",
+      adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
       runtimeConfig: {},
       status: "active",
@@ -199,7 +199,7 @@ describe("native runner file handoff", () => {
 
   function doneReport(refs: string[]): PrpStructuredRunResult {
     return {
-      schema: "paperclip.run_result.v1",
+      schema: "outpost.run_result.v1",
       reportedWorkDisposition: "done",
       summary: "Created the requested checklist.",
       completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] },
@@ -286,7 +286,7 @@ describe("native runner file handoff", () => {
     const root = await mkdtemp(path.join(temporaryRoot, "empty-wake-unauthorized-"));
     try {
       await expect(stageEmptyWake(root, "00000000-0000-4000-8000-000000009199"))
-        .rejects.toThrow("paperclip_runner_attachment_staging_not_authorized");
+        .rejects.toThrow("outpost_runner_attachment_staging_not_authorized");
       await expect(readdir(root)).resolves.toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -534,7 +534,7 @@ describe("native runner file handoff", () => {
         createdByRunId: runId,
         body: "Prepared Requested answer for this response.",
         metadata: expect.objectContaining({
-          authorizationReason: "paperclip_runner_protocol",
+          authorizationReason: "outpost_runner_protocol",
           attachmentPreparation: { attachmentId: first.entityRefs[0] },
         }),
       }),
@@ -550,7 +550,7 @@ describe("native runner file handoff", () => {
           attachmentId: first.entityRefs[0],
           workProductId: first.entityRefs[1],
           commentId: first.entityRefs[2],
-          source: "paperclip_runner_protocol",
+          source: "outpost_runner_protocol",
         }),
       }),
     ]);
@@ -584,10 +584,10 @@ describe("native runner file handoff", () => {
       authority({ executionTargetKind: "remote" }).execute(
         callFor("checked.txt", body, "remote-denied"),
       ),
-    ).rejects.toThrow("paperclip_runner_file_handoff_remote_unsupported");
+    ).rejects.toThrow("outpost_runner_file_handoff_remote_unsupported");
     await expect(
       authority().execute(callFor("linked.txt", body, "symlink-denied")),
-    ).rejects.toThrow("paperclip_runner_file_handoff_symlink_denied");
+    ).rejects.toThrow("outpost_runner_file_handoff_symlink_denied");
     await expect(
       authority().execute(
         callFor(
@@ -596,13 +596,13 @@ describe("native runner file handoff", () => {
           "intermediate-symlink-denied",
         ),
       ),
-    ).rejects.toThrow("paperclip_runner_file_handoff_symlink_denied");
+    ).rejects.toThrow("outpost_runner_file_handoff_symlink_denied");
     await expect(
       authority().execute(callFor("hardlinked.txt", body, "hardlink-denied")),
-    ).rejects.toThrow("paperclip_runner_file_handoff_file_changed");
+    ).rejects.toThrow("outpost_runner_file_handoff_file_changed");
     await expect(
       authority().execute(callFor("../checked.txt", body, "traversal-denied")),
-    ).rejects.toThrow("paperclip_runner_file_handoff_path_denied");
+    ).rejects.toThrow("outpost_runner_file_handoff_path_denied");
     await expect(
       authority().execute({
         ...callFor("checked.txt", body, "hash-denied"),
@@ -611,12 +611,12 @@ describe("native runner file handoff", () => {
           sha256: "0".repeat(64),
         },
       }),
-    ).rejects.toThrow("paperclip_runner_file_handoff_hash_mismatch");
+    ).rejects.toThrow("outpost_runner_file_handoff_hash_mismatch");
     await expect(
       authority({ companyId: "00000000-0000-4000-8000-000000009999" }).execute(
         callFor("checked.txt", body, "foreign-denied"),
       ),
-    ).rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+    ).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
   });
 
   it("registers a verified remote output without reading a controller path", async () => {
@@ -662,7 +662,7 @@ describe("native runner file handoff", () => {
     try {
       await expect(authority({ executionTargetKind: "remote", readRemoteTaskFile: reader })
         .execute(callFor("proof.txt", body, "revoked-during-read")))
-        .rejects.toThrow("paperclip_runner_tool_binding_not_authorized");
+        .rejects.toThrow("outpost_runner_tool_binding_not_authorized");
       expect(await db.select({ id: issueAttachments.id }).from(issueAttachments)).toEqual(before);
     } finally {
       await db.update(agents).set({ status: "active" }).where(eq(agents.id, agentId));
@@ -852,7 +852,7 @@ describe("native runner file handoff", () => {
     );
     expect(prompt).toContain(relativePath!);
     expect(prompt).not.toContain("/api/attachments/");
-    expect(prompt).not.toContain("PAPERCLIP_API_KEY");
+    expect(prompt).not.toContain("OUTPOST_API_KEY");
     await stage.cleanup();
     await expect(
       readFile(path.join(workspaceRoot, relativePath!)),
@@ -881,7 +881,7 @@ describe("native runner file handoff", () => {
         },
         storage,
       }),
-    ).rejects.toThrow("paperclip_runner_attachment_staging_residue_denied");
+    ).rejects.toThrow("outpost_runner_attachment_staging_residue_denied");
     await expect(readFile(outsideResidue, "utf8")).resolves.toBe(
       "outside bytes must remain intact",
     );
@@ -917,7 +917,7 @@ describe("native runner file handoff", () => {
         },
         storage,
       }),
-    ).rejects.toThrow("paperclip_runner_attachment_staging_not_authorized");
+    ).rejects.toThrow("outpost_runner_attachment_staging_not_authorized");
 
     const remoteStage = await stageNativeRunnerWakeAttachments({
       db,
@@ -956,7 +956,7 @@ describe("native runner file handoff", () => {
 
     stageRemoteAttachment.mockClear();
     const binding = { companyId, issueId, runId, agentId, workspaceRoot: "/remote/workspace", executionTargetKind: "remote" as const };
-    const env = { PAPERCLIP_AGENT_JWT_SECRET: randomUUID() };
+    const env = { OUTPOST_AGENT_JWT_SECRET: randomUUID() };
     const app = express();
     app.use(runnerAttachmentDownloadRoutes(db, storage, env));
     const downloadRemoteAttachment = vi.fn(async (source: Parameters<typeof createRunnerAttachmentGrant>[1]) => {
@@ -1214,7 +1214,7 @@ describe("native runner file handoff", () => {
       authority().execute(
         callFor("out/answer.txt", originalBody, "reminted-work-product"),
       ),
-    ).rejects.toThrow("paperclip_runner_file_handoff_work_product_missing");
+    ).rejects.toThrow("outpost_runner_file_handoff_work_product_missing");
 
     const failureBody = Buffer.from("storage mismatch cleanup\n", "utf8");
     await writeFile(path.join(workspaceRoot, "mismatch.txt"), failureBody);
@@ -1246,7 +1246,7 @@ describe("native runner file handoff", () => {
       mismatchingAuthority.execute(
         callFor("mismatch.txt", failureBody, "storage-mismatch"),
       ),
-    ).rejects.toThrow("paperclip_runner_file_handoff_storage_mismatch");
+    ).rejects.toThrow("outpost_runner_file_handoff_storage_mismatch");
     expect(deletedObjectKey).toEqual(expect.any(String));
     await expect(
       realStorage.headObject(companyId, deletedObjectKey!),

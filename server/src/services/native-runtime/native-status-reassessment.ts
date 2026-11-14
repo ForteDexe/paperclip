@@ -3,7 +3,7 @@ import { completionReviewStageEntry } from "../issue-execution-policy.js";
 import { hasNativeWorkspaceFinalizationOwner } from "./native-workspace-finalization-recovery-state.js";
 import { and, desc, eq, gt, or } from "drizzle-orm";
 import { completionContracts, heartbeatRuns, issueWorkProducts, issues, nativeRunResults,
-  statusDecisions, workAssessments, workspaceOperations, type Db } from "@paperclipai/db";
+  statusDecisions, workAssessments, workspaceOperations, type Db } from "@outpost/db";
 import { issueService } from "../issues.js";
 import { decisionHasRetiredAutomaticReview } from "./automatic-completion-reviews.js";
 import { classifyNativeEvidence } from "./evidence-classifier.js";

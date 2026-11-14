@@ -17,7 +17,7 @@ import {
   heartbeatRuns,
   issueRecoveryActions,
   issues,
-} from "@paperclipai/db";
+} from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -61,7 +61,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
     await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "IPH",
       requireBoardApprovalForNewAgents: false });
     await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
-      adapterType: "paperclip_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+      adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Sandbox", driver: "sandbox", status: "active",
       config: { provider: "fake" } });
     await db.insert(authUsers).values({ id: "local-board", name: "Local operator", email: "local-board@example.invalid",
@@ -106,7 +106,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
       controllerBootId: controller.bootId, controllerProcess: controller.process,
       scheduledRetryAttempt: 1, scheduledRetryReason: "transient_failure",
       contextSnapshot: { issueId },
-      runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+      runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
       resultJson: { stopReason: "interrupted", cancellation: { reason: "Server shutdown interrupted execution",
         source: "shutdown", expected: true, initiator: { type: "system" }, recordedAt: finishedAt.toISOString() } },
       ...options.run });
@@ -115,7 +115,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
       status: released ? "released" : "pending_cleanup", cleanupStatus: released ? "success" : "failed",
       leasePolicy: "reuse_by_environment", provider: "fake", providerLeaseId,
       releasedAt: released ? new Date(finishedAt.getTime() + 2_000) : null,
-      metadata: released ? { remoteExecutionTermination: { schema: "paperclip.remote-termination.v1", companyId, runId,
+      metadata: released ? { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId,
         leaseId, provider: "fake", providerLeaseId, state: "stopped", confirmedAt: finishedAt.toISOString() } } : {} });
     const [hold] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
       kind: "execution_reconciliation", cause: "legacy_execution_requires_reconciliation",
@@ -173,7 +173,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
       interruptedPreparation({ holdEvidence: { explicitUserContinuation: { actorId: "board-user" } } })],
     ["it is a workspace-restore hold owned by restore recovery", async () =>
       interruptedPreparation({ holdEvidence: { workspaceRestoreFailure: "restore_failed",
-        workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [] } } })],
+        workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [] } } })],
   ] as const)("keeps the hold when %s", async (_label, arrange) => {
     const f = await arrange();
     const before = await hold(f.holdId);
@@ -186,17 +186,17 @@ suite("held interrupted preparations on the shared ownership path", () => {
     const workspaceId = randomUUID(), leaseId = randomUUID(), providerLeaseId = `sandbox-${leaseId}`;
     const remoteCwd = `/home/daytona/paperclip-workspace/.paperclip-workspaces/${workspaceId}-1-${leaseId}`;
     const location = { environmentId, leaseId, providerLeaseId, remoteCwd };
-    const source = { kind: "git", repoUrl: "https://github.com/paperclipai/paperclip.git", ref: "a".repeat(40),
+    const source = { kind: "git", repoUrl: "https://github.com/paperclipai/outpost.git", ref: "a".repeat(40),
       branchMode: "create", branchName: "IPH-1-change" };
-    const authority = { schema: "paperclip.remote-workspace.v1", epoch: 2, source, location: null, dirty: false, writerRunId: null,
+    const authority = { schema: "outpost.remote-workspace.v1", epoch: 2, source, location: null, dirty: false, writerRunId: null,
       snapshotId: options.savedSnapshotId ?? null, ...options.authority };
-    const receipts = [{ schema: "paperclip.remote-workspace-abandoned-epoch.v1", epoch: 1, runId,
+    const receipts = [{ schema: "outpost.remote-workspace-abandoned-epoch.v1", epoch: 1, runId,
       snapshotId: options.savedSnapshotId ?? null, location, providerRef: remoteCwd, abandonedAt: new Date().toISOString(), ...options.receipt }];
     await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: "isolated_workspace",
       strategyType: "git_worktree", name: "Remote workspace", status: "active", providerType: "git_worktree",
       metadata: { remoteWorkspace: authority, remoteWorkspaceAbandonedEpochs: receipts } });
-    await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" },
-      remoteWorkspace: { schema: "paperclip.remote-workspace-run.v1", state: "prepared", workspaceId, epoch: 1, leaseId,
+    await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" },
+      remoteWorkspace: { schema: "outpost.remote-workspace-run.v1", state: "prepared", workspaceId, epoch: 1, leaseId,
         providerLeaseId, remoteCwd, snapshotId: null }, ...options.profile } }).where(eq(heartbeatRuns.id, runId));
     return { leaseId };
   }
@@ -208,12 +208,12 @@ suite("held interrupted preparations on the shared ownership path", () => {
     const f = await interruptedPreparation();
     const { leaseId } = await preparedRemoteWorkspace(f.runId, f.issueId);
     const restore = { workspaceRestoreFailure: "restore_failed",
-      workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] } };
+      workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] } };
     const run = await runRow(f.runId);
     await db.update(heartbeatRuns).set({ resultJson: { ...run.resultJson, ...restore } }).where(eq(heartbeatRuns.id, f.runId));
     const saved = await hold(f.holdId);
     await db.update(issueRecoveryActions).set({ evidence: { ...saved.evidence, ...restore,
-      systemRecovery: { schema: "paperclip.system-recovery.v1", policyVersion: 1, state: "exhausted", phase: "verify_execution",
+      systemRecovery: { schema: "outpost.system-recovery.v1", policyVersion: 1, state: "exhausted", phase: "verify_execution",
         sourceRunId: f.runId, attempts: 1, retriesUsed: 0, revision: 5, nextAttemptAt: null,
         failure: { code: "source_binding_invalid", retryClass: "service_required", sourceVerification: { reason: "workspace_reference_mismatch" } } } } })
       .where(eq(issueRecoveryActions.id, f.holdId));
@@ -237,7 +237,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
     const f = await interruptedPreparation({ run: controllerLeaseLostRun() });
     const { leaseId } = await preparedRemoteWorkspace(f.runId, f.issueId);
     const restore = { workspaceRestoreFailure: "restore_failed",
-      workspaceRestoreRecovery: { schema: "paperclip.workspace-restore-recovery.v1", leaseIds: [leaseId] } };
+      workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] } };
     const run = await runRow(f.runId);
     await db.update(heartbeatRuns).set({ resultJson: { ...run.resultJson, ...restore } }).where(eq(heartbeatRuns.id, f.runId));
     const saved = await hold(f.holdId);
@@ -245,11 +245,11 @@ suite("held interrupted preparations on the shared ownership path", () => {
     await db.update(issueRecoveryActions).set({ kind: "active_run_watchdog", evidence: { ...staged, ...restore,
       ...(options.keepStatusReceipt ? { nativeBootstrapFailureBlock } : {}),
       originalFailureCode: "controller_lease_lost", continuationDelivery: "invalidated",
-      historicalWorkspaceSource: { schema: "paperclip.historical-workspace-source.v1", runId: f.runId, leaseIds: [leaseId] },
-      workspaceRecovery: { schema: "paperclip.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
+      historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: f.runId, leaseIds: [leaseId] },
+      workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
         attempt: 1, attemptLimit: 6, retryable: true, requestIds: [],
         message: "Automatic recovery of saved work failed (last failure: source_unavailable). Retry to try again; the agent will not repeat its work." },
-      systemRecovery: { schema: "paperclip.system-recovery.v1", policyVersion: 1, capturePolicyVersion: 2, state: "exhausted",
+      systemRecovery: { schema: "outpost.system-recovery.v1", policyVersion: 1, capturePolicyVersion: 2, state: "exhausted",
         phase: "verify_execution", sourceRunId: f.runId, generationId: randomUUID(), attemptId: randomUUID(), intentId: null,
         attempts: 1, retriesUsed: 0, revision: 2, nextAttemptAt: null, providerCooldownAt: null, freshAttemptRunId: null,
         preservationOperationIds: [], failure: { code: "source_unavailable", retryClass: "use_alternative_strategy",
@@ -305,7 +305,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
         responsibleUserId: "local-board", issueId, runtimeMode: "legacy", executionStage: "preparing",
         startedAt: new Date(finishedAt.getTime() - 2_000), finishedAt, nextEventSeq: 1,
         controllerBootId: controller.bootId, controllerProcess: controller.process,
-        runnerProfileJson: { adapterDispatch: { adapterType: "paperclip_runner" } },
+        runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
         contextSnapshot: { issueId, ...context }, ...retry } as typeof heartbeatRuns.$inferInsert;
     };
     await db.insert(heartbeatRuns).values(lostLease(firstRunId, { ...firstContext }));

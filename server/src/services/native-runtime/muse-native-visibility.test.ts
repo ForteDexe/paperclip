@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { LOW_TRUST_REVIEW_PRESET, DEFAULT_TRUST_PRESET } from "@paperclipai/shared";
+import { LOW_TRUST_REVIEW_PRESET, DEFAULT_TRUST_PRESET } from "@outpost/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, approvals, authUsers, companies, companyMemberships, createDb, completionContracts, nativeRunResults, workAssessments, statusDecisions, issueApprovals, documents, documentRevisions, externalAgentHolds, heartbeatRuns, instanceUserRoles, issueAccessGrants, issues, issueDocuments, issueThreadInteractions, principalPermissionGrants, projectAccessMembers, projects } from "@paperclipai/db";
+import { agents, approvals, authUsers, companies, companyMemberships, createDb, completionContracts, nativeRunResults, workAssessments, statusDecisions, issueApprovals, documents, documentRevisions, externalAgentHolds, heartbeatRuns, instanceUserRoles, issueAccessGrants, issues, issueDocuments, issueThreadInteractions, principalPermissionGrants, projectAccessMembers, projects } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { approvalReadSqlCondition, authorizationService, canActorReadIssuePrivacy, issueReadSqlCondition, projectReadSqlCondition, type AuthorizationActor } from "../authorization.js";
 import { claimQueuedNativeReviewRun } from "./native-review-dispatch.js";
-import { PaperclipRunnerToolAuthority } from "./paperclip-runner-tool-authority.js";
+import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { documentService } from "../documents.js";
 import { buildLowTrustSourceTrust, buildPromotedSourceTrust, LOW_TRUST_QUARANTINED_BODY } from "../source-trust.js";
 
@@ -21,7 +21,7 @@ describe("Muse native visibility intersection", () => {
     await db.insert(companies).values({ id: companyId, name: "Muse visibility", issuePrefix: `V${companyId.slice(0, 6)}` });
     await db.insert(authUsers).values([responsible, authorizer].map(id => ({ id, name: id, email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date() })));
     await db.insert(companyMemberships).values([responsible, authorizer].map(principalId => ({ companyId, principalType: "user", principalId, status: "active", membershipRole: "operator" })));
-    await db.insert(agents).values({ id: agentId, companyId, name: "Muse", role: "engineer", status: "idle", adapterType: "paperclip_runner", adapterConfig: { provider: "muse" }, runtimeConfig: {}, permissions: {} });
+    await db.insert(agents).values({ id: agentId, companyId, name: "Muse", role: "engineer", status: "idle", adapterType: "outpost_runner", adapterConfig: { provider: "muse" }, runtimeConfig: {}, permissions: {} });
     const [issue] = await db.insert(issues).values({ companyId, title: "Private task", visibility: "private", assigneeAgentId: agentId, responsibleUserId: responsible }).returning();
     const actor: AuthorizationActor = { type: "agent", agentId, companyId, source: "agent_jwt", onBehalfOfUserId: responsible, authorizingUserId: authorizer };
     return { companyId, agentId, responsible, authorizer, issue, actor };
@@ -61,7 +61,7 @@ describe("Muse native visibility intersection", () => {
   }
   async function recordedChildReview(f:Awaited<ReturnType<typeof taskReadBoundaryFixture>>,issueId:string) {
     const contractId=randomUUID(),sourceRunId=randomUUID(),resultId=randomUUID(),assessmentId=randomUUID(),decisionId=randomUUID(),interactionId=randomUUID();
-    await db.insert(completionContracts).values({id:contractId,companyId:f.companyId,issueId,revision:1,schemaVersion:"paperclip.completion-contract.v1",policyVersion:"native-read-fixture",risk:"standard",completionAuthority:"server_arbiter",incompleteCriteriaPolicy:"preserve_non_terminal",contractJson:{objective:"Review child"},canonicalSha256:contractId,createdByActorType:"system",createdByActorId:"test"});
+    await db.insert(completionContracts).values({id:contractId,companyId:f.companyId,issueId,revision:1,schemaVersion:"outpost.completion-contract.v1",policyVersion:"native-read-fixture",risk:"standard",completionAuthority:"server_arbiter",incompleteCriteriaPolicy:"preserve_non_terminal",contractJson:{objective:"Review child"},canonicalSha256:contractId,createdByActorType:"system",createdByActorId:"test"});
     await db.insert(heartbeatRuns).values({id:sourceRunId,companyId:f.companyId,agentId:f.agentId,nativeIssueId:issueId,status:"succeeded",runtimeMode:"native",completionContractId:contractId});
     await db.insert(nativeRunResults).values({id:resultId,companyId:f.companyId,issueId,runId:sourceRunId,completionContractId:contractId,serverFingerprint:resultId,schemaStatus:"accepted",resultJson:{},canonicalSha256:resultId});
     await db.insert(workAssessments).values({id:assessmentId,companyId:f.companyId,issueId,runId:sourceRunId,contractId,resultId,triggerKind:"native_result",triggerActorCompanyId:f.companyId,priorIssueStatus:"in_progress",priorStatusVersion:0,policyVersion:"native-read-fixture",assessmentJson:{},inputDigest:assessmentId});
@@ -232,7 +232,7 @@ describe("Muse native visibility intersection", () => {
       }
       if (kind === "wrong_writer" || kind === "foreign_company") {
         writerAgentId = randomUUID();
-        await db.insert(agents).values({ id: writerAgentId, companyId: writerCompanyId, name: "Other writer", adapterType: "paperclip_runner" });
+        await db.insert(agents).values({ id: writerAgentId, companyId: writerCompanyId, name: "Other writer", adapterType: "outpost_runner" });
       }
       if (kind !== "missing_run" && kind !== "missing_user") await db.insert(heartbeatRuns).values({ id: writerRunId,
         companyId: writerCompanyId, agentId: writerAgentId, nativeIssueId: kind === "wrong_task" ? null : f.issue.id,
@@ -329,7 +329,7 @@ describe("Muse native visibility intersection", () => {
   });
 
   it.each(["enforce", "shadow", "off"])("filters direct and paginated reads before data leaves the DB in %s mode", async mode => {
-    vi.stubEnv("PAPERCLIP_ISSUE_PRIVACY_MODE", mode);
+    vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", mode);
     const f = await fixture();
     await db.insert(instanceUserRoles).values({ userId: f.authorizer, role: "instance_admin" });
     expect(await canActorReadIssuePrivacy(db, f.actor, f.issue)).toBe(false);
@@ -372,7 +372,7 @@ describe("Muse native visibility intersection", () => {
   });
 
   it.each(["create_task", "reassign_task"])("intersects native %s with current authorizer assignment scope before writes or wakes", async tool => {
-    vi.stubEnv("PAPERCLIP_RESPONSIBLE_USER_AUTHZ_MODE", "shadow");
+    vi.stubEnv("OUTPOST_RESPONSIBLE_USER_AUTHZ_MODE", "shadow");
     const f = await fixture(), runId = randomUUID();
     const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Assignment scope" }).returning();
     const [protectedAgent] = await db.insert(agents).values({ companyId: f.companyId, name: "Protected target", status: "active", role: "engineer",
@@ -420,7 +420,7 @@ describe("Muse native visibility intersection", () => {
   });
 
   it.each(["enforce", "shadow"])("denies native document writes for a viewer authorizer in responsible-user %s mode", async mode => {
-    vi.stubEnv("PAPERCLIP_RESPONSIBLE_USER_AUTHZ_MODE", mode);
+    vi.stubEnv("OUTPOST_RESPONSIBLE_USER_AUTHZ_MODE", mode);
     const f = await fixture(), runId = randomUUID();
     await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, f.authorizer)));
     await db.insert(issueAccessGrants).values({ issueId: f.issue.id, subjectType: "user", subjectId: f.authorizer, source: "explicit" });

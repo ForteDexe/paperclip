@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { IssueRecoveryAction, WorkspaceSourceInspection } from "@paperclipai/shared";
-import { isNativeWorkspaceExportRepairCause } from "@paperclipai/shared";
+import type { IssueRecoveryAction, WorkspaceSourceInspection } from "@outpost/shared";
+import { isNativeWorkspaceExportRepairCause } from "@outpost/shared";
 import { isTransientError } from "../api/errors";
 import { useQueryView } from "./QueryView";
 import { accessApi } from "../api/access";
@@ -264,7 +264,7 @@ function RetainedFilesRecovery({ action, issueId, companyId, className, onRecove
     const inspected = data?.sourceInspection;
     const state = asObject(current?.evidence.workspaceRecovery);
     return current && isRetainedExport(current, issueId, companyId) && current.evidence.runId === runId
-      && state.runId === runId && state.schema === "paperclip.workspace-recovery.v1"
+      && state.runId === runId && state.schema === "outpost.workspace-recovery.v1"
       && inspected?.actionId === action.id && inspected.runId === runId ? current : null;
   }
   const sourceVerified = (data: typeof source.data) => Boolean(boundAction(data)) && data?.sourceInspection?.status === "verified";

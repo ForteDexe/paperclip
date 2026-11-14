@@ -22,7 +22,7 @@ If the UI cannot configure a required setting, report that specific gap and keep
 the setup paused; do not claim the setting was saved or bypass access controls.
 
 For an authorized HTTP client, use its existing board session or injected
-`PAPERCLIP_API_URL` / `PAPERCLIP_API_KEY`. Normalize the base to append `/api`
+`OUTPOST_API_URL` / `OUTPOST_API_KEY`. Normalize the base to append `/api`
 exactly once. A run bridge address may differ from the user-facing web URL;
 show the web URL but use the injected bridge for API requests. Never send the
 credential to a different origin while resolving the user's instance choice.

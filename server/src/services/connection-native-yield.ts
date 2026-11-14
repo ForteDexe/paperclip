@@ -1,4 +1,4 @@
-import { nativeConnectorRequiresCustomerOAuthApp, type AppDefinition, type InstanceExperimentalSettings } from "@paperclipai/shared";
+import { nativeConnectorRequiresCustomerOAuthApp, type AppDefinition, type InstanceExperimentalSettings } from "@outpost/shared";
 import { isCloudManagedInstance } from "./cloud-instance.js";
 
 /**

@@ -169,10 +169,10 @@ jobs:
 
       - name: Run release smoke Playwright suite
         env:
-          PAPERCLIP_RELEASE_SMOKE_BASE_URL: ${{ env.SMOKE_BASE_URL }}
-          PAPERCLIP_RELEASE_SMOKE_EMAIL: ${{ env.SMOKE_ADMIN_EMAIL }}
-          PAPERCLIP_RELEASE_SMOKE_PASSWORD: ${{ env.SMOKE_ADMIN_PASSWORD }}
-          PAPERCLIP_PLAYWRIGHT_CHANNEL: "chrome"
+          OUTPOST_RELEASE_SMOKE_BASE_URL: ${{ env.SMOKE_BASE_URL }}
+          OUTPOST_RELEASE_SMOKE_EMAIL: ${{ env.SMOKE_ADMIN_EMAIL }}
+          OUTPOST_RELEASE_SMOKE_PASSWORD: ${{ env.SMOKE_ADMIN_PASSWORD }}
+          OUTPOST_PLAYWRIGHT_CHANNEL: "chrome"
         run: pnpm run test:release-smoke
 
       - name: Capture Docker logs
@@ -268,15 +268,15 @@ jobs:
         run: |
           pack_args=()
           if [[ -d "$RUNNER_TEMP/release-provider-pack-inputs" ]]; then pack_args=("$RUNNER_TEMP/release-provider-pack-inputs"); fi
-          node packages/paperclip-runner/scripts/stage-release-runner-binaries.mjs \
+          node packages/outpost-runner/scripts/stage-release-runner-binaries.mjs \
             assemble-daemons "$RUNNER_TEMP/release-runner-inputs" "$SOURCE_SHA" "${pack_args[@]}"
-          cp -R packages/paperclip-runner/dist/bin/. server/dist/vendor/paperclip-runner/bin/
-          if [[ -d packages/paperclip-runner/dist/remote-provider-packs ]]; then
-            cp -R packages/paperclip-runner/dist/remote-provider-packs server/dist/vendor/paperclip-runner/
+          cp -R packages/outpost-runner/dist/bin/. server/dist/vendor/outpost-runner/bin/
+          if [[ -d packages/outpost-runner/dist/remote-provider-packs ]]; then
+            cp -R packages/outpost-runner/dist/remote-provider-packs server/dist/vendor/outpost-runner/
           fi
       - name: Verify clean public installation and retain the same package bytes
         env:
-          PAPERCLIP_RUNNER_PUBLIC_PACKS_DIR: ${{ runner.temp }}/public-runner-packs
+          OUTPOST_RUNNER_PUBLIC_PACKS_DIR: ${{ runner.temp }}/public-runner-packs
         run: node scripts/verify-grok-npm-install.mjs
       - name: Locate completed package assembly
         id: pack_identity

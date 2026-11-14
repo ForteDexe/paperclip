@@ -1,8 +1,8 @@
 import {beforeEach,describe,expect,it,vi} from "vitest";
-import type {Db} from "@paperclipai/db";
+import type {Db} from "@outpost/db";
 const current=vi.hoisted(()=>({identity:null as null|{stackId:string;canonicalOrigin:string},instanceId:null as string|null,enabled:true,settingsReads:0}));
 vi.mock("../cloud-runtime-identity.js",()=>({getCloudRuntimeIdentity:()=>current.identity}));
-vi.mock("../paperclip-cloud-connector.js",()=>({paperclipCloudConnectorConfigFromEnv:()=>current.instanceId?{instanceId:current.instanceId}:null}));
+vi.mock("../paperclip-cloud-connector.js",()=>({outpostCloudConnectorConfigFromEnv:()=>current.instanceId?{instanceId:current.instanceId}:null}));
 vi.mock("../instance-settings.js",()=>({instanceSettingsService:()=>({getExperimentalReadOnly:async()=>{current.settingsReads++;return{enablePublicMcp:current.enabled};}})}));
 import {cloudEventAuthoritySchema,cloudEventValidationOrigin} from "./cloud-event-authority.js";
 import {mcpClientMirrorGeneration} from "./client-mirror-contract.js";

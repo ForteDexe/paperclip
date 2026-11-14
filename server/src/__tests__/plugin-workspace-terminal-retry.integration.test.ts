@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { createDb, executionWorkspaces, heartbeatRuns, issues } from "@paperclipai/db";
-import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES } from "@paperclipai/plugin-sdk";
+import { createDb, executionWorkspaces, heartbeatRuns, issues } from "@outpost/db";
+import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES } from "@outpost/plugin-sdk";
 import { createPluginWorkspaceFixture } from "./helpers/plugin-workspaces.js";
 import { inspectPluginWorkspace, preparePluginWorkspace, removePluginWorkspace, type WorkspaceWorkers } from "../services/plugin-workspaces.js";
 import { executionWorkspaceService } from "../services/execution-workspaces.js";

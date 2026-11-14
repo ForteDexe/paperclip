@@ -1175,7 +1175,7 @@ A workspace-coherent adapter path means:
 
 - the selected `executionWorkspaceId`, `projectWorkspaceId`, `projectId`, source issue, and company all refer to the same company-scoped work context
 - any `projectWorkspaceId` is accompanied by the owning `projectId`, and that project relationship is unambiguous
-- the adapter will receive the same effective workspace/cwd that Paperclip resolved for the run, including the same workspace ids and `PAPERCLIP_WORKSPACE_*` environment values
+- the adapter will receive the same effective workspace/cwd that Paperclip resolved for the run, including the same workspace ids and `OUTPOST_WORKSPACE_*` environment values
 - the effective cwd exists or is provider-reachable, according to the workspace provider
 - when the adapter or workspace strategy relies on git state, the cwd is git-valid for the selected workspace: it resolves to the expected repository root, required base refs or branch metadata can be resolved, and runtime-created worktrees are still registered or explicitly recoverable
 
@@ -1198,7 +1198,7 @@ place or suppress their replacement checks. After saving and inspecting the
 retained work, an explicitly admitted fresh recovery creates a workspace with the
 correct fingerprint. Ordinary reuse of the old workspace does not migrate it.
 
-Adapter-backed liveness also requires control-plane reachability from the agent's actual mutation surface, not just from the host adapter process. If the agent is expected to use Bash, shell tools, runtime helpers, or in-sandbox command execution to update issues, create comments, upload artifacts, or submit review decisions, the `PAPERCLIP_API_URL` and `PAPERCLIP_API_KEY` visible to that surface must route to Paperclip successfully.
+Adapter-backed liveness also requires control-plane reachability from the agent's actual mutation surface, not just from the host adapter process. If the agent is expected to use Bash, shell tools, runtime helpers, or in-sandbox command execution to update issues, create comments, upload artifacts, or submit review decisions, the `OUTPOST_API_URL` and `OUTPOST_API_KEY` visible to that surface must route to Paperclip successfully.
 
 For sandbox-backed local adapters, Paperclip may satisfy that contract with a run-scoped in-sandbox bridge. The host adapter keeps the real run JWT on the host side, injects only the bridge URL/token into the sandbox tool environment, and forwards allowed Paperclip API requests with the run id attached. The bridge credentials are execution plumbing, not user-facing context: they must not be written into prompts, visible comments, issue documents, restored workspace files, or durable logs. Agents and skills must use the env vars available in Bash/curl rather than assuming that the host's localhost API URL is reachable from browser or web-extraction tools inside the sandbox.
 
@@ -1595,7 +1595,7 @@ A remote runner also keeps working while its controller is offline, and the host
 reattaches it within the remote runner reconnect grace (7 minutes). Daytona counts
 only SDK and lifecycle calls as activity, so with no controller its idle auto-stop
 runs during the outage; a shorter interval stops the sandbox and kills the runner
-while the host would still reattach it. For every `paperclip_runner` run on a
+while the host would still reattach it. For every `outpost_runner` run on a
 sandbox environment the host therefore also forwards `runnerReconnectGraceMs`,
 on acquisition and on recovery resume, under the same provider-only rules. Daytona
 keeps the effective `autoStopInterval` at least the grace plus 5 minutes (12
@@ -1822,7 +1822,7 @@ each provider's process lineage to `<runner state>/process-lineage/` from the
 moment the provider is spawned: the provider, every descendant, and every
 process group or session a descendant leads, each named by PID and start time.
 When close finds that runnerd exited without suspending and without a signal
-from close, it runs `paperclip-runnerd reap-lineage` from the same executable.
+from close, it runs `outpost-runnerd reap-lineage` from the same executable.
 The reaper refuses while runnerd is alive or when runnerd never journalled. It
 signals only processes whose PID and start time still match the journal, and it
 reports `verified` only when none remain. The journal also records how far the
@@ -2260,7 +2260,7 @@ compatibility helper and run-process sweep retain one-release single-host local
 proof where their existing owners permit it. Each use
 writes a `legacy_host_unknown_dead_pid_proof` activity-log entry, so the release that
 removes this fallback can confirm that no rows still depend on it. An ephemeral
-server (`PAPERCLIP_EPHEMERAL_SERVER=true`) never uses the fallback. Its native
+server (`OUTPOST_EPHEMERAL_SERVER=true`) never uses the fallback. Its native
 controller rows with no recorded host wait as `controller_host_unrecorded`, with
 a board recovery action to confirm that the previous server stopped. Its run
 processes with no recorded host are left to the run's Stop control. The next
@@ -2311,7 +2311,7 @@ A record with a recorded process group stays unprovable across hosts, because
 agent processes may outlive their server. The lease is enabled on volume-backed
 Railway services too: a process can crash and restart inside the same deployment,
 and some saved ownership records do not contain a deployment identity.
-`PAPERCLIP_CONTROLLER_INSTANCE_LEASE=off` explicitly disables it.
+`OUTPOST_CONTROLLER_INSTANCE_LEASE=off` explicitly disables it.
 
 Native execution and restart claims register held preparation with this lease before
 a runner PID or checkpoint exists. Passive identity reads do not register work.
@@ -3172,7 +3172,7 @@ A bootstrap retry requires durable evidence that no provider session, provider
 event, or checkpoint exists. A runner report that `session.open` failed or was
 rejected qualifies, because that command runs before any prompt. A
 `session.open` that the controller stopped waiting for during runner startup
-(`<startup failure code>: PRP command session.open timed out`) also qualifies
+(`<startup failure code>: ORP command session.open timed out`) also qualifies
 as `provider_session_open_timeout`: the controller sends a prompt only after
 `session.open` completes, and closing the failed transport stops that runner
 before the retry starts a new one. The runner can still open an empty provider
@@ -3825,7 +3825,7 @@ An interrupted conversation does not permanently block its task. For local conve
 
 Shutdown, process loss, and provider failure use the existing durable failure retry counter and delay. When an automatic continuation retry itself fails before provider work started, for a cause the stranded-task sweep classifies as transient (such as `controller_lease_lost`), releasing the run does not block the task at once: the sweep retries it with its bounded backoff and blocks the task only after that budget is spent. Its `interrupted_preparation` successors count toward the same consecutive continuation budget and carry the chain's retry accounting, and an immediate continuation inherits that accounting, so alternating between release and recovery never resets either limit. Ordinary failure recovery permits at most two automatic retries in a failure chain. Accepted-interaction infrastructure recovery retains its existing bounded policy. Repeated scheduler visits reuse the same successor; restarting the server does not reset the counter. After exhaustion, automatic attempts stop. A new explicit user message can start a fresh run and failure budget. Productive max-turn continuation and confirmed workspace waits keep their separate existing semantics.
 
-If shutdown or a recorded unexpected system interruption stops Paperclip Runner
+If shutdown or a recorded unexpected system interruption stops Outpost Runner
 preparation before native execution was selected, recovery verifies that no
 provider, process launch, native result or coordinator exists. The previous
 controller must have settled or lost its lease. A failed `process_lost` or
@@ -3990,7 +3990,7 @@ the source allocated and exposes the specific service blocker.
 File recovery alone never requests another agent turn. Existing saved human
 messages re-enter ordinary admission once, with the original authors and current
 pause, approval, budget and assignment checks. Historical conversational adapters
-can continue through Paperclip Runner only after their saved adapter identity and
+can continue through Outpost Runner only after their saved adapter identity and
 file receipt are verified. Known GitHub publication receipts enter continuation
 context with their repository, PR and reviewed commit; they authorize no writes
 and settle no other action. Cleanup is a later obligation and can destroy the
@@ -4370,7 +4370,7 @@ preparer must have finished or its startup lease must have expired. A missing
 PID alone does not establish this proof.
 For older interrupted preparation rows without a cancellation receipt, or with
 a retained startup fence but no preparation-settled marker, the
-immutable Paperclip Runner adapter claim, unresolved runtime, and preparing stage
+immutable Outpost Runner adapter claim, unresolved runtime, and preparing stage
 must agree. The old controller must belong to another server boot and its lease
 must have expired. Only absent results or the retained before-selection
 cancellation fence qualify. No native identity, coordinator, adapter invocation,
@@ -4406,13 +4406,13 @@ until provider inspection or operator reconciliation establishes its outcome.
 
 ### Queued messages before a native run's first turn
 
-A user message that arrives while a Paperclip Runner run is still preparing,
+A user message that arrives while a Outpost Runner run is still preparing,
 or after its coordinator claim but before `turn.start`, is not a reason to stop
 that run. Immediately before the first `turn.start`, the runner seals the
 turn's input: in one transaction under the task, queue, and run locks it takes
 the responsible user's plain queued comments for the task, in their queued
 order, adds them to that turn's prompt, and records a
-`firstTurnQueuedInput` receipt (`paperclip.first-turn-queued-input.v1`) in the
+`firstTurnQueuedInput` receipt (`outpost.first-turn-queued-input.v1`) in the
 run context. Interaction answers, interrupt intents, independent
 continuations, conversations, and other users' messages keep their own
 delivery. Taken messages leave the visible queue.
@@ -4606,7 +4606,7 @@ provider, and exact identity, authentication, Stop and revocation checks remain
 required before any recovery or new execution.
 A remote restart claim with a persisted admitted Runner artifact can reconnect
 without the previous controller's launch binary, provider pack or local pack
-receipt. The existing sandbox marker, process identity and authenticated PRP
+receipt. The existing sandbox marker, process identity and authenticated ORP
 checkpoint still establish the original execution. Adoption uses that admitted
 artifact identity and does not stage or launch provider assets. Fresh launches
 and recovery without persisted admission retain their release and pack checks.
@@ -4624,7 +4624,7 @@ A newly launched daemon binds its current Runner artifact while retaining the
 provider pack. Only a surviving daemon retains its previous Runner artifact.
 An authorized continuity break releases the pack pin after archiving the old
 state, so the fresh session uses normal qualified pack selection.
-Native ACPX semantic tool calls wait on their durable PRP invocation across a
+Native ACPX semantic tool calls wait on their durable ORP invocation across a
 controller outage. Their provider-side MCP bridge does not impose a separate
 request deadline that could make the provider retry an already queued write.
 Runner lease expiry, turn cancellation and bridge closure still end those waits.
@@ -4824,10 +4824,10 @@ A reclaim whose outcome is unknown keeps the scheduled retry, because its journa
 resumes on the next attempt and can still free space.
 
 Native assigned app tools save governed responses above 500,000 encoded bytes before returning
-a bounded reference through PRP. `read_tool_result` retrieves the saved JSON in
+a bounded reference through ORP. `read_tool_result` retrieves the saved JSON in
 UTF-8 pages under the same task, agent, and responsible-user access checks.
 Each encoded page fits within 500,000 bytes, including JSON escaping and metadata,
-leaving space for the PRP command envelope. Follow the next byte offset until EOF
+leaving space for the ORP command envelope. Follow the next byte offset until EOF
 to reconstruct the full original JSON; paging never discards remaining content.
 Retrieval never repeats the upstream action. Storage failure after execution
 retains an uncertain result-delivery outcome, preserving the no-replay rule.
@@ -5234,12 +5234,12 @@ Stale queue polls do not restore those rows while delivery is pending or accepte
 Rejected or still-deferred delivery restores the latest queue and shows an inline error without a
 toast. The provider acknowledgement remains the authoritative delivery receipt;
 optimistic display never grants permission or records successful delivery. A preparing
-Paperclip Runner retains the Steer label while steering is unavailable; the
+Outpost Runner retains the Steer label while steering is unavailable; the
 initial legacy database default and an empty queue snapshot cannot select
 Interrupt. Model and effort changes apply to the next turn and do not change
 the active turn's steering target. While awaiting steering acknowledgement, the
 queue route holds the task and queue locks but leaves the run row available for
-PRP event persistence. It locks and rereads the run after acknowledgement before
+ORP event persistence. It locks and rereads the run after acknowledgement before
 merging the receipt, preserving concurrent provider updates.
 If the run stops during that wait, the request fails with a stale-target error
 and retains the queued input for continuation.
@@ -5337,7 +5337,7 @@ compilation independently of the transport's tool-count and byte limits. Search
 returns pinned tool aliases and schemas, intersects fresh grants, and respects
 planning/ask restrictions. OpenCode discovery pages use a 32 KiB budget; larger
 schemas use 16K-character chunks so JSON escaping and the result envelope fit
-its HTTP MCP bridge. Other harnesses keep the existing PRP discovery budgets.
+its HTTP MCP bridge. Other harnesses keep the existing ORP discovery budgets.
 Calls retain the original gateway binding and its
 argument validation, approvals, revocation, and audit rules; prompt arguments
 cannot choose a gateway or credential. Assigned gateway launch credentials stay
@@ -5607,7 +5607,7 @@ configured lifecycle policy.
 
 Remote admission also handles the absence of both native controller projections.
 `native-controller-recovery.ts` selects the existing bounded task/session source
-and restores its encrypted PRP records before admission reads local identity.
+and restores its encrypted ORP records before admission reads local identity.
 It reconstructs the supervisor envelope from `runnerProfileJson.sessionCheckpoint`
 and the private `nativeControllerRecovery` metadata. Missing, incompatible, or
 mixed evidence holds the continuation; it does not authorize fresh execution.
@@ -5615,7 +5615,7 @@ The 32-candidate boundary and newer-progress barriers remain in force. Exhausted
 history and current-run progress cannot establish fresh-bootstrap proof.
 
 A settled warm journal may contain an authenticated idle goal-read snapshot
-after `run.terminal`. Recovery accepts only the supported PRP event v1/v2
+after `run.terminal`. Recovery accepts only the supported ORP event v1/v2
 envelopes with the same complete attachment identity, a null goal and
 `workingNow: false`. All commands must already be complete. Active goals, new
 work, unknown versions and mixed bindings remain holds. This check adds no
@@ -5634,10 +5634,10 @@ execution bindings retain their existing reconciliation holds. Once the owner
 releases its lease, the existing resumption claim admits the same run once.
 Per-turn continuation reconstructs a missing suspended-state
 receipt from the admitted sandbox or prepared-task owner, including after a
-previous read failed with only a PRP projection written.
+previous read failed with only a ORP projection written.
 
 The version-one metadata contains a digest of the exact redacted stored snapshot,
-configuration digests and the PRP checkpoint binding. It is bounded to 4 KiB,
+configuration digests and the ORP checkpoint binding. It is bounded to 4 KiB,
 excluded from public run projections, and saved by `checkpointSession` in its
 existing snapshot transaction. No second snapshot writer, per-text-chunk query,
 pool, or recurring scan is added. A null checkpoint binding records an incomplete
@@ -5674,7 +5674,7 @@ development-reader probes do not establish a published rollback target.
 Active remote adoption and compatible idle warm reuse carry an existing verified
 Runner proof. Preparation revalidates that proof and the exact process's liveness,
 then preserves its in-place harness state. The later protocol attachment still
-authenticates the durable PRP authority. A provider lease acquisition described as
+authenticates the durable ORP authority. A provider lease acquisition described as
 `resumed` does not establish that this already-running harness was suspended.
 Ordinary resumed leases retain their verified suspension and backup checks.
 
@@ -5692,7 +5692,7 @@ cannot. Process verification and the final state read share one recovery
 deadline. A timeout, command failure, transport failure or invalid saved JSON on
 that final read keeps its closed recovery stage and reason in the diagnostic.
 
-Reattachment keeps the complete durable PRP binding, including its turn and item
+Reattachment keeps the complete durable ORP binding, including its turn and item
 attachment IDs. A healthy warm handoff can create new attachment IDs within the
 retained Runner. Replacing that run's controller must preserve those IDs; deriving
 them again from the business run ID would request an invalid authority rotation.
@@ -5708,7 +5708,7 @@ authority. The provider's settled-session attachment guard remains mandatory.
 Restoring that stopped source rebuilds disposable Codex authentication and safe
 provider configuration from the currently admitted account. Retained provider
 endpoints and MCP settings cannot select where the new credential is sent. Local
-and remote launches preserve the source's skills and authenticated PRP authority
+and remote launches preserve the source's skills and authenticated ORP authority
 until its retained work is reconciled. An assigned HTTP MCP gateway comes only
 from the admitted launch binding, so the restored provider retains its tools
 without trusting old MCP settings. No new turn starts before source reconciliation.
@@ -5719,9 +5719,9 @@ Remote launch files reject symlinks and shared inodes. SSH file transfers publis
 a private replacement atomically; a failed transfer preserves the prior file.
 
 The staged controller format is
-`paperclip.runner.durable.control-plane-state.staged-attachment.v1`. It contains
+`outpost.runner.durable.control-plane-state.staged-attachment.v1`. It contains
 the source and target attachment tuples and one bound target attachment template
-inside the existing encrypted PRP authority, subject to its existing size limits.
+inside the existing encrypted ORP authority, subject to its existing size limits.
 The header stores a bounded descriptor and digest. Before command delivery, the
 template is a separate changed-record part; after queueing, recovery uses the
 existing command or receipt. Control checkpoints do not rewrite another copy of
@@ -5823,7 +5823,7 @@ coordinator and run in order, rejects live or unsettled ownership, and publishes
 only missing metadata. Repeating the same import is a no-op. Normal lifecycle
 checkpoints publish the metadata without a separate migration write. Disk-free
 rollback requires a server that reads this envelope and the supported settled
-warm journal, including its PRP v2 idle goal suffix. Earlier local-only readers
+warm journal, including its ORP v2 idle goal suffix. Earlier local-only readers
 and readers lacking that suffix handling remain outside that rollback contract.
 
 ### Stop a failed native retry
