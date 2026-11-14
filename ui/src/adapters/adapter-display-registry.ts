@@ -125,20 +125,6 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     description: "Cursor CLI harness",
     icon: MousePointer2,
   },
-  // Display-only choice: persisted as outpost_runner with provider openai_dot.
-  grok_bot: { label: "Grok Bot", experimental: true, icon: Bot, description: "An existing external Bot in Grok" },
-  openai_dot: {
-    label: "OpenAI Dot",
-    description: "Your Dot in ChatGPT",
-    icon: Bot,
-    experimental: true,
-  },
-  muse: {
-    label: "Muse — Personal agent",
-    description: "Your personal Muse at muse.ai",
-    icon: Bot,
-    experimental: true,
-  },
   cursor_cloud: {
     label: "Cursor Cloud",
     description: "Managed remote Cursor agent",
@@ -206,9 +192,6 @@ export function agentDisplayAdapterType(agent: { adapterType: string; adapterCon
   const pendingSetup = pendingAgentSetupDisplayAdapter(agent);
   if (pendingSetup) return pendingSetup;
   if (agent.adapterType !== "outpost_runner") return agent.adapterType;
-  if (agent.adapterConfig.provider === "openai_dot" || agent.adapterConfig.provider === "grok_bot" || agent.adapterConfig.provider === "muse") {
-    return agent.adapterConfig.provider;
-  }
   const harness = agentHarnessType(agent.adapterType, agent.adapterConfig);
   return ["codex_local", "claude_local", "opencode_local", "pi_local", "antigravity_runtime"].includes(harness) ? harness : agent.adapterType;
 }

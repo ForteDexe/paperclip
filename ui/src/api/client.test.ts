@@ -5,7 +5,6 @@ import {
 } from "@/lib/tenant-session-recovery";
 import { api, detachInflightGet } from "./client";
 import { toolsApi } from "./tools";
-import { museInvitationsApi } from "./museInvitations";
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -37,7 +36,6 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
-
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -306,21 +304,3 @@ describe("managed-account request isolation", () => {
   });
 });
 
-describe("Muse operator request isolation", () => {
-  it.each([
-    ["invitation resume", () => museInvitationsApi.resume("space")],
-    ["connection evidence", () => museInvitationsApi.connection("space", "agent")],
-  ] as const)("does not join the previous operator's %s request", async (_name, read) => {
-    const previous = deferred<Response>();
-    const current = deferred<Response>();
-    fetchMock.mockReturnValueOnce(previous.promise).mockReturnValueOnce(current.promise);
-    const previousOperator = read();
-    const currentOperator = read();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls.every(([, options]) => options.cache === "no-store")).toBe(true);
-    current.resolve(jsonResponse({ operator: "current" }));
-    previous.resolve(jsonResponse({ operator: "previous" }));
-    expect(await currentOperator).toEqual({ operator: "current" });
-    expect(await previousOperator).toEqual({ operator: "previous" });
-  });
-});

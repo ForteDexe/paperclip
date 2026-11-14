@@ -421,11 +421,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     if (experimentalSettings?.enableNativeRunner !== true) {
       next.add("outpost_runner");
     }
-    if (experimentalSettings?.enableOpenAiDot !== true || disabledTypes.has("outpost_runner")) {
-      next.add("openai_dot");
-    }
     return next;
-  }, [disabledTypes, experimentalSettings?.enableNativeRunner, experimentalSettings?.enableOpenAiDot]);
+  }, [disabledTypes, experimentalSettings?.enableNativeRunner]);
   const environmentsEnabled = experimentalSettings?.enableEnvironments === true;
   // Managed-sandbox-only policy: every agent runs in the platform-managed
   // environment, so the form hides each host filesystem path and each
@@ -685,14 +682,10 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     ? String(isCreate ? props.values.adapterSchemaValues?.provider ?? "codex"
       : eff("adapterConfig", "provider", config.provider === "acpx" && config.acpxAgent === "codex" ? "codex" : config.provider ?? "codex"))
     : undefined;
-  const isDotRunner = runnerProvider === "openai_dot";
-  const isGrokBotRunner = runnerProvider === "grok_bot";
-  const isMuseRunner = runnerProvider === "muse";
-  const isExternalRunner = isDotRunner || isGrokBotRunner || isMuseRunner;
-  const showAdapterTestEnvironmentButton = !isGrokBotRunner && (props.showAdapterTestEnvironmentButton ?? true);
+  const showAdapterTestEnvironmentButton = props.showAdapterTestEnvironmentButton ?? true;
   const showInlineAdapterTestEnvironmentButton =
     showAdapterTestEnvironmentButton && !props.onTestActionChange && !props.compactTestFeedback;
-  const isLocal = !isExternalRunner && (adapterCaps.supportsInstructionsBundle || adapterCaps.supportsSkills || adapterCaps.supportsLocalAgentJwt);
+  const isLocal = adapterCaps.supportsInstructionsBundle || adapterCaps.supportsSkills || adapterCaps.supportsLocalAgentJwt;
   
   // The legacy working directory is an absolute path on the host, so the
   // managed-sandbox-only policy hides it. A stored value stays untouched; it is
@@ -1037,7 +1030,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const modelAiBinding = aiConnectionBindingSchema.safeParse((overlay.runtime.runtimeConfig as Record<string, unknown> | undefined)?.aiConnection ?? runtimeConfig.aiConnection).data;
   const accountBoundCatalog = isAccountBoundAcpxAgent(runnerAcpxAgent);
   const modelCacheIdentity = accountBoundCatalog ? `${modelProvider}:${runnerAcpxAgent}:${isCreate ? "new" : props.agent.id}:${JSON.stringify(modelAiBinding ?? null)}` : runnerAcpxAgent ? `${modelProvider}:${runnerAcpxAgent}` : modelProvider;
-  const connectionModels = useConnectionModels(isExternalRunner ? null : selectedSpaceId, isCreate ? undefined : modelAiBinding, aiRoutingHarness(adapterType, runnerProvider, runnerAcpxAgent));
+  const connectionModels = useConnectionModels(selectedSpaceId, isCreate ? undefined : modelAiBinding, aiRoutingHarness(adapterType, runnerProvider, runnerAcpxAgent));
   // Fetch adapter models for the effective provider, including unsaved changes.
   const modelAdapterType = accountBoundCatalog ? "outpost_runner" : isRunnerHarness ? harnessType : adapterType;
   const modelQueryKey = selectedSpaceId
@@ -1053,14 +1046,14 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       agentId: isCreate ? undefined : props.agent.id,
     }),
     ...(accountBoundCatalog ? ACCOUNT_BOUND_MODEL_DISCOVERY_QUERY_OPTIONS : {}),
-    enabled: Boolean(selectedSpaceId) && !isExternalRunner && !connectionModels,
+    enabled: Boolean(selectedSpaceId) && !connectionModels,
   });
   const { data: fetchedModels, error: fetchedModelsError, isLoading: fetchingModels, refetch: refreshConnectionModels } = fetchedModelsQuery;
   const fetchedModelsView = useQueryView(fetchedModelsQuery);
   const accountModelScope = accountBoundCatalog ? JSON.stringify(modelQueryKey) : null;
   useEffect(() => {
-    if (accountModelScope && selectedSpaceId && !isExternalRunner && !connectionModels) void refreshConnectionModels();
-  }, [accountModelScope, selectedSpaceId, isExternalRunner, connectionModels, refreshConnectionModels]);
+    if (accountModelScope && selectedSpaceId && !connectionModels) void refreshConnectionModels();
+  }, [accountModelScope, selectedSpaceId, connectionModels, refreshConnectionModels]);
   const [refreshModelsError, setRefreshModelsError] = useState<string | null>(null);
   const [refreshingModels, setRefreshingModels] = useState(false);
   const models = connectionModels?.models ?? fetchedModels ?? externalModels ?? [];
@@ -1113,10 +1106,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     // Resolve the effective instructions-file gate once. The instructions file
     // is an absolute host path, so the managed-sandbox-only policy hides it for
     // every adapter without a per-adapter edit.
-    hideInstructionsFile: hideInstructionsFile || hideHostPaths || isExternalRunner,
-    managedSandboxOnly: hideHostPaths || isExternalRunner,
-    openAiDotEnabled: experimentalSettings?.enableOpenAiDot === true,
-    museEnabled: experimentalSettings?.enableMuse === true && experimentalSettings?.enableNativeRunner === true,
+    hideInstructionsFile: hideInstructionsFile || hideHostPaths,
+    managedSandboxOnly: hideHostPaths,
   };
 
   // Section toggle state — advanced always starts collapsed
@@ -1238,7 +1229,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         : isRunnerHarness && (isCreate ? runner !== "auto" : overlay.runner !== undefined) ? { runner } : {};
       if (!isCreate && props.agent.adapterType === "outpost_runner" && adapterType === "outpost_runner"
         && runnerAvailability?.defaultRunner !== "outpost"
-        && !isExternalRunner && aiConnection?.mode !== "router" && !isDirty && environmentId && canQualifyRunnerEnvironment(environmentList.find(environment => environment.id === environmentId))) {
+        && aiConnection?.mode !== "router" && !isDirty && environmentId && canQualifyRunnerEnvironment(environmentList.find(environment => environment.id === environmentId))) {
         const target = runnerSettingsTargetRef.current;
         // Qualify only the saved computer. The strict agent-scoped endpoint
         // accepts no draft provider config, credentials or replacement target.
@@ -1801,28 +1792,14 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           )}
         </div>}
         <div data-agent-tile={panels ? "" : undefined} className={cn(cards ? cardBody : "px-4 pb-3 space-y-3")}>
-          {showAdapterTypeField && isGrokBotRunner && (
-            <Field label="Harness" hint={help.adapterType}>
-              <div className="inline-flex items-center gap-1.5">
-                <AdapterMark type="grok_bot" className="size-4" />
-                <span>Grok Bot</span>
-                <ExperimentalBadge />
-              </div>
-            </Field>
-          )}
-          {showAdapterTypeField && !isGrokBotRunner && (
+          {showAdapterTypeField && (
             <Field label="Harness" hint={help.adapterType}>
               <AdapterTypeDropdown
-                value={isDotRunner ? "openai_dot" : isMuseRunner ? "muse" : isRunnerHarness ? harnessType : adapterType}
+                value={isRunnerHarness ? harnessType : adapterType}
                 disabledTypes={adapterPickerDisabledTypes}
-                openAiDotEnabled={experimentalSettings?.enableOpenAiDot === true}
                 nativeRunnerEnabled={experimentalSettings?.enableNativeRunner === true}
-                museEnabled={experimentalSettings?.enableMuse === true && experimentalSettings?.enableNativeRunner === true}
                 onChange={(choice) => {
-                  const dot = choice === "openai_dot";
-                  const muse = choice === "muse";
-                  const external = dot || muse;
-                  const t = external ? "outpost_runner" : choice;
+                  const t = choice;
                   if (isCreate) {
                     // Reset all adapter-specific fields to defaults when switching adapter type
                     const { adapterType: _at, ...defaults } = defaultCreateValues;
@@ -1833,10 +1810,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                     } else if (t === "outpost_runner") {
                       nextValues.model = DEFAULT_CODEX_LOCAL_MODEL;
                     }
-                    if (external) {
-                      nextValues.model = "";
-                      nextValues.adapterSchemaValues = { provider: muse ? "muse" : "openai_dot" };
-                    }
                     set!(nextValues);
                   } else {
                     // Clear all adapter config and explicitly blank out model + effort/mode keys
@@ -1846,17 +1819,14 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                       adapterType: t,
                       runner: ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(t) ? "auto" : undefined,
                       adapterConfig: {
-                        model: external ? ""
-                            : t === "outpost_runner"
+                        model: t === "outpost_runner"
                               ? resolveOutpostRunnerTransitionModel(adapterType, config.model)
                               : "",
                         effort: "",
                         modelReasoningEffort: "",
                         variant: "",
                         mode: "",
-                        ...(external
-                            ? { provider: muse ? "muse" : "openai_dot", lifecycleMode: "per_turn", allowUnmeteredProvider: false, ...(dot ? { dotAttachmentAccess: false, dotWorkspaceAccess: false } : {}) }
-                          : t === "outpost_runner"
+                        ...(t === "outpost_runner"
                             ? {
                                 ...outpostRunnerTransitionConfig(adapterType, eff("adapterConfig", "model", config.model)),
                               }
@@ -1874,7 +1844,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               action="load agent setup data" retrying={runnerDiscoveryView.isFetching}
               onRetry={runnerDiscoveryView.retry} />
           )}
-          {!isExternalRunner && !isCreate && (
+          {!isCreate && (
             <div className="rounded-lg border border-border p-4">
               <h3 className="text-sm font-semibold">Authentication</h3>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -2328,7 +2298,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       ) : null}
 
       {/* ---- Debugging ---- */}
-      {!isExternalRunner && !isCreate && canConfigureProviderTrace ? (
+      {!isCreate && canConfigureProviderTrace ? (
         <div className={cn(!cards && "border-b border-border")}>
           {cards ? (
             <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
@@ -2370,7 +2340,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       {props.compactTestFeedback && showInlineAdapterTestEnvironmentFeedback && showAdapterTestEnvironmentButton && (
         <RuntimeTestCard
           tone={panels ? "tile" : "card"}
-          variant={isExternalRunner ? "prerequisites" : "connection"}
+          variant="connection"
           metadataOnly={accountBoundCatalog}
           state={testActionPending ? "running" : testActionError || testEnvironment.error ? "fail" : testResult?.status ?? "idle"}
           result={testResult ?? null}
@@ -3995,25 +3965,19 @@ export function AdapterTypeDropdown({
   value,
   onChange,
   disabledTypes,
-  openAiDotEnabled = false,
-  museEnabled = false,
   nativeRunnerEnabled = false,
 }: {
   value: string;
   onChange: (type: string) => void;
   disabledTypes: Set<string>;
-  openAiDotEnabled?: boolean;
-  museEnabled?: boolean;
   nativeRunnerEnabled?: boolean;
 }) {
   const selectedDisplay = getAdapterDisplay(value);
   const adapterList = useMemo(() =>
-    [...listAdapterOptions(type => adapterLabels[type] ?? getAdapterLabel(type)),
-      ...(openAiDotEnabled ? [{ value: "openai_dot", label: "OpenAI Dot", experimental: true, comingSoon: false }] : []),
-      ...(museEnabled ? [{ value: "muse", label: "Muse — Personal agent", experimental: true, comingSoon: false }] : []),
-    ].filter(item => !item.comingSoon && (item.value !== "outpost_runner" || nativeRunnerEnabled) && !disabledTypes.has(item.value))
+    [...listAdapterOptions(type => adapterLabels[type] ?? getAdapterLabel(type))]
+      .filter(item => !item.comingSoon && (item.value !== "outpost_runner" || nativeRunnerEnabled) && !disabledTypes.has(item.value))
       .sort((a, b) => Number(a.value === "outpost_runner") - Number(b.value === "outpost_runner")),
-    [disabledTypes, openAiDotEnabled, nativeRunnerEnabled, museEnabled]);
+    [disabledTypes, nativeRunnerEnabled]);
   return <SelectPopover aria-label="Harness" value={value} onValueChange={onChange}
     displayValue={<span className="inline-flex min-w-0 items-center gap-1.5">
       <span aria-hidden="true" className="inline-flex shrink-0"><AdapterMark type={value} className="size-4" /></span>

@@ -1,4 +1,3 @@
-import { prepareMcpClientMirrorPolicy } from "./public-mcp/client-mirror-mutations.js";
 import { notifyLiveRunRecovery, notifyLiveResourceRecovery } from "./live-run-recovery-notifications.js";
 import { notifyDeferredExecutionEligibility } from "./deferred-execution-notifications.js";
 import { notifyRunDispatch } from "./run-dispatch-notifications.js";
@@ -639,7 +638,6 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
       const now = new Date();
       const [updated] = await db.transaction(async tx => {
         if (chatBecameEnabled) await notifyDeferredExecutionEligibility(tx);
-        if(toExperimentalView(current.experimental).enablePublicMcp!==toExperimentalView(nextExperimental).enablePublicMcp)await prepareMcpClientMirrorPolicy(tx as unknown as Db,toExperimentalView(nextExperimental).enablePublicMcp);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpIngressHandoffs);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpClientMirror);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpRevocationIndex, "*");

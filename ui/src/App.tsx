@@ -23,9 +23,6 @@ const OperatorClaimPage = lazy(() => import("./pages/OperatorClaim").then((modul
 const CliAuthPage = lazy(() => import("./pages/CliAuth").then((module) => ({ default: module.CliAuthPage })));
 const ChatIdentityConfirm = lazy(() => import("./pages/apps/chat/ChatIdentityConfirm").then((module) => ({ default: module.ChatIdentityConfirm })));
 const OutpostCloudOAuthHandoffPage = lazy(() => import("./pages/apps/OutpostCloudOAuthHandoff").then((module) => ({ default: module.OutpostCloudOAuthHandoffPage })));
-const McpConnectPage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.McpConnectPage })));
-const McpDevicePage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.McpDevicePage })));
-const AssistantConnectionsPage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.AssistantConnectionsPage })));
 const ProductionLayout = lazy(() => import("./components/Layout.production").then((module) => ({ default: module.Layout })));
 
 const loadIssues = () => import("./pages/Issues").then((module) => ({ default: module.Issues }));
@@ -345,10 +342,6 @@ export function App() {
         <Route path="oauth-handoff" element={<OutpostCloudOAuthHandoffPage />} />
         <Route path="auth" element={<AuthPage />} />
         <Route path="operator-claim/:token" element={<OperatorClaimPage />} />
-        <Route path="mcp-connect/:id" element={<McpConnectPage />} />
-        <Route path="dot-connect/:id" element={<McpConnectPage agentPairingOnly />} />
-        <Route path="mcp-device" element={<McpDevicePage />} />
-        <Route path="assistant-connections" element={<AssistantConnectionsPage />} />
         <Route path="cli-auth/:id" element={<CliAuthPage />} />
         <Route element={<CloudAccessGate allowMembershipRequest />}>
           <Route element={<ShellConfigurationGate loaded={streamlinedUiLoaded} />}>

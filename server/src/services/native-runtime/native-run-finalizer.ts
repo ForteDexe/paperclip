@@ -21,7 +21,6 @@ import { conversationTurnPresentsAnswer, pendingNativePolicy } from "./native-po
 import { notifyChatRunMilestones } from "../chat-run-milestone-notifications.js";
 import { onboardingFirstTaskCompletionAllowed } from "../onboarding-first-task-admission.js";
 import { notifyExecutionRunWork } from "../execution-control-notifications.js";
-import { reconcileMuseNativeTerminalRun } from "./muse-terminal-reconciliation.js";
 import { assertNativeCaseHandoffResult } from "./native-case-handoff.js";
 import { scheduledIssueMonitorWait } from "../issue-monitors.js";
 import { hasPublishedGitHubReview, readInheritedGitHubReviewWait } from "../chat-channels/github/review-wait.js";
@@ -1429,7 +1428,6 @@ export async function finalizeNativeRun(input: {
             )
           )) end`,
       }).from(heartbeatRuns).where(eq(heartbeatRuns.id, admittedRun.id));
-      if (projectedRun) await reconcileMuseNativeTerminalRun(input.db, projectedRun);
     }
     return coordinator;
   }
@@ -2009,7 +2007,6 @@ export async function finalizeNativeRun(input: {
         });
       }
       if (finalizationPhase === "committed" && !input.skipNativeRecoveryNotices) await resolveCommittedNativeRecoveryNotices(input.db, { spaceId: run.spaceId, runId: run.id, issueId: coordinator.issueId });
-      if (input.projectRunStatus && updatedRun && !input.skipExternalAgentSettlement) await reconcileMuseNativeTerminalRun(input.db, updatedRun);
       return {
         ...coordinator,
         phase: finalizationPhase,

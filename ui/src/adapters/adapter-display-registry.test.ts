@@ -16,14 +16,6 @@ describe("adapter display registry", () => {
     const type = agentDisplayAdapterType({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "antigravity" } });
     expect(getAdapterLabel(type)).toBe("Google Antigravity");
   });
-  it.each([
-    ["openai_dot", "OpenAI Dot"],
-    ["grok_bot", "Grok Bot"],
-    ["muse", "Muse — Personal agent"],
-  ])("keeps saved %s external runners branded by provider", (provider, label) => {
-    const type = agentDisplayAdapterType({ adapterType: "outpost_runner", adapterConfig: { provider } });
-    expect(getAdapterDisplay(type).label).toBe(label);
-  });
   it("brands saved Codex runners as Codex without guessing managed or unknown providers", () => {
     expect(agentDisplayAdapterType({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } })).toBe("codex_local");
     expect(agentDisplayAdapterType({ adapterType: "outpost_runner", adapterConfig: {} })).toBe("codex_local");

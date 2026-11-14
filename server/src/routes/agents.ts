@@ -24,8 +24,6 @@ import { agentIdentityService } from "../services/agent-identity.js";
 import { aiConnectionRouterService, poolMemberRuntimeConfig } from "../services/ai-connection-router.js";
 import { connectionIntentService } from "../services/connection-intents.js";
 import { isCloudManagedInstance } from "../services/cloud-instance.js";
-import { dotRunnerBroker } from "../services/dot-runner-broker.js";
-import { publicMcpConfig } from "../services/public-mcp/oauth.js";
 import { connectionIntentDeliveryService } from "../services/connection-intent-delivery.js";
 import { completeConnectionIntentSchema } from "@outpost/shared";
 import { HEARTBEAT_RUN_LIST_DEFAULT_LIMIT, HEARTBEAT_RUN_LIST_MAX_LIMIT } from "@outpost/shared";
@@ -56,7 +54,6 @@ import { getExecutionBlocker } from "../services/execution-blocker.js";
 import { canRetryStoppedRun } from "../services/cancelled-native-startup.js";
 import { getNativeReviewAssignment, readNativeReviewAssignmentContext, type NativeReviewAssignmentContext } from "../services/native-runtime/native-review-participant.js";
 import { outpostRunnerTransitionConfig, normalizeLegacyRunnerProvider, isOutpostRunnerProvider, OUTPOST_RUNNER_ACPX_PROFILES } from "@outpost/adapter-utils";
-import { applyMcpReasoningEffort } from "../services/public-mcp/agent-config.js";
 import { executionProjectionForRun, executionProjectionsForRuns } from "../services/execution-projection.js";
 import { issueRunPresenceService } from "../services/issue-run-presence.js";
 import { selectDashboardRunIds } from "../services/dashboard-run-selection.js";
@@ -3277,31 +3274,6 @@ export function agentRoutes(
         res.json({ adapterType: type, status: "warn", testedAt: new Date().toISOString(), checks: [{ code: "ai_connection_pool_task_test_required", level: "warn", message: "Pool configuration is available. Run a task to verify the selected account and harness; this preview does not allocate a task or contact a provider." }] });
         return;
       }
-      if (type === "outpost_runner" && inputAdapterConfig.provider === "openai_dot") {
-        const dotEnabled = await dotRunnerBroker(db).enabled();
-        const binding = savedAgentId ? await dotRunnerBroker(db).bindingForAgent(spaceId, savedAgentId) : null;
-        let resource: ReturnType<typeof publicMcpConfig> = null;
-        try { resource = publicMcpConfig(process.env); } catch { /* diagnostic below */ }
-        let environment = requestedEnvironmentId ? await environmentsSvc.getById(requestedEnvironmentId) : null;
-        const managedOnly = isCloudManagedInstance() || (await instanceSettings.getExperimental()).enableManagedSandboxOnly === true;
-        if (managedOnly && (!environment || environment.driver === "local")) {
-          environment = await environmentsSvc.findManagedSandboxEnvironment(spaceId);
-        }
-        const controllerAvailable = !managedOnly || environment?.driver === "sandbox";
-        const checks: AdapterEnvironmentCheck[] = [
-          { code: "dot_enabled", level: dotEnabled ? "info" : "error", message: dotEnabled ? "Dot is enabled." : "Enable OpenAI Dot and Assistant connections (MCP) in experimental settings." },
-          { code: "dot_public_endpoint", level: resource?.origin.startsWith("https://") ? "info" : "error", message: resource?.origin.startsWith("https://") ? "Public HTTPS MCP origin is configured." : "Configure a stable public HTTPS OUTPOST_PUBLIC_URL." },
-          { code: "dot_unmetered", level: inputAdapterConfig.allowUnmeteredProvider === true ? "info" : "error", message: "Dot usage and provider cost are unavailable. Explicit externally billed provider acknowledgement is required." },
-          { code: "dot_binding", level: binding?.status === "ready" && binding.subscriptionVerified && binding.id === inputAdapterConfig.dotBindingId ? "info" : "warn", message: binding?.status === "ready" && binding.subscriptionVerified ? "Binding has a verified event subscription and completed readiness challenge." : "Save this agent, pair it, subscribe to mailbox events and complete the event test." },
-          { code: "dot_controller", level: controllerAvailable ? "info" : "error", message: controllerAvailable
-            ? environment?.driver === "sandbox" ? "Dot assignments use the selected managed sandbox Runner." : "Dot assignments use the selected Runner environment."
-            : "Restore the managed sandbox before assigning Dot work. Dot cannot run on the Cloud control-plane host." },
-          ...(environment?.driver === "sandbox" && inputAdapterConfig.dotWorkspaceAccess === true
-            ? [{ code: "dot_workspace", level: "error" as const, message: "Managed Dot runners do not expose workspace access. Turn off workspace access before assigning work." }] : []),
-        ];
-        res.json({ adapterType: type, status: checks.some(c => c.level === "error") ? "fail" : checks.some(c => c.level === "warn") ? "warn" : "pass", testedAt: new Date().toISOString(), checks });
-        return;
-      }
       // A plugin Runner-task environment runs only managed AI connections in an isolated
       // home. Refuse before secret resolution or a computer allocation it cannot use.
       const preconfiguredTestHome = type === "outpost_runner" && adapterConfigForTest.homeMode === "preconfigured";
@@ -5563,7 +5535,6 @@ export function agentRoutes(
         rawEffectiveAdapterConfig = { ...existingAdapterConfig, ...rawEffectiveAdapterConfig };
       }
       if (req.actor.source === "mcp_oauth" && requestedAdapterConfig) {
-        rawEffectiveAdapterConfig = applyMcpReasoningEffort(requestedAdapterType, rawEffectiveAdapterConfig, requestedAdapterConfig);
       }
       if (changingAdapterType) {
         // Preserve adapter-agnostic keys (env, cwd, etc.) from the existing config

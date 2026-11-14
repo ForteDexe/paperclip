@@ -29,8 +29,6 @@ import { insertIssueComment } from "../issue-comment-writes.js";
 import { withExternalAdmissionGuard, assertNoExternalOverlap } from "../../modules/external-agents/index.js";
 import { isAgentAwaitingSetup } from "../../modules/agent-lifecycle/index.js";
 import { normalizeAgentNameKey } from "./retries.js";
-import { publishActiveDotComment } from "../dot-assignment-follow-up.js";
-import { publishActiveMuseComment } from "../muse-assignment-follow-up.js";
 import {
   type WakeupOptions,
   mergeCoalescedContextSnapshot,
@@ -4256,64 +4254,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             // its fresh-session contract into unrelated work or create a second
             // deferred wake that could later replay the same reconciliation.
             if (reconciledSourceRunId) return { kind: "deferred" as const };
-
-            // Offer the input to the active external agent, but keep a durable queued wake
-            // until it reads the comment. A finish racing the event tick must
-            // leave unread input available for the next assignment.
-            const followUpProvider = parseObject(agent.adapterConfig).provider;
-            const museFollowUp = followUpProvider === "muse";
-            const bindingId = readNonEmptyString(parseObject(agent.adapterConfig)[museFollowUp ? "museBindingId" : followUpProvider === "grok_bot" ? "externalBindingId" : "dotBindingId"]);
-            const followUpPayloadKey = museFollowUp ? "museAssignmentFollowUp" : "dotAssignmentFollowUp";
-            let followUp: false | { assignmentId: string; consumed: boolean } = false;
-            let pendingFollowUps: typeof agentWakeupRequests.$inferSelect[] = [];
-            if (agent.adapterType === "outpost_runner" && ["openai_dot", "grok_bot", "muse"].includes(String(followUpProvider))
-                && bindingId && activeExecutionRun.agentId === agentId && issue.assigneeAgentId === agentId
-                && reason === "issue_commented" && wakeCommentId && opts.allowRunCoalescing !== false
-                && enrichedContextSnapshot.forceFreshSession !== true && !explicitResumeSession && !opts.manualUserWake
-                && !enrichedContextSnapshot.interactionId && !payload?.interactionId && !receiptRequest) {
-              // Receipt consumption uses the same issue -> wake -> run -> guard ->
-              // binding order. Lock before publishing, then reuse these wake rows.
-              pendingFollowUps = await tx.select().from(agentWakeupRequests).where(and(
-                eq(agentWakeupRequests.spaceId, agent.spaceId), eq(agentWakeupRequests.agentId, agentId),
-                isNull(agentWakeupRequests.runId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
-                sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
-                sql`${agentWakeupRequests.payload}->>${followUpPayloadKey} is not null`,
-              )).orderBy(asc(agentWakeupRequests.createdAt), asc(agentWakeupRequests.id)).for("update");
-              const [currentRun] = await tx.select().from(heartbeatRuns).where(and(
-                eq(heartbeatRuns.id, activeExecutionRun.id), eq(heartbeatRuns.spaceId, agent.spaceId),
-                eq(heartbeatRuns.agentId, agentId), eq(heartbeatRuns.status, "running"),
-                eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.nativeIssueId, issue.id),
-              )).for("update");
-              if (currentRun) followUp = await withExternalAdmissionGuard(tx, agent.spaceId, agentId,
-                () => (museFollowUp ? publishActiveMuseComment : publishActiveDotComment)(tx as unknown as Db, {
-                  spaceId: agent.spaceId, agentId, bindingId, runId: currentRun.id,
-                  issueId: issue.id, commentId: wakeCommentId,
-                }));
-            }
-            if (followUp) {
-              if (!followUp.consumed) await notifyDeferredExecutionWork(tx, { spaceId: agent.spaceId });
-              const assignmentId = followUp.assignmentId;
-              const pending = followUp.consumed ? undefined : pendingFollowUps.find(wake =>
-                wake.payload?.[followUpPayloadKey] === assignmentId &&
-                wake.requestedByActorType === (opts.requestedByActorType ?? null) &&
-                wake.requestedByActorId === (opts.requestedByActorId ?? null));
-              if (pending) await tx.update(agentWakeupRequests).set({
-                payload: withQueuedCommentIdsInWakePayload(pending.payload,
-                  [...new Set([...queuedCommentIdsFromWakePayload(pending.payload), wakeCommentId!])]),
-                coalescedCount: pending.coalescedCount + 1, updatedAt: new Date(),
-              }).where(and(eq(agentWakeupRequests.id, pending.id), eq(agentWakeupRequests.spaceId, agent.spaceId),
-                eq(agentWakeupRequests.agentId, agentId), eq(agentWakeupRequests.status, "deferred_issue_execution")));
-              else await tx.insert(agentWakeupRequests).values({ spaceId: agent.spaceId, agentId, source, triggerDetail,
-                reason, payload: withQueuedCommentIdsInWakePayload({ ...payload, issueId: issue.id,
-                  [followUpPayloadKey]: followUp.assignmentId,
-                  [DEFERRED_WAKE_CONTEXT_KEY]: enrichedContextSnapshot }, [wakeCommentId!]),
-                status: followUp.consumed ? "coalesced" : "deferred_issue_execution",
-                runId: followUp.consumed ? activeExecutionRun.id : null,
-                requestedByActorType: opts.requestedByActorType ?? null,
-                requestedByActorId: opts.requestedByActorId ?? null, idempotencyKey: opts.idempotencyKey ?? null,
-                finishedAt: followUp.consumed ? new Date() : null });
-              return { kind: "coalesced" as const, run: activeExecutionRun };
-            }
 
             const admissionScope = wakeQueue.createAdmissionTransactionScope(
               agent.spaceId,

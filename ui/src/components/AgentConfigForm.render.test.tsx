@@ -79,11 +79,6 @@ vi.mock("../api/agents", () => ({
   agentsApi: mockAgentsApi,
 }));
 
-vi.mock("../api/grokBot", () => ({
-  grokBotApi: {
-    connection: async () => ({ enabled: true, canConfigureConnection: true, binding: null }),
-  },
-}));
 
 const mockAdaptersApi = vi.hoisted(() => ({ list: vi.fn(async () => [{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]) }));
 vi.mock("../api/adapters", () => ({ adaptersApi: mockAdaptersApi }));
@@ -1194,25 +1189,6 @@ describe("AgentConfigForm environment selector", () => {
     vi.clearAllMocks();
   });
 
-  it.each([false, true])("uses Grok connection verification without native controls (compact: %s)", async compactTestFeedback => {
-    const result = await renderForm([], {
-      adapterType: "outpost_runner",
-      adapterConfig: { provider: "grok_bot", cwd: "/old/local/path", model: "old-model" },
-    }, { showAdapterTypeField: true, showAdapterTestEnvironmentButton: true, compactTestFeedback });
-    roots.push(result.root);
-
-    expect(result.container.querySelector('[aria-label="Grok Bot connection"]')).not.toBeNull();
-    expect(result.container.textContent).toContain("Reconnect agent access");
-    expect(result.container.querySelector('[data-config-section="adapter"]')?.textContent).toContain("Grok Bot");
-    expect(result.container.querySelector('[aria-label="Model"]')).toBeNull();
-    expect(result.container.textContent).not.toContain("AI connection");
-    expect(result.container.textContent).not.toContain("Working directory");
-    expect(result.container.textContent).not.toContain("Test your agent");
-    expect(findButton(result.container, "Test")).toBeUndefined();
-    expect(mockAgentsApi.adapterModels).not.toHaveBeenCalled();
-    expect(mockAgentsApi.testEnvironment).not.toHaveBeenCalled();
-  });
-
   it.each([
     ["codex_local", "Uses the Codex CLI login configured on this machine."],
     ["claude_local", "Uses the Claude CLI login configured on this machine."],
@@ -1752,7 +1728,8 @@ describe("AgentConfigForm environment selector", () => {
     expect(result.container.textContent).toContain("Computer test failed.");
   });
 
-  it.each(["openai_dot", "muse", "pool"])("does not turn the %s readiness preview into a computer qualification", async provider => {
+  it("does not turn the pooled readiness preview into a computer qualification", async () => {
+    const provider = "pool";
     const computer = makeEnvironment({ id: "saved-computer", driver: "sandbox", status: "active",
       config: { provider: "daytona", snapshot: "managed-snapshot" } });
     mockAgentsApi.qualifyRunner.mockResolvedValue({ ok: true, driver: "sandbox", details: { platformQualificationRecorded: true } });

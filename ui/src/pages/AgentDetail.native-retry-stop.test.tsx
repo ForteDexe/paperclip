@@ -11,16 +11,15 @@ import { ToastProvider } from "../context/ToastContext";
 import { PanelProvider } from "../context/PanelContext";
 import { pendingSendKeyFor, readPendingSend, writePendingSend } from "../lib/pending-send";
 
-const { get, cancel, grokStop, actor } = vi.hoisted(() => ({ get: vi.fn(), cancel: vi.fn(), grokStop: vi.fn(), actor: { id: "operator-1", source: "authenticated" } }));
+const { get, cancel, actor } = vi.hoisted(() => ({ get: vi.fn(), cancel: vi.fn(), actor: { id: "operator-1", source: "authenticated" } }));
 vi.mock("../api/heartbeats", async importOriginal => ({ heartbeatsApi: { ...(await importOriginal<typeof import("../api/heartbeats")>()).heartbeatsApi,
   get, events: async () => [], workspaceOperations: async () => [] } }));
-vi.mock("../api/grokBot", () => ({ grokBotApi: { stop: grokStop } }));
 vi.mock("../api/client", () => ({ api: { get: async () => [], post: cancel }, detachInflightGet: vi.fn() }));
 vi.mock("../api/access", () => ({ accessApi: { getCurrentOperatorAccess: async () => ({ userId: actor.id, source: actor.source, spaceIds: ["space-1"], memberships: [] }) } }));
 vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: false }) }));
 vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space-1", selectedSpace: { id: "space-1", issuePrefix: "TEST" }, spaces: [] }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-afterEach(() => { get.mockReset(); cancel.mockReset(); grokStop.mockReset(); actor.id = "operator-1"; actor.source = "authenticated"; sessionStorage.clear(); vi.unstubAllGlobals(); });
+afterEach(() => { get.mockReset(); cancel.mockReset(); actor.id = "operator-1"; actor.source = "authenticated"; sessionStorage.clear(); vi.unstubAllGlobals(); });
 
 const states = [
   { status: "failed", eligibility: true, label: "Stop" },
@@ -46,13 +45,10 @@ const states = [
   { status: "failed", eligibility: true, label: "Stop", existingClaim: true },
   { status: "failed", eligibility: true, label: "Stop", existingClaim: true, local: true },
   { status: "failed", eligibility: true, label: "Stop", priorSession: true },
-  { status: "failed", eligibility: true, label: null, driverKind: "grok_bot_mcp" },
-  { status: "running", eligibility: undefined, label: "Cancel", driverKind: "grok_bot_mcp" },
-  { status: "queued", eligibility: undefined, label: "Cancel", driverKind: "grok_bot_mcp" },
 ];
 it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, ...state }))))("renders and submits only eligible run cancellation (%#)", async ({ Tab, status, eligibility, label, ...state }) => {
   if (state.local) { actor.id = "local-operator"; actor.source = "local_implicit"; }
-  const run = { id: state.priorSession ? `persisted-run-${Tab === RunsTab ? "main" : "production"}` : "failed-native-run", spaceId: "space-1", agentId: "agent-1", issueId: "issue-1", status, driverKind: state.driverKind, invocationSource: "manual",
+  const run = { id: state.priorSession ? `persisted-run-${Tab === RunsTab ? "main" : "production"}` : "failed-native-run", spaceId: "space-1", agentId: "agent-1", issueId: "issue-1", status, invocationSource: "manual",
     createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", usageJson: null, resultJson: null,
     contextSnapshot: null, exitCode: 1, error: "Runner ingress unavailable", logRef: null, startedAt: null, finishedAt: null,
     execution: { canStop: eligibility, phase: "reconnecting", label: "Reconnecting", recoveryOwner: "agent", retryAt: "2026-01-01T00:00:01Z" },
@@ -91,12 +87,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
     get.mockResolvedValue(stopped);
     return stopped;
   });
-  grokStop.mockImplementation(async () => {
-    get.mockResolvedValue({ ...run, status: "cancelled", execution: { ...run.execution, canStop: false } });
-    return { stopped: true, remoteTerminationConfirmed: false };
-  });
-  const usesGrokStop = Tab === RunsTab && state.driverKind === "grok_bot_mcp";
-  const expectedLabel = label && usesGrokStop ? "Stop Outpost work" : label;
+  const expectedLabel = label;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const element = document.createElement("div"); document.body.append(element);
   let root = createRoot(element);
@@ -106,15 +97,12 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
   try {
     await act(async () => render());
     await vi.waitFor(async () => { await act(async () => {}); expect(element.textContent).toContain(status); });
-    const control = () => Array.from(element.querySelectorAll("button")).find(candidate => ["Stop", "Cancel", "Stop Outpost work"].includes(candidate.textContent ?? ""));
+    const control = () => Array.from(element.querySelectorAll("button")).find(candidate => ["Stop", "Cancel"].includes(candidate.textContent ?? ""));
     if (label) {
       expect(control()?.textContent).toBe(expectedLabel);
       await act(async () => control()!.click());
-      await vi.waitFor(() => usesGrokStop
-        ? expect(grokStop).toHaveBeenCalledExactlyOnceWith("space-1", "agent-1", run.id)
-        : expect(cancel).toHaveBeenCalledExactlyOnceWith(`/heartbeat-runs/${run.id}/cancel`,
-          status === "failed" ? { cancellationRequestId: expect.stringMatching(/^[a-f0-9-]{36}$/) } : {}));
-      expect(usesGrokStop ? cancel : grokStop).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(cancel).toHaveBeenCalledExactlyOnceWith(`/heartbeat-runs/${run.id}/cancel`,
+        status === "failed" ? { cancellationRequestId: expect.stringMatching(/^[a-f0-9-]{36}$/) } : {}));
       if (state.existingClaim || state.priorSession) expect(cancel.mock.calls[0][1]).toEqual({ cancellationRequestId: existingRequestId });
       if (state.uncertain) {
         await vi.waitFor(async () => {
@@ -164,7 +152,6 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
     } else {
       expect(control()).toBeUndefined();
       expect(cancel).not.toHaveBeenCalled();
-      expect(grokStop).not.toHaveBeenCalled();
     }
   } finally { await act(async () => root.unmount()); client.clear(); element.remove(); }
 });

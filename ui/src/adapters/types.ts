@@ -51,10 +51,6 @@ export interface AdapterConfigFieldsProps {
    * so a stored path never flashes before the policy resolves.
    */
   managedSandboxOnly?: boolean;
-  /** Show Dot for new selections only when its experimental prerequisites are enabled. */
-  openAiDotEnabled?: boolean;
-  /** Personal Muse is offered only with its own flag and the native Runner enabled. */
-  museEnabled?: boolean;
   /** The parent Harness control determines the profile; hide runner and ACP agent selectors. */
   hideRunnerHarness?: boolean;
 }

@@ -1,4 +1,3 @@
-import { assertMcpClientMirrorEnvelope } from "./public-mcp/client-mirror-wire.js";
 import { providerRetryAt } from "./provider-retry-after.js";
 import { SLACK_MANAGER_SCOPES, ASANA_CONNECTOR_SCOPES, isAsanaConnectorProfileId, type AsanaConnectorProfileId } from "@outpost/shared";
 import {
@@ -333,9 +332,6 @@ export function createOutpostCloudConnector(input: {
       ...(secret ? { [secret.field]: secret.value } : {}),
     };
     const encodedBody = JSON.stringify(body);
-    if (operation === "mcp-client-mirror" && secret?.field === "binding") {
-      assertMcpClientMirrorEnvelope(body.request, secret.value, encodedBody);
-    }
     let response: Response;
     try {
       response = await request(endpoint, {

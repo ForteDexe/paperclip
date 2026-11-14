@@ -1,4 +1,3 @@
-import { mcpSpaceDeletion } from "./public-mcp/space-deletion.js";
 import { notifyExternalObjectRefresh } from "./external-object-refresh-notifications.js";
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { notifyUnsafeWorkspaceExportRecovery } from "./unsafe-workspace-export-notifications.js";
@@ -74,7 +73,6 @@ export async function deleteSpace(db: Db, id: string) {
         const [existing] = await tx.select({ id: spaces.id }).from(spaces)
           .where(eq(spaces.id, id)).for("no key update");
         if (!existing) return null;
-        await mcpSpaceDeletion.deleteSpaceData(tx, id);
         await notifyExternalObjectRefresh(tx, id);
         await notifyIssueRecovery(tx, { spaceId: id });
         await notifyChatSpaceConfiguration(tx, id);

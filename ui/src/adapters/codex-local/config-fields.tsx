@@ -1,8 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPopover } from "../../components/ui/select";
 import { AdapterMark } from "../../components/AdapterMark";
-import { MuseRunnerConnection } from "../../components/MuseRunnerConnection";
-import { GrokBotConnection } from "../../components/GrokBotConnection";
-import { DotRunnerConnection } from "../../components/DotRunnerConnection";
 import { configFieldsForSection } from "../config-sections";
 import type { AdapterConfigFieldsProps } from "../types";
 import type { CreateConfigValues } from "@outpost/adapter-utils";
@@ -74,8 +71,6 @@ export function buildCodexRunnerConfig(values: CreateConfigValues): Record<strin
 
 export function CodexLocalConfigFields({
   section,
-  spaceId,
-  agentId,
   mode,
   isCreate,
   adapterType,
@@ -105,9 +100,7 @@ export function CodexLocalConfigFields({
     isOutpostRunnerProvider(runnerProvider)
       ? OUTPOST_RUNNER_PERMISSION_CAPABILITIES[runnerProvider]
       : { configurable: false, defaultMode: "provider-managed", options: [], description: "Unknown provider configuration is preserved." };
-  const isMuse = runnerProvider === "muse";
   const isCursorCloud = runnerProvider === "cursor_cloud";
-  const isExternal = isMuse || runnerProvider === "openai_dot" || runnerProvider === "grok_bot";
   const configuredRunnerPermissionMode =
     runnerManaged && runnerPermissionCapability.configurable
       ? isCreate
@@ -235,7 +228,7 @@ export function CodexLocalConfigFields({
           />
         </Field>
       )}
-      {runnerManaged && !hideRunnerHarness && !isExternal && (
+      {runnerManaged && !hideRunnerHarness && (
         <Field configSection="adapter"
           label="Harness"
           hint="Choose the agent harness that runs your tasks."
@@ -249,9 +242,7 @@ export function CodexLocalConfigFields({
                 : "codex";
               const cloudResetKeys = ["codexPermissionMode", "opencodePermissionMode", "acpxPermissionMode", "acpxAgent", "command", "extraArgs", "idleTimeoutMs", "modelReasoningEffort", "reasoningEffort", "effort", "modelParams", "homeMode"];
               const model =
-                provider === "openai_dot"
-                  ? ""
-                  : provider === "opencode"
+                provider === "opencode"
                   ? defaultOpenCodeRunnerModel
                   : provider === "claude_managed"
                     ? defaultClaudeManagedModel
@@ -279,10 +270,6 @@ export function CodexLocalConfigFields({
                 mark("adapterConfig", "acpxSessionMode", undefined);
                 mark("adapterConfig", "piThinkingLevel", undefined);
                 mark("adapterConfig", "model", model);
-                if (provider === "openai_dot") {
-                  mark("adapterConfig", "lifecycleMode", "per_turn");
-                  for (const key of ["cwd", "env", "instructionsFilePath", "command", "extraArgs", "engine", "modelReasoningEffort", "workspaceStrategy", "workspaceRuntime", "idleTimeoutMs", "acpxAgent", "managedProfileId", "agentCoreProfileId"]) mark("adapterConfig", key, undefined);
-                }
                 if (provider === "acpx") {
                   mark("adapterConfig", "acpxAgent", grok ? "grok" : "claude");
                 }
@@ -306,7 +293,6 @@ export function CodexLocalConfigFields({
           </Select>
         </Field>
       )}
-      {runnerManaged && runnerProvider === "grok_bot" && <GrokBotConnection spaceId={spaceId} agentId={agentId} />}
       {runnerManaged && isCursorCloud && <>
         <p className="text-sm text-muted-foreground">Experimental. Cursor hosts this agent’s execution environment. No {productName} computer is required. Cursor manages command permissions; effective model identity is unavailable. Agent environment settings support only CURSOR_API_KEY. Configure hosted secrets in your Cursor Cloud environment.</p>
         {[
@@ -327,20 +313,6 @@ export function CodexLocalConfigFields({
           { key: "skipReviewerRequest", label: "Skip reviewer request" },
         ].map(field => <ToggleField key={field.key} label={field.label}
           checked={runnerSchemaValue(field.key, false) === true} onChange={value => updateRunnerSchemaValue(field.key, value)} />)}
-      </>}
-      {runnerManaged && runnerProvider === "openai_dot" && <>
-        <Field configSection="adapter" label="Dot connection" hint="A verified event round trip is required before assigning work.">
-          <DotRunnerConnection spaceId={spaceId} agentId={agentId} bindingId={String(runnerSchemaValue("dotBindingId", ""))} onBinding={id => updateRunnerSchemaValue("dotBindingId", id)} />
-        </Field>
-        <ToggleField label="Read task attachments" hint="Let Dot read files attached to its current assigned task. File contents are sent to OpenAI. Does not require workspace command access; off by default."
-          checked={runnerSchemaValue("dotAttachmentAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotAttachmentAccess", value)} />
-        <ToggleField label="Workspace files and commands" hint="Let Dot read and write its assigned workspace and publish files. Requires a local Runner. Commands are available only on Linux with bubblewrap; they cannot read your home directory or use injected credentials."
-          checked={runnerSchemaValue("dotWorkspaceAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotWorkspaceAccess", value)} />
-      </>}
-      {runnerManaged && isMuse && <>
-        <Field configSection="adapter" label="Muse connection" hint="Pairing, receiver contact, background reply, and agent setup are verified separately.">
-          <MuseRunnerConnection spaceId={spaceId} agentId={agentId} />
-        </Field>
       </>}
       {runnerManaged && !hideRunnerHarness && runnerProvider === "acpx" && runnerSchemaValue("acpxAgent", "claude") !== "grok" && (
         <Field configSection="adapter" label="ACP agent" hint="Choose a qualified harness and enter its exact model ID.">
@@ -496,7 +468,7 @@ export function CodexLocalConfigFields({
           />
         </>
       )}
-      {runnerManaged && !isExternal && runnerPermissionCapability.configurable && (runnerPermissionCapability.options.length > 1 || runnerPermissionModeUnsupported) && (
+      {runnerManaged && runnerPermissionCapability.configurable && (runnerPermissionCapability.options.length > 1 || runnerPermissionModeUnsupported) && (
         <Field
           label="Permission mode"
           hint={`${runnerPermissionCapability.description} The selected mode does not widen ${productName}'s workspace, network, credential, or planning boundaries.`}
@@ -555,7 +527,7 @@ export function CodexLocalConfigFields({
           )}
         </Field>
       )}
-      {runnerManaged && !isExternal && !isCursorCloud && (
+      {runnerManaged && !isCursorCloud && (
         <Field configSection="runPolicy"
           label="Runner lifecycle"
           hint="Automatic keeps Codex and OpenCode warm on this computer for 5 minutes after a run, so a follow-up starts faster, and runs other harnesses turn by turn. Turn by turn suspends after each run. Warm keeps the same provider process available between controlled runs."
@@ -577,7 +549,7 @@ export function CodexLocalConfigFields({
           />
         </Field>
       )}
-      {runnerManaged && !isExternal && !isCursorCloud && runnerLifecycleMode === "warm" && (
+      {runnerManaged && !isCursorCloud && runnerLifecycleMode === "warm" && (
         <Field configSection="runPolicy"
           label="Warm idle timeout (ms)"
           hint="After this much inactivity, runnerd checkpoints and suspends the provider session. The maximum is 24 hours."
@@ -839,7 +811,7 @@ export function CodexLocalConfigFields({
           )}
         </>
       )}
-      {!isExternal && <LocalWorkspaceRuntimeFields
+      <LocalWorkspaceRuntimeFields
         isCreate={isCreate}
         values={values}
         set={set}
@@ -849,7 +821,7 @@ export function CodexLocalConfigFields({
         mode={mode}
         adapterType={adapterType}
         models={models}
-      />}
+      />
     </>
   ));
 }

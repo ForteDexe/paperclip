@@ -11,7 +11,6 @@ import {
   isRetiredComposioConnection,
   RETIRED_COMPOSIO_MESSAGE,
 } from "@outpost/shared";
-import { AssistantConnectionCard, useAssistantConnections } from "./AssistantConnection";
 import { ManagedAiConnectionRow } from "@/components/ai-connections/ManagedAiConnectionDetails";
 import { useAiConnectionDefaults } from "@/components/ai-connections/useAiConnectionDefaults";
 import { AiDefaultCrown, AiDefaultError, AiDefaultMenuItem } from "@/components/ai-connections/AiConnectionDefault";
@@ -389,7 +388,6 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const { selectedSpaceId } = useSpace();
-  const assistantConnections = useAssistantConnections();
   const { userId: viewingUserId, settled: identitySettled } = useAccountIdentity();
   const { enabled: chatConnectorsEnabled, githubEnabled } = useChatConnectorsEnabled();
   const { enabled: memoryConnectorsEnabled } = useMemoryConnectorsEnabled();
@@ -972,9 +970,6 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     }
     setAggregatorToConnect(app);
   }
-  const showAssistantConnection = (source === "outpost" || source === "all" ||
-    (source === "installed" && (!assistantConnections.loaded || assistantConnections.rows.some(row => !row.revokedAt)))) &&
-    (!trimmed || "assistant connection (mcp) outpost codex claude opencode".includes(trimmed));
   const showCustomConnector =
     (source === "outpost" || source === "all") && (!trimmed || "connect your own tool custom mcp server".includes(trimmed));
 
@@ -996,7 +991,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
   // Only a real failure shows the notice; loaded connectors stay through a transient refetch failure.
   const loadFailure = catalogViews.find((view) => view.kind === "error");
   const loadFailed = loadFailure !== undefined;
-  const nothingMatches = visibleRows.length === 0 && !showCustomConnector && !showAssistantConnection;
+  const nothingMatches = visibleRows.length === 0 && !showCustomConnector;
 
   return (
     <div ref={catalogTop} className="max-w-5xl space-y-5 pb-12">
@@ -1037,7 +1032,6 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
         </div>
       ) : (
         <div className="space-y-3" role="list" aria-label="Connector list">
-          {showAssistantConnection && <AssistantConnectionCard onNavigate={navigate} />}
           {paginatedRows.map((row) => (
             <ConnectorCard
               renderAccountDetails={renderAccountDetails}

@@ -12,17 +12,11 @@ export function isNewAgentAdapterAllowed(
   {
     cloud,
     nativeRunnerEnabled,
-    openAiDotEnabled = false,
-    museEnabled = false,
     runnerProvider,
     candidateHarnesses,
-  }: { cloud: boolean; nativeRunnerEnabled: boolean; openAiDotEnabled?: boolean; museEnabled?: boolean; runnerProvider?: string;
+  }: { cloud: boolean; nativeRunnerEnabled: boolean; runnerProvider?: string;
     candidateHarnesses?: readonly { agent: "antigravity"; model: string }[] },
 ) {
-  if (type === "openai_dot" || (type === "outpost_runner" && runnerProvider === "openai_dot")) {
-    return openAiDotEnabled;
-  }
-  if (type === "muse" || (type === "outpost_runner" && runnerProvider === "muse")) return museEnabled && nativeRunnerEnabled;
   if (type === "outpost_runner" && runnerProvider === "antigravity") return OUTPOST_RUNNER_ACPX_PROFILES.some(profile => profile.value === "antigravity" && profile.qualified)
     || Boolean(candidateHarnesses?.some(candidate => candidate.agent === "antigravity" && candidate.model));
   if (type === "outpost_runner") return runnerProvider === "copilot" || nativeRunnerEnabled;

@@ -1,8 +1,4 @@
 import type { IdleDeadlineOwners } from "./services/idle-deadline-types.js";
-import { startMcpClientMirrorSync } from "./services/public-mcp/client-mirror-sync.js";
-import { registerIdleMcpOwners } from "./services/public-mcp/idle-sleep-proof.js";
-import { startMcpRevocationIndexSync } from "./services/public-mcp/revocation-index-sync.js";
-import { startMcpIngressHandoffExpiry } from "./services/public-mcp/ingress-handoff-expiry.js";
 import { runnerAttachmentDownloadRoutes } from "./services/native-runtime/runner-attachment-download.js";
 import { nativeRunMcpRoutes } from "./routes/native-run-mcp.js";
 import { connectionEventWakeRoutes } from "./routes/connection-event-wake.js";
@@ -34,20 +30,7 @@ import { registerChatDeliveryWork } from "./services/chat-delivery-work.js";
 import { registerBrowserUseCleanup } from "./services/browser-use-work.js";
 import { browserUseService } from "./services/browser-use.js";
 import { slackToolRoutes } from "./routes/slack-tools.js";
-import { createPublicMcpOAuth, publicMcpConfig } from "./services/public-mcp/oauth.js";
-import { createDotPrincipalHttp } from "./modules/external-agents/index.js";
-import { createDotRunnerMcpTools, dotRunnerBroker } from "./services/dot-runner-broker.js";
 import { agentProfileAvatarRoutes } from "./routes/agent-profile-avatar.js";
-import { museTransportRoutes, museOperatorRoutes } from "./routes/muse.js";
-import { museQualificationRoutes } from "./routes/muse-qualification.js";
-import { startMuseMaintenance } from "./services/muse-maintenance.js";
-import { grokBotRoutes } from "./routes/grok-bot.js";
-import { createGrokRoutineDispatcher } from "./services/grok-bot/dispatcher.js";
-import { dotRunnerRoutes } from "./routes/dot-runner.js";
-import { createPublicMcpTransfers } from "./services/public-mcp/file-transfers.js";
-import { createMcpApiDispatch, createPublicMcpExecutor } from "./services/public-mcp/capabilities.js";
-import { createPublicMcpEvents, type PublicMcpEvents } from "./services/public-mcp/events.js";
-import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "./routes/public-mcp.js";
 import { agentAvatarRoutes } from "./routes/agent-avatars.js";
 import { decisionModelRoutes } from "./routes/decision-models.js";
 import { aiConnectionRoutes } from "./routes/ai-connections.js";
@@ -514,12 +497,8 @@ export async function createApp(
     createChatWebhookDiagnostics(),
     chatWebhookBodyParser,
   );
-  let dotPrincipalOAuth: ReturnType<typeof createPublicMcpOAuth> | null = null;
-  const dotPrincipalHttp = createDotPrincipalHttp(() => dotPrincipalOAuth);
-  app.use(dotPrincipalHttp.bodyParser);
   const jsonBodyParser = express.json({ limit: DEFAULT_JSON_BODY_LIMIT, verify: captureRawBody });
-  // File tickets authenticate before parsing bytes; JSON attachments must remain bytes too.
-  app.use((req, res, next) => (dotPrincipalHttp.matchesPost(req) || ["/mcp/files/upload", "/mcp/runner/files/upload"].includes(req.path)) ? next() : jsonBodyParser(req, res, next));
+  app.use(jsonBodyParser);
   app.use("/api", apiCompression());
   app.use(httpLogger);
   const privateHostnameGateEnabled = shouldEnablePrivateHostnameGuard({
@@ -537,13 +516,6 @@ export async function createApp(
       bindHost: opts.bindHost,
     }),
   );
-  let mcpConfig: ReturnType<typeof publicMcpConfig> = null;
-  try { mcpConfig = publicMcpConfig(process.env, opts.authPublicBaseUrl); }
-  catch { logger.warn("Assistant connections require an HTTPS public URL (HTTP loopback is allowed for development)."); }
-  const publicMcpOAuth = mcpConfig ? createPublicMcpOAuth(db, mcpConfig) : null;
-  const publicMcpIngress = Router();
-  publicMcpIngress.use(dotPrincipalHttp.router);
-
   app.use(cloudRuntimeIdentityMiddleware(db));
   // Routine probes stop before session/actor resolution, even after claim.
   // Keep hostname validation and the signed-bootstrap endpoint guard above.
@@ -556,8 +528,6 @@ export async function createApp(
   app.use("/api/customer-success/v1", customerSuccessRoutes(db, opts.storageService, {
     pluginWorkerManager: workerManager,
   }));
-  app.use(museTransportRoutes(db, opts.authPublicBaseUrl));
-  app.use(publicMcpIngress);
   // Connection-intent tools carry their own short-lived, run-bound bearer and
   // must be reachable by remote adapters that intentionally do not receive an
   // agent API key. Every request revalidates the active heartbeat row.
@@ -1005,9 +975,6 @@ export async function createApp(
       getNativeRunnerEnabled: async () =>
         (await instanceSettingsService(db).getExperimental())
           .enableNativeRunner === true,
-      getOpenAiDotEnabled: async () =>
-        (await instanceSettingsService(db).getExperimental())
-          .enableOpenAiDot === true,
     }),
   );
   api.use(
@@ -1019,31 +986,6 @@ export async function createApp(
       authPublicBaseUrl: opts.authPublicBaseUrl,
     }),
   );
-  let publicMcpEvents: PublicMcpEvents | null = null;
-  const grokDispatcher = createGrokRoutineDispatcher(db, () => !isWarmStandby() && !isIdleTaskDrainActive());
-  let dotMcpEvents: PublicMcpEvents | null = null;
-  if (publicMcpOAuth) {
-    const dispatch = createMcpApiDispatch(api, app.locals);
-    publicMcpEvents = createPublicMcpEvents(db, publicMcpOAuth, dispatch, {
-      isBackgroundWorkEnabled: () => !isWarmStandby() && !isIdleTaskDrainActive(),
-    });
-    const transfers = createPublicMcpTransfers(db, publicMcpOAuth, dispatch, opts.storageService);
-    publicMcpIngress.use(transfers.router);
-    publicMcpIngress.use(publicMcpIngressRoutes(publicMcpOAuth, createPublicMcpExecutor(db, publicMcpOAuth, dispatch, transfers), publicMcpEvents));
-    const dotOAuth = createPublicMcpOAuth(db, { ...publicMcpOAuth.config, resource: publicMcpOAuth.config.origin + "/mcp/runner" });
-    dotPrincipalOAuth = dotOAuth;
-    dotMcpEvents = createPublicMcpEvents(db, dotOAuth, dispatch, { enableDotRunner: true, isBackgroundWorkEnabled: () => !isWarmStandby() && !isIdleTaskDrainActive() });
-    const grokTransfers = createPublicMcpTransfers(db, dotOAuth, dispatch, opts.storageService, { pathPrefix: "/mcp/runner/files",
-      agentSession: { authorize: (principal, sessionId, taskId, write, database) => dotRunnerBroker(database ?? db).authorizeFileSession(principal, sessionId, taskId, write) } });
-    publicMcpIngress.use(grokTransfers.router);
-    publicMcpIngress.use(publicMcpIngressRoutes(dotOAuth, createPublicMcpExecutor(db, dotOAuth, dispatch), dotMcpEvents, createDotRunnerMcpTools(db, connectionIntentHeartbeat, grokTransfers)));
-    api.use(publicMcpManagementRoutes(publicMcpOAuth, dotOAuth));
-    api.use(dotRunnerRoutes(db, publicMcpOAuth.config.origin + "/mcp/runner"));
-    api.use(grokBotRoutes(db, publicMcpOAuth.config.origin + "/mcp/runner"));
-  }
-
-  api.use(museOperatorRoutes(db, opts.authPublicBaseUrl));
-  api.use(museQualificationRoutes(db));
   app.use("/api", api);
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "API route not found" });
@@ -1234,17 +1176,6 @@ export async function createApp(
     nextRunAt: () => agentLifecycle.nextRunAt(),
   });
   agentLifecycle.setWake(agentLifecycleDelivery.wake);
-  const clientMirror = startMcpClientMirrorSync(db, deliveryWork, mcpConfig?.origin,{authorizationOrigin:mcpConfig?.authorizationOrigin});
-  const unregisterMcpOwners = registerIdleMcpOwners(db, { config: mcpConfig, personal: publicMcpEvents, dot: dotMcpEvents, clientMirrorInstanceId:clientMirror.instanceId });
-  startMcpRevocationIndexSync(db, deliveryWork);
-  startMcpIngressHandoffExpiry(db, deliveryWork);
-  publicMcpEvents?.start(deliveryWork);
-  dotMcpEvents?.start(deliveryWork);
-  if (publicMcpOAuth) grokDispatcher.start(deliveryWork);
-  const stopMuseMaintenance = startMuseMaintenance(db, deliveryWork, async () => {
-    const state = await connectionIntentHeartbeat.resolveSchedulingSuppression(true);
-    return !state.suppressed || state.reason === "task_drain";
-  });
   const resourceLifecycleDelivery = registerPluginLifecycleDelivery(deliveryWork, db, workerManager, lifecycle);
   await resourceLifecycleDelivery.ready;
   registerChatDeliveryWork(deliveryWork, chatChannels, () => !isIdleTaskDrainActive());
@@ -1366,9 +1297,6 @@ export async function createApp(
     if (appServicesShutdown) return appServicesShutdown;
     appServicesShutdown = finishServiceShutdown(() => scheduler.stop(), async () => {
       await agentLifecycle.stop();
-      unregisterMcpOwners();
-      await publicMcpEvents?.stop();
-      await dotMcpEvents?.stop();
       jobCoordinator.stop();
       await finishServiceShutdown(() => resourceLifecycleDelivery.dispose(), async () => {
         importSpoolCleanup.unsubscribe();
@@ -1379,7 +1307,6 @@ export async function createApp(
         viteHmrServer?.close();
         hostServiceCleanup.disposeAll();
         hostServiceCleanup.teardown();
-        await stopMuseMaintenance();
         await emailChannels.shutdown();
         await chatChannels.shutdown();
         // End the avatar worker pool, if a request ever started one, so no

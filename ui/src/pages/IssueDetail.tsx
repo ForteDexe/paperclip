@@ -14,7 +14,6 @@ import type { IssueQueuedCommentQueue } from "@outpost/shared";
 import { useTaskRunLiveUpdates } from "../context/LiveUpdatesProvider";
 import { liveRunRefetchInterval } from "../lib/live-runs-cache";
 import { useTaskRetry } from "../hooks/useTaskRetry";
-import { grokBotApi } from "@/api/grokBot";
 import { WorkspaceBaseRefRecoveryProvider } from "../components/WorkspaceBaseRefRecovery";
 import { WorkspaceRetryControl } from "../components/WorkspaceRetryButton";
 import { isLockedIssueStub, LockedIssueChip } from "@/components/LockedIssueChip";
@@ -1681,16 +1680,6 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
     () => resolveInterruptibleIssueRun(resolvedActiveRun, resolvedLiveRuns),
     [resolvedActiveRun, resolvedLiveRuns],
   );
-  const currentRunAgent = interruptibleIssueRun ? agentMap.get(interruptibleIssueRun.agentId) : null;
-  const grokWork = currentRunAgent?.adapterType === "outpost_runner" && currentRunAgent.adapterConfig.provider === "grok_bot";
-  const stopGrokWork = useMutation({
-    mutationFn: (run: { id: string; agentId: string }) => grokBotApi.stop(spaceId, run.agentId, run.id),
-    onSettled: (_data, _error, run) => Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.runs(issueId) }),
-      queryClient.invalidateQueries({ queryKey: ["grok-binding", spaceId, run.agentId] }),
-    ]),
-  });
   const liveRunIds = useMemo(() => {
     const ids = new Set<string>();
     for (const run of resolvedLiveRuns) ids.add(run.id);
@@ -2754,28 +2743,17 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
             onDeleteComment={onDeleteComment}
             onCancelQueued={onCancelQueued}
             interruptingQueuedRunId={interruptingQueuedRunId}
-            stoppingRunId={
-              stopGrokWork.isPending ? stopGrokWork.variables.id : pauseWorkPending
-                ? (pausingWorkRunId ?? interruptibleIssueRun?.id ?? null)
-                : pausingWorkRunId
-            }
+            stoppingRunId={pauseWorkPending
+              ? (pausingWorkRunId ?? interruptibleIssueRun?.id ?? null)
+              : pausingWorkRunId}
             onStopRun={
-              grokWork || onPauseWorkRun
-                ? async (runId) => {
-                    const selectedRun = resolvedLiveRuns.find(run => run.id === runId)
-                      ?? (resolvedActiveRun?.id === runId ? resolvedActiveRun : null);
-                    const selectedAgent = selectedRun ? agentMap.get(selectedRun.agentId) : null;
-                    if (selectedRun && selectedAgent?.adapterType === "outpost_runner" && selectedAgent.adapterConfig.provider === "grok_bot") {
-                      await stopGrokWork.mutateAsync(selectedRun).catch(() => undefined);
-                    } else if (onPauseWorkRun) {
-                      await onPauseWorkRun(runId).catch(() => undefined);
-                    }
-                  }
+              onPauseWorkRun
+                ? async (runId) => { await onPauseWorkRun(runId).catch(() => undefined); }
                 : undefined
             }
-            stopRunLabel={grokWork ? "Stop Outpost work" : "Pause work"}
-            stoppingRunLabel={grokWork ? "Stopping Outpost work…" : "Pausing..."}
-            stopRunVariant={grokWork ? "stop" : "pause"}
+            stopRunLabel="Pause work"
+            stoppingRunLabel="Pausing..."
+            stopRunVariant="pause"
             runFinalizationActions={runFinalizationActions}
             onAcceptInteraction={onAcceptInteraction}
             onRejectInteraction={onRejectInteraction}
@@ -2788,9 +2766,9 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
             onSubmitInteractionVerdicts={onSubmitInteractionVerdicts}
             issueWorkMode={issueWorkMode}
             onWorkModeChange={onWorkModeChange}
-            stopPending={grokWork ? stopGrokWork.isPending : stopResponsePending}
+            stopPending={stopResponsePending}
             onCancelRun={
-              grokWork && interruptibleIssueRun ? () => stopGrokWork.mutateAsync(interruptibleIssueRun).then(() => undefined) : interruptibleIssueRun && onStopResponse
+              interruptibleIssueRun && onStopResponse
                 ? () => onStopResponse(interruptibleIssueRun.id)
                 : undefined
             }
@@ -2805,9 +2783,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
             tryAgainNoLiveExecutionPathPending={
               tryAgainNoLiveExecutionPathPending
             }
-            footer={grokWork || stopGrokWork.error || classicQueuedDeliveryError ? <>
-              {grokWork && <p className="text-xs text-muted-foreground">Runs in Grok Bot · Usage not reported. Stop Outpost work revokes this session’s authority; remote execution may continue. Open the Grok Bot desktop app to inspect it.</p>}
-              {stopGrokWork.error && <p role="alert" className="text-sm text-destructive">{describeError(stopGrokWork.error).body}</p>}
+            footer={classicQueuedDeliveryError ? <>
               {classicQueuedDeliveryError && <p role="status" className="text-sm text-destructive">{classicQueuedDeliveryError}</p>}
               {footer}
             </> : footer}

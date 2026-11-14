@@ -1,8 +1,6 @@
 import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { describeError } from "../api/errors";
 import { useSelectedHeartbeatRun } from "../hooks/useSelectedHeartbeatRun";
-import { grokBotApi } from "@/api/grokBot";
-import { GrokBotWorkSummary } from "@/components/GrokBotWorkSummary";
 import { DefaultAgentCrownButton } from "@/components/default-agent/DefaultAgentPresentation";
 import { AiConnectionPoolRunDetails } from "@/components/ai-connections/AiConnectionPoolRunDetails";
 import { ProviderFailureNotice } from "@/components/ProviderFailureNotice";
@@ -1421,7 +1419,7 @@ export function ConfigurationTab({
         ? queryKeys.agents.adapterModels(spaceId, agent.adapterType, null, catalogProvider)
         : ["agents", "none", "adapter-models", agent.adapterType],
     queryFn: () => agentsApi.adapterModels(spaceId!, agent.adapterType, { provider: catalogProvider }),
-    enabled: Boolean(spaceId) && content === "runtime" && !["openai_dot", "grok_bot", "muse"].includes(catalogProvider ?? ""),
+    enabled: Boolean(spaceId) && content === "runtime",
   });
 
   const lowTrustSelected = getTrustPreset(agent.permissions) === "low_trust_review";
@@ -2741,10 +2739,8 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
     setClaudeLoginResult(null);
   }, [run.id]);
 
-  const grokWork = run.driverKind === "grok_bot_mcp";
   const cancelRun = useMutation({
     mutationFn: () => {
-      if (grokWork) return grokBotApi.stop(run.spaceId, run.agentId, run.id);
       if (run.status !== "failed") return heartbeatsApi.cancel(run.id);
       return stopFailedNativeRun(initialRun.id, initialRun.spaceId);
     },
@@ -2900,7 +2896,6 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
           break-glass handlers as the task detail page. */}
       <RunWorkspaceRecoverySurface run={run} />
       <AiConnectionPoolRunDetails context={run.contextSnapshot} />
-      {grokWork && <p className="text-sm text-muted-foreground">Runs in Grok Bot. Usage not reported. Stopping this session revokes {productName} authority; remote execution may continue. Open the Grok Bot desktop app to inspect it. This view contains {productName}-reported activity.</p>}
       {/* Run summary card */}
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="flex flex-col sm:flex-row">
@@ -2913,7 +2908,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
                 requested={runRequestedProviderTrace(run.contextSnapshot)}
                 showOff
               />
-              {(run.status === "running" || run.status === "queued" || (run.status === "failed" && run.driverKind !== "grok_bot_mcp" && run.execution?.canStop === true)) && (
+              {(run.status === "running" || run.status === "queued" || (run.status === "failed" && run.execution?.canStop === true)) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2921,7 +2916,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
                   onClick={() => cancelRun.mutate()}
                   disabled={cancelRun.isPending}
                 >
-                  {runCancellationLabel({ grokWork, isFailed: run.status === "failed", isPending: cancelRun.isPending })}
+                  {runCancellationLabel({ isFailed: run.status === "failed", isPending: cancelRun.isPending })}
                 </Button>
               )}
               {canResumeLostRun && (

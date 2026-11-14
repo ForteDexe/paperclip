@@ -139,9 +139,8 @@ function Setup({
   const appearanceDraft = useAgentAppearanceDraft(`${spaceId}:new-agent`);
   const [runner, setRunner] = useState<AgentRunnerChoice>(initialRunner === "legacy" || initialRunner === "outpost" ? initialRunner : "auto");
   const isRunner = adapterType === "outpost_runner";
-  const isDot = isRunner && runnerProvider === "openai_dot";
   const isKimi = isRunner && runnerProvider === "kimi";
-  const brandType = isDot ? "openai_dot" : isRunner
+  const brandType = isRunner
     ? isKimi ? "kimi_runtime" : runnerProvider === "antigravity"
       ? "antigravity_runtime"
       : runnerProvider === "copilot"
@@ -173,8 +172,7 @@ function Setup({
   const hasCredentialField =
     !usesHostLogin && (isKimi || chooseProvider || Boolean(SETUP_CREDENTIAL_KEYS[adapterType]));
   const nativeCursorCloud = adapterType === "cursor_cloud" && runner === "outpost";
-  const showModel = !isDot && (adapterType !== "cursor_cloud" || nativeCursorCloud);
-  const [allowUnmeteredProvider, setAllowUnmeteredProvider] = useState(false);
+  const showModel = adapterType !== "cursor_cloud" || nativeCursorCloud;
   const [kimiModel, setKimiModel] = useState("");
   const [kimiBaseUrl, setKimiBaseUrl] = useState("");
   const [kimiProtocol, setKimiProtocol] = useState("kimi");
@@ -219,7 +217,7 @@ function Setup({
       const agent = query.state.data;
       if (!agent || agent.lifecycleError) return false;
       return (agent.pauseReason === "setup" && ["preparing", "pausing"].includes(agent.lifecycleState ?? ""))
-        || (screen === "saved" && !isDot && ["preparing", "verifying", "resuming", "pausing"].includes(agent.lifecycleState ?? "")) ? 1000 : false;
+        || (screen === "saved" && ["preparing", "verifying", "resuming", "pausing"].includes(agent.lifecycleState ?? "")) ? 1000 : false;
     },
   });
   const created =
@@ -233,7 +231,7 @@ function Setup({
   const completed = Boolean(created && created.pauseReason !== "setup");
   const runtimeReady = Boolean(created && isAgentStatusInvokable(created.status)
     && (!created.lifecycleState || created.lifecycleState === "ready"));
-  const finishingSetup = !isDot && ["preparing", "verifying", "resuming", "pausing"].includes(created?.lifecycleState ?? "");
+  const finishingSetup = ["preparing", "verifying", "resuming", "pausing"].includes(created?.lifecycleState ?? "");
   useEffect(() => {
     if (brandType !== "pi_local" || created?.adapterType !== "outpost_runner"
       || created.runtimeConfig.aiConnection) return;
@@ -430,7 +428,6 @@ function Setup({
     isNewAgentAdapterAllowed(adapterType, {
       cloud,
       nativeRunnerEnabled: experimental.data?.enableNativeRunner === true,
-      openAiDotEnabled: experimental.data?.enableOpenAiDot === true,
       runnerProvider,
       candidateHarnesses,
     }) &&
@@ -496,7 +493,6 @@ function Setup({
         ? {
             adapterSchemaValues: {
               provider: ["claude", "grok", "copilot", "pi", "antigravity", "kimi"].includes(runnerProvider) ? "acpx" : runnerProvider,
-              ...(isDot ? { allowUnmeteredProvider } : {}),
               ...(["claude", "grok", "copilot", "pi", "antigravity", "kimi"].includes(runnerProvider) ? { acpxAgent: runnerProvider } : {}),
             },
           }
@@ -567,7 +563,6 @@ function Setup({
       throw new Error("Choose or enter an exact Google Antigravity model ID.");
     if (brandType === "copilot_runtime" && !models.data?.some(candidate => candidate.id === model))
       throw new Error("Refresh Copilot models and select an available model before creating this agent.");
-    if (isDot && !allowUnmeteredProvider) throw new Error("Acknowledge external provider billing before creating your Dot agent.");
     if (multiProvider && (!model.trim() || !model.includes("/")))
       throw new Error("Choose or enter a model in provider/model format.");
     if (
@@ -636,7 +631,6 @@ function Setup({
     setEnvironmentOverride(agent.defaultEnvironmentId ?? "");
     setRepository(typeof config.repoUrl === "string" ? config.repoUrl : "");
     setBranch(typeof config.repoRef === "string" ? config.repoRef : typeof config.repoStartingRef === "string" ? config.repoStartingRef : "");
-    setAllowUnmeteredProvider(config.allowUnmeteredProvider === true);
     const kimiApi = config.kimiApi as { model?: string; protocol?: string; baseUrl?: string } | undefined;
     setKimiModel(kimiApi?.model ?? "");
     setKimiProtocol(kimiApi?.protocol ?? "kimi");
@@ -945,7 +939,7 @@ function Setup({
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <AdapterMark type={brandType} />
               <span>{getAdapterDisplay(brandType).label}</span>
-              {isRunner && !isDot && (
+              {isRunner && (
                 <span>
                   ·{" "}
                   {runnerProvider === "codex"
@@ -1120,12 +1114,11 @@ function Setup({
                         <Check className="size-5" />
                         {created.status === "pending_approval"
                           ? "Agent submitted for approval"
-                          : isDot ? "Your Dot agent has been created"
-                            : finishingSetup ? "Finishing agent setup" : runtimeReady ? "Your agent is ready" : "Your agent is paused"}
+                          : finishingSetup ? "Finishing agent setup" : runtimeReady ? "Your agent is ready" : "Your agent is paused"}
                       </h2>
                       <dl className="grid grid-cols-2 gap-4 text-sm">
                         <dt className="text-muted-foreground">Adapter</dt>
-                        <dd>{getAdapterDisplay(isDot ? "openai_dot" : adapterType).label}</dd>
+                        <dd>{getAdapterDisplay(adapterType).label}</dd>
                         {showModel && (
                           <>
                             <dt className="text-muted-foreground">Model</dt>
@@ -1142,27 +1135,23 @@ function Setup({
                       <p className="text-sm text-muted-foreground">
                         {created.status === "pending_approval"
                           ? "An outpost administrator must approve this agent before it can work."
-                          : isDot ? "Pair your Dot and test event delivery in configuration before assigning work."
-                            : finishingSetup ? "Outpost is preparing and verifying your agent. You can assign a task when it is ready."
+                          : finishingSetup ? "Outpost is preparing and verifying your agent. You can assign a task when it is ready."
                               : runtimeReady ? "Assign a task when you’re ready for this agent to work." : "Review the agent’s status in configuration before assigning work."}
                       </p>
                     </div>
                     <div className="flex flex-wrap justify-between gap-3">
                       <Button
                         variant="outline"
-                        onClick={() => navigate(isDot ? "/agents/all" : `${agentUrl(created)}/runtime`)}
+                        onClick={() => navigate(`${agentUrl(created)}/runtime`)}
                       >
                         <Settings2 className="size-4" />
-                        {isDot ? "Back to Agents" : "Edit configuration"}
+                        Edit configuration
                       </Button>
                       <Button
-                        disabled={created.status === "pending_approval" || (!isDot && !runtimeReady)}
-                        onClick={() => isDot
-                          ? navigate(`${agentUrl(created)}/runtime`)
-                          : void assignFirstTask()
-                        }
+                        disabled={created.status === "pending_approval" || !runtimeReady}
+                        onClick={() => void assignFirstTask()}
                       >
-                        {isDot ? "Pair Dot" : `Assign ${created.name} a Task`}
+                        {`Assign ${created.name} a Task`}
                         <ArrowRight className="size-4" />
                       </Button>
                     </div>
@@ -1180,12 +1169,6 @@ function Setup({
                     </h2>
                     <fieldset disabled={busy} className="space-y-8">
                       <section className="space-y-5">
-                        {isDot && <>
-                          <p className="text-sm text-muted-foreground">Create this agent, then copy its pairing prompt to your Dot.</p>
-                          {experimental.data?.enablePublicMcp !== true && <p className="text-sm text-muted-foreground">Enable Assistant connections (MCP) in Experimental settings before pairing.</p>}
-                          <ToggleField label="Allow externally billed provider" hint="Dot does not report token usage. Review provider-side usage separately."
-                            checked={allowUnmeteredProvider} onChange={value => { setAllowUnmeteredProvider(value); resetTest(); }} />
-                        </>}
                         {!connectionAdapter && !usesHostLogin && aiProviderForAdapter(brandType) && (
                           <AiConnectionField spaceId={spaceId} agentName={name} adapterType={brandType} model={model} environmentId={environmentId ?? undefined} value={aiBinding}
                             onChange={binding => { binding.mode !== "router" && setRuntimeAiBinding(binding); resetTest();
@@ -1478,7 +1461,7 @@ function Setup({
                       )}
                     </fieldset>
                     <RuntimeTestCard
-                      variant={isDot ? "prerequisites" : "connection"}
+                      variant="connection"
                       metadataOnly={accountBoundCatalog}
                       state={testState}
                       result={result}

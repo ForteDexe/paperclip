@@ -64,8 +64,6 @@ vi.mock("../hooks/useCoordinatorWorkspaceEnabled", () => ({
   useCoordinatorWorkspaceEnabled: () => coordinatorPreference,
 }));
 
-const mockGrokBotApi = vi.hoisted(() => ({ stop: vi.fn().mockResolvedValue({ stopped: true }) }));
-vi.mock("../api/grokBot", () => ({ grokBotApi: mockGrokBotApi }));
 
 const mockIssuesApi = vi.hoisted(() => ({
   get: vi.fn(),
@@ -6175,24 +6173,6 @@ describe("IssueDetail", () => {
       reason: null,
       releasePolicy: { strategy: "manual", note: "full_pause" },
     });
-  });
-
-  it("stops the selected queued Grok run without cancelling a different running run", async () => {
-    mockGrokBotApi.stop.mockClear();
-    mockIssuesApi.get.mockResolvedValue(createIssue({ status: "in_progress", assigneeAgentId: "agent-1", executionRunId: "run-active-1" }));
-    mockAgentsApi.list.mockResolvedValue([
-      createAgent({ adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot" } }),
-      createAgent({ id: "agent-2", adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot" } }),
-    ]);
-    mockHeartbeatsApi.liveRunsForIssue.mockResolvedValue([
-      { id: "run-active-1", agentId: "agent-1", status: "running", runtimeMode: "native", issueId: "issue-1", adapterType: "outpost_runner" },
-      { id: "run-queued-2", agentId: "agent-2", status: "queued", runtimeMode: "native", issueId: "issue-1", adapterType: "outpost_runner" },
-    ]);
-    await act(async () => { renderIssueView(); });
-    await waitForAssertion(() => expect(mockIssueChatThreadRender.mock.calls.at(-1)?.[0]).toMatchObject({ stopRunLabel: "Stop Outpost work" }));
-    await act(async () => { await mockIssueChatThreadRender.mock.calls.at(-1)![0].onStopRun("run-queued-2"); });
-    expect(mockGrokBotApi.stop).toHaveBeenCalledExactlyOnceWith("space-1", "agent-2", "run-queued-2");
-    expect(mockHeartbeatsApi.cancel).not.toHaveBeenCalled();
   });
 
   it.each(["active-run", "composer"])(
