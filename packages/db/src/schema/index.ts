@@ -241,8 +241,6 @@ export { browserUseSettings, browserUseSessions, browserUseRuns, browserUseBrows
 
 export * from "./space_skill_sources.js";
 export * from "./public_mcp.js";
-export * from "./dot_runner.js";
-export * from "./grok_bot.js";
 
 
 export * from "./accounting.js";
@@ -262,7 +260,6 @@ export { userSpacePreferences } from "./user_space_preferences.js";
 
 export { chatSlackManagerGrants } from "./chat_slack_manager_grants.js";
 export { aiSubscriptions, aiSubscriptionPrices, aiSubscriptionConnections } from "./ai_subscriptions.js";
-export * from "./muse_runner.js";
 
 export { executionWorkspaceRepositories } from "./execution_workspace_repositories.js";
 export { executionWorkspaceRepositoryRoots } from "./execution_workspace_repository_roots.js";

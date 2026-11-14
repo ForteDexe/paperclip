@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { assets, spaces, completionContracts, documents, documentRevisions, heartbeatRuns, issueDocuments, issueAttachments, issues, issueThreadInteractions, issueWorkProducts, mcpAttachmentUploads, dotRunnerAssignments, type Db } from "@outpost/db";
+import { assets, spaces, completionContracts, documents, documentRevisions, heartbeatRuns, issueDocuments, issueAttachments, issues, issueThreadInteractions, issueWorkProducts, type Db } from "@outpost/db";
 import { projectHumanInteractionResponse } from "../execution-continuation.js";
 
 export class NativeDeliverableEvidenceError extends Error {}
@@ -43,23 +43,6 @@ async function hasCurrentPublicationReceipt(db: Db, spaceId: string, receipts: u
     const result = record(receipt.result);
     if ((result.disposition !== "applied" && result.disposition !== "duplicate") ||
         !Array.isArray(result.entityRefs) || result.entityRefs[0] !== attachment.id) continue;
-    if (receipt.operationId === "publish_external_deliverable" && result.source === "authenticated_upload"
-      && result.commandId === `deliverable-uploaded:${attachment.id}` && typeof input.uploadId === "string"
-      && typeof input.workSessionId === "string" && attachment.originatingRunId && attachment.filename
-      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.uploadId)
-      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(input.workSessionId)
-      && input.filename === attachment.filename
-      && input.byteSize === attachment.byteSize && input.sha256 === attachment.sha256) {
-      const query = db.select({ id: mcpAttachmentUploads.id }).from(mcpAttachmentUploads)
-        .innerJoin(dotRunnerAssignments, and(eq(dotRunnerAssignments.id, mcpAttachmentUploads.workSessionId),
-          eq(dotRunnerAssignments.spaceId, spaceId)))
-        .where(and(eq(mcpAttachmentUploads.id, input.uploadId), eq(mcpAttachmentUploads.spaceId, spaceId),
-          eq(mcpAttachmentUploads.workSessionId, input.workSessionId), eq(mcpAttachmentUploads.attachmentId, attachment.id),
-          eq(dotRunnerAssignments.runId, attachment.originatingRunId), eq(mcpAttachmentUploads.originalFilename, attachment.filename),
-          eq(mcpAttachmentUploads.byteSize, attachment.byteSize), eq(mcpAttachmentUploads.sha256, attachment.sha256))).limit(1);
-      const [upload] = await (lockSources ? query.for("share", { of: [mcpAttachmentUploads, dotRunnerAssignments], noWait: true }) : query);
-      if (upload) return true;
-    }
     if (receipt.operationId === "register_deliverable" &&
         result.commandId === `deliverable-prepared:${attachment.id}` &&
         typeof input.filename === "string" && input.filename.trim() === attachment.filename &&

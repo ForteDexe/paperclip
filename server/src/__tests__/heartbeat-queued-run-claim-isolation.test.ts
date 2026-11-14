@@ -9,7 +9,6 @@ import {
   spaceMemberships,
   createDb,
   heartbeatRuns,
-  externalAgentHolds,
   issues,
   issueThreadInteractions,
 } from "@outpost/db";
@@ -276,23 +275,6 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
     const executedRunIds = mockAdapterExecute.mock.calls.map(call => ((call as unknown[])[0] as { runId?: string }).runId);
     expect(executedRunIds.filter(id => id === routineRunId)).toHaveLength(1);
     expect(executedRunIds.filter(id => id === healthyRunId)).toHaveLength(1);
-  });
-
-  it.each(["worker", "native-effects"])("retains a %s barrier across provider changes and resumes only after reconciliation", async barrier => {
-    const { spaceId, agentId } = await insertAgent();
-    const { runId } = await insertClaimableRun(spaceId, agentId);
-    const [hold] = await db.insert(externalAgentHolds).values({ spaceId, agentId, provider: "muse", assignmentId: randomUUID(), bindingId: randomUUID(),
-      bindingGeneration: 1, runId: randomUUID(), workerUnknown: barrier === "worker", nativeEffectsUnknown: barrier === "native-effects" }).returning();
-    // The agent now uses Codex; old external uncertainty still owns admission.
-    await heartbeat.resumeQueuedRuns();
-    await heartbeat.drainActiveRunExecutions();
-    expect(await runStatus(runId)).toMatchObject({ status: "queued" });
-    expect(mockAdapterExecute).not.toHaveBeenCalled();
-    await db.update(externalAgentHolds).set({ workerUnknown: false, nativeEffectsUnknown: false, releasedAt: new Date() }).where(sql`${externalAgentHolds.id} = ${hold.id}`);
-    await heartbeat.resumeQueuedRuns();
-    await heartbeat.drainActiveRunExecutions();
-    expect(await runStatus(runId)).toMatchObject({ status: "succeeded" });
-    expect(mockAdapterExecute).toHaveBeenCalledOnce();
   });
 
   async function insertCardAnswerInterruptRun(fault?: "other-answer" | "other-resolver") {

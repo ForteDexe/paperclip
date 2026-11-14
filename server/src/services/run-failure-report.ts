@@ -1,6 +1,6 @@
 import { currentRunFailureText } from "./native-runtime/native-exact-resume-failure.js";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { agents, dotRunnerAssignments, grokBotDispatches, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { captureRunFailure, type RunFailureStatus } from "../sentry.js";
 import {
   collectRunFailureDiagnostics,
@@ -288,27 +288,6 @@ function isAcpProviderAccessFailure(run: HeartbeatRun, options: RunFailureReport
 }
 
 /**
- * The Grok endpoint refused every work wake with an HTTP 4xx, so the offer
- * expired unaccepted. Durable delivery receipts prove the external cause. A
- * local rejection (no HTTP status), any delivered wake, or accepted work stays
- * reportable.
- */
-async function isRejectedExternalBotWake(db: Db, run: HeartbeatRun): Promise<boolean> {
-  if (run.status !== "failed" || run.runtimeMode !== "native" || run.errorCode !== "native_provider_terminal_failed") return false;
-  const [finalization] = await db.select({ failureDetail: nativeRunFinalizations.failureDetail }).from(nativeRunFinalizations)
-    .where(and(eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.spaceId, run.spaceId)));
-  if (finalization?.failureDetail?.originalFailureCode !== "dot_assignment_expired") return false;
-  const offers = await db.select({ id: dotRunnerAssignments.id, acceptedAt: dotRunnerAssignments.acceptedAt }).from(dotRunnerAssignments)
-    .where(and(eq(dotRunnerAssignments.runId, run.id), eq(dotRunnerAssignments.spaceId, run.spaceId)));
-  if (offers.length !== 1 || offers[0]!.acceptedAt) return false;
-  const wakes = await db.select({ status: grokBotDispatches.status, httpStatus: grokBotDispatches.httpStatus }).from(grokBotDispatches)
-    .where(and(eq(grokBotDispatches.assignmentId, offers[0]!.id), eq(grokBotDispatches.spaceId, run.spaceId),
-      eq(grokBotDispatches.kind, "mailbox_updated")));
-  return wakes.length > 0 && wakes.every((wake) =>
-    wake.status === "rejected" && wake.httpStatus != null && wake.httpStatus >= 400 && wake.httpStatus < 500);
-}
-
-/**
  * Report a terminal run failure to Sentry. Returns at once for any status
  * other than failures and unexpected started cancellations, and for a native
  * run that still waits for a same-run retry. Never throws — a Sentry failure or a
@@ -377,11 +356,6 @@ async function captureTerminalRunFailure(
       .then((rows) => rows[0] ?? null);
 
     if (mode === "unexpected") {
-      const rejectedExternally = await isRejectedExternalBotWake(db, run).catch((err) => {
-        logger.warn({ err, runId: run.id }, "failed to read bot wake receipts for run failure report");
-        return false;
-      });
-      if (rejectedExternally) return;
       const capacityRetry = await isScheduledNativeCapacityRetry(db, run, options).catch((err) => {
         logger.warn({ err, runId: run.id }, "failed to read native capacity retry for run failure report");
         return false;

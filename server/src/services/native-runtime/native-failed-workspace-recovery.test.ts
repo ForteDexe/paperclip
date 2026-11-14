@@ -7,7 +7,7 @@ import { createHeartbeatRunPreparation } from "../heartbeat/run-preparation.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, spaces, createDb, applyPendingMigrations, environmentLeases, environments, externalAgentHolds, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, spaces, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { getExecutionBlocker } from "../execution-blocker.js";
 import { markExecutionReconciliation, settleUnrecoverableExecutions, validateExecutionReconciliation } from "../execution-recovery-resolution.js";
@@ -185,18 +185,16 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       expect((await readRun(f.runId)).status).toBe("cancelled");
       expect(await actions(f.issueId)).toHaveLength(1);
     }
-    it("stays quiet for active runs, completed preservation, and admitted workspace-less sessions", async () => {
-      const active = await prepared(), settled = await prepared(), external = await prepared();
+    it("stays quiet for active runs and completed preservation", async () => {
+      const active = await prepared(), settled = await prepared();
       await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, active.runId));
       await cancel(settled); await preserveNativeFailedWorkspace(db, await readRun(settled.runId), { allowPreterminal: true });
-      await bindExternalInput(external, "muse"); await cancel(external);
       clock(); const worker = coordinator();
       try {
         await registerCancelledWorkspacePreservationWork(db, worker, () => true, async () => true).ready;
         const reads = vi.spyOn(db, "select"); await vi.advanceTimersByTimeAsync(120_000);
         expect(reads).not.toHaveBeenCalled(); expect(worker.nextWakeAt()).toBeNull();
         expect((await readLease(active.lease.id)).status).toBe("active");
-        expect((await readLease(external.lease.id)).status).toBe("active");
       } finally { await worker.stop(); }
     });
     it.each(["missing issue", "foreign space"] as const)("does not schedule an unbound cancellation receipt: %s", async mismatch => {
@@ -622,83 +620,6 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(await actions(f.issueId)).toHaveLength(1);
     expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId),
       eq(activityLog.action, "issue.workspace_recovery_required")))).toHaveLength(1);
-  });
-
-  async function bindExternalInput(f: Awaited<ReturnType<typeof seed>>, provider: "grok_bot" | "openai_dot" | "muse", change?: (input: { schema: string; binding: { runId: string; spaceId: string; agentId: string; issueId: string }; provider: { kind: string; bridgeRevision?: string }; workspace: { access: string; cwd: string | null } }) => void) {
-    const run = await readRun(f.runId);
-    const input = { schema: provider === "muse" ? "outpost.native-execution-input.v8" : "outpost.native-execution-input.v6",
-      binding: { runId: f.runId, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId },
-      provider: { kind: provider, ...(provider === "muse" ? { bridgeRevision: "muse-v1" } : {}) }, workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null } };
-    change?.(input);
-    const [updated] = await db.update(heartbeatRuns).set({ driverKind: provider === "muse" ? "muse_external" : provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp",
-      runnerProfileJson: { ...run.runnerProfileJson, nativeExecutionInput: input } }).where(eq(heartbeatRuns.id, f.runId)).returning();
-    return updated;
-  }
-
-  it.each(["grok_bot", "openai_dot", "muse"] as const)("does not invent file recovery for %s admitted without workspace access", async provider => {
-    const f = await seed(), run = await bindExternalInput(f, provider);
-    const [hold] = provider === "muse" ? await db.insert(externalAgentHolds).values({ spaceId: f.spaceId, agentId: f.agentId,
-      provider: "muse", assignmentId: randomUUID(), bindingId: randomUUID(), bindingGeneration: 1, runId: f.runId,
-      workerUnknown: true, nativeEffectsUnknown: true }).returning() : [];
-    await preserveNativeFailedWorkspace(db, run);
-    expect((await readRun(f.runId)).resultJson).not.toHaveProperty("workspaceRestoreFailure");
-    expect(await readLease(f.lease.id)).toMatchObject({ status: "active", leasePolicy: "ephemeral" });
-    expect(await actions(f.issueId)).toHaveLength(0);
-    if (hold) expect((await db.select().from(externalAgentHolds).where(eq(externalAgentHolds.id, hold.id)))[0]).toEqual(hold);
-  });
-
-  it.each(["run", "space", "agent", "schema", "write_access"])("preserves file safeguards when no-workspace evidence has an invalid %s", async mismatch => {
-    const f = await seed();
-    const run = await bindExternalInput(f, "grok_bot", input => {
-      if (mismatch === "run") input.binding.runId = randomUUID();
-      if (mismatch === "space") input.binding.spaceId = randomUUID();
-      if (mismatch === "agent") input.binding.agentId = randomUUID();
-      if (mismatch === "schema") input.schema = "unknown";
-      if (mismatch === "write_access") input.workspace.access = "read_write";
-    });
-    await preserveNativeFailedWorkspace(db, run);
-    expect((await readRun(f.runId)).resultJson).toHaveProperty("workspaceRestoreFailure", "restore_failed");
-    expect(await readLease(f.lease.id)).toMatchObject({ leasePolicy: "retain_on_failure" });
-  });
-
-  it.each(["run", "space", "agent", "issue", "schema", "provider", "bridge", "missing_bridge", "driver", "write_access", "cwd"] as const)("retains file safeguards for a mismatched Muse %s contract", async mismatch => {
-    const f = await seed();
-    await bindExternalInput(f, "muse", input => {
-      if (mismatch === "run") input.binding.runId = randomUUID();
-      if (mismatch === "space") input.binding.spaceId = randomUUID();
-      if (mismatch === "agent") input.binding.agentId = randomUUID();
-      if (mismatch === "issue") input.binding.issueId = randomUUID();
-      if (mismatch === "schema") input.schema = "outpost.native-execution-input.v6";
-      if (mismatch === "provider") input.provider.kind = "grok_bot";
-      if (mismatch === "bridge") input.provider.bridgeRevision = "unknown";
-      if (mismatch === "missing_bridge") delete input.provider.bridgeRevision;
-      if (mismatch === "write_access") input.workspace.access = "read_write";
-      if (mismatch === "cwd") input.workspace.cwd = "/untrusted-task-workspace";
-    });
-    if (mismatch === "driver") await db.update(heartbeatRuns).set({ driverKind: "openai_dot_mcp" }).where(eq(heartbeatRuns.id, f.runId));
-    await preserveNativeFailedWorkspace(db, await readRun(f.runId));
-    expect((await readRun(f.runId)).resultJson).toHaveProperty("workspaceRestoreFailure", "restore_failed");
-    expect(await readLease(f.lease.id)).toMatchObject({ leasePolicy: "retain_on_failure" });
-    expect(await actions(f.issueId)).toHaveLength(1);
-  });
-
-  it.each(["grok_bot", "openai_dot"] as const)("keeps historical %s inspection holds with an available recovery path", async provider => {
-    const f = await seed();
-    // Reproduce a hold persisted by an older cancellation path, then attach its admitted contract.
-    await preserveNativeFailedWorkspace(db, f.run);
-    const lease = await readLease(f.lease.id);
-    await settleStopOnlyCleanup(db, lease, { attemptId: String(lease.metadata?.pendingCleanupAttemptId),
-      receipt: { providerLeaseId: lease.providerLeaseId, state: "stopped" } });
-    await bindExternalInput(f, provider);
-    await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
-    const blocker = await getExecutionBlocker(db, f.spaceId, f.issueId);
-    expect(blocker).toMatchObject({ runId: f.runId, canRetry: false, canContinue: false,
-      workspaceRepairRequired: provider !== "grok_bot", canRecordWorkspaceRepair: provider !== "grok_bot" });
-    if (provider === "grok_bot") {
-      expect(blocker?.nextAction).not.toContain("files");
-      expect(blocker?.nextAction).toContain("Runtime");
-    }
-    expect(await actions(f.issueId)).toHaveLength(1);
   });
 
   it("records verified file repair without retrying the native run or changing its task", async () => {
