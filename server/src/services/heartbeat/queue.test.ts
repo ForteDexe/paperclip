@@ -606,7 +606,6 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     if (scenario === "delete-old") await db.update(issueComments).set({ deletedAt: new Date() }).where(eq(issueComments.id, oldComment.id));
     const deps = callbacks(db);
     deps.getAgent.mockResolvedValue(admissionAgent);
-    deps.canStartNewExternalBotWork.mockResolvedValue(false);
     deps.instanceSettings.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: false, enableNativeRunner: true } as Awaited<ReturnType<HeartbeatQueueDependencies["instanceSettings"]["getExperimental"]>>);
     const admission = createWakeQueue(db, {
       resolveResponsibleUserId: async () => userId,
@@ -620,9 +619,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     deps.wakeQueue.admitWakeBehindIssueExecution.mockImplementation(admission.admitWakeBehindIssueExecution);
     const queue = createHeartbeatQueue(db, deps);
     if (scenario === "running") {
-      deps.canStartNewExternalBotWork.mockResolvedValue(true);
       expect(await queue.claimQueuedRun(scanned)).toMatchObject({ status: "running" });
-      deps.canStartNewExternalBotWork.mockResolvedValue(false);
     }
     const [originalPrimary] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.wake.id));
     const coalesced = await queue.enqueueWakeup(admissionAgent.id, { source: "on_demand", triggerDetail: "manual", reason: "issue_commented",
@@ -657,7 +654,6 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     else expect(updatedPrimary.payload).toMatchObject({ retainedSource: "original-source", commentId: oldComment.id,
       _outpostWakeContext: { commentId: oldComment.id, wakeCommentId: oldComment.id, wakeCommentIds: [oldComment.id, newComment.id] } });
     if (scenario === "claimed-primary") {
-      deps.canStartNewExternalBotWork.mockResolvedValue(true);
       expect(await queue.claimQueuedRun(scanned)).toBeNull();
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0])
         .toMatchObject({ status: "queued", contextSnapshot: { wakeCommentIds: [oldComment.id, newComment.id] } });
@@ -667,7 +663,6 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     }
     if (scenario === "stopped") {
       await createHeartbeatRunControl(db, runControlCallbacks(db)).cancelRunInternal(f.run.id, "operator Stop");
-      deps.canStartNewExternalBotWork.mockResolvedValue(true);
       expect(await queue.claimQueuedRun(scanned)).toBeNull();
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0])
         .toMatchObject({ status: "cancelled", contextSnapshot: { wakeCommentIds: [oldComment.id, newComment.id] } });
@@ -676,7 +671,6 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
       return;
     }
     if (scenario === "delete-new") await db.update(issueComments).set({ deletedAt: new Date() }).where(eq(issueComments.id, newComment.id));
-    deps.canStartNewExternalBotWork.mockResolvedValue(true);
     const claimed = await queue.claimQueuedRun(scanned);
     expect(claimed).toMatchObject({ id: f.run.id, status: "running",
       contextSnapshot: { wakeCommentId: scenario === "delete-new" ? oldComment.id : newComment.id,
@@ -997,35 +991,6 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0].executionRunId).toBe(waiter.id);
   });
 
-  it.each(["direct", "batch"] as const)("keeps fresh work queued across a held external connection on the %s path", async path => {
-    const { run, agent, issue, wake } = await fixture("queued");
-    await db.update(heartbeatRuns).set({ responsibleUserId: "queue-test-user" }).where(eq(heartbeatRuns.id, run.id));
-    const deps = { ...callbacks(db), canStartNewExternalBotWork: vi.fn(async () => false) };
-    deps.getAgent.mockResolvedValue({ ...agent, adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot" } });
-    const queue = createHeartbeatQueue(db, deps);
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (path === "direct") expect(await queue.claimQueuedRun({ ...run, responsibleUserId: "queue-test-user" })).toBeNull();
-      else expect(await queue.startNextQueuedRunForAgent(agent.id)).toEqual([]);
-    }
-    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]).toMatchObject({ status: "queued", startedAt: null });
-    expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0].status).toBe(wake.status);
-    expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0].status).toBe("todo");
-    expect(deps.executeRun).not.toHaveBeenCalled();
-    expect(deps.setRunStatus).not.toHaveBeenCalled();
-  });
-
-  it("admits the same queued input after the external connection is repaired", async () => {
-    const { run, agent } = await fixture("queued");
-    await db.update(heartbeatRuns).set({ responsibleUserId: "queue-test-user" }).where(eq(heartbeatRuns.id, run.id));
-    const deps = { ...callbacks(db), canStartNewExternalBotWork: vi.fn(async () => false) };
-    deps.getAgent.mockResolvedValue(agent);
-    const queue = createHeartbeatQueue(db, deps);
-    expect(await queue.startNextQueuedRunForAgent(agent.id)).toEqual([]);
-    deps.canStartNewExternalBotWork.mockResolvedValue(true);
-    expect(await queue.startNextQueuedRunForAgent(agent.id)).toEqual([expect.objectContaining({ id: run.id, status: "running" })]);
-    expect(deps.executeRun).toHaveBeenCalledExactlyOnceWith(run.id);
-  });
-
   it("leaves a queued run for the next server when shutdown closes admission during the queue scan", async () => {
     const { run, agent, wake } = await fixture("queued");
     await db.update(heartbeatRuns).set({ responsibleUserId: "queue-test-user" }).where(eq(heartbeatRuns.id, run.id));
@@ -1037,27 +1002,6 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]).toMatchObject({ status: "queued", startedAt: null });
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0].status).toBe(wake.status);
     expect(deps.executeRun).not.toHaveBeenCalled();
-  });
-
-  it("rechecks the connection hold when Stop races the queue scan", async () => {
-    const { run, agent } = await fixture("queued");
-    const deps = { ...callbacks(db), canStartNewExternalBotWork: vi.fn(async () => false) };
-    deps.getAgent.mockResolvedValue(agent);
-    deps.canStartNewExternalBotWork.mockResolvedValueOnce(true);
-    expect(await createHeartbeatQueue(db, deps).startNextQueuedRunForAgent(agent.id)).toEqual([]);
-    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]).toMatchObject({ status: "queued", startedAt: null });
-    expect(deps.canStartNewExternalBotWork).toHaveBeenCalledTimes(2);
-    expect(deps.executeRun).not.toHaveBeenCalled();
-  });
-
-  it("keeps admitted resumptions outside the fresh external connection gate", async () => {
-    const { run, agent } = await fixture("queued");
-    await db.update(heartbeatRuns).set({ startedAt: new Date(), responsibleUserId: "queue-test-user" }).where(eq(heartbeatRuns.id, run.id));
-    const [admitted] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
-    const deps = { ...callbacks(db), canStartNewExternalBotWork: vi.fn(async () => false) };
-    deps.getAgent.mockResolvedValue(agent);
-    expect(await createHeartbeatQueue(db, deps).claimQueuedRun(admitted)).toMatchObject({ id: run.id, status: "running" });
-    expect(deps.canStartNewExternalBotWork).not.toHaveBeenCalled();
   });
 
   it("keeps a claim queued while another task of its routine holds the execution slot", async () => {

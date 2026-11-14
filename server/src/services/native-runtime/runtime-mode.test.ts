@@ -68,35 +68,6 @@ describe("resolveNativeRuntimeMode", () => {
     }
   });
 
-  it.each([
-    [false, false],
-    [false, true],
-    [true, false],
-  ])("retains the Grok Bot gate with runner enabled=%s and Grok enabled=%s", (enabled, grokEnabled) => {
-    expect(() => resolveNativeRuntimeMode({
-      ...eligible,
-      enabled,
-      grokEnabled,
-      adapterConfig: {
-        provider: "grok_bot",
-        externalBindingId: "00000000-0000-4000-8000-000000000001",
-        allowUnmeteredProvider: true,
-      },
-    })).toThrow(expect.objectContaining({ code: "outpost_runner_grok_disabled" }));
-  });
-
-  it("admits a bound Grok Bot when its existing experimental gates are enabled", () => {
-    expect(resolveNativeRuntimeMode({
-      ...eligible,
-      grokEnabled: true,
-      adapterConfig: {
-        provider: "grok_bot",
-        externalBindingId: "00000000-0000-4000-8000-000000000001",
-        allowUnmeteredProvider: true,
-      },
-    })).toMatchObject({ kind: "native", profile: { backend: "grok_bot_mcp" } });
-  });
-
   it("admits OpenCode without the experimental flag", () => {
     expect(resolveNativeRuntimeMode({ ...eligible, enabled: false,
       adapterConfig: { provider: "opencode", model: "openrouter/anthropic/claude-sonnet-4.6" },
@@ -491,7 +462,6 @@ describe("resolveNativeRuntimeMode", () => {
     })).toEqual(expect.objectContaining({ kind: "legacy", reason: "direct_adapter" }));
   });
 });
-
 const compatibilityInput = {
   persisted: { runtimeMode: "legacy", runtimeModeResolvedAt: null },
   enabled: true,
@@ -551,16 +521,3 @@ describe("resolveHeartbeatRuntimeMode compatibility", () => {
 });
 
 
-describe("Muse native selection", () => {
-  const muse = { ...eligible, museEnabled: true, adapterConfig: { provider: "muse", museBindingId: "00000000-0000-4000-8000-000000000001", allowUnmeteredProvider: true, lifecycleMode: "per_turn" } };
-  it("requires both Runner and Muse rollout gates for fresh work", () => {
-    expect(() => resolveNativeRuntimeMode({ ...muse, museEnabled: false })).toThrow("Enable Muse");
-    expect(() => resolveNativeRuntimeMode({ ...muse, enabled: false })).toThrow("disabled");
-    expect(resolveNativeRuntimeMode(muse)).toMatchObject({ kind: "native", profile: { backend: "muse_external" } });
-  });
-  it("rejects model, workspace and inherited Dot attachment grants", () => {
-    for (const extra of [{ model: "local-model" }, { dotWorkspaceAccess: true }, { dotAttachmentAccess: true }, { lifecycleMode: "warm" }]) {
-      expect(() => resolveNativeRuntimeMode({ ...muse, adapterConfig: { ...muse.adapterConfig, ...extra } })).toThrow("Muse requires");
-    }
-  });
-});

@@ -52,7 +52,7 @@ export function resolveHeartbeatNativeLifecyclePolicy(input: {
   const supportsManagedWarm = input.adapterType === "outpost_runner" && (input.taskOwned ||
     supportsManagedNativeWarmSession(profile, input.managedAiAttribution));
   return input.persistedPolicy ??
-    (["openai_dot_mcp", "grok_bot_mcp", "muse_external", "cursor_cloud_api"].includes(input.backend) || input.managedAiSelected && !supportsManagedWarm
+    (input.backend === "cursor_cloud_api" || input.managedAiSelected && !supportsManagedWarm
       ? { mode: "per_turn", idleTimeoutMs: null }
       : input.environmentPolicy ?? agentPolicy);
 }

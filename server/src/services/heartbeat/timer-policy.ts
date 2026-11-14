@@ -47,9 +47,7 @@ export function parseHeartbeatPolicy(agent: typeof agents.$inferSelect) {
     enabled: asBoolean(heartbeat.enabled, false),
     intervalSec: Math.max(0, asNumber(heartbeat.intervalSec, 0)),
     wakeOnDemand: isHeartbeatWakeOnDemandEnabled(agent),
-    maxConcurrentRuns: agent.adapterType === "outpost_runner" &&
-      ["openai_dot", "grok_bot", "muse"].includes(String(parseObject(agent.adapterConfig).provider))
-      ? 1 : normalizeMaxConcurrentRuns(heartbeat.maxConcurrentRuns),
+    maxConcurrentRuns: normalizeMaxConcurrentRuns(heartbeat.maxConcurrentRuns),
     skipTimerWhenNoActionableWork: asBoolean(
       heartbeat.skipTimerWhenNoActionableWork ??
         heartbeat.requireActionableTimerWork ??

@@ -4394,7 +4394,7 @@ export function normalizeOutpostRunnerAdapterConfig(
 ): Record<string, unknown> {
   if (adapterType !== "outpost_runner") return config;
   config = normalizeLegacyRunnerProvider(config);
-  if (config.provider === "openai_dot" || config.provider === "muse" || config.provider === "cursor_cloud") {
+  if (config.provider === "cursor_cloud") {
     return normalizeOutpostOperationalSkillPreference(adapterType, { lifecycleMode: "per_turn", ...config });
   }
   const next: Record<string, unknown> = {

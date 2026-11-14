@@ -1,12 +1,8 @@
-import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   agents,
   heartbeatRuns,
   issues,
-  dotAgentBindings,
-  dotRunnerAssignments,
-  museAgentBindings,
-  museRunnerAssignments,
   issueRecoveryActions,
   issueThreadInteractions,
   nativeRunFinalizations,
@@ -55,7 +51,6 @@ const executionRunColumns = {
 };
 type Run = Pick<typeof heartbeatRuns.$inferSelect, keyof typeof executionRunColumns>;
 type Coordinator = typeof nativeRunFinalizations.$inferSelect;
-type WaitingExternalProvider = "muse" | "openai_dot";
 type Recovery = Pick<
   typeof issueRecoveryActions.$inferSelect,
   "cause" | "nextAction"
@@ -142,52 +137,6 @@ export async function executionProjectionsForRuns(
         )
         .orderBy(desc(issueRecoveryActions.updatedAt)))
     : [];
-  // A live controller is not evidence that an external agent accepted work.
-  // Read each provider journal once for the batch, never once per task.
-  const waitingByRun = new Map<string, WaitingExternalProvider>();
-  const externalRunIds = (driverKind: string) => runs
-    .filter(run => run.status === "running" && run.runtimeMode === "native" && run.driverKind === driverKind)
-    .map(run => run.id);
-  const museRunIds = externalRunIds("muse_external");
-  if (museRunIds.length) {
-    const offered = await read(async () => db
-      .select({ runId: museRunnerAssignments.runId })
-      .from(museRunnerAssignments)
-      .innerJoin(museAgentBindings, and(
-        eq(museAgentBindings.id, museRunnerAssignments.bindingId),
-        eq(museAgentBindings.spaceId, museRunnerAssignments.spaceId),
-        eq(museAgentBindings.agentId, museRunnerAssignments.agentId),
-        eq(museAgentBindings.generation, museRunnerAssignments.bindingGeneration),
-        isNull(museAgentBindings.revokedAt),
-      ))
-      .where(and(
-        eq(museRunnerAssignments.spaceId, spaceId),
-        inArray(museRunnerAssignments.runId, museRunIds),
-        inArray(museRunnerAssignments.status, ["offered", "claimed"]),
-        isNull(museRunnerAssignments.nativeAcceptedAt),
-      )));
-    for (const row of offered) waitingByRun.set(row.runId, "muse");
-  }
-  const dotRunIds = externalRunIds("openai_dot_mcp");
-  if (dotRunIds.length) {
-    const offered = await read(async () => db
-      .select({ runId: dotRunnerAssignments.runId })
-      .from(dotRunnerAssignments)
-      .innerJoin(dotAgentBindings, and(
-        eq(dotAgentBindings.id, dotRunnerAssignments.bindingId),
-        eq(dotAgentBindings.spaceId, dotRunnerAssignments.spaceId),
-        eq(dotAgentBindings.agentId, dotRunnerAssignments.agentId),
-        eq(dotAgentBindings.generation, dotRunnerAssignments.bindingGeneration),
-        isNull(dotAgentBindings.revokedAt),
-      ))
-      .where(and(
-        eq(dotRunnerAssignments.spaceId, spaceId),
-        inArray(dotRunnerAssignments.runId, dotRunIds),
-        eq(dotRunnerAssignments.status, "offered"),
-        isNull(dotRunnerAssignments.acceptedAt),
-      )));
-    for (const row of offered) waitingByRun.set(row.runId, "openai_dot");
-  }
   // A queued turn cannot start while its predecessor's cleanup is pending
   // (for example a stopped run whose runner has not released yet). Name that
   // wait instead of an unexplained "Queued". The predecessors are the ones
@@ -274,7 +223,6 @@ export async function executionProjectionsForRuns(
         pending.filter((row) => row.issueId === issueId),
         action,
         now,
-        waitingByRun.get(run.id),
         settlingPredecessorKeys.has(run.id),
         setupByAgent.get(run.agentId),
         currentResponseWait(run),
@@ -301,7 +249,6 @@ export function projectExecution(
   pending: Array<{ kind: string }>,
   recoveryAction: Recovery | undefined,
   now = new Date(),
-  waitingForProvider?: WaitingExternalProvider,
   waitingForPredecessor = false,
   setupAgent?: { lifecycleState: string; lifecycleHolds: readonly string[]; retryRequired?: boolean },
   responseWaitCurrent = false,
@@ -312,7 +259,7 @@ export function projectExecution(
     // A live run is always stoppable by the operator (POST /heartbeat-runs/:id/cancel);
     // a failed native run is stoppable only while its retry is still pending.
     canStop: run.status === "running" || run.status === "queued" || (
-      run.runtimeMode === "native" && run.status === "failed" && run.driverKind !== "grok_bot_mcp" && !!run.nativeIssueId
+      run.runtimeMode === "native" && run.status === "failed" && !!run.nativeIssueId
       && coordinator?.runId === run.id && coordinator.issueId === run.nativeIssueId && coordinator.resultId === null
       && coordinator.phase === "retryable_failure"),
     phase: "queued",
@@ -506,10 +453,6 @@ export function projectExecution(
       } catch {
         /* No execution confirmation. */
       }
-    }
-    if (leaseConfirmed && waitingForProvider) {
-      projection.nextAction = "The assignment is offered. Waiting for the external agent to accept it.";
-      return set("waiting_for_provider", `Waiting for ${waitingForProvider === "muse" ? "Muse" : "Dot"}`);
     }
     return leaseConfirmed || processConfirmed
       ? set("working", "Working")

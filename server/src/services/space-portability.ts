@@ -5261,14 +5261,7 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
         const experimental = await instanceSettingsService(db).getExperimental();
         for (const agent of runnerSelections) {
           const config = input.adapterOverrides?.[agent.slug]?.adapterConfig ?? agent.adapterConfig;
-          if (config.provider === "muse") {
-            if (experimental.enableMuse !== true || experimental.enableNativeRunner !== true) throw unprocessable("Muse and Outpost Runner must be enabled before importing a Muse agent.", {code:"outpost_runner_muse_disabled"});
-          } else if (config.provider === "openai_dot") {
-            if (experimental.enableOpenAiDot !== true) throw unprocessable(
-              "OpenAI Dot is experimental and disabled on this instance.",
-              { code: "outpost_runner_dot_disabled" },
-            );
-          } else if (config.provider !== "codex" && config.provider !== "opencode" && config.provider !== undefined && !["claude_local", "pi_local", "grok_local"].includes(agentHarnessType("outpost_runner", config)) && experimental.enableNativeRunner !== true) {
+          if (config.provider !== "codex" && config.provider !== "opencode" && config.provider !== undefined && !["claude_local", "pi_local", "grok_local"].includes(agentHarnessType("outpost_runner", config)) && experimental.enableNativeRunner !== true) {
             throw unprocessable(
               "Outpost Runner is experimental and disabled on this instance.",
               { code: "outpost_runner_rollout_disabled" },

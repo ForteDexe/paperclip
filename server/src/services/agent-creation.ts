@@ -58,7 +58,7 @@ export async function prepareAgentCreation(db: Db, spaceId: string, input: Creat
   const providerApiDraft = options?.setupOnly === true && isProviderApiSetupDraft(profile);
   const providerApi = providerApiDraft ? null : resolveProviderApiPlacement({ agent: profile });
   if (providerApi) assertProviderApiPlacementPolicy(await instanceSettingsService(db).getGeneral());
-  if (!providerApiDraft && !providerApi && adapterType === "outpost_runner" && !["openai_dot", "grok_bot", "muse"].includes(String(adapterConfig.provider)) &&
+  if (!providerApiDraft && !providerApi && adapterType === "outpost_runner" &&
       (await resolveAgentRunnerTaskDriverForSpace(db, spaceId, data.defaultEnvironmentId))?.warmTaskVersion === 1) {
     adapterConfig.lifecycleMode = "warm";
   }

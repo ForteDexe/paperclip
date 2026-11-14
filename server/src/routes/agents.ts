@@ -1829,14 +1829,10 @@ export function agentRoutes(
         try { kimiCandidate = resolveKimiCandidateAdmission({ spaceId, model: selected.model }); }
         catch { throw unprocessable("This Kimi candidate requires the exact enabled model and a current operator authorization.", { code: "outpost_runner_kimi_candidate_invalid" }); }
       }
-      if (asRecord(config)?.provider === "openai_dot") {
-        if (experimental.enableOpenAiDot !== true) throw unprocessable(
-          "OpenAI Dot is experimental and disabled on this instance.",
-          { code: "outpost_runner_dot_disabled" },
-        );
-      } else if (asRecord(config)?.provider === "muse") {
-        if (experimental.enableMuse !== true || experimental.enableNativeRunner !== true) throw unprocessable("Muse is experimental and disabled on this instance.", { code: "outpost_runner_muse_disabled" });
-      } else if (!([undefined, "codex", "opencode"].includes(asRecord(config)?.provider as string | undefined)) &&
+      if (selected?.provider !== undefined && !isOutpostRunnerProvider(selected.provider)) {
+        throw unprocessable("Select a supported Outpost Runner provider.", { code: "outpost_runner_provider_invalid" });
+      }
+      if (!([undefined, "codex", "opencode"].includes(asRecord(config)?.provider as string | undefined)) &&
         !(asRecord(config)?.provider === "acpx" && asRecord(config)?.acpxAgent === "copilot") &&
         !["claude_local", "pi_local", "grok_local"].includes(agentHarnessType("outpost_runner", asRecord(config) ?? {})) &&
         experimental.enableNativeRunner !== true && !antigravityCandidate && !kimiCandidate) {
@@ -1899,7 +1895,6 @@ export function agentRoutes(
     ) {
       return input.nextAdapterConfig;
     }
-    if (["openai_dot", "muse"].includes(String(input.nextAdapterConfig.provider))) return input.nextAdapterConfig;
     // A provisional setup harness supplies no Cursor model or permissions.
     // Legacy Cursor conversion still retains its provider-specific defaults.
     if (input.nextAdapterConfig.provider === "cursor_cloud" && input.previousAdapterType !== "cursor_cloud") return input.nextAdapterConfig;
@@ -2540,8 +2535,6 @@ export function agentRoutes(
   ) {
     if (req.actor.type === "agent" && hasOwn(adapterConfig, "homeMode"))
       throw forbidden("Only an operator can configure Runner homeMode.");
-    if (req.actor.type === "agent" && ["dotAttachmentAccess", "dotWorkspaceAccess", "dotBindingId", "externalBindingId", "museBindingId", "museGeneration", "museConnection"].some(key => hasOwn(adapterConfig, key)))
-      throw forbidden("Only an operator can configure external-agent pairing, attachment access, or workspace access.");
     assertNoAgentInstructionsConfigMutation(req, adapterConfig, path);
     assertNoAgentHostWorkspaceCommandMutation(
       req,
@@ -2664,7 +2657,6 @@ export function agentRoutes(
     operatorOnboardingFirstAgent = false,
     adapterConfig?: Record<string, unknown>,
   ): AgentDesiredSkillEntry[] | undefined {
-    if (adapterType === "outpost_runner" && ["openai_dot", "grok_bot"].includes(String(adapterConfig?.provider))) return undefined;
     if (!operatorOnboardingFirstAgent) return undefined;
     const adapter = findActiveServerAdapter(adapterType);
     if (!adapter?.listSkills && !adapter?.syncSkills) return undefined;
@@ -4178,8 +4170,7 @@ export function agentRoutes(
     const rollbackAdapterConfig = asRecord(rollbackConfig.adapterConfig) ?? {};
     const existingRollbackProvider = asRecord(existing.adapterConfig)?.provider;
     if (rollbackAdapterType !== existing.adapterType || (rollbackAdapterType === "outpost_runner"
-      && rollbackAdapterConfig.provider !== existingRollbackProvider
-      && (["openai_dot", "muse"].includes(String(rollbackAdapterConfig.provider)) || ["openai_dot", "muse"].includes(String(existingRollbackProvider))))) {
+      && rollbackAdapterConfig.provider !== existingRollbackProvider)) {
       await assertSelectableAdapterType(rollbackAdapterType, rollbackAdapterConfig, existing.spaceId);
     }
     assertNoAgentAdapterConfigMutation(req, rollbackAdapterConfig);
@@ -5568,11 +5559,8 @@ export function agentRoutes(
         existing.adapterType === "outpost_runner"
           ? existingAdapterConfig.provider
           : undefined;
-      // Moving between the standalone Dot choice and general Runner is a new
-      // selection. Preserve historical edits within the general Runner rollout.
       if (!changingAdapterType && requestedAdapterType === "outpost_runner"
-        && rawEffectiveAdapterConfig.provider !== existingRunnerProvider
-        && (["openai_dot", "muse"].includes(String(rawEffectiveAdapterConfig.provider)) || ["openai_dot", "muse"].includes(String(existingRunnerProvider)))) {
+        && rawEffectiveAdapterConfig.provider !== existingRunnerProvider) {
         await assertSelectableAdapterType(requestedAdapterType, rawEffectiveAdapterConfig, existing.spaceId);
       }
       if (!isAgentSetupDraft(existing) && (

@@ -10,7 +10,7 @@ import { canContinueCancelledRun, readRunCancellation } from "./run-cancellation
 import { canRetryStoppedRun } from "./cancelled-native-startup.js";
 import { queuedCommentIdsFromWakePayload } from "./issue-queued-comment-queue.js";
 import { EXECUTION_RECONCILIATION_CAUSES, readRunFailureCause, withoutSqlStatementText, type ExecutionBlocker } from "@outpost/shared";
-import { hasRequiredWorkspaceRecovery, LEGACY_WORKSPACE_RECOVERY_SCHEMA, nativeRunHasNoWorkspaceAccess } from "./workspace-restore-recovery-state.js";
+import { hasRequiredWorkspaceRecovery, LEGACY_WORKSPACE_RECOVERY_SCHEMA } from "./workspace-restore-recovery-state.js";
 import { unreconciledNativeExportPredicate } from "./native-runtime/native-workspace-reconstruction.js";
 import { hasRecoveredCleanupStopReceipt, hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
 import { readNativeWorkspaceSyncReference } from "./native-runtime/native-workspace-sync.js";
@@ -367,8 +367,7 @@ export async function getExecutionBlocker(db: Db, spaceId: string, issueId: stri
   const [run] = runId ? await db.select(blockerRunFields).from(heartbeatRuns).where(and(
     eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId),
   )).limit(1) : [];
-  const withoutWorkspace = Boolean(run?.driverKind === "grok_bot_mcp" && nativeRunHasNoWorkspaceAccess(run));
-  const workspaceRepairRequired = Boolean(restoreHold && !withoutWorkspace && (!run || !await hasVerifiedWorkspaceRepair(db, run)));
+  const workspaceRepairRequired = Boolean(restoreHold && (!run || !await hasVerifiedWorkspaceRepair(db, run)));
   const workspaceRecovery = workspaceRecoveryDisplay(action.evidence, runId);
   const reconstructableExport = ["native_workspace_sync_out_unrecoverable", "native_workspace_sync_out_retry_exhausted"].includes(action.cause);
   const exportSource = reconstructableExport ? readNativeWorkspaceSyncReference(run?.runnerProfileJson?.nativeWorkspaceSync) : null;
@@ -451,16 +450,6 @@ export async function getExecutionBlocker(db: Db, spaceId: string, issueId: stri
     }
   } else if (!restoreHold && run?.status === "cancelled" && !eligibleContinuation && !canRetry && action.cause === "legacy_execution_requires_reconciliation") {
     nextAction += " Inspect the run before sending a new message to request continuation.";
-  }
-
-  if (withoutWorkspace && (restoreHold || run?.status === "cancelled") && !run?.resultJson?.externalWorkspaceInspection) {
-    nextAction = run?.driverKind === "grok_bot_mcp"
-      ? "Inspect this Bot in Grok Bot, then clear the recovery hold and verify the connection in the agent's Runtime settings before assigning more work."
-      : "Inspect the stopped work in the external agent and its connection before requesting continuation.";
-  }
-
-  if (run?.resultJson?.externalWorkspaceInspection && !restoreHold) {
-    nextAction = "Verify the Grok connection, then send a new message to continue. The stopped work will not be replayed.";
   }
 
   return {

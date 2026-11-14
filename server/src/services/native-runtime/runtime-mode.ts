@@ -97,9 +97,6 @@ function ineligible(
 
 export function resolveNativeRuntimeMode(input: {
   enabled: boolean;
-  museEnabled?: boolean;
-  dotEnabled?: boolean;
-  grokEnabled?: boolean;
   runtimeConfig: unknown;
   adapterConfig?: unknown;
   agent: { id?: string; spaceId?: string; status: string; adapterType: string | null };
@@ -191,9 +188,6 @@ export function resolveHeartbeatRuntimeMode(input: {
     runtimeModeResolvedAt: Date | null;
   };
   enabled: boolean;
-  museEnabled?: boolean;
-  dotEnabled?: boolean;
-  grokEnabled?: boolean;
   adapterType: string | null;
   adapterConfig: unknown;
   agentStatus: string;
@@ -220,9 +214,6 @@ export function resolveHeartbeatRuntimeMode(input: {
   try {
     resolution = resolveNativeRuntimeMode({
       enabled: input.enabled,
-      museEnabled: input.museEnabled,
-      dotEnabled: input.dotEnabled,
-      grokEnabled: input.grokEnabled,
       runtimeConfig: {},
       adapterConfig: input.adapterConfig,
       agent: {
@@ -278,9 +269,6 @@ export function resolveHeartbeatNativeRuntimeMode(input: {
     driverKind?: string | null;
   };
   enabled: boolean;
-  museEnabled?: boolean;
-  dotEnabled?: boolean;
-  grokEnabled?: boolean;
   runtimeConfig: unknown;
   adapterConfig?: unknown;
   agent: { id?: string; spaceId?: string; status: string; adapterType: string | null };

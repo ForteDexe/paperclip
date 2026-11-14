@@ -17,9 +17,7 @@ import { environmentService } from "./environments.js";
 import { secretService } from "./secrets.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { assertProviderApiPlacementPolicy, resolveProviderApiPlacement } from "./native-runtime/provider-api-placement.js";
-import { museRunnerBroker } from "./muse-runner-broker.js";
 import { RUNNER_REVISION_MISMATCH_CODE } from "./runner-revision-mismatch.js";
-import { dotRunnerBroker } from "./dot-runner-broker.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import type { LifecycleAgent } from "../modules/agent-lifecycle/index.js";
 import { resolveDecisionSigningSecret } from "./decision-signing.js";
@@ -77,16 +75,6 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
   async function verify(snapshot: LifecycleAgent): Promise<"complete" | "pending" | "waiting"> {
     const [agent] = await db.select().from(agents).where(and(eq(agents.id, snapshot.id), eq(agents.lifecycleVersion, snapshot.lifecycleVersion)));
     if (!agent) return "pending";
-    if (agent.adapterType === "outpost_runner" && ["openai_dot", "grok_bot"].includes(String(agent.adapterConfig.provider))) {
-      const binding = await dotRunnerBroker(db).bindingForAgent(agent.spaceId, agent.id);
-      return binding?.status === "ready" && binding.wakeVerified && binding.id === agent.adapterConfig[agent.adapterConfig.provider === "grok_bot" ? "externalBindingId" : "dotBindingId"] ? "complete" : "pending";
-    }
-    if (agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "muse") {
-      const binding = await museRunnerBroker(db).bindingForAgent(agent.spaceId,agent.id);
-      // A successful read of these external facts has no retry deadline. The
-      // real confirmation/configuration producer rechecks this phase durably.
-      return binding?.status === "ready" && binding.paired && binding.receiverDetected && binding.backgroundReplyVerified && binding.id === agent.adapterConfig.museBindingId ? "complete" : "waiting";
-    }
     const providerApi = resolveProviderApiPlacement({ agent });
     if (providerApi) assertProviderApiPlacementPolicy(await instanceSettingsService(db).getGeneral());
     const [space] = await db.select().from(spaces).where(eq(spaces.id, agent.spaceId));

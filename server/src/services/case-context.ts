@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { agents, caseDocuments, caseHandoffs, caseIssueLinks, cases, documents, heartbeatRuns, issueComments, issueWorkProducts, issues, museAgentBindings, type Db } from "@outpost/db";
+import { agents, caseDocuments, caseHandoffs, caseIssueLinks, cases, documents, heartbeatRuns, issueComments, issueWorkProducts, issues, type Db } from "@outpost/db";
 import { forbidden } from "../errors.js";
 import { authorizationService, issueReadSqlCondition, type AuthorizationActor } from "./authorization.js";
 import { assertCaseTrustedForExecution, canActorReadCase } from "./case-access.js";
@@ -54,21 +54,6 @@ export async function getCaseExecutionContext(db: Db, input: {
     onBehalfOfUserId: run.responsibleUserId,
     keyScope: { kind: "standard" },
   };
-  const [agent] = await db.select({ config: agents.adapterConfig }).from(agents)
-    .where(and(eq(agents.id, input.agentId), eq(agents.spaceId, input.spaceId))).limit(1);
-  if (agent?.config?.provider === "muse") {
-    const bindingId = agent.config.museBindingId;
-    if (typeof bindingId !== "string") throw forbidden("Case context requires the current external authorizer");
-    const [binding] = await db.select({ generation: museAgentBindings.generation }).from(museAgentBindings).where(and(
-      eq(museAgentBindings.id, bindingId), eq(museAgentBindings.spaceId, input.spaceId),
-      eq(museAgentBindings.agentId, input.agentId), isNull(museAgentBindings.revokedAt),
-    )).limit(1);
-    if (!binding) throw forbidden("Case context requires the current external authorizer");
-    const { museRunnerBroker } = await import("./muse-runner-broker.js");
-    actor.authorizingUserId = await museRunnerBroker(db).authorizingUserIdForBinding({
-      spaceId: input.spaceId, agentId: input.agentId, bindingId, bindingGeneration: binding.generation,
-    });
-  }
   if (!(await canActorReadCase(db, actor, caseRow.case))) throw forbidden("The current run cannot read its workflow case");
   await assertCaseTrustedForExecution(db, caseRow.case);
   const definition = caseRow.case.workflowId ? await getWorkflowMetadata(db, input.spaceId, caseRow.case.workflowId) : null;

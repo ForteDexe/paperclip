@@ -492,10 +492,6 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
     if (!opts?.retryReason && run.errorCode === STORAGE_UNAVAILABLE_CODE) opts = { ...STORAGE_UNAVAILABLE_RETRY, ...opts };
     if (await hasCaseHandoffForRun(run)) return { outcome: "not_scheduled" as const,
       reason: "The durable case handoff owns successor work.", issueId: readNonEmptyString(run.contextSnapshot?.issueId) };
-    if (["openai_dot", "muse"].includes(String(parseObject(agent.adapterConfig).provider))
-        || ["openai_dot", "muse"].includes(String(parseObject(parseObject(parseObject(run.runnerProfileJson).nativeExecutionInput).provider).kind))) {
-      return { outcome: "not_scheduled" as const, reason: "Dot external execution must be reconciled before a new assignment; Outpost cannot confirm its external stop.", issueId: readNonEmptyString(run.contextSnapshot?.issueId) };
-    }
     if (run.errorCode === "provider_tool_definition_invalid") {
       return { outcome: "not_scheduled" as const,
         reason: "Repair the invalid tool definitions before starting a new attempt.",
