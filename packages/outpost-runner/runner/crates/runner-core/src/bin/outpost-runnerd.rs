@@ -124,7 +124,6 @@ fn build_metadata() -> serde_json::Value {
         "recoveryIntegrityVersion": 1,
         "acpxRecoveryIntegrityVersion": 1,
         "durableSessionCapabilities": ["unlimited_runtime", "connection_lease_renewal"],
-        "externalProviderCapabilities": ["openai_dot_mcp", "grok_bot_mcp", "muse_external_v1"],
         "nativeExecutionVersion": 1,
         "harnessDriverVersion": 1,
         "orp": {
@@ -840,10 +839,7 @@ mod tests {
         }
         assert_eq!(metadata["schema"], RUNNERD_BUILD_METADATA_SCHEMA);
         assert_eq!(metadata["binaryContractVersion"], 2);
-        assert_eq!(
-            metadata["externalProviderCapabilities"],
-            json!(["openai_dot_mcp", "grok_bot_mcp", "muse_external_v1"])
-        );
+        assert!(metadata.get("externalProviderCapabilities").is_none());
         assert_eq!(
             metadata["durableSessionCapabilities"],
             json!(["unlimited_runtime", "connection_lease_renewal"])

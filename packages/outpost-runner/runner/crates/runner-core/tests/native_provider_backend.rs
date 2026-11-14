@@ -220,9 +220,6 @@ fn candidate_cannot_change_provider_kind_or_adopt_prior_activation() {
     for kind in [
         "codex",
         "opencode",
-        "openai_dot",
-        "grok_bot",
-        "muse",
         "claude_managed",
         "aws_agentcore",
     ] {
