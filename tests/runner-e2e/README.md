@@ -1268,32 +1268,8 @@ The provider must confirm the expiry before setup can use the sandbox. Cost repo
 still require lifecycle evidence and preserve uncertain cleanup or charges.
 
 
-Use the immutable digest printed by the `Publish verified Daytona image` job,
-or publish the current source locally:
-
-```bash
-content_id="$(pnpm --silent test:e2e:runner:image-id)"
-source_revision="$(git rev-parse HEAD)"
-lock_sha="$(shasum -a 256 pnpm-lock.yaml | cut -d ' ' -f 1)"
-image="ghcr.io/paperclipai/paperclip-daytona-runner:e2e-content-${content_id}"
-if ! docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
-  docker buildx build \
-    --platform linux/amd64 \
-    --build-arg "OUTPOST_RUNNER_CONTENT_ID=${content_id}" \
-    --build-arg "OUTPOST_RUNNER_SOURCE_REVISION=${source_revision}" \
-    --build-arg "OUTPOST_RUNNER_LOCK_SHA256=${lock_sha}" \
-    --file docker/daytona-runner/Dockerfile \
-    --tag "$image" \
-    --push \
-    .
-fi
-docker buildx imagetools inspect "$image"
-```
-
-The Dockerfile has no lockfile digest default: every build passes the SHA-256
-of the `pnpm-lock.yaml` in its build context, and a missing or malformed value
-fails before installation. Build from a clean checkout of the source revision
-so the content ID, provenance, and lockfile digest describe the same tree.
+The repository no longer builds or publishes Daytona runner images. This
+section is retained only to explain historical evidence produced by older runs.
 
 The content ID hashes the audited image inputs, including the Dockerfile,
 platform, root package/lock/build configuration, dependency patches, and
@@ -2321,9 +2297,8 @@ discovery choices; Pi imports its production profile's fixed OpenRouter model.
 
 Run each candidate from its provider branch, with its verified candidate assets
 materialized under the runner package, and build the TypeScript sidecar before
-local execution. Daytona additionally requires that branch's immutable Linux
-candidate image and the matching controller-owned provider pack described in
-[`docker/daytona-runner/README.md`](../../docker/daytona-runner/README.md).
+local execution. Historical remote-provider qualification is no longer part of
+the retained product workflow.
 The separate Runner Evals `extended-harnesses` campaign lives in the private
 `outpost-evals` repository and grades semantic protocol behavior against the
 mock control plane. Neither suite substitutes for the other.

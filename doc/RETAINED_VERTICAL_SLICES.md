@@ -254,6 +254,14 @@ Storybook scenarios, provider-spend instructions, and remote image setup are
 removed. Deterministic local tests remain the required coverage for creating
 Codex and Claude agents and running them with the user's existing local login.
 
+### Daytona Runner Image Pipeline
+
+The mutable and release-consumer Daytona images, manual publication workflow,
+artifact downloader, and image-specific tests supported the retired remote
+sandbox product. They are removed. The pull-request `Docker Runner check` keeps
+its isolated local native-runner compilation and dependency-cache verification;
+it no longer publishes images or runs paid remote qualification.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

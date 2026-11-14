@@ -294,8 +294,8 @@ test("isolated Docker Rust stages preserve the layout of embedded schema and ide
       else if (entry.name.endsWith(".rs")) sources.push(full);
     }
   })(crateRoot);
-  for (const [dockerfile, stage] of [["Dockerfile", "runner-build"], ["docker/daytona-runner/Dockerfile", "runnerd-build"]]) {
-    const docker = readFileSync(path.join(repoRoot, dockerfile), "utf8");
+  for (const [dockerfile, stage] of [["Dockerfile", "runner-build"]]) {
+    const docker = readFileSync(path.join(repoRoot, dockerfile), "utf8").replaceAll("\r\n", "\n");
     const body = docker.split(/^FROM .+ AS /m).find(part => part.startsWith(`${stage}\n`));
     assert.ok(body, `${dockerfile}: missing ${stage}`);
     const workdir = /^WORKDIR (.+)$/m.exec(body)?.[1];
@@ -310,17 +310,20 @@ test("isolated Docker Rust stages preserve the layout of embedded schema and ide
     });
     const copiedPath = source => {
       const copy = copies.find(copy => source === copy.source || source.startsWith(`${copy.source}${path.sep}`));
-      return copy ? path.posix.join(copy.destination, path.relative(copy.source, source)) : null;
+      return copy ? path.posix.join(copy.destination, path.relative(copy.source, source).replaceAll("\\", "/")) : null;
     };
     let checked = 0;
     for (const source of sources) {
       for (const { resolved } of crateIncludes(source, readFileSync(source, "utf8"))) {
         // Cargo test-only fixture trees are intentionally absent from production
         // Docker stages. Their cache coverage is checked by the preceding test.
-        if (/\/(?:test-fixtures|test\/fixtures|tests\/runner-e2e\/fixtures)(?:\/|$)/.test(resolved)) continue;
+        if (/\/(?:test-fixtures|test\/fixtures|tests\/runner-e2e\/fixtures)(?:\/|$)/.test(resolved.replaceAll("\\", "/"))) continue;
         const stagedSource = copiedPath(source);
         assert.ok(stagedSource, `${dockerfile}: crate source was not copied: ${path.relative(repoRoot, source)}`);
-        const expected = path.posix.resolve(path.posix.dirname(stagedSource), path.relative(path.dirname(source), resolved));
+        const expected = path.posix.resolve(
+          path.posix.dirname(stagedSource),
+          path.relative(path.dirname(source), resolved).replaceAll("\\", "/"),
+        );
         assert.equal(copiedPath(resolved), expected, `${dockerfile}: include input ${path.relative(repoRoot, resolved)} must retain its crate-relative path`);
         checked++;
       }

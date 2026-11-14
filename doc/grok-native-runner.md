@@ -150,33 +150,3 @@ Qualification requires the full protocol roster, selected product workflows,
 subscription and API execution locally and on Daytona, and three successful
 repetitions of core tool, approval and resume cases. Deterministic tests or a
 single successful browser task do not establish that qualification.
-
-## Remote verification
-
-Do not run Docker on a developer laptop when using remote verification. The
-`Docker Runner check` workflow offers maintainer-authorized manual Linux image
-builds and broad source checks without provider credentials. It records the
-source revision, resolved lock digest and immutable image reference. Paid
-Product E2E remains behind the protected default-branch workflow and environment.
-
-The public npm consumer check uses a digest-pinned, unprivileged container with
-no checkout or credentials mounted. It downloads dependencies with lifecycle
-scripts disabled and freezes the resulting consumer lockfile. It completes the
-clean install with offline `npm rebuild`, running the deferred lifecycle hooks
-without re-resolving bundled optional dependencies. Networking stays disabled,
-the lockfile must remain unchanged, and a sentinel proves scripts actually ran.
-The pinned image includes native build tools and local Node headers so dependency
-hooks can compile without network access. Both executable admission probes run
-in the same isolation. The verification user provisions Grok inside the disposable
-test directory without privilege elevation or host `/opt` changes. Only the
-positive probe mounts that binary read-only at the canonical sandbox path.
-
-
-The Cloud application image also carries the controller-owned provider pack and
-sets `OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH`. Remote ACPX execution verifies
-the sandbox against that pack before using it, or stages the matching pack when
-needed. The Cloud controller image does not install the native Grok executable;
-the selected sandbox image must provide the prerequisite above.
-Cloud builds must supply the full source SHA through `OUTPOST_BUILD_COMMIT`
-to produce that verified pack. Unstamped local Cloud builds still work for other
-features, but omit the pack and cannot start remote ACPX sessions.

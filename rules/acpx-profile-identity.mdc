@@ -76,5 +76,5 @@ Ordinary Runner source changes, refactors and comments change none of these.
 
 The canonical reference is
 [`packages/outpost-runner/docs/durable-recovery.md`](../packages/outpost-runner/docs/durable-recovery.md#profile-identity).
-The pack contract digest is described in
-[`docker/daytona-runner/README.md`](../docker/daytona-runner/README.md).
+The pack contract digest is described alongside the runner's durable-recovery
+contract.

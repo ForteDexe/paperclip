@@ -915,8 +915,7 @@ skills, with a startup sentinel before a prompt can run.
 
 Build candidate packs explicitly with `--candidate-providers=<name>` on that
 provider's branch. Local and remote pack verification includes the complete
-candidate asset tree. The corresponding Daytona build argument is documented in
-`docker/daytona-runner/README.md`. Candidate packaging never promotes a profile.
+candidate asset tree. Candidate packaging never promotes a profile.
 
 ACP is not an OS sandbox. Cursor v3 patches the verified native ACP
 distribution to disable project and ambient MCP discovery and local/remote

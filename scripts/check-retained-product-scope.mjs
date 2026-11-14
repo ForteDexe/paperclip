@@ -72,6 +72,8 @@ const retiredInfrastructure = [
   "scripts/crash-points.mjs",
   "tests/restart-chaos",
   "tests/hiring-ai-connections",
+  "docker/daytona-runner",
+  "scripts/prepare-runner-release-image.mjs",
 ];
 
 async function exists(relativePath) {
