@@ -4190,34 +4190,8 @@ The board UI generates agent onboarding prompts from the add-agent modal (`+` in
 Hermes gateway agents use this same generic agent invite flow with
 `adapterType=hermes_gateway` and `agentDefaultsPayload.apiBaseUrl` /
 `agentDefaultsPayload.apiKey`. See
-[HERMES_GATEWAY_ONBOARDING.md](./HERMES_GATEWAY_ONBOARDING.md) for the full
-operator path, including Hermes credentials, invite approval, key claim, and
-fresh-state Docker smoke setup.
-
-## OpenClaw Join Smoke Test
-
-Run the end-to-end OpenClaw join smoke harness:
-
-```sh
-pnpm smoke:openclaw-join
-```
-
-What it validates:
-
-- invite creation for agent-only join
-- agent join request using `adapterType=openclaw_gateway`
-- board approval + one-time API key claim semantics
-- callback delivery on wakeup to a dockerized OpenClaw-style webhook receiver
-
-Required permissions:
-
-- This script performs board-governed actions (create invite, approve join, wakeup another agent).
-- In authenticated mode, run with board auth via `OUTPOST_AUTH_HEADER` or `OUTPOST_COOKIE`.
-
-Optional auth flags (for authenticated mode):
-
-- `OUTPOST_AUTH_HEADER` (for example `Bearer ...`)
-- `OUTPOST_COOKIE` (session cookie header value)
+[HERMES_GATEWAY_ONBOARDING.md](./HERMES_GATEWAY_ONBOARDING.md) for the operator
+path, including Hermes credentials, invite approval, and key claim.
 
 ## PostHog MCP Live Smoke Test
 
@@ -4250,36 +4224,6 @@ Run the focused harness checks without contacting Outpost or PostHog:
 ```sh
 node --test scripts/smoke/posthog-live.test.mjs
 ```
-
-## OpenClaw Docker UI One-Command Script
-
-To boot OpenClaw in Docker and print a host-browser dashboard URL in one command:
-
-```sh
-pnpm smoke:openclaw-docker-ui
-```
-
-This script lives at `scripts/smoke/openclaw-docker-ui.sh` and automates clone/build/config/start for Compose-based local OpenClaw UI testing.
-
-Pairing behavior for this smoke script:
-
-- default `OPENCLAW_DISABLE_DEVICE_AUTH=1` (no Control UI pairing prompt for local smoke; no extra pairing env vars required)
-- set `OPENCLAW_DISABLE_DEVICE_AUTH=0` to require standard device pairing
-
-Model behavior for this smoke script:
-
-- defaults to OpenAI models (`openai/gpt-5.2` + OpenAI fallback) so it does not require Anthropic auth by default
-
-State behavior for this smoke script:
-
-- defaults to isolated config dir `~/.openclaw-outpost-smoke`
-- resets smoke agent state each run by default (`OPENCLAW_RESET_STATE=1`) to avoid stale provider/auth drift
-
-Networking behavior for this smoke script:
-
-- auto-detects and prints a Outpost host URL reachable from inside OpenClaw Docker
-- default container-side host alias is `host.docker.internal` (override with `OUTPOST_HOST_FROM_CONTAINER` / `OUTPOST_HOST_PORT`)
-- if Outpost rejects container hostnames in authenticated/private mode, allow `host.docker.internal` via `npx @outpost/cli allowed-hostname host.docker.internal` and restart Outpost
 
 ### GitHub identity for shared agents
 

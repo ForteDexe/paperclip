@@ -145,44 +145,6 @@ After Hermes submits the join request:
 Once the key is claimed, create an issue assigned to the new Hermes gateway
 agent and wake it through the normal Outpost heartbeat path.
 
-## Local Fresh-State Smoke
-
-For a fresh Docker-backed Hermes gateway and end-to-end Outpost join/run
-verification, use:
-
-```sh
-OUTPOST_API_URL=http://127.0.0.1:3100 \
-OUTPOST_AUTH_HEADER='Bearer <board-token>' \
-pnpm smoke:hermes-gateway-e2e
-```
-
-The E2E smoke:
-
-- builds a fresh Hermes gateway container
-- seeds a minimal non-secret Hermes model config
-- passes provider keys from the host environment without printing them
-- verifies Hermes `/health`, `/v1/capabilities`, `/v1/runs`, SSE, and stop
-- creates and approves a Outpost agent-only invite
-- joins as `hermes_gateway`
-- wakes the agent on a smoke issue
-- removes Outpost and Docker test state on success
-
-If a Hermes gateway is already running and you only need to validate the invite
-and stored adapter config, use the join-only helper:
-
-```sh
-API_SERVER_ENABLED=true API_SERVER_KEY='<gateway-key>' hermes gateway run --replace --accept-hooks
-
-OUTPOST_API_URL=http://127.0.0.1:3100 \
-OUTPOST_AUTH_HEADER='Bearer <board-token>' \
-HERMES_GATEWAY_API_BASE_URL=http://127.0.0.1:8642 \
-HERMES_GATEWAY_API_KEY='<gateway-key>' \
-pnpm smoke:hermes-gateway-join
-```
-
-See [HERMES_GATEWAY_SMOKE.md](./HERMES_GATEWAY_SMOKE.md) for Docker Desktop,
-Linux, same-network Docker, LAN/private-network, and reverse-proxy/TLS examples.
-
 ## Install Entry Points
 
 Use these entry points depending on who is driving setup:
@@ -193,9 +155,6 @@ Use these entry points depending on who is driving setup:
   llm.txt-style setup instructions.
 - CLI invite flow: `npx @outpost/cli invite create`, `invite show`,
   `invite onboarding:text`, `join approve`, and `join claim-key`.
-- Smoke helpers: `pnpm smoke:hermes-gateway-e2e` for fresh-state Docker
-  verification and `pnpm smoke:hermes-gateway-join` for an already-running
-  gateway.
 - Adapter development override: Adapter manager can install
   `@outpost/hermes-outpost-adapter` as an external override, but normal
   operators should use the built-in `hermes_local` and `hermes_gateway`

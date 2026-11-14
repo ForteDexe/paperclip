@@ -124,3 +124,12 @@ The `built_in_managed_resources` schema name remains temporarily because the
 same table also tracks managed runtime environments. It is not evidence that
 built-in agents remain active; renaming or splitting that shared persistence is
 a separate schema migration.
+
+### External Gateway Smoke Infrastructure
+
+The Hermes and OpenClaw Docker smoke environments exercised external agent
+gateways rather than Outpost's retained local Codex and Claude runtime. Their
+Docker fixtures, shell harnesses, package commands, smoke-specific guides, and
+focused script tests are removed. External gateway product and invite paths are
+not considered retained; they remain a separate dependency-guided removal slice
+rather than being conflated with this qualification-tooling cleanup.
