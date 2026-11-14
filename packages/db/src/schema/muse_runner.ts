@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import { bigserial, boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import type { MuseStopBoundary } from "@outpost/shared";
 import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
@@ -76,7 +75,7 @@ export const externalAgentHolds = pgTable("external_agent_holds", {
   agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }), provider: text("provider").$type<"muse" | "openai_dot">().notNull(),
   assignmentId: uuid("assignment_id").notNull(), bindingId: uuid("binding_id").notNull(), bindingGeneration: integer("binding_generation").notNull(),
   runId: uuid("run_id").notNull(), workerUnknown: boolean("worker_unknown").notNull().default(true), nativeEffectsUnknown: boolean("native_effects_unknown").notNull().default(false),
-  stopBoundary: jsonb("stop_boundary").$type<MuseStopBoundary>(), workerReportedAt: time("worker_reported_at"), operatorAttestedAt: time("operator_attested_at"),
+  stopBoundary: jsonb("stop_boundary").$type<Record<string, unknown>>(), workerReportedAt: time("worker_reported_at"), operatorAttestedAt: time("operator_attested_at"),
   releasedAt: time("released_at"), createdAt: time("created_at").notNull().defaultNow(), updatedAt: time("updated_at").notNull().defaultNow(),
 }, t => [uniqueIndex("external_holds_assignment_uq").on(t.provider, t.assignmentId), index("external_holds_agent_idx").on(t.spaceId, t.agentId)]);
 

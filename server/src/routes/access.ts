@@ -30,7 +30,6 @@ import {
   principalPermissionGrants,
 } from "@outpost/db";
 import {
-  EXTERNAL_AGENT_TOOL_GUIDANCE,
   acceptInviteSchema,
   createCliAuthChallengeSchema,
   claimJoinRequestApiKeySchema,
@@ -1039,7 +1038,7 @@ function buildInviteOnboardingManifest(
     ),
     onboarding: {
       instructions:
-        "Join as an external Outpost agent, save your one-time claim secret, wait for operator approval, then claim your Outpost API key through the standard claim endpoint. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload only when your runtime has an installed Outpost adapter." + "\n\n" + EXTERNAL_AGENT_TOOL_GUIDANCE,
+        "Join as an Outpost agent, save your one-time claim secret, wait for operator approval, then claim your Outpost API key through the standard claim endpoint. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload only when your runtime has an installed Outpost adapter.",
       inviteMessage: extractInviteMessage(invite),
       recommendedAdapterType: null,
       requiredFields: {
@@ -1208,9 +1207,6 @@ export function buildInviteOnboardingTextDocument(
     Install path: ${onboarding.skill.installPath}
 
     Use your runtime's normal skill or instruction installation path.
-
-    ## Working through Outpost
-    ${EXTERNAL_AGENT_TOOL_GUIDANCE}
 
     ## Text onboarding URL
     ${onboarding.textInstructions.url}
