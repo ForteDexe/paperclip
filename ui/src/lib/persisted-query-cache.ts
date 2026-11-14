@@ -106,7 +106,7 @@ export function persistedQueryScope(key: readonly unknown[], data: unknown, user
   if (root === "link-preview" && typeof key[3] === "string"
     && hashKey(key) === hashKey(queryKeys.linkPreview(second, userId, key[3]))) return second;
   if (isLegacyInboxQuery(key) && Array.isArray(data)) return second;
-  if (["sidebar-badges", "agents", "built-in-agents"].includes(String(root)) && key.length === 2) return second;
+  if (["sidebar-badges", "agents"].includes(String(root)) && key.length === 2) return second;
   if (root === "projects" && key.length <= 3) return second;
   if (root === "agent-chats" && key.length === 3 && third === userId) return second;
   if (root === "default-agent" && third === userId && key.length === 3) return second;

@@ -164,7 +164,6 @@ function registerModuleMocks(): void {
       hasPermission: vi.fn(async () => true),
     }),
     approvalService: () => ({}),
-    builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
     spaceSkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
     budgetService: () => ({}),
     heartbeatService: () => mockHeartbeatService,

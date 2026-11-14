@@ -11,10 +11,6 @@ const mockAgentService = vi.hoisted(() => ({
   resolveByReference: vi.fn(),
 }));
 
-const mockBuiltInAgentService = vi.hoisted(() => ({
-  ensureSpaceDefaultAgentGrants: vi.fn(),
-}));
-
 const mockAgentInstructionsService = vi.hoisted(() => ({
   getBundle: vi.fn(),
   getFileDates: vi.fn(),
@@ -65,7 +61,6 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => mockAgentInstructionsService,
   accessService: () => mockAccessService,
   approvalService: () => ({}),
-  builtInAgentService: () => mockBuiltInAgentService,
   spaceSkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
   budgetService: () => ({}),
   environmentService: () => mockEnvironmentService,
@@ -172,21 +167,6 @@ function makeAgent() {
   };
 }
 
-function makeReflectionCoachAgent(overrides: Record<string, unknown> = {}) {
-  return {
-    ...makeAgent(),
-    id: "22222222-2222-4222-8222-222222222222",
-    name: "Reflection Coach",
-    metadata: {
-      outpostBuiltInAgent: {
-        key: "reflection-coach",
-        featureKeys: ["reflection-coach"],
-      },
-    },
-    ...overrides,
-  };
-}
-
 describe("agent instructions bundle routes", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -194,7 +174,6 @@ describe("agent instructions bundle routes", () => {
     mockAuthorizeInstructionRead.mockImplementation(async (_db, actor) => actor);
     mockInstructionRevisions.readCurrent.mockResolvedValue(null);
     mockInstructionRevisions.commit.mockResolvedValue({ revision: { id: "33333333-3333-4333-8333-333333333333", entryFile: "AGENTS.md", byteLength: 18 }, content: "# Updated Agent\n", changed: true, materialization: "current" });
-    mockBuiltInAgentService.ensureSpaceDefaultAgentGrants.mockResolvedValue(0);
     mockSyncInstructionsBundleConfigFromFilePath.mockImplementation((_agent, config) => config);
     mockFindServerAdapter.mockImplementation((_type: string) => ({ type: _type }));
     mockAccessService.decide.mockResolvedValue({
@@ -554,7 +533,7 @@ describe("agent instructions bundle routes", () => {
     });
     mockAgentService.getById.mockImplementation(async (id: string) => {
       if (id === "coach-agent") {
-        return makeReflectionCoachAgent({ id: "coach-agent" });
+        return { ...makeAgent(), id: "coach-agent" };
       }
       return makeAgent();
     });

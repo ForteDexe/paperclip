@@ -240,9 +240,6 @@ export const queryKeys = {
     activeLoginSession: (spaceId: string, adapterType: string) =>
       ["agents", spaceId, "active-login-session", adapterType] as const,
   },
-  builtInAgents: {
-    list: (spaceId: string) => ["built-in-agents", spaceId] as const,
-  },
   issues: {
     recoveryActions: (id: string, actionId: string | null, runId: string | null) =>
       ["issues", id, "recovery-actions", actionId, runId] as const,

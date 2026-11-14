@@ -14,7 +14,6 @@ import { promisify } from "node:util";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   spaces as spacesTable,
-  builtInManagedResources,
   issueRelations,
   principalPermissionGrants,
   type Db,
@@ -3865,38 +3864,14 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
     const rootPath = normalizeAgentUrlKey(space.name) ?? "space-package";
     let spaceLogoPath: string | null = null;
 
-    const managedResourceRows = typeof (db as { select?: unknown }).select === "function"
-      ? await db
-        .select({
-          resourceKind: builtInManagedResources.resourceKind,
-          resourceId: builtInManagedResources.resourceId,
-        })
-        .from(builtInManagedResources)
-        .where(eq(builtInManagedResources.spaceId, spaceId))
-      : [];
-    const managedSkillIds = new Set(
-      managedResourceRows
-        .filter((row) => row.resourceKind === "skill")
-        .map((row) => row.resourceId),
-    );
-    const managedRoutineIds = new Set(
-      managedResourceRows
-        .filter((row) => row.resourceKind === "routine")
-        .map((row) => row.resourceId),
-    );
-
     const allAgentRows = include.agents ? await agents.list(spaceId, { includeTerminated: true }) : [];
     const agentSelection = resolvePortableExportAgentSelection(allAgentRows, input.agents, include.agents);
     const spaceSkillRowsRaw = include.skills ? await spaceSkills.listFull(spaceId) : [];
     if (spaceSkillRowsRaw.some(skill => skill.accessSourceId)) {
       throw unprocessable("Project-restricted skills cannot be exported until the package can preserve their project access.");
     }
-    const managedSkillRows = spaceSkillRowsRaw.filter((skill) => managedSkillIds.has(skill.id));
-    const spaceSkillRows = spaceSkillRowsRaw.filter((skill) => !managedSkillIds.has(skill.id));
+    const spaceSkillRows = spaceSkillRowsRaw;
     warnings.push(...agentSelection.warnings);
-    if (include.skills && managedSkillRows.length > 0) {
-      warnings.push(`Skipped ${managedSkillRows.length} built-in managed skill${managedSkillRows.length === 1 ? "" : "s"} from export.`);
-    }
 
     const agentRows = agentSelection.agents
       .sort((left, right) => left.name.localeCompare(right.name));
@@ -3941,16 +3916,7 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
     const routinesSvc = routineService(db);
     const allProjectsRaw = include.projects || include.issues ? await projectsSvc.list(spaceId) : [];
     const allProjects = allProjectsRaw.filter((project) => !project.archivedAt);
-    const allRoutinesRaw = include.issues ? await routinesSvc.list(spaceId) : [];
-    const builtInRoutineRows = allRoutinesRaw.filter((routine) =>
-      managedRoutineIds.has(routine.id) || routine.originKind === "built_in_agent_bundle"
-    );
-    const allRoutines = allRoutinesRaw.filter((routine) =>
-      !managedRoutineIds.has(routine.id) && routine.originKind !== "built_in_agent_bundle"
-    );
-    if (include.issues && builtInRoutineRows.length > 0) {
-      warnings.push(`Skipped ${builtInRoutineRows.length} built-in managed routine${builtInRoutineRows.length === 1 ? "" : "s"} from export.`);
-    }
+    const allRoutines = include.issues ? await routinesSvc.list(spaceId) : [];
     const projectById = new Map(allProjects.map((project) => [project.id, project]));
     const projectByReference = new Map<string, typeof allProjects[number]>();
     for (const project of allProjects) {
@@ -3972,7 +3938,6 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
     const selectedIssues = new Map<string, Awaited<ReturnType<typeof issuesSvc.getById>>>();
     const selectedRoutines = new Map<string, typeof allRoutines[number]>();
     const routineById = new Map(allRoutines.map((routine) => [routine.id, routine]));
-    const builtInRoutineById = new Map(builtInRoutineRows.map((routine) => [routine.id, routine]));
     const resolveIssueBySelector = async (selector: string) => {
       const trimmed = selector.trim();
       if (!trimmed) return null;
@@ -3983,10 +3948,6 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
     for (const selector of input.issues ?? []) {
       const issue = await resolveIssueBySelector(selector);
       if (!issue || issue.spaceId !== spaceId) {
-        if (builtInRoutineById.has(selector.trim())) {
-          warnings.push(`Routine selector "${selector}" is a built-in managed routine and was skipped.`);
-          continue;
-        }
         const routine = routineById.get(selector.trim());
         if (routine) {
           selectedRoutines.set(routine.id, routine);

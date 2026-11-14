@@ -15,7 +15,7 @@ for format, permission checks, evidence and maintenance.
 
 Scoped runner-default source review: 2026-10-12 at
 `eee0534154eaf5d0d3f2bbc97c1e24d86f34a5a5`, limited to creation/configuration,
-approval activation, built-in provisioning and import preservation described
+approval activation and import preservation described
 below. The original baseline commit above still governs unrelated entries; this
 update does not claim operation-complete review or live agent verification.
 
@@ -218,7 +218,7 @@ CLI.
 Policy: Agent creation/configuration uses action grants, resource policies and change
 consent; some controls require a board actor.
 
-Changes to the legacy `budgetMonthlyCents` field and built-in provision budget overrides require a board actor, including budget-changing rollbacks.
+Changes to the legacy `budgetMonthlyCents` field require a board actor, including budget-changing rollbacks.
 
 The roster intent preserves unrelated settings, rejects stale model/connection
 previews and harness changes, and checks the full execution configuration under
@@ -332,40 +332,6 @@ remaining operations before qualifying the whole capability.
 
 Gaps: Resume has a generic native REST path. Pause and termination remain
 enforced actor restrictions.
-
-## `built-in`
-
-Capability ID: `agents/built-in`.
-
-Review: `baseline`.
-
-API: `present` — representative operation IDs:
-
-- `POST /api/spaces/{spaceId}/built-in-agents/{key}/provision`.
-
-Agent access: `partial` — REST / native fallback for eligible provisioning; built-in
-routine controls require board.
-
-Policy: Agent creation/configuration uses action grants, resource policies and change
-consent; some controls require a board actor.
-
-Evidence: `source-only` — [implementation](../../server/src/routes/agents.ts#L1395) at
-the reviewed commit above.
-
-Verification: `not-run` — exercise a listed permitted operation with actual agent
-credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, space or mode from Policy. Review the
-remaining operations before qualifying the whole capability.
-
-Gaps: Provisioning checks agents:create. Enabling/running its built-in routine is not
-the same permission path.
-
-Scoped source review: [built-in provisioning](../../server/src/services/built-in-agents.ts)
-recognizes the underlying Codex harness of a native space agent. New configured
-provisioning resolves the runner, while unrelated reconciliation and same-harness
-edits retain existing execution. Verify explicit runner changes preserve compatible
-saved settings; the general creation/access policy above still applies. This is
-source-only evidence at the scoped commit, not a live provisioning result.
 
 ## `default-agent`
 

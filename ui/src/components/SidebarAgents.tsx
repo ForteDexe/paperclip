@@ -21,11 +21,8 @@ import { useDialogActions } from "../context/DialogContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useToastActions } from "../context/ToastContext";
 import { agentsApi } from "../api/agents";
-import { builtInAgentsApi, type BuiltInAgentStatus } from "../api/builtInAgents";
-import { BuiltInLifecycleChip } from "./BuiltInAgentBadges";
 import { authApi } from "../api/auth";
 import { heartbeatsApi } from "../api/heartbeats";
-import { instanceSettingsApi } from "../api/instanceSettings";
 import { SIDEBAR_SCROLL_RESET_STATE } from "../lib/navigation-scroll";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, agentRouteRef, agentUrl, SIDEBAR_RAIL_HIDDEN_LABEL } from "../lib/utils";
@@ -118,7 +115,6 @@ function SidebarAgentItem({
   rail,
   runCount,
   setSidebarOpen,
-  builtInStatus,
   directReportCount,
   starred = false,
   onToggleStar,
@@ -135,7 +131,6 @@ function SidebarAgentItem({
   rail: boolean;
   runCount: number;
   setSidebarOpen: (open: boolean) => void;
-  builtInStatus?: BuiltInAgentStatus;
   directReportCount: number;
   starred?: boolean;
   onToggleStar?: (agent: Agent, starred: boolean) => void;
@@ -154,10 +149,8 @@ function SidebarAgentItem({
     : isPaused && hasInvalidCoordination
         ? "Invalid org chain"
       : pauseResumeLabel;
-  const showBuiltInLifecycle = builtInStatus === "needs_setup" || builtInStatus === "pending_approval";
   const trailingLabel = [
     directReportCount > 0 ? `Coordinates ${directReportCount} ${directReportCount === 1 ? "agent" : "agents"}` : null,
-    showBuiltInLifecycle ? `Built-in agent ${builtInStatus.replace(/_/g, " ")}` : null,
     hasInvalidCoordination ? "Invalid coordination chain" : null,
   ].filter(Boolean).join(", ") || undefined;
 
@@ -170,7 +163,6 @@ function SidebarAgentItem({
       iconNode={<AgentAvatar agent={agent} size={16} className="shrink-0 h-4 w-4"/>}
       active={isActive}
       liveCount={runCount}
-      labelClassName={showBuiltInLifecycle ? "min-w-(--sz-4_5rem) flex-initial" : undefined}
       className={cn(
         "min-w-0 flex-1",
         // Reserve room for the hover ⋯ menu; starred rows widen it for the
@@ -178,10 +170,9 @@ function SidebarAgentItem({
         starred && !isMobile ? "pr-14" : "pr-8",
       )}
       trailing={
-        directReportCount > 0 || showBuiltInLifecycle || hasInvalidCoordination ? (
+        directReportCount > 0 || hasInvalidCoordination ? (
           <span className="ml-1 flex shrink-0 items-center gap-1">
             <AgentCoordinationIndicator directReportCount={directReportCount} />
-            {showBuiltInLifecycle ? <BuiltInLifecycleChip status={builtInStatus} compact /> : null}
             {hasInvalidCoordination ? (
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid coordination chain" />
             ) : null}
@@ -310,25 +301,6 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
     queryFn: () => agentsApi.list(selectedSpaceId!),
     enabled: !!selectedSpaceId,
   });
-  const { data: experimentalSettings } = useQuery({
-    queryKey: queryKeys.instance.experimentalSettings,
-    queryFn: () => instanceSettingsApi.getExperimental(),
-    enabled: !!selectedSpaceId,
-  });
-  const builtInAgentsEnabled = experimentalSettings?.enableBuiltInAgents === true;
-  const { data: builtInAgents } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(selectedSpaceId!),
-    queryFn: () => builtInAgentsApi.list(selectedSpaceId!),
-    enabled: !!selectedSpaceId && builtInAgentsEnabled,
-  });
-  const builtInStatusByAgentId = useMemo(() => {
-    const map = new Map<string, BuiltInAgentStatus>();
-    if (!builtInAgentsEnabled) return map;
-    for (const entry of builtInAgents ?? []) {
-      if (entry.agentId) map.set(entry.agentId, entry.status);
-    }
-    return map;
-  }, [builtInAgents, builtInAgentsEnabled]);
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
@@ -634,7 +606,6 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
       rail={rail}
       runCount={liveCountByAgent.get(agent.id) ?? 0}
       setSidebarOpen={setSidebarOpen}
-      builtInStatus={builtInStatusByAgentId.get(agent.id)}
       directReportCount={directReportCountByAgentId.get(agent.id) ?? 0}
       starred={isStarredRow || isStarred(membershipsQuery.data, "agent", agent.id)}
       onToggleStar={toggleStarAgent}

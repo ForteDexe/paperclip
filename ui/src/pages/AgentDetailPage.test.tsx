@@ -18,7 +18,7 @@ vi.mock("./AgentDetail", async () => {
   return { AgentDetail: () => {
     const { setBreadcrumbs } = useBreadcrumbs();
     useEffect(() => { setBreadcrumbs([{ label: "Overview" }]); }, [setBreadcrumbs]);
-    return <p>Built-in agent view</p>;
+    return <p>Core agent view</p>;
   } };
 });
 vi.mock("@/plugins/slots", () => ({ usePluginSlots: () => state, PluginSlotMount: (props: unknown) => { mount(props); return <p>Plugin contribution</p>; } }));
@@ -43,9 +43,9 @@ describe("agent plugin detail views", () => {
     expect(render()).toContain("This plugin view is unavailable");
     params.tab = "plugin:test.plugin:insights";
   });
-  it("preserves built-in agent routes", () => {
+  it("preserves core agent routes", () => {
     params.tab = "overview";
-    expect(render()).toContain("Built-in agent view");
+    expect(render()).toContain("Core agent view");
     params.tab = "plugin:test.plugin:insights";
   });
 });

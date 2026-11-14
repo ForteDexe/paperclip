@@ -109,3 +109,16 @@ shared contracts, API and service layer, active schema exports, experimental
 setting, focused tests, and opt-in Summarizer agent bundle are removed. Normal
 task descriptions, run summaries, and other domain-specific summary fields are
 unchanged. Historical migrations and migration-focused tests remain intact.
+
+### Optional Built-in Agents
+
+Outpost no longer ships opt-in Briefs, Learning, Reflection Coach, or
+Summarizer agents. Their bundled instructions, provisioning and reconciliation
+services, API routes, experimental flag, dedicated UI, routine grouping, and
+focused tests are removed. All user-created Codex and Claude agents now follow
+the same lifecycle, permissions, portability, and instruction paths.
+
+The `built_in_managed_resources` schema name remains temporarily because the
+same table also tracks managed runtime environments. It is not evidence that
+built-in agents remain active; renaming or splitting that shared persistence is
+a separate schema migration.

@@ -10,7 +10,6 @@ import { ApiError } from "@/api/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "../context/ToastContext";
-import type { BuiltInAgentState } from "../api/builtInAgents";
 import { Agents, filterAgentHierarchy, filterAgents } from "./Agents";
 import { Agents as ProductionAgents } from "./Agents.production";
 import type { AgentCoordinationHealth } from "@outpost/shared";
@@ -23,12 +22,6 @@ const mockRouterState = vi.hoisted(() => ({
 const mockAgentsApi = vi.hoisted(() => ({
   list: vi.fn(),
   hierarchy: vi.fn(),
-}));
-
-const mockBuiltInAgentsApi = vi.hoisted(() => ({
-  list: vi.fn(),
-  provision: vi.fn(),
-  reset: vi.fn(),
 }));
 
 const mockEnvironmentsApi = vi.hoisted(() => ({
@@ -81,10 +74,6 @@ vi.mock("../api/ai-connections", () => ({ aiConnectionsApi: { list: vi.fn(async 
 
 vi.mock("../api/agents", () => ({
   agentsApi: mockAgentsApi,
-}));
-
-vi.mock("../api/builtInAgents", () => ({
-  builtInAgentsApi: mockBuiltInAgentsApi,
 }));
 
 vi.mock("../api/environments", () => ({
@@ -143,24 +132,6 @@ function makeAgent(overrides: Partial<Agent>): Agent {
     metadata: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
-    ...overrides,
-  };
-}
-
-function makeBuiltInAgentState(overrides: Partial<BuiltInAgentState> = {}): BuiltInAgentState {
-  return {
-    definition: {
-      key: "briefs",
-      displayName: "Briefs Agent",
-      featureKeys: ["Briefs"],
-      shortPurpose: "Generates briefs.",
-      defaultInstructions: "You are Outpost's built-in Briefs agent.",
-      defaultRole: "engineer",
-    },
-    status: "ready",
-    agentId: "built-in-agent",
-    agent: null,
-    pauseReason: null,
     ...overrides,
   };
 }
@@ -224,11 +195,9 @@ const environmentCapabilities: EnvironmentCapabilities = {
 function makeInstanceSettings({
   defaultEnvironmentId = null,
   enableEnvironments = true,
-  enableBuiltInAgents = false,
 }: {
   defaultEnvironmentId?: string | null;
   enableEnvironments?: boolean;
-  enableBuiltInAgents?: boolean;
 } = {}) {
   return {
     id: "instance-settings-1",
@@ -251,7 +220,6 @@ function makeInstanceSettings({
       enableIssuePlanDecompositions: true,
       enableExperimentalFileViewer: false,
       enableExternalObjects: false,
-      enableBuiltInAgents,
       autoRestartDevServerWhenIdle: false,
     },
     createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -299,24 +267,23 @@ function findAgentRow(container: HTMLElement, agentName: string): HTMLElement | 
 }
 
 describe("agent search", () => {
-  it("combines case-insensitive name, title and role words with status and built-in filters", () => {
+  it("combines case-insensitive name, title and role words with status filters", () => {
     const alpha = makeAgent({ id: "alpha", name: "Alpha", role: "engineer", status: "active", title: "Connector engineer" });
     const beta = makeAgent({ id: "beta", name: "Beta", role: "designer", status: "paused", title: "Design reviewer" });
     const hidden = makeAgent({ id: "hidden", name: "Beta", status: "terminated" });
     const agents = [alpha, beta, hidden];
-    expect(filterAgents(agents, "all", new Set(), " BETA   design ")).toEqual([beta]);
-    expect(filterAgents(agents, "active", new Set(), "beta")).toEqual([]);
-    expect(filterAgents(agents, "paused", new Set(), "reviewer")).toEqual([beta]);
-    expect(filterAgents(agents, "builtin", new Set([alpha.id]), "connector")).toEqual([alpha]);
-    expect(filterAgents(agents, "all", new Set(), "   ")).toEqual([alpha, beta]);
+    expect(filterAgents(agents, "all", " BETA   design ")).toEqual([beta]);
+    expect(filterAgents(agents, "active", "beta")).toEqual([]);
+    expect(filterAgents(agents, "paused", "reviewer")).toEqual([beta]);
+    expect(filterAgents(agents, "all", "   ")).toEqual([alpha, beta]);
   });
 
   it("retains the hierarchy above a matching agent and promotes children of hidden agents", () => {
     const child = { id: "child", name: "Designer", role: "designer", status: "paused", children: [] };
     const root = { id: "root", name: "Default agent", role: "lead", status: "active", children: [child] };
-    expect(filterAgentHierarchy([root], "all", new Set(), new Set([child.id]))).toEqual([root]);
-    expect(filterAgentHierarchy([root], "all", new Set(), new Set())).toEqual([]);
-    expect(filterAgentHierarchy([{ ...root, status: "terminated" }], "all", new Set(), new Set([child.id]))).toEqual([child]);
+    expect(filterAgentHierarchy([root], "all", new Set([child.id]))).toEqual([root]);
+    expect(filterAgentHierarchy([root], "all", new Set())).toEqual([]);
+    expect(filterAgentHierarchy([{ ...root, status: "terminated" }], "all", new Set([child.id]))).toEqual([child]);
   });
 });
 function renderAgentsView(root: ReturnType<typeof createRoot> | null, queryClient: QueryClient) {
@@ -360,7 +327,6 @@ describe("Agents", () => {
         children: [],
       },
     ]);
-    mockBuiltInAgentsApi.list.mockResolvedValue([]);
     mockEnvironmentsApi.list.mockResolvedValue([
       makeEnvironment({ id: "env-daytona" }),
     ]);
@@ -935,7 +901,7 @@ describe("Agents", () => {
   it.each([
     { mode: "streamlined", AgentList: Agents },
     { mode: "production", AgentList: ProductionAgents },
-  ].flatMap(layout => ["active", "paused", "error", "builtin"].map(tab => ({ ...layout, tab }))))("redirects legacy /agents/$tab to the full $mode roster", async ({ tab, AgentList }) => {
+  ].flatMap(layout => ["active", "paused", "error"].map(tab => ({ ...layout, tab }))))("redirects legacy /agents/$tab to the full $mode roster", async ({ tab, AgentList }) => {
     mockRouterState.pathname = `/agents/${tab}`;
     mockSidebarState.isMobile = true;
     mockAgentsApi.list.mockResolvedValue([
@@ -950,58 +916,7 @@ describe("Agents", () => {
     await flushReact();
     await flushReact();
 
-    expect(mockBuiltInAgentsApi.list).not.toHaveBeenCalled();
-    expect(container.textContent).not.toContain("Built-in");
     expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
-    expect(mockRouterState.navigate).toHaveBeenCalledWith("/agents/all", { replace: true });
-  });
-
-  it("redirects the legacy built-in URL to all agents while loading enabled built-in metadata", async () => {
-    mockRouterState.pathname = "/agents/builtin";
-    mockInstanceSettingsApi.get.mockResolvedValue(makeInstanceSettings({ enableBuiltInAgents: true }));
-    const builtInAgent = makeAgent({
-      id: "built-in-agent",
-      name: "Briefs Agent",
-      urlKey: "briefs-agent",
-    });
-    const regularAgent = makeAgent({
-      id: "regular-agent",
-      name: "Regular Agent",
-      urlKey: "regular-agent",
-    });
-    mockAgentsApi.list.mockResolvedValue([builtInAgent, regularAgent]);
-    mockAgentsApi.hierarchy.mockResolvedValue([
-      {
-        id: "built-in-agent",
-        name: "Briefs Agent",
-        role: "engineer",
-        status: "active",
-        children: [],
-      },
-      {
-        id: "regular-agent",
-        name: "Regular Agent",
-        role: "engineer",
-        status: "active",
-        children: [],
-      },
-    ]);
-    mockBuiltInAgentsApi.list.mockResolvedValue([
-      makeBuiltInAgentState({ agentId: "built-in-agent", agent: builtInAgent }),
-    ]);
-
-    root = createRoot(container);
-    await act(async () => {
-      renderAgentsView(root, queryClient);
-    });
-    await flushReact();
-    await flushReact();
-
-    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
-    expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("space-1");
-    expect(container.textContent).toContain("Briefs Agent");
-    expect(container.textContent).toContain("Regular Agent");
-    expect(container.querySelector('[title="Ships with Outpost"]')).toBeNull();
     expect(mockRouterState.navigate).toHaveBeenCalledWith("/agents/all", { replace: true });
   });
 

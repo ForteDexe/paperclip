@@ -195,7 +195,7 @@ export const liveBlueBadge = "bg-blue-500/10 border-blue-500/30 text-blue-600 da
  */
 
 // ---------------------------------------------------------------------------
-// Inline banner tones (built-in agents provenance / paused notices)
+// Inline banner tones for provenance and paused notices.
 //
 // Softer, full-width banner surface derived from the same brand hue anchors as
 // `brandChipBadge`. `info` carries provenance/informational context, `warning`

@@ -266,14 +266,6 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
-  enableBuiltInAgents: {
-    title: "Built-in Agents",
-    description:
-      "Show Outpost-managed built-in agent surfaces, including roster badges, the Built-in agents tab, and setup controls.",
-    tier: "managed",
-    cloudDefault: false,
-    selfHostedDefault: false,
-  },
   enableBetaSkills: {
     title: "Beta skills",
     description: "Allow agents to pin beta releases of the Outpost core skill.",

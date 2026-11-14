@@ -164,7 +164,6 @@ import {
   githubConnectionEventService,
   issueService,
   instanceSettingsService,
-  reconcileBuiltInAgentsOnStartup,
   reconcileCodexLocalManagedHomesOnStartup,
   reconcilePersistedRuntimeServicesOnStartup,
   routineService,
@@ -1169,25 +1168,6 @@ async function startServerWithDatabaseTeardown(
     })
     .catch((err) => {
       logger.error({ err }, "startup reconciliation of codex_local managed homes failed");
-    }));
-
-  void trackIdleWork(reconcileBuiltInAgentsOnStartup(db as any)
-    .then((result) => {
-      if (
-        result.reconciled > 0
-        || result.unknown > 0
-        || result.duplicates > 0
-        || result.autoEnsured > 0
-        || result.spaceFailures > 0
-      ) {
-        logger.warn(
-          result,
-          "startup reconciliation of built-in agents complete",
-        );
-      }
-    })
-    .catch((err) => {
-      logger.error({ err }, "startup reconciliation of built-in agents failed");
     }));
 
   // Force the instance onto the Kubernetes sandbox provider when configured via

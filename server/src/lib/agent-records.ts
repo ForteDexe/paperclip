@@ -9,7 +9,6 @@ import {
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { REDACTED_EVENT_VALUE, sanitizeRecord } from "../redaction.js";
 import { normalizeAgentPermissions } from "./agent-permissions.js";
-import { builtInAgentMarkersEqual, readBuiltInAgentMarker } from "./built-in-agent-metadata.js";
 
 export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -77,7 +76,6 @@ export interface UpdateAgentOptions {
   expectedConfigurationRevision?: string;
   expectedConfiguration?: Pick<AgentConfigurationRecord, "adapterType" | "adapterConfig" | "runtimeConfig" | "defaultEnvironmentId">;
   recordRevision?: RevisionMetadata;
-  allowBuiltInAgentMetadata?: boolean;
   allowPendingApprovalConfigUpdate?: boolean;
   claudeLogin?: ClaudeLoginContext;
 }
@@ -99,7 +97,6 @@ export interface CreateAgentOptions {
   responsibleUserId?: string | null;
   createdByUserId?: string | null;
   aiConnectionInstall?: { connectionId: string; memberConnectionIds?: string[]; createdByUserId: string | null };
-  allowBuiltInAgentMetadata?: boolean;
   claudeLogin?: ClaudeLoginContext;
 }
 
@@ -470,21 +467,6 @@ export function agentRecordQueries(db: Db) {
     }
   }
 
-  function assertBuiltInAgentMetadataMutationAllowed(
-    beforeMetadata: unknown,
-    afterMetadata: unknown,
-    options?: { allowBuiltInAgentMetadata?: boolean },
-  ) {
-    if (options?.allowBuiltInAgentMetadata) return;
-    const beforeMarker = readBuiltInAgentMarker(beforeMetadata);
-    const afterMarker = readBuiltInAgentMarker(afterMetadata);
-    if (builtInAgentMarkersEqual(beforeMarker, afterMarker)) return;
-    throw conflict("Built-in agent marker is managed by Outpost and cannot be edited directly", {
-      code: "built_in_agent_marker_readonly",
-      key: beforeMarker?.key ?? afterMarker?.key ?? null,
-    });
-  }
-
   return { normalizeAgentRows, normalizeAgentRow, listSpaceAgentRows, listSpaceAgentEligibilityRows, hydrateAgentSpend,
-    getById, ensureLeadAgent, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed };
+    getById, ensureLeadAgent, assertNoCycle, assertSpaceShortnameAvailable };
 }

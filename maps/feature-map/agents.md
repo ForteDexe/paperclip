@@ -4,7 +4,7 @@ navigation: {"section":"Agents and reusable capabilities","sectionOrder":30,"ord
 
 # Creation, configuration, and organization
 
-Operators create agents, configure their identity and instructions, assign optional coordination leads, and manage their lifecycle. Built-in agents have their own setup and lifecycle constraints.
+Operators create agents, configure their identity and instructions, assign optional coordination leads, and manage their lifecycle.
 
 Feature ID: `agents`.
 
@@ -21,7 +21,6 @@ Agent access: [companion](../agent-access-map/agents.md).
 - `coordination`: `agents/coordination` — inspect and change coordination relationships through supported controls.
 - `default-agent`: `agents/default-agent` — choose a personal default agent for the space, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
 - `lifecycle`: `agents/lifecycle` — pause/resume or retire an agent while preserving history.
-- `built-in`: `agents/built-in` — configure required agents without treating them as ordinary removable agents.
 - `api-keys`: `agents/api-keys` — create and inspect named agent credentials, copy a new token once, and revoke it without changing agent identity.
 - `managed-agent-setup`: `agents/managed-agent-setup` — probe, create, or adopt a qualified Anthropic managed-agent profile with pinned provider resources and retention acknowledgement.
 
@@ -197,7 +196,7 @@ reviewed execution configuration before and after restart and activation; approv
 must retain the reviewed runner. Test an existing Legacy and native agent through
 an unrelated edit, reload and restart: neither is automatically upgraded.
 
-Creation defaults also apply to API/CLI agents, built-ins, plugins and new agent-group
+Creation defaults also apply to API/CLI agents, plugins and new agent-group
 imports. Exports preserve resolved execution choices; a package without a runner
 choice uses the new-agent default, while updating an existing same-harness agent
 preserves its execution. For a native Codex import, edit a model or account binding
@@ -278,9 +277,9 @@ or provider execution.
 
 ### `coordination`
 
-Automated: [agent hierarchy](../../ui/src/pages/AgentHierarchy.test.tsx) is component evidence. Built-in setup also has [configuration modal tests](../../ui/src/components/ConfigureBuiltInAgentModal.test.tsx).
+Automated: [agent hierarchy](../../ui/src/pages/AgentHierarchy.test.tsx) is component evidence.
 
-Manual: Inspect a coordination lead and coordinated agent, change the relationship through the offered controls, and reload both views. Exercise a rejected invalid relationship. Configure a built-in agent and verify it retains its required identity and restrictions.
+Manual: Inspect a coordination lead and coordinated agent, change the relationship through the offered controls, and reload both views. Exercise a rejected invalid relationship.
 
 ### `personal-default-agent`
 
@@ -332,4 +331,4 @@ Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Outpost 
 Evidence: source implementation and focused protocol tests; real provider assigned/proactive workflows and deployed managed acceptance remain release gates.
 ### Documentation scope: Agents, coordination, and runtime setup
 
-Per-harness/model/account capabilities, every instruction-file error, and complete built-in-agent lifecycle variants remain separate qualification matrices.
+Per-harness/model/account capabilities and every instruction-file error remain separate qualification matrices.

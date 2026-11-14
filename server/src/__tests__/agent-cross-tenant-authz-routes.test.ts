@@ -210,7 +210,6 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => mockAgentInstructionsService,
   accessService: () => mockAccessService,
   approvalService: () => mockApprovalService,
-  builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
   spaceSkillService: () => mockSpaceSkillService,
   budgetService: () => mockBudgetService,
   heartbeatService: () => mockHeartbeatService,

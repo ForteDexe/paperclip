@@ -124,12 +124,6 @@ describe("instance experimental settings validators", () => {
     });
   });
 
-  it("defaults built-in agents off", () => {
-    const settings = instanceExperimentalSettingsSchema.parse({});
-
-    expect(settings.enableBuiltInAgents).toBe(false);
-  });
-
   it("defaults beta skills off", () => {
     const settings = instanceExperimentalSettingsSchema.parse({});
 
@@ -197,16 +191,6 @@ describe("instance experimental settings validators", () => {
       }),
     ).toEqual({
       enableGoalsSidebarLink: true,
-    });
-  });
-
-  it("accepts built-in agents patches", () => {
-    expect(
-      patchInstanceExperimentalSettingsSchema.parse({
-        enableBuiltInAgents: true,
-      }),
-    ).toEqual({
-      enableBuiltInAgents: true,
     });
   });
 

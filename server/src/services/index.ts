@@ -7,19 +7,6 @@ export { spaceSkillService } from "./space-skills.js";
 export { spaceSkillPolicyService, normalizeSkillPolicySourceType } from "./space-skill-policy.js";
 export { folderService } from "./folders.js";
 export { agentService, deduplicateAgentName } from "./agents.js";
-export {
-  builtInAgentService,
-  deriveBuiltInAgentStatus,
-  getBuiltInAgentDefinition,
-  listBuiltInAgentDefinitions,
-  reconcileBuiltInAgentsOnStartup,
-  validateBuiltInAgentDefinitions,
-  type BuiltInAgentDefinition,
-  type BuiltInManagedResourceState,
-  type BuiltInManagedResourceStockStatus,
-  type BuiltInAgentState,
-  type BuiltInAgentStatus,
-} from "./built-in-agents.js";
 export { agentInstructionsService, syncInstructionsBundleConfigFromFilePath } from "./agent-instructions.js";
 export { assetService } from "./assets.js";
 export { documentService, extractLegacyPlanBody } from "./documents.js";

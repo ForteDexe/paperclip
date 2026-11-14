@@ -37,7 +37,6 @@ import {
 } from "./issue-prefix.js";
 import { environmentService } from "./environments.js";
 import { logActivity, type ActivityPublication } from "./activity-log.js";
-import { builtInAgentService } from "./built-in-agents.js";
 import type { Space } from "@outpost/shared";
 
 
@@ -58,7 +57,6 @@ const SYSTEM_SPACE_ACTOR: SpaceActivityActor = {
 
 export function spaceService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
   const environmentsSvc = environmentService(db);
-  const builtInAgents = builtInAgentService(db);
 
   type SpaceTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -302,15 +300,9 @@ export function spaceService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       return enrichSpace(hydrated);
     },
 
-    create: async (
-      data: typeof spaces.$inferInsert,
-      options: { autoProvisionBundledAgents?: boolean } = {},
-    ) => {
+    create: async (data: typeof spaces.$inferInsert) => {
       const created = await createSpaceWithUniquePrefix(data);
       await environmentsSvc.ensureLocalEnvironment(created.id);
-      if (options.autoProvisionBundledAgents !== false) {
-        await builtInAgents.autoProvisionBundledAgents(created.id);
-      }
       const row = await getSpaceQuery(db)
         .where(eq(spaces.id, created.id))
         .then((rows) => rows[0] ?? null);

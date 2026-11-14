@@ -83,7 +83,7 @@ function installFixtures(state: StoryState, changed: () => void) {
     if (path === "/api/spaces") return json([{ ...storybookSpaces[0], name: "Northstar", requireOperatorApprovalForNewAgents: false }]);
     if (path === "/api/health") return json({ deploymentMode: "authenticated", status: "ok" });
     if (path === "/api/instance/settings/experimental") return json({ enableStreamlinedUi: !state.options.classic, enableAgentChat: true, enableManagedSandboxOnly: false, enableCombinedInboxTasks: true });
-    if (path === "/api/instance/settings") return json({ experimental: { enableStreamlinedUi: !state.options.classic, enableAgentChat: true, enableBuiltInAgents: false, enableEnvironments: false } });
+    if (path === "/api/instance/settings") return json({ experimental: { enableStreamlinedUi: !state.options.classic, enableAgentChat: true, enableEnvironments: false } });
     if (path === "/api/cli-auth/me" || path.endsWith("/access/me")) return json({ user: storybookAuthSession.user, userId: "user-board", source: "authenticated", isInstanceAdmin: false, spaceIds: [spaceId], memberships: [{ spaceId, membershipRole: "owner", status: "active" }], keyId: null });
     if (path.endsWith("/resource-memberships/me")) return json(state.memberships);
     const membership = path.match(/resource-memberships\/me\/agents\/([^/]+)$/);

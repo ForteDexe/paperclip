@@ -11,7 +11,6 @@ import { OUTPOST_CORE_SKILL_KEYS } from "./space-skills.js";
 import { goalService } from "./goals.js";
 import { projectService } from "./projects.js";
 import { issueService } from "./issues.js";
-import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { logActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
 
 /**
@@ -123,8 +122,7 @@ export function onboardingSeedService(db: Db) {
   /**
    * The agent a re-push should update rather than duplicate: the one this
    * seed created if it is still around, else a pre-existing lead the tenant
-   * already has. Built-in agents are excluded — they are provisioned by the
-   * platform and are not the customer's first create.
+   * already has.
    */
   async function resolveTargetAgentId(dbx: Db, spaceId: string, recordedAgentId: string | null) {
     if (recordedAgentId) {
@@ -137,14 +135,14 @@ export function onboardingSeedService(db: Db) {
     }
 
     const candidates = await dbx
-      .select({ id: agents.id, metadata: agents.metadata })
+      .select({ id: agents.id })
       .from(agents)
       .where(and(
         eq(agents.spaceId, spaceId),
         eq(agents.role, SEEDED_AGENT_ROLE),
         ne(agents.status, "terminated"),
       ));
-    return candidates.find((row) => !readBuiltInAgentMarker(row.metadata))?.id ?? null;
+    return candidates[0]?.id ?? null;
   }
 
   async function issueStillExists(dbx: Db, spaceId: string, issueId: string | null) {

@@ -3,7 +3,6 @@ export { spaceRoutes } from "./spaces.js";
 export { spaceSkillRoutes } from "./space-skills.js";
 export { spaceSkillPolicyRoutes } from "./space-skill-policy.js";
 export { inboxAgentPolicyRoutes } from "./inbox-agent-policy.js";
-export { builtInAgentRoutes } from "./built-in-agents.js";
 export { folderRoutes } from "./folders.js";
 export { agentRoutes } from "./agents.js";
 export { projectRoutes } from "./projects.js";

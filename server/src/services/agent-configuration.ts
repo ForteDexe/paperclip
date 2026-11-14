@@ -48,7 +48,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
   }
   await notifyAttentionRetentionWork(db, { spaceId: existing.spaceId });
   const id = existing.id;
-  const { ensureLeadAgent, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
+  const { ensureLeadAgent, assertNoCycle, assertSpaceShortnameAvailable } = agentRecordQueries(db);
   if (existing.status === "pending_approval" && !options?.allowPendingApprovalConfigUpdate) {
     const changedFields = changedPendingApprovalConfigFields(agentRecordQueries(db).normalizeAgentRow(existing), data);
     if (changedFields.length > 0) {
@@ -73,10 +73,6 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
     if (previousShortname !== nextShortname) {
       await assertSpaceShortnameAvailable(existing.spaceId, data.name, { excludeAgentId: id });
     }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(data, "metadata")) {
-    assertBuiltInAgentMetadataMutationAllowed(existing.metadata, data.metadata, options);
   }
 
   if (data.appearance?.customAvatarAssetId) {

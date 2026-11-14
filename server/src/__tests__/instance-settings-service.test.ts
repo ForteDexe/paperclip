@@ -107,7 +107,6 @@ describe("instance settings service", () => {
       enableIsolatedWorkspaces: true,
       enableIssuePlanDecompositions: true,
       enableExperimentalFileViewer: true,
-      enableBuiltInAgents: true,
       enableGoalsSidebarLink: true,
       enableServerInfoDebugView: true,
       enableOutpostDeveloperMode: true,
@@ -147,7 +146,6 @@ describe("instance settings service", () => {
       enableCases: false,
       enableIssuePlanDecompositions: true,
       enableExperimentalFileViewer: true,
-      enableBuiltInAgents: true,
       enableBetaSkills: false,
       enableDecisions: false,
       enableFastResponses: false,
@@ -272,12 +270,6 @@ describe("instance settings service", () => {
       normalizeExperimentalSettings({ enableWorkspaceBranchReconcileForward: false })
         .enableWorkspaceDirtyQuarantineRepair,
     ).toBe(true);
-  });
-
-  it("defaults enableBuiltInAgents to false for empty and legacy stored settings", () => {
-    expect(normalizeExperimentalSettings(undefined).enableBuiltInAgents).toBe(false);
-    expect(normalizeExperimentalSettings({}).enableBuiltInAgents).toBe(false);
-    expect(normalizeExperimentalSettings({ enableExternalObjects: true }).enableBuiltInAgents).toBe(false);
   });
 
   it("preserves enableBetaSkills and defaults it off for legacy stored settings", () => {

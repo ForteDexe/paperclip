@@ -104,8 +104,6 @@ type RoutineGroup = {
   items: RoutineListItem[];
 };
 
-const builtInRoutineGroupKey = "__built_in_routines";
-
 const defaultRoutineViewState: RoutineViewState = {
   sortField: "title",
   sortDir: "asc",
@@ -229,10 +227,6 @@ export function buildRoutineGroups(
     }));
 }
 
-export function isBuiltInRoutine(routine: Pick<RoutineListItem, "originKind">) {
-  return routine.originKind === "built_in_agent_bundle";
-}
-
 export function buildRoutineSections(
   routines: RoutineListItem[],
   groupByValue: RoutineGroupBy,
@@ -240,26 +234,8 @@ export function buildRoutineSections(
   agentById: Map<string, { name: string }>,
   folderById: Map<string, { name: string }>,
 ): RoutineGroup[] {
-  const builtInRoutines = routines.filter(isBuiltInRoutine);
-  const customRoutines = routines.filter((routine) => !isBuiltInRoutine(routine));
-  const customGroups = buildRoutineGroups(customRoutines, groupByValue, projectById, agentById, folderById)
-    .filter((group) => group.items.length > 0)
-    .map((group) => (
-      builtInRoutines.length > 0 && groupByValue === "none" && group.key === "__all"
-        ? { ...group, label: "Custom routines" }
-        : group
-    ));
-
-  if (builtInRoutines.length === 0) return customGroups;
-
-  return [
-    ...customGroups,
-    {
-      key: builtInRoutineGroupKey,
-      label: "Built-in routines",
-      items: builtInRoutines,
-    },
-  ];
+  return buildRoutineGroups(routines, groupByValue, projectById, agentById, folderById)
+    .filter((group) => group.items.length > 0);
 }
 
 export function sortRoutines(

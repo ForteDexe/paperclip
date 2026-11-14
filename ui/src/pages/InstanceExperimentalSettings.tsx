@@ -124,7 +124,6 @@ export function InstanceExperimentalSettings() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.instance.experimentalSettings }),
         queryClient.invalidateQueries({ queryKey: queryKeys.adapters.all }),
-        queryClient.invalidateQueries({ queryKey: ["built-in-agents"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.health }),
         queryClient.invalidateQueries({ queryKey: ["apps"] }),
       ]);

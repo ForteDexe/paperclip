@@ -26,7 +26,7 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("outpost-reflection-coach-gate-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-agent-change-gate-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -44,7 +44,7 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
 
   async function seedGateFixture() {
     const spaceId = randomUUID();
-    const coachId = randomUUID();
+    const agentId = randomUUID();
     const sourceRunId = randomUUID();
     const proposalIssueId = randomUUID();
     const skillId = randomUUID();
@@ -57,9 +57,9 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
       defaultResponsibleUserId: "operator-user",
     });
     await db.insert(agents).values({
-      id: coachId,
+      id: agentId,
       spaceId,
-      name: "Reflection Coach",
+      name: "Agent",
       role: "general",
       adapterType: "codex_local",
       adapterConfig: {},
@@ -69,39 +69,39 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
     await db.insert(heartbeatRuns).values({
       id: sourceRunId,
       spaceId,
-      agentId: coachId,
+      agentId,
       status: "succeeded",
     });
     await db.insert(issues).values({
       id: proposalIssueId,
       spaceId,
-      title: "Review Reflection Coach proposal",
+      title: "Review agent proposal",
       status: "in_review",
       priority: "medium",
       identifier: "PAP-1",
       issueNumber: 1,
-      createdByAgentId: coachId,
+      createdByAgentId: agentId,
     });
 
-    return { spaceId, coachId, sourceRunId, proposalIssueId, skillId, targetKey };
+    return { spaceId, agentId, sourceRunId, proposalIssueId, skillId, targetKey };
   }
 
-  it("rejects Reflection Coach skill mutation without an accepted bound interaction", async () => {
-    const { spaceId, coachId, targetKey } = await seedGateFixture();
+  it("rejects an agent skill mutation without an accepted bound interaction", async () => {
+    const { spaceId, agentId, targetKey } = await seedGateFixture();
 
     await expect(changeConsentGateService(db).assertConsented({
       spaceId,
-      actorAgentId: coachId,
+      actorAgentId: agentId,
       actorRunId: randomUUID(),
       targetKeys: [targetKey],
     })).rejects.toMatchObject({
       status: 403,
-      details: { code: "reflection_coach_mutation_gate_required" },
+      details: { code: "agent_mutation_gate_required" },
     });
   });
 
   it("rejects accepted interactions from the same run as the apply mutation", async () => {
-    const { spaceId, coachId, sourceRunId, proposalIssueId, targetKey } = await seedGateFixture();
+    const { spaceId, agentId, sourceRunId, proposalIssueId, targetKey } = await seedGateFixture();
     await db.insert(issueThreadInteractions).values({
       id: randomUUID(),
       spaceId,
@@ -110,10 +110,10 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
       status: "accepted",
       continuationPolicy: "wake_assignee_on_accept",
       sourceRunId,
-      createdByAgentId: coachId,
+      createdByAgentId: agentId,
       payload: {
         version: 1,
-        prompt: "Apply this Reflection Coach skill diff?",
+        prompt: "Apply this agent skill diff?",
         detailsMarkdown: "```diff\n+Tighten the workflow.\n```",
         target: { type: "custom", key: targetKey, revisionId: "proposal-v1" },
       },
@@ -124,17 +124,17 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
 
     await expect(changeConsentGateService(db).assertConsented({
       spaceId,
-      actorAgentId: coachId,
+      actorAgentId: agentId,
       actorRunId: sourceRunId,
       targetKeys: [targetKey],
     })).rejects.toMatchObject({
       status: 403,
-      details: { code: "reflection_coach_mutation_gate_required" },
+      details: { code: "agent_mutation_gate_required" },
     });
   });
 
   it("allows a previous-run accepted interaction with a displayed diff for the bound target", async () => {
-    const { spaceId, coachId, sourceRunId, proposalIssueId, targetKey } = await seedGateFixture();
+    const { spaceId, agentId, sourceRunId, proposalIssueId, targetKey } = await seedGateFixture();
     const interactionId = randomUUID();
     await db.insert(issueThreadInteractions).values({
       id: interactionId,
@@ -144,10 +144,10 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
       status: "accepted",
       continuationPolicy: "wake_assignee_on_accept",
       sourceRunId,
-      createdByAgentId: coachId,
+      createdByAgentId: agentId,
       payload: {
         version: 1,
-        prompt: "Apply this Reflection Coach skill diff?",
+        prompt: "Apply this agent skill diff?",
         detailsMarkdown: "```diff\n+Tighten the workflow.\n```",
         target: { type: "custom", key: targetKey, revisionId: "proposal-v1" },
       },
@@ -159,7 +159,7 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
 
     await expect(changeConsentGateService(db).assertConsented({
       spaceId,
-      actorAgentId: coachId,
+      actorAgentId: agentId,
       actorRunId,
       targetKeys: [targetKey],
     })).resolves.toBe(true);
@@ -178,7 +178,7 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
   });
 
   it("rejects reusing an accepted interaction after it is consumed by a mutation", async () => {
-    const { spaceId, coachId, sourceRunId, proposalIssueId, targetKey } = await seedGateFixture();
+    const { spaceId, agentId, sourceRunId, proposalIssueId, targetKey } = await seedGateFixture();
     await db.insert(issueThreadInteractions).values({
       id: randomUUID(),
       spaceId,
@@ -187,10 +187,10 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
       status: "accepted",
       continuationPolicy: "wake_assignee_on_accept",
       sourceRunId,
-      createdByAgentId: coachId,
+      createdByAgentId: agentId,
       payload: {
         version: 1,
-        prompt: "Apply this Reflection Coach skill diff?",
+        prompt: "Apply this agent skill diff?",
         detailsMarkdown: "```diff\n+Tighten the workflow.\n```",
         target: { type: "custom", key: targetKey, revisionId: "proposal-v1" },
       },
@@ -201,49 +201,20 @@ describeEmbeddedPostgres("changeConsentGateService", () => {
 
     await expect(changeConsentGateService(db).assertConsented({
       spaceId,
-      actorAgentId: coachId,
+      actorAgentId: agentId,
       actorRunId: randomUUID(),
       targetKeys: [targetKey],
     })).resolves.toBe(true);
 
     await expect(changeConsentGateService(db).assertConsented({
       spaceId,
-      actorAgentId: coachId,
+      actorAgentId: agentId,
       actorRunId: randomUUID(),
       targetKeys: [targetKey],
     })).rejects.toMatchObject({
       status: 403,
-      details: { code: "reflection_coach_mutation_gate_required" },
+      details: { code: "agent_mutation_gate_required" },
     });
   });
 
-  it("allows legacy Reflection Coach target keys for durable accepted interactions", async () => {
-    const { spaceId, coachId, sourceRunId, proposalIssueId, skillId, targetKey } = await seedGateFixture();
-    await db.insert(issueThreadInteractions).values({
-      id: randomUUID(),
-      spaceId,
-      issueId: proposalIssueId,
-      kind: "request_confirmation",
-      status: "accepted",
-      continuationPolicy: "wake_assignee_on_accept",
-      sourceRunId,
-      createdByAgentId: coachId,
-      payload: {
-        version: 1,
-        prompt: "Apply this Reflection Coach skill diff?",
-        detailsMarkdown: "```diff\n+Tighten the workflow.\n```",
-        target: { type: "custom", key: `reflection-coach:space-skill:${skillId}`, revisionId: "proposal-v1" },
-      },
-      result: { version: 1, outcome: "accepted" },
-      resolvedByUserId: "operator-user",
-      resolvedAt: new Date(),
-    });
-
-    await expect(changeConsentGateService(db).assertConsented({
-      spaceId,
-      actorAgentId: coachId,
-      actorRunId: randomUUID(),
-      targetKeys: [targetKey],
-    })).resolves.toBe(true);
-  });
 });

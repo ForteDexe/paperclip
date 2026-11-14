@@ -1209,7 +1209,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
           workspaceRootKey: workingDirectory.key,
         } : {}),
         defaultResponsibleUserId: req.body.defaultResponsibleUserId ?? ownerPrincipalId,
-      }, { autoProvisionBundledAgents: !workingDirectory });
+      });
     } catch (error) {
       if (workingDirectory && isUniqueViolation(error, "spaces_workspace_root_key_idx")) {
         throw conflict("That working directory already belongs to a Space");

@@ -15,7 +15,7 @@ import * as workspaceRecovery from "../services/workspace-recovery.js";
 import * as workspaceRecoveryWork from "../services/workspace-recovery-work.js";
 import { idleBackupWakeMarker, markIdleBackupWakeRequired } from "../services/idle-database-backup.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
-import { decisionService, decisionRetentionService, toolAccessService, githubConnectionEventService, reconcileBuiltInAgentsOnStartup, reconcileCodexLocalManagedHomesOnStartup, reconcilePersistedRuntimeServicesOnStartup } from "../services/index.js";
+import { decisionService, decisionRetentionService, toolAccessService, githubConnectionEventService, reconcileCodexLocalManagedHomesOnStartup, reconcilePersistedRuntimeServicesOnStartup } from "../services/index.js";
 
 import { spaces, runDatabaseBackup, type Db } from "@outpost/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -519,12 +519,6 @@ vi.mock("../services/index.js", () => ({
     sourceAuthMissing: 0,
     failed: 0,
     seededAgentIds: [],
-  })),
-  reconcileBuiltInAgentsOnStartup: vi.fn(async () => ({
-    scanned: 0,
-    reconciled: 0,
-    unknown: 0,
-    duplicates: 0,
   })),
   reconcilePersistedRuntimeServicesOnStartup: vi.fn(async () => ({ reconciled: 0 })),
   resolveHeartbeatSchedulingSuppression: resolveHeartbeatSchedulingSuppressionMock,
@@ -1195,7 +1189,6 @@ describe("startServer wiring", () => {
   });
 
   it.each(([
-    ["built-in agents", reconcileBuiltInAgentsOnStartup],
     ["managed homes", reconcileCodexLocalManagedHomesOnStartup],
     ["runtime services", reconcilePersistedRuntimeServicesOnStartup],
   ] as const).flatMap(([name, reconcile]) => [false, true].map(fail => ({ name, reconcile, fail }))))

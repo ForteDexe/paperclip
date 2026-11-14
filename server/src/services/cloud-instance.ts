@@ -5,7 +5,6 @@ const CLOUD_STAGING_EXPERIMENTAL_KEYS: ReadonlySet<string> = new Set([
   "autoRestartDevServerWhenIdle",
   "enableAgentChat",
   "enableBetaSkills",
-  "enableBuiltInAgents",
   "enableCases",
   "enableArtifactsV1",
   "enableChatConnectors",

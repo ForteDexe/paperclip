@@ -55,10 +55,6 @@ const mockAgentService = vi.hoisted(() => ({
   resolveByReference: vi.fn(),
 }));
 
-const mockBuiltInAgentService = vi.hoisted(() => ({
-  ensureSpaceDefaultAgentGrants: vi.fn(),
-}));
-
 const mockAccessService = vi.hoisted(() => ({
   canUser: vi.fn(),
   decide: vi.fn(),
@@ -213,7 +209,6 @@ function registerModuleMocks() {
     agentInstructionsService: () => mockAgentInstructionsService,
     accessService: () => mockAccessService,
     approvalService: () => mockApprovalService,
-    builtInAgentService: () => mockBuiltInAgentService,
     spaceSkillService: () => mockSpaceSkillService,
     budgetService: () => mockBudgetService,
     heartbeatService: () => mockHeartbeatService,
@@ -313,7 +308,6 @@ describe("agent permission routes", () => {
     mockAgentService.updatePermissions.mockReset();
     mockAgentService.getCoordinationChain.mockReset();
     mockAgentService.resolveByReference.mockReset();
-    mockBuiltInAgentService.ensureSpaceDefaultAgentGrants.mockReset();
     mockAccessService.canUser.mockReset();
     mockAccessService.decide.mockReset();
     mockAccessService.hasPermission.mockReset();
@@ -364,7 +358,6 @@ describe("agent permission routes", () => {
     });
     mockAgentService.update.mockResolvedValue(baseAgent);
     mockAgentService.updatePermissions.mockResolvedValue(baseAgent);
-    mockBuiltInAgentService.ensureSpaceDefaultAgentGrants.mockResolvedValue(0);
     mockAccessService.canUser.mockResolvedValue(true);
     mockAccessService.decide.mockImplementation(async (input: { action?: string }) => {
       const allowed = Boolean(await mockAccessService.canUser());
@@ -1370,7 +1363,6 @@ describe("agent permission routes", () => {
       true,
       "agent-admin-user",
     );
-    expect(mockBuiltInAgentService.ensureSpaceDefaultAgentGrants).toHaveBeenCalledWith(spaceId);
   });
 
   it("rejects direct creation when new agents require operator approval", async () => {

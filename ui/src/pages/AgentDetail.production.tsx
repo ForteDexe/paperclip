@@ -13,12 +13,10 @@ import {
   type ClaudeLoginResult,
   type AgentPermissionUpdate,
 } from "../api/agents";
-import { builtInAgentsApi, type BuiltInManagedResourceKind } from "../api/builtInAgents";
 import { budgetsApi } from "../api/budgets";
 import { heartbeatsApi } from "../api/heartbeats";
 import { runCancellationLabel } from "../lib/run-cancellation-label";
 import { stopFailedNativeRun } from "../lib/native-run-stop";
-import { instanceSettingsApi } from "../api/instanceSettings";
 import { ApiError } from "../api/client";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { SHOW_TASK_PRIORITY_UI } from "../lib/ui-flags";
@@ -51,9 +49,6 @@ import { AuditFeed } from "./audit/AuditFeed.production";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
 import { AgentActionButtons } from "../components/AgentActionButtons";
-import { InlineBanner } from "../components/InlineBanner";
-import { BuiltInBundlePanel } from "../components/BuiltInBundlePanel";
-import { ConfigureBuiltInAgentModal } from "../components/ConfigureBuiltInAgentModal";
 import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { TrustPresetSection } from "../components/TrustPresetSection";
 import { AgentProjectAccessSettings } from "../components/AgentProjectAccessSettings";
@@ -337,80 +332,6 @@ export function AgentDetail() {
   const agentMembershipState = resolvedAgentId
     ? resourceMembershipState(membershipsQuery.data, "agent", resolvedAgentId)
     : "joined";
-
-  const { data: experimentalSettings } = useQuery({
-    queryKey: queryKeys.instance.experimentalSettings,
-    queryFn: () => instanceSettingsApi.getExperimental(),
-    enabled: !!resolvedSpaceId,
-  });
-  const builtInAgentsEnabled = experimentalSettings?.enableBuiltInAgents === true;
-  const { data: builtInStates } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(resolvedSpaceId!),
-    queryFn: () => builtInAgentsApi.list(resolvedSpaceId!),
-    enabled: !!resolvedSpaceId && builtInAgentsEnabled,
-  });
-  const builtInState = builtInAgentsEnabled
-    ? builtInStates?.find((entry) => entry.agentId === resolvedAgentId) ?? null
-    : null;
-  const builtInFeatureLabel = builtInState
-    ? builtInState.definition.featureKeys
-        .map((key) => key.charAt(0).toUpperCase() + key.slice(1))
-        .join(", ")
-    : "";
-  const invalidateBuiltIn = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(resolvedSpaceId!) });
-    if (resolvedAgentId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(resolvedAgentId) });
-    }
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
-  }, [queryClient, resolvedSpaceId, resolvedAgentId, routeAgentRef]);
-
-  const resetBuiltIn = useMutation({
-    mutationFn: () => builtInAgentsApi.reset(resolvedSpaceId!, builtInState!.definition.key),
-    onSuccess: invalidateBuiltIn,
-  });
-
-  const [showBuiltInConfigure, setShowBuiltInConfigure] = useState(false);
-  const resetBuiltInResource = useMutation({
-    mutationFn: (kind: BuiltInManagedResourceKind) =>
-      builtInAgentsApi.reset(resolvedSpaceId!, builtInState!.definition.key, [kind]),
-    onSuccess: invalidateBuiltIn,
-    onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to update bundle resource");
-    },
-  });
-  const runBuiltInRoutine = useMutation({
-    mutationFn: (routineKey: string) =>
-      builtInAgentsApi.runRoutine(resolvedSpaceId!, builtInState!.definition.key, routineKey),
-    onSuccess: invalidateBuiltIn,
-    onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to run built-in routine");
-    },
-  });
-  const enableBuiltInSchedule = useMutation({
-    mutationFn: (routineKey: string) =>
-      builtInAgentsApi.enableRoutineSchedule(resolvedSpaceId!, builtInState!.definition.key, routineKey),
-    onSuccess: invalidateBuiltIn,
-    onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to enable routine schedule");
-    },
-  });
-  const disableBuiltInSchedule = useMutation({
-    mutationFn: (routineKey: string) =>
-      builtInAgentsApi.disableRoutineSchedule(resolvedSpaceId!, builtInState!.definition.key, routineKey),
-    onSuccess: invalidateBuiltIn,
-    onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to disable routine schedule");
-    },
-  });
-  const builtInRoutineActionPending =
-    runBuiltInRoutine.isPending
-      ? "run"
-      : enableBuiltInSchedule.isPending
-        ? "enable"
-        : disableBuiltInSchedule.isPending
-          ? "disable"
-          : null;
 
   const { data: runtimeState } = useQuery({
     queryKey: queryKeys.agents.runtimeState(resolvedAgentId ?? routeAgentRef),
@@ -844,21 +765,6 @@ export function AgentDetail() {
             onBeforeNavigate={prepareAgentNavigation}
             onActionError={setActionError}
             onTerminateSuccess={() => navigate("/agents/all", { replace: true })}
-            hideTerminate={Boolean(builtInState)}
-            pauseConfirm={
-              builtInState
-                ? {
-                    title: `Pause the ${builtInState.definition.displayName}?`,
-                    description: (
-                      <>
-                        {builtInFeatureLabel} depends on this agent. While paused,{" "}
-                        {builtInFeatureLabel.toLowerCase()} generation is skipped and the{" "}
-                        {builtInFeatureLabel} page shows a warning.
-                      </>
-                    ),
-                  }
-                : undefined
-            }
           >
             {mobileLiveRun && (
               <Link
@@ -875,54 +781,6 @@ export function AgentDetail() {
           </AgentActionButtons>
         </div>
       </div>
-
-      {builtInState && (
-        <InlineBanner
-          tone="info"
-          title="Built-in agent"
-          actions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => resetBuiltIn.mutate()}
-              disabled={resetBuiltIn.isPending}
-            >
-              {resetBuiltIn.isPending ? "Resetting…" : "Reset to defaults"}
-            </Button>
-          }
-        >
-          Ships with {productName} and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
-          any agent — model, instructions, budget. It can be paused but not deleted; pausing it
-          pauses {builtInFeatureLabel}.
-        </InlineBanner>
-      )}
-
-      {builtInState?.definition.bundle && (
-        <BuiltInBundlePanel
-          state={builtInState}
-          agentRef={canonicalAgentRef}
-          onConfigure={() => setShowBuiltInConfigure(true)}
-          onResetResource={(kind) => resetBuiltInResource.mutate(kind)}
-          onRunRoutine={(routineKey) => runBuiltInRoutine.mutate(routineKey)}
-          onEnableSchedule={(routineKey) => enableBuiltInSchedule.mutate(routineKey)}
-          onDisableSchedule={(routineKey) => disableBuiltInSchedule.mutate(routineKey)}
-          resettingResource={resetBuiltInResource.isPending ? resetBuiltInResource.variables ?? null : null}
-          routineActionPending={builtInRoutineActionPending}
-        />
-      )}
-
-      {builtInState && resolvedSpaceId && (
-        <ConfigureBuiltInAgentModal
-          spaceId={resolvedSpaceId}
-          state={builtInState}
-          open={showBuiltInConfigure}
-          onOpenChange={setShowBuiltInConfigure}
-          onConfigured={() => {
-            setShowBuiltInConfigure(false);
-            invalidateBuiltIn();
-          }}
-        />
-      )}
 
       {!urlRunId && (
         <Tabs

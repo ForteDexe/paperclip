@@ -127,7 +127,6 @@ import {
   agentInstructionsService,
   accessService,
   approvalService,
-  builtInAgentService,
   spaceSkillService,
   budgetService,
   heartbeatService,
@@ -4943,8 +4942,6 @@ export function agentRoutes(
       agent.id,
       req.actor.type === "operator" ? (req.actor.userId ?? null) : null,
     );
-    await builtInAgentService(db).ensureSpaceDefaultAgentGrants(spaceId);
-
     res.status(201).json({ ...redactAgentRowForResponse(agent), ...(configurationWarnings.length ? { configurationWarnings } : {}) });
   });
 

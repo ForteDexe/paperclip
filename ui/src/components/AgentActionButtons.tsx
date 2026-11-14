@@ -204,7 +204,7 @@ export function AgentActionButtons({
    * agents that power a feature). Omit for the immediate-pause default.
    */
   pauseConfirm?: { title: string; description: ReactNode };
-  /** Hide the Terminate action (e.g. built-in agents are undeletable). */
+  /** Hide the Terminate action when the surrounding workflow owns deletion. */
   hideTerminate?: boolean;
   /** Put Run now, Pause/Resume and Clear error in the overflow menu, leaving Assign task (or Finish setup, while setup is pending) as the one button. */
   workActionsInMenu?: boolean;

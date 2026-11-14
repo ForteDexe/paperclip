@@ -15,14 +15,6 @@ const mockAgentsApi = vi.hoisted(() => ({
   resume: vi.fn(),
 }));
 
-const mockBuiltInAgentsApi = vi.hoisted(() => ({
-  list: vi.fn(),
-}));
-
-const mockInstanceSettingsApi = vi.hoisted(() => ({
-  getExperimental: vi.fn(),
-}));
-
 const mockAuthApi = vi.hoisted(() => ({
   getSession: vi.fn(),
 }));
@@ -98,14 +90,6 @@ vi.mock("../context/ToastContext", () => ({
 
 vi.mock("../api/agents", () => ({
   agentsApi: mockAgentsApi,
-}));
-
-vi.mock("../api/builtInAgents", () => ({
-  builtInAgentsApi: mockBuiltInAgentsApi,
-}));
-
-vi.mock("../api/instanceSettings", () => ({
-  instanceSettingsApi: mockInstanceSettingsApi,
 }));
 
 vi.mock("../api/auth", () => ({
@@ -230,8 +214,6 @@ describe("SidebarAgents", () => {
     mockAgentsApi.list.mockResolvedValue([makeAgent({})]);
     mockAgentsApi.pause.mockResolvedValue(makeAgent({ status: "paused" }));
     mockAgentsApi.resume.mockResolvedValue(makeAgent({}));
-    mockBuiltInAgentsApi.list.mockResolvedValue([]);
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableBuiltInAgents: false });
     mockAuthApi.getSession.mockResolvedValue({
       session: { id: "session-1", userId: "user-1" },
       user: { id: "user-1" },
@@ -361,34 +343,6 @@ describe("SidebarAgents", () => {
 
     expect(onUnmountAutoFocus).toHaveBeenCalledTimes(1);
     expect(container.isConnected).toBe(true);
-  });
-
-  it("does not query built-in agents when the experimental feature is disabled", async () => {
-    queryClient.setQueryData(queryKeys.builtInAgents.list("space-1"), [
-      { agentId: "agent-1", status: "needs_setup" },
-    ]);
-
-    await renderSidebarAgents();
-
-    expect(mockBuiltInAgentsApi.list).not.toHaveBeenCalled();
-    expect(container.textContent).not.toContain("Needs setup");
-  });
-
-  it("does not query built-in agents while the experimental setting is unresolved", async () => {
-    mockInstanceSettingsApi.getExperimental.mockReturnValue(new Promise(() => {}));
-
-    await renderSidebarAgents();
-
-    expect(mockBuiltInAgentsApi.list).not.toHaveBeenCalled();
-  });
-
-  it("queries built-in agents when the experimental feature is enabled", async () => {
-    mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableBuiltInAgents: true });
-
-    await renderSidebarAgents();
-    await flushReact();
-
-    expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("space-1");
   });
 
   it("renders icon-only agent rows with tooltips and no row actions in the rail", async () => {

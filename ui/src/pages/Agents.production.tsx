@@ -2,11 +2,10 @@ import { AgentCoordinationIndicator } from "@/components/AgentCoordinationIndica
 import { AgentBulkRoster } from "@/components/agents/AgentBulkRoster";
 import { AgentRosterFilters, useAgentRosterFilters } from "@/components/agents/AgentRosterFilters";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { agentsApi, type AgentHierarchyNode } from "../api/agents";
-import { builtInAgentsApi, type BuiltInAgentState } from "../api/builtInAgents";
 import { environmentsApi } from "../api/environments";
 import { heartbeatsApi } from "../api/heartbeats";
 import { instanceSettingsApi } from "../api/instanceSettings";
@@ -18,7 +17,6 @@ import { queryKeys } from "../lib/queryKeys";
 import { isPlatformManagedEnvironment } from "../lib/managed-sandbox-environment";
 import { AgentStatusBadge, AgentStatusCapsule } from "../components/StatusBadge";
 import { EntityRow } from "../components/EntityRow";
-import { BuiltInLifecycleChip } from "../components/BuiltInAgentBadges";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
@@ -33,13 +31,7 @@ import { getAdapterLabel } from "../adapters/adapter-display-registry";
 
 // Lazy-loaded so the roster page doesn't statically pull in the full
 // AgentConfigForm module graph (the modal reuses its adapter/model pickers).
-const ConfigureBuiltInAgentModal = lazy(() =>
-  import("../components/ConfigureBuiltInAgentModal").then((m) => ({
-    default: m.ConfigureBuiltInAgentModal,
-  })),
-);
-
-export const AGENT_FILTER_TABS = ["all", "active", "paused", "error", "builtin"] as const;
+export const AGENT_FILTER_TABS = ["all", "active", "paused", "error"] as const;
 type FilterTab = (typeof AGENT_FILTER_TABS)[number];
 
 function isFilterTab(value: string): value is FilterTab {
@@ -77,12 +69,10 @@ function matchesFilter(status: string, tab: FilterTab): boolean {
   return true;
 }
 
-function filterAgents(agents: Agent[], tab: FilterTab, builtInAgentIds: Set<string>): Agent[] {
+function filterAgents(agents: Agent[], tab: FilterTab): Agent[] {
   return agents
     .filter((a) => {
       if (HIDDEN_AGENT_STATUSES.has(a.status)) return false;
-      // The `builtin` filter keys on the built-in marker, not agent status.
-      if (tab === "builtin") return builtInAgentIds.has(a.id);
       return matchesFilter(a.status, tab);
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -152,19 +142,17 @@ function resolveAgentEnvironment(
     : describeMissingEnvironment(environmentId);
 }
 
-function filterAgentHierarchy(nodes: AgentHierarchyNode[], tab: FilterTab, builtInAgentIds: Set<string>, matchingIds?: Set<string>): AgentHierarchyNode[] {
+function filterAgentHierarchy(nodes: AgentHierarchyNode[], tab: FilterTab, matchingIds?: Set<string>): AgentHierarchyNode[] {
   return nodes
     .reduce<AgentHierarchyNode[]>((acc, node) => {
-      const filteredChildren = filterAgentHierarchy(node.children, tab, builtInAgentIds, matchingIds);
+      const filteredChildren = filterAgentHierarchy(node.children, tab, matchingIds);
       // Hidden agents (terminated / pending_approval) never render as a row, but
       // any visible reports are promoted so the tree doesn't lose live agents.
       if (HIDDEN_AGENT_STATUSES.has(node.status)) {
         acc.push(...filteredChildren);
         return acc;
       }
-      const nodeMatches = tab === "builtin"
-        ? builtInAgentIds.has(node.id)
-        : matchesFilter(node.status, tab);
+      const nodeMatches = matchesFilter(node.status, tab);
       if ((nodeMatches && (!matchingIds || matchingIds.has(node.id))) || filteredChildren.length > 0) {
         acc.push({ ...node, children: filteredChildren });
       }
@@ -191,23 +179,7 @@ export function Agents() {
     queryFn: () => instanceSettingsApi.get(),
     enabled: !!selectedSpaceId,
   });
-  const builtInAgentsEnabled = instanceSettings?.experimental.enableBuiltInAgents === true;
   const tab: FilterTab = "all";
-  const { data: builtInAgents } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(selectedSpaceId!),
-    queryFn: () => builtInAgentsApi.list(selectedSpaceId!),
-    enabled: !!selectedSpaceId && builtInAgentsEnabled,
-  });
-  const builtInByAgentId = useMemo(() => {
-    const map = new Map<string, BuiltInAgentState>();
-    if (!builtInAgentsEnabled) return map;
-    for (const entry of builtInAgents ?? []) {
-      if (entry.agentId) map.set(entry.agentId, entry);
-    }
-    return map;
-  }, [builtInAgents, builtInAgentsEnabled]);
-  const builtInAgentIds = useMemo(() => new Set(builtInByAgentId.keys()), [builtInByAgentId]);
-  const [configureState, setConfigureState] = useState<BuiltInAgentState | null>(null);
 
   const agentsQuery = useQuery({
     queryKey: queryKeys.agents.list(selectedSpaceId!),
@@ -329,8 +301,8 @@ export function Agents() {
     );
   }
 
-  const filtered = filterAgents(agents ?? [], tab, builtInAgentIds).filter(rosterFilters.matches);
-  const filteredHierarchy = filterAgentHierarchy(agentHierarchy ?? [], tab, builtInAgentIds, rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
+  const filtered = filterAgents(agents ?? [], tab).filter(rosterFilters.matches);
+  const filteredHierarchy = filterAgentHierarchy(agentHierarchy ?? [], tab, rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
   const environmentDataLoading = environmentsEnabled && environments === undefined;
   const showEnvironmentColumn = environmentsEnabled && (environments === undefined || environments.length > 1);
   const resolveRenderedEnvironment = (agentId: string) => (
@@ -344,33 +316,6 @@ export function Agents() {
       (candidate) => candidate.leadAgentId === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
     ).length;
     const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
-    const builtInState = builtInByAgentId.get(agent.id);
-    const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
-    // Lifecycle chip + inline `Set up`. Rendered inline in
-    // `meta` at xl (where there's room and the meta columns align) and on a
-    // dedicated full-width line beneath the name below xl, so the chips never
-    // starve the name — the row's primary identifier — at narrow widths.
-    const builtInCluster = builtInState && showBuiltInLifecycle ? (
-      <>
-        <BuiltInLifecycleChip status={builtInState.status} />
-        {builtInState.status === "needs_setup" && (
-          <span
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => setConfigureState(builtInState)}
-            >
-              Set up
-            </Button>
-          </span>
-        )}
-      </>
-    ) : null;
     return (
       <EntityRow
         key={agent.id}
@@ -392,10 +337,9 @@ export function Agents() {
         ) : (
           <AgentAvatar agent={agent} size={32} />
         )}
-        secondaryRowClassName={cn("pl-11", !builtInCluster && !showEnvironmentColumn && !agent.lastHeartbeatAt && "sm:hidden")}
-        secondaryRow={(agent.status === "paused" || builtInCluster || showEnvironmentColumn || agent.lastHeartbeatAt) && (
+        secondaryRowClassName={cn("pl-11", !showEnvironmentColumn && !agent.lastHeartbeatAt && "sm:hidden")}
+        secondaryRow={(agent.status === "paused" || showEnvironmentColumn || agent.lastHeartbeatAt) && (
           <div className="flex flex-wrap items-center gap-2">
-            {builtInCluster}
             {showEnvironmentColumn && <span className="text-xs text-muted-foreground" title={resolveRenderedEnvironment(agent.id).title}>
               {resolveRenderedEnvironment(agent.id).label} · {resolveRenderedEnvironment(agent.id).detail}
             </span>}
@@ -492,8 +436,6 @@ export function Agents() {
               environmentByAgentId={environmentByAgentId}
               environmentDataLoading={environmentDataLoading}
               showEnvironment={showEnvironmentColumn}
-              builtInByAgentId={builtInByAgentId}
-              onConfigureBuiltIn={setConfigureState}
             />
           ))}
         </div>
@@ -510,18 +452,6 @@ export function Agents() {
           No agent hierarchy defined.
         </p>
       )}
-      {configureState && selectedSpaceId && (
-        <Suspense fallback={null}>
-          <ConfigureBuiltInAgentModal
-            spaceId={selectedSpaceId}
-            state={configureState}
-            open={configureState !== null}
-            onOpenChange={(open) => {
-              if (!open) setConfigureState(null);
-            }}
-          />
-        </Suspense>
-      )}
     </div>
   );
 }
@@ -534,8 +464,6 @@ function HierarchyNode({
   environmentByAgentId,
   environmentDataLoading,
   showEnvironment,
-  builtInByAgentId,
-  onConfigureBuiltIn,
 }: {
   node: AgentHierarchyNode;
   depth: number;
@@ -544,12 +472,8 @@ function HierarchyNode({
   environmentByAgentId: Map<string, EnvironmentDescriptor>;
   environmentDataLoading: boolean;
   showEnvironment: boolean;
-  builtInByAgentId: Map<string, BuiltInAgentState>;
-  onConfigureBuiltIn: (state: BuiltInAgentState) => void;
 }) {
   const agent = agentMap.get(node.id);
-  const builtInState = builtInByAgentId.get(node.id);
-  const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
   const hasInvalidCoordination = Boolean(agent && agent.coordinationHealth?.status === "invalid_coordination_chain");
 
   return (
@@ -571,23 +495,6 @@ function HierarchyNode({
             <span className="text-sm font-medium">{node.name}</span>
             <span className="text-xs text-muted-foreground ml-2">{agent?.title || "Scope owner"}</span>
           </div>
-          {builtInState && showBuiltInLifecycle && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <BuiltInLifecycleChip status={builtInState.status} />
-              {builtInState.status === "needs_setup" && (
-                <span
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                >
-                  <Button size="xs" variant="outline" onClick={() => onConfigureBuiltIn(builtInState)}>
-                    Set up
-                  </Button>
-                </span>
-              )}
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <span className="sm:hidden">
@@ -640,8 +547,6 @@ function HierarchyNode({
               environmentByAgentId={environmentByAgentId}
               environmentDataLoading={environmentDataLoading}
               showEnvironment={showEnvironment}
-              builtInByAgentId={builtInByAgentId}
-              onConfigureBuiltIn={onConfigureBuiltIn}
             />
           ))}
         </div>

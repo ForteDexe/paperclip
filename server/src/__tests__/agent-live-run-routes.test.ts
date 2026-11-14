@@ -136,7 +136,6 @@ function registerModuleMocks() {
     agentInstructionsService: () => ({}),
     accessService: () => mockAccessService,
     approvalService: () => ({}),
-    builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
     spaceSkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
     budgetService: () => ({}),
     heartbeatService: () => mockHeartbeatService,

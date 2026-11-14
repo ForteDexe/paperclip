@@ -13,7 +13,6 @@ import { agentRecordQueries, isPlainRecord, configPatchFromApprovalPayload, norm
   deduplicateAgentName, type CreateAgentData, type CreateAgentOptions, type AgentConfigurationPatch, type AgentCreationRecord } from "../lib/agent-records.js";
 import { normalizeAgentPermissions, permissionsImplyLowTrust, NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS,
   newStandardAgentGrantScope } from "../lib/agent-permissions.js";
-import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { secretService, assertClaudeOAuthBindingInvariant } from "./secrets.js";
 import { agentCredentialService } from "./agent-credentials.js";
 import { agentIdentityService } from "./agent-identity.js";
@@ -35,9 +34,8 @@ export async function prepareAgentCreation(db: Db, spaceId: string, input: Creat
       });
   data.adapterType = selection.adapterType;
   data.adapterConfig = selection.adapterConfig;
-  const { ensureLeadAgent, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
+  const { ensureLeadAgent } = agentRecordQueries(db);
   if (data.appearance?.customAvatarAssetId) throw unprocessable("Create the agent before uploading its avatar");
-  assertBuiltInAgentMetadataMutationAllowed(null, data.metadata, options);
   if (data.leadAgentId) {
     await ensureLeadAgent(spaceId, data.leadAgentId);
   }
@@ -82,9 +80,8 @@ export async function initializeAgentCreation(txDb: Db, created: AgentCreationRe
   await initializeDurableAgentFiles(txDb, created);
   await agentIdentityService(txDb).ensureAgentIdentity(spaceId, created.id);
   // New standard agents receive the standard direct grants at activation.
-  // Low-trust and bundled agents keep their explicit, narrower grants.
-  if (!options?.setupOnly && created.status !== "pending_approval" && !permissionsImplyLowTrust(created.permissions) &&
-      !readBuiltInAgentMarker(created.metadata)) {
+  // Low-trust agents keep their explicit, narrower grants.
+  if (!options?.setupOnly && created.status !== "pending_approval" && !permissionsImplyLowTrust(created.permissions)) {
     await tx.insert(principalPermissionGrants).values(
       NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS.map((permissionKey) => ({
         spaceId,
@@ -105,7 +102,7 @@ export async function initializeAgentCreation(txDb: Db, created: AgentCreationRe
     }))).onConflictDoNothing();
   }
   await agentCredentialService(txDb).syncAgentSecretBindings(created, txDb);
-  if (!options?.setupOnly && options?.createdByUserId && !readBuiltInAgentMarker(created.metadata)) {
+  if (!options?.setupOnly && options?.createdByUserId) {
     await initializeDefaultAgent(txDb, spaceId, options.createdByUserId, created.id);
   }
 }
@@ -155,7 +152,7 @@ export async function prepareAgentCreationApproval(txDb: Db, existing: AgentCrea
 export async function completeAgentCreationApproval(txDb: Db, updated: AgentCreationRecord, existing: AgentCreationRecord) {
   const tx = txDb;
   await agentCredentialService(txDb).syncAgentSecretBindings(updated, txDb, existing.adapterConfig);
-  if (!permissionsImplyLowTrust(updated.permissions) && !readBuiltInAgentMarker(updated.metadata)) {
+  if (!permissionsImplyLowTrust(updated.permissions)) {
     await tx.insert(principalPermissionGrants).values(
       NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS.map((permissionKey) => ({
         spaceId: updated.spaceId,

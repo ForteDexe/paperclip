@@ -51,7 +51,7 @@ describeDatabase("new agent configuration defaults", () => {
       name: "Agent permission defaults",
       issuePrefix: `PD${spaceId.slice(0, 6).toUpperCase()}`,
     });
-    const create = (name: string, permissions: Record<string, unknown> = {}, metadata?: Record<string, unknown>) =>
+    const create = (name: string, permissions: Record<string, unknown> = {}) =>
       createAgentLifecycle(db).requestCreation(spaceId, {
         name,
         role: "engineer",
@@ -59,15 +59,11 @@ describeDatabase("new agent configuration defaults", () => {
         adapterConfig: {},
         runtimeConfig: {},
         permissions,
-        metadata,
-      }, metadata ? { allowBuiltInAgentMetadata: true } : undefined);
+      });
 
     const standard = await create("Standard");
     const peer = await create("Peer");
     const lowTrust = await create("Low trust", { trustPreset: LOW_TRUST_REVIEW_PRESET });
-    const bundled = await create("Bundled", {}, {
-      outpostBuiltInAgent: { key: "reflection-coach", featureKeys: [] },
-    });
 
     const grants = await db.select().from(principalPermissionGrants)
       .where(eq(principalPermissionGrants.spaceId, spaceId));
@@ -79,7 +75,7 @@ describeDatabase("new agent configuration defaults", () => {
       expect(grants.find((grant) => grant.principalId === agent.id && grant.permissionKey === "inbox:manage")?.scope)
         .toEqual({ responsibleUserOnly: true });
     }
-    for (const agent of [lowTrust, bundled]) {
+    for (const agent of [lowTrust]) {
       expect(grants.filter((grant) => grant.principalId === agent.id)).toEqual([]);
     }
 
@@ -155,7 +151,6 @@ describeDatabase("new agent configuration defaults", () => {
       { spaceId, name: "Existing", role: "engineer", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
       { spaceId, name: "Scoped", role: "engineer", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
       { spaceId, name: "Restricted", role: "engineer", permissions: { trustPreset: LOW_TRUST_REVIEW_PRESET }, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
-      { spaceId, name: "Built in", role: "engineer", metadata: { outpostBuiltInAgent: { key: "reflection-coach", featureKeys: [] } }, permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
       { spaceId, name: "Pending", role: "engineer", status: "pending_approval", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
     ]).returning();
     await db.insert(principalPermissionGrants).values({

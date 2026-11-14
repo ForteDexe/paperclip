@@ -98,7 +98,6 @@ export interface InstanceExperimentalSettings {
   enableExperimentalFileViewer: boolean;
   enableExternalObjects: boolean;
   enableSmokeLab: boolean;
-  enableBuiltInAgents: boolean;
   enableBetaSkills: boolean;
   enableDecisions: boolean;
   /** Show space connection settings and allow contextual fast-response acknowledgements. */

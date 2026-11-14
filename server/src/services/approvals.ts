@@ -170,18 +170,10 @@ export function approvalRecords(db: Db) {
 
 export function approvalService(db: Db) {
   const { getExistingApproval, resolveApproval, ...records } = approvalRecords(db);
-  async function reconcileApprovedBuiltInAgent(spaceId: string, payload: Record<string, unknown>, database: Db) {
-    const sourceBuiltInAgentKey = typeof payload.sourceBuiltInAgentKey === "string" ? payload.sourceBuiltInAgentKey : null;
-    if (!sourceBuiltInAgentKey) return;
-    const { builtInAgentService } = await import("./built-in-agents.js");
-    await builtInAgentService(database).ensure(spaceId, sourceBuiltInAgentKey);
-  }
-
   async function decideCreate(target: string | { approvalId: string }, status: "approved" | "rejected", userId: string, note?: string | null) {
     const lifecycle = createAgentLifecycle(db);
     const result = await (status === "approved" ? lifecycle.approveCreation : lifecycle.rejectCreation)(target, userId, note);
     if (result?.createApprovedAgentId && result.approval) {
-      await reconcileApprovedBuiltInAgent(result.approval.spaceId, result.approval.payload, db);
       void notifyCreateApproved(db, { spaceId: result.approval.spaceId, agentId: result.createApprovedAgentId,
         source: "approval", sourceId: result.approval.id, approvedAt: result.approval.decidedAt ?? new Date() }).catch(() => {});
     }

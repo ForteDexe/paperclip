@@ -40,8 +40,6 @@ import { createLifecycleDriver } from "../services/agent-lifecycle-driver.js";
 import { reserveRunBudget } from "../services/budget-reservations.js";
 import { spaceService } from "../services/space-service.js";
 import { deriveIssuePrefixBase } from "../services/issue-prefix.js";
-import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
-import { builtInAgentService, reconcileBuiltInAgentsOnStartup } from "../services/built-in-agents.js";
 
 const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_COMPANIES_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalUrl ? { supported: true, reason: undefined } : await getEmbeddedPostgresTestSupport();
@@ -128,58 +126,6 @@ describeEmbeddedPostgres("spaceService", () => {
       .toEqual(["manual", "space_paused"]);
     await lifecycleWorker.sweep();
     expect((await db.select().from(agents).where(eq(agents.id, agent.id)))[0].lifecycleHolds).toEqual(["manual"]);
-  });
-
-  it("does not auto-provision bundled built-in agents for a freshly created space", async () => {
-    const created = await spaceService(db).create({
-      name: "Fresh Space",
-    });
-
-    // A new space starts clean: the Reflection Coach and Summarizer are
-    // opt-in, not seeded by default for a new user.
-    const agentRows = await db.select().from(agents).where(eq(agents.spaceId, created.id));
-    expect(agentRows.filter((row) => readBuiltInAgentMarker(row.metadata))).toHaveLength(0);
-
-    // Startup reconcile leaves a fresh space untouched — nothing is created.
-    await reconcileBuiltInAgentsOnStartup(db);
-    const afterReconcileRows = await db.select().from(agents).where(eq(agents.spaceId, created.id));
-    expect(afterReconcileRows.filter((row) => readBuiltInAgentMarker(row.metadata))).toHaveLength(0);
-
-    // The Reflection Coach remains available to enable on demand, and enabling
-    // it materializes its bundled skill + paused routine.
-    const enabled = await builtInAgentService(db).ensure(created.id, "reflection-coach");
-    expect(enabled.agent).toMatchObject({
-      name: "Reflection Coach",
-      status: "paused",
-      budgetMonthlyCents: 0,
-    });
-
-    const [skill] = await db
-      .select()
-      .from(spaceSkills)
-      .where(and(
-        eq(spaceSkills.spaceId, created.id),
-        eq(spaceSkills.key, "outpost/bundled/outpost-operations/reflection-coach"),
-      ));
-    expect(skill).toMatchObject({
-      slug: "reflection-coach",
-    });
-
-    const [routine] = await db
-      .select()
-      .from(routines)
-      .where(and(eq(routines.spaceId, created.id), eq(routines.assigneeAgentId, enabled.agentId!)));
-    expect(routine).toMatchObject({
-      status: "paused",
-      assigneeAgentId: enabled.agentId,
-      originKind: "built_in_agent_bundle",
-      originId: "reflection-coach:recent-agent-reflection",
-    });
-    const [trigger] = await db.select().from(routineTriggers).where(eq(routineTriggers.routineId, routine!.id));
-    expect(trigger).toMatchObject({
-      kind: "schedule",
-      enabled: false,
-    });
   });
 
   it("archives spaces by pausing runnable agents and cancelling active runs", async () => {

@@ -19,10 +19,9 @@ export function agentProfileChangeTargetKey(agentId: string) {
   return `agent:${agentId}:profile`;
 }
 
-/** Canonical and legacy consent targets that deliver a peer configuration proposal. */
+/** Consent targets that deliver a peer configuration proposal. */
 export function agentConfigurationChangeTargetId(key: string): string | null {
   return /^agent:([^:]+):(?:instructions|profile)$/.exec(key)?.[1]
-    ?? /^reflection-coach:agent-(?:instructions|description):([^:]+)$/.exec(key)?.[1]
     ?? null;
 }
 
@@ -76,49 +75,6 @@ function markRequestConfirmationResultConsumed(
   };
 }
 
-function legacyTargetKeysFor(targetKey: string) {
-  if (targetKey.startsWith("agent:") && targetKey.endsWith(":instructions")) {
-    const agentId = targetKey.slice("agent:".length, -":instructions".length);
-    if (agentId) return [`reflection-coach:agent-instructions:${agentId}`];
-  }
-  if (targetKey.startsWith("agent:") && targetKey.endsWith(":profile")) {
-    const agentId = targetKey.slice("agent:".length, -":profile".length);
-    if (agentId) return [`reflection-coach:agent-description:${agentId}`];
-  }
-  if (targetKey.startsWith("skill:")) {
-    const skillId = targetKey.slice("skill:".length);
-    if (skillId) return [`reflection-coach:space-skill:${skillId}`];
-  }
-  if (targetKey.startsWith("skill-slug:")) {
-    const slug = targetKey.slice("skill-slug:".length);
-    if (slug) return [`reflection-coach:space-skill-slug:${slug}`];
-  }
-  if (targetKey.startsWith("skill-import:")) {
-    const source = targetKey.slice("skill-import:".length);
-    if (source) {
-      return [
-        `reflection-coach:space-skill-import:${source}`,
-        `reflection-coach:space-skill-catalog:${source}`,
-      ];
-    }
-  }
-  if (targetKey === "skills:scan-projects") {
-    return ["reflection-coach:space-skills:scan-projects"];
-  }
-  return [];
-}
-
-function expandTargetKeysForLegacyCompatibility(targetKeys: string[]) {
-  const expanded = new Set<string>();
-  for (const targetKey of targetKeys) {
-    expanded.add(targetKey);
-    for (const legacyTargetKey of legacyTargetKeysFor(targetKey)) {
-      expanded.add(legacyTargetKey);
-    }
-  }
-  return [...expanded];
-}
-
 export function changeConsentGateService(db: Db | Parameters<Parameters<Db["transaction"]>[0]>[0]) {
   return {
     assertConsented: async (input: {
@@ -132,18 +88,18 @@ export function changeConsentGateService(db: Db | Parameters<Parameters<Db["tran
 
       const actorRunId = readNonEmptyString(input.actorRunId);
       if (!actorRunId) {
-        throw forbidden("Reflection Coach mutations require a run id", {
-          code: "reflection_coach_mutation_run_id_required",
+        throw forbidden("Agent mutations require a run id", {
+          code: "agent_mutation_run_id_required",
         });
       }
 
       const targetKeys = [...new Set(input.targetKeys.map(readNonEmptyString).filter((key): key is string => Boolean(key)))];
       if (targetKeys.length === 0) {
-        throw forbidden("Reflection Coach mutation target is not gateable", {
-          code: "reflection_coach_mutation_target_required",
+        throw forbidden("Agent mutation target is not gateable", {
+          code: "agent_mutation_target_required",
         });
       }
-      const queryTargetKeys = expandTargetKeysForLegacyCompatibility(targetKeys);
+      const queryTargetKeys = targetKeys;
 
       const targetKeyPredicate = or(
         ...queryTargetKeys.map((targetKey) =>
@@ -183,10 +139,10 @@ export function changeConsentGateService(db: Db | Parameters<Parameters<Db["tran
 
       if (!accepted) {
         throw forbidden(
-          "Reflection Coach mutations require an accepted request_confirmation with a displayed diff for this target, "
+          "Agent mutations require an accepted request_confirmation with a displayed diff for this target, "
             + "created in a previous run and not already consumed.",
           {
-            code: "reflection_coach_mutation_gate_required",
+            code: "agent_mutation_gate_required",
             targetKeys,
           },
         );
@@ -195,10 +151,10 @@ export function changeConsentGateService(db: Db | Parameters<Parameters<Db["tran
       const acceptedResult = accepted.result as RequestConfirmationResult | null;
       if (!acceptedResult) {
         throw forbidden(
-          "Reflection Coach mutations require an accepted request_confirmation with a displayed diff for this target, "
+          "Agent mutations require an accepted request_confirmation with a displayed diff for this target, "
             + "created in a previous run and not already consumed.",
           {
-            code: "reflection_coach_mutation_gate_required",
+            code: "agent_mutation_gate_required",
             targetKeys,
           },
         );
@@ -224,10 +180,10 @@ export function changeConsentGateService(db: Db | Parameters<Parameters<Db["tran
 
       if (!consumed) {
         throw forbidden(
-          "Reflection Coach mutations require an accepted request_confirmation with a displayed diff for this target, "
+          "Agent mutations require an accepted request_confirmation with a displayed diff for this target, "
             + "created in a previous run and not already consumed.",
           {
-            code: "reflection_coach_mutation_gate_required",
+            code: "agent_mutation_gate_required",
             targetKeys,
           },
         );

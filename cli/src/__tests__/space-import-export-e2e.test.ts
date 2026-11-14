@@ -214,11 +214,6 @@ async function api<T>(baseUrl: string, pathname: string, init?: RequestInit): Pr
   return text ? JSON.parse(text) as T : (null as T);
 }
 
-function isPortableAgent(agent: { metadata?: Record<string, unknown> | null }) {
-  const marker = agent.metadata?.outpostBuiltInAgent;
-  return typeof marker !== "object" || marker === null;
-}
-
 async function runCliJson<T>(
   args: string[],
   opts: TestOutpostEnv & { apiBase?: string; includeConfigArg?: boolean },
@@ -610,10 +605,8 @@ describeEmbeddedPostgres("outpost space import/export e2e", () => {
       `/api/spaces/${importedNew.space.id}/issues`,
     );
     const twiceImportedMatchingIssues = twiceImportedIssues.filter((issue) => issue.title === sourceIssue.title);
-    const twiceImportedPortableAgents = twiceImportedAgents.filter(isPortableAgent);
-
-    expect(twiceImportedPortableAgents).toHaveLength(2);
-    expect(new Set(twiceImportedPortableAgents.map((agent) => agent.name)).size).toBe(2);
+    expect(twiceImportedAgents).toHaveLength(2);
+    expect(new Set(twiceImportedAgents.map((agent) => agent.name)).size).toBe(2);
     expect(twiceImportedProjects).toHaveLength(2);
     expect(twiceImportedMatchingIssues).toHaveLength(2);
     expect(new Set(twiceImportedMatchingIssues.map((issue) => issue.identifier)).size).toBe(2);

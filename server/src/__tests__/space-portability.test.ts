@@ -2516,7 +2516,7 @@ describe("space portability", () => {
     ]);
   });
 
-  it("skips built-in managed agents and routines during export", async () => {
+  it("exports agents and routines regardless of legacy metadata", async () => {
     const portability = spacePortabilityService({} as any);
 
     agentSvc.list.mockResolvedValue([
@@ -2625,12 +2625,12 @@ describe("space portability", () => {
     });
 
     expect(exported.files["agents/claudecoder/AGENTS.md"]).toBeDefined();
-    expect(exported.files["agents/reflection-coach/AGENTS.md"]).toBeUndefined();
-    expect(exported.files["tasks/review-recent-agent-trajectories-for-coaching-proposals/TASK.md"]).toBeUndefined();
-    expect(exported.manifest.agents.map((agent) => agent.slug)).toEqual(["claudecoder"]);
-    expect(exported.manifest.issues).toEqual([]);
-    expect(exported.warnings).toContain("Skipped 1 built-in managed agent from export.");
-    expect(exported.warnings).toContain("Skipped 1 built-in managed routine from export.");
+    expect(exported.files["agents/reflection-coach/AGENTS.md"]).toBeDefined();
+    expect(exported.files["tasks/review-recent-agent-trajectories-for-coaching-proposals/TASK.md"]).toBeDefined();
+    expect(exported.manifest.agents.map((agent) => agent.slug)).toEqual(["claudecoder", "reflection-coach"]);
+    expect(exported.manifest.issues).toHaveLength(1);
+    expect(exported.warnings).not.toContain("Skipped 1 built-in managed agent from export.");
+    expect(exported.warnings).not.toContain("Skipped 1 built-in managed routine from export.");
   });
 
   it("imports recurring task packages as routines instead of one-time issues", async () => {

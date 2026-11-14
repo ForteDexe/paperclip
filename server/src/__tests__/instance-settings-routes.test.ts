@@ -161,7 +161,6 @@ describe("instance settings routes", () => {
         enableIssuePlanDecompositions: false,
         enableExperimentalFileViewer: false,
         enableExternalObjects: false,
-        enableBuiltInAgents: false,
         enableBetaSkills: false,
         enableGoalsSidebarLink: false,
         enableServerInfoDebugView: false,
@@ -185,7 +184,6 @@ describe("instance settings routes", () => {
       enableIssuePlanDecompositions: false,
       enableExperimentalFileViewer: false,
       enableExternalObjects: false,
-      enableBuiltInAgents: false,
       enableBetaSkills: false,
       enableGoalsSidebarLink: false,
       enableServerInfoDebugView: false,
@@ -209,7 +207,6 @@ describe("instance settings routes", () => {
         enableIssuePlanDecompositions: true,
         enableExperimentalFileViewer: true,
         enableExternalObjects: false,
-        enableBuiltInAgents: false,
         enableBetaSkills: false,
         enableGoalsSidebarLink: false,
         enableServerInfoDebugView: false,
@@ -238,7 +235,6 @@ describe("instance settings routes", () => {
         enableIssuePlanDecompositions: true,
         enableExperimentalFileViewer: true,
         enableExternalObjects: false,
-        enableBuiltInAgents: true,
         enableGoalsSidebarLink: false,
         enableServerInfoDebugView: true,
         autoRestartDevServerWhenIdle: false,
@@ -269,7 +265,6 @@ describe("instance settings routes", () => {
       enableIssuePlanDecompositions: false,
       enableExperimentalFileViewer: false,
       enableExternalObjects: false,
-      enableBuiltInAgents: false,
       enableBetaSkills: false,
       enableGoalsSidebarLink: false,
       enableServerInfoDebugView: false,
@@ -431,19 +426,6 @@ describe("instance settings routes", () => {
 
     expect(mockInstanceSettingsService.updateExperimental).toHaveBeenCalledWith({
       enableExternalObjects: true,
-    });
-  });
-
-  it("allows local operator users to update built-in agents", async () => {
-    const app = await createApp(localAdminActor());
-
-    await request(app)
-      .patch("/api/instance/settings/experimental")
-      .send({ enableBuiltInAgents: true })
-      .expect(200);
-
-    expect(mockInstanceSettingsService.updateExperimental).toHaveBeenCalledWith({
-      enableBuiltInAgents: true,
     });
   });
 

@@ -100,7 +100,6 @@ import { spaceRoutes } from "./routes/spaces.js";
 import { spaceSkillRoutes } from "./routes/space-skills.js";
 import { spaceSkillPolicyRoutes } from "./routes/space-skill-policy.js";
 import { inboxAgentPolicyRoutes } from "./routes/inbox-agent-policy.js";
-import { builtInAgentRoutes } from "./routes/built-in-agents.js";
 import { folderRoutes } from "./routes/folders.js";
 import { agentRoutes } from "./routes/agents.js";
 import { agentInteractionPermissionRoutes } from "./routes/agent-interaction-permissions.js";
@@ -697,7 +696,6 @@ export async function createApp(
   api.use(inboxAgentPolicyRoutes(db));
   api.use(agentCommentaryRoutes(db));
   api.use(agentChatMessageRoutes(db));
-  api.use(builtInAgentRoutes(db));
   // The setup-token login session service. The router builds it and hands it
   // back through the callback below, so the shutdown hook can cancel every live
   // session (SR-4).

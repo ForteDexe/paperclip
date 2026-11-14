@@ -4,11 +4,10 @@ import { AgentRosterFilters, useAgentRosterFilters } from "@/components/agents/A
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentChatPin, useAgentChatPins } from "@/components/AgentChatPin";
 import { useAgentChatEnabled } from "../hooks/useAgentChatEnabled";
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { agentsApi, type AgentHierarchyNode } from "../api/agents";
-import { builtInAgentsApi, type BuiltInAgentState } from "../api/builtInAgents";
 import { environmentsApi } from "../api/environments";
 import { heartbeatsApi } from "../api/heartbeats";
 import { instanceSettingsApi } from "../api/instanceSettings";
@@ -21,14 +20,12 @@ import { queryKeys } from "../lib/queryKeys";
 import { isPlatformManagedEnvironment } from "../lib/managed-sandbox-environment";
 import { AgentStatusBadge, AgentStatusCapsule } from "../components/StatusBadge";
 import { EntityRow } from "../components/EntityRow";
-import { BuiltInLifecycleChip } from "../components/BuiltInAgentBadges";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
 import { AgentHierarchy } from "./AgentHierarchy";
 import { relativeTime, cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { AgentsToolbar } from "../components/AgentsToolbar";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { AlertTriangle, Bot, MessagesSquare } from "lucide-react";
@@ -38,14 +35,6 @@ import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSh
 import { agentDisplayAdapterType, getAdapterLabel } from "../adapters/adapter-display-registry";
 
 const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
-
-// Lazy-loaded so the roster page doesn't statically pull in the full
-// AgentConfigForm module graph (the modal reuses its adapter/model pickers).
-const ConfigureBuiltInAgentModal = lazy(() =>
-  import("../components/ConfigureBuiltInAgentModal").then((m) => ({
-    default: m.ConfigureBuiltInAgentModal,
-  })),
-);
 
 import { AGENT_FILTER_TABS } from "../lib/agent-filter-tabs";
 export { AGENT_FILTER_TABS } from "../lib/agent-filter-tabs";
@@ -92,12 +81,10 @@ function matchesSearch(agent: Pick<Agent, "name" | "role" | "title">, query: str
   return words.every(word => text.includes(word));
 }
 
-export function filterAgents(agents: Agent[], tab: FilterTab, builtInAgentIds: Set<string>, query = ""): Agent[] {
+export function filterAgents(agents: Agent[], tab: FilterTab, query = ""): Agent[] {
   return agents
     .filter((a) => {
       if (HIDDEN_AGENT_STATUSES.has(a.status) || !matchesSearch(a, query)) return false;
-      // The `builtin` filter keys on the built-in marker, not agent status.
-      if (tab === "builtin") return builtInAgentIds.has(a.id);
       return matchesFilter(a.status, tab);
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -167,19 +154,17 @@ function resolveAgentEnvironment(
     : describeMissingEnvironment(environmentId);
 }
 
-export function filterAgentHierarchy(nodes: AgentHierarchyNode[], tab: FilterTab, builtInAgentIds: Set<string>, matchingIds?: Set<string>): AgentHierarchyNode[] {
+export function filterAgentHierarchy(nodes: AgentHierarchyNode[], tab: FilterTab, matchingIds?: Set<string>): AgentHierarchyNode[] {
   return nodes
     .reduce<AgentHierarchyNode[]>((acc, node) => {
-      const filteredChildren = filterAgentHierarchy(node.children, tab, builtInAgentIds, matchingIds);
+      const filteredChildren = filterAgentHierarchy(node.children, tab, matchingIds);
       // Hidden agents (terminated / pending_approval) never render as a row, but
       // any visible reports are promoted so the tree doesn't lose live agents.
       if (HIDDEN_AGENT_STATUSES.has(node.status)) {
         acc.push(...filteredChildren);
         return acc;
       }
-      const nodeMatches = tab === "builtin"
-        ? builtInAgentIds.has(node.id)
-        : matchesFilter(node.status, tab);
+      const nodeMatches = matchesFilter(node.status, tab);
       if ((nodeMatches && (!matchingIds || matchingIds.has(node.id))) || filteredChildren.length > 0) {
         acc.push({ ...node, children: filteredChildren });
       }
@@ -216,23 +201,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
     queryFn: () => instanceSettingsApi.get(),
     enabled: !!selectedSpaceId,
   });
-  const builtInAgentsEnabled = instanceSettings?.experimental.enableBuiltInAgents === true;
   const tab: FilterTab = "all";
-  const { data: builtInAgents } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(selectedSpaceId!),
-    queryFn: () => builtInAgentsApi.list(selectedSpaceId!),
-    enabled: !!selectedSpaceId && builtInAgentsEnabled,
-  });
-  const builtInByAgentId = useMemo(() => {
-    const map = new Map<string, BuiltInAgentState>();
-    if (!builtInAgentsEnabled) return map;
-    for (const entry of builtInAgents ?? []) {
-      if (entry.agentId) map.set(entry.agentId, entry);
-    }
-    return map;
-  }, [builtInAgents, builtInAgentsEnabled]);
-  const builtInAgentIds = useMemo(() => new Set(builtInByAgentId.keys()), [builtInByAgentId]);
-  const [configureState, setConfigureState] = useState<BuiltInAgentState | null>(null);
 
   const agentsQuery = useQuery({
     queryKey: queryKeys.agents.list(selectedSpaceId!),
@@ -348,8 +317,8 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
     );
   }
 
-  const filtered = filterAgents(agents ?? [], tab, builtInAgentIds, query).filter(rosterFilters.matches);
-  const filteredHierarchy = filterAgentHierarchy(agentHierarchy ?? [], tab, builtInAgentIds, query.trim() || rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
+  const filtered = filterAgents(agents ?? [], tab, query).filter(rosterFilters.matches);
+  const filteredHierarchy = filterAgentHierarchy(agentHierarchy ?? [], tab, query.trim() || rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
   const environmentDataLoading = environmentsEnabled && environments === undefined;
   const showEnvironmentColumn = environmentsEnabled && (environments === undefined || environments.length > 1);
   const resolveRenderedEnvironment = (agentId: string) => (
@@ -363,31 +332,6 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
       (candidate) => candidate.leadAgentId === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
     ).length;
     const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
-    const builtInState = builtInByAgentId.get(agent.id);
-    const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
-    // Keep lifecycle controls with the metadata only when the content area
-    // has enough room; the sidebar can leave less space than the viewport suggests.
-    const builtInCluster = builtInState && showBuiltInLifecycle ? (
-      <>
-        <BuiltInLifecycleChip status={builtInState.status} />
-        {builtInState.status === "needs_setup" && (
-          <span
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => setConfigureState(builtInState)}
-            >
-              Set up
-            </Button>
-          </span>
-        )}
-      </>
-    ) : null;
     return (
       <div key={agent.id} className="agent-pin-row agent-roster-pin-row group/agent-pin relative">
       <EntityRow
@@ -404,10 +348,9 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         ) : (
           <AgentAvatar agent={agent} size={32} />
         )}
-        secondaryRowClassName={cn("pl-11", !builtInCluster && !showEnvironmentColumn && !agent.lastHeartbeatAt && "sm:hidden")}
-        secondaryRow={(agent.status === "paused" || builtInCluster || showEnvironmentColumn || agent.lastHeartbeatAt) && (
+        secondaryRowClassName={cn("pl-11", !showEnvironmentColumn && !agent.lastHeartbeatAt && "sm:hidden")}
+        secondaryRow={(agent.status === "paused" || showEnvironmentColumn || agent.lastHeartbeatAt) && (
           <div className="flex flex-wrap items-center gap-2">
-            {builtInCluster}
             {showEnvironmentColumn && <span className="text-xs text-muted-foreground" title={resolveRenderedEnvironment(agent.id).title}>
               {resolveRenderedEnvironment(agent.id).label} · {resolveRenderedEnvironment(agent.id).detail}
             </span>}
@@ -498,145 +441,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
           No agent hierarchy defined.
         </p>
       )}
-      {configureState && selectedSpaceId && (
-        <Suspense fallback={null}>
-          <ConfigureBuiltInAgentModal
-            spaceId={selectedSpaceId}
-            state={configureState}
-            open={configureState !== null}
-            onOpenChange={(open) => {
-              if (!open) setConfigureState(null);
-            }}
-          />
-        </Suspense>
-      )}
       </div>
-    </div>
-  );
-}
-
-function HierarchyNode({
-  node,
-  depth,
-  agentMap,
-  liveRunByAgent,
-  environmentByAgentId,
-  environmentDataLoading,
-  showEnvironment,
-  builtInByAgentId,
-  onConfigureBuiltIn,
-}: {
-  node: AgentHierarchyNode;
-  depth: number;
-  agentMap: Map<string, Agent>;
-  liveRunByAgent: Map<string, { runId: string; liveCount: number }>;
-  environmentByAgentId: Map<string, EnvironmentDescriptor>;
-  environmentDataLoading: boolean;
-  showEnvironment: boolean;
-  builtInByAgentId: Map<string, BuiltInAgentState>;
-  onConfigureBuiltIn: (state: BuiltInAgentState) => void;
-}) {
-  const agent = agentMap.get(node.id);
-  const builtInState = builtInByAgentId.get(node.id);
-  const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
-  const hasInvalidCoordination = Boolean(agent && agent.coordinationHealth?.status === "invalid_coordination_chain");
-
-  return (
-    <div style={{ paddingLeft: depth * 24 }}>
-      <Link
-        to={agent ? agentUrl(agent) : `/agents/${node.id}`}
-        className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent/50 transition-colors w-full text-left no-underline text-inherit"
-      >
-        {hasInvalidCoordination ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid coordination chain" />
-        ) : (
-          <AgentAvatar agent={agent ?? node} size={24} />
-        )}
-        <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
-          {/* Name floor + `truncate` keeps the primary identifier readable; the
-              cluster wraps to a second line under pressure instead of starving
-              the name at narrow widths. */}
-          <div className="min-w-(--sz-7rem) truncate">
-            <span className="text-sm font-medium">{node.name}</span>
-            <span className="text-xs text-muted-foreground ml-2">
-              {agent?.title || "Scope owner"}
-            </span>
-          </div>
-          {builtInState && showBuiltInLifecycle && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <BuiltInLifecycleChip status={builtInState.status} />
-              {builtInState.status === "needs_setup" && (
-                <span
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                >
-                  <Button size="xs" variant="outline" onClick={() => onConfigureBuiltIn(builtInState)}>
-                    Set up
-                  </Button>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="sm:hidden">
-            {liveRunByAgent.has(node.id) ? (
-              <LiveRunIndicator
-                agentRef={agent ? agentRouteRef(agent) : node.id}
-                runId={liveRunByAgent.get(node.id)!.runId}
-                liveCount={liveRunByAgent.get(node.id)!.liveCount}
-              />
-            ) : (
-              <AgentStatusBadge status={node.status} />
-            )}
-          </span>
-          <div className="hidden sm:flex items-center gap-3">
-            {liveRunByAgent.has(node.id) && (
-              <LiveRunIndicator
-                agentRef={agent ? agentRouteRef(agent) : node.id}
-                runId={liveRunByAgent.get(node.id)!.runId}
-                liveCount={liveRunByAgent.get(node.id)!.liveCount}
-              />
-            )}
-            {agent && (
-              <div className="hidden xl:flex items-center gap-3">
-                <AgentMetaColumns
-                  agent={agent}
-                  environment={
-                    environmentDataLoading
-                      ? loadingEnvironmentDescriptor
-                      : environmentByAgentId.get(agent.id) ?? localEnvironmentDescriptor
-                  }
-                  showEnvironment={showEnvironment}
-                />
-              </div>
-            )}
-            <span className="w-20 flex justify-end">
-              <AgentStatusBadge status={node.status} />
-            </span>
-          </div>
-        </div>
-      </Link>
-      {node.children && node.children.length > 0 && (
-        <div className="border-l border-border ml-4">
-          {node.children.map((child) => (
-            <HierarchyNode
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              agentMap={agentMap}
-              liveRunByAgent={liveRunByAgent}
-              environmentByAgentId={environmentByAgentId}
-              environmentDataLoading={environmentDataLoading}
-              showEnvironment={showEnvironment}
-              builtInByAgentId={builtInByAgentId}
-              onConfigureBuiltIn={onConfigureBuiltIn}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
