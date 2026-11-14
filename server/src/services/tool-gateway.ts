@@ -561,15 +561,6 @@ const BUILTIN_LOCAL_STDIO_RUNTIME_TEMPLATES: Record<
   Omit<LocalStdioRuntimeTemplate, "templateId">
 > = {
   "outpost.cognee-cloud": COGNEE_STDIO_TEMPLATE,
-  "outpost.google-sheets": {
-    command: "outpost-google-sheets-mcp-server",
-    args: [],
-    envKeys: [
-      "GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON",
-      "GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON_PATH",
-      "GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS",
-    ],
-  },
   "outpost.echo-calculator-time": {
     command: null,
     args: [],

@@ -92,7 +92,7 @@ export { budgetService } from "./budgets.js";
 export { secretService } from "./secrets.js";
 export { createRunSecretRedactionRegistry } from "./run-secret-redaction.js";
 export { createSecretProposalsService } from "./secret-proposals.js";
-export { googleSheetsRobotEmailFromEnv, toolAccessService } from "./tool-access.js";
+export { toolAccessService } from "./tool-access.js";
 export {
   createVercelConnectClient,
   vercelConnectIntegrationStatus,

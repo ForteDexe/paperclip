@@ -98,7 +98,6 @@ import {
   resolveAppsConnectRouteKey,
   vercelConnectSourceHref,
 } from "@/pages/apps/app-connect-policy";
-import { parseGoogleSheetIds } from "@/pages/apps/google-sheets";
 import { connectionNameForGrantKind } from "@/pages/apps/connection-identity";
 import {
   canSubmitGenericConnect,
@@ -390,14 +389,6 @@ function configuredAgentIdentity(connection: ToolConnection): string | undefined
   if (!oauth || typeof oauth !== "object" || Array.isArray(oauth)) return undefined;
   const value = (oauth as Record<string, unknown>).connectorSubjectAgentId;
   return typeof value === "string" ? value : undefined;
-}
-
-function isGoogleSheetsRobotMethod(
-  entry: AppDefinition | null,
-  method: ConnectionMethodDef | string | null | undefined,
-): boolean {
-  const methodKey = typeof method === "string" ? method : method?.key;
-  return entry?.slug === "google-sheets" && methodKey === "local";
 }
 
 function defaultMethodConfig(method: ConnectionMethodDef | null): Record<string, string | boolean> {
@@ -761,8 +752,6 @@ function StandardConnectionSetupFlow({
   const [connectionMethodKey, setConnectionMethodKey] = useState(aiConnection && aiConnection.mode !== "responsible_user" ? `ai-${aiConnection.method}` : "");
   const [instructionDraft, setInstructionDraft] = useState<{ slug: string; value: ConnectionAgentInstructions } | null>(null);
   const [configValues, setConfigValues] = useState<Record<string, string | boolean>>({});
-  const [googleSheetsLinks, setGoogleSheetsLinks] = useState("");
-  const [googleSheetsError, setGoogleSheetsError] = useState<string | null>(null);
   const [connectResult, setConnectResult] = useState<ConnectToolAppResult | null>(null);
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [access, setAccess] = useState<"all" | "specific">("all");
@@ -1053,8 +1042,6 @@ function StandardConnectionSetupFlow({
     const initialMethod = recommendedSetupConnectionMethod(methods);
     setConnectionMethodKey(initialMethod?.key ?? "");
     setConfigValues(defaultMethodConfig(initialMethod));
-    setGoogleSheetsLinks("");
-    setGoogleSheetsError(null);
     setConnectResult(null);
     setInstallAgentIds(new Set(requestedAgentId ? [requestedAgentId] : []));
     setInstallChoice(defaultInstallChoiceFor(initialMethod, requestedAgentId));
@@ -1474,13 +1461,6 @@ function StandardConnectionSetupFlow({
       let result: ConnectToolAppResult;
       if (connectEntry) {
         const requestedGrantKind = fixedGrantKind ?? grantKind;
-        const selectedMethod = availableToolConnectionMethod(
-          connectEntry,
-          connectionMethodKey || null,
-        );
-        const sheetIds = isGoogleSheetsRobotMethod(connectEntry, selectedMethod)
-          ? parseGoogleSheetIds(googleSheetsLinks).ids
-          : [];
         const trimmedGalleryName = galleryName.trim();
         const connectionName = connectionNameForGrantKind(
           trimmedGalleryName || connectEntry.name,
@@ -1505,11 +1485,9 @@ function StandardConnectionSetupFlow({
                 },
               }
             : {}),
-          configValues: isGoogleSheetsRobotMethod(connectEntry, selectedMethod)
-            ? { allowedSpreadsheetIds: sheetIds }
-            : Object.keys(configValues).length > 0
-              ? configValues
-              : undefined,
+          configValues: Object.keys(configValues).length > 0
+            ? configValues
+            : undefined,
           applicationId: prefill.applicationId,
           ...((resumeConnectionId ?? customerClientResumeRef.current)
             ? { resumeConnectionId: resumeConnectionId ?? customerClientResumeRef.current! }
@@ -1770,8 +1748,6 @@ function StandardConnectionSetupFlow({
       setVercelConnector("");
       setConnectionMethodKey(initialMethod?.key ?? "");
       setConfigValues(defaultMethodConfig(initialMethod));
-      setGoogleSheetsLinks("");
-      setGoogleSheetsError(null);
       setConnectResult(null);
       const matchingEnrollmentAccess = restoredEnrollmentAccess?.spaceId === selectedSpaceId
         ? restoredEnrollmentAccess
@@ -2527,9 +2503,7 @@ function StandardConnectionSetupFlow({
       ? ["Choose connection"]
     : entry && setupCredentialSourceMethods[0]?.auth === "oauth"
       ? ["Sign in"]
-    : isGoogleSheetsRobotMethod(entry, connectionMethodKey)
-      ? ["Share sheet"]
-      : entry
+    : entry
         ? ["Add your key"]
       : STEP_LABELS;
   const stepIndex = reconnectConnection?.connectionPurpose === "ai" ? 0 : (zapierSource || entry) && step !== "gallery" && step !== "success"
@@ -2590,8 +2564,6 @@ function StandardConnectionSetupFlow({
             setLinkNeedsKey(false);
             setLinkKey("");
             setCredentials({});
-            setGoogleSheetsLinks("");
-            setGoogleSheetsError(null);
             setInstallAgentIds(new Set(requestedAgentId ? [requestedAgentId] : []));
             setInstallChoice(requestedAgentId ? "specific" : "all");
             setGrantKind(reconnectGrantKind ?? (requestedAgentId ? "user" : "organization"));
@@ -2722,29 +2694,12 @@ function StandardConnectionSetupFlow({
           }}
           configValues={configValues}
           onConfigChange={setConfigValues}
-          googleSheetsLinks={googleSheetsLinks}
-          googleSheetsError={googleSheetsError}
-          onGoogleSheetsLinksChange={(next) => {
-            setGoogleSheetsLinks(next);
-            setGoogleSheetsError(null);
-          }}
           submitting={connectMutation.isPending}
           renderDefaults={renderConnectionDefaults ?? undefined}
           // Back returns to the connector gallery for new, resumed, and
           // reconnected accounts. Cancel is the separate exit to the app list.
           onBack={backToGallery}
           onConnect={() => {
-            if (isGoogleSheetsRobotMethod(entry, connectionMethodKey)) {
-              const parsed = parseGoogleSheetIds(googleSheetsLinks);
-              if (parsed.invalidCount > 0) {
-                setGoogleSheetsError("That doesn't look like a Google Sheets link.");
-                return;
-              }
-              if (parsed.ids.length === 0) {
-                setGoogleSheetsError("Paste at least one Google Sheets link.");
-                return;
-              }
-            }
             const selectedMethod = availableToolConnectionMethod(
               entry,
               connectionMethodKey || null,
@@ -3678,9 +3633,6 @@ function KeyStep({
   onMethodChange,
   configValues,
   onConfigChange,
-  googleSheetsLinks,
-  googleSheetsError,
-  onGoogleSheetsLinksChange,
   submitting,
   renderDefaults,
   onBack,
@@ -3709,9 +3661,6 @@ function KeyStep({
   onMethodChange: (method: ConnectionMethodDef | null) => void;
   configValues: Record<string, string | boolean>;
   onConfigChange: (next: Record<string, string | boolean>) => void;
-  googleSheetsLinks: string;
-  googleSheetsError: string | null;
-  onGoogleSheetsLinksChange: (next: string) => void;
   submitting: boolean;
   /**
    * Builds the one Advanced disclosure this screen has (PAP-659 C0). The key
@@ -3811,7 +3760,6 @@ function KeyStep({
   const hasCapabilitySelection = capabilityGroups.length <= 1 || Boolean(capabilityKey);
   const hasMethodSelection = hasCapabilitySelection
     && (capabilityMethods.length <= 1 ? Boolean(method) : Boolean(methodKey));
-  const robotEmail = entry.availability?.robotEmail ?? null;
   const unavailable = entry.availability?.available === false;
   const optionalCustomerOAuthClient = !usingVercel
     && acceptsCustomerOAuthClient
@@ -3915,68 +3863,6 @@ function KeyStep({
     </div>
   ) : null;
   const defaults = renderDefaults?.(advancedSettings, forceAdvancedOpen) ?? null;
-
-  if (isGoogleSheetsRobotMethod(entry, method)) {
-    const parsed = parseGoogleSheetIds(googleSheetsLinks);
-    const canConnect = settingsValid && !unavailable && Boolean(robotEmail) && googleSheetsLinks.trim().length > 0;
-    return (
-      <div className="mx-auto max-w-xl">
-        <div className="space-y-6">
-          {capabilitySelection}
-
-          {robotEmail ? (
-            <div>
-              <label className="text-sm font-medium text-foreground">Share each sheet with this email</label>
-              <div className="mt-2 flex min-w-0 flex-col gap-2 sm:flex-row">
-                <div
-                  title={robotEmail}
-                  className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-muted/40 px-3 py-2.5 font-mono text-xs leading-tight text-foreground break-all"
-                >
-                  {robotEmail}
-                </div>
-                <CopyValueButton value={robotEmail} ariaLabel="Copy sharing email" />
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                In Google Sheets, click Share and add this email as an Editor. Then paste the sheet links below.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
-              Google Sheets is not available on this instance yet.
-            </div>
-          )}
-
-          <div>
-            <label className="text-sm font-medium text-foreground">Paste links to the sheets you shared</label>
-            <Textarea
-              value={googleSheetsLinks}
-              onChange={(e) => onGoogleSheetsLinksChange(e.target.value)}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              className="mt-2 min-h-28"
-            />
-            <div className="mt-2 text-xs text-muted-foreground">
-              {parsed.ids.length > 0
-                ? `${parsed.ids.length} ${parsed.ids.length === 1 ? "sheet" : "sheets"} ready to connect.`
-                : "Paste one link per line. Both .../edit and .../edit#gid=... links work."}
-            </div>
-            {googleSheetsError && <div className="mt-2 text-xs text-destructive">{googleSheetsError}</div>}
-          </div>
-        </div>
-
-        {defaults}
-
-        <div className="mt-8 flex items-center justify-between">
-          <Button variant="ghost" onClick={onBack} disabled={submitting}>
-            Back
-          </Button>
-          <Button onClick={onConnect} disabled={submitting || !canConnect}>
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {submitting ? "Checking…" : "Connect"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const managedAsana = method?.connectorProfile === "asana.mcp";
   const requirementsUrl = managedAsana ? null : method?.consoleLinks?.docs ?? entry.docsUrl;

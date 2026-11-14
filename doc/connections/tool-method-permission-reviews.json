@@ -1183,21 +1183,6 @@
       "liveProof": "not-run"
     },
     {
-      "app": "google-sheets",
-      "method": "local",
-      "auth": "none",
-      "policy": "endpoint",
-      "requestedScopes": [],
-      "capability": "provider-controlled",
-      "supportedActions": "Share only named spreadsheets with the Outpost robot account.",
-      "evidence": [
-        "https://developers.google.com/workspace/sheets/api/reference/mcp",
-        "https://sheetsmcp.googleapis.com/.well-known/oauth-protected-resource/mcp/v1"
-      ],
-      "reviewedAt": "2026-09-30",
-      "liveProof": "not-run"
-    },
-    {
       "app": "google-slides",
       "method": "outpost-read",
       "auth": "oauth",

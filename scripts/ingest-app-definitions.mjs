@@ -568,23 +568,6 @@ const apps = [
     ),
   ],
   [
-    "google-sheets",
-    "Google Sheets",
-    "Read and update selected spreadsheets.",
-    "data",
-    "sheets.google.com",
-    ["https://docs.google.com/spreadsheets/*", "https://sheets.google.com/*"],
-    method(
-      "local",
-      "local_stdio",
-      "none",
-      { templateKey: "outpost.google-sheets" },
-      "S3",
-      "Share each spreadsheet with the Outpost robot email, then paste the sheet links.",
-      { requiredResourceFilters: ["spreadsheet"] },
-    ),
-  ],
-  [
     "context7",
     "Context7",
     "Look up current documentation for software libraries.",

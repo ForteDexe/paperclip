@@ -104,7 +104,6 @@ import { canBrowseProjectRepositoryGrant, mergeProjectRepository } from "./proje
 import { measureRunPhase } from "./execution-preparation-timing.js";
 
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { and, asc, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { agents, connectionGrantMembers, connectionGrants, spaceMemberships, principalPermissionGrants, userSecretDefinitions, plugins, toolAccessAuditEvents, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolStdioCommandTemplates, toolCallEvents, toolPolicies, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
@@ -172,66 +171,6 @@ type ToolAccessServiceOptions = {
   /** Test seam for Vercel Connect without live vendor traffic. */
   vercelConnectClient?: VercelConnectClient | null;
 };
-
-const GOOGLE_SHEETS_SPREADSHEET_SCHEMA = {
-  type: "object",
-  properties: {
-    spreadsheetId: { type: "string", minLength: 1 },
-  },
-  required: ["spreadsheetId"],
-};
-
-const GOOGLE_SHEETS_RANGE_SCHEMA = {
-  type: "object",
-  properties: {
-    spreadsheetId: { type: "string", minLength: 1 },
-    range: { type: "string", minLength: 1, maxLength: 500 },
-  },
-  required: ["spreadsheetId", "range"],
-};
-
-const GOOGLE_SHEETS_VALUE_ROWS_SCHEMA = {
-  type: "array",
-  minItems: 1,
-  items: {
-    type: "array",
-    items: {
-      anyOf: [
-        { type: "string" },
-        { type: "number" },
-        { type: "boolean" },
-        { type: "null" },
-      ],
-    },
-  },
-};
-
-const GOOGLE_SHEETS_WRITE_VALUES_SCHEMA = {
-  type: "object",
-  properties: {
-    spreadsheetId: { type: "string", minLength: 1 },
-    range: { type: "string", minLength: 1, maxLength: 500 },
-    values: GOOGLE_SHEETS_VALUE_ROWS_SCHEMA,
-    valueInputOption: {
-      type: "string",
-      enum: ["RAW", "USER_ENTERED"],
-      default: "RAW",
-    },
-  },
-  required: ["spreadsheetId", "range", "values"],
-};
-
-function schemaHasInputProperties(schema: unknown): boolean {
-  if (!schema || typeof schema !== "object" || Array.isArray(schema))
-    return false;
-  const properties = (schema as Record<string, unknown>).properties;
-  return Boolean(
-    properties &&
-    typeof properties === "object" &&
-    !Array.isArray(properties) &&
-    Object.keys(properties).length > 0,
-  );
-}
 
 const APPROVED_STDIO_TEMPLATES: Record<
   string,
@@ -320,113 +259,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
     ],
   },
   "outpost.cognee-cloud": COGNEE_STDIO_TEMPLATE,
-  "outpost.google-sheets": {
-    name: "Google Sheets",
-    command: "outpost-google-sheets-mcp-server",
-    args: [],
-    envKeys: [
-      "GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON",
-      "GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON_PATH",
-      "GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS",
-    ],
-    tools: [
-      {
-        name: "list_spreadsheets",
-        description:
-          "List the Google Sheets spreadsheets configured in this connection allowlist.",
-        inputSchema: { type: "object", properties: {} },
-        annotations: { readOnlyHint: true },
-      },
-      {
-        name: "get_spreadsheet_info",
-        description:
-          "Get spreadsheet metadata and sheet tab information for an allowlisted spreadsheet.",
-        inputSchema: GOOGLE_SHEETS_SPREADSHEET_SCHEMA,
-        annotations: { readOnlyHint: true },
-      },
-      {
-        name: "read_values",
-        description: "Read cell values from an allowlisted spreadsheet range.",
-        inputSchema: GOOGLE_SHEETS_RANGE_SCHEMA,
-        annotations: { readOnlyHint: true },
-      },
-      {
-        name: "search_rows",
-        description: "Search rows in an allowlisted spreadsheet range.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            spreadsheetId: { type: "string", minLength: 1 },
-            range: { type: "string", minLength: 1, maxLength: 500 },
-            query: { type: "string", minLength: 1 },
-            caseSensitive: { type: "boolean", default: false },
-            maxResults: {
-              type: "integer",
-              minimum: 1,
-              maximum: 500,
-              default: 50,
-            },
-          },
-          required: ["spreadsheetId", "range", "query"],
-        },
-        annotations: { readOnlyHint: true },
-      },
-      {
-        name: "append_rows",
-        description: "Append rows to an allowlisted spreadsheet range.",
-        inputSchema: GOOGLE_SHEETS_WRITE_VALUES_SCHEMA,
-        annotations: { readOnlyHint: false },
-      },
-      {
-        name: "update_values",
-        description: "Update values in an allowlisted spreadsheet range.",
-        inputSchema: GOOGLE_SHEETS_WRITE_VALUES_SCHEMA,
-        annotations: { readOnlyHint: false },
-      },
-      {
-        name: "add_sheet_tab",
-        description: "Add a sheet tab to an allowlisted spreadsheet.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            spreadsheetId: { type: "string", minLength: 1 },
-            title: { type: "string", minLength: 1, maxLength: 100 },
-            rowCount: { type: "integer", minimum: 1, maximum: 1000000 },
-            columnCount: { type: "integer", minimum: 1, maximum: 18278 },
-          },
-          required: ["spreadsheetId", "title"],
-        },
-        annotations: { readOnlyHint: false },
-      },
-      {
-        name: "clear_values",
-        description: "Clear values in an allowlisted spreadsheet range.",
-        inputSchema: GOOGLE_SHEETS_RANGE_SCHEMA,
-        annotations: { destructiveHint: true },
-      },
-      {
-        name: "delete_rows",
-        description: "Delete rows from an allowlisted spreadsheet tab.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            spreadsheetId: { type: "string", minLength: 1 },
-            sheetId: { type: "integer", minimum: 0 },
-            startIndex: { type: "integer", minimum: 0 },
-            endIndex: { type: "integer", minimum: 1 },
-          },
-          required: ["spreadsheetId", "sheetId", "startIndex", "endIndex"],
-        },
-        annotations: { destructiveHint: true },
-      },
-    ],
-  },
 };
-
-const GOOGLE_SHEETS_GALLERY_KEY = "google-sheets";
-const GOOGLE_SHEETS_TEMPLATE_ID = "outpost.google-sheets";
-const GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS_ENV =
-  "GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS";
 
 type ToolExampleDefinition = {
   id: string;
@@ -465,84 +298,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value))
     return value as Record<string, unknown>;
   return {};
-}
-
-export function googleSheetsRobotEmailFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-):
-  | { available: true; robotEmail: string }
-  | { available: false; reason: string } {
-  const inlineOrPath = env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON?.trim();
-  const explicitPath = env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON_PATH?.trim();
-  if (!inlineOrPath && !explicitPath) {
-    return {
-      available: false,
-      reason: "Google Sheets is not available on this instance yet.",
-    };
-  }
-
-  try {
-    const raw = explicitPath
-      ? readFileSync(explicitPath, "utf8")
-      : inlineOrPath!.startsWith("{")
-        ? inlineOrPath!
-        : readFileSync(inlineOrPath!, "utf8");
-    const parsed = JSON.parse(raw) as { client_email?: unknown };
-    if (typeof parsed.client_email === "string" && parsed.client_email.trim()) {
-      return { available: true, robotEmail: parsed.client_email.trim() };
-    }
-  } catch {
-    return {
-      available: false,
-      reason: "Google Sheets is not available on this instance yet.",
-    };
-  }
-  return {
-    available: false,
-    reason: "Google Sheets is not available on this instance yet.",
-  };
-}
-
-function googleSheetsAllowedSpreadsheetIds(
-  configValues: Record<string, unknown> | undefined,
-): string[] {
-  const raw = configValues?.allowedSpreadsheetIds;
-  const values = Array.isArray(raw)
-    ? raw
-    : typeof raw === "string"
-      ? raw.split(/[\n,]/g)
-      : [];
-  return Array.from(
-    new Set(values.map((value) => String(value).trim()).filter(Boolean)),
-  );
-}
-
-function isGoogleSheetsConnectionConfig(
-  configValues: Record<string, unknown> | undefined,
-): boolean {
-  return (
-    configValues?.sourceTemplateKey === GOOGLE_SHEETS_GALLERY_KEY ||
-    configValues?.templateId === GOOGLE_SHEETS_TEMPLATE_ID
-  );
-}
-
-function normalizeGoogleSheetsConnectionConfig(
-  configValues: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!isGoogleSheetsConnectionConfig(configValues)) return configValues;
-  const allowedSpreadsheetIds = googleSheetsAllowedSpreadsheetIds(configValues);
-  if (allowedSpreadsheetIds.length === 0) {
-    throw badRequest("Paste at least one Google Sheets link.");
-  }
-  return {
-    ...configValues,
-    allowedSpreadsheetIds,
-    env: {
-      ...asRecord(configValues.env),
-      [GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS_ENV]:
-        allowedSpreadsheetIds.join(","),
-    },
-  };
 }
 
 // Detects a Postgres foreign_key_violation (SQLSTATE 23503) raised by the
@@ -598,18 +353,6 @@ function toCatalogEntryForConnection(
       googleChatToolDescription(connection, row.toolName, rawCatalogEntry.description),
     ),
   };
-  if (
-    connection.transport === "local_stdio" &&
-    asRecord(connection.config).templateId === GOOGLE_SHEETS_TEMPLATE_ID &&
-    !schemaHasInputProperties(catalogEntry.inputSchema)
-  ) {
-    const templateTool = APPROVED_STDIO_TEMPLATES[
-      GOOGLE_SHEETS_TEMPLATE_ID
-    ].tools.find((tool) => tool.name === row.toolName);
-    if (schemaHasInputProperties(templateTool?.inputSchema)) {
-      return { ...catalogEntry, inputSchema: templateTool!.inputSchema! };
-    }
-  }
   return catalogEntry;
 }
 
@@ -923,48 +666,6 @@ export function toolAccessService(
       .from(plugins)
       .where(eq(plugins.id, pluginId));
     if (!row) throw unprocessable("Tool application plugin was not found");
-  }
-
-  async function assertGoogleSheetsSpreadsheetOwnership(
-    spaceId: string,
-    config: Record<string, unknown>,
-    options: { excludeConnectionId?: string } = {},
-  ) {
-    if (!isGoogleSheetsConnectionConfig(config)) return;
-    const allowedSpreadsheetIds = googleSheetsAllowedSpreadsheetIds(config);
-    if (allowedSpreadsheetIds.length === 0) return;
-    const allowed = new Set(allowedSpreadsheetIds);
-    const rows = await db
-      .select({
-        id: toolConnections.id,
-        spaceId: toolConnections.spaceId,
-        config: toolConnections.config,
-      })
-      .from(toolConnections)
-      .where(ne(toolConnections.status, "archived"));
-
-    const conflictingSpreadsheetIds = new Set<string>();
-    for (const row of rows) {
-      if (row.id === options.excludeConnectionId || row.spaceId === spaceId)
-        continue;
-      if (!isGoogleSheetsConnectionConfig(row.config)) continue;
-      for (const spreadsheetId of googleSheetsAllowedSpreadsheetIds(
-        row.config,
-      )) {
-        if (allowed.has(spreadsheetId))
-          conflictingSpreadsheetIds.add(spreadsheetId);
-      }
-    }
-
-    if (conflictingSpreadsheetIds.size > 0) {
-      throw conflict(
-        "Google Sheets spreadsheet is already connected to another space.",
-        {
-          code: "google_sheets_spreadsheet_already_bound",
-          spreadsheetIds: Array.from(conflictingSpreadsheetIds).sort(),
-        },
-      );
-    }
   }
 
   async function assertCatalogEntry(
@@ -1734,14 +1435,6 @@ export function toolAccessService(
       existingApplication?.name ??
       galleryEntry?.name ??
       defaultLinkName(input.link ?? "");
-    // Compatibility for the original Sheets robot flow, whose clients predate
-    // method selection and identify the method by its spreadsheet allowlist.
-    const inferredMethodKey =
-      !input.connectionMethodKey &&
-      galleryEntry?.slug === "google-sheets" &&
-      Array.isArray(input.configValues?.allowedSpreadsheetIds)
-        ? "local"
-        : input.connectionMethodKey;
     if (!galleryEntry && input.connectionMethodKey)
       throw badRequest("Connection method selection requires a gallery app");
     if (
@@ -1751,12 +1444,12 @@ export function toolAccessService(
           candidate.purpose !== "channel" && candidate.purpose !== "ai"
           && candidate.transport !== "chat_sdk" && candidate.transport !== "runtime_auth",
       ).length > 1 &&
-      !inferredMethodKey
+      !input.connectionMethodKey
     ) {
       throw badRequest("Choose a connection method for this app");
     }
     const method = galleryEntry
-      ? connectionMethodFor(galleryEntry, inferredMethodKey)
+      ? connectionMethodFor(galleryEntry, input.connectionMethodKey)
       : null;
     const remoteMcpConnector = isRemoteMcpConnectorMethod(galleryEntry?.slug, method?.key);
     await assertExperimentalConnectorSetupEnabled(galleryEntry?.slug, Boolean(
@@ -2099,11 +1792,8 @@ export function toolAccessService(
         scopes: [...reviewed.scopes],
       };
     }
-    const isGoogleSheetsRobotMethod =
-      galleryEntry?.slug === GOOGLE_SHEETS_GALLERY_KEY &&
-      method?.key === "local";
     const normalizedMethodConfig =
-      isGoogleSheetsRobotMethod || !method
+      !method
         ? null
         : normalizeConnectionMethodConfig(method, input.configValues ?? asRecord(asRecord(retainedConnection?.config).methodConfig));
     const remoteUrlCredential =
@@ -2190,28 +1880,6 @@ export function toolAccessService(
           "manual" satisfies OAuthClientRegistrationSource,
         clientSpaceId: spaceId,
       };
-    }
-    if (isGoogleSheetsRobotMethod) {
-      const availability = googleSheetsRobotEmailFromEnv();
-      if (!availability.available) {
-        throw unprocessable(availability.reason, {
-          code: "google_sheets_unavailable",
-        });
-      }
-      const allowedSpreadsheetIds = googleSheetsAllowedSpreadsheetIds(
-        input.configValues,
-      );
-      if (allowedSpreadsheetIds.length === 0) {
-        throw badRequest("Paste at least one Google Sheets link.");
-      }
-      config.allowedSpreadsheetIds = allowedSpreadsheetIds;
-      config.robotEmail = availability.robotEmail;
-      config.env = {
-        [GOOGLE_SHEETS_ALLOWED_SPREADSHEET_IDS_ENV]:
-          allowedSpreadsheetIds.join(","),
-      };
-      config = normalizeGoogleSheetsConnectionConfig(config);
-      await assertGoogleSheetsSpreadsheetOwnership(spaceId, config);
     }
     if (transport === "mcp_remote")
       await assertRemoteConnectionEndpointsAllowed(config);
@@ -4557,9 +4225,7 @@ export function toolAccessService(
         throw unprocessable("Only tool connections can be created here");
       if (transport === "chat_sdk" || transport === "voice")
         throw unprocessable("Chat and voice connections cannot be created here");
-      const config = normalizeGoogleSheetsConnectionConfig(
-        input.config ?? input.transportConfig ?? {},
-      );
+      const config = input.config ?? input.transportConfig ?? {};
       await assertConnectorConnectionSetupEnabled({ config, applicationId, spaceId });
       // Validate space-scoped references before touching a caller-supplied
       // network endpoint. Besides failing fast, this keeps cross-space
@@ -4572,7 +4238,6 @@ export function toolAccessService(
         await assertRemoteConnectionEndpointsAllowed(config);
       if (transport === "local_stdio") await stdioTemplateId(spaceId, config);
       assertLocalStdioCanBeEnabled(transport, input.enabled ?? false, config);
-      await assertGoogleSheetsSpreadsheetOwnership(spaceId, config);
       if (applicationId) {
         const app = await assertApplication(spaceId, applicationId);
         applicationNamespace = app.applicationKey ?? app.name;
@@ -4624,9 +4289,7 @@ export function toolAccessService(
               typeof config.sourceTemplateKey === "string" ? getConnectableAppDefinition(config.sourceTemplateKey)?.agentInstructions : null,
             ),
             config,
-            transportConfig: isGoogleSheetsConnectionConfig(config)
-              ? config
-              : (input.transportConfig ?? config),
+            transportConfig: input.transportConfig ?? config,
             credentialRefs: input.credentialRefs ?? [],
             credentialSecretRefs: input.credentialSecretRefs ?? [],
             createdByAgentId:
@@ -4679,9 +4342,7 @@ export function toolAccessService(
         });
       }
       if (existing.connectionPurpose === "ai" && (input.config || input.transportConfig || input.credentialRefs || input.credentialSecretRefs || (input.credentialPolicy && input.credentialPolicy !== existing.credentialPolicy))) throw badRequest("Use AI account reconnect to change credentials. Provider, sign-in method, and ownership cannot be changed.");
-      const config = normalizeGoogleSheetsConnectionConfig(
-        input.config ?? input.transportConfig ?? existing.config,
-      );
+      const config = input.config ?? input.transportConfig ?? existing.config;
       if (input.config?.methodConfig !== undefined && typeof config.sourceTemplateKey === "string") {
         const app = getConnectableAppDefinition(config.sourceTemplateKey);
         if (app) normalizeConnectionMethodConfig(connectionMethodForConnection(app, { ...existing, config }), asRecord(config.methodConfig));
@@ -4695,9 +4356,6 @@ export function toolAccessService(
         input.enabled ?? existing.enabled,
         config,
       );
-      await assertGoogleSheetsSpreadsheetOwnership(existing.spaceId, config, {
-        excludeConnectionId: existing.id,
-      });
       await assertSecretRefs(existing.spaceId, [
         ...(input.credentialRefs ?? existing.credentialRefs),
         ...(input.credentialSecretRefs ?? existing.credentialSecretRefs),
@@ -4711,9 +4369,7 @@ export function toolAccessService(
           enabled: input.enabled ?? existing.enabled,
           ...(input.agentInstructions !== undefined ? { agentInstructions: input.agentInstructions } : {}),
           config,
-          transportConfig: isGoogleSheetsConnectionConfig(config)
-            ? config
-            : (input.transportConfig ?? config),
+          transportConfig: input.transportConfig ?? config,
           credentialRefs: input.credentialRefs ?? existing.credentialRefs,
           credentialSecretRefs:
             input.credentialSecretRefs ?? existing.credentialSecretRefs,

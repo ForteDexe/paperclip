@@ -146,7 +146,7 @@ Google makes Workspace MCP generally available.
 | Gmail | `https://gmailmcp.googleapis.com/mcp/v1` | Read only; read and create drafts |
 | Google Drive | `https://drivemcp.googleapis.com/mcp/v1` | Read only; read and create files |
 | Google Docs | `https://docsmcp.googleapis.com/mcp/v1` | Read only; read and edit |
-| Google Sheets | `https://sheetsmcp.googleapis.com/mcp/v1` | Read only; read and edit; share selected sheets with the robot account |
+| Google Sheets | `https://sheetsmcp.googleapis.com/mcp/v1` | Read only; read and edit |
 | Google Slides | `https://slidesmcp.googleapis.com/mcp/v1` | Read only; read and edit |
 | Google Calendar | `https://calendarmcp.googleapis.com/mcp/v1` | Read only; read and manage events |
 | Google Chat | `https://chatmcp.googleapis.com/mcp/v1` | Read only; read and send messages |
@@ -169,8 +169,6 @@ managed method. The available authentication methods are:
   an internal-pilot method locally.
 - **Use your own Google OAuth app** uses customer-supplied OAuth credentials and
   the app definition's exact reviewed scopes.
-- **Use the Outpost robot account** remains an additional Google Sheets-only
-  option for explicitly shared spreadsheets.
 
 Before Google consent, the setup flow shows the credential's human and agent
 access and lets the user change it. A personal choice stores

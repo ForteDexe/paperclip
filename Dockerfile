@@ -21,7 +21,6 @@ COPY ui/package.json ui/
 COPY packages/shared/package.json packages/shared/
 COPY packages/db/package.json packages/db/
 COPY packages/adapter-utils/package.json packages/adapter-utils/
-COPY packages/google-sheets-mcp-server/package.json packages/google-sheets-mcp-server/
 COPY packages/mcp-server/package.json packages/mcp-server/
 COPY packages/outpost-eval-kernel/package.json packages/outpost-eval-kernel/
 COPY packages/outpost-runner/package.json packages/outpost-runner/

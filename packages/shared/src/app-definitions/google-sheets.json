@@ -177,29 +177,6 @@
         "Google Workspace MCP servers are in Developer Preview."
       ],
       "riskTier": "S4"
-    },
-    {
-      "key": "local",
-      "label": "Use the Outpost robot account",
-      "transport": "local_stdio",
-      "auth": "none",
-      "capabilityProfile": {
-        "key": "robot",
-        "label": "Share selected sheets",
-        "description": "Share only named spreadsheets with the Outpost robot account."
-      },
-      "ownershipModes": [
-        "customer"
-      ],
-      "whenToUse": "Share selected spreadsheets with the Outpost robot account instead of connecting a Google identity.",
-      "defaults": {
-        "templateKey": "outpost.google-sheets"
-      },
-      "guidanceMd": "Share each spreadsheet with the Outpost robot email, then paste the sheet links.",
-      "riskTier": "S3",
-      "requiredResourceFilters": [
-        "spreadsheet"
-      ]
     }
   ]
 }

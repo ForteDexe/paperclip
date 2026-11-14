@@ -55,11 +55,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/google-sheets-mcp-server",
-    "name": "@outpost/google-sheets-mcp-server",
-    "publishFromCi": false
-  },
-  {
     "dir": "packages/plugins/create-outpost-plugin",
     "name": "@outpost/create-outpost-plugin",
     "publishFromCi": true

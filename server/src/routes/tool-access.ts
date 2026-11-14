@@ -99,13 +99,6 @@ const ORGANIZATION_GRANT_DENIAL_REASON =
   "Only a space owner, administrator, or connection manager can share this credential with the organization.";
 type Heartbeat = ReturnType<typeof heartbeatService>;
 
-/** Allowlist (e.g. Google Sheets allowed spreadsheet ids) lives in connection config. */
-function allowlistIds(config: Record<string, unknown> | null | undefined): string[] {
-  const raw = config?.allowedSpreadsheetIds;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-}
-
 function agentHierarchyDepths(rows: Array<{ id: string; leadAgentId: string | null }>): Map<string, number> {
   const parentById = new Map(rows.map((row) => [row.id, row.leadAgentId]));
   const depthById = new Map<string, number>();
@@ -131,24 +124,15 @@ function agentHierarchyDepths(rows: Array<{ id: string; leadAgentId: string | nu
 /**
  * Classify a connection PATCH into operator-visible lifecycle events so the
  * per-app Activity tab can humanize them (PAP-11284). A single update may
- * touch more than one thing (e.g. pause + allowlist), so this returns a list.
+ * touch more than one thing, so this returns a list.
  */
 function classifyConnectionUpdate(
   before: { enabled: boolean; config?: Record<string, unknown> | null },
   after: { enabled: boolean; config?: Record<string, unknown> | null },
-): Array<{ lifecycle: "paused" | "resumed" | "allowlist_changed"; details: Record<string, unknown> }> {
-  const events: Array<{ lifecycle: "paused" | "resumed" | "allowlist_changed"; details: Record<string, unknown> }> = [];
+): Array<{ lifecycle: "paused" | "resumed"; details: Record<string, unknown> }> {
+  const events: Array<{ lifecycle: "paused" | "resumed"; details: Record<string, unknown> }> = [];
   if (before.enabled !== after.enabled) {
     events.push({ lifecycle: after.enabled ? "resumed" : "paused", details: { enabled: after.enabled } });
-  }
-  const beforeIds = allowlistIds(before.config);
-  const afterIds = allowlistIds(after.config);
-  const beforeSet = new Set(beforeIds);
-  const afterSet = new Set(afterIds);
-  const added = afterIds.filter((id) => !beforeSet.has(id)).length;
-  const removed = beforeIds.filter((id) => !afterSet.has(id)).length;
-  if (added > 0 || removed > 0) {
-    events.push({ lifecycle: "allowlist_changed", details: { added, removed, total: afterIds.length } });
   }
   return events;
 }

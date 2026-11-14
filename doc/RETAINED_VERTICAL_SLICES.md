@@ -62,3 +62,12 @@ The standalone key/value MCP server was a development demonstration rather than
 a retained product feature. Its only meaningful consumer was the tool-gateway
 integration suite, which now owns a small private Streamable HTTP fixture. The
 demo is no longer shipped as a workspace or release package.
+
+### Google Sheets Robot Connector
+
+The local service-account-based Google Sheets connector was an additional
+credential and runtime path outside Outpost's retained Codex and Claude
+workflow. Its stdio package, robot-account setup method, spreadsheet allowlist,
+server templates, UI editors, release wiring, and focused tests are removed.
+The separate remote Google Sheets OAuth/MCP methods remain available until the
+broader external Connections slice is reviewed.
