@@ -5,7 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { createIsolatedTestHome } from "./helpers/isolated-test-home.js";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { createDb, closeRegisteredClients, spaces, agents, authUsers, spaceMemberships, connectionGrants, plugins, aiConnectionRouterCursors, aiConnectionTaskPins, toolConnections, spaceSecrets, heartbeatRuns, issues, dotAgentBindings, grokBotRoutines } from "@outpost/db";
+import { createDb, closeRegisteredClients, spaces, agents, authUsers, spaceMemberships, connectionGrants, plugins, aiConnectionRouterCursors, aiConnectionTaskPins, toolConnections, spaceSecrets, heartbeatRuns, issues } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "@outpost/db/test-embedded-postgres";
 import type { AiConnectionPoolMember, AiConnectionRouterRequest, AiConnectionRouterResult, OutpostPluginManifestV1 } from "@outpost/shared";
 import { aiConnectionRouterService, AiConnectionPoolExhausted, poolMemberRuntimeConfig, applyAiConnectionRouterTaskSettings } from "../services/ai-connection-router.js";
@@ -26,7 +26,6 @@ import { connectionIntentService } from "../services/connection-intents.js";
 import { legacyExecutionNeedsReconciliation } from "../services/legacy-execution-recovery.js";
 import { getServerAdapter, registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { waitForPendingRunFailureReports } from "../services/run-failure-report.js";
-import { dotRunnerBroker } from "../services/dot-runner-broker.js";
 
 const captureRunFailure = vi.hoisted(() => vi.fn());
 vi.mock("../sentry.js", async (importOriginal) => ({
@@ -446,54 +445,6 @@ describe("durable, authorized connection routing", () => {
       expect(resolveTaskSessionConfigFreshness({ hasTaskSession: true, configuredModel: String(selected.runtimeConfig.model), taskSessionParams: { __outpostConfiguredModel: selected.runtimeConfig.model, __outpostConfigFingerprint: previous.fingerprint, __outpostConfigFingerprintVersion: previous.version, __outpostConfigCategoryFingerprints: previous.categoryFingerprints }, configMetadata: current, compatibleConfigMetadata }).reset).toBe(false);
     } finally { await before.cleanup(); await after.cleanup(); }
   });
-  it("admits a healthy pool member when the saved Grok connection is held", async () => {
-    const original = await instanceSettingsService(db).getExperimental();
-    await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true,
-      enableNativeRunner: true, enableGrokBot: true, enablePublicMcp: true, enableWorktreeRunExecution: true });
-    const pool = await makePool({ members: [members[0]!] });
-    const bindingId = randomUUID();
-    const workspace = path.join(home, "routed-grok-work");
-    await mkdir(workspace);
-    const [agent] = await db.insert(agents).values({ spaceId, name: "Routed Grok fixture", status: "idle",
-      adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot", externalBindingId: bindingId, cwd: workspace },
-      runtimeConfig: { aiConnection: { mode: "router", connectionId: pool.id }, heartbeat: { enabled: false, wakeOnDemand: true } } }).returning();
-    await db.insert(dotAgentBindings).values({ id: bindingId, spaceId, agentId: agent.id,
-      operatorId: "alice", providerKind: "grok_bot", status: "connected" });
-    const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, members[0]!.binding.grantId));
-    const ref = grant!.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    await db.insert(grokBotRoutines).values({ spaceId, agentId: agent.id, bindingId, bindingGeneration: 1,
-      botName: "Unused held Bot", secretId: ref.secretId, secretVersion: 1,
-      recoveryRequiredAt: new Date(), recoveryReason: "work_session" });
-    expect(await dotRunnerBroker(db).canStartNewWork(spaceId, agent.id, bindingId)).toBe(false);
-    const readiness = vi.spyOn(dotRunnerBroker(db), "canStartNewWork");
-    const beforeNative = vi.fn(async () => {
-      await db.update(agents).set({ status: "paused" }).where(eq(agents.id, agent.id));
-      throw new Error("fixture stopped before provider start");
-    });
-    const heartbeat = heartbeatService(db, { pluginWorkerManager: worker, runtimeEnv: {},
-      beforeNativeRuntimeSelection: beforeNative,
-      nativeSessionBackendFactory: () => { throw new Error("Unexpected provider start"); } });
-    const [issue] = await db.insert(issues).values({ spaceId, title: "Healthy routed task", status: "todo",
-      assigneeAgentId: agent.id, responsibleUserId: "alice", createdByUserId: "alice" }).returning();
-    try {
-      const run = await heartbeat.wakeup(agent.id, { source: "assignment", reason: "issue_assigned", triggerDetail: "system",
-        payload: { issueId: issue.id }, contextSnapshot: { issueId: issue.id, responsibleUserId: "alice" } });
-      expect(run).not.toBeNull();
-      await heartbeat.drainActiveRunExecutions();
-      const saved = await heartbeat.getRun(run!.id);
-      expect(saved?.contextSnapshot?.aiRouterSelection).toMatchObject({ poolId: pool.id,
-        memberId: members[0]!.id, runtimeConfig: { provider: "codex" } });
-      expect(saved?.error).toContain("fixture stopped before provider start");
-      expect(beforeNative).toHaveBeenCalledExactlyOnceWith(run!.id);
-      expect(readiness).not.toHaveBeenCalled();
-    } finally {
-      await db.update(agents).set({ status: "paused" }).where(eq(agents.id, agent.id));
-      await heartbeat.drainActiveRunExecutions();
-      readiness.mockRestore();
-      await instanceSettingsService(db).updateExperimental(original);
-    }
-  }, 30_000);
-
   it("keeps session identity and fingerprints stable on authenticated refresh, but changes them on manual replacement", async () => {
     const input = { spaceId, agentId, responsibleUserId: "alice", adapterType: "outpost_runner", binding: members[0]!.binding, config: { provider: "codex", model: "gpt-5.6-sol" } };
     const first = await prepareManagedAiRuntime(db, input);

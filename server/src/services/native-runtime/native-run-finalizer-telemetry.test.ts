@@ -36,12 +36,6 @@ const mockTelemetryClient = vi.hoisted(() => ({
 }));
 vi.mock("../../telemetry.ts", () => ({ getTelemetryClient: () => mockTelemetryClient }));
 
-const reconcileMuseAssignments = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock("../muse-runner-broker.js", async importOriginal => ({
-  ...await importOriginal<typeof import("../muse-runner-broker.js")>(),
-  museRunnerBroker: () => ({ reconcileTerminalAssignments: reconcileMuseAssignments }),
-}));
-
 const mockCaptureRunFailure = vi.hoisted(() => vi.fn());
 vi.mock("../../sentry.ts", async () => {
   const actual = await vi.importActual<typeof import("../../sentry.ts")>("../../sentry.ts");
@@ -274,7 +268,6 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
 
     await verifyCommittedReplayPayloadReads(db, { runId: fixture.runId, spaceId, agentId }, async () => {
       const callsBefore = mockTelemetryClient.track.mock.calls.length;
-      reconcileMuseAssignments.mockClear();
       await finalizeNativeRun({
         db,
         runId: fixture.runId,
@@ -282,7 +275,6 @@ describeEmbeddedPostgres("native run finalizer / status decision committer — a
         projectRunStatus: true,
       });
       expect(agentTaskRunCalls(callsBefore)).toHaveLength(0);
-      expect(reconcileMuseAssignments).toHaveBeenCalledExactlyOnceWith(spaceId, agentId, fixture.runId);
       await db.insert(workspaceOperations).values({ spaceId, issueId: fixture.issueId,
         heartbeatRunId: fixture.runId, phase: "workspace_finalize", status: "succeeded" });
       const reconciled = await reconcileNativeFinalizations(db, [fixture.runId]);

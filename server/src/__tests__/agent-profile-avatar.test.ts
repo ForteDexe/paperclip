@@ -7,7 +7,7 @@ import request from "supertest";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import { createDb, agents, spaces, assets, activityLog, authUsers, spaceMemberships, mcpOauthClients, mcpOauthGrants, dotAgentBindings, principalPermissionGrants } from "@outpost/db";
+import { createDb, agents, spaces, assets, activityLog, authUsers, spaceMemberships, principalPermissionGrants } from "@outpost/db";
 import { appearanceForPalette, MAX_AGENT_AVATAR_BYTES } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -17,9 +17,6 @@ import { normalizeAgentAvatar, setAgentProfileAvatar } from "../services/agent-p
 import { agentProfileAvatarRoutes } from "../routes/agent-profile-avatar.js";
 import { assetRoutes } from "../routes/assets.js";
 import { agentService } from "../services/agents.js";
-import { instanceSettingsService } from "../services/instance-settings.js";
-import { createDotRunnerMcpTools } from "../services/dot-runner-broker.js";
-import type { McpPrincipal } from "../services/public-mcp/oauth.js";
 import { isSecretSensitiveHttpRequest } from "../middleware/http-log-policy.js";
 
 let storage: StorageService;
@@ -34,7 +31,6 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "profile-avatar-"));
   storage = createStorageService(createLocalDiskStorageProvider(root));
   imageBase64 = (await sharp({ create: { width: 800, height: 600, channels: 3, background: "orange" } }).png().toBuffer()).toString("base64");
-  await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true, enableOpenAiDot: true });
 }, 120000);
 afterAll(async () => { await temporary?.cleanup(); if (root) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
@@ -129,26 +125,6 @@ it("rejects URLs, SVG, corrupt and oversized images, unsupported fields and inac
   await request(app).put(`/api/spaces/${f.space.id}/agents/${f.agent.id}/avatar`).send({ imageBase64, agentId: randomUUID() }).expect(400);
   await db.update(agents).set({ status: "pending_approval" }).where(eq(agents.id, f.agent.id));
   await expect(setAgentProfileAvatar(db, storage, f.space.id, f.agent.id, { imageBase64 }, f.actor)).rejects.toThrow("current state");
-});
-
-it("lets a paired Dot upload without an assignment, with feature and current grant authorization", async () => {
-  const f = await fixture(); const userId = randomUUID(); const clientId = randomUUID();
-  await db.update(agents).set({ adapterConfig: { provider: "openai_dot" } }).where(eq(agents.id, f.agent.id));
-  await db.insert(authUsers).values({ id: userId, name: "Owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-  await db.insert(spaceMemberships).values({ spaceId: f.space.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
-  await db.insert(mcpOauthClients).values({ id: clientId, name: "Dot", redirectUris: [] });
-  const [grant] = await db.insert(mcpOauthGrants).values({ spaceId: f.space.id, userId, clientId, resource: "https://outpost.example/mcp/runner", purpose: "agent", agentId: f.agent.id, scopes: ["outpost:agent"] }).returning();
-  await db.insert(dotAgentBindings).values({ spaceId: f.space.id, agentId: f.agent.id, operatorId: userId, grantId: grant!.id, status: "connected" });
-  const principal: McpPrincipal = { grant: grant!, space: f.space, actor: { type: "agent", spaceId: f.space.id, agentId: f.agent.id } };
-  const tools = createDotRunnerMcpTools(db);
-  expect((await tools.listTools(principal)).find(tool => tool.name === "outpost_dot_set_avatar")?.annotations).toMatchObject({ readOnlyHint: false });
-  expect(await tools.callTool(principal, "outpost_dot_set_avatar", { imageBase64 })).toMatchObject({ outcome: "completed", result: { agentId: f.agent.id } });
-  await expect(tools.callTool(principal, "outpost_dot_set_avatar", { imageBase64, agentId: randomUUID() })).rejects.toThrow();
-  await instanceSettingsService(db).updateExperimental({ enableOpenAiDot: false });
-  try { await expect(tools.callTool(principal, "outpost_dot_set_avatar", { imageBase64 })).rejects.toThrow("disabled"); }
-  finally { await instanceSettingsService(db).updateExperimental({ enableOpenAiDot: true }); }
-  await db.update(mcpOauthGrants).set({ revokedAt: new Date() }).where(eq(mcpOauthGrants.id, grant!.id));
-  await expect(tools.callTool(principal, "outpost_dot_set_avatar", { imageBase64 })).rejects.toThrow("authority");
 });
 
 it("redacts HTTP diagnostics containing image bytes", () => {
