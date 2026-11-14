@@ -37,7 +37,6 @@ import {
   claimJoinRequestApiKeySchema,
   createOperatorApiKeySchema,
   createSpaceInviteSchema,
-  createOpenClawInvitePromptSchema,
   listSpaceInvitesQuerySchema,
   listJoinRequestsQuerySchema,
   resolveCliAuthChallengeSchema,
@@ -1646,10 +1645,10 @@ function buildOnboardingDiscoveryDiagnostics(input: {
 
   if (apiHost && isLoopbackHost(apiHost)) {
     diagnostics.push({
-      code: "openclaw_onboarding_api_loopback",
+      code: "agent_onboarding_api_loopback",
       level: "warn",
       message:
-        "Onboarding URL resolves to loopback hostname. Remote OpenClaw agents cannot reach localhost on your Outpost host.",
+        "Onboarding URL resolves to a loopback hostname. Remote agent runtimes cannot reach localhost on your Outpost host.",
       hint: "Use a reachable hostname/IP (for example Tailscale hostname, Docker host alias, or public domain)."
     });
   }
@@ -1660,7 +1659,7 @@ function buildOnboardingDiscoveryDiagnostics(input: {
     (!bindHost || isLoopbackHost(bindHost))
   ) {
     diagnostics.push({
-      code: "openclaw_onboarding_private_loopback_bind",
+      code: "agent_onboarding_private_loopback_bind",
       level: "warn",
       message: "Outpost is bound to loopback in authenticated/private mode.",
       hint: "Use a reachable private bind mode such as `pnpm dev --bind lan` or `pnpm dev --bind tailnet` for private-network onboarding."
@@ -1676,7 +1675,7 @@ function buildOnboardingDiscoveryDiagnostics(input: {
     !allowSet.has(apiHost)
   ) {
     diagnostics.push({
-      code: "openclaw_onboarding_private_host_not_allowed",
+      code: "agent_onboarding_private_host_not_allowed",
       level: "warn",
       message: `Onboarding host "${apiHost}" is not in allowed hostnames for authenticated/private mode.`,
       // `apiHost` comes from the request base URL, so a requester controls it.
@@ -1784,17 +1783,15 @@ function buildInviteOnboardingManifest(
     ),
     onboarding: {
       instructions:
-        "Join as an external Outpost agent, save your one-time claim secret, wait for operator approval, then claim your Outpost API key through the standard claim endpoint. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload for your runtime when applicable. Hermes Gateway agents must use adapterType='hermes_gateway', start a clean Hermes install with API_SERVER_ENABLED=true and a fresh API_SERVER_KEY, then run `hermes gateway run --replace --accept-hooks`. Put the Hermes gateway URL in agentDefaultsPayload.apiBaseUrl, put the exact API_SERVER_KEY value in agentDefaultsPayload.apiKey, and put the reachable Outpost base URL in agentDefaultsPayload.outpostApiUrl. If you use the default Hermes dashboard root or /chat URL on port 9119, Outpost maps it to /api automatically. OpenClaw Gateway agents must use adapterType='openclaw_gateway', set agentDefaultsPayload.url to a ws:// or wss:// gateway endpoint, and include agentDefaultsPayload.headers.x-openclaw-token." + "\n\n" + EXTERNAL_AGENT_TOOL_GUIDANCE,
+        "Join as an external Outpost agent, save your one-time claim secret, wait for operator approval, then claim your Outpost API key through the standard claim endpoint. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload only when your runtime has an installed Outpost adapter." + "\n\n" + EXTERNAL_AGENT_TOOL_GUIDANCE,
       inviteMessage: extractInviteMessage(invite),
       recommendedAdapterType: null,
       requiredFields: {
         requestType: "agent",
         agentName: "Display name for this agent",
-        adapterType:
-          "Adapter type for this runtime. Use 'openclaw_gateway' only for OpenClaw Gateway agents. Use 'hermes_gateway' only for Hermes Gateway agents.",
+        adapterType: "Adapter type for this runtime when an installed adapter exists.",
         capabilities: "Optional capability summary",
-        agentDefaultsPayload:
-          "Runtime-specific adapter config. OpenClaw Gateway agents must include url (ws:// or wss://) and headers.x-openclaw-token. Hermes Gateway agents must include apiBaseUrl, apiKey set to the Hermes API_SERVER_KEY, and outpostApiUrl. A default Hermes dashboard root or /chat URL such as http://127.0.0.1:9119/chat is accepted and maps to /api. Other runtimes should include the config their adapter expects."
+        agentDefaultsPayload: "Runtime-specific config required by the installed adapter."
       },
       registrationEndpoint: {
         method: "POST",
@@ -1819,8 +1816,8 @@ function buildInviteOnboardingManifest(
         guidance:
           opts.deploymentMode === "authenticated" &&
           opts.deploymentExposure === "private"
-            ? "If OpenClaw runs on another machine, ensure the Outpost hostname is reachable and allowed via `npx @outpost/cli allowed-hostname <host>`."
-            : "Ensure OpenClaw can reach this Outpost API base URL for invite, claim, and skill bootstrap calls."
+            ? "If the agent runtime is on another machine, ensure the Outpost hostname is reachable and allowed via `npx @outpost/cli allowed-hostname <host>`."
+            : "Ensure the agent runtime can reach this Outpost API base URL for invite, claim, and skill bootstrap calls."
       },
       textInstructions: {
         path: onboardingTextPath,
@@ -1925,61 +1922,6 @@ export function buildInviteOnboardingTextDocument(
       "agentDefaultsPayload": {}
     }
 
-    OpenClaw Gateway payload example:
-    {
-      "requestType": "agent",
-      "agentName": "My OpenClaw Agent",
-      "adapterType": "openclaw_gateway",
-      "capabilities": "OpenClaw gateway agent",
-      "agentDefaultsPayload": {
-        "url": "wss://your-openclaw-gateway.example",
-        "outpostApiUrl": "https://outpost-hostname-your-agent-can-reach:3100",
-        "headers": { "x-openclaw-token": "replace-me" },
-        "waitTimeoutMs": 120000,
-        "sessionKeyStrategy": "issue",
-        "role": "operator",
-        "scopes": ["operator.admin"]
-      }
-    }
-
-    For OpenClaw Gateway, include agentDefaultsPayload.headers.x-openclaw-token with your gateway token. Legacy x-openclaw-auth is also accepted, but x-openclaw-token is preferred. Do NOT use /v1/responses or /hooks/* in this gateway join flow.
-
-    Hermes Gateway setup:
-    - adapterType: "hermes_gateway"
-    - For a clean Hermes install, generate a fresh random gateway key and start Hermes with API_SERVER_ENABLED=true and API_SERVER_KEY=<random-gateway-key>.
-    - Run: hermes gateway run --replace --accept-hooks
-    - Default Hermes API server port: 8642.
-    - Set agentDefaultsPayload.apiBaseUrl to the Hermes gateway URL Outpost can reach.
-    - Set agentDefaultsPayload.apiKey to the exact same value as API_SERVER_KEY. This is the Hermes gateway key, not the Outpost key.
-    - If you only have the default Hermes dashboard or chat URL, http://127.0.0.1:9119 and http://127.0.0.1:9119/chat are accepted and map to /api automatically.
-    - Watch out: /chat and the dashboard root are browser UI routes. Outpost tests /api/health and starts runs with /api/v1/runs after mapping them to the API base.
-    - Set agentDefaultsPayload.outpostApiUrl to the Outpost base URL Hermes can reach.
-    - Use hermes_local when Outpost should start Hermes on the Outpost host.
-    - Use hermes_gateway when Outpost should call an already-running Hermes API server.
-    - After operator approval, claim the Outpost API key once with the claim endpoint below and save it as OUTPOST_API_KEY. Store the parsed token field from the raw HTTP JSON response before printing or summarizing it; do not copy token values from chat, transcript, or tool-output previews. A token value containing literal ... or [redacted] is a masked display preview, not a valid key. Do not rotate or invent an Outpost key manually.
-    - Hermes-originated Outpost API usage means Hermes calls Outpost with OUTPOST_API_URL and OUTPOST_API_KEY after approval/key claim. Do not confuse that with agentDefaultsPayload.apiBaseUrl, which points Outpost to Hermes.
-
-    Hermes Gateway payload example:
-    {
-      "requestType": "agent",
-      "agentName": "My Hermes Gateway Agent",
-      "adapterType": "hermes_gateway",
-      "capabilities": "Hermes gateway agent",
-      "agentDefaultsPayload": {
-        "apiBaseUrl": "http://127.0.0.1:8642",
-        "apiKey": "<same-value-as-API_SERVER_KEY>",
-        "outpostApiUrl": "http://localhost:3100"
-      }
-    }
-
-    Hermes Gateway network examples:
-    - Local loopback API server: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:8642" and agentDefaultsPayload.outpostApiUrl = "http://127.0.0.1:3100".
-    - Local loopback dashboard root or chat URL: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:9119" or "http://127.0.0.1:9119/chat"; Outpost maps either one to "http://127.0.0.1:9119/api".
-    - LAN/private network: use reachable private addresses, for example agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642" and agentDefaultsPayload.outpostApiUrl = "http://192.168.1.10:3100".
-    - Private overlay: use overlay DNS names, for example agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642" and agentDefaultsPayload.outpostApiUrl = "http://outpost-host.tailnet-name.ts.net:3100".
-    - Docker: if Outpost runs in Docker and Hermes runs on the host, use agentDefaultsPayload.apiBaseUrl = "http://host.docker.internal:8642"; if both run in Compose, use the Hermes service name.
-    - Reverse proxy/TLS: use HTTPS origins, for example agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example" and agentDefaultsPayload.outpostApiUrl = "https://outpost.example".
-
     Expected response includes:
     - request id
     - one-time claimSecret
@@ -2020,7 +1962,7 @@ export function buildInviteOnboardingTextDocument(
     ## Connectivity guidance
     ${
       onboarding.connectivity?.guidance ??
-      "Ensure Outpost is reachable from your OpenClaw runtime."
+      "Ensure Outpost is reachable from your agent runtime."
     }
   `);
 
@@ -3017,13 +2959,6 @@ export function accessRoutes(
     if (!allowed) throw forbidden("Permission denied");
   }
 
-  async function assertCanGenerateOpenClawInvitePrompt(
-    req: Request,
-    spaceId: string
-  ) {
-    await assertSpacePermission(req, spaceId, "users:invite");
-  }
-
   async function createSpaceInviteForSpace(input: {
     req: Request;
     spaceId: string;
@@ -3303,61 +3238,6 @@ export function accessRoutes(
           allowedJoinTypes: created.allowedJoinTypes,
           expiresAt: created.expiresAt.toISOString(),
           humanRole: extractInviteHumanRole(created),
-          hasAgentMessage: Boolean(normalizedAgentMessage)
-        }
-      });
-
-      const spaceBranding = await getInviteSpaceBranding(created.spaceId, token);
-      const inviteSummary = toInviteSummaryResponse(
-        req,
-        token,
-        created,
-        spaceBranding,
-        opts.authPublicBaseUrl
-      );
-      res.status(201).json({
-        ...created,
-        token,
-        invitePath: inviteSummary.invitePath,
-        inviteUrl: inviteSummary.inviteUrl,
-        spaceName: spaceBranding.name,
-        onboardingTextPath: inviteSummary.onboardingTextPath,
-        onboardingTextUrl: inviteSummary.onboardingTextUrl,
-        inviteMessage: inviteSummary.inviteMessage
-      });
-    }
-  );
-
-  router.post(
-    "/spaces/:spaceId/openclaw/invite-prompt",
-    validate(createOpenClawInvitePromptSchema),
-    async (req, res) => {
-      const spaceId = req.params.spaceId as string;
-      await assertCanGenerateOpenClawInvitePrompt(req, spaceId);
-      const { token, created, normalizedAgentMessage } =
-        await createSpaceInviteForSpace({
-          req,
-          spaceId,
-          allowedJoinTypes: "agent",
-          humanRole: null,
-          defaultsPayload: null,
-          agentMessage: req.body.agentMessage ?? null
-        });
-
-      await logActivity(db, {
-        spaceId,
-        actorType: req.actor.type === "agent" ? "agent" : "user",
-        actorId:
-          req.actor.type === "agent"
-            ? req.actor.agentId ?? "unknown-agent"
-            : req.actor.userId ?? "operator",
-        action: "invite.openclaw_prompt_created",
-        entityType: "invite",
-        entityId: created.id,
-        details: {
-          inviteType: created.inviteType,
-          allowedJoinTypes: created.allowedJoinTypes,
-          expiresAt: created.expiresAt.toISOString(),
           hasAgentMessage: Boolean(normalizedAgentMessage)
         }
       });

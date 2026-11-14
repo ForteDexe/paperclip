@@ -248,17 +248,6 @@ export const accessApi = {
   ) =>
     api.post<SpaceInviteCreated>(`/spaces/${spaceId}/invites`, input),
 
-  createOpenClawInvitePrompt: (
-    spaceId: string,
-    input: {
-      agentMessage?: string | null;
-    } = {},
-  ) =>
-    api.post<SpaceInviteCreated>(
-      `/spaces/${spaceId}/openclaw/invite-prompt`,
-      input,
-    ),
-
   getInvite: (token: string) => api.get<InviteSummary>(`/invites/${token}`),
   getInviteOnboarding: (token: string) =>
     api.get<InviteOnboardingManifest>(`/invites/${token}/onboarding`),

@@ -699,7 +699,6 @@ export {
 
 export {
   createSpaceInviteSchema,
-  createOpenClawInvitePromptSchema,
   acceptInviteSchema,
   listSpaceInvitesQuerySchema,
   listJoinRequestsQuerySchema,
@@ -719,7 +718,6 @@ export {
   searchAdminUsersQuerySchema,
   updateUserSpaceAccessSchema,
   type CreateSpaceInvite,
-  type CreateOpenClawInvitePrompt,
   type AcceptInvite,
   type ListSpaceInvitesQuery,
   type ListJoinRequestsQuery,

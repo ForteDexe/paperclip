@@ -130,6 +130,7 @@ a separate schema migration.
 The Hermes and OpenClaw Docker smoke environments exercised external agent
 gateways rather than Outpost's retained local Codex and Claude runtime. Their
 Docker fixtures, shell harnesses, package commands, smoke-specific guides, and
-focused script tests are removed. External gateway product and invite paths are
-not considered retained; they remain a separate dependency-guided removal slice
-rather than being conflated with this qualification-tooling cleanup.
+focused script tests are removed. Their provider-specific onboarding prompt,
+CLI and OpenAPI surface, static configuration document, and focused route tests
+are also removed. Hidden gateway runtime compatibility remains a separate
+dependency-guided removal slice and is not considered retained.

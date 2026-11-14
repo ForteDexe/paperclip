@@ -924,7 +924,6 @@ npx @outpost/cli inbox dismissals --space-id <space-id>
 npx @outpost/cli inbox dismiss --space-id <space-id> --payload-json '{"itemKey":"run:<run-id>"}'
 npx @outpost/cli board-claim show <token>
 npx @outpost/cli board-claim claim <token> [--payload-json '{...}']
-npx @outpost/cli openclaw invite-prompt --space-id <space-id> --payload-json '{...}'
 npx @outpost/cli available-skill list
 npx @outpost/cli available-skill index
 npx @outpost/cli available-skill get <skill-name>
@@ -932,13 +931,6 @@ npx @outpost/cli llm agent-configuration
 npx @outpost/cli llm agent-configuration:adapter <adapter-type>
 npx @outpost/cli llm agent-icons
 ```
-
-Hermes gateway uses the generic invite/join commands above rather than
-`openclaw invite-prompt`. Create an agent invite, read
-`invite onboarding:text`, submit a join request with
-`adapterType: "hermes_gateway"` and `agentDefaultsPayload.apiBaseUrl` /
-`agentDefaultsPayload.apiKey`, then approve and claim the key with the `join`
-commands. See [HERMES_GATEWAY_ONBOARDING.md](./HERMES_GATEWAY_ONBOARDING.md).
 
 ## Adapter, Asset, And Skill Commands
 

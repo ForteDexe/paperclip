@@ -4187,12 +4187,6 @@ The board UI generates agent onboarding prompts from the add-agent modal (`+` in
 - `GET /api/skills/index` lists available skill documents.
 - `GET /api/skills/outpost` returns the Outpost heartbeat skill markdown.
 
-Hermes gateway agents use this same generic agent invite flow with
-`adapterType=hermes_gateway` and `agentDefaultsPayload.apiBaseUrl` /
-`agentDefaultsPayload.apiKey`. See
-[HERMES_GATEWAY_ONBOARDING.md](./HERMES_GATEWAY_ONBOARDING.md) for the operator
-path, including Hermes credentials, invite approval, and key claim.
-
 ## PostHog MCP Live Smoke Test
 
 The PostHog smoke targets an already-running authenticated Outpost instance.

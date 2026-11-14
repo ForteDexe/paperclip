@@ -222,7 +222,6 @@ import {
   // Access / membership
   acceptInviteSchema,
   createSpaceInviteSchema,
-  createOpenClawInvitePromptSchema,
   claimJoinRequestApiKeySchema,
   createCliAuthChallengeSchema,
   resolveCliAuthChallengeSchema,
@@ -1473,7 +1472,6 @@ const OPERATOR_ONLY_OPERATIONS = new Set([
   "GET /api/spaces/import/jobs/{jobId}",
   "POST /api/operator-claim/{token}/claim",
   "GET /api/cli-auth/me",
-  "POST /api/spaces/{spaceId}/openclaw/invite-prompt",
   "PATCH /api/spaces/{spaceId}/members/{memberId}",
   "PATCH /api/spaces/{spaceId}/members/{memberId}/role-and-grants",
   "POST /api/spaces/{spaceId}/members/{memberId}/archive",
@@ -1597,7 +1595,6 @@ const CREATED_OPERATIONS = new Set([
   "POST /api/operator-api-keys",
   "POST /api/spaces",
   "POST /api/spaces/{spaceId}/invites",
-  "POST /api/spaces/{spaceId}/openclaw/invite-prompt",
   "POST /api/spaces/{spaceId}/cost-events",
   "POST /api/spaces/{spaceId}/finance-events",
   "POST /api/spaces/{spaceId}/secret-provider-configs",
@@ -7198,18 +7195,6 @@ registry.registerPath({
   summary: "Get current CLI auth session",
   description: "Operator-credential read used by `npx @outpost/cli auth whoami` in the person's own terminal. Agent API keys receive 401: an agent cannot sign a terminal in as a person. To connect someone's terminal, see POST /api/cli-auth/challenges.",
   responses: { 200: r.ok(), 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "post",
-  path: "/api/spaces/{spaceId}/openclaw/invite-prompt",
-  tags: ["access"],
-  summary: "Create an OpenClaw invite prompt bundle",
-  request: {
-    params: z.object({ spaceId: z.string() }),
-    body: jsonBody(createOpenClawInvitePromptSchema),
-  },
-  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({

@@ -103,7 +103,6 @@ describe("access parity commands", () => {
     await run(["inbox", "dismiss", "--space-id", SPACE_ID, "--payload-json", "{\"itemKey\":\"run:1\"}"]);
     await run(["operator-claim", "show", "claim-token"]);
     await run(["operator-claim", "claim", "claim-token", "--payload-json", "{}"]);
-    await run(["openclaw", "invite-prompt", "--space-id", SPACE_ID, "--payload-json", "{}"]);
     await run(["available-skill", "list"]);
     await run(["available-skill", "index"]);
     await run(["available-skill", "get", "outpost"]);
@@ -125,7 +124,6 @@ describe("access parity commands", () => {
       ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/inbox-dismissals`],
       ["GET", "http://localhost:3100/api/operator-claim/claim-token"],
       ["POST", "http://localhost:3100/api/operator-claim/claim-token/claim"],
-      ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/openclaw/invite-prompt`],
       ["GET", "http://localhost:3100/api/skills/available"],
       ["GET", "http://localhost:3100/api/skills/index"],
       ["GET", "http://localhost:3100/api/skills/outpost"],
