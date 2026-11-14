@@ -6,7 +6,7 @@ import { notifyExecutionRunWork } from "../execution-control-notifications.js";
 import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { environmentLeases, executionWorkspaces, heartbeatRuns, workspaceRestoreFailureCodesSql, issues, nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
 import { recordRequiredWorkspaceRestoreFailure } from "../legacy-execution-recovery.js";
-import { hasRequiredWorkspaceRecovery, nativeRunHasNoWorkspaceAccess } from "../workspace-restore-recovery-state.js";
+import { hasRequiredWorkspaceRecovery } from "../workspace-restore-recovery-state.js";
 import { logActivity } from "../activity-log.js";
 import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 import type { NativeRestartRecoveryClaim } from "./native-restart-recovery.js";
@@ -148,13 +148,10 @@ export async function preserveNativeFailedWorkspace(db: Db, selected: Pick<typeo
     // while the workspace is still bound to this writer. Otherwise record nothing.
     if (!exhaustedAcceptedCopyback && source.status !== "active" && reusableLeasePolicies.includes(source.leasePolicy) && (!hasConfirmedSandboxStopAndRetain(source)
       || !await preparedRemoteWorkspaceSource(tx as unknown as Db, source))) return;
-    // Ownership settlement still applies to workspace-less external sessions.
-    // Their Runner descriptor is not evidence that user files need exporting.
-    const retainFiles = !nativeRunHasNoWorkspaceAccess(run);
     const alreadyRetained = hasRequiredWorkspaceRecovery(run.resultJson);
-    if (retainFiles && !alreadyRetained) await notifyDeliveryWork(tx, DELIVERY_QUEUES.workspaceRecovery);
-    let retained = !retainFiles || alreadyRetained ? run : await recordRequiredWorkspaceRestoreFailure(tx as unknown as Db, run, { workspaceRestoreFailure: "restore_failed" }, source);
-    if (!retained || retainFiles && !hasRequiredWorkspaceRecovery(retained.resultJson)) return;
+    if (!alreadyRetained) await notifyDeliveryWork(tx, DELIVERY_QUEUES.workspaceRecovery);
+    let retained = alreadyRetained ? run : await recordRequiredWorkspaceRestoreFailure(tx as unknown as Db, run, { workspaceRestoreFailure: "restore_failed" }, source);
+    if (!retained || !hasRequiredWorkspaceRecovery(retained.resultJson)) return;
     if (options.allowPreterminal && coordinator.phase === "observed") {
       await notifyExecutionRunWork(tx, { spaceId: run.spaceId });
       const [settled] = await tx.update(nativeRunFinalizations).set({ phase: "terminal_failure",
@@ -170,7 +167,7 @@ export async function preserveNativeFailedWorkspace(db: Db, selected: Pick<typeo
       [retained] = await tx.update(heartbeatRuns).set({ nativePhase: "terminal_failure", nativePhaseUpdatedAt: new Date() })
         .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId))).returning();
     }
-    if (retainFiles && !alreadyRetained) await logActivity(tx as unknown as Db, {
+    if (!alreadyRetained) await logActivity(tx as unknown as Db, {
       spaceId: run.spaceId, actorType: "system", actorId: "native-workspace-recovery",
       action: "issue.workspace_recovery_required", entityType: "issue",
       entityId: issueId,
@@ -291,7 +288,7 @@ export function registerCancelledWorkspacePreservationWork(db: Db,
     | "runtimeMode" | "driverKind" | "status" | "resultJson" | "runnerProfileJson">;
   const eligible = (run: Candidate) => run.nativeIssueId !== null && hasAcknowledgedNativeRunStopRequest(run)
     && workspaceRecoveryReference(run.runnerProfileJson)?.state === "prepared"
-    && !hasRequiredWorkspaceRecovery(run.resultJson) && !nativeRunHasNoWorkspaceAccess(run);
+    && !hasRequiredWorkspaceRecovery(run.resultJson);
   const scopeCondition = (scope?: CancelledWorkspacePreservationScope) => scope ? and(
     eq(heartbeatRuns.spaceId, scope.spaceId), scope.runId ? eq(heartbeatRuns.id, scope.runId) : undefined) : undefined;
   async function load(scope: CancelledWorkspacePreservationScope | undefined, signal?: AbortSignal) {

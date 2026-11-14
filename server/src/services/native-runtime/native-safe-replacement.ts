@@ -29,7 +29,6 @@ import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 import { hasRemoteTerminationReceipt } from "../remote-execution-termination.js";
 import { NATIVE_PROVIDER_DURABLE_EVENT_TYPES } from "./native-retired-backup-source.js";
 import { completedWorkspaceRecoveryCondition } from "../workspace-recovery-receipt.js";
-import { nativeRunHasNoWorkspaceAccess } from "../workspace-restore-recovery-state.js";
 import { verifiedWorkspaceSnapshotReuse } from "../remote-workspace-snapshot-reuse-receipt.js";
 
 export const NATIVE_SAFE_REPLACEMENT_REASON = "native_safe_replacement";
@@ -319,8 +318,7 @@ async function preClaimContinuationReady(db: Db, run: typeof heartbeatRuns.$infe
   ));
   if (leases.some(lease => lease.releasedAt === null)) return false;
   const evidence = await remoteWorkspaceReplacementEvidence(db, run, issueId, leases);
-  const workspaceReady = evidence ? evidence.workspacePreserved && evidence.providerStopped
-    : run.runnerProfileJson?.nativeWorkspaceSync == null && nativeRunHasNoWorkspaceAccess(run);
+  const workspaceReady = evidence ? evidence.workspacePreserved && evidence.providerStopped : false;
   return workspaceReady && await replacementHistoryReady(db, run, issueId, true) === true;
 }
 
@@ -487,10 +485,8 @@ export async function reconcileSafeNativeReplacements(
       const historyComplete = history === true;
       const remoteWorkspace = await remoteWorkspaceReplacementEvidence(db, run, coordinator.issueId, leases);
       if (historicalListener && (!remoteWorkspace?.workspacePreserved || !remoteWorkspace.providerStopped || invocations.length)) continue;
-      const noWorkspaceToSave = preClaim && !remoteWorkspace
-        && run.runnerProfileJson?.nativeWorkspaceSync == null && nativeRunHasNoWorkspaceAccess(run);
-      if (preClaim && (invocations.length || !noWorkspaceToSave
-        && (!remoteWorkspace?.workspacePreserved || !remoteWorkspace.providerStopped))) continue;
+      if (preClaim && (invocations.length
+        || !remoteWorkspace?.workspacePreserved || !remoteWorkspace.providerStopped)) continue;
       const decision = decideNativeReplacement({
         failedSession: true,
         // A facade transport failure can conceal an authoritative protocol
@@ -509,12 +505,12 @@ export async function reconcileSafeNativeReplacements(
           !processAlive(run.processPid) &&
           !processAlive(run.processGroupId ? -run.processGroupId : null) &&
           (remoteWorkspace?.providerStopped ?? true),
-        workspacePreserved: noWorkspaceToSave || (remoteWorkspace ? remoteWorkspace.workspacePreserved :
+        workspacePreserved: remoteWorkspace ? remoteWorkspace.workspacePreserved :
           typeof workspace.cwd === "string" &&
           (await stat(workspace.cwd).then(
             (s) => s.isDirectory(),
             () => false,
-          ))),
+          )),
         historyComplete,
         effectInventoryComplete:
           preClaim || Boolean(stoppedSession) || (record(run.runnerProfileJson).recoveryEventInventoryVersion === 1 &&

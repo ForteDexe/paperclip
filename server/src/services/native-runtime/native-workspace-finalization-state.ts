@@ -1,6 +1,6 @@
 import { environmentLeases, executionWorkspaces, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
 import { and, eq, exists, sql } from "drizzle-orm";
-import { hasRequiredWorkspaceRecovery, nativeRunHasNoWorkspaceAccess } from "../workspace-restore-recovery-state.js";
+import { hasRequiredWorkspaceRecovery } from "../workspace-restore-recovery-state.js";
 import { recordRequiredWorkspaceRestoreFailure } from "../legacy-execution-recovery.js";
 import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 import { matchPreparedRemoteWorkspaceSource, preparedRemoteWorkspaceSource, type WorkspaceSourceLease } from "../remote-workspace-lifecycle.js";
@@ -73,7 +73,6 @@ function nativeWorkspaceSourcePending(run: Pick<typeof heartbeatRuns.$inferSelec
   }, lease: WorkspaceSourceLease) {
   if (run.runtimeMode !== "native") return false;
   if (run.observedRemoteWorkspace) return true;
-  if (nativeRunHasNoWorkspaceAccess({ ...run, runnerProfileJson: { nativeExecutionInput: run.executionScope } })) return false;
   const reference = readNativeWorkspaceSyncReference(run.reference);
   return reference?.state === "prepared" && reference.leaseId === lease.id
     && reference.providerLeaseId === lease.providerLeaseId;

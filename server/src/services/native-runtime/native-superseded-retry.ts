@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { environmentLeases, heartbeatRuns, nativeRunFinalizations, type Db } from "@outpost/db";
 import { notifyExecutionRunWork } from "../execution-control-notifications.js";
-import { hasRequiredWorkspaceRecovery, nativeRunHasNoWorkspaceAccess } from "../workspace-restore-recovery-state.js";
+import { hasRequiredWorkspaceRecovery } from "../workspace-restore-recovery-state.js";
 import { preserveNativeFailedWorkspace } from "./native-failed-workspace-recovery.js";
 import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 
@@ -17,7 +17,7 @@ export async function retireSupersededNativeRetry(db: Db, input: {
     || coordinator.phase !== "retryable_failure" || coordinator.resultId || coordinator.leaseOwner
     || coordinator.spaceId !== run.spaceId || coordinator.issueId !== run.nativeIssueId
     || coordinator.runId !== run.id || input.issueExecutionRunId === run.id
-    || run.runnerProfileJson?.nativeWorkspaceFinalizationOwner || nativeRunHasNoWorkspaceAccess(run)) return false;
+    || run.runnerProfileJson?.nativeWorkspaceFinalizationOwner) return false;
   const reference = readNativeWorkspaceSyncReference(run.runnerProfileJson?.nativeWorkspaceSync);
   if (reference?.state !== "prepared") return false;
 

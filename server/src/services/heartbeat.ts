@@ -58,7 +58,6 @@ import { prepareHeartbeatWorkspace } from "./heartbeat/workspace-preparation.js"
 import { nativeRecoveryClaimRelinquished, ownNativeExecutionLeaseLapsed, releaseLapsedNativeRestartClaim } from "./native-runtime/native-execution-lease.js";
 import { executeHeartbeatRuntime, NativeSessionResumeScheduledError, NativeWorkspaceFinalizeScheduledError } from "./heartbeat/runtime-execution.js";
 import { preserveNativeFailedWorkspace } from "./native-runtime/native-failed-workspace-recovery.js";
-import { nativeRunHasNoWorkspaceAccess } from "./workspace-restore-recovery-state.js";
 import { prepareAndSelectHeartbeatRuntime } from "./heartbeat/runtime-selection.js";
 import { createHeartbeatRunCompletion } from "./heartbeat/run-completion.js";
 import { crashPoint } from "@outpost/shared/crash-points";
@@ -2089,7 +2088,7 @@ export function heartbeatService(
       if (failureRun?.runtimeMode === "native"
         && (parseObject(failureRun.runnerProfileJson?.nativeWorkspaceSync).state === "prepared"
           || parseObject(failureRun.runnerProfileJson?.remoteWorkspace).state === "prepared")) {
-        if (!nativeRunHasNoWorkspaceAccess(failureRun)) providerResourceDispositionForRun = "stop_and_retain";
+        providerResourceDispositionForRun = "stop_and_retain";
         try {
           await preserveNativeFailedWorkspace(db, failureRun, {
             allowPreterminal: true,

@@ -20,7 +20,7 @@ import {
   type WakeupOptions,
 } from "./run-preparation.js";
 import { preserveWorkspaceRestoreRecoveryMetadataSql } from "../legacy-workspace-restore-recovery.js";
-import { hasRequiredWorkspaceRecovery, nativeRunHasNoWorkspaceAccess } from "../workspace-restore-recovery-state.js";
+import { hasRequiredWorkspaceRecovery } from "../workspace-restore-recovery-state.js";
 import { preserveNativeFailedWorkspace } from "../native-runtime/native-failed-workspace-recovery.js";
 import { readNativeWorkspaceSyncReference } from "../native-runtime/native-workspace-sync.js";
 import { isAiAuthenticationBlocked } from "../ai-auth-failure.js";
@@ -402,8 +402,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       status,
     );
     if (cancelledRun?.runtimeMode === "native" && status === "cancelled"
-      && readNativeWorkspaceSyncReference(cancelledRun.runnerProfileJson?.nativeWorkspaceSync)?.state === "prepared"
-      && !nativeRunHasNoWorkspaceAccess(cancelledRun)) {
+      && readNativeWorkspaceSyncReference(cancelledRun.runnerProfileJson?.nativeWorkspaceSync)?.state === "prepared") {
       try {
         const preserved = await preserveNativeFailedWorkspace(db, cancelledRun, { allowPreterminal: true });
         if (!preserved || !hasRequiredWorkspaceRecovery(preserved.resultJson)) return;
