@@ -19,6 +19,10 @@ const retiredPackages = [
     name: "@outpost/plugin-llm-wiki",
     root: "packages/plugins/plugin-llm-wiki",
   },
+  {
+    name: "@outpost/plugin-fake-sandbox",
+    root: "packages/plugins/outpost-plugin-fake-sandbox",
+  },
 ];
 
 const registrationFiles = [

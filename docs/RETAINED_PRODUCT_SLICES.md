@@ -51,6 +51,8 @@ the retired product surface is still supported.
 
 - `@outpost/plugin-llm-wiki`: unrelated knowledge-management product removed in
   the first package-scope cleanup.
+- `@outpost/plugin-fake-sandbox`: packaged test-only environment provider;
+  environment service tests keep their self-contained in-memory fake manifests.
 
 `scripts/check-retained-product-scope.mjs` prevents retired package roots and
 registrations from being reintroduced.
