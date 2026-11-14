@@ -216,6 +216,13 @@ as required by `CONTRIBUTING.md`; keeping it in `docs/pr-screenshots/` or the
 root `screenshots/` directory adds clone weight without supporting a retained
 runtime or user-facing feature.
 
+### One-off Screenshot Launchers
+
+Issue-specific browser scripts for producing review screenshots are not product
+automation. The unreferenced PAP, fork-flow, verdict, recovery-card, Notion,
+file-viewer, and inbox capture launchers are removed with their old evidence.
+The maintained Storybook visual-baseline workflow remains.
+
 ### Bundled Plugin Catalog
 
 Campfire is the retained first-party plugin. The generic example plugins and
