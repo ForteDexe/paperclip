@@ -3,6 +3,7 @@ import { describeError } from "../api/errors";
 import { useSelectedHeartbeatRun } from "../hooks/useSelectedHeartbeatRun";
 import { AgentCharacter } from "../components/AgentCharacter";
 import { characterStateForAgent } from "@outpost/shared";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation, Link, Navigate, useBeforeUnload, type NavigateFunction } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
@@ -127,6 +128,10 @@ export {
   heartbeatProgressLogLineKey,
   RunInvocationCard,
 } from "../components/run-log/RunDetails";
+
+const productName = productLabel("product");
+const taskLabel = productLabel("task");
+const tasksLabel = productLabel("task", { count: 2 });
 
 const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string }> = {
   succeeded: { icon: CheckCircle2, color: "text-green-600 dark:text-green-400" },
@@ -831,7 +836,7 @@ export function AgentDetail() {
           <AgentActionButtons
             agent={agent}
             spaceId={resolvedSpaceId}
-            assignLabel="Assign Task"
+            assignLabel={`Assign ${taskLabel}`}
             runLabel="Run Heartbeat"
             actionsDisabled={agentAction.isPending}
             workActionsDisabled={hasInvalidOrgChain}
@@ -887,7 +892,7 @@ export function AgentDetail() {
             </Button>
           }
         >
-          Ships with Outpost and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
+          Ships with {productName} and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
           any agent — model, instructions, budget. It can be paused but not deleted; pausing it
           pauses {builtInFeatureLabel}.
         </InlineBanner>
@@ -1297,11 +1302,11 @@ function AgentOverview({
         </ChartCard>
         {/* PAP-411: "Tasks by Priority" chart hidden behind SHOW_TASK_PRIORITY_UI. */}
         {SHOW_TASK_PRIORITY_UI && (
-          <ChartCard title="Tasks by Priority" subtitle="Last 14 days">
+          <ChartCard title={`${tasksLabel} by Priority`} subtitle="Last 14 days">
             <PriorityChart issues={assignedIssues} />
           </ChartCard>
         )}
-        <ChartCard title="Tasks by Status" subtitle="Last 14 days">
+        <ChartCard title={`${tasksLabel} by Status`} subtitle="Last 14 days">
           <IssueStatusChart issues={assignedIssues} />
         </ChartCard>
         <ChartCard title="Success Rate" subtitle="Last 14 days">
@@ -1312,7 +1317,7 @@ function AgentOverview({
       {/* Recent Issues */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Recent Tasks</h3>
+          <h3 className="text-sm font-medium">Recent {tasksLabel}</h3>
           <Link
             to={`/issues?participantAgentId=${agentId}`}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -1730,7 +1735,7 @@ export function ConfigurationTab({
             <div className="space-y-1">
               <div>Can create new agents</div>
               <p className="text-xs text-muted-foreground">
-                Lets this agent create or create agents. Task assignment is controlled separately.
+                Lets this agent create other agents. {taskLabel} assignment is controlled separately.
               </p>
             </div>
             <ToggleSwitch
@@ -2149,7 +2154,7 @@ export function PromptsTab({
                       <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent side="right" sideOffset={4}>
-                      Managed: Outpost stores and serves the instructions bundle. External: you provide a path on disk where the instructions live.
+                      Managed: {productName} stores and serves the instructions bundle. External: you provide a path on disk where the instructions live.
                     </TooltipContent>
                   </Tooltip>
                 </span>
@@ -2204,7 +2209,7 @@ export function PromptsTab({
                       <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent side="right" sideOffset={4}>
-                      The absolute directory on disk where the instructions bundle lives. In managed mode this is set by Outpost automatically.
+                      The absolute directory on disk where the instructions bundle lives. In managed mode this is set by {productName} automatically.
                     </TooltipContent>
                   </Tooltip>
                 </span>
@@ -3157,7 +3162,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
       {/* Issues touched by this run */}
       {touchedIssues && touchedIssues.length > 0 && (
         <div className="space-y-2">
-          <span className="text-xs font-medium text-muted-foreground">Tasks Touched ({touchedIssues.length})</span>
+          <span className="text-xs font-medium text-muted-foreground">{tasksLabel} Touched ({touchedIssues.length})</span>
           <div className="border border-border rounded-lg divide-y divide-border">
             {touchedIssues.map((issue) => (
               <Link
@@ -3301,7 +3306,7 @@ function KeysTab({ agentId, spaceId }: { agentId: string; spaceId?: string }) {
           Create API Key
         </h3>
         <p className="text-xs text-muted-foreground">
-          API keys allow this agent to authenticate calls to the Outpost server.
+          API keys allow this agent to authenticate calls to the {productName} server.
         </p>
         <div className="flex items-center gap-2">
           <Input

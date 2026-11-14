@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 
 import {
   addCommonClientOptions,
@@ -10,11 +11,12 @@ import {
 } from "./client/common.js";
 
 const ANTHROPIC_ORIGIN = "https://api.anthropic.com";
+const productName = productLabel("product");
 const ANTHROPIC_VERSION = "2023-06-01";
 export const CLAUDE_MANAGED_BETA_VERSION = "managed-agents-2026-04-01" as const;
 export const CLAUDE_MANAGED_QUALIFIED_MODEL = "claude-sonnet-5" as const;
 export const CLAUDE_MANAGED_SYSTEM_PROMPT =
-  "You are an Outpost remote agent. Follow the current user turn and use only the custom tools supplied for that session. Outpost tool authority, completion, blocking, review, and yielding are enforced by the runner. Never request or infer an Outpost endpoint or credential.";
+  `You are a ${productName} remote agent. Follow the current user turn and use only the custom tools supplied for that session. ${productName} tool authority, completion, blocking, review, and yielding are enforced by the runner. Never request or infer a ${productName} endpoint or credential.`;
 
 export interface ManagedAgentSetupOptions extends BaseClientOptions {
   spaceId?: string;
@@ -164,7 +166,7 @@ function resourceByProfile(
   );
   if (matches.length > 1) {
     throw new Error(
-      `Multiple Anthropic ${resourceLabel} resources use Outpost profile ${profileKey}; pass an explicit resource ID`,
+      `Multiple Anthropic ${resourceLabel} resources use ${productName} profile ${profileKey}; pass an explicit resource ID`,
     );
   }
   return matches[0] ?? null;
@@ -189,7 +191,7 @@ export function assertSafeManagedEnvironment(environment: Record<string, unknown
     || installed.length > 0
   ) {
     throw new Error(
-      "Existing Anthropic Environment does not match Outpost's no-network, no-package profile",
+      `Existing Anthropic Environment does not match ${productName}'s no-network, no-package profile`,
     );
   }
 }
@@ -241,8 +243,8 @@ async function resolveEnvironment(
   if (options.probe) throw new Error("Probe found no matching Anthropic Environment");
 
   const environment = await anthropicRequest(key, "POST", "/v1/environments", {
-    name: `Outpost · ${options.displayName}`,
-    description: "Outpost remote-agent environment: no network or added packages.",
+    name: `${productName} · ${options.displayName}`,
+    description: `${productName} remote-agent environment: no network or added packages.`,
     config: {
       type: "cloud",
       networking: {
@@ -294,8 +296,8 @@ async function resolveAgent(
   if (options.probe) throw new Error("Probe found no matching Anthropic Agent");
 
   const agent = await anthropicRequest(key, "POST", "/v1/agents", {
-    name: `Outpost · ${options.displayName}`,
-    description: "Versioned Outpost remote agent; runnerd supplies session tools.",
+    name: `${productName} · ${options.displayName}`,
+    description: `Versioned ${productName} remote agent; runnerd supplies session tools.`,
     model: options.model,
     system: CLAUDE_MANAGED_SYSTEM_PROMPT,
     tools: [],

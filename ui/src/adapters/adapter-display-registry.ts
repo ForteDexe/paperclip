@@ -7,6 +7,7 @@
  */
 import type { ComponentType } from "react";
 import { agentHarnessType } from "@outpost/shared";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import {
   Bot,
   Code,
@@ -17,6 +18,9 @@ import {
   Terminal,
   Cpu,
 } from "lucide-react";
+
+const productName = productLabel("product");
+const runnerLabel = `${productName} Runner`;
 import { OpenCodeLogoIcon } from "@/components/OpenCodeLogoIcon";
 import { pendingAgentSetupDisplayAdapter } from "@/lib/agent-setup-choice";
 
@@ -62,9 +66,9 @@ export interface AdapterDisplayInfo {
 }
 
 const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
-  antigravity_runtime: { label: "Google Antigravity", description: "Antigravity through Outpost Runner", icon: Gem, hideFromVisualSelection: true },
-  copilot_runtime: { label: "GitHub Copilot", description: "Copilot through Outpost Runner", icon: Code, hideFromVisualSelection: true },
-  kimi_runtime: { label: "Kimi Code (Runner)", description: "Kimi Code through Outpost Runner", icon: Moon, hideFromVisualSelection: true },
+  antigravity_runtime: { label: "Google Antigravity", description: `Antigravity through ${runnerLabel}`, icon: Gem, hideFromVisualSelection: true },
+  copilot_runtime: { label: "GitHub Copilot", description: `Copilot through ${runnerLabel}`, icon: Code, hideFromVisualSelection: true },
+  kimi_runtime: { label: "Kimi Code (Runner)", description: `Kimi Code through ${runnerLabel}`, icon: Moon, hideFromVisualSelection: true },
   acpx_local: {
     label: "ACPX (retired)",
     description: "Retired standalone ACPX adapter",
@@ -86,7 +90,7 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     recommended: true,
   },
   outpost_runner: {
-    label: "Outpost Runner",
+    label: runnerLabel,
     description: "Experimental Rust runner with a Codex provider",
     icon: Cpu,
     experimental: true,

@@ -3,6 +3,11 @@ import type { UIAdapterModule } from "../types";
 import { parseCodexStdoutLine, buildOutpostRunnerConfig } from "@outpost/adapter-codex-local/ui";
 import { CodexLocalConfigFields } from "../codex-local/config-fields";
 import { isRunLogOnlyProviderEvent } from "@/components/transcript/run-log-only-events";
+import { productLabel } from "@outpost/shared/product-vocabulary";
+
+const productName = productLabel("product");
+const runnerLabel = `${productName} Runner`;
+const artifactLabel = productLabel("artifact");
 
 type JsonRecord = Record<string, unknown>;
 
@@ -172,7 +177,7 @@ function dynamicToolEntries(
   ts: string,
 ): TranscriptEntry[] {
   const id = itemId(event, item);
-  const name = text(item.tool, text(item.name, "Outpost tool"));
+  const name = text(item.tool, text(item.name, `${productName} tool`));
   if (phase === "started") {
     return [{ kind: "tool_call", ts, name, toolUseId: id, input: item.arguments ?? item.input ?? {} }];
   }
@@ -645,7 +650,7 @@ function runTerminalEntry(payload: JsonRecord, ts: string): Extract<TranscriptEn
 function semanticToolEntries(eventType: string, payload: JsonRecord, ts: string): TranscriptEntry[] {
   const semantic = record(payload.semantic_tool ?? payload.semanticTool);
   const callId = text(semantic.callId, "semantic-tool");
-  const operationId = text(semantic.operationId, "Outpost operation");
+  const operationId = text(semantic.operationId, `${productName} operation`);
   const content = record(semantic.content);
   const references = (Array.isArray(content.references) ? content.references : []).map(record);
   const input = {
@@ -715,7 +720,7 @@ function parsePrpEvent(
       : rawStatus === "failed" || rawStatus === "denied" ? "failed"
         : rawStatus === "interrupted" || rawStatus === "cancelled" ? "interrupted"
           : (family === "plan" && payload.complete === true) || eventType.endsWith("completed") || rawStatus === "completed" ? "completed" : "informational";
-    const title = ({ plan: "Plan", plan_proposal: "Plan", tool_execution: "Tool execution", research: "Research", delegation: "Delegation", model_identity: "Model", context: "Context", artifact: "Artifact", review: "Review mode", hook: "Hook", memory: "Memory citation", safety: "Safety review", terminal: "Terminal input", wait: "Intentional wait", provider_notice: "Provider notice" } as const)[family];
+    const title = ({ plan: "Plan", plan_proposal: "Plan", tool_execution: "Tool execution", research: "Research", delegation: "Delegation", model_identity: "Model", context: "Context", artifact: artifactLabel, review: "Review mode", hook: "Hook", memory: "Memory citation", safety: "Safety review", terminal: "Terminal input", wait: "Intentional wait", provider_notice: "Provider notice" } as const)[family];
     const summary = family === "model_identity"
       ? text(payload.summary, text(payload.effectiveModel, text(payload.requestedModel, text(payload.provider, eventType))))
       : text(payload.summary, text(payload.name, text(payload.query, eventType)));
@@ -747,9 +752,9 @@ function parsePrpEvent(
   }
   if (eventType === "session.started" || eventType === "session.resumed") {
     const context = record(payload.context);
-    const model = text(context.model, text(record(payload.model).name, "Outpost runner"));
+    const model = text(context.model, text(record(payload.model).name, runnerLabel));
     const sessionId = text(payload.providerSessionId, text(payload.driverSessionId, text(event.normalizedSessionId)));
-    return [{ kind: "system", ts, text: `Outpost session ${eventType === "session.resumed" ? "resumed" : "started"} · ${model}${sessionId ? ` · ${sessionId}` : ""}` }];
+    return [{ kind: "system", ts, text: `${productName} session ${eventType === "session.resumed" ? "resumed" : "started"} · ${model}${sessionId ? ` · ${sessionId}` : ""}` }];
   }
   if (eventType === "turn.started") return [{ kind: "system", ts, text: "Turn started" }];
   if (eventType === "turn.completed") return [{ kind: "system", ts, text: "Turn completed" }];
@@ -821,7 +826,7 @@ export function parseOutpostRunnerStdoutLine(line: string, ts: string): Transcri
 
 export const outpostRunnerUIAdapter: UIAdapterModule = {
   type: "outpost_runner",
-  label: "Outpost Runner",
+  label: runnerLabel,
   parseStdoutLine: parseOutpostRunnerStdoutLine,
   createStdoutParser: () => {
     let state = createParserState();

@@ -3,7 +3,7 @@ import { HttpError } from "../errors.js";
 import type { AdapterRuntimeCommandSpec, ServerAdapterModule } from "./types.js";
 import { parseAdapterModelsEnv } from "../services/adapter-models-env.js";
 import { validateAiApiKey } from "../services/ai-api-key-test.js";
-import type { AdapterEnvironmentTestResult } from "@outpost/shared";
+import { productLabel, type AdapterEnvironmentTestResult } from "@outpost/shared";
 import { stampClaudeAgentIdHeader } from "./claude-agent-id-header.js";
 import {
   buildSandboxNpmInstallCommand,
@@ -149,6 +149,9 @@ import {
   QUALIFIED_OPENCODE_RUNNER_VERSION,
   resolveOutpostRunnerProviderProfile,
 } from "../services/native-runtime/provider-profile.js";
+
+const productName = productLabel("product");
+const runnerLabel = `${productName} Runner`;
 
 async function verifyNativeAcpxApiKey(
   config: Record<string, unknown>,
@@ -426,7 +429,7 @@ const outpostRunnerAdapter: ServerAdapterModule = {
         ? error
         : new OutpostRunnerProviderProfileError(
             "outpost_runner_provider_unsupported",
-            "Outpost Runner provider configuration is invalid.",
+            `${runnerLabel} provider configuration is invalid.`,
           );
       return {
         adapterType: "outpost_runner",
@@ -446,7 +449,7 @@ const outpostRunnerAdapter: ServerAdapterModule = {
     }
     if (profile.provider === "cursor_cloud") {
       const failure = (code: string, message: string) => ({ adapterType: "outpost_runner", status: "fail" as const, testedAt: new Date().toISOString(), checks: [{ code, level: "error" as const, message }] });
-      if (context.executionTarget?.kind === "remote") return failure("cursor_cloud_local_controller_required", "Select a local Outpost controller. Cursor hosts the execution environment.");
+      if (context.executionTarget?.kind === "remote") return failure("cursor_cloud_local_controller_required", `Select a local ${productName} controller. Cursor hosts the execution environment.`);
       const configuredEnv = context.config.env;
       const binding = configuredEnv && typeof configuredEnv === "object" && !Array.isArray(configuredEnv)
         ? (configuredEnv as Record<string, unknown>).CURSOR_API_KEY : undefined;
@@ -476,11 +479,11 @@ const outpostRunnerAdapter: ServerAdapterModule = {
     }
     if (profile.provider === "muse") {
       return { adapterType: "outpost_runner", status: "warn" as const, testedAt: new Date().toISOString(),
-        checks: [{ code: "muse_background_test_required", level: "warn" as const, message: "Muse manages its model and billing. Verify the paired receiver and independent background reply in Outpost; this read-only check does not wake Muse." }] };
+        checks: [{ code: "muse_background_test_required", level: "warn" as const, message: `Muse manages its model and billing. Verify the paired receiver and independent background reply in ${productName}; this read-only check does not wake Muse.` }] };
     }
     if (profile.provider === "openai_dot") {
       return { adapterType: "outpost_runner", status: "warn" as const, testedAt: new Date().toISOString(),
-        checks: [{ code: "dot_event_test_required", level: "warn" as const, message: "Dot manages its model and billing. Validate the dedicated agent binding and event round trip in Outpost; this read-only check does not wake the Dot." }] };
+        checks: [{ code: "dot_event_test_required", level: "warn" as const, message: `Dot manages its model and billing. Validate the dedicated agent binding and event round trip in ${productName}; this read-only check does not wake the Dot.` }] };
     }
     if (profile.provider === "acpx") {
       try {
@@ -644,7 +647,7 @@ const outpostRunnerAdapter: ServerAdapterModule = {
         )
       : buildNpmRuntimeCommandSpec(config, "codex", "@openai/codex@0.160.0"),
   agentConfigurationDoc:
-    "# Outpost Runner\n\nAdapter: outpost_runner\n\nRuns Codex, OpenCode, Claude Managed, AWS AgentCore, or ACPX Claude/Grok Build/Cursor/Pi through the Rust Outpost runner and authenticated ORP transport. Pi accepts an explicit provider/model ID and uses the outpost credentials bound to the agent environment. GitHub Copilot requires a saved GitHub token and an explicitly selected available model. Managed providers use outpost-scoped qualified profiles and explicit retention acknowledgement. A operator operator creates each Claude Managed (Anthropic managed agent) profile through POST /api/spaces/{spaceId}/managed-agent-profiles; agent credentials cannot create, qualify or list one.\n",
+    `# ${runnerLabel}\n\nAdapter: outpost_runner\n\nRuns Codex, OpenCode, Claude Managed, AWS AgentCore, or ACPX Claude/Grok Build/Cursor/Pi through the Rust ${productName} runner and authenticated ORP transport. Pi accepts an explicit provider/model ID and uses the outpost credentials bound to the agent environment. GitHub Copilot requires a saved GitHub token and an explicitly selected available model. Managed providers use outpost-scoped qualified profiles and explicit retention acknowledgement. An operator creates each Claude Managed (Anthropic managed agent) profile through POST /api/spaces/{spaceId}/managed-agent-profiles; agent credentials cannot create, qualify or list one.\n`,
   getConfigSchema: () => ({
     fields: [
       {
@@ -738,7 +741,7 @@ const outpostRunnerAdapter: ServerAdapterModule = {
         label: "Managed Agent profile",
         type: "text" as const,
         required: true,
-        hint: "Outpost-scoped qualified profile ID or key.",
+        hint: `${productName}-scoped qualified profile ID or key.`,
         meta: { visibleWhen: { key: "provider", value: "claude_managed" } },
       },
       {
@@ -754,7 +757,7 @@ const outpostRunnerAdapter: ServerAdapterModule = {
         label: "AgentCore profile",
         type: "text" as const,
         required: true,
-        hint: "Outpost-scoped qualified AgentCore profile ID or key.",
+        hint: `${productName}-scoped qualified AgentCore profile ID or key.`,
         meta: { visibleWhen: { key: "provider", value: "aws_agentcore" } },
       },
       {

@@ -7,6 +7,7 @@ import { PrimaryAgentCrownButton } from "@/components/primary-agent/PrimaryAgent
 import { AiConnectionPoolRunDetails } from "@/components/ai-connections/AiConnectionPoolRunDetails";
 import { ProviderFailureNotice } from "@/components/ProviderFailureNotice";
 import { readProviderFailure } from "@outpost/shared";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { AgentConnectionInstructions } from "@/features/connections/ConnectionInstructions";
 import type { AgentInstructionCandidate, AgentInstructionsBundle } from "@outpost/shared";
 import { InstructionHistory } from "../components/InstructionHistory";
@@ -181,6 +182,10 @@ export {
   heartbeatProgressLogLineKey,
   RunInvocationCard,
 } from "../components/run-log/RunDetails";
+
+const productName = productLabel("product");
+const taskLabel = productLabel("task");
+const tasksLabel = productLabel("task", { count: 2 });
 
 const AgentAdvancedTab = lazy(() => import("./AgentAdvancedTab").then(module => ({ default: module.AgentAdvancedTab })));
 
@@ -983,7 +988,7 @@ export function AgentDetail() {
             </Button>
           }
         >
-          Ships with Outpost and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
+          Ships with {productName} and powers <strong>{builtInFeatureLabel}</strong>. Configure it like
           any agent — model and instructions. It can be paused but not deleted; pausing it
           pauses {builtInFeatureLabel}.
         </InlineBanner>
@@ -1696,7 +1701,7 @@ export function ConfigurationTab({
             <div className="space-y-1">
               <div>Can create new agents</div>
               <p className="text-xs text-muted-foreground">
-                Lets this agent create or create agents. Task assignment is controlled separately.
+                Lets this agent create other agents. {taskLabel} assignment is controlled separately.
               </p>
             </div>
             <ToggleSwitch
@@ -3040,7 +3045,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
           break-glass handlers as the task detail page. */}
       <RunWorkspaceRecoverySurface run={run} />
       <AiConnectionPoolRunDetails context={run.contextSnapshot} />
-      {grokWork && <p className="text-sm text-muted-foreground">Runs in Grok Bot. Usage not reported. Stopping this session revokes Outpost authority; remote execution may continue. Open the Grok Bot desktop app to inspect it. This view contains Outpost-reported activity.</p>}
+      {grokWork && <p className="text-sm text-muted-foreground">Runs in Grok Bot. Usage not reported. Stopping this session revokes {productName} authority; remote execution may continue. Open the Grok Bot desktop app to inspect it. This view contains {productName}-reported activity.</p>}
       {/* Run summary card */}
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="flex flex-col sm:flex-row">
@@ -3338,7 +3343,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
       {/* Issues touched by this run */}
       {touchedIssues && touchedIssues.length > 0 && (
         <div className="space-y-2">
-          <span className="text-xs font-medium text-muted-foreground">Tasks Touched ({touchedIssues.length})</span>
+          <span className="text-xs font-medium text-muted-foreground">{tasksLabel} Touched ({touchedIssues.length})</span>
           <div className="border border-border rounded-lg divide-y divide-border">
             {touchedIssues.map((issue) => (
               <Link
@@ -3493,7 +3498,7 @@ export function KeysTab({ agentId, spaceId }: { agentId: string; spaceId?: strin
           Create API Key
         </h3>
         <p className="text-xs text-muted-foreground">
-          API keys allow this agent to authenticate calls to the Outpost server.
+          API keys allow this agent to authenticate calls to the {productName} server.
         </p>
         <div className="flex items-center gap-2">
           <Input

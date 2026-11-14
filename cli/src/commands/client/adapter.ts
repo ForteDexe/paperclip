@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import {
   addCommonClientOptions,
   apiPath,
@@ -14,6 +15,8 @@ interface AdapterOptions extends BaseClientOptions {
   refresh?: boolean;
   environmentId?: string;
 }
+
+const spaceIdHelp = `${productLabel("space")} ID`;
 
 export function registerAdapterCommands(program: Command): void {
   const adapter = program.command("adapter").description("Adapter management operations");
@@ -104,7 +107,7 @@ export function registerAdapterCommands(program: Command): void {
       .command("models")
       .description("List adapter models for a space")
       .argument("<type>", "Adapter type")
-      .option("-C, --space-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", spaceIdHelp)
       .option("--refresh", "Refresh provider model list", false)
       .option("--environment-id <id>", "Environment ID for environment-aware adapters")
       .action(async (type: string, opts: AdapterOptions) => {
@@ -181,7 +184,7 @@ function addSpaceAdapterGet(parent: Command, name: string, description: string, 
       .command(name)
       .description(description)
       .argument("<type>", "Adapter type")
-      .option("-C, --space-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", spaceIdHelp)
       .action(async (type: string, opts: AdapterOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireSpace: true });
@@ -200,7 +203,7 @@ function addSpaceAdapterPost(parent: Command, name: string, description: string,
       .command(name)
       .description(description)
       .argument("<type>", "Adapter type")
-      .option("-C, --space-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", spaceIdHelp)
       .option("--payload-json <json>", "JSON payload", "{}")
       .action(async (type: string, opts: AdapterOptions) => {
         try {

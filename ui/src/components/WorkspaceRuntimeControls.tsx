@@ -4,6 +4,7 @@ import type {
   WorkspaceRuntimeControlTarget,
   WorkspaceRuntimeService,
 } from "@outpost/shared";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import {
   listWorkspaceCommandDefinitions,
   matchWorkspaceRuntimeServiceToCommand,
@@ -18,6 +19,8 @@ import type {
   WorkspaceServiceControlAction,
   WorkspaceServiceControlEntry,
 } from "@/components/WorkspaceServiceControlBar";
+
+const productName = productLabel("product");
 
 export type WorkspaceRuntimeAction = "start" | "stop" | "restart" | "run";
 
@@ -550,7 +553,7 @@ export function WorkspaceRuntimeControls({
 
       <CommandSection
         title="Services"
-        description="Long-running commands that Outpost can supervise for this workspace."
+        description={`Long-running commands that ${productName} can supervise for this workspace.`}
         items={sections.services}
         emptyMessage={serviceEmptyMessage}
         disabledHint={visibleDisabledHint}

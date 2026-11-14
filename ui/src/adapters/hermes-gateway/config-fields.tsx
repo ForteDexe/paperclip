@@ -9,6 +9,9 @@ import {
   Field,
   ToggleField,
 } from "../../components/agent-config-primitives";
+import { productLabel } from "@outpost/shared/product-vocabulary";
+
+const productName = productLabel("product");
 
 const inputClass =
   "w-full rounded-md border border-border px-2.5 py-1.5 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40";
@@ -144,7 +147,7 @@ export function HermesGatewayConfigFields({
     <>
       <Field
         label="API base URL"
-        hint="Hermes API server base URL that Outpost can reach, such as http://127.0.0.1:8642 or a private HTTPS URL. Default dashboard root/chat URLs such as http://127.0.0.1:9119/chat are accepted and map to /api."
+        hint={`Hermes API server base URL that ${productName} can reach, such as http://127.0.0.1:8642 or a private HTTPS URL. Default dashboard root/chat URLs such as http://127.0.0.1:9119/chat are accepted and map to /api.`}
       >
         <DraftInput
           value={apiBaseUrl}
@@ -164,8 +167,8 @@ export function HermesGatewayConfigFields({
       />
 
       <Field
-        label="Outpost API URL"
-        hint="Optional Outpost API URL reachable by the Hermes host. This is not a credential."
+        label={`${productName} API URL`}
+        hint={`Optional ${productName} API URL reachable by the Hermes host. This is not a credential.`}
       >
         <DraftInput
           value={outpostApiUrl}

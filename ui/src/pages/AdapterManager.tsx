@@ -12,10 +12,13 @@ import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { adaptersApi } from "@/api/adapters";
 import type { AdapterInfo } from "@/api/adapters";
 import { getAdapterLabel } from "@/adapters/adapter-display-registry";
+import { productLabel } from "@outpost/shared/product-vocabulary";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const productName = productLabel("product");
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -269,7 +272,7 @@ export function AdapterManager() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedSpace?.name ?? "Outpost", href: "/dashboard" },
+      { label: selectedSpace?.name ?? productName, href: "/dashboard" },
       { label: "Settings", href: "/space/settings" },
       { label: "Adapters" },
     ]);
