@@ -74,7 +74,7 @@ function formatOwner(gateway: ToolMcpGatewayWithTokens, agentNames: Map<string, 
     return agentNames.get(gateway.createdByAgentId) ?? `Agent ${shortId(gateway.createdByAgentId)}`;
   }
   if (gateway.createdByUserId) return `Board user ${shortId(gateway.createdByUserId)}`;
-  return "Board";
+  return "User";
 }
 
 function formatScope(

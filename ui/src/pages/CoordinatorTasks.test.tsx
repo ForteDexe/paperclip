@@ -153,7 +153,7 @@ describe("Coordinator tasks using the proposed table", () => {
   });
 
   it.each([
-    ["local-board", "Board"],
+    ["local-board", "You"],
     ["missing-user", "missi"],
   ])("keeps the shared human identity label when %s is absent from the directory", async (assigneeUserId, label) => {
     mocks.list.mockResolvedValue([createIssue({ id: "human-task", companyId: "company", parentId: null, assigneeAgentId: null, assigneeUserId })]);

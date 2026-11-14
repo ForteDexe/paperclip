@@ -1,6 +1,6 @@
 import type { CompanyUserProfile } from "./company-members";
 
-/** Task messages load uploaded Paperclip avatars automatically, never remote URLs. */
+/** Task messages load uploaded Outpost avatars automatically, never remote URLs. */
 export function paperclipHumanAvatarUrl(value: string | null | undefined): string | null {
   return value && /^\/api\/assets\/[^/?#]+\/content$/.test(value) ? value : null;
 }
@@ -17,7 +17,7 @@ export function resolveIssueChatHumanAuthor(args: {
   return {
     isCurrentUser,
     authorName: profile?.label?.trim() || authorName?.trim() ||
-      (authorUserId === "local-board" ? "Board" : isCurrentUser ? "You" : "User"),
+      (authorUserId === "local-board" ? "You" : isCurrentUser ? "You" : "User"),
     avatarUrl: profile?.image ?? null,
   };
 }

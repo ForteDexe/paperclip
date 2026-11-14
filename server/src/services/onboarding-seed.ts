@@ -23,8 +23,8 @@ export const ONBOARDING_SEED_PROJECT_NAME = "Onboarding";
 
 /**
  * Role assigned to the seeded lead agent. The seed's own `agent.role` is
- * customer free text ("Chief of Staff") and lands on `title`; `role` stays the
- * structural `ceo` key the org chart and default-instructions lookup read.
+ * customer free text (for example, "Lead") and lands on `title`; `role` keeps
+ * the legacy `ceo` compatibility key until the stored role contract migrates.
  */
 const SEEDED_AGENT_ROLE = "ceo";
 
@@ -47,10 +47,10 @@ function seededAgentAdapterType() {
 }
 
 /**
- * Adapter config for the seeded CEO. The default CEO instructions tell the
- * agent to use the core paperclip skills (hiring, memory, coordination), and
+ * Adapter config for the seeded default agent. Its instructions tell the
+ * agent to use the core Outpost skills (delegation, memory, coordination), and
  * an agent's runtime only receives skills listed in its own desired set — so
- * a seeded CEO with an empty adapter config arrives with zero skills and
+ * a seeded agent with an empty adapter config arrives with zero skills and
  * truthfully reports its own toolkit as not installed. Enable the core set
  * whenever the seeded adapter supports skill sync.
  */

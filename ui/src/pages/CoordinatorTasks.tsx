@@ -191,7 +191,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   const items: TaskListItem[] = [...new Map(scopedRecords.map(issue => [issue.id, issue])).values()].map(issue => ({
     issue: { ...issue, project: issue.project ?? projectById.get(issue.projectId ?? "") },
     unread: unreadIds.has(issue.id) || issue.isUnreadForMe === true,
-    createdBy: issue.createdByAgentId ? agentById.get(issue.createdByAgentId)?.name ?? "Unknown agent" : users.get(issue.createdByUserId ?? "")?.label ?? "Board",
+    createdBy: issue.createdByAgentId ? agentById.get(issue.createdByAgentId)?.name ?? "Unknown agent" : users.get(issue.createdByUserId ?? "")?.label ?? "You",
     assignee: issue.assigneeAgentId ? agentById.get(issue.assigneeAgentId)?.name ?? "Unknown agent" : users.get(issue.assigneeUserId ?? "")?.label ?? formatUserLabel(issue.assigneeUserId),
     assigneeAgent: agentById.get(issue.assigneeAgentId ?? ""),
     assigneeUserAvatarUrl: users.get(issue.assigneeUserId ?? "")?.image,

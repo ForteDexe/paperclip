@@ -1306,7 +1306,7 @@ describe("IssueProperties", () => {
       "ClaudeCoder is running",
     );
     expect(container.textContent).toContain("Agents");
-    expect(container.textContent).toContain("Board users");
+    expect(container.textContent).toContain("People");
 
     // Picking a different agent mid-run stages a confirm rather than applying.
     const qaOption = Array.from(container.querySelectorAll("button")).find(

@@ -61,7 +61,7 @@ function useRevisionAuthor(agent: AgentDetailRecord, companyId: string | undefin
       const entry = directory?.users.find((candidate) => candidate.principalId === revision.createdByUserId);
       return entry?.user?.name?.trim() || entry?.user?.email || "Former member";
     }
-    return "Board";
+    return "You";
   };
 }
 

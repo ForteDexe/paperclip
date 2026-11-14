@@ -12,7 +12,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * reconcile (`POST /execution-workspaces/:id/reconcile-branch` in `override` mode) actually
  * enforces. The server re-checks `runtime:manage` for every reconcile and is authoritative, so
  * this is defense-in-depth: it hides the "reconcile anyway" affordance from viewers rather than
- * showing a button that always 403s. For human board members `runtime:manage` grants on the
+ * showing a button that always 403s. For human users, `runtime:manage` grants on the
  * same non-viewer, active-membership condition as recovery resolution (see
  * `server/src/services/authorization.ts`), so the shape matches; per-permission-key overrides
  * are not surfaced to the client and remain the server's call.

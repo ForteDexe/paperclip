@@ -73,7 +73,7 @@ export function DesignSandboxTasks() {
   const items: TaskListItem[] = [...new Map((tasks.data?.pages.flat() ?? []).map(issue => [issue.id, issue])).values()].map(issue => ({
     issue: { ...issue, project: issue.project ?? projectById.get(issue.projectId ?? "") },
     unread: unread.data?.has(issue.id) ?? false,
-    createdBy: issue.createdByAgentId ? agentById.get(issue.createdByAgentId)?.name ?? "Unknown agent" : users.get(issue.createdByUserId ?? "")?.label ?? (issue.createdByUserId === "local-board" ? "Board" : "Unknown user"),
+    createdBy: issue.createdByAgentId ? agentById.get(issue.createdByAgentId)?.name ?? "Unknown agent" : users.get(issue.createdByUserId ?? "")?.label ?? (issue.createdByUserId === "local-board" ? "You" : "Unknown user"),
     assignee: issue.assigneeAgentId ? agentById.get(issue.assigneeAgentId)?.name ?? "Unknown agent" : users.get(issue.assigneeUserId ?? "")?.label ?? formatUserLabel(issue.assigneeUserId),
     assigneeAgent: agentById.get(issue.assigneeAgentId ?? ""),
     assigneeUserAvatarUrl: users.get(issue.assigneeUserId ?? "")?.image,

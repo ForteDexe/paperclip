@@ -96,7 +96,7 @@ export function formatOwner(gateway: ToolMcpGatewayWithTokens, agentNames: Map<s
   if (gateway.createdByAgentId) {
     return agentNames.get(gateway.createdByAgentId) ?? `Agent ${shortId(gateway.createdByAgentId)}`;
   }
-  return "Board";
+  return "User";
 }
 
 /** Whether the gateway is exposing tools to clients right now. */

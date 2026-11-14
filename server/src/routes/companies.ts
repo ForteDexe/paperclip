@@ -489,7 +489,8 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
   router.get("/:companyId", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
-    // Allow agents (CEO) to read their own company; board always allowed
+    // Allow agents to read their own Space; human users remain subject to the
+    // inherited board-actor access check.
     if (req.actor.type !== "agent") {
       assertBoard(req);
     }

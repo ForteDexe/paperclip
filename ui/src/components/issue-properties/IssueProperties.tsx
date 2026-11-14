@@ -1891,7 +1891,7 @@ export function IssueProperties({
         ) : null}
         {visibleUserOptions.length > 0 ? (
           <>
-            {sectionHeader("Board users")}
+            {sectionHeader("People")}
             {visibleUserOptions.map((option) => renderAssigneeOption(option))}
           </>
         ) : null}

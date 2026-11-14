@@ -297,7 +297,7 @@ function resolveContent(
     (event.actorType === "system"
       ? "System"
       : event.actorType === "user"
-        ? "Board"
+        ? "User"
         : event.actorId || "Unknown");
 
   const entityTitle = entityTitleMap?.get(`${event.entityType}:${event.entityId}`) ?? null;

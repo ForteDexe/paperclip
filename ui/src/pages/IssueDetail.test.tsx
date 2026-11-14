@@ -3801,7 +3801,7 @@ describe("IssueDetail", () => {
     await act(async () => renderIssueView());
     const labels = () => [...container.querySelectorAll("button")].map(button => button.textContent ?? "");
     if (mode === "denied") {
-      await waitForAssertion(() => expect(container.textContent).toContain("A board member with task access"));
+      await waitForAssertion(() => expect(container.textContent).toContain("A user with task access"));
       expect(labels().some(label => ["Recover saved files", "Retry"].includes(label))).toBe(false);
       expect(mockIssuesApi.recoverWorkspace).not.toHaveBeenCalled();
       expect(mockIssuesApi.retryTask).not.toHaveBeenCalled();

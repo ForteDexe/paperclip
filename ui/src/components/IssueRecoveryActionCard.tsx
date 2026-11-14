@@ -772,7 +772,7 @@ function readWakePolicySummary(action: IssueRecoveryAction): string | null {
     return "Outpost is retrying the original owner";
   }
   if (type === "bounded_recovery_owner") return "A recovery owner is repairing the next step";
-  if (type === "board_escalation") return "Board decision required";
+  if (type === "board_escalation") return "Human decision required";
   if (type === "manual") return "Manual follow-up needed";
   if (type === "manual_repair_required") return "Repair needed before retry";
   if (type === "monitor") {
@@ -929,7 +929,7 @@ function lineageHeadline(lineage: RecoveryRetryLineage): string {
   if (lineage.lane === "recovery_owner") {
     return "The original owner could not record a next step within its retry budget. A recovery owner is now repairing the path only — the task itself still belongs to its original owner.";
   }
-  return "Automatic recovery is exhausted, so the board must choose the next step. The task itself still belongs to its original owner.";
+  return "Automatic recovery is exhausted, so you must choose the next step. The task itself still belongs to its original owner.";
 }
 
 /** Spent/remaining attempts as pips. The readable count lives beside it in text. */
@@ -1206,7 +1206,7 @@ export function IssueRecoveryActionCard({
                   </>
                 ) : action.ownerType === "board" ? (
                   <>
-                    <span className="font-medium">Board</span>
+                    <span className="font-medium">Human</span>
                     <span className="text-muted-foreground">decides the next step only</span>
                   </>
                 ) : action.ownerType === "user" && action.ownerUserId ? (
@@ -1278,7 +1278,7 @@ export function IssueRecoveryActionCard({
                 <AgentLink agentId={action.ownerAgentId} agentMap={agentMap} />
               </>
             ) : action.ownerType === "board" ? (
-              <span className="font-medium">Board</span>
+              <span className="font-medium">Human</span>
             ) : action.ownerType === "user" && action.ownerUserId ? (
               <span className="font-medium">user {action.ownerUserId.slice(0, 6)}</span>
             ) : action.ownerType === "system" ? (

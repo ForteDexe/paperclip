@@ -278,7 +278,7 @@ function resolveActorLabel(
   if (actorType === "system") return "System";
   if (actorType === "user" && actorId) {
     return resolveUserName(queryClient, companyId, actorId) ??
-      (actorId === "board" || actorId === "local-board" ? "Board" : `User ${shortId(actorId)}`);
+      (actorId === "board" || actorId === "local-board" ? "You" : `User ${shortId(actorId)}`);
   }
   return actorType === "plugin" ? "Plugin" : "Unknown actor";
 }

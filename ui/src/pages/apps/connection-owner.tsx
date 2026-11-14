@@ -11,16 +11,16 @@ export function connectionOwnerProfile(
 ): ConnectionOwnerProfile | null {
   if (!connection.createdByUserId) return null;
   return profiles.get(connection.createdByUserId) ?? {
-    label: connection.createdByUserId === "local-board" ? "Board" : "Board member",
+    label: connection.createdByUserId === "local-board" ? "You" : "User",
     image: null,
   };
 }
 
 function ownerGivenName(label: string): string {
   const trimmed = label.trim();
-  if (!trimmed) return "Board";
+  if (!trimmed) return "User";
   const first = trimmed.split(/\s+/)[0] ?? trimmed;
-  return first.includes("@") ? first.split("@")[0] || "Board" : first;
+  return first.includes("@") ? first.split("@")[0] || "User" : first;
 }
 
 function possessive(label: string): string {

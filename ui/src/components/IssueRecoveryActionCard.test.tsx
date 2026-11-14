@@ -1131,9 +1131,9 @@ describe("IssueRecoveryActionCard owner-sticky retry lineage", () => {
     expect(section?.getAttribute("data-recovery-state")).toBe("needed");
     expect(section?.getAttribute("data-recovery-lane")).toBe("board");
     expect(node.textContent).toContain("Automatic recovery is exhausted");
-    expect(node.textContent).toContain("Board decision required");
+    expect(node.textContent).toContain("Human decision required");
     const recoveryOwner = node.querySelector("[data-testid='recovery-recovery-owner']");
-    expect(recoveryOwner?.textContent).toContain("Board");
+    expect(recoveryOwner?.textContent).toContain("Human");
     expect(recoveryOwner?.textContent).toContain("decides the next step only");
     expect(
       node.querySelector("[data-testid='recovery-source-owner']")?.textContent,

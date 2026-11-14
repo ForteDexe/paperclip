@@ -109,7 +109,7 @@ export function ProviderQuotaCard({
     subSharePct,
   } = totals;
 
-  // Each biller contributes to the company budget; there is no per-biller allocation.
+  // Each biller contributes to the Space budget; there is no per-biller allocation.
   const providerBudgetShare = budgetMonthlyCents;
 
   const budgetPct =
@@ -176,7 +176,7 @@ export function ProviderQuotaCard({
               label="Period spend"
               percentUsed={budgetPct}
               leftLabel={formatCents(totalCostCents)}
-              rightLabel={`${Math.round(budgetPct)}% of company budget`}
+              rightLabel={`${Math.round(budgetPct)}% of Space budget`}
               showDeficitNotch={showDeficitNotch}
             />
             <QuotaBar

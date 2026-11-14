@@ -7,7 +7,9 @@ The invariants and rules below record what has been decided so far. If you think
 
 ## 1. Purpose
 
-Paperclip is a control plane for AI-agent companies.
+Outpost coordinates persistent AI agents and their work inside repository-backed
+Spaces. Reporting relationships express coordination, not rank; multiple root
+agents are peers. A Space's default agent is a routing preference only.
 The code and its tests are the source of truth for current behavior.
 The focused docs under `doc/` are background. They can be out of date, so do not treat them as requirements when they disagree with the code or with the task.
 
@@ -52,7 +54,7 @@ Greptile setup.
 ## 3. Repo Map
 
 - `server/`: Express REST API and orchestration services
-- `ui/`: React + Vite board UI
+- `ui/`: React + Vite user interface
 - `packages/db/`: Drizzle schema, migrations, DB clients
 - `packages/shared/`: shared types, constants, validators, API path constants
 - `packages/adapters/`: agent adapter implementations (Claude, Codex, Cursor, etc.)
@@ -61,9 +63,9 @@ Greptile setup.
 - `packages/skills-catalog/`: app-shipped skills catalog (`@paperclipai/skills-catalog`)
 - `packages/teams-catalog/`: app-shipped teams catalog (`@paperclipai/teams-catalog`)
 - `cli/`: `paperclipai` CLI package (published bin, agent-facing commands)
-- `skills/`: Paperclip runtime/operational skills (not part of the app catalog)
+- `skills/`: Outpost runtime/operational skills (not part of the app catalog)
 - `doc/`: operational and product docs
-- `doc/plans/`: dated repo plan docs, named `YYYY-MM-DD-slug.md`. A plan for a Paperclip issue goes in the issue's `plan` document instead.
+- `doc/plans/`: dated repo plan docs, named `YYYY-MM-DD-slug.md`. A plan for an Outpost task goes in the task's `plan` document instead.
 - `rules/`: scoped repository rules (see section 2)
 
 ## 4. Dev Setup
@@ -79,8 +81,8 @@ preflight", "Start Dev", "Quick Health Checks", and "Database in Dev" in
 
 ## 5. Core Engineering Rules
 
-1. **Keep changes company-scoped.**
-   Every domain entity should be scoped to a company and company boundaries must be enforced in routes/services. The few instance-wide exceptions are listed in [`rules/company-scope-exceptions.mdc`](rules/company-scope-exceptions.mdc). Do not add another without adding it to that list.
+1. **Keep changes Space-scoped.**
+   Every domain entity should be scoped to a Space and Space boundaries must be enforced in routes/services. Internal APIs and schemas retain the compatibility term `company`; the few instance-wide exceptions are listed in [`rules/company-scope-exceptions.mdc`](rules/company-scope-exceptions.mdc). Do not add another without adding it to that list.
 
 2. **Keep contracts synchronized.**
    If you change schema/API behavior, update all impacted layers:
@@ -144,8 +146,8 @@ Follow these rules:
   interrupted attempts are never passes.
 - **Report gaps.** If anything cannot be run, explicitly report what was not run
   and why.
-- **Attach deliverables.** When you work a Paperclip issue and produce a file for
-  the user to inspect, attach it as the `paperclip` skill and
+- **Attach deliverables.** When you work an Outpost task and produce a file for
+  the user to inspect, attach it as the `outpost-artifact` skill and
   `doc/AGENT-ARTIFACTS.md` describe. A local filesystem path is not enough.
 
 Broad local checks:
@@ -178,14 +180,15 @@ for the full workflow. Structural checks are not production acceptance.
 
 ## 8. API and Auth
 
-Every route under `server/src/routes/` that reads or writes company data checks
-company access and actor permissions, logs mutations to the activity log, and
+Every route under `server/src/routes/` that reads or writes Space data checks
+Space access and actor permissions, logs mutations to the activity log, and
 returns consistent HTTP errors. See [`rules/api-route-expectations.mdc`](rules/api-route-expectations.mdc).
 
 ## 9. UI Expectations
 
 - Keep routes and nav aligned with available API surface
-- Use company selection context for company-scoped pages
+- Use the existing company selection context for Space-scoped pages; `company`
+  remains the internal compatibility name
 - Surface failures clearly; do not silently ignore API errors
 - Follow `DESIGN.md` for every UI design decision, including the token-only rule and form footers.
 

@@ -693,7 +693,7 @@ function ActorIdentity({
     const profile = userProfileMap?.get(id);
     return (
       <Identity
-        name={profile?.label ?? "Board"}
+        name={profile?.label ?? "You"}
         avatarUrl={profile?.image}
         size="sm"
       />

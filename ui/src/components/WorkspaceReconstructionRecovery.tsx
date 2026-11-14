@@ -65,6 +65,6 @@ export function WorkspaceReconstructionRecovery({ issueId, blocker, canManage, o
       </div>
       {(filesView.kind === "error") && <p role="alert" className="text-destructive">{describeError(files.error).body}</p>}
       {submit.error && <p role="alert" className="text-destructive">{describeError(submit.error).body}</p>}
-    </div> : <p>A board member with runtime access can continue from the surviving task attachments.</p>}
+    </div> : <p>A user with runtime access can continue from the surviving task attachments.</p>}
   </details>;
 }

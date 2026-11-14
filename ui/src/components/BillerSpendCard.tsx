@@ -85,7 +85,7 @@ export function BillerSpendCard({
             label="Period spend"
             percentUsed={budgetPct}
             leftLabel={formatCents(row.costCents)}
-            rightLabel={`${Math.round(budgetPct)}% of company budget`}
+            rightLabel={`${Math.round(budgetPct)}% of Space budget`}
           />
         )}
 

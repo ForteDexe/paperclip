@@ -390,6 +390,6 @@ function RetainedFilesRecovery({ action, issueId, companyId, className, onRecove
       {sourceReady && !current ? <p role="alert">This file recovery was replaced. Check its status to show the task’s current recovery.</p> : null}
     </> : accessView.kind === "error" ? <p role="alert" className="text-sm text-destructive">Task access could not be checked. Refresh before requesting file recovery.</p>
       : accessView.kind === "loading" || accessView.kind === "reconnecting" || !owner ? <p role="status" className="text-xs text-muted-foreground">Checking file recovery access…</p>
-        : <p className="text-xs text-muted-foreground">A board member with task access can request file recovery.</p>}
+        : <p className="text-xs text-muted-foreground">A user with task access can request file recovery.</p>}
   </div>;
 }

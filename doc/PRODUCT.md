@@ -26,7 +26,7 @@ Outpost does not expose the inherited Connectors catalog. Provider login and
 other connection machinery may remain as internal runtime plumbing where agent
 execution requires it, but Connectors is not a user-facing product area.
 
-Reusable workflows stay inside the Cases experiment. A workflow is a company-shared
+Reusable workflows stay inside the Cases experiment. A workflow is a Space-shared
 name and Markdown prompt; a case may adopt, leave and revisit workflows without
 changing its primary task. The task's workflow document is the effective copy,
 so shared edits affect future adoptions and explicit refreshes. Existing handoffs
@@ -36,33 +36,38 @@ workflow information and history.
 
 ## What It Is
 
-Paperclip is the control plane for autonomous AI companies. One instance of Paperclip can run multiple companies. A **company** is a first-order object.
+Outpost coordinates persistent AI agents and their work. One instance can host
+multiple **Spaces**, each rooted in one working directory and isolated from the
+agents, tasks, Decisions, North Stars, sessions, and configuration of every
+other Space.
 
 ## Core Concepts
 
-### Company
+### Space
 
-A company has:
+A Space has:
 
-- A **goal** — the reason it exists ("Create the #1 AI note-taking app that does $1M MRR within 3 months")
-- **Employees** — every employee is an AI agent
-- **Org structure** — who reports to whom
-- **Revenue & expenses** — tracked at the company level
-- **Task hierarchy** — all work traces back to the company goal
+- A **North Star** — the higher-level reason for its work
+- **Agents** — durable scope owners with free-form names and titles
+- **Coordination relationships** — optional `reportsTo` links, never rank
+- **Tasks and Decisions** — owned work and explicit human input
+- **Artifacts** — durable results attached to tasks
 
-### Employees & Agents
+### Agents
 
-Every employee is an agent. When you create a company, you start by defining the CEO, then build out from there.
+Agents are persistent workers bound to one Space and its working directory. A
+Space may have multiple root agents; they are peers unless the user expresses
+an optional coordination relationship.
 
 Each employee has:
 
-- **Adapter type + config** — how this agent runs and what defines its identity/behavior. This is adapter-specific (e.g., an OpenClaw agent might use SOUL.md and HEARTBEAT.md files; a Claude Code agent might use CLAUDE.md; a bare script might use CLI args). Paperclip doesn't prescribe the format — the adapter does.
-- **Role & reporting** — their title, who they report to, who reports to them
+- **Adapter type + config** — how this agent runs and what defines its identity/behavior. This is adapter-specific (for example, a Claude Code agent may use CLAUDE.md and a Codex agent may use AGENTS.md). Outpost does not prescribe the format — the harness does.
+- **Title & reporting** — a free-form title and optional coordination links
 - **Capabilities description** — a short paragraph on what this agent does and when they're relevant (helps other agents discover who can help with what)
 
-Example: A CEO agent's adapter config tells it to "review what your executives are doing, check company metrics, reprioritize if needed, assign new strategic initiatives" on each heartbeat. An engineer's config tells it to "check assigned tasks, pick the highest priority, and work it."
-
-Then you define who reports to the CEO: a CTO managing programmers, a CMO managing the marketing team, and so on. Every agent in the tree gets their own adapter configuration.
+Example: a lead may route work to the correct scope owner, while that scope owner
+keeps the task from implementation through follow-up. Other agents participate
+only when explicitly delegated, invited, or mentioned.
 
 Each Space has one **default agent**. Its first human-created agent becomes the
 default automatically; the user can choose another from an agent profile. An
@@ -83,7 +88,7 @@ It edits the same configuration as the regular settings pages, validates before 
 stale edits. See [Agent configuration YAML](agent-configuration-yaml.md).
 
 Existing Claude, Codex, and Grok Build agents can upgrade from the legacy runner on their
-Harness / Runtime page when Paperclip Runner is the qualified default for their
+Harness / Runtime page when the Outpost Runner is the qualified default for their
 environment. One action saves pending edits and translates compatible settings
 while keeping the harness, selected model, account bindings, instructions, and
 history. Unsupported settings produce an actionable error without changing the
@@ -91,21 +96,21 @@ saved agent. Future runs start fresh sessions.
 
 Qualifying an existing agent's sandbox for that upgrade uses the same agent
 configuration permission as saving the upgrade. The server checks the saved
-computer and its company binding. Company owners do not need instance-admin
+computer and its Space binding. Space users do not need instance-admin
 access for this step; general instance environment management remains restricted.
 
-Paperclip supports several ways to run an agent's heartbeat:
+Outpost supports several ways to run an agent's heartbeat:
 
-1. **Local CLI/session adapters** — Paperclip starts or resumes local coding-tool sessions such as Claude Code, Codex, Gemini, OpenCode, Pi, and Cursor, then tracks the run.
-2. **Run a command** — Paperclip kicks off a process (shell command, Python script, etc.) and tracks it. The heartbeat is "execute this and monitor it."
-3. **Fire and forget a request** — Paperclip sends a webhook/API call to an externally running agent. The heartbeat is "notify this agent to wake up." OpenClaw-style hooks work this way.
-4. **External adapter plugins** — Paperclip loads adapter packages through the plugin/adapter flow so self-hosted installs can add runtimes without hardcoding them in core.
+1. **Local CLI/session adapters** — Outpost starts or resumes local coding-tool sessions such as Claude Code and Codex, then tracks the run.
+2. **Run a command** — Outpost starts a process and tracks it.
+3. **External adapter plugins** — compatibility plumbing may load additional runtimes without making them first-class product choices.
 
-Agent runs can use project and execution workspaces, managed runtime services such as preview/dev servers, adapter-specific session state, and HTTP/webhook-style execution. We provide sensible defaults, but the adapter is still the boundary: if a runtime can be invoked, observed, and authorized, Paperclip can coordinate it.
+Agent runs can use execution workspaces, managed runtime services such as preview/dev servers, and adapter-specific session state. The adapter remains the execution boundary: if a runtime can be invoked, observed, and authorized, Outpost can coordinate it.
 
 ### Task Management
 
-Task management is hierarchical. At any moment, every piece of work must trace back to the company's top-level goal through a chain of parent tasks:
+Tasks may have parentage and should connect to the Space's North Star when that
+context is useful. A task still has one durable owner from start to finish.
 
 ```
 I am researching the Facebook ads Granola uses (current task)
@@ -116,9 +121,10 @@ I am researching the Facebook ads Granola uses (current task)
           because → We're building the #1 AI note-taking app to $1M MRR in 3 months
 ```
 
-Tasks have parentage. Every task exists in service of a parent task, all the way up to the company goal. This is what keeps autonomous agents aligned — they can always answer "why am I doing this?"
-
-The current issue model includes stable issue identifiers, parent/sub-issues, blockers, a single assignee, comments, issue documents, attachments and work products, and review/approval handoffs. That structure keeps work inspectable by both the board and agents while still allowing agents to decompose work into smaller tasks.
+The current issue compatibility model includes stable task identifiers,
+parent/subtasks, blockers, a single assignee, comments, documents, attachments,
+and work products. That structure keeps work inspectable by both the human and
+agents while still allowing agents to decompose work into smaller tasks.
 
 When an agent creates a subtask or follow-up task, its source task's feed shows
 a linked card at creation time with the current title, task number, and status.
@@ -182,7 +188,7 @@ submits.
 ### Routine responsibility
 
 The routine Overview shows its responsible user beside Default agent. People with
-`tasks:assign` can select an active company member from the name's picker.
+`tasks:assign` can select an active Space user from the name's picker.
 The change creates a routine revision and applies to future automatic tasks.
 Existing tasks keep their responsibility. Manual runs use the person who starts
 them. Agents cannot transfer routine responsibility.
@@ -213,7 +219,7 @@ sorting also runs before pagination, with task ID as a stable tie-breaker.
 Tasks and project lists hide agent-created and system-created tasks by default.
 The Filters menu's **Show agent-created tasks** checkbox includes routine runs,
 recovery/watchdog tasks, chat-channel tasks, and other automation. Channel tasks
-remain bot-created for this filter even when a human starts the conversation. The choice is saved per company
+remain bot-created for this filter even when a human starts the conversation. The choice is saved per Space
 and collection; Clear filters restores the hidden default. Nested lists preserve
 ancestors and expandable subtasks as context without promoting unrelated automated
 work to independent results. Agent profiles, routine histories, and task-detail
@@ -249,7 +255,7 @@ Inbox discovery searches and Blocked hide unrelated automatic tasks unless the
 checkbox is checked. The checkbox does not subscribe a person to automatic work.
 Source feeds and project task lists retain their existing access rules.
 
-### Company Skills and Policy
+### Space Skills and Policy (compatibility subsystem)
 
 Outpost's user-facing Skills area is intentionally small. It lists the skills
 installed in the current Space, supports search, imports a skill from a local
@@ -263,9 +269,9 @@ Only the core Outpost operational skill is bundled and assigned automatically.
 Connector-specific, onboarding, autonomous hiring, task-pipeline, feedback, and
 auxiliary memory skills are not part of the default product.
 
-Company skills are shared operating capabilities, not privileged objects by default. Every authenticated agent in a company can create, import, install, edit, update, test, reset, and remove that company's skills unless the company has configured an explicit restriction.
+Space skills are shared operating capabilities in the inherited skill subsystem. Every authenticated agent in a Space can create, import, install, edit, update, test, reset, and remove that Space's skills unless an explicit restriction exists.
 
-Paperclip-managed skills are immutable saved versions. Studio and API authoring
+Outpost-managed skills are immutable saved versions. Studio and API authoring
 publish complete content before acknowledging a save; stale edits return a version
 conflict and Studio retains the draft. Installed repository skills use the same
 version-based reads and execution selection. Web-server files are disposable caches
@@ -275,12 +281,12 @@ sources retain local behavior. Active or recovering run pins prevent deletion ev
 after an agent detaches the skill. See [ephemeral-server skills](skill-ephemeral-web-servers.md)
 for conversion, compatibility and qualification boundaries.
 
-The governing rule is: **skill permissions are opt-in restrictions, not opt-in capabilities**. Missing skill grants never create a denial in an otherwise unconfigured company, and ordinary skill work does not require board confirmation, a draft-only workflow, or an activation approval.
+The governing rule is: **skill permissions are opt-in restrictions, not opt-in capabilities**. Missing skill grants never create a denial in an otherwise unconfigured Space, and ordinary skill work does not require human confirmation, a draft-only workflow, or an activation approval.
 
-Core Paperclip owns the skill runtime, company-boundary enforcement, policy evaluation contract, API denials, validation, path containment, secret redaction, and activity logging. Those safety invariants cannot be disabled by policy. Open-by-default skill work never authorizes arbitrary host-path reads, unsafe executable content, or policy edits: local imports and scans must stay within Paperclip-known workspace or managed-skill roots, remote sources must resolve to validated immutable content, and platform safety denials must stay distinct from optional administrative restrictions. Paperclip EE may provide detailed administration for per-agent, per-role, per-action, per-source, and protected-skill rules, but EE is not required to use skills and is not an enforcement boundary. Without EE, companies remain open by default and any already-configured restrictions continue to be enforced by core.
+Outpost core owns the skill runtime, Space-boundary enforcement, policy evaluation contract, API denials, validation, path containment, secret redaction, and activity logging. Those safety invariants cannot be disabled by policy. Open-by-default skill work never authorizes arbitrary host-path reads, unsafe executable content, or policy edits: local imports and scans must stay within Outpost-known workspace or managed-skill roots, remote sources must resolve to validated immutable content, and platform safety denials must stay distinct from optional administrative restrictions. Existing restrictions continue to be enforced by core.
 
 GitHub repositories attached to new projects automatically become skill sources.
-Paperclip imports their skills and checks the configured branch every five minutes,
+Outpost imports their skills and checks the configured branch every five minutes,
 using the setup person's authorized GitHub connection. New skills import automatically
 unless excluded. Existing projects can adopt their repositories from Skills → Sources;
 existing manually imported sources preserve their selections and gain automatic updates.
@@ -290,7 +296,7 @@ default branch marked. People can also enter a branch name that is not listed.
 Saving checks GitHub access and the selected ref before changing tracking; failed
 saves keep the selection and installed content. Project refs remain owned by project
 configuration so changing a source cannot redirect another project's tracking.
-If a repository exceeds the supported package size, Paperclip first packages its
+If a repository exceeds the supported package size, Outpost first packages its
 skill folders and referenced repository files, preserving their original paths.
 Missing references are advisory: a valid selected skill can still be imported.
 Unavailable files are listed, and existing installed dependencies are retained
@@ -305,10 +311,10 @@ See [automatic storage and recovery](skill-package-storage.md).
 
 Project-derived skills inherit current project access. Access through any originating
 project is sufficient, including the responsible-user restrictions on agent execution.
-Existing explicit company imports retain their visibility. Editable copies inherit
+Existing explicit Space imports retain their visibility. Editable copies inherit
 project restrictions; private content cannot be published or exported implicitly.
 Detachment retains installed content and access provenance. Deleting its last project
-never makes a skill company-visible.
+never makes a skill Space-visible.
 
 Task and routine skill mentions remain stable references to the latest installed version.
 Each execution records the immutable versions it uses; resuming keeps those versions,
@@ -328,33 +334,28 @@ An explicit restricted policy may deny selected operations or switch to a defaul
 
 ## Principles
 
-1. **Unopinionated about how you run your agents.** Your agents could be OpenClaw bots, Python scripts, Node scripts, Claude Code sessions, Codex instances — we don't care. Paperclip defines the control plane for communication and provides utility infrastructure for heartbeats. It does not mandate an agent runtime.
+1. **Use the agent harnesses people already trust.** Outpost coordinates Codex and Claude sessions without owning provider authentication.
 
-2. **Company is the unit of organization.** Everything lives under a company. One Paperclip instance, many companies.
+2. **Space is the unit of organization.** Everything visible lives under a repository-backed Space. One Outpost instance may host many Spaces.
 
 3. **Adapter config defines the agent.** Every agent has an adapter type and configuration that controls its identity and behavior. The minimum contract is just "be callable."
 
-4. **All work traces to the goal.** Hierarchical task management means nothing exists in isolation. If you can't explain why a task matters to the company goal, it shouldn't exist.
+4. **Work has durable ownership and purpose.** A task keeps one owner; a North Star can explain why the work matters without forcing deep task decomposition.
 
-5. **Control plane, not execution plane.** Paperclip orchestrates. Agents run wherever they run and phone home.
+5. **Coordination surface, not execution engine.** Outpost orchestrates. Agent harnesses execute the work.
 
 ## User Flow (Dream Scenario)
 
-1. Open Paperclip, create a new company
-2. Define the company's goal: "Create the #1 AI note-taking app, $1M MRR in 3 months"
-3. Create the CEO
-   - Choose an adapter (e.g., process adapter for Claude Code, HTTP adapter for OpenClaw)
-   - Configure the adapter (agent identity, loop behavior, execution settings)
-   - CEO proposes strategic breakdown → board approves
-4. Define the CEO's reports: CTO, CMO, CFO, etc.
-   - Each gets their own adapter config and role definition
-5. Define their reports: engineers under CTO, marketers under CMO, etc.
-6. Set budgets, define initial strategic tasks
-7. Hit go — agents start their heartbeats and the company runs
+1. Create a Space by choosing a working directory.
+2. Create persistent Codex or Claude agents with free-form names and titles.
+3. Optionally connect agents with coordination relationships and choose a default agent.
+4. Give a feature or bug to a lead or directly to its scope owner.
+5. The owner works it from start to finish, raising Decisions for human input and attaching artifacts as results.
+6. Invite peers into Campfire only when shared discussion is useful.
 
 ## Guidelines
 
-There are two runtime modes Paperclip must support:
+There are two runtime modes Outpost must support:
 
 - `local_trusted` (default): single-user local trusted deployment with no login friction
 - `authenticated`: login-required mode that supports both private-network and public deployment exposure policies
@@ -367,14 +368,14 @@ See [TASKS.md](./TASKS.md) for the task management data model.
 
 ---
 
-Paperclip’s core identity is a **control plane for autonomous AI companies**, centered on **companies, org charts, goals, issues/comments, heartbeats, budgets, approvals, and board governance**. The public docs are also explicit about the current boundaries: **tasks/comments are the built-in communication model**, Paperclip is **not a chatbot**, and it is **not a code review tool**. The roadmap already points toward **easier onboarding, cloud agents, easier agent configuration, plugins, better docs, and ClipMart/ClipHub-style reusable companies/templates**.
+Outpost's core identity is a **coordination surface for persistent agents**, centered on **Spaces, agents, tasks, Decisions, artifacts, North Stars, and optional Campfire discussion**.
 
-## What Paperclip should do vs. not do
+## What Outpost should do vs. not do
 
 **Do**
 
-- Stay **board-level and company-level**. Users should manage goals, orgs, budgets, approvals, and outputs.
-- Make the first five minutes feel magical: install, answer a few questions, see a CEO do something real.
+- Stay **human-directed and Space-scoped**. Users should manage agents, tasks, Decisions, and outputs.
+- Make the first five minutes useful: select a repository, create an agent, and complete a real task.
 - Keep work anchored to **issues/comments/projects/goals**, even if the surface feels conversational.
 - Treat **agency / internal team / startup** as the same underlying abstraction with different templates and labels.
 - Make outputs first-class: files, docs, reports, previews, links, screenshots.
@@ -384,22 +385,22 @@ Paperclip’s core identity is a **control plane for autonomous AI companies**, 
 **Do not**
 
 - Do not make the core product a general chat app. The current product definition is explicitly task/comment-centric and “not a chatbot,” and that boundary is valuable.
-- Do not build a complete Jira/GitHub replacement. The repo/docs already position Paperclip as organization orchestration, not focused on pull-request review.
-- Do not build enterprise-grade RBAC first. Paperclip now has authenticated mode, company memberships, instance roles, and permission grants, but fine-grained enterprise governance should remain secondary to the core company control plane.
-- Do not interpret agent-profile privacy flags as project/issue privacy. Work remains company-open by default, while explicitly private issues and projects use their own task ACLs.
+- Do not build a complete Jira/GitHub replacement. Outpost coordinates agent-owned work rather than replacing source control.
+- Do not lead with enterprise-grade RBAC. Fine-grained administration is secondary to the local Space workflow.
+- Do not interpret agent-profile privacy flags as task privacy. Work remains Space-visible by default, while explicitly private tasks use their own ACLs.
 - Do not lead with raw bash logs and transcripts. Default view should be human-readable intent/progress, with raw detail beneath.
 - Do not force users to understand provider/API-key plumbing unless absolutely necessary. There are active onboarding/auth issues already; friction here is clearly real.
 
 ## Specific design goals
 
 1. **Time-to-first-success under 5 minutes**
-   A fresh user should go from install to “my CEO completed a first task” in one sitting.
+   A fresh user should go from install to “my agent completed a first task” in one sitting.
 
-2. **Board-level abstraction always wins**
-   The default UI should answer: what is the company doing, who is doing it, why does it matter, what did it cost, and what needs my approval.
+2. **Human-readable coordination always wins**
+   The default UI should answer: what is this Space doing, who owns it, why does it matter, and what needs my input.
 
 3. **Conversation stays attached to work objects**
-   “Chat with CEO” should still resolve to strategy threads, decisions, tasks, or approvals.
+   Agent conversation should remain connected to Decisions, tasks, and artifacts.
 
 4. **Progressive disclosure**
    Top layer: human-readable summary. Middle layer: checklist/steps/artifacts. Bottom layer: raw logs/tool calls/transcript.
@@ -425,13 +426,13 @@ A Photon Cloud project can represent one agent through the existing
 experimental channel subsystem. DMs and explicitly enabled groups create or
 continue task-bound conversations. Linked sender identity is the default;
 telephone numbers, email addresses, names, and group membership do not grant
-Paperclip authority. Photos/files and ordinary questions/confirmations use the
+Outpost authority. Photos/files and ordinary questions/confirmations use the
 existing attachment, interaction, continuation, and publication contracts.
 Pause and Disconnect govern runtime behavior independently of the UI gate.
 Local Mac access, unsolicited conversations, and SMS/RCS
 fallback are excluded. Live qualification is required before release readiness.
 Pro shared allocation supports DMs only, with sender enrollment in Photon and
-separate identity linking in Paperclip. Shared channels reserve one project, not
+separate identity linking in Outpost. Shared channels reserve one compatibility project, not
 a pool phone number; group admission and publication are disabled. Dedicated
 allocation retains one selected number and individually enabled groups.
 
@@ -447,7 +448,7 @@ and completing work are separate actions; sending never starts or interrupts a
 chat turn. Delivery obeys membership, run authority and task privacy. This version delivers
 in-app only.
 
-Coordinator is the standard workspace for everyone. Settings → Experimental offers a personal **Classic workspace** opt-in, off by default. Historical Coordinator experiment settings do not enable Classic. Agent Chat is available to everyone on new and existing instances. The retired `enableAgentChat` key remains accepted for compatibility; stored and managed off values are ignored. Each person has one persistent task-backed conversation per agent and company, with ordinary company task visibility. The shared task composer, transcript, tools, files, and document panel remain the interaction surface. Agents clarify goals and hand substantial execution to linked, assigned tasks; a reply ends a turn without completing the conversation. `/new` starts fresh provider context in the same conversation while preserving visible history and artifacts. Healthy idle conversations wait for a message and do not count as unfinished execution work. See `doc/plans/2026-09-10-agent-chat.md` for the implementation contract.
+Coordinator is the standard workspace for everyone. Settings → Experimental offers a personal **Classic workspace** opt-in, off by default. Historical Coordinator experiment settings do not enable Classic. Agent Chat is available to everyone on new and existing instances. The retired `enableAgentChat` key remains accepted for compatibility; stored and managed off values are ignored. Each person has one persistent task-backed conversation per agent and Space, with ordinary Space task visibility. The shared task composer, transcript, tools, files, and document panel remain the interaction surface. Agents clarify goals and hand substantial execution to linked, assigned tasks; a reply ends a turn without completing the conversation. `/new` starts fresh provider context in the same conversation while preserving visible history and artifacts. Healthy idle conversations wait for a message and do not count as unfinished execution work. See `doc/plans/2026-09-10-agent-chat.md` for the implementation contract.
 
 ### Agent chat project handoff (2026-09-11)
 
@@ -462,7 +463,7 @@ Confirmed project creation appears as a durable card in the shared task transcri
 ### In-app announcements
 
 An optional announcement card shares product news with board users on opening
-or returning to Paperclip. Dismissals persist per user across companies and
+or returning to Outpost. Dismissals persist per user across Spaces and
 browsers within an instance. Operators can disable fetching independently of
 telemetry. See [Announcements](ANNOUNCEMENTS.md).
 
@@ -489,13 +490,13 @@ Coordinator navigation uses **Chat**, **Tasks**, and **Inbox**. Inbox uses the
 inbox icon and keeps the existing decision feed, its count, and decision history
 at `/decisions`. The previous Inbox destination under More is removed.
 
-Tasks defaults to **All tasks**, with a saved view per person and company. Mine uses
+Tasks defaults to **All tasks**, with a saved view per person and Space. Mine uses
 the previous Inbox's personal participation rules, mixed attention items,
 read/unread title weights, keyboard shortcuts, archive and undo, mobile
 swipe-to-archive, grouping, and saved columns. Its existing preferences carry
 over. Unread, Recent, Blocked, and Everything are also task views. Organization
 views retain the task table and board. The table saves column selection and
-order per person and company. Old `/inbox/*` links redirect to their Tasks view.
+order per person and Space. Old `/inbox/*` links redirect to their Tasks view.
 
 ### Combined Inbox + Task List
 
@@ -518,7 +519,7 @@ limited. Download retains the complete file.
 ### Filesystem access boundary (2026-10-20)
 
 Filesystem isolation belongs to the OS, execution environment, and storage layout.
-Paperclip authorizes the current task/run, company, explicitly selected configuration,
+Outpost authorizes the current task/run, Space, explicitly selected configuration,
 execution policy, and repository credentials. It does not infer file permissions from
 other tasks or agents that previously used the same directory, overlapping roots,
 symlink aliases, or shared Git storage. Existing files under an authorized task root
@@ -544,7 +545,7 @@ The implementation, operation inventory, permission matrix and fixture qualifica
 
 ## Budget control behavior
 
-Paperclip records paid-operation charges durably and avoids company-wide
+Outpost records paid-operation charges durably and avoids Space-wide
 serialization during receipt ingestion and settlement. Budget checks and
 threshold enforcement are best effort. Concurrent operations can start from
 the same observed balance; estimates and provider caps do not replace the

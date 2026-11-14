@@ -54,7 +54,7 @@ export function ActivityRow({ event, agentMap, userProfileMap, entityNameMap, en
 
   const actor = event.actorType === "agent" ? agentMap.get(event.actorId) : null;
   const userProfile = event.actorType === "user" ? userProfileMap?.get(event.actorId) : null;
-  const actorName = actor?.name ?? (event.actorType === "system" ? "System" : userProfile?.label ?? (event.actorType === "user" ? "Board" : event.actorId || "Unknown"));
+  const actorName = actor?.name ?? (event.actorType === "system" ? "System" : userProfile?.label ?? (event.actorType === "user" ? "User" : event.actorId || "Unknown"));
   const actorAvatarUrl = userProfile?.image ?? null;
   const avatar = event.actorType === "agent" ? (
     <AgentAvatar agent={actor} name={actorName} size={24} className="@xl:self-center" />

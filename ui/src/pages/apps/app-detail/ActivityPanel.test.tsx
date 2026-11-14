@@ -53,8 +53,8 @@ describe("resolveActorLabel", () => {
   });
 
   it("falls back to 'Board' for the local board principal", () => {
-    expect(resolveActorLabel("local-board", new Map())).toBe("Board");
-    expect(resolveActorLabel("local-board", undefined)).toBe("Board");
+    expect(resolveActorLabel("local-board", new Map())).toBe("You");
+    expect(resolveActorLabel("local-board", undefined)).toBe("You");
   });
 
   it("falls back to 'Someone' for an unknown actor", () => {

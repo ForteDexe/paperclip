@@ -153,7 +153,7 @@ function resolveActorLabel(args: {
     return agentMap?.get(agentId)?.name ?? agentId.slice(0, 8);
   }
   if (userId) {
-    return formatAssigneeUserLabel(userId, currentUserId, userLabelMap) ?? "Board";
+    return formatAssigneeUserLabel(userId, currentUserId, userLabelMap) ?? "User";
   }
   return "Unknown";
 }
@@ -4163,7 +4163,7 @@ export function IssueThreadInteractionCard({
 
 /**
  * Small audit chip marking that an interaction was resolved by an agent (rather
- * than a human board member) — governed agent resolution introduced in P2.
+ * than a human user) — governed agent resolution introduced in P2.
  */
 function ResolvedByAgentChip() {
   return (

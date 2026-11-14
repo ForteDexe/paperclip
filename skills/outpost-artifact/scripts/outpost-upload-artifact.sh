@@ -469,7 +469,7 @@ for ((lookup_attempt = 1; lookup_attempt <= lookup_attempts; lookup_attempt++));
 done
 
 if [[ -z "$attachment" && -f "$unknown_upload_marker" && "$retry_unknown_upload" != "1" ]]; then
-  printf '%s\n' 'A previous matching upload ended without a definitive response, and Paperclip has not exposed its durable attachment yet.' >&2
+  printf '%s\n' 'A previous matching upload ended without a definitive response, and Outpost has not exposed its durable attachment yet.' >&2
   printf '%s\n' 'Retry this command later. If the upload definitely did not commit, pass --retry-unknown-upload to accept the duplicate-file risk.' >&2
   exit 1
 fi

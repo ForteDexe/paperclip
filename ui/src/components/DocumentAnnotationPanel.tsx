@@ -521,7 +521,7 @@ function resolveAuthor(
       imageUrl: profile?.image ?? null,
     };
   }
-  return { name: comment.authorType === "agent" ? "Agent" : "Board", role: comment.authorType === "agent" ? "agent" : "board" };
+  return { name: comment.authorType === "agent" ? "Agent" : "Human", role: comment.authorType === "agent" ? "agent" : "board" };
 }
 
 export function truncate(value: string, limit: number) {

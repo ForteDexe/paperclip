@@ -94,7 +94,7 @@ export function currentUserAssigneeOption(currentUserId: string | null | undefin
   return [{
     id: assigneeValueFromSelection({ assigneeUserId: currentUserId }),
     label: "Me",
-    searchText: currentUserId === "local-board" ? "me board human local-board" : `me human ${currentUserId}`,
+    searchText: currentUserId === "local-board" ? "me human user local-board" : `me human ${currentUserId}`,
   }];
 }
 
@@ -119,6 +119,6 @@ export function formatUserLabel(
       : (userLabels as Record<string, string>)[userId];
     if (typeof label === "string" && label.trim()) return label;
   }
-  if (userId === "local-board") return "Board";
+  if (userId === "local-board") return "You";
   return userId.slice(0, 5);
 }

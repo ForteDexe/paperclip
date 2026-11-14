@@ -1,4 +1,4 @@
-# Paperclip Design Principles
+# Outpost Design Principles
 
 **Status:** v0.3 — anchor document for design-language simplification. Governs structure, not brand. Brand values (color, type, iconography) are intentionally unspecified: they are being redesigned and will land as token values only. Nothing in `ui/` may hardcode them. Spacing/radius scales are likewise TBD pending the token audit (see Principle 3).
 
@@ -10,7 +10,7 @@ Agents and humans modifying `ui/` treat this file as the source of truth for des
 
 ## Product stance
 
-Paperclip is an operational control plane: org charts, tasks, heartbeat runs, budgets, approvals, audit logs. The user is an operator scanning state and making decisions. Every screen should answer, in order: *what is happening, does it need me, what do I do about it.* Density in service of scanning beats whitespace in service of aesthetics — but density comes from information, never from chrome.
+Outpost is a coordination surface for persistent agents: Spaces, agent reporting relationships, tasks, runs, Decisions, artifacts, and audit history. The user is an operator scanning state and making decisions. Reporting relationships are coordination, not rank, and the default agent is only a routing preference. Every screen should answer, in order: *what is happening, does it need me, what do I do about it.* Density in service of scanning beats whitespace in service of aesthetics — but density comes from information, never from chrome.
 
 ## The token layer (where visual values live)
 
@@ -90,7 +90,7 @@ Standing agent chats open with the latest 20 contiguous messages and hydrate onl
 
 Only the viewer's own human comments sit on the right in blue bubbles. Agents
 and other humans sit on the left on the page surface, with their own name and
-avatar above the message. Human identity comes from the company directory;
+avatar above the message. Human identity comes from the Space user directory;
 missing photos use the shared initials fallback. Match ownership by the stored
 author user ID and the authenticated viewer ID, never by display name or the bot
 that relayed a message from another channel.
@@ -366,7 +366,7 @@ These stories are review references and do not count as current production cover
 All Design proposals opt into `AvatarInitialProvider`: text fallback avatars use
 one uppercase character, the first initial. This includes the sidebar account
 control, account/profile headers, identity avatars and failed agent-image
-fallbacks. Uploaded images and organization artwork keep their existing rendering.
+fallbacks. Uploaded images and Space artwork keep their existing rendering.
 They continue to import shared components and the existing token layer; this is
 organizational separation, not a second implementation or token source. Use them
 for tasks explicitly implementing the refresh. After design review and adoption
@@ -431,7 +431,7 @@ width tokens and configurable column order. Review the complete composition in
 - Created by is the recorded creator (human or agent) and shows a name. Assignee
   shows the current agent's avatar or human's profile photo beside their name,
   with the shared avatar fallback when an image is unavailable. Human photos load
-  only from Paperclip asset URLs; external profile URLs use initials. The avatar stays
+  only from Outpost asset URLs; external profile URLs use initials. The avatar stays
   visible while a long name reveals on hover or focus. Do not infer either
   identity from tree depth or task status.
 - Task combines the status icon and title under one header and one Columns-menu
@@ -575,7 +575,7 @@ and full page consume the same `TaskList` collection.
   Long Labels, Many Recent Tasks, Empty Recent Tasks, Organization Menu and
   Account Menu stories, then review the Tasks page in context. Both compositions
   use the same component and CSS tokens. The caller supplies recent tasks and
-  the New Task action; recents are filtered to the selected company.
+  the New Task action; recents are filtered to the selected Space.
   The Recent Tasks heading stays fixed while its list scrolls independently.
   The list uses the existing `scrollbar-while-scrolling` utility and shared idle
   timer token; hovering alone does not reveal its scrollbar.
@@ -584,11 +584,11 @@ and full page consume the same `TaskList` collection.
   remains fixture based; mobile composition and backend behavior are not proved.
 - Sidebar navigation labels use `sm` (14px). Icons match Paper and the existing
   sidebar mappings: CircleCheck, MessageCircle, FolderOpen, Repeat, Package,
-  Users, Boxes, Unplug and History. The organization and account controls mount
+  Users, Boxes, Unplug and History. The Space and account controls mount
   `SidebarCompanyMenu` and `SidebarAccountMenu` directly, preserving their
   production keyboard behavior and actions, with the shared refreshed flyout
   appearance. Switching fixture
-  organizations changes the selection and never shows another company's tasks.
+  Spaces changes the selection and never shows another Space's tasks.
   The sidebar follows Paper node `32TP-0`: 12px navigation insets, 8px item
   margins and padding, 14px/150% labels, 2px row gaps and 16px section gaps.
   Work and Org captions use the sans family rather than monospace. Recent Tasks
@@ -597,7 +597,7 @@ and full page consume the same `TaskList` collection.
   Sidebar surface and right border alias `--muted` and `--border`, matching
   Paper's dark-color-muted and dark-color-border. The task search field uses
   `--background-alt` (Paper dark-color-background-alt: oklch(14.5% 0 0)).
-  The organization switcher has no caret in this proposal. Its hit area is
+  The Space switcher has no caret in this proposal. Its hit area is
   separate from an adjacent global-search button, which opens the production
   `CommandPalette`; the toolbar input remains a task-list filter.
   `TruncatedTextMarqueeProvider` opts sidebar and menu labels into the same
@@ -661,13 +661,13 @@ and full page consume the same `TaskList` collection.
 
 Coordinator adopts the same four-option menu with Inbox as its initial and
 fallback view. Its last-used view is stored per user across organizations;
-explicit view URLs take precedence, and organization-filter links without a
+explicit view URLs take precedence, and Space-filter links without a
 view open All tasks. Unread uses the server's viewer read state. Coordinator's
 Needs attention view retains its canonical pending-decision task feed.
 Status filters preserve Inbox and Unread. Unread loads accessible read ancestors
 as hierarchy context, without counting them as unread matches.
 Its sidebar groups Chat, Tasks and Needs you with space after New task and
-before More, and keeps global search beside the organization menu (below it
+before More, and keeps global search beside the Space menu (below it
 in the collapsed rail).
 Recents appears only when it contains entries, without an empty state.
 
@@ -823,10 +823,10 @@ keys, so toggling off retains the ordinary 434px task-detail default and its
 saved widths. This adapts the existing task-detail pane; it does not replace its
 production content or maximize behavior with the layout-story fixtures.
 
-`DesignSandboxTasks` adapts real company-scoped APIs to `TaskListToolbar`,
+`DesignSandboxTasks` adapts real Space-scoped APIs to `TaskListToolbar`,
 `TaskList`, `KanbanBoard` and `useTaskListCollection`. It imports no Storybook
 fixtures. Creator names, projects, labels and viewer unread state come from APIs;
-the ordinary organization list does not supply unread context, so a separate
+the ordinary Space list does not supply unread context, so a separate
 server-filtered unread query supplies that set. Load-more explicitly limits
 client search/filter/sort coverage to loaded tasks. Preferences use sandbox keys.
 Task links, creation dialogs and board updates retain the existing app services.
@@ -1011,7 +1011,7 @@ Further consolidation proposals, pending visual review:
 
 ### Collection empty states and roster selection
 
-Projects uses the large artifact stack with a dark grey Paperclip mark on an off-white
+Spaces uses the large artifact stack with a dark grey Outpost mark on an off-white
 image front. The empty-state action is “Create project”. Artwork, message and
 primary action have 20px gaps (`gap-5`). Hovering or keyboard-focusing the action
 fans the same artwork as hovering the graphic. Artifacts uses that stack for
@@ -1070,7 +1070,7 @@ In the streamlined Skills area, `SkillsNavigationTabs` replaces the contextual
 sidebar with Installed, Discover and My Skills links styled as canonical Standard
 tabs beneath the toolbar. Studio and Sources keep these links beneath their own
 header controls. Sources is a separate destination available through the Skills
-New menu's Manage sources action; it is not a tab. The main company navigation
+New menu's Manage sources action; it is not a tab. The main Space navigation
 stays visible. Legacy Skills navigation retains its existing sidebar.
 
 The streamlined My Skills landing (`/skills/studio`) mounts the same CompanySkills
