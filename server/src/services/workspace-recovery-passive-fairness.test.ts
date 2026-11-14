@@ -50,7 +50,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
     return { ...f, actionId: id };
   }
 
-  /** A operator-owned save of Nov 10, exhausted after 6 attempts under capture policy 1 (no version saved). */
+  /** An operator-owned save of Nov 10, exhausted after 6 attempts under capture policy 1 (no version saved). */
   async function capturePolicyHold(id: string) {
     const f = await acceptedRemoteExport("retained");
     const prior = await action(f.actionId);

@@ -99,7 +99,7 @@ type ChatConfigurationOptions = Pick<ReturnType<typeof createChatCredentials>, "
   slackRegistration: Pick<ReturnType<typeof slackChatRegistrationService>, "cleanup">;
   githubWizard: Pick<ReturnType<typeof createGitHubAppSetup>["githubWizard"], "repairCloud">;
   nativeBotIdentityClaimBarrier?: () => Promise<void>;
-  allowLocalVoiceBoard?: boolean;
+  allowLocalVoiceOperator?: boolean;
   stageConfigurationEffects?: (transaction: Db, endpointId: string, actorUserId: string | null | undefined) => Promise<void>;
 };
 export function createChatConfiguration(db: Db, options: ChatConfigurationOptions) {
@@ -107,7 +107,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
   const { persistPhotonConfiguration } = createPhotonConfiguration(db, { invalidateRuntime });
   const { registerTelegramWebhook } = createTelegramSetup(db, { fetchImpl, getWebhookPublicBaseUrl, PROVIDER_CREDENTIAL_CHECK_TIMEOUT_MS, runtimeContextForRecord, recordTelegramStopSubscription, stageTelegramMaintenance, processTelegramMaintenance });
   const { repairGitHubCloudSetup, repairGitHubWebhookSetup } = createGitHubSetup(db, { fetchImpl, getWebhookPublicBaseUrl, get githubWizard() { return options.githubWizard; } });
-  const { installSpekoVoiceTools, configureSpekoTools } = createSpekoSetup(db, { fetchImpl, getWebhookPublicBaseUrl, get allowLocalVoiceBoard() { return options.allowLocalVoiceBoard; } });
+  const { installSpekoVoiceTools, configureSpekoTools } = createSpekoSetup(db, { fetchImpl, getWebhookPublicBaseUrl, get allowLocalVoiceOperator() { return options.allowLocalVoiceOperator; } });
 
 
 

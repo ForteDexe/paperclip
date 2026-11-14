@@ -14,7 +14,7 @@ export function useStagingCommit(menuOpen: boolean) {
     // Opening the menu must refresh the server SHA after a staging rollout.
     staleTime: 0,
     // Menu probe: fail fast so a slow health route does not hang the menu;
-    // the SHA is an optional staging aid, not a operator access gate.
+    // the SHA is an optional staging aid, not an operator access gate.
     retry: retryTransientOnly(0),
   });
 

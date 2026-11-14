@@ -55,7 +55,7 @@ function snapshotBound(point: SettingsSnapshot | undefined, scope: AgentSettings
     && point.activity.every(row => present(row.id) && row.spaceId === scope.spaceId
       && row.entityType === "agent" && row.entityId === scope.agentId));
 }
-export function matchedBoardSaveAudit(point: SettingsSnapshot | undefined, before: SettingsSnapshot | undefined, scope: AgentSettingsScope) {
+export function matchedOperatorSaveAudit(point: SettingsSnapshot | undefined, before: SettingsSnapshot | undefined, scope: AgentSettingsScope) {
   const old = new Set(before?.activity?.map(row => row.id));
   const added = point?.activity?.filter(row => !old.has(row.id) && row.action === "agent.files_updated"
     && row.entityType === "agent" && row.entityId === scope.agentId && row.details?.path === point.bundle.entryFile);
@@ -82,7 +82,7 @@ export function gradeAgentSettings(scope: AgentSettingsScope, value: AgentSettin
     && !original!.file.content.includes(settingsProofHeading);
   const expected = scoped ? settingsInstructionContent(original!.file.content, scope.reference) : undefined;
   const save = scoped && snapshotBound(saved, scope, entry) && saved!.file.content === expected
-    && revisionId(saved) !== revisionId(original) && matchedBoardSaveAudit(saved, original, scope) && saved!.runs.length === 0;
+    && revisionId(saved) !== revisionId(original) && matchedOperatorSaveAudit(saved, original, scope) && saved!.runs.length === 0;
   const reload = save && snapshotBound(reloaded, scope, entry) && reloaded!.file.content === expected
     && revisionId(reloaded) === revisionId(saved) && reloaded!.renderedContent === expected && reloaded!.runs.length === 0;
   const issue = task?.issue, runs = task?.runs;
@@ -118,7 +118,7 @@ export function gradeAgentSettings(scope: AgentSettingsScope, value: AgentSettin
     && task!.renderedReference === scope.reference;
   const restore = resultReload && snapshotBound(restored, scope, entry) && restored!.file.content === original!.file.content
     && restored!.renderedContent === original!.file.content && restored!.file.contentHash === original!.file.contentHash
-    && revisionId(restored) === revisionId(original) && revisionId(restored) !== revisionId(saved) && matchedBoardSaveAudit(restored, afterWork, scope)
+    && revisionId(restored) === revisionId(original) && revisionId(restored) !== revisionId(saved) && matchedOperatorSaveAudit(restored, afterWork, scope)
     && restored!.runs.length === 1 && restored!.runs[0]?.id === run!.id;
   return [save, reload, inputOnly, output, resultReload, restore, configured]
     .map((passed, index) => ({ id: AGENT_SETTINGS_CHECKS[index]!, passed: Boolean(passed) }));

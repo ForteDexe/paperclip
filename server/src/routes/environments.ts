@@ -390,7 +390,7 @@ export function environmentRoutes(
   function assertCanAccessInstanceEnvironments(req: Request) {
     if (req.actor.type === "agent") throw operatorAccessRequired(req);
     if (req.actor.type !== "operator") {
-      throw forbidden("Instance environment management is restricted to operator operators");
+      throw forbidden("Instance environment management is restricted to operators");
     }
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
     throw forbidden("Instance admin access required");

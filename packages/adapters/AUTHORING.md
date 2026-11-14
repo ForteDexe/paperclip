@@ -67,4 +67,4 @@ path that legitimately must push, add a
 above) so the opt-in shows up in code review.
 
 For the architecture-level write-up of cross-run persistence, see
-[`docs/guides/board-operator/execution-workspaces-and-runtime-services.md`](../../docs/guides/board-operator/execution-workspaces-and-runtime-services.md#cross-run-persistence-no-remote-git-contract).
+[`docs/guides/operator/execution-workspaces-and-runtime-services.md`](../../docs/guides/operator/execution-workspaces-and-runtime-services.md#cross-run-persistence-no-remote-git-contract).

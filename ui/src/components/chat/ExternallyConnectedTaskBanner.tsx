@@ -31,16 +31,16 @@ import { retryTransientOnly } from "@/lib/query-client";
 import { useQueryView } from "@/components/QueryView";
 import {
   operatorSendDraftKey,
-  clearBoardSendDraft,
-  canDismissBoardSendBatch,
-  readBoardSendDraft,
-  readBoardSendRejection,
-  writeBoardSendDraft,
+  clearOperatorSendDraft,
+  canDismissOperatorSendBatch,
+  readOperatorSendDraft,
+  readOperatorSendRejection,
+  writeOperatorSendDraft,
   type OperatorSendRejection,
-  type RetainedBoardSend,
+  type RetainedOperatorSend,
 } from "./operator-send-draft";
 
-import { LegacyBoardSendNotice } from "./LegacyBoardSendNotice";
+import { LegacyOperatorSendNotice } from "./LegacyOperatorSendNotice";
 
 const providerNames: Record<ChatProvider, string> = {
   speko: "Speko",
@@ -178,7 +178,7 @@ function ConnectedTaskComposer({
     null,
   );
   const idempotencyKey = useRef<string | null>(null);
-  const retainedSend = useRef<RetainedBoardSend | null>(null);
+  const retainedSend = useRef<RetainedOperatorSend | null>(null);
   const retainedScopeKey = useRef<string | null>(null);
   const [unconfirmedRequest, setUnconfirmedRequest] = useState(false);
   const [rejection, setRejection] = useState<OperatorSendRejection | null>(null);
@@ -223,7 +223,7 @@ function ConnectedTaskComposer({
         setComposing(true);
         return;
       }
-      const saved = readBoardSendDraft(storageKey);
+      const saved = readOperatorSendDraft(storageKey);
       retainedScopeKey.current = storageKey;
       retainedSend.current = saved;
       idempotencyKey.current = saved?.idempotencyKey ?? null;
@@ -263,7 +263,7 @@ function ConnectedTaskComposer({
   const finishPublication = useCallback(() => {
     if (storageKey) {
       try {
-        clearBoardSendDraft(storageKey);
+        clearOperatorSendDraft(storageKey);
       } catch {
         /* The retained anchor remains safe to recheck after reload. */
       }
@@ -330,7 +330,7 @@ function ConnectedTaskComposer({
       conversationId: string;
     }) => {
       if (readOwner() !== draftOwner) throw new DOMException("Your account changed. Reopen this task to send from your current account.", "AbortError");
-      return chatEndpointsApi.publishBoardMessage(
+      return chatEndpointsApi.publishOperatorMessage(
         input.endpointId,
         input.conversationId,
         input.body,
@@ -357,7 +357,7 @@ function ConnectedTaskComposer({
           },
         };
         try {
-          writeBoardSendDraft(storageKey, retainedSend.current);
+          writeOperatorSendDraft(storageKey, retainedSend.current);
         } catch {
           // The pre-POST payload/key is already persisted. It remains a safe,
           // explicit same-request retry when the publication ID cannot be saved.
@@ -372,12 +372,12 @@ function ConnectedTaskComposer({
       });
     },
     onError: (error, request) => {
-      const rejected = readBoardSendRejection(error, request);
+      const rejected = readOperatorSendRejection(error, request);
       if (rejected && retainedSend.current && storageKey) {
         const saved = { ...retainedSend.current, rejection: rejected };
         try {
           // Keep the negative receipt through reload before offering a new key.
-          writeBoardSendDraft(storageKey, saved);
+          writeOperatorSendDraft(storageKey, saved);
         } catch {
           setStorageError(
             "The rejected send could not be saved. Restore browser storage, then retry this same request to recover its receipt.",
@@ -526,9 +526,9 @@ function ConnectedTaskComposer({
   const dismissible =
     Boolean(publicationStatus.data) &&
     !publicationStatus.isFetching &&
-    canDismissBoardSendBatch(batch);
+    canDismissOperatorSendBatch(batch);
   const mixedTerminal =
-    canDismissBoardSendBatch(batch) && batch!.published < batch!.total;
+    canDismissOperatorSendBatch(batch) && batch!.published < batch!.total;
   const currentFeedback = mixedTerminal
     ? {
         title: "Delivery settled with mixed outcomes",
@@ -720,9 +720,9 @@ function ConnectedTaskComposer({
               <Link className="underline underline-offset-4" to={activityPath}>Open Activity</Link>
             </p>
           )}
-          {unownedRequest && <LegacyBoardSendNotice onDiscard={() => {
+          {unownedRequest && <LegacyOperatorSendNotice onDiscard={() => {
             if (readOwner() !== draftOwner) return;
-            try { clearBoardSendDraft(legacyStorageKey); }
+            try { clearOperatorSendDraft(legacyStorageKey); }
             catch {
               setStorageError("Saved delivery record could not be discarded. Restore browser storage, then try again.");
               return;
@@ -749,7 +749,7 @@ function ConnectedTaskComposer({
                 onClick={() => {
                   if (!storageKey || !retainedSend.current?.rejection) return;
                   try {
-                    clearBoardSendDraft(storageKey);
+                    clearOperatorSendDraft(storageKey);
                   } catch {
                     setStorageError(
                       "Saved rejection could not be cleared. Restore browser storage before editing this send.",
@@ -884,7 +884,7 @@ function ConnectedTaskComposer({
                   onClick={() => {
                     if (storageKey) {
                       try {
-                        clearBoardSendDraft(storageKey);
+                        clearOperatorSendDraft(storageKey);
                       } catch {
                         setStorageError(
                           "Saved delivery identity could not be cleared. Restore browser storage before starting another send.",
@@ -955,7 +955,7 @@ function ConnectedTaskComposer({
                 };
                 try {
                   if (!storageKey) throw new Error("Missing delivery scope");
-                  writeBoardSendDraft(storageKey, input);
+                  writeOperatorSendDraft(storageKey, input);
                 } catch {
                   setStorageError(
                     "Browser storage could not preserve this delivery identity. No update was sent. Restore browser storage, then reload to try again.",

@@ -10,7 +10,7 @@ import { initBrowserErrorMonitoring, teardownBrowserErrorMonitoring } from "@/li
  * session carries a Sentry DSN. Renders nothing.
  *
  * Sets no `enabled` option on the session query, so this also runs in
- * `local_trusted` mode — the actor middleware fabricates a operator actor
+ * `local_trusted` mode — the actor middleware fabricates an operator actor
  * there, so `/api/auth/get-session` still answers 200 with a session.
  *
  * Sign-out clears the session query (`useSignOut`), so `dsn` goes back to

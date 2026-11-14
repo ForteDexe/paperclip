@@ -17,7 +17,7 @@ test("Mine refreshes a recent-task history with one summaries request", async ({
     const entries = taskIds.map((id, index) => ({
       id, spaceId, title: `Recent ${index}`, identifier: null, status: "backlog", recordedAt: Date.now() - index * 1000,
     }));
-    for (const owner of new Set([userId ?? "__local_board__", "__local_board__"])) {
+    for (const owner of new Set([userId ?? "__local_operator__", "__local_operator__"])) {
       localStorage.setItem(`outpost.recentTasks.v2:${spaceId}:${owner}`, JSON.stringify(entries));
     }
   }, { spaceId, userId, taskIds });

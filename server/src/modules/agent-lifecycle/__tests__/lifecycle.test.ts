@@ -217,7 +217,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
 
 
-  it("creates a operator-owned setup before requesting approval for its final configuration", async () => {
+  it("creates an operator-owned setup before requesting approval for its final configuration", async () => {
     await db.update(spaces).set({ requireOperatorApprovalForNewAgents: true }).where(eq(spaces.id, spaceId));
     await db.insert(spaceMemberships).values(["operator", "other-creator"].map(principalId => ({ spaceId, principalType: "user", principalId, membershipRole: "member" })));
     await db.insert(principalPermissionGrants).values(["operator", "other-creator"].map(principalId => ({ spaceId, principalType: "user", principalId, permissionKey: "agents:create" })));
@@ -802,10 +802,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("clears a rejected create from the user's primary selection", async () => {
     const agent = await createAgentLifecycle(db).requestCreation(spaceId, { name: "Proposed", status: "pending_approval" }, { createdByUserId: "operator" });
     const preference = () => db.select().from(userSpacePreferences).where(eq(userSpacePreferences.spaceId, spaceId));
-    expect((await preference())[0]!.primaryAgentId).toBe(agent.id);
+    expect((await preference())[0]!.defaultAgentId).toBe(agent.id);
     const approval = await approvalService(db).create(spaceId, { type: "create_agent", payload: { agentId: agent.id }, status: "pending" });
     await approvalService(db).reject(approval.id, "operator");
-    expect((await preference())[0]!.primaryAgentId).toBeNull();
+    expect((await preference())[0]!.defaultAgentId).toBeNull();
     expect((await current(agent.id)).lifecycleState).toBe("rejected");
   });
 
@@ -1125,7 +1125,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       lifecycleVersion: before.lifecycleVersion, lifecycleOperation: before.lifecycleOperation });
   });
 
-  it("permits a operator retry and rejects an agent or a different space", async () => {
+  it("permits an operator retry and rejects an agent or a different space", async () => {
     const agent = await create();
     function app(actor: Express.Request["actor"]) {
       const app = express(); app.use(express.json());

@@ -644,7 +644,7 @@
     "server/src/__tests__/plugin-worker-manager-duplex.test.ts": 2864,
     "server/src/__tests__/plugin-worker-manager.test.ts": 7777,
     "server/src/__tests__/plugin-workspaces.integration.test.ts": 8506,
-    "server/src/__tests__/primary-agent.test.ts": 7185,
+    "server/src/__tests__/default-agent.test.ts": 7185,
     "server/src/__tests__/principal-access-compatibility.test.ts": 1878,
     "server/src/__tests__/privacy-production-review.test.ts": 9705,
     "server/src/__tests__/private-hostname-guard.test.ts": 165,

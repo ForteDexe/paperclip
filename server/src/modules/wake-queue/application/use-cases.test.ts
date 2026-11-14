@@ -724,7 +724,7 @@ describe("releaseIssueExecution", () => {
     ["operator cancel", { errorCode: "cancelled", operatorStopped: true }],
     ["agent pause", { errorCode: "agent_paused", operatorStopped: true }],
   ] as const)("does not re-queue or escalate a run a person stopped (%s)", async (_label, stop) => {
-    // Regression: a operator cancel of a queued wake re-created it as
+    // Regression: an operator cancel of a queued wake re-created it as
     // issue_continuation_needed / issue_assignment_recovery within a second.
     for (const status of ["in_progress", "todo"]) {
       const transaction = createFakeTransaction();

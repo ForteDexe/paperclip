@@ -71,7 +71,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Speko", uid: endpointId, connectionPurpose: "channel", transport: "voice", config: { provider: "speko" }, status: "active", enabled: true });
     await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, provider: "speko", publicId: randomUUID(), assignedAgentId: agentId, status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
     await db.insert(chatConversations).values({ id: conversationId, spaceId, endpointId, issueId, externalConversationId: `speko:${conversationId}`, externalThreadId: `speko:${conversationId}`, externalLabel: "Voice", isDirectMessage: true });
-    const store = voiceSessionStore(db, { allowLocalBoard: false });
+    const store = voiceSessionStore(db, { allowLocalOperator: false });
     const prepareBinding = vi.fn(async () => ({ issueId, conversationId }));
     const request = { spaceId, endpointId, caller: { id: callerId, authority: "member" as const }, idempotencyKey: randomUUID(), requestFingerprint: "request", maxDurationSeconds: 600, prepareBinding };
     const reserved = await store.reserve(request);
@@ -603,7 +603,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [a, b] = await Promise.all([f.store.runTool(request), f.store.runTool(request)]);
     expect(a).toEqual(b);
     expect(f.accept).toHaveBeenCalledTimes(1);
-    const restarted = voiceSessionStore(db, { allowLocalBoard: false });
+    const restarted = voiceSessionStore(db, { allowLocalOperator: false });
     expect(await restarted.runTool(request)).toEqual(a);
     expect(await db.select().from(chatVoiceToolCalls).where(eq(chatVoiceToolCalls.sessionId, f.sessionId))).toHaveLength(1);
     await expect(restarted.runTool({ ...request, fingerprint: "changed" })).rejects.toMatchObject({ status: 409 });
@@ -845,7 +845,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(spaceMemberships).set({ membershipRole: "member" }).where(eq(spaceMemberships.principalId, f.callerId));
     await db.update(chatVoiceSessions).set({ callerAuthority: "pending_approval" }).where(eq(chatVoiceSessions.id, f.sessionId));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).rejects.toMatchObject({ status: 403 });
-    await expect(f.store.reserve({ ...f.request, caller: { id: "local-operator", authority: "local_board" } })).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.reserve({ ...f.request, caller: { id: "local-operator", authority: "local_operator" } })).rejects.toMatchObject({ status: 403 });
   });
 
   it("preserves accepted work after hangup but still enforces revoked access", async () => {
@@ -1033,7 +1033,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       endSession: vi.fn(async () => ({ confirmed: true })),
     };
     const credentials = vi.fn(async () => ({ apiKey: "server-only-key", agentId: "agent_test" }));
-    const service = voiceSessionService(db, { allowLocalBoard: false, credentials, provider: () => transport, onQuestionAnswered: vi.fn() });
+    const service = voiceSessionService(db, { allowLocalOperator: false, credentials, provider: () => transport, onQuestionAnswered: vi.fn() });
     const input = { spaceId: f.spaceId, endpointId: f.endpointId, issueId: f.issueId, caller: f.request.caller, idempotencyKey: randomUUID(), maxDurationSeconds: 600 };
     return { ...f, service, transport, credentials, input };
   }
@@ -1174,7 +1174,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await expect(db.transaction(async tx => {
         const [publication] = await tx.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
           conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: { text: "Rolled back" } }).returning();
-        await voiceSessionStore(tx as unknown as typeof db, { allowLocalBoard: false }).enqueuePublication(f.spaceId, publication.id);
+        await voiceSessionStore(tx as unknown as typeof db, { allowLocalOperator: false }).enqueuePublication(f.spaceId, publication.id);
         await vi.advanceTimersByTimeAsync(2000); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before);
         throw new Error("rollback publication");
       })).rejects.toThrow("rollback publication");
@@ -1182,7 +1182,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await db.transaction(async tx => {
         const [publication] = await tx.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
           conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: { text: "Committed answer" } }).returning();
-        await voiceSessionStore(tx as unknown as typeof db, { allowLocalBoard: false }).enqueuePublication(f.spaceId, publication.id);
+        await voiceSessionStore(tx as unknown as typeof db, { allowLocalOperator: false }).enqueuePublication(f.spaceId, publication.id);
         await vi.advanceTimersByTimeAsync(2000); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before);
       });
       await worker.settled(); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before + 1);
@@ -1413,7 +1413,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await f.store.runTool({...f.toolInput("get_updates", {cursor: 0}), sessionId: f.session.id, token, envelope, webhookId: toolId, fingerprint: createHash("sha256").update(JSON.stringify(envelope)).digest("hex")})).toMatchObject({updates: []});
     await db.update(chatActions).set({result: {retryAt: 0}}).where(eq(chatActions.id, retry.id));
     // Reconstruct the service to prove continuation comes from durable receipts.
-    await voiceSessionService(db, {allowLocalBoard: false, credentials: f.credentials, provider: () => f.transport, onQuestionAnswered: vi.fn()}).pushReplies(25, f.spaceId, f.endpointId);
+    await voiceSessionService(db, {allowLocalOperator: false, credentials: f.credentials, provider: () => f.transport, onQuestionAnswered: vi.fn()}).pushReplies(25, f.spaceId, f.endpointId);
     await f.push();
     const calls = f.transport.sendCallMessage.mock.calls;
     expect(calls).toHaveLength(5); expect(calls[4]?.[1]).toBe("Later answer B"); expect(calls[1]?.[1]).toBe(calls[2]?.[1]);
@@ -1641,9 +1641,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(chatVoiceSessions).set({state: "ended", endedAt: new Date()}).where(eq(chatVoiceSessions.id, session.id));
     await db.update(chatVoiceInboundCalls).set({state: "ended"}).where(eq(chatVoiceInboundCalls.id, f.call.id));
     const principal = `voice:${session.id}`;
-    expect(await db.transaction(tx => voiceSessionStore(db, {allowLocalBoard: false}).authorizePrincipal(tx, f.spaceId, f.endpointId, principal))).toMatchObject({allowed: true});
+    expect(await db.transaction(tx => voiceSessionStore(db, {allowLocalOperator: false}).authorizePrincipal(tx, f.spaceId, f.endpointId, principal))).toMatchObject({allowed: true});
     await db.update(environments).set({status: "archived"}).where(eq(environments.id, first));
-    await expect(db.transaction(tx => voiceSessionStore(db, {allowLocalBoard: false}).authorizePrincipal(tx, f.spaceId, f.endpointId, principal))).rejects.toMatchObject({status: 403});
+    await expect(db.transaction(tx => voiceSessionStore(db, {allowLocalOperator: false}).authorizePrincipal(tx, f.spaceId, f.endpointId, principal))).rejects.toMatchObject({status: 403});
   });
   it("confines explicitly enabled public calls to one new low-trust conversation task", async () => {
     const f = await inboundFixture(true), toolId = randomUUID();
@@ -1655,7 +1655,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(f.response.systemPrompt).toContain("Outpost pushes approved task answers");
     expect(f.response.systemPrompt).toContain("Do not repeatedly poll while pending.");
     expect(f.response.systemPrompt).toContain("Do not call answer_question");
-    expect(f.response.systemPrompt).toContain("Do not make the caller wait for a Outpost turn");
+    expect(f.response.systemPrompt).toContain("Do not make the caller wait for an Outpost turn");
     expect(f.response.systemPrompt).toContain("Submit follow-ups even while earlier work is running");
     expect(f.response.systemPrompt).toContain("inspect its actual environment");
     expect(f.response.systemPrompt).toContain("How much disk space do you have on your computer?");
@@ -1750,7 +1750,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const bindingReached = new Promise<void>(resolve => { bound = resolve; });
     const releaseApproval = new Promise<void>(resolve => { release = resolve; });
     const inbound = voiceInboundService(db, {
-      allowLocalBoard: false, credentials: f.credentials, provider: () => f.transport,
+      allowLocalOperator: false, credentials: f.credentials, provider: () => f.transport,
       voicePrompt: "Test voice", lowTrustVoicePrompt: "Test guest voice",
       start: async input => {
         const result = await f.service.start(input);

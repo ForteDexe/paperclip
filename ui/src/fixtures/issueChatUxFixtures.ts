@@ -60,21 +60,21 @@ function createComment(overrides: Partial<IssueChatComment>): IssueChatComment {
   return merged;
 }
 
-const primaryAgent = createAgent("agent-1", "CodexCoder", "code", "codexcoder");
+const defaultAgent = createAgent("agent-1", "CodexCoder", "code", "codexcoder");
 const reviewAgent = createAgent("agent-2", "ClaudeFixer", "sparkles", "claudefixer");
 
 export const issueChatUxAgentMap = new Map<string, Agent>([
-  [primaryAgent.id, primaryAgent],
+  [defaultAgent.id, defaultAgent],
   [reviewAgent.id, reviewAgent],
 ]);
 
 export const issueChatUxMentions: MentionOption[] = [
   {
     id: "mention-agent-1",
-    name: primaryAgent.name,
+    name: defaultAgent.name,
     kind: "agent",
-    agentId: primaryAgent.id,
-    agentIcon: primaryAgent.icon,
+    agentId: defaultAgent.id,
+    agentIcon: defaultAgent.icon,
   },
   {
     id: "mention-agent-2",
@@ -94,9 +94,9 @@ export const issueChatUxMentions: MentionOption[] = [
 
 export const issueChatUxReassignOptions: InlineEntityOption[] = [
   {
-    id: `agent:${primaryAgent.id}`,
-    label: primaryAgent.name,
-    searchText: `${primaryAgent.name} codex engineer`,
+    id: `agent:${defaultAgent.id}`,
+    label: defaultAgent.name,
+    searchText: `${defaultAgent.name} codex engineer`,
   },
   {
     id: `agent:${reviewAgent.id}`,
@@ -119,13 +119,13 @@ export const issueChatUxLiveComments: IssueChatComment[] = [
   }),
   createComment({
     id: "comment-live-agent",
-    authorAgentId: primaryAgent.id,
+    authorAgentId: defaultAgent.id,
     authorUserId: null,
     body: "I swapped the old comment stack for the new assistant-ui thread and kept the existing issue mutations intact.",
     createdAt: new Date("2026-04-06T12:01:00.000Z"),
     updatedAt: new Date("2026-04-06T12:01:00.000Z"),
     runId: "run-history-1",
-    runAgentId: primaryAgent.id,
+    runAgentId: defaultAgent.id,
   }),
   createComment({
     id: "comment-live-queued",
@@ -157,7 +157,7 @@ export const issueChatUxLiveEvents: IssueTimelineEvent[] = [
     actorId: "user-1",
     assigneeChange: {
       from: { agentId: null, userId: null },
-      to: { agentId: primaryAgent.id, userId: null },
+      to: { agentId: defaultAgent.id, userId: null },
     },
   },
 ];
@@ -171,8 +171,8 @@ export const issueChatUxLiveRuns: LiveRunForIssue[] = [
     startedAt: "2026-04-06T12:04:00.000Z",
     finishedAt: null,
     createdAt: "2026-04-06T12:04:00.000Z",
-    agentId: primaryAgent.id,
-    agentName: primaryAgent.name,
+    agentId: defaultAgent.id,
+    agentName: defaultAgent.name,
     adapterType: "codex_local",
     issueId: "issue-ux",
   },
@@ -182,7 +182,7 @@ export const issueChatUxLinkedRuns: IssueChatLinkedRun[] = [
   {
     runId: "run-history-1",
     status: "succeeded",
-    agentId: primaryAgent.id,
+    agentId: defaultAgent.id,
     createdAt: new Date("2026-04-06T11:58:00.000Z"),
     startedAt: new Date("2026-04-06T11:58:00.000Z"),
     finishedAt: new Date("2026-04-06T12:00:00.000Z"),
@@ -332,7 +332,7 @@ export const issueChatUxReviewEvents: IssueTimelineEvent[] = [
     actorType: "user",
     actorId: "user-1",
     assigneeChange: {
-      from: { agentId: primaryAgent.id, userId: null },
+      from: { agentId: defaultAgent.id, userId: null },
       to: { agentId: reviewAgent.id, userId: null },
     },
   },

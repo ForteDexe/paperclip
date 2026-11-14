@@ -8,7 +8,7 @@ import type { AuthorizationActor } from "../../services/authorization.js";
 
 /** Every actor type and membership role that can reach a task read. */
 export const ISSUE_READ_VISIBILITY_ACTORS = [
-  "operator owner", "operator admin", "operator operator", "operator viewer", "operator member", "operator key operator",
+  "operator owner", "operator admin", "operator", "operator viewer", "operator member", "operator key operator",
   "cloud tenant owner", "cloud tenant viewer", "instance admin", "local implicit operator", "operator without membership",
   "agent key", "assignee agent key", "agent run for owner", "agent run for operator", "agent run for viewer",
   "agent run for owner, membership read from the database", "agent run for a user without membership",
@@ -153,7 +153,7 @@ export async function seedIssueReadVisibilityFixture(db: Db, input: { publicCoun
   const actors: Record<IssueReadVisibilityActorName, AuthorizationActor> = {
     "operator owner": operator("owner"),
     "operator admin": operator("admin"),
-    "operator operator": operator("operator"),
+    "operator": operator("operator"),
     "operator viewer": operator("viewer"),
     "operator member": operator("member"),
     "operator key operator": operator("operator", "operator_key"),

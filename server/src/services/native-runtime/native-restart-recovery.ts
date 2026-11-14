@@ -494,7 +494,7 @@ export async function evaluateNativeControllerTakeover(input: {
     };
   }
   const recordsHost = Object.prototype.hasOwnProperty.call(owner, "controllerHostHash");
-  // A operator operator confirmed this exact controller stopped (see
+  // An operator confirmed this exact controller stopped (see
   // confirmNativeControllerStopped); that attestation is the proof.
   if (recordsHost && owner.controllerHostHash === OPERATOR_ATTESTED_CONTROLLER_HOST) {
     return { allowed: true, reason: "operator_attested_controller_stopped" };
@@ -1021,7 +1021,7 @@ export async function surfaceNativeControllerNamespaceAttention(db: Db, input: {
           digest, leaseExpiresAt: input.coordinator.leaseExpiresAt!.toISOString() } } : {}) },
       nextAction: input.remoteProcess
         ? "Use the task's ordinary Stop action and its environment provider's stop/cleanup recovery. Wait for that exact controller/provider acknowledgement. Local PID checks and local containment confirmation cannot authorize remote recovery."
-        : "Stop the original controller and provider on their original host. After the saved lease expires, a operator operator must record both stops and review action outcomes. Recording containment does not retry the task.",
+        : "Stop the original controller and provider on their original host. After the saved lease expires, an operator must record both stops and review action outcomes. Recording containment does not retry the task.",
       createOnly: !existing, supersedeOnIdentityChange: true,
       attemptCount: 0, maxAttempts: null, timeoutAt: null, lastAttemptAt: null,
       wakePolicy: null, monitorPolicy: null,

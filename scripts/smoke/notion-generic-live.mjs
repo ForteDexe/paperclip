@@ -153,7 +153,7 @@ async function gotoWithVisibleMarker(
   fail(checkpoint, code);
 }
 
-async function loginOutpostBoard(page, context, config) {
+async function loginOutpostOperator(page, context, config) {
   const loginUrl = new URL("/auth?next=/", config.baseUrl).toString();
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     await gotoWithVisibleMarker(
@@ -588,7 +588,7 @@ async function runSmoke({ config, chromium }) {
     });
     const page = await context.newPage();
 
-    await loginOutpostBoard(page, context, config);
+    await loginOutpostOperator(page, context, config);
 
     activeCheckpoint = "A.space-selection";
     const spaces = await apiJson(context.request, config, "GET", "/api/spaces", undefined, "A.space-selection");

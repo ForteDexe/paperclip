@@ -40,7 +40,7 @@ const RESTART_WAKE_RETRY_STORAGE_SUFFIX = ":restart-wake-retry";
 
 function restartWakeRetryStorageKey(spaceId: string, userId: string | null) {
   // Action retry state must survive changes to the recent-task snapshot format.
-  return `outpost.recentTasks:${spaceId}:${userId ?? "__local_board__"}${RESTART_WAKE_RETRY_STORAGE_SUFFIX}`;
+  return `outpost.recentTasks:${spaceId}:${userId ?? "__local_operator__"}${RESTART_WAKE_RETRY_STORAGE_SUFFIX}`;
 }
 
 function readRestartWakeRetryIssueIds(storageKey: string | null) {
@@ -85,7 +85,7 @@ export function SidebarRecentTasks({
 
   return (
     <RecentTasksList
-      key={`${spaceId}:${userId ?? "__local_board__"}`}
+      key={`${spaceId}:${userId ?? "__local_operator__"}`}
       spaceId={spaceId}
       userId={userId}
       liveIssueIds={liveIssueIds}

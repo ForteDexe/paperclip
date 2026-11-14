@@ -44,7 +44,7 @@ export const storybookSpaces: Space[] = [
     budgetMonthlyCents: 250_000,
     spentMonthlyCents: 67_500,
     defaultResponsibleUserId: "user-board",
-    primaryAgentId: null,
+    defaultAgentId: null,
     requireOperatorApprovalForNewAgents: true,
     interactionResolverPolicy: {},
     feedbackDataSharingEnabled: true,
@@ -69,7 +69,7 @@ export const storybookSpaces: Space[] = [
     budgetMonthlyCents: 180_000,
     spentMonthlyCents: 39_500,
     defaultResponsibleUserId: "user-board",
-    primaryAgentId: null,
+    defaultAgentId: null,
     requireOperatorApprovalForNewAgents: false,
     interactionResolverPolicy: {},
     feedbackDataSharingEnabled: false,
@@ -94,7 +94,7 @@ export const storybookSpaces: Space[] = [
     budgetMonthlyCents: 90_000,
     spentMonthlyCents: 91_200,
     defaultResponsibleUserId: "user-board",
-    primaryAgentId: null,
+    defaultAgentId: null,
     requireOperatorApprovalForNewAgents: true,
     interactionResolverPolicy: {},
     feedbackDataSharingEnabled: false,
@@ -354,8 +354,8 @@ function createRuntimeService(
   return {
     id: overrides.id ?? "service-storybook",
     spaceId: overrides.spaceId ?? "space-storybook",
-    projectId: overrides.projectId ?? "project-board-ui",
-    projectWorkspaceId: overrides.projectWorkspaceId ?? "workspace-board-ui",
+    projectId: overrides.projectId ?? "project-operator-ui",
+    projectWorkspaceId: overrides.projectWorkspaceId ?? "workspace-operator-ui",
     executionWorkspaceId: overrides.executionWorkspaceId ?? "execution-workspace-storybook",
     issueId: overrides.issueId ?? "issue-storybook-1",
     scopeType: overrides.scopeType ?? "execution_workspace",
@@ -405,9 +405,9 @@ const storybookWorkspaceRuntime = {
 
 export const storybookProjectWorkspaces: Project["workspaces"] = [
   {
-    id: "workspace-board-ui",
+    id: "workspace-operator-ui",
     spaceId: "space-storybook",
-    projectId: "project-board-ui",
+    projectId: "project-operator-ui",
     name: "Board UI",
     sourceType: "local_path" as const,
     cwd: `${storybookRepoRoot}/ui`,
@@ -419,7 +419,7 @@ export const storybookProjectWorkspaces: Project["workspaces"] = [
     cleanupCommand: null,
     remoteProvider: null,
     remoteWorkspaceRef: null,
-    sharedWorkspaceKey: "board-ui",
+    sharedWorkspaceKey: "operator-ui",
     metadata: null,
     runtimeConfig: {
       workspaceRuntime: storybookWorkspaceRuntime,
@@ -434,7 +434,7 @@ export const storybookProjectWorkspaces: Project["workspaces"] = [
   {
     id: "workspace-docs-remote",
     spaceId: "space-storybook",
-    projectId: "project-board-ui",
+    projectId: "project-operator-ui",
     name: "Docs preview sandbox",
     sourceType: "remote_managed",
     cwd: null,
@@ -495,7 +495,7 @@ export const storybookProjectWorkspaces: Project["workspaces"] = [
   {
     id: "workspace-release-local",
     spaceId: "space-storybook",
-    projectId: "project-board-ui",
+    projectId: "project-operator-ui",
     name: "Release smoke local checkout",
     sourceType: "local_path",
     cwd: `${storybookWorkspaceRoot}/release-smoke`,
@@ -535,8 +535,8 @@ export const storybookExecutionWorkspaces: ExecutionWorkspace[] = [
   {
     id: "execution-workspace-storybook",
     spaceId: "space-storybook",
-    projectId: "project-board-ui",
-    projectWorkspaceId: "workspace-board-ui",
+    projectId: "project-operator-ui",
+    projectWorkspaceId: "workspace-operator-ui",
     sourceIssueId: "issue-storybook-1",
     mode: "isolated_workspace",
     strategyType: "git_worktree",
@@ -564,7 +564,7 @@ export const storybookExecutionWorkspaces: ExecutionWorkspace[] = [
   {
     id: "execution-workspace-cleanup",
     spaceId: "space-storybook",
-    projectId: "project-board-ui",
+    projectId: "project-operator-ui",
     projectWorkspaceId: "workspace-release-local",
     sourceIssueId: "issue-storybook-8",
     mode: "isolated_workspace",
@@ -616,11 +616,11 @@ export const storybookExecutionWorkspaces: ExecutionWorkspace[] = [
 ];
 
 function createProject(overrides: Partial<Project> = {}): Project {
-  const id = overrides.id ?? "project-board-ui";
+  const id = overrides.id ?? "project-operator-ui";
   return {
     id,
     spaceId: "space-storybook",
-    urlKey: "board-ui",
+    urlKey: "operator-ui",
     goalId: "goal-space",
     goalIds: ["goal-space", "goal-board-ux"],
     goals: storybookGoals
@@ -640,7 +640,7 @@ function createProject(overrides: Partial<Project> = {}): Project {
       enabled: true,
       defaultMode: "isolated_workspace",
       allowIssueOverride: true,
-      defaultProjectWorkspaceId: "workspace-board-ui",
+      defaultProjectWorkspaceId: "workspace-operator-ui",
       workspaceStrategy: {
         type: "git_worktree",
         baseRef: "master",
@@ -657,7 +657,7 @@ function createProject(overrides: Partial<Project> = {}): Project {
       cleanupPolicy: null,
     },
     codebase: {
-      workspaceId: "workspace-board-ui",
+      workspaceId: "workspace-operator-ui",
       repoUrl: "https://github.com/paperclipai/paperclip",
       repoRef: "master",
       defaultRef: "master",
@@ -745,8 +745,8 @@ export function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-storybook-1",
     spaceId: "space-storybook",
-    projectId: "project-board-ui",
-    projectWorkspaceId: "workspace-board-ui",
+    projectId: "project-operator-ui",
+    projectWorkspaceId: "workspace-operator-ui",
     goalId: "goal-space",
     parentId: null,
     title: "Create super-detailed storybooks for the project",
@@ -939,7 +939,7 @@ export const storybookIssues: Issue[] = [
     startedAt: recent(260),
     identifier: "PAP-1608",
     issueNumber: 1608,
-    projectId: "project-board-ui",
+    projectId: "project-operator-ui",
     projectWorkspaceId: "workspace-release-local",
     executionWorkspaceId: "execution-workspace-cleanup",
     labelIds: ["label-ui", "label-risk"],
@@ -1209,7 +1209,7 @@ export const storybookBudgetSummaries: BudgetPolicySummary[] = [
     policyId: "budget-project-warning",
     spaceId: "space-storybook",
     scopeType: "project",
-    scopeId: "project-board-ui",
+    scopeId: "project-operator-ui",
     scopeName: "Outpost App",
     metric: "billed_cents",
     windowKind: "calendar_month_utc",

@@ -340,7 +340,7 @@ describe("issue update comment wakeups", () => {
     },
   );
 
-  it.each(["done", "cancelled"])("stops a goal-less native run before a operator marks its task %s", async (status) => {
+  it.each(["done", "cancelled"])("stops a goal-less native run before an operator marks its task %s", async (status) => {
     const existing = makeIssue({ status: "in_progress", assigneeAgentId: ASSIGNEE_AGENT_ID,
       assigneeUserId: null, executionRunId: SOURCE_RUN_ID });
     mockIssueService.getById.mockResolvedValue(existing);
@@ -943,7 +943,7 @@ describe("issue update comment wakeups", () => {
     );
   });
 
-  it("tags the wake when a operator comment supersedes the last review interaction", async () => {
+  it("tags the wake when an operator comment supersedes the last review interaction", async () => {
     const existing = makeIssue({
       assigneeAgentId: ASSIGNEE_AGENT_ID,
       assigneeUserId: null,

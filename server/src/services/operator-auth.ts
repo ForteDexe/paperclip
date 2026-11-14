@@ -31,8 +31,8 @@ export function tokenHashesMatch(left: string, right: string) {
   return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
-export function createBoardApiToken() {
-  return `pcp_board_${randomBytes(24).toString("hex")}`;
+export function createOperatorApiToken() {
+  return `outpost_operator_${randomBytes(24).toString("hex")}`;
 }
 
 export function createCliAuthSecret() {
@@ -55,21 +55,21 @@ function challengeStatusForRow(row: typeof cliAuthChallenges.$inferSelect): CliA
 }
 
 export function operatorAuthService(db: Db) {
-  const touchedBoardApiKeys = new Map<string, { completedAt: number | null; inFlight: Promise<void> | null }>();
+  const touchedOperatorApiKeys = new Map<string, { completedAt: number | null; inFlight: Promise<void> | null }>();
 
-  function pruneTouchedBoardApiKeys(nowMs: number) {
-    for (const [id, entry] of touchedBoardApiKeys) {
+  function pruneTouchedOperatorApiKeys(nowMs: number) {
+    for (const [id, entry] of touchedOperatorApiKeys) {
       if (!entry.inFlight && entry.completedAt !== null && entry.completedAt <= nowMs - OPERATOR_API_KEY_TOUCH_DEBOUNCE_MS) {
-        touchedBoardApiKeys.delete(id);
+        touchedOperatorApiKeys.delete(id);
       }
     }
-    while (touchedBoardApiKeys.size > OPERATOR_API_KEY_TOUCH_CACHE_MAX) {
-      const oldestId = touchedBoardApiKeys.keys().next().value;
+    while (touchedOperatorApiKeys.size > OPERATOR_API_KEY_TOUCH_CACHE_MAX) {
+      const oldestId = touchedOperatorApiKeys.keys().next().value;
       if (!oldestId) break;
-      touchedBoardApiKeys.delete(oldestId);
+      touchedOperatorApiKeys.delete(oldestId);
     }
   }
-  async function resolveBoardAccess(userId: string, authorityDb: Pick<Db, "select"> = db) {
+  async function resolveOperatorAccess(userId: string, authorityDb: Pick<Db, "select"> = db) {
     const [user, memberships, adminRole] = await Promise.all([
       authorityDb
         .select({
@@ -111,7 +111,7 @@ export function operatorAuthService(db: Db) {
   }
 
   async function activitySpaceIdsForAccess(
-    access: Awaited<ReturnType<typeof resolveBoardAccess>>,
+    access: Awaited<ReturnType<typeof resolveOperatorAccess>>,
     requestedSpaceId: string | null | undefined,
     authorityDb: Pick<Db, "select"> = db,
   ) {
@@ -125,15 +125,15 @@ export function operatorAuthService(db: Db) {
     return Array.from(spaceIds);
   }
 
-  async function resolveBoardActivitySpaceIds(input: {
+  async function resolveOperatorActivitySpaceIds(input: {
     userId: string;
     requestedSpaceId?: string | null;
     operatorApiKeyId?: string | null;
   }) {
-    return activitySpaceIdsForAccess(await resolveBoardAccess(input.userId), input.requestedSpaceId);
+    return activitySpaceIdsForAccess(await resolveOperatorAccess(input.userId), input.requestedSpaceId);
   }
 
-  async function findBoardApiKeyByToken(token: string) {
+  async function findOperatorApiKeyByToken(token: string) {
     const tokenHash = hashBearerToken(token);
     const now = new Date();
     return db
@@ -148,10 +148,10 @@ export function operatorAuthService(db: Db) {
       .then((rows) => rows.find((row) => !row.expiresAt || row.expiresAt.getTime() > now.getTime()) ?? null);
   }
 
-  async function touchBoardApiKey(id: string) {
+  async function touchOperatorApiKey(id: string) {
     const nowMs = Date.now();
-    pruneTouchedBoardApiKeys(nowMs);
-    const cached = touchedBoardApiKeys.get(id);
+    pruneTouchedOperatorApiKeys(nowMs);
+    const cached = touchedOperatorApiKeys.get(id);
     if (cached?.inFlight) return cached.inFlight;
     if (cached?.completedAt !== null && cached?.completedAt !== undefined
       && cached.completedAt > nowMs - OPERATOR_API_KEY_TOUCH_DEBOUNCE_MS) return;
@@ -161,19 +161,19 @@ export function operatorAuthService(db: Db) {
       .set({ lastUsedAt: new Date() })
       .where(eq(operatorApiKeys.id, id))
       .then(() => {
-        touchedBoardApiKeys.delete(id);
-        touchedBoardApiKeys.set(id, { completedAt: Date.now(), inFlight: null });
-        pruneTouchedBoardApiKeys(Date.now());
+        touchedOperatorApiKeys.delete(id);
+        touchedOperatorApiKeys.set(id, { completedAt: Date.now(), inFlight: null });
+        pruneTouchedOperatorApiKeys(Date.now());
       })
       .catch((error) => {
-        if (touchedBoardApiKeys.get(id)?.inFlight === inFlight) touchedBoardApiKeys.delete(id);
+        if (touchedOperatorApiKeys.get(id)?.inFlight === inFlight) touchedOperatorApiKeys.delete(id);
         throw error;
       });
-    touchedBoardApiKeys.set(id, { completedAt: null, inFlight });
+    touchedOperatorApiKeys.set(id, { completedAt: null, inFlight });
     return inFlight;
   }
 
-  async function revokeBoardApiKey(id: string, input: {
+  async function revokeOperatorApiKey(id: string, input: {
     userId: string;
     revokedVia: "cli_auth_logout" | "operator_api_key_lifecycle";
   }) {
@@ -183,7 +183,7 @@ export function operatorAuthService(db: Db) {
         where ${operatorApiKeys.id} = ${id} and ${operatorApiKeys.userId} = ${input.userId} for update`);
       const [key] = await tx.select().from(operatorApiKeys).where(and(eq(operatorApiKeys.id, id), eq(operatorApiKeys.userId, input.userId)));
       if (!key || key.revokedAt) return null;
-      const access = await resolveBoardAccess(key.userId, tx);
+      const access = await resolveOperatorAccess(key.userId, tx);
       const spaceIds = new Set(await activitySpaceIdsForAccess(access, null, tx));
       const created = await tx.select({ spaceId: activityLog.spaceId }).from(activityLog)
         .innerJoin(spaces, eq(spaces.id, activityLog.spaceId))
@@ -216,12 +216,12 @@ export function operatorAuthService(db: Db) {
     return result;
   }
 
-  async function createNamedBoardApiKey(input: {
+  async function createNamedOperatorApiKey(input: {
     userId: string;
     name: string;
     expiresAt?: Date | null;
   }) {
-    const token = createBoardApiToken();
+    const token = createOperatorApiToken();
     const created = await db
       .insert(operatorApiKeys)
       .values({
@@ -244,7 +244,7 @@ export function operatorAuthService(db: Db) {
     };
   }
 
-  async function listBoardApiKeys(
+  async function listOperatorApiKeys(
     userId: string,
     opts: { includeInactive?: boolean } = {},
   ) {
@@ -273,7 +273,7 @@ export function operatorAuthService(db: Db) {
       .orderBy(sql`${operatorApiKeys.createdAt} desc`);
   }
 
-  async function getBoardApiKeyForUser(keyId: string, userId: string) {
+  async function getOperatorApiKeyForUser(keyId: string, userId: string) {
     return db
       .select({
         id: operatorApiKeys.id,
@@ -296,7 +296,7 @@ export function operatorAuthService(db: Db) {
     requestedSpaceId?: string | null;
   }) {
     const challengeSecret = createCliAuthSecret();
-    const pendingBoardToken = createBoardApiToken();
+    const pendingOperatorToken = createOperatorApiToken();
     const expiresAt = cliAuthChallengeExpiresAt();
     const labelBase = input.clientName?.trim() || "outpost cli";
     const pendingKeyName =
@@ -312,7 +312,7 @@ export function operatorAuthService(db: Db) {
         clientName: input.clientName?.trim() || null,
         requestedAccess: input.requestedAccess,
         requestedSpaceId: input.requestedSpaceId?.trim() || null,
-        pendingKeyHash: hashBearerToken(pendingBoardToken),
+        pendingKeyHash: hashBearerToken(pendingOperatorToken),
         pendingKeyName,
         expiresAt,
       })
@@ -322,7 +322,7 @@ export function operatorAuthService(db: Db) {
     return {
       challenge: created,
       challengeSecret,
-      pendingBoardToken,
+      pendingOperatorToken,
     };
   }
 
@@ -345,7 +345,7 @@ export function operatorAuthService(db: Db) {
     const challenge = await getCliAuthChallengeBySecret(id, token);
     if (!challenge) return null;
 
-    const access = options.viewerUserId ? await resolveBoardAccess(options.viewerUserId) : null;
+    const access = options.viewerUserId ? await resolveOperatorAccess(options.viewerUserId) : null;
     const canReadSpace = challenge.requestedSpaceId && access
       && (access.isInstanceAdmin || access.spaceIds.includes(challenge.requestedSpaceId));
     const space = canReadSpace
@@ -395,7 +395,7 @@ export function operatorAuthService(db: Db) {
         return { status, challenge, created: false };
       }
 
-      const access = await resolveBoardAccess(userId, tx);
+      const access = await resolveOperatorAccess(userId, tx);
       if (!access.user) throw forbidden("Operator user required");
       if (challenge.requestedSpaceId && !access.isInstanceAdmin
         && !access.spaceIds.includes(challenge.requestedSpaceId)) {
@@ -474,7 +474,7 @@ export function operatorAuthService(db: Db) {
     });
   }
 
-  async function assertCurrentBoardKey(keyId: string | undefined, userId: string | undefined) {
+  async function assertCurrentOperatorKey(keyId: string | undefined, userId: string | undefined) {
     if (!keyId || !userId) throw conflict("Operator API key context is required");
     const key = await db
       .select()
@@ -486,19 +486,19 @@ export function operatorAuthService(db: Db) {
   }
 
   return {
-    resolveBoardAccess,
-    findBoardApiKeyByToken,
-    touchBoardApiKey,
-    revokeBoardApiKey,
-    createNamedBoardApiKey,
-    listBoardApiKeys,
-    getBoardApiKeyForUser,
+    resolveOperatorAccess,
+    findOperatorApiKeyByToken,
+    touchOperatorApiKey,
+    revokeOperatorApiKey,
+    createNamedOperatorApiKey,
+    listOperatorApiKeys,
+    getOperatorApiKeyForUser,
     createCliAuthChallenge,
     getCliAuthChallengeBySecret,
     describeCliAuthChallenge,
     approveCliAuthChallenge,
     cancelCliAuthChallenge,
-    assertCurrentBoardKey,
-    resolveBoardActivitySpaceIds,
+    assertCurrentOperatorKey,
+    resolveOperatorActivitySpaceIds,
   };
 }

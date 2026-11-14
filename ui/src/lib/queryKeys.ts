@@ -382,7 +382,7 @@ export const queryKeys = {
       ] as const,
     summaries: (spaceId: string) => ["issues", spaceId, "summaries"] as const,
     summaryBatch: (spaceId: string, userId: string | null | undefined, sortedIds: readonly string[]) =>
-      ["issues", spaceId, "summaries", userId ?? "__local_board__", sortedIds] as const,
+      ["issues", spaceId, "summaries", userId ?? "__local_operator__", sortedIds] as const,
     detail: (id: string) => ["issues", "detail", id] as const,
     comments: (issueId: string) => ["issues", "comments", issueId] as const,
     acknowledgedComments: (issueId: string) => ["issues", "comments", issueId, "acknowledged"] as const,
@@ -604,7 +604,7 @@ export const queryKeys = {
       ["access", "outpost-user-directory", spaceId] as const,
     adminUsers: (query: string) => ["access", "admin-users", query] as const,
     invite: (token: string) => ["access", "invite", token] as const,
-    currentBoardAccess: ["access", "current-operator-access"] as const,
+    currentOperatorAccess: ["access", "current-operator-access"] as const,
   },
   auth: {
     session: ["auth", "session"] as const,
@@ -619,8 +619,8 @@ export const queryKeys = {
     projectOrder: (spaceId: string, userId: string) =>
       ["sidebar-preferences", "project-order", spaceId, userId] as const,
   },
-  primaryAgent: {
-    mine: (spaceId: string, userId: string) => ["primary-agent", spaceId, userId] as const,
+  defaultAgent: {
+    mine: (spaceId: string, userId: string) => ["default-agent", spaceId, userId] as const,
   },
   resourceMemberships: {
     mine: (spaceId: string) =>

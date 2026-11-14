@@ -80,7 +80,7 @@ export function issueBlockerStalledWakeKey(input: { waiterIssueId: string; stall
 
 /**
  * Recovery-action rows that keep a space in the recovery-action sweep: open
- * actions, and a operator action resolved as "blocked" on an issue that is still
+ * actions, and an operator action resolved as "blocked" on an issue that is still
  * blocked (a stall with no open action left). Without the second case, an
  * unassigned stalled blocker with a todo waiter is visited by no sweep.
  */

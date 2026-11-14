@@ -215,7 +215,7 @@ export function registerTeamCommands(program: Command): void {
       .option("--allow-local-path-sources", "Development only: allow local-path skill sources declared by the catalog team", false)
       .option(
         "--request-approval-on-forbidden",
-        "When install is denied by agents:create permissions, create a operator approval request instead of exiting with the raw 403",
+        "When install is denied by agents:create permissions, create an operator approval request instead of exiting with the raw 403",
         false,
       )
       .option("--approval-issue-id <id>", "Issue ID to link to the fallback approval request; defaults to OUTPOST_TASK_ID when set")
@@ -407,7 +407,7 @@ async function requestInstallApproval(
         `An Outpost CLI agent-run attempted to install catalog team "${trimmedRef}" into space "${ctx.spaceId}", ` +
         `but the API denied the install with: ${error.message}.`,
       recommendedAction:
-        "Approve the catalog team source and rerun the install with a operator or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",
+        "Approve the catalog team source and rerun the install with an operator or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",
       risks: [
         "Catalog team installation can create agents, projects, tasks, routines, skills, and secret bindings.",
         "Only approve after checking the catalog source, selected files, target manager, and collision strategy.",

@@ -177,7 +177,7 @@ describe("operator-only denial", () => {
     await request(createApp(operatorActor)).post(`/api/spaces/${SPACE_ID}/archive`).expect(200);
   });
 
-  it("chat guidance treats a operator-only operation as final", () => {
+  it("chat guidance treats an operator-only operation as final", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("its API catalog authorization actor is operator, or a call returns 403 \"Operator access required\"");
     expect(AGENT_CHAT_DIRECTIVE).toContain("that boundary is final");
     expect(AGENT_CHAT_DIRECTIVE).toContain("so stop searching for one");

@@ -6,7 +6,7 @@ import { activityLog, issueComments, issueInboxArchives, issueReadStates, issues
 import { sidebarBadgeRoutes } from "../routes/sidebar-badges.js";
 import { issueReadSqlCondition } from "../services/authorization.js";
 import { issueService } from "../services/issues.js";
-import { describeEmbeddedPostgres, routeApp, seedSpaceWithBoardAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
+import { describeEmbeddedPostgres, routeApp, seedSpaceWithOperatorAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
 
 const old = new Date("2026-01-01T00:00:00Z");
 const commentAt = new Date("2026-01-02T00:00:00Z");
@@ -17,7 +17,7 @@ describeEmbeddedPostgres("Mine unread badge", () => {
   const ctx = useEmbeddedPostgres("outpost-mine-unread-");
 
   it("ranks all visible Mine tasks before unread with canonical activity and exact ID ties", async () => {
-    const { spaceId, userId } = await seedSpaceWithBoardAccess(ctx.db, "Mine top100");
+    const { spaceId, userId } = await seedSpaceWithOperatorAccess(ctx.db, "Mine top100");
     const ids = Array.from({ length: 130 }, (_, index) => `10000000-0000-4000-8000-${String(index).padStart(12, "0")}`);
     await ctx.db.insert(issues).values(ids.map(id => ({ id, spaceId, title: id, status: "todo", createdByUserId: userId, createdAt: old, updatedAt: commentAt })));
     await ctx.db.insert(issueComments).values(ids.map(issueId => ({ spaceId, issueId, body: "External", createdAt: commentAt })));
@@ -35,8 +35,8 @@ describeEmbeddedPostgres("Mine unread badge", () => {
   });
 
   it("keeps text activity IDs exact and space/user scoped", async () => {
-    const { spaceId, userId } = await seedSpaceWithBoardAccess(ctx.db, "Mine IDs");
-    const other = await seedSpaceWithBoardAccess(ctx.db, "Other space");
+    const { spaceId, userId } = await seedSpaceWithOperatorAccess(ctx.db, "Mine IDs");
+    const other = await seedSpaceWithOperatorAccess(ctx.db, "Other space");
     const ids = ["a0000000-0000-4000-8000-000000000001", "b0000000-0000-4000-8000-000000000002", randomUUID(), randomUUID(), randomUUID(), "00000000-0000-0000-0000-000000000000", randomUUID()];
     await ctx.db.insert(issues).values(ids.map(id => ({ id, spaceId, title: id, originKind: "routine_execution", assigneeUserId: id === ids[6] ? userId : null, createdAt: old, updatedAt: old })));
     await ctx.db.insert(issueComments).values(ids.map(issueId => ({ spaceId, issueId, body: "External", createdAt: commentAt })));
@@ -54,7 +54,7 @@ describeEmbeddedPostgres("Mine unread badge", () => {
   });
 
   it("preserves pending request audience, self-creator, dismissal and completion rules", async () => {
-    const { spaceId, userId } = await seedSpaceWithBoardAccess(ctx.db, "Mine requests");
+    const { spaceId, userId } = await seedSpaceWithOperatorAccess(ctx.db, "Mine requests");
     const names = ["addressed", "selfCreator", "otherUser", "dismissed", "done", "cancelled"];
     const ids = Object.fromEntries(names.map(name => [name, randomUUID()]));
     await ctx.db.insert(issues).values(names.map(name => ({ id: ids[name]!, spaceId, title: name, originKind: "routine_execution", status: name === "done" || name === "cancelled" ? name : "todo", createdAt: old, updatedAt: old })));
@@ -68,7 +68,7 @@ describeEmbeddedPostgres("Mine unread badge", () => {
   });
 
   it("keeps archive resurfacing and deleted-comment rules", async () => {
-    const { spaceId, userId } = await seedSpaceWithBoardAccess(ctx.db, "Mine archives");
+    const { spaceId, userId } = await seedSpaceWithOperatorAccess(ctx.db, "Mine archives");
     const names = ["archived", "humanReply", "deletedReply", "statusChange", "doneAlreadyArchived"];
     const ids = Object.fromEntries(names.map(name => [name, randomUUID()]));
     await ctx.db.insert(issues).values(names.map(name => ({ id: ids[name]!, spaceId, title: name, createdByUserId: userId, status: name === "doneAlreadyArchived" ? "done" : "todo", completedAt: name === "doneAlreadyArchived" ? old : null, createdAt: old, updatedAt: old })));
@@ -81,7 +81,7 @@ describeEmbeddedPostgres("Mine unread badge", () => {
   });
 
   it("applies read restrictions and returns fresh unread state through the badge route", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Mine access");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Mine access");
     const [visible, denied] = [randomUUID(), randomUUID()];
     await ctx.db.insert(issues).values([{ id: visible, spaceId, title: "Visible", createdByUserId: userId, createdAt: old, updatedAt: old }, { id: denied, spaceId, title: "Denied", createdByUserId: userId, createdAt: old, updatedAt: newer }]);
     await ctx.db.insert(issueComments).values([visible, denied].map(issueId => ({ spaceId, issueId, body: "External", createdAt: commentAt })));
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("Mine unread badge", () => {
   });
 
   it("checks inherited task grants and private project access on each badge read", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Mine privacy");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Mine privacy");
     const [parent, child, sibling, projectIssue] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
     const [project] = await ctx.db.insert(projects).values({ spaceId, name: "Private project", visibility: "private" }).returning();
     await ctx.db.insert(issues).values({ id: parent!, spaceId, title: "Private parent", visibility: "private", createdByUserId: "other-user", createdAt: old, updatedAt: old });

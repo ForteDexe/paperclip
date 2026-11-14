@@ -19,7 +19,7 @@ export function chatActionDeadline(kind: ScheduledChatAction) {
   if (kind === "failed_run_retry") return sql<number>`case
     when ${chatActions.status} = 'issued' then ${retry}
     when ${chatActions.status} = 'processing' then greatest(${updated} + ${FAILED_RUN_RETRY_STALE_MS}, ${retry}) end`;
-  if (kind === "slack_board_message") return sql<number>`case
+  if (kind === "slack_operator_message") return sql<number>`case
     when ${chatActions.status} = 'received' and ${chatEndpoints.status} not in ('paused', 'attention') then 0::numeric end`;
   if (kind === "slash_task_start") return sql<number>`case
     when ${chatActions.status} = 'queued' and (${chatEndpoints.id} is null or ${chatEndpoints.status} in ('verifying', 'active', 'archived')) then ${retry}
@@ -42,7 +42,7 @@ function pendingChatAction(kind: ScheduledChatAction) {
   // only remain live when the saved result permits another attempt.
   const status = kind === "failed_run_retry"
     ? inArray(chatActions.status, ["issued", "processing"])
-    : kind === "slack_board_message"
+    : kind === "slack_operator_message"
       ? eq(chatActions.status, "received")
       : kind === "slash_task_start"
         ? inArray(chatActions.status, ["queued", "provider_confirmed", "admitting", "resolving", "validating"])
@@ -84,7 +84,7 @@ type ChatActionService = {
   processPendingProviderEffects(): Promise<unknown>;
   processPendingGitHubWebhookIngress(): Promise<unknown>;
   processPendingSlackSessionSyncs(): Promise<unknown>;
-  processPendingSlackBoardMessages(): Promise<unknown>;
+  processPendingSlackOperatorMessages(): Promise<unknown>;
   processPendingSlackTaskStarts(): Promise<unknown>;
   processPendingReceiptReactions(): Promise<unknown>;
   processPendingSlackSessionStops(): Promise<unknown>;
@@ -104,7 +104,7 @@ export function registerChatActionWork(
     { kind: "provider_effect", run: service.processPendingProviderEffects },
     { kind: "github_webhook_ingress", run: service.processPendingGitHubWebhookIngress },
     { kind: "slack_session_sync", run: service.processPendingSlackSessionSyncs },
-    { kind: "slack_board_message", run: service.processPendingSlackBoardMessages },
+    { kind: "slack_operator_message", run: service.processPendingSlackOperatorMessages },
     { kind: "slash_task_start", run: service.processPendingSlackTaskStarts },
     { kind: "receipt_reaction", run: service.processPendingReceiptReactions },
     { kind: "slack_session_stop", run: service.processPendingSlackSessionStops },

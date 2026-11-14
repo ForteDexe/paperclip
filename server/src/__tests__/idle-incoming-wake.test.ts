@@ -229,7 +229,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
           adapterType: "process",
           status: "idle",
         });
-      const operator = await operatorAuthService(db).createNamedBoardApiKey({
+      const operator = await operatorAuthService(db).createNamedOperatorApiKey({
         userId,
         name: "incoming operator",
         expiresAt: null,
@@ -363,7 +363,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       release = undefined;
       expect((await held).status).toBe(401);
       expect(idleApiActivity.active()).toBe(false);
-      const expired = await operatorAuthService(db).createNamedBoardApiKey({
+      const expired = await operatorAuthService(db).createNamedOperatorApiKey({
         userId: f.userId,
         name: "expired",
         expiresAt: new Date(0),

@@ -144,7 +144,7 @@ export function enrichPromotedWakeContext(
   if (!readNonEmptyString(contextSnapshot["wakeReason"]) && reason) {
     contextSnapshot.wakeReason = reason;
   }
-  // Some durable receipts, such as a operator Retry, store only the payload and
+  // Some durable receipts, such as an operator Retry, store only the payload and
   // never had a queued context snapshot. Keep their issue scope.
   if (!readNonEmptyString(contextSnapshot["issueId"]) && issueIdFromPayload) {
     contextSnapshot.issueId = issueIdFromPayload;

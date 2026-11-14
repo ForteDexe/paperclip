@@ -35,7 +35,7 @@ import {
   acceptInviteSchema,
   createCliAuthChallengeSchema,
   claimJoinRequestApiKeySchema,
-  createBoardApiKeySchema,
+  createOperatorApiKeySchema,
   createSpaceInviteSchema,
   createOpenClawInvitePromptSchema,
   listSpaceInvitesQuerySchema,
@@ -103,7 +103,7 @@ import {
 } from "../lib/join-request-dedupe.js";
 import { assertAuthenticated, assertSpaceAccess } from "./authz.js";
 import {
-  claimBoardOwnership,
+  claimOperatorOwnership,
   inspectOperatorClaimChallenge
 } from "../operator-claim.js";
 import { claimFirstInstanceAdmin } from "../first-admin-claim.js";
@@ -172,13 +172,16 @@ function readSkillMarkdown(skillName: string): string | null {
   if (!isSafeSkillName(normalized)) {
     return null;
   }
+  // Keep the original bootstrap URL working after the monolithic skill was
+  // split into focused skills. Task execution is the minimum invite contract.
+  const resolvedName = normalized === "outpost" ? "outpost-task" : normalized;
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const claudeSkillsDir = resolveClaudeSkillsDir();
   const candidates = [
-    claudeSkillsDir ? path.resolve(claudeSkillsDir, normalized, "SKILL.md") : null,
-    path.resolve(moduleDir, "../../skills", normalized, "SKILL.md"), // published: dist/routes/ -> <pkg>/skills/
-    path.resolve(process.cwd(), "skills", normalized, "SKILL.md"), // cwd (e.g. monorepo root)
-    path.resolve(moduleDir, "../../../skills", normalized, "SKILL.md") // dev: src/routes/ -> repo root/skills/
+    claudeSkillsDir ? path.resolve(claudeSkillsDir, resolvedName, "SKILL.md") : null,
+    path.resolve(moduleDir, "../../skills", resolvedName, "SKILL.md"), // published: dist/routes/ -> <pkg>/skills/
+    path.resolve(process.cwd(), "skills", resolvedName, "SKILL.md"), // cwd (e.g. monorepo root)
+    path.resolve(moduleDir, "../../../skills", resolvedName, "SKILL.md") // dev: src/routes/ -> repo root/skills/
   ].filter((candidate): candidate is string => Boolean(candidate));
   for (const skillPath of candidates) {
     try {
@@ -2277,10 +2280,10 @@ type JoinRequestManagerCandidate = {
 
 export function resolveJoinRequestAgentManagerId(
   candidates: JoinRequestManagerCandidate[],
-  primaryAgentId?: string | null,
+  defaultAgentId?: string | null,
 ): string | null {
-  const primary = primaryAgentId
-    ? candidates.find((candidate) => candidate.id === primaryAgentId)
+  const primary = defaultAgentId
+    ? candidates.find((candidate) => candidate.id === defaultAgentId)
     : null;
   if (primary) return primary.id;
 
@@ -2743,7 +2746,7 @@ export function accessRoutes(
       throw unauthorized("Sign in before claiming operator ownership");
     }
 
-    const claimed = await claimBoardOwnership(db, {
+    const claimed = await claimOperatorOwnership(db, {
       token,
       code,
       userId: req.actor.userId
@@ -2805,7 +2808,7 @@ export function accessRoutes(
       res.status(201).json({
         id: created.challenge.id,
         token: created.challengeSecret,
-        operatorApiToken: created.pendingBoardToken,
+        operatorApiToken: created.pendingOperatorToken,
         approvalPath,
         approvalUrl: baseUrl ? `${baseUrl}${approvalPath}` : null,
         pollPath: `/cli-auth/challenges/${created.challenge.id}`,
@@ -2894,7 +2897,7 @@ export function accessRoutes(
     if (req.actor.type !== "operator" || !req.actor.userId) {
       throw unauthorized("Operator authentication required");
     }
-    const accessSnapshot = await operatorAuth.resolveBoardAccess(req.actor.userId);
+    const accessSnapshot = await operatorAuth.resolveOperatorAccess(req.actor.userId);
     res.json({
       user: accessSnapshot.user,
       userId: req.actor.userId,
@@ -2910,7 +2913,7 @@ export function accessRoutes(
     if (req.actor.type !== "operator" || !req.actor.userId) {
       throw unauthorized("Operator authentication required");
     }
-    const keys = await operatorAuth.listBoardApiKeys(req.actor.userId, {
+    const keys = await operatorAuth.listOperatorApiKeys(req.actor.userId, {
       includeInactive: req.query.includeInactive === "true",
     });
     res.json(keys);
@@ -2918,7 +2921,7 @@ export function accessRoutes(
 
   router.post(
     "/operator-api-keys",
-    validate(createBoardApiKeySchema),
+    validate(createOperatorApiKeySchema),
     async (req, res) => {
       if (req.actor.type !== "operator" || !req.actor.userId) {
         throw unauthorized("Operator authentication required");
@@ -2928,12 +2931,12 @@ export function accessRoutes(
         assertSpaceAccess(req, req.body.requestedSpaceId);
       }
 
-      const key = await operatorAuth.createNamedBoardApiKey({
+      const key = await operatorAuth.createNamedOperatorApiKey({
         userId: req.actor.userId,
         name: req.body.name,
         expiresAt: req.body.expiresAt === undefined ? undefined : req.body.expiresAt,
       });
-      const spaceIds = await operatorAuth.resolveBoardActivitySpaceIds({
+      const spaceIds = await operatorAuth.resolveOperatorActivitySpaceIds({
         userId: req.actor.userId,
         requestedSpaceId: req.body.requestedSpaceId ?? null,
         operatorApiKeyId: key.id,
@@ -2967,9 +2970,9 @@ export function accessRoutes(
     if (!isUuidLike(keyId)) {
       throw badRequest("Invalid operator API key ID");
     }
-    const key = await operatorAuth.getBoardApiKeyForUser(keyId, req.actor.userId);
+    const key = await operatorAuth.getOperatorApiKeyForUser(keyId, req.actor.userId);
     if (!key) throw notFound("Operator API key not found");
-    const revoked = await operatorAuth.revokeBoardApiKey(key.id, { userId: req.actor.userId, revokedVia: "operator_api_key_lifecycle" });
+    const revoked = await operatorAuth.revokeOperatorApiKey(key.id, { userId: req.actor.userId, revokedVia: "operator_api_key_lifecycle" });
     if (!revoked) throw notFound("Operator API key not found");
 
     res.json({ ok: true, keyId: key.id });
@@ -2979,11 +2982,11 @@ export function accessRoutes(
     if (req.actor.type !== "operator" || req.actor.source !== "operator_key") {
       throw badRequest("Current operator API key context is required");
     }
-    const key = await operatorAuth.assertCurrentBoardKey(
+    const key = await operatorAuth.assertCurrentOperatorKey(
       req.actor.keyId,
       req.actor.userId,
     );
-    await operatorAuth.revokeBoardApiKey(key.id, { userId: key.userId, revokedVia: "cli_auth_logout" });
+    await operatorAuth.revokeOperatorApiKey(key.id, { userId: key.userId, revokedVia: "cli_auth_logout" });
     res.json({ revoked: true, keyId: key.id });
   });
 
@@ -4210,7 +4213,7 @@ export function accessRoutes(
         });
         const managerId = resolveJoinRequestAgentManagerId(
           existingAgents,
-          space?.primaryAgentId,
+          space?.defaultAgentId,
         );
         if (!managerId) {
           throw conflict(

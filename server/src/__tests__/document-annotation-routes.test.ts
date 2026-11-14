@@ -286,7 +286,7 @@ describe("document annotation routes", () => {
     expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
   });
 
-  it("queues one bounded recovery when a operator document revision expires the final review interactions", async () => {
+  it("queues one bounded recovery when an operator document revision expires the final review interactions", async () => {
     const assigneeAgentId = "99999999-9999-4999-8999-999999999999";
     mockIssueService.getById.mockResolvedValue({
       id: issueId,

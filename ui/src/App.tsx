@@ -288,7 +288,7 @@ function SpaceRootRedirect() {
   return <Navigate to={`/${targetSpace.issuePrefix}/dashboard`} replace />;
 }
 
-function UnprefixedBoardRedirect() {
+function UnprefixedOperatorRedirect() {
   const location = useLocation();
   const { spaces, selectedSpace, loading } = useSpace();
 
@@ -369,50 +369,50 @@ export function App() {
           <Route path="instance/settings/*" element={<LegacySettingsRedirect />} />
           <Route path="spaces" element={<UnprefixedSpacesRoute />} />
           <Route path="spaces" element={<Navigate to="/spaces" replace />} />
-          <Route path="issues" element={<UnprefixedBoardRedirect />} />
-          <Route path="tasks" element={<UnprefixedBoardRedirect />} />
-          <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
-          <Route path="approvals/:approvalId" element={<UnprefixedBoardRedirect />} />
-          <Route path="routines" element={<UnprefixedBoardRedirect />} />
-          <Route path="routines/:routineId" element={<UnprefixedBoardRedirect />} />
-          <Route path="cases" element={<UnprefixedBoardRedirect />} />
-          <Route path="cases/:caseIdentifier" element={<UnprefixedBoardRedirect />} />
-          <Route path="status" element={<UnprefixedBoardRedirect />} />
-          <Route path="status/:cardId" element={<UnprefixedBoardRedirect />} />
-          <Route path="status-cards" element={<UnprefixedBoardRedirect />} />
-          <Route path="status-cards/:cardId" element={<UnprefixedBoardRedirect />} />
-          <Route path="artifacts" element={<UnprefixedBoardRedirect />} />
-          <Route path="audit" element={<UnprefixedBoardRedirect />} />
+          <Route path="issues" element={<UnprefixedOperatorRedirect />} />
+          <Route path="tasks" element={<UnprefixedOperatorRedirect />} />
+          <Route path="issues/:issueId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="approvals/:approvalId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="routines" element={<UnprefixedOperatorRedirect />} />
+          <Route path="routines/:routineId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="cases" element={<UnprefixedOperatorRedirect />} />
+          <Route path="cases/:caseIdentifier" element={<UnprefixedOperatorRedirect />} />
+          <Route path="status" element={<UnprefixedOperatorRedirect />} />
+          <Route path="status/:cardId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="status-cards" element={<UnprefixedOperatorRedirect />} />
+          <Route path="status-cards/:cardId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="artifacts" element={<UnprefixedOperatorRedirect />} />
+          <Route path="audit" element={<UnprefixedOperatorRedirect />} />
           {streamlinedUiEnabled ? (
             <>
-              <Route path="audit/*" element={<UnprefixedBoardRedirect />} />
-              <Route path="activity" element={<UnprefixedBoardRedirect />} />
-              <Route path="activity/*" element={<UnprefixedBoardRedirect />} />
-              <Route path="runs" element={<UnprefixedBoardRedirect />} />
-              <Route path="costs" element={<UnprefixedBoardRedirect />} />
-              <Route path="budgets" element={<UnprefixedBoardRedirect />} />
+              <Route path="audit/*" element={<UnprefixedOperatorRedirect />} />
+              <Route path="activity" element={<UnprefixedOperatorRedirect />} />
+              <Route path="activity/*" element={<UnprefixedOperatorRedirect />} />
+              <Route path="runs" element={<UnprefixedOperatorRedirect />} />
+              <Route path="costs" element={<UnprefixedOperatorRedirect />} />
+              <Route path="budgets" element={<UnprefixedOperatorRedirect />} />
             </>
           ) : null}
-          <Route path="decisions" element={<UnprefixedBoardRedirect />} />
-          <Route path="u/:userSlug" element={<UnprefixedBoardRedirect />} />
-          <Route path="skills/studio" element={<UnprefixedBoardRedirect />} />
-          <Route path="skills/studio/new" element={<UnprefixedBoardRedirect />} />
-          <Route path="skills/studio/:skillId" element={<UnprefixedBoardRedirect />} />
-          <Route path="skills/:skillId/studio" element={<UnprefixedBoardRedirect />} />
-          <Route path="skills/*" element={<UnprefixedBoardRedirect />} />
+          <Route path="decisions" element={<UnprefixedOperatorRedirect />} />
+          <Route path="u/:userSlug" element={<UnprefixedOperatorRedirect />} />
+          <Route path="skills/studio" element={<UnprefixedOperatorRedirect />} />
+          <Route path="skills/studio/new" element={<UnprefixedOperatorRedirect />} />
+          <Route path="skills/studio/:skillId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="skills/:skillId/studio" element={<UnprefixedOperatorRedirect />} />
+          <Route path="skills/*" element={<UnprefixedOperatorRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
-          <Route path="agents" element={<UnprefixedBoardRedirect />} />
+          <Route path="agents" element={<UnprefixedOperatorRedirect />} />
           {AGENT_FILTER_TABS.map((tab) => (
-            <Route key={tab} path={`agents/${tab}`} element={<UnprefixedBoardRedirect />} />
+            <Route key={tab} path={`agents/${tab}`} element={<UnprefixedOperatorRedirect />} />
           ))}
-          <Route path="agents/new" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents/:agentId" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents/:agentId/:tab" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents/:agentId/runs/:runId" element={<UnprefixedBoardRedirect />} />
+          <Route path="agents/new" element={<UnprefixedOperatorRedirect />} />
+          <Route path="agents/:agentId" element={<UnprefixedOperatorRedirect />} />
+          <Route path="agents/:agentId/:tab" element={<UnprefixedOperatorRedirect />} />
+          <Route path="agents/:agentId/runs/:runId" element={<UnprefixedOperatorRedirect />} />
           <Route path="projects/*" element={<Navigate to="/spaces" replace />} />
-          <Route path="workspaces" element={<UnprefixedBoardRedirect />} />
-          <Route path="execution-workspaces/:workspaceId/*" element={<UnprefixedBoardRedirect />} />
+          <Route path="workspaces" element={<UnprefixedOperatorRedirect />} />
+          <Route path="execution-workspaces/:workspaceId/*" element={<UnprefixedOperatorRedirect />} />
           <Route path=":spacePrefix" element={streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}>
             {operatorRoutes(streamlinedUiEnabled, combinedInboxTasksEnabled)}
           </Route>

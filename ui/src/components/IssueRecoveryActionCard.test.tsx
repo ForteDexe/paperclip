@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { canBoardConfirmOwnerStop } from "../lib/recovery-reconcile";
+import { canOperatorConfirmOwnerStop } from "../lib/recovery-reconcile";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -238,7 +238,7 @@ describe("IssueRecoveryActionCard", () => {
     },
   );
 
-  it("retains the existing authorized controls for a operator-owned watchdog", () => {
+  it("retains the existing authorized controls for an operator-owned watchdog", () => {
     const onResolve = vi.fn();
     const node = render(
       <IssueRecoveryActionCard
@@ -1238,8 +1238,8 @@ describe("original-host controller containment in task recovery", () => {
     expect(node.textContent).toContain("Verify the original execution stopped");
     expect(containmentApi.resolveRecoveryAction).not.toHaveBeenCalled();
   });
-  it.each(["owner", "admin", "operator", "viewer"] as const)("shows the containment form only for a operator %s with owner-stop authority", role => {
-    const allowed = canBoardConfirmOwnerStop("space", { source: "session", user: null, userId: "operator-user", keyId: null, spaceIds: ["space"], isInstanceAdmin: false,
+  it.each(["owner", "admin", "operator", "viewer"] as const)("shows the containment form only for an operator %s with owner-stop authority", role => {
+    const allowed = canOperatorConfirmOwnerStop("space", { source: "session", user: null, userId: "operator-user", keyId: null, spaceIds: ["space"], isInstanceAdmin: false,
       memberships: [{ spaceId: "space", status: "active", membershipRole: role }] });
     const node = mount(allowed);
     expect(node.querySelectorAll('[role="checkbox"]').length).toBe(role === "owner" || role === "admin" ? 2 : 0);

@@ -8,7 +8,7 @@ import { resolveAuthorizationTarget } from "./authorizationUrl";
  * operator applies it, and that its loopback exception follows how the operator itself
  * is served rather than being unconditional.
  */
-function serveBoardOver(protocol: "http:" | "https:") {
+function serveOperatorOver(protocol: "http:" | "https:") {
   Object.defineProperty(window, "location", {
     configurable: true,
     value: { ...window.location, protocol },
@@ -18,7 +18,7 @@ function serveBoardOver(protocol: "http:" | "https:") {
 describe("resolveAuthorizationTarget", () => {
   afterEach(() => {
     // jsdom's default is a plaintext localhost operator.
-    serveBoardOver("http:");
+    serveOperatorOver("http:");
   });
 
   it("accepts an https authorization page and reports its host", () => {
@@ -49,10 +49,10 @@ describe("resolveAuthorizationTarget", () => {
   });
 
   it("allows a loopback authorization server only on a plaintext-http operator", () => {
-    serveBoardOver("http:");
+    serveOperatorOver("http:");
     expect(resolveAuthorizationTarget("http://127.0.0.1:8930/authorize").ok).toBe(true);
 
-    serveBoardOver("https:");
+    serveOperatorOver("https:");
     expect(resolveAuthorizationTarget("http://127.0.0.1:8930/authorize")).toEqual({
       ok: false,
       message: expect.stringContaining("secure"),

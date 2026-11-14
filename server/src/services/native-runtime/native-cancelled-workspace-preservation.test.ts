@@ -88,7 +88,7 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     return result;
   }
 
-  it("reconstructs prepared remote files after an audited lifecycle Stop without a operator actor", async () => {
+  it("reconstructs prepared remote files after an audited lifecycle Stop without an operator actor", async () => {
     const f = await seed();
     const [historical] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       kind: "active_run_watchdog", status: "resolved", ownerType: "operator", cause: "native_continuation_requires_reconciliation",
@@ -354,7 +354,7 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     const f = await seed();
     const result = await acceptResult(f);
     const nativeCancellation = { ...f.nativeCancellation, dispatched: false };
-    await db.update(heartbeatRuns).set({ nativePhase: "retryable_failure", error: "Cancelled by a operator operator",
+    await db.update(heartbeatRuns).set({ nativePhase: "retryable_failure", error: "Cancelled by an operator",
       resultJson: { nativeCancellation, cancelledByActorType: "user", cancelledByUserId: "operator" } })
       .where(eq(heartbeatRuns.id, f.runId));
     await db.update(nativeRunFinalizations).set({ failureCode: "native_retry_cancelled",

@@ -15,7 +15,7 @@ import {
   type RecoveryResolveOutcome,
 } from "./IssueRecoveryActionCard";
 import {
-  canBoardManageRuntime,
+  canOperatorManageRuntime,
   readRecoveryReconcileWorkspaceId,
 } from "../lib/recovery-reconcile";
 
@@ -77,13 +77,13 @@ function WorkspaceValidationRecoverySurface({ run }: { run: HeartbeatRun }) {
   });
 
   const { data: operatorAccess } = useQuery({
-    queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess(),
+    queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess(),
     enabled: Boolean(isWorkspaceValidationFailure && issueId),
   });
 
   const recoveryAction = issue?.activeRecoveryAction ?? null;
-  const canManageBoardRuntime = canBoardManageRuntime(run.spaceId, operatorAccess);
+  const canManageOperatorRuntime = canOperatorManageRuntime(run.spaceId, operatorAccess);
   // Prefer the workspace pinned by the recovery action's evidence (the workspace that actually
   // diverged) over the page-level id, which can drift after a re-issue rebinds the issue.
   const reconcileWorkspaceId =
@@ -289,7 +289,7 @@ function WorkspaceValidationRecoverySurface({ run }: { run: HeartbeatRun }) {
         onQuarantineRestore={handleQuarantineRestore}
         quarantineRestorePending={reconcile.isPending}
         reconcilePending={reconcile.isPending}
-        canBreakGlass={canManageBoardRuntime}
+        canBreakGlass={canManageOperatorRuntime}
       />
     </div>
   );

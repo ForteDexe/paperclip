@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeContext } from "../client/context.js";
-import { runAgentPrompt, runBoardPrompt } from "../commands/client/prompt.js";
+import { runAgentPrompt, runOperatorPrompt } from "../commands/client/prompt.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -36,7 +36,7 @@ describe("prompt handoff", () => {
     vi.restoreAllMocks();
   });
 
-  it("fails when an agent prompt uses a operator persona profile", async () => {
+  it("fails when an agent prompt uses an operator persona profile", async () => {
     const contextPath = createTempContextPath();
     writeContext(
       {
@@ -100,7 +100,7 @@ describe("prompt handoff", () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe("http://localhost:3100/api/agents/11111111-1111-4111-8111-111111111111/wakeup");
   });
 
-  it("fails when a operator prompt uses an agent persona profile", async () => {
+  it("fails when an operator prompt uses an agent persona profile", async () => {
     const contextPath = createTempContextPath();
     writeContext(
       {
@@ -118,7 +118,7 @@ describe("prompt handoff", () => {
       contextPath,
     );
 
-    await expect(runBoardPrompt("worker", "Do the work", {
+    await expect(runOperatorPrompt("worker", "Do the work", {
       context: contextPath,
       apiKey: "operator-token",
     })).rejects.toThrow(/persona=agent/);
@@ -139,7 +139,7 @@ describe("prompt handoff", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "run-1", status: "queued" }), { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await runBoardPrompt("worker", "Investigate queue lag", {
+    const result = await runOperatorPrompt("worker", "Investigate queue lag", {
       apiBase: "http://localhost:3100",
       apiKey: "operator-token",
       spaceId: "22222222-2222-4222-8222-222222222222",
@@ -165,7 +165,7 @@ describe("prompt handoff", () => {
     );
   });
 
-  it("adds a operator-authored prompt comment without waking when disabled", async () => {
+  it("adds an operator-authored prompt comment without waking when disabled", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(agent()), { status: 200 }))
@@ -176,7 +176,7 @@ describe("prompt handoff", () => {
       }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await runBoardPrompt("worker", "Follow up on queue lag", {
+    const result = await runOperatorPrompt("worker", "Follow up on queue lag", {
       apiBase: "http://localhost:3100",
       apiKey: "operator-token",
       spaceId: "22222222-2222-4222-8222-222222222222",

@@ -810,7 +810,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     await expectSavedMessages([...firstMessages, ...secondMessages]);
   });
 
-  // H1 bug C review: a queued run admission cancels for a operator-owned budget
+  // H1 bug C review: a queued run admission cancels for an operator-owned budget
   // block records which budget stopped it, so Raise budget and resume can
   // continue it.
   async function admissionBudgetBlock(options: { openIncident: boolean }) {

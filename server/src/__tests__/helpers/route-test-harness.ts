@@ -79,7 +79,7 @@ export type OperatorActor = {
 export type SeededSpace = { spaceId: string; userId: string; actor: OperatorActor };
 
 /** Creates a space whose operator user holds space-scoped read and write grants. */
-export async function seedSpaceWithBoardAccess(db: Db, name: string): Promise<SeededSpace> {
+export async function seedSpaceWithOperatorAccess(db: Db, name: string): Promise<SeededSpace> {
   const spaceId = randomUUID();
   const userId = `user-${randomUUID()}`;
   await db.insert(spaces).values({
@@ -134,7 +134,7 @@ export function routeApp(db: Db, actor: OperatorActor, ...routerFactories: Route
 }
 
 /**
- * Clears the space and issue fixtures seeded by `seedSpaceWithBoardAccess`.
+ * Clears the space and issue fixtures seeded by `seedSpaceWithOperatorAccess`.
  * Suites that seed other tables need their own reset.
  */
 export async function resetSpaceIssueFixtures(db: Db) {

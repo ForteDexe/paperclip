@@ -5182,7 +5182,7 @@ html:not(.dark) .coordinator-sidebar {
   background: var(--agent-detail-switch-off);
 }
 
-/* Agent detail header: the primary-agent crown fills with a short pop while three
+/* Agent detail header: the default-agent crown fills with a short pop while three
    bubbles burst out of its centre. After the replace-primary dialog it waits for
    the dialog to close first. Each bubble gets its own angle, size and travel. */
 .primary-crown[data-pop] svg {

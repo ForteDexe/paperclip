@@ -358,7 +358,7 @@ export const chatEndpointsApi = {
       `/chat-endpoints/${endpointId}/conversations/${conversationId}/publications`,
       { commentId },
     ),
-  publishBoardMessage: (
+  publishOperatorMessage: (
     endpointId: string,
     conversationId: string,
     body: string,

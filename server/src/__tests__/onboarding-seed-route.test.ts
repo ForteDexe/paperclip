@@ -16,7 +16,7 @@ import {
   describeEmbeddedPostgres,
   resetSpaceIssueFixtures,
   routeApp,
-  seedSpaceWithBoardAccess,
+  seedSpaceWithOperatorAccess,
   useEmbeddedPostgres,
   type OperatorActor,
 } from "./helpers/route-test-harness.js";
@@ -58,7 +58,7 @@ describeEmbeddedPostgres("POST /api/spaces/:spaceId/onboarding-seed", () => {
   });
 
   async function seedSpace() {
-    const seeded = await seedSpaceWithBoardAccess(ctx.db, "Onboarding seed");
+    const seeded = await seedSpaceWithOperatorAccess(ctx.db, "Onboarding seed");
     return { ...seeded, app: routeApp(ctx.db, seeded.actor, onboardingSeedRoutes) };
   }
 

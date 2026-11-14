@@ -56,7 +56,7 @@ function makeSpace(id: string): Space {
     budgetMonthlyCents: 0,
     spentMonthlyCents: 0,
     defaultResponsibleUserId: null,
-    primaryAgentId: null,
+    defaultAgentId: null,
     requireOperatorApprovalForNewAgents: false,
     interactionResolverPolicy: {},
     feedbackDataSharingEnabled: false,

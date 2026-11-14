@@ -103,7 +103,7 @@ export interface BuiltInAgentState {
   pauseReason: string | null;
   /** Per-resource drift/readiness for bundle-backed built-ins (may be empty). */
   resources?: BuiltInManagedResourceState[];
-  /** Present when provisioning queued a operator create approval (HTTP 202). */
+  /** Present when provisioning queued an operator create approval (HTTP 202). */
   approval?: Approval | null;
 }
 

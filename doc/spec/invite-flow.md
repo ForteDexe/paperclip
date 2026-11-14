@@ -119,7 +119,7 @@ stateDiagram-v2
   Loading --> InviteResolved: invite loaded without membership check
   Loading --> AcceptedInviteSummary: invite already consumed<br/>but linked join request still exists
 
-  CheckingAccess --> RedirectToBoard: current user already belongs to space
+  CheckingAccess --> RedirectToOperator: current user already belongs to space
   CheckingAccess --> InviteResolved: membership check finished and no join-request summary state is active
   CheckingAccess --> AcceptedInviteSummary: membership check finished and invite has joinRequestStatus
 
@@ -131,7 +131,7 @@ stateDiagram-v2
 
     InlineAuth --> InlineAuth: toggle sign-up/sign-in
     InlineAuth --> InlineAuth: auth validation or auth error message
-    InlineAuth --> RedirectToBoard: auth succeeded and space membership already exists
+    InlineAuth --> RedirectToOperator: auth succeeded and space membership already exists
     InlineAuth --> AcceptPending: auth succeeded and invite still needs acceptance
 
     AgentForm --> AcceptPending: submit request
@@ -142,7 +142,7 @@ stateDiagram-v2
   }
 
   AcceptPending --> BootstrapComplete: bootstrapAccepted=true
-  AcceptPending --> RedirectToBoard: join status=approved
+  AcceptPending --> RedirectToOperator: join status=approved
   AcceptPending --> PendingApprovalResult: join status=pending_approval
   AcceptPending --> RejectedResult: join status=rejected
 
@@ -157,8 +157,8 @@ stateDiagram-v2
 
   PendingApprovalResult --> PendingApprovalReload: reload after submit
   RejectedResult --> RejectedReload: reload after board rejects
-  RedirectToBoard --> OpeningSpace: brief pre-navigation render when approved membership is detected
-  OpeningSpace --> RedirectToBoard: navigate to board
+  RedirectToOperator --> OpeningSpace: brief pre-navigation render when approved membership is detected
+  OpeningSpace --> RedirectToOperator: navigate to board
 ```
 
 ## Sequence Diagrams

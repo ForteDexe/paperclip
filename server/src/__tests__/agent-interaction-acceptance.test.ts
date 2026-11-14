@@ -26,7 +26,7 @@ it("configures each control with the CLI against the assembled app and enforces 
   let server: ReturnType<NonNullable<typeof app>["listen"]> | undefined;
   try {
     const spaceId = randomUUID(), sender = randomUUID(), recipient = randomUUID(), userId = randomUUID();
-    const senderKey = `pcp_agent_${randomUUID()}`, operatorKey = `pcp_board_${randomUUID()}`;
+    const senderKey = `pcp_agent_${randomUUID()}`, operatorKey = `outpost_operator_${randomUUID()}`;
     const hash = (token: string) => createHash("sha256").update(token).digest("hex");
     await db.insert(spaces).values({ id: spaceId, name: "Permission acceptance", issuePrefix: "IPA", requireOperatorApprovalForNewAgents: false });
     await db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.com`, createdAt: new Date(), updatedAt: new Date() });

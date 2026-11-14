@@ -18,7 +18,7 @@ import type { SpekoToolEnvelope } from "./speko-protocol.js";
 
 export type VoiceTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type VoiceSessionRow = typeof chatVoiceSessions.$inferSelect;
-export interface VoiceCaller { id: string; authority: "member" | "instance_admin" | "local_board" }
+export interface VoiceCaller { id: string; authority: "member" | "instance_admin" | "local_operator" }
 export function voiceCredentialFingerprint(refs: ToolCredentialSecretRef[]) {
   const stable = refs.map((ref) => ({ configPath: ref.configPath, secretId: ref.secretId, versionSelector: ref.versionSelector ?? "latest" }))
     .sort((a, b) => `${a.configPath}:${a.secretId}:${a.versionSelector}`.localeCompare(`${b.configPath}:${b.secretId}:${b.versionSelector}`));
@@ -41,10 +41,10 @@ export function serializeVoiceSession(row: VoiceSessionRow): VoiceSession {
 }
 
 /** Server-owned bindings, not model-selected space/task IDs. */
-export function voiceSessionStore(db: Db, options: { allowLocalBoard: boolean; nonblockingAuthority?: boolean }) {
+export function voiceSessionStore(db: Db, options: { allowLocalOperator: boolean; nonblockingAuthority?: boolean }) {
   async function authorizeCaller(tx: VoiceTransaction, spaceId: string, caller: VoiceCaller) {
-    if (caller.authority === "local_board") {
-      if (options.allowLocalBoard && caller.id === "local-operator") return;
+    if (caller.authority === "local_operator") {
+      if (options.allowLocalOperator && caller.id === "local-operator") return;
       throw forbidden("Local voice authority is unavailable");
     }
     const permitted = caller.authority === "instance_admin"
@@ -57,7 +57,7 @@ export function voiceSessionStore(db: Db, options: { allowLocalBoard: boolean; n
     const [task] = await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId))).for("share", options.nonblockingAuthority ? { noWait: true } : undefined);
     if (!task) throw notFound("Voice task not found");
     const actor: AuthorizationActor = { type: "operator", userId: caller.id,
-      source: caller.authority === "local_board" ? "local_implicit" : "session",
+      source: caller.authority === "local_operator" ? "local_implicit" : "session",
       isInstanceAdmin: caller.authority === "instance_admin" };
     const authorization = authorizationService(tx);
     // issue:comment does not itself apply the issue:read privacy projection.
@@ -143,7 +143,7 @@ export function voiceSessionStore(db: Db, options: { allowLocalBoard: boolean; n
     const session = await tx.select().from(chatVoiceSessions).where(and(eq(chatVoiceSessions.id, sessionId), eq(chatVoiceSessions.spaceId, spaceId))).for("update").then((rows) => rows[0]);
     if (!session || !allowedStates.includes(session.state) || session.expiresAt.getTime() <= Date.now()
       || session.generation !== context.generation || session.credentialFingerprint !== context.fingerprint) throw forbidden("Voice session is no longer current");
-    if (!["member", "instance_admin", "local_board", "guest_intake"].includes(session.callerAuthority)) throw forbidden("This call has not been approved for private work");
+    if (!["member", "instance_admin", "local_operator", "guest_intake"].includes(session.callerAuthority)) throw forbidden("This call has not been approved for private work");
     if (session.mode === "outbound_phone") {
       const [optIn] = await tx.select({ id: chatVoiceCallbacks.id }).from(chatVoiceCallbacks).where(and(eq(chatVoiceCallbacks.spaceId, spaceId), eq(chatVoiceCallbacks.endpointId, session.endpointId), eq(chatVoiceCallbacks.userId, session.callerId), eq(chatVoiceCallbacks.enabled, true))).for("share");
       if (!optIn) throw forbidden("Phone callbacks are no longer enabled");
@@ -466,7 +466,7 @@ export function voiceSessionStore(db: Db, options: { allowLocalBoard: boolean; n
     const context = await endpointContext(tx, spaceId, endpointId);
     const session = await tx.select().from(chatVoiceSessions).where(and(eq(chatVoiceSessions.id, id), eq(chatVoiceSessions.spaceId, spaceId), eq(chatVoiceSessions.endpointId, endpointId))).then((rows) => rows[0]);
     if (!session || !session.providerSessionId || session.generation !== context.generation || session.credentialFingerprint !== context.fingerprint || session.assignedAgentId !== context.endpoint.assignedAgentId
-      || !["member", "instance_admin", "local_board", "guest_intake"].includes(session.callerAuthority)) throw forbidden("Voice work authority is no longer current");
+      || !["member", "instance_admin", "local_operator", "guest_intake"].includes(session.callerAuthority)) throw forbidden("Voice work authority is no longer current");
     const accepted = await tx.select({ id: chatVoiceToolCalls.id }).from(chatVoiceToolCalls).where(and(eq(chatVoiceToolCalls.sessionId, id), eq(chatVoiceToolCalls.spaceId, spaceId), inArray(chatVoiceToolCalls.tool, ["submit_request", "answer_question"]))).limit(1);
     if (!accepted.length) throw forbidden("No request was accepted for this voice principal");
     // Accepted work survives hangup. Endpoint/identity revocation still takes

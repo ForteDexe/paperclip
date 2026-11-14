@@ -307,8 +307,8 @@ test("secondary chat navigation preserves layout, unique conversations, history,
     await page.getByRole("link", { name: /^Chat(?:\s|$)/ }).click();
     // With no recent conversation, Chat opens the first human-created primary.
     // Navigation alone must not create a conversation or start execution.
-    expect(await json(await request.get(`/api/spaces/${f.space.id}/primary-agent/me`))).toMatchObject({
-      primaryAgentId: f.agents[0].id, initialized: true,
+    expect(await json(await request.get(`/api/spaces/${f.space.id}/default-agent/me`))).toMatchObject({
+      defaultAgentId: f.agents[0].id, initialized: true,
     });
     const sidebar = page.getByRole("complementary", { name: "Chat contacts", exact: true });
     const nav = sidebar.getByRole("navigation", { name: "Agent conversations" });

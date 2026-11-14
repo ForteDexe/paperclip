@@ -11,7 +11,7 @@ import { statusCardService } from "../services/status-cards.js";
 import { issueRoutes } from "../routes/issues.js";
 import {
   describeEmbeddedPostgres, routeApp,
-  seedSpaceWithBoardAccess, useEmbeddedPostgres,
+  seedSpaceWithOperatorAccess, useEmbeddedPostgres,
 } from "./helpers/route-test-harness.js";
 
 describeEmbeddedPostgres("Execution-backed task presentation", () => {
@@ -20,7 +20,7 @@ describeEmbeddedPostgres("Execution-backed task presentation", () => {
   });
 
   async function fixture() {
-    const space = await seedSpaceWithBoardAccess(ctx.db, "Monitoring");
+    const space = await seedSpaceWithOperatorAccess(ctx.db, "Monitoring");
     const agentId = randomUUID();
     await ctx.db.insert(agents).values({ id: agentId, spaceId: space.spaceId, name: "Monitor owner", role: "engineer", status: "paused", adapterType: "process", adapterConfig: {} });
     const nextCheckAt = new Date(Date.now() + 60 * 60_000);

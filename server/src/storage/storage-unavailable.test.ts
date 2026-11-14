@@ -59,7 +59,7 @@ describe("storage unavailability", () => {
 
   it("does not treat a run's own Stop abort as a storage outage", async () => {
     const stop = new AbortController();
-    stop.abort(new Error("Cancelled by a operator operator"));
+    stop.abort(new Error("Cancelled by an operator"));
     expect(isStorageUnavailableError(await recorded(sdkAbort(), stop.signal))).toBe(false);
     expect(isStorageUnavailableError(await recorded(sdkAbort()))).toBe(false);
   });

@@ -107,7 +107,7 @@ describe("auth routes", () => {
     expect(response.body.operatorBootstrap).toBeUndefined();
   });
 
-  it("sends sentryDsn for a operator actor when SENTRY_DSN is set", async () => {
+  it("sends sentryDsn for an operator actor when SENTRY_DSN is set", async () => {
     process.env.SENTRY_DSN = "https://public@o0.ingest.sentry.io/1";
     const app = await createApp(
       {
@@ -124,7 +124,7 @@ describe("auth routes", () => {
     expect(res.body.sentryDsn).toBe("https://public@o0.ingest.sentry.io/1");
   });
 
-  it("sends sentryDsn for a operator actor when only SENTRY_DSN_FRONTEND is set", async () => {
+  it("sends sentryDsn for an operator actor when only SENTRY_DSN_FRONTEND is set", async () => {
     delete process.env.SENTRY_DSN;
     delete process.env.SENTRY_DSN_BACKEND;
     process.env.SENTRY_DSN_FRONTEND = "https://public-frontend@o0.ingest.sentry.io/1";

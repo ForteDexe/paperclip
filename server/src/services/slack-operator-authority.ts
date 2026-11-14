@@ -50,7 +50,7 @@ export async function slackOperatorAuthor(db: Reader, endpoint: Endpoint, userId
 
 /** Recheck the author of a durable Operator receipt immediately before transport.
  * The source comment/run supplies identity; publication text never does. */
-export async function authorizeSlackBoardPublication(
+export async function authorizeSlackOperatorPublication(
   db: Reader,
   endpoint: Endpoint,
   conversation: typeof chatConversations.$inferSelect,
@@ -111,7 +111,7 @@ export async function authorizeSlackBoardPublication(
       eq(chatActions.spaceId, endpoint.spaceId),
       eq(chatActions.endpointId, endpoint.id),
       eq(chatActions.conversationId, conversation.id),
-      eq(chatActions.kind, "slack_board_message"),
+      eq(chatActions.kind, "slack_operator_message"),
       eq(sql<string>`${chatActions.payload}->>'userId'`, userId),
       eq(sql<string>`${chatActions.payload}->>'issueId'`, publication.issueId),
       inArray(sql<string>`${chatActions.payload}->>'commentId'`, commentIds),

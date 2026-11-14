@@ -5,7 +5,7 @@ import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 
 /**
- * A run a budget stop cancelled, owed one continuation because a operator member
+ * A run a budget stop cancelled, owed one continuation because an operator member
  * resolved the incident with Raise budget and resume. Kept outside the run's
  * result JSON, which terminal writers replace, so a Stop that settles at the
  * same moment cannot erase it.

@@ -48,7 +48,7 @@ import {
   createAgentSchema,
   createAgentCreationSchema,
   updateAgentSchema,
-  updatePrimaryAgentSchema,
+  updateDefaultAgentSchema,
   updateAgentPermissionsSchema,
   updateAgentPermissionGrantSchema,
   updateAgentInteractionPermissionsSchema,
@@ -235,7 +235,7 @@ import {
   claimJoinRequestApiKeySchema,
   createCliAuthChallengeSchema,
   resolveCliAuthChallengeSchema,
-  createBoardApiKeySchema,
+  createOperatorApiKeySchema,
   updateSpaceMemberSchema,
   updateSpaceMemberWithPermissionsSchema,
   archiveSpaceMemberSchema,
@@ -1501,8 +1501,8 @@ const OPERATOR_ONLY_OPERATIONS = new Set([
   "GET /api/spaces/{spaceId}/resource-memberships/me",
   "GET /api/workspace-preferences/me",
   "PUT /api/spaces/{spaceId}/workspace-preferences/me",
-  "GET /api/spaces/{spaceId}/primary-agent/me",
-  "PUT /api/spaces/{spaceId}/primary-agent/me",
+  "GET /api/spaces/{spaceId}/default-agent/me",
+  "PUT /api/spaces/{spaceId}/default-agent/me",
   "PUT /api/spaces/{spaceId}/resource-memberships/me/agents/{agentId}",
   "PUT /api/spaces/{spaceId}/resource-memberships/me/documents/{documentId}",
   "PUT /api/spaces/{spaceId}/resource-memberships/me/projects/{projectId}",
@@ -1559,7 +1559,7 @@ const OPERATOR_ONLY_OPERATIONS = new Set([
   "POST /api/tool-gateway/action-requests/{id}/decline",
   "POST /api/spaces/{spaceId}/email/deliveries/{publicationId}/resolve",
   // Chat endpoints expose provider credentials, identity mappings, access
-  // policy, and replay controls. Every mounted handler asserts a operator actor;
+  // policy, and replay controls. Every mounted handler asserts an operator actor;
   // keep the generated security contract equally restrictive.
   "GET /api/slack/search/callback",
   "GET /api/spaces/{spaceId}/slack/endpoints/{endpointId}/capabilities",
@@ -1668,7 +1668,7 @@ function operationKey(method: string, path: string) {
 
 function isVoiceSessionOperation(path: string) { return /^\/api\/spaces\/\{spaceId\}\/voice-(sessions|callbacks|phone|history)(?:\/|$)/.test(path); }
 
-function isBoardOnlyOperation(method: string, path: string) {
+function isOperatorOnlyOperation(method: string, path: string) {
   if (isVoiceSessionOperation(path)) return true;
   const key = operationKey(method, path);
   if (OPERATOR_ONLY_OPERATIONS.has(key)) return true;
@@ -1702,7 +1702,7 @@ function resolveOperationAuthLevel(
   if (RUNTIME_TOOLS_OPERATIONS.has(key)) return "runtime_tools";
   if (INSTANCE_ADMIN_OPERATIONS.has(key)) return "instance_admin";
   if (
-    isBoardOnlyOperation(method, path) ||
+    isOperatorOnlyOperation(method, path) ||
     experimentalApiMetadata[`${method.toUpperCase()} ${path}`]?.operatorOnly
   )
     return "operator";
@@ -2058,7 +2058,7 @@ registry.registerPath({
   tags: ["spaces"],
   summary: "List spaces",
   description:
-    "Requires a operator user. Instance admins can list the full directory; scope=accessible limits the list to spaces the caller can enter.",
+    "Requires an operator user. Instance admins can list the full directory; scope=accessible limits the list to spaces the caller can enter.",
   request: {
     query: z.object({ scope: z.enum(["accessible"]).optional() }),
   },
@@ -2246,7 +2246,7 @@ for (const [method, path, summary, body] of browserUseOperations) {
 // Voice endpoints accept current authenticated operator sessions (or local implicit operator),
 // never agent keys or operator API keys. Provider callbacks use signatures and are
 // intentionally documented separately from this operator API contract.
-const voiceSessionResponseSchema = z.object({id:z.string().uuid(), spaceId:z.string().uuid(), endpointId:z.string().uuid(), issueId:z.string().uuid(), assignedAgentId:z.string().uuid(), state:z.enum(VOICE_SESSION_STATES), mode:z.enum(["browser","inbound_phone","outbound_phone"]), generation:z.number().int(), callerAuthority:z.enum(["member","instance_admin","local_board","guest_intake","pending_approval"]), replyCursor:z.number().int(), createdAt:z.string(), expiresAt:z.string(), endedAt:z.string().nullable(), errorCode:z.string().nullable()}).strict();
+const voiceSessionResponseSchema = z.object({id:z.string().uuid(), spaceId:z.string().uuid(), endpointId:z.string().uuid(), issueId:z.string().uuid(), assignedAgentId:z.string().uuid(), state:z.enum(VOICE_SESSION_STATES), mode:z.enum(["browser","inbound_phone","outbound_phone"]), generation:z.number().int(), callerAuthority:z.enum(["member","instance_admin","local_operator","guest_intake","pending_approval"]), replyCursor:z.number().int(), createdAt:z.string(), expiresAt:z.string(), endedAt:z.string().nullable(), errorCode:z.string().nullable()}).strict();
 const voiceMediaResponseSchema = z.object({sessionId:z.string().uuid(), generation:z.number().int(), transportToken:z.string(), transportUrl:z.string()}).strict();
 const voiceStartResponseSchema = z.object({session:voiceSessionResponseSchema, media:voiceMediaResponseSchema.optional()}).strict();
 for (const [method,path,summary,body,response] of [
@@ -2275,7 +2275,7 @@ registry.registerPath({
   path: "/api/spaces/{spaceId}/email/connections/{connectionId}/check-address",
   tags: ["Email"],
   summary: "Check for an existing AgentMail address using a saved credential",
-  description: "Requires a operator connection manager and enabled chat connectors. Read-only: does not create or reserve an inbox. A missing inbox returns unknown because AgentMail hides resources outside the credential scope; it is never proof of availability.",
+  description: "Requires an operator connection manager and enabled chat connectors. Read-only: does not create or reserve an inbox. A missing inbox returns unknown because AgentMail hides resources outside the credential scope; it is never proof of availability.",
   request: {
     params: z.object({ spaceId: z.string().uuid(), connectionId: z.string().uuid() }),
     body: jsonBody(emailAddressCheckSchema),
@@ -2633,7 +2633,7 @@ registry.registerPath({
   "x-outpost-connection-management": "connections:test",
   method: "post", path: "/api/chat-endpoints/{endpointId}/slack/test-message", tags: ["chat-channels"],
   summary: "Connect the current user's Slack identity and send a test DM",
-  description: "Requires a operator connection manager and active space membership. Reuses only the actor's verified identity in the same workspace; otherwise returns paginated account choices and sends a private connection challenge. The account holder must confirm it while signed in before linking or test delivery. Revoked and conflicting links cannot be overwritten. The request ID prevents duplicate or ambiguous sends from being replayed.",
+  description: "Requires an operator connection manager and active space membership. Reuses only the actor's verified identity in the same workspace; otherwise returns paginated account choices and sends a private connection challenge. The account holder must confirm it while signed in before linking or test delivery. Revoked and conflicting links cannot be overwritten. The request ID prevents duplicate or ambiguous sends from being replayed.",
   request: { params: z.object({ endpointId: z.string().uuid() }), body: jsonBody(slackTestMessageSchema) },
   responses: { 200: r.ok(slackTestMessageResultSchema), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable, 429: { description: "Wait before sending another test message" } },
 });
@@ -2642,7 +2642,7 @@ for (const action of ["registration", "install", "resume"] as const) {
   registry.registerPath({
     method: "post", path: `/api/chat-endpoints/{endpointId}/slack/${action}`, "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure", tags: ["chat-channels"],
     summary: { registration: "Create a Slack app for a saved draft", install: "Authorize installation of the saved Slack app", resume: "Connect already-vaulted Slack installation credentials" }[action],
-    description: "Requires a operator session, space membership, connection-management permission, and the chat connector rollout gate. Secrets are never returned. Creation request IDs are idempotent; uncertain creation requires an explicit checked-no-app confirmation before a new attempt. OAuth installation is bound to the initiating actor/session and expires in ten minutes.",
+    description: "Requires an operator session, space membership, connection-management permission, and the chat connector rollout gate. Secrets are never returned. Creation request IDs are idempotent; uncertain creation requires an explicit checked-no-app confirmation before a new attempt. OAuth installation is bound to the initiating actor/session and expires in ten minutes.",
     request: { params: z.object({ endpointId: z.string().uuid() }), body: jsonBody(action === "registration" ? slackRegistrationSchema : slackSetupActionSchema) },
     responses: { 200: r.ok(action === "install" ? slackInstallAuthorizationSchema : chatEndpointResponseSchema), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
   });
@@ -2684,7 +2684,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Inspect Photon shared project or dedicated numbers for channel setup",
   description:
-    "Requires a operator user with connection-management access. The project secret is write-only input. Returns the project's actual allocation and eligibility for shared DMs or dedicated lines, never project secrets or minted line tokens. Responses are not cached. Inspection alone does not activate the channel.",
+    "Requires an operator user with connection-management access. The project secret is write-only input. Returns the project's actual allocation and eligibility for shared DMs or dedicated lines, never project secrets or minted line tokens. Responses are not cached. Inspection alone does not activate the channel.",
   request: {
     params: z.object({ endpointId: z.string().uuid() }),
     body: jsonBody(inspectPhotonProjectSchema),
@@ -3041,7 +3041,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Publish an Outpost task comment to an external conversation",
   description:
-    "Explicitly projects an eligible comment from the bound Outpost task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Operator send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
+    "Explicitly projects an eligible comment from the bound Outpost task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. An Operator send with an already-bound attachment returns 409 with code chat_operator_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -3084,7 +3084,7 @@ registry.registerPath({
   method: "get",
   path: "/api/chat-endpoints/{endpointId}/conversations/{conversationId}/publications/{publicationId}/status",
   tags: ["chat-channels"],
-  summary: "Read authoritative delivery status for a Operator publication batch",
+  summary: "Read authoritative delivery status for an Operator publication batch",
   description:
     "Returns the complete ordered batch, its first unresolved part and separate delivered, waiting, declined, expired and cancelled counts. Dismissal is allowed only when every part is settled; a consent card or upload receipt is not final file delivery. This read-only endpoint never retries or sends provider messages. The original publication ID remains a stable batch anchor.",
   request: {
@@ -3184,7 +3184,7 @@ for (const route of [
     } : {}),
     ...(TEAM_CATALOG_DESCRIPTIONS[route[1]] ? { description: TEAM_CATALOG_DESCRIPTIONS[route[1]] } : {}),
     ...(route[1].endsWith("/install") ? {
-      description: "Installs a catalog team into this space. Requires a operator user with permission to create agents, or an agent with permission to create agents; without it, a operator user can run outpost teams install <team id> --space-id <spaceId>. Imports team resources; HTTP success does not prove every required skill is ready. Read warnings for post-import failures and skillPreparations for required sources; a preparation plan is not proof of installation. Report unresolved requirements as partial completion and preserve existing resources. Use the actual returned portabilityImport agents and projects for space-scoped resource links. Before repeating an uncertain install, inspect installed teams and saved resource identities rather than creating another copy. resourceLinks provides canonical space-scoped hrefs for actual saved agents, projects and routines, including reused resources; share these links with the installation outcome.",
+      description: "Installs a catalog team into this space. Requires an operator user with permission to create agents, or an agent with permission to create agents; without it, an operator user can run outpost teams install <team id> --space-id <spaceId>. Imports team resources; HTTP success does not prove every required skill is ready. Read warnings for post-import failures and skillPreparations for required sources; a preparation plan is not proof of installation. Report unresolved requirements as partial completion and preserve existing resources. Use the actual returned portabilityImport agents and projects for space-scoped resource links. Before repeating an uncertain install, inspect installed teams and saved resource identities rather than creating another copy. resourceLinks provides canonical space-scoped hrefs for actual saved agents, projects and routines, including reused resources; share these links with the installation outcome.",
       responses: { 201: r.ok(z.object({ resourceLinks: z.array(z.object({
         kind: z.enum(["agent", "project", "routine"]), id: z.string(), name: z.string(), href: z.string(),
       })) }).passthrough()), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
@@ -5201,7 +5201,7 @@ registry.registerPath({
   tags: ["projects"],
   summary: "Create a project",
   description:
-    "The optional repositoryIds field selects GitHub source repositories and requires a operator caller. It cannot be combined with workspace. All selections are validated before the project and repository workspaces are created atomically.",
+    "The optional repositoryIds field selects GitHub source repositories and requires an operator caller. It cannot be combined with workspace. All selections are validated before the project and repository workspaces are created atomically.",
   request: {
     params: z.object({ spaceId: z.string() }),
     body: jsonBody(createProjectSchema),
@@ -5364,7 +5364,7 @@ registry.registerPath({
 const PLUGIN_MANAGED_ROUTINE_GUIDANCE =
   "A routine with a non-null `managedByPlugin` is a plugin-managed routine: that plugin created it and owns its definition "
   + "(title, instructions, schedule, assignee), and the plugin can reset it to its manifest defaults. "
-  + "It is changed through the settings that plugin exposes, which a operator user opens at "
+  + "It is changed through the settings that plugin exposes, which an operator user opens at "
   + "[plugin settings](/<prefix>/space/settings/instance/plugins/<pluginId>), with `managedByPlugin.pluginId` as <pluginId> "
   + "and this conversation's space prefix as <prefix>. "
   + "Do not rewrite, detach or duplicate a plugin-managed routine to imitate a change, and do not search for another route: "
@@ -6078,7 +6078,7 @@ for (const segment of costSummaryPaths) {
 
 registry.registerPath({ method: "post", path: "/api/spaces/{spaceId}/costs/retry-accounting", tags: ["costs"],
   summary: "Retry recording a run's saved cost data",
-  description: "Requires space cost-read and operator write access. Viewers and agents cannot retry. Replays accounting evidence only; never starts provider work or invents missing usage. A operator user retries with Retry cost recording on the run's row on the [Costs page](/<prefix>/activity/costs).",
+  description: "Requires space cost-read and operator write access. Viewers and agents cannot retry. Replays accounting evidence only; never starts provider work or invents missing usage. An operator user retries with Retry cost recording on the run's row on the [Costs page](/<prefix>/activity/costs).",
   request: { params: z.object({ spaceId: z.string() }), body: jsonBody(retryAccountingSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -6184,7 +6184,7 @@ registry.registerPath({
   path: "/api/spaces/{spaceId}/budget-incidents/{incidentId}/resolve",
   tags: ["costs"],
   summary: "Resolve a budget incident",
-  description: "Operator only: agent credentials get 403, so an agent cannot raise a limit or resume a budget-stopped agent. A operator user chooses the new amount and resumes on the Budgets page: link [Open budgets](/<prefix>/activity/budgets) with this conversation's space prefix as <prefix>, and reply.",
+  description: "Operator only: agent credentials get 403, so an agent cannot raise a limit or resume a budget-stopped agent. An operator user chooses the new amount and resumes on the Budgets page: link [Open budgets](/<prefix>/activity/budgets) with this conversation's space prefix as <prefix>, and reply.",
   request: {
     params: z.object({ spaceId: z.string(), incidentId: z.string() }),
     body: jsonBody(resolveBudgetIncidentSchema),
@@ -6223,7 +6223,7 @@ registry.registerPath({
   path: "/api/agents/{agentId}/budgets",
   tags: ["costs"],
   summary: "Update agent budget",
-  description: "Operator only: agent credentials get 403. A operator user changes the limit on the agent's budget tab: link [Open budget](/<prefix>/agents/<agentId>/budgets) with this conversation's space prefix as <prefix>, and reply.",
+  description: "Operator only: agent credentials get 403. An operator user changes the limit on the agent's budget tab: link [Open budget](/<prefix>/agents/<agentId>/budgets) with this conversation's space prefix as <prefix>, and reply.",
   request: {
     params: z.object({ agentId: z.string() }),
     body: jsonBody(updateBudgetSchema),
@@ -6450,7 +6450,7 @@ for (const [projection, responseSchema] of [
     path: `/api/spaces/{spaceId}/attention/${projection}`,
     tags: ["inbox"],
     summary: projection === "summary" ? "Get canonical attention counts" : "Get complete attention task membership",
-    description: "Requires a operator user with space access. Reads the complete canonical attention set with current task privacy, addressee, dismissal, snooze, and archive rules. Returns counts without decision cards, images, plan bodies, or pagination. The tasks projection also returns distinct accessible task IDs. This read grants no resolution authority.",
+    description: "Requires an operator user with space access. Reads the complete canonical attention set with current task privacy, addressee, dismissal, snooze, and archive rules. Returns counts without decision cards, images, plan bodies, or pagination. The tasks projection also returns distinct accessible task IDs. This read grants no resolution authority.",
     request: { params: z.object({ spaceId: z.string() }) },
     responses: { 200: r.ok(responseSchema), 401: r.unauthorized, 403: r.forbidden },
   });
@@ -6464,7 +6464,7 @@ registry.registerPath({
   tags: ["inbox"],
   summary: "List recorded decisions visible to the current operator user",
   description:
-    "Requires a operator user with space access. Returns a DecisionHistoryPage with current task and decision audience access enforced. Only the declared filters are accepted. The default page size is 40, sorted newest first.",
+    "Requires an operator user with space access. Returns a DecisionHistoryPage with current task and decision audience access enforced. Only the declared filters are accepted. The default page size is 40, sorted newest first.",
   request: {
     params: z.object({ spaceId: z.string() }),
     query: z.object({
@@ -7074,26 +7074,26 @@ registry.registerPath({
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
-const primaryAgentPreferenceResponse = z.object({
+const defaultAgentPreferenceResponse = z.object({
   spaceId: z.string().uuid(),
   userId: z.string(),
-  primaryAgentId: z.string().uuid().nullable(),
+  defaultAgentId: z.string().uuid().nullable(),
   initialized: z.boolean(),
 });
 
 for (const method of ["get", "put"] as const) {
   registry.registerPath({
     method,
-    path: "/api/spaces/{spaceId}/primary-agent/me",
+    path: "/api/spaces/{spaceId}/default-agent/me",
     tags: ["agents"],
     summary: method === "get" ? "Get the default agent" : "Set the default agent",
-    description: "Uses the Space-wide default agent while retaining the legacy /me path and primaryAgentId field for client compatibility. Active Space members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this operator route. In the human UI, open the chosen agent's profile and select Set as default agent. Confirm the replacement when a default is already set. The default receives new tasks when no assignee is selected and is the initial Chat fallback; it does not gain rank or permissions. The selected agent must be visible, approved, and non-terminated.",
+    description: "Uses the Space-wide default agent while retaining the legacy /me path and defaultAgentId field for client compatibility. Active Space members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this operator route. In the human UI, open the chosen agent's profile and select Set as default agent. Confirm the replacement when a default is already set. The default receives new tasks when no assignee is selected and is the initial Chat fallback; it does not gain rank or permissions. The selected agent must be visible, approved, and non-terminated.",
     request: {
       params: z.object({ spaceId: z.string().uuid() }),
-      ...(method === "put" ? { body: jsonBody(updatePrimaryAgentSchema) } : {}),
+      ...(method === "put" ? { body: jsonBody(updateDefaultAgentSchema) } : {}),
     },
     responses: {
-      200: r.ok(primaryAgentPreferenceResponse),
+      200: r.ok(defaultAgentPreferenceResponse),
       400: r.badRequest,
       401: r.unauthorized,
       403: r.forbidden,
@@ -7679,7 +7679,7 @@ registry.registerPath({
   path: "/api/spaces/{spaceId}/managed-agent-profiles",
   tags: ["agents"],
   summary: "List Claude Managed Agent profiles for a space",
-  description: "Operator only: agent credentials get 403. There is no web page for Claude Managed Agent profiles; see the POST route for how a operator user creates one.",
+  description: "Operator only: agent credentials get 403. There is no web page for Claude Managed Agent profiles; see the POST route for how an operator user creates one.",
   request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
@@ -7689,7 +7689,7 @@ registry.registerPath({
   path: "/api/spaces/{spaceId}/managed-agent-profiles",
   tags: ["agents"],
   summary: "Create or operator-attest a Claude Managed Agent profile",
-  description: "Operator only: agent credentials get 403. A Claude Managed Agent runs on Anthropic's managed-agents beta. A operator operator creates the space profile with an Anthropic API-key secret and a limited environment (no hosts, no packages), attests its qualification and explicitly acknowledges stateful retention before it can be enabled. There is no web page for this: the operator user runs the CLI command `outpost managed-agent setup --space-id <spaceId> --profile-key <key> --display-name <name> --api-key-secret-id <secretId> --acknowledge-retention` with ANTHROPIC_API_KEY set in their shell (add --probe for a read-only qualification check first). It creates or adopts the limited Anthropic Agent and Environment, qualifies them and calls this route with operator credentials. The secret itself is added on the space Secrets page, /<prefix>/space/settings/secrets.",
+  description: "Operator only: agent credentials get 403. A Claude Managed Agent runs on Anthropic's managed-agents beta. An operator creates the space profile with an Anthropic API-key secret and a limited environment (no hosts, no packages), attests its qualification and explicitly acknowledges stateful retention before it can be enabled. There is no web page for this: the operator user runs the CLI command `outpost managed-agent setup --space-id <spaceId> --profile-key <key> --display-name <name> --api-key-secret-id <secretId> --acknowledge-retention` with ANTHROPIC_API_KEY set in their shell (add --probe for a read-only qualification check first). It creates or adopts the limited Anthropic Agent and Environment, qualifies them and calls this route with operator credentials. The secret itself is added on the space Secrets page, /<prefix>/space/settings/secrets.",
   request: {
     params: z.object({ spaceId: z.string() }),
     body: jsonBody(
@@ -8400,7 +8400,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "List pending task questions for your conversation",
   description:
-    "Requires a operator user who owns and can read the conversation. Returns AttentionItem[] containing canonical pending ask_user_questions from readable tasks handed off in the current session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task questions remain current obligations across chat resets. Tasks linked to any chat handoff never enter through the ordinary-task scope. Excludes the conversation's own questions. Uses the same audience, dismissal, snooze and archive rules as Needs You. Accepts no query parameters. Reads one complete authorized space attention snapshot and filters it to these tasks, so cost scales with space attention; it retains existing attention queue/retention bookkeeping and creates no copied questions or agent turns. This endpoint is intended for event-driven refresh, not polling.",
+    "Requires an operator user who owns and can read the conversation. Returns AttentionItem[] containing canonical pending ask_user_questions from readable tasks handed off in the current session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task questions remain current obligations across chat resets. Tasks linked to any chat handoff never enter through the ordinary-task scope. Excludes the conversation's own questions. Uses the same audience, dismissal, snooze and archive rules as Needs You. Accepts no query parameters. Reads one complete authorized space attention snapshot and filters it to these tasks, so cost scales with space attention; it retains existing attention queue/retention bookkeeping and creates no copied questions or agent turns. This endpoint is intended for event-driven refresh, not polling.",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: r.ok(z.array(conversationPendingQuestionSchema)), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -8411,7 +8411,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "List decision receipts for your conversation",
   description:
-    "Requires a operator user who owns the conversation and has current issue read access. Returns a DecisionHistoryPage for tasks handed off in the current conversation session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task receipts are limited to resolutions since the current session's boundary comment (or conversation creation for its initial session); missing reset provenance omits ordinary-task history. Tasks linked to any chat handoff retain their original session scope. Both sources are merged newest first under the same cursor, with current task and decision audience access enforced. Accepts only cursor and limit; the default page size is 40. Reading receipts does not copy messages, create handoffs, or wake agents.",
+    "Requires an operator user who owns the conversation and has current issue read access. Returns a DecisionHistoryPage for tasks handed off in the current conversation session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task receipts are limited to resolutions since the current session's boundary comment (or conversation creation for its initial session); missing reset provenance omits ordinary-task history. Tasks linked to any chat handoff retain their original session scope. Both sources are merged newest first under the same cursor, with current task and decision audience access enforced. Accepts only cursor and limit; the default page size is 40. Reading receipts does not copy messages, create handoffs, or wake agents.",
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
@@ -8434,7 +8434,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "List tasks created from your conversation",
   description:
-    "Requires a operator user who owns the conversation and has current issue read access. Returns a ConversationTaskHandoffPage for the current conversation session, newest first, omitting tasks the user can no longer read. Accepts only cursor and limit; the default page size is 40. This read does not create tasks or wake agents.",
+    "Requires an operator user who owns the conversation and has current issue read access. Returns a ConversationTaskHandoffPage for the current conversation session, newest first, omitting tasks the user can no longer read. Accepts only cursor and limit; the default page size is 40. This read does not create tasks or wake agents.",
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
@@ -10261,7 +10261,7 @@ registry.registerPath({
     "`x-outpost-cloud-async-import: 1` header (browsers cannot — the Cloud harness proxy " +
     "strips inbound `x-outpost-cloud-*` headers), while operator sessions use the proxy-safe " +
     "`?async=1` query parameter. Either way the server responds 202 with a job id and status " +
-    "URL instead of holding the connection open for the whole import. While a operator actor " +
+    "URL instead of holding the connection open for the whole import. While an operator actor " +
     "already has an async job running, a resubmit returns 409 carrying the running job's id " +
     "and status URL. Jobs are held in memory and are lost on restart.",
   request: {
@@ -10427,7 +10427,7 @@ registry.registerPath({
   method: "post",
   path: "/api/operator-claim/{token}/claim",
   tags: ["access"],
-  summary: "Claim a operator token",
+  summary: "Claim an operator token",
   request: { params: z.object({ token: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
@@ -10640,7 +10640,7 @@ registerCurrentRoute({
   path: "/api/health/dev-server/restart",
   tags: ["health"],
   summary: "Request a managed dev-server instance restart",
-  description: "Request a restart of this Outpost instance through its managed development-server supervisor. In authenticated deployments this requires a operator identity; an agent credential does not inherit operator access from its responsible user or from a chat request. Hand that operation to an authorized operator/operator when the route denies the current agent. Returns 404 when no managed supervisor is available and 409 when no restart is required. Acceptance is not proof that the restart completed. This operation does not delete stored conversations or task comments.",
+  description: "Request a restart of this Outpost instance through its managed development-server supervisor. In authenticated deployments this requires an operator identity; an agent credential does not inherit operator access from its responsible user or from a chat request. Hand that operation to an authorized operator/operator when the route denies the current agent. Returns 404 when no managed supervisor is available and 409 when no restart is required. Acceptance is not proof that the restart completed. This operation does not delete stored conversations or task comments.",
   responses: {
     202: r.ok(),
     403: r.forbidden,
@@ -10675,7 +10675,7 @@ registerCurrentRoute({
   path: "/api/operator-api-keys",
   tags: ["access"],
   summary: "Create a named operator API key",
-  body: createBoardApiKeySchema,
+  body: createOperatorApiKeySchema,
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
@@ -10683,7 +10683,7 @@ registerCurrentRoute({
   method: "delete",
   path: "/api/operator-api-keys/{keyId}",
   tags: ["access"],
-  summary: "Revoke a operator API key",
+  summary: "Revoke an operator API key",
 });
 
 registry.registerPath({
@@ -11694,9 +11694,9 @@ function spaceModelServiceSettingsPage(section: string, condition = "") {
 
 for (const [method, suffix, summary] of [
   ["get", "", "Get prompt injection settings and eligible shared OpenRouter connections; non-managers receive no settings or choices"],
-  ["put", "", "Configure opt-in prompt injection model checks as a operator connection manager"],
-  ["get", "/models", "List OpenRouter model suggestions for an authorized shared connection as a operator connection manager"],
-  ["post", "/test", "Classify two fixed billed samples using saved settings as a operator connection manager; fallback is not a passing model test"],
+  ["put", "", "Configure opt-in prompt injection model checks as an operator connection manager"],
+  ["get", "/models", "List OpenRouter model suggestions for an authorized shared connection as an operator connection manager"],
+  ["post", "/test", "Classify two fixed billed samples using saved settings as an operator connection manager; fallback is not a passing model test"],
 ] as const) registerCurrentRoute({
   method, path: `/api/spaces/{spaceId}/prompt-injection-prevention${suffix}`,
   tags: ["prompt-injection-prevention"], summary, description: spaceModelServiceSettingsPage("Prompt Injection Prevention"),

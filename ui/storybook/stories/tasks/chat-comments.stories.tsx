@@ -19,7 +19,7 @@ import type { IssueTimelineEvent } from "@/lib/issue-timeline-events";
 import { storybookAgentMap, storybookAgents } from "../../fixtures/outpostData";
 
 const spaceId = "space-storybook";
-const projectId = "project-board-ui";
+const projectId = "project-operator-ui";
 const issueId = "issue-chat-comments";
 const currentUserId = "user-board";
 

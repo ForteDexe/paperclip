@@ -1876,7 +1876,7 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           throw new Error(`Issue not found: ${issueId}`);
         }
         if (!input.actorUserId) {
-          throw new Error("actorUserId is required to respond to an interaction on behalf of a operator");
+          throw new Error("actorUserId is required to respond to an interaction on behalf of an operator");
         }
         const actorUserId = input.actorUserId;
         // Mirror the host's active-human-member write re-verification.
@@ -2097,7 +2097,7 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           throw new Error(`Approval not found: ${approvalId}`);
         }
         if (!input.actorUserId) {
-          throw new Error("actorUserId is required to decide an approval on behalf of a operator");
+          throw new Error("actorUserId is required to decide an approval on behalf of an operator");
         }
         const actorUserId = input.actorUserId;
         assertActiveHumanMemberCanWrite(spaceId, actorUserId);

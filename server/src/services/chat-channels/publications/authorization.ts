@@ -7,7 +7,7 @@ import { notifyChatPublicationWork } from "../../chat-work-notifications.js";
 
 import { type CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
 
-import { authorizeSlackBoardPublication } from "../../slack-operator-authority.js";
+import { authorizeSlackOperatorPublication } from "../../slack-operator-authority.js";
 
 import { slackPublicationAllowed } from "../../connectors/slack-access.js";
 
@@ -215,7 +215,7 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
       let authorizationActionId: string | null = null;
       if (endpoint.provider === "slack") {
         const credentials = await resolveCredentials(endpoint, tx);
-        if (!await authorizeSlackBoardPublication(tx, endpoint, conversation, input.publication, credentials.botToken ?? "", fetchImpl)) return null;
+        if (!await authorizeSlackOperatorPublication(tx, endpoint, conversation, input.publication, credentials.botToken ?? "", fetchImpl)) return null;
       }
       if (
         input.publication.idempotencyKey.startsWith("wake:") &&

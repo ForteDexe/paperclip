@@ -3,11 +3,11 @@
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CurrentBoardAccess } from "@/api/access";
+import type { CurrentOperatorAccess } from "@/api/access";
 import { AdvancedToolsRoute } from "./AdvancedToolsRoute";
 import { ToolsAdminGate } from "./profiles/ToolsAdminGate";
 
-const accessState = vi.hoisted(() => ({ data: undefined as CurrentBoardAccess | undefined }));
+const accessState = vi.hoisted(() => ({ data: undefined as CurrentOperatorAccess | undefined }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: accessState.data, isLoading: false }),
@@ -22,7 +22,7 @@ vi.mock("./ToolsAccess", () => ({
   ToolsAccess: () => <div>Advanced tool setup</div>,
 }));
 
-function snapshot(role: "owner" | "admin" | "operator" | "member" | "viewer"): CurrentBoardAccess {
+function snapshot(role: "owner" | "admin" | "operator" | "member" | "viewer"): CurrentOperatorAccess {
   return {
     user: { id: "user-1", email: "editor@example.com", name: "Editor", image: null },
     userId: "user-1",
@@ -53,7 +53,7 @@ describe.each([
     container.remove();
   });
 
-  function render(access: CurrentBoardAccess | undefined) {
+  function render(access: CurrentOperatorAccess | undefined) {
     accessState.data = access;
     flushSync(() => root.render(content));
   }

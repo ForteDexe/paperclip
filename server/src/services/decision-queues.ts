@@ -84,7 +84,7 @@ export const DECISION_QUEUE_SEEDS: readonly SeedDefinition[] = [
   {
     key: "questions",
     title: "Questions",
-    description: "Structured questions waiting for a operator response.",
+    description: "Structured questions waiting for an operator response.",
     rules: [{
       key: "ask-user-questions",
       signal: "ask_user_questions",
@@ -666,7 +666,7 @@ export function decisionQueueService(db: Db) {
         input.sourceKind,
         input.sourceId,
       );
-      // Operator operators may clean up an existing sidecar after its source has
+      // Operators may clean up an existing sidecar after its source has
       // disappeared. Agents still need source-level read authority so removal
       // cannot be used to probe hidden membership.
       if (!sourceReadable && input.authActor.type !== "operator") {

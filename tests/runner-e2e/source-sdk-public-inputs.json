@@ -302,7 +302,7 @@
     "packages/shared/src/portability-hash.ts": "4465c125a08bef6cd78ac4fdff7062989a2d8a25",
     "packages/shared/src/portability-zip.test.ts": "f95df784e114bc43f83ba0a62f128dcbff82cb7a",
     "packages/shared/src/portability-zip.ts": "f4b77e7e5dea009ebf31dfcf2813f91b9fd6e4ce",
-    "packages/shared/src/primary-agent.ts": "63d7841ed6228ff01f7639c8bb9648e10f5acae0",
+    "packages/shared/src/default-agent.ts": "63d7841ed6228ff01f7639c8bb9648e10f5acae0",
     "packages/shared/src/project-mentions.test.ts": "1bb3bceb1a05f702ecbf2f81e7aa715edfa547fa",
     "packages/shared/src/project-mentions.ts": "5d61889358640ee2ebe168beae12e0dd5432f3a9",
     "packages/shared/src/project-url-key.ts": "a367d41709f0bf80828da8dad585b2f5e2384de4",

@@ -25,7 +25,7 @@ import { notifyScheduledRetryCancellation } from "../scheduled-retry-cancellatio
 import { notifyChatResponseAvailability } from "../chat-response-availability.js";
 import { notifyChatInboundWakeNotices } from "../chat-inbound-wake-notice-notifications.js";
 import { notifyChatRunMilestones } from "../chat-run-milestone-notifications.js";
-import { assertTaskRetryConversationAllowed, readTaskRetryIntent, readTaskRetryBoardMessageOrigin, retireSupersededTaskRetry, taskRetryMutationAllowed } from "../task-retry.js";
+import { assertTaskRetryConversationAllowed, readTaskRetryIntent, readTaskRetryOperatorMessageOrigin, retireSupersededTaskRetry, taskRetryMutationAllowed } from "../task-retry.js";
 import { insertIssueComment } from "../issue-comment-writes.js";
 import { withExternalAdmissionGuard, assertNoExternalOverlap } from "../../modules/external-agents/index.js";
 import { isAgentAwaitingSetup } from "../../modules/agent-lifecycle/index.js";
@@ -198,7 +198,7 @@ import type { HeartbeatRecoveryDependencies, createHeartbeatRecovery } from "./r
 import { executeIssuePostCommitActions, type IssuePostCommitAction, type issueService } from "../issues.js";
 import type { issueTreeControlService } from "../issue-tree-control.js";
 import type { budgetService } from "../budgets.js";
-import { isBoardOwnedBudgetBlock } from "../budget-block-ownership.js";
+import { isOperatorOwnedBudgetBlock } from "../budget-block-ownership.js";
 import type { instanceSettingsService } from "../instance-settings.js";
 import type { createRunDispatch } from "../../modules/run-dispatch/index.js";
 import { hasRetainedExternalChatRetry, type PostCommitEffect as WakeQueuePostCommitEffect, type createWakeQueue } from "../../modules/wake-queue/index.js";
@@ -987,7 +987,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       // accepted work. Cancelling the unstarted run would drop the user's
       // message, Retry, or recovery it carries; keep it queued. Settling
       // accounting re-notifies run dispatch. A reached hard stop is the operator's.
-      if (!run.startedAt && !(await isBoardOwnedBudgetBlock(db, run.spaceId, budgetBlock))) return null;
+      if (!run.startedAt && !(await isOperatorOwnedBudgetBlock(db, run.spaceId, budgetBlock))) return null;
       // Record which budget stops this queued run, so Raise budget and resume
       // continues it (budget-resume-continuation.ts). Saved before the cancel
       // so a crash between them cannot lose it; the resume matches it only
@@ -1016,7 +1016,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         const current = await budgets.getInvocationBlock(run.spaceId, run.agentId, {
           issueId: readNonEmptyString(context.issueId), projectId: readNonEmptyString(context.projectId) });
         if (!current) return null;
-        if (!run.startedAt && !(await isBoardOwnedBudgetBlock(db, run.spaceId, current))) return null;
+        if (!run.startedAt && !(await isOperatorOwnedBudgetBlock(db, run.spaceId, current))) return null;
         await cancelRunInternal(run.id, current.reason);
         return null;
       }
@@ -2987,7 +2987,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     );
     if (budgetBlock) {
       // A budget block that is not a reached hard stop is an explicit pause.
-      if ((await canSaveDeferredMessage()) && !(await isBoardOwnedBudgetBlock(db, agent.spaceId, budgetBlock)))
+      if ((await canSaveDeferredMessage()) && !(await isOperatorOwnedBudgetBlock(db, agent.spaceId, budgetBlock)))
         throw await saveDeferredMessage("budget.blocked", budgetBlock.reason,
           { scopeType: budgetBlock.scopeType, scopeId: budgetBlock.scopeId });
       const wait = await writeSkippedRequest("budget.blocked", { error: budgetBlock.reason }, {
@@ -3162,7 +3162,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 actorId: retry.actorId, actorSource: retry.actorSource }))
                 return declineRetry("retry_authority_denied", "The user who requested Retry can no longer change this task.");
               if (retry.operatorMessageOrigin) {
-                const origin = await readTaskRetryBoardMessageOrigin(tx as unknown as Db, { spaceId: agent.spaceId,
+                const origin = await readTaskRetryOperatorMessageOrigin(tx as unknown as Db, { spaceId: agent.spaceId,
                   issueId, agentId, sourceRunId: retry.sourceRunId, actorId: retry.actorId });
                 if (!origin || origin.commentId !== retry.operatorMessageOrigin.commentId ||
                     origin.identityContextId !== retry.operatorMessageOrigin.identityContextId)
@@ -3687,7 +3687,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           // Prove eligibility without retiring the hold. Later gates can still
           // decline this wake; hold retirement and successor creation stay atomic.
           // A bound chat request has already rechecked its current principal
-          // above. Treat its new user message like a operator comment, but keep
+          // above. Treat its new user message like an operator comment, but keep
           // failed-run retry actions on their separate exact-request path.
           const ownsReconstructionContinuation = reconciledSourceRunId && executionBlocker?.runId === reconciledSourceRunId
             && executionBlocker.recoveryActionId === enrichedContextSnapshot.recoveryActionId;

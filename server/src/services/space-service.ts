@@ -128,7 +128,7 @@ export function spaceService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
     budgetMonthlyCents: spaces.budgetMonthlyCents,
     spentMonthlyCents: spaces.spentMonthlyCents,
     defaultResponsibleUserId: spaces.defaultResponsibleUserId,
-    primaryAgentId: spaces.primaryAgentId,
+    defaultAgentId: spaces.defaultAgentId,
     requireOperatorApprovalForNewAgents: spaces.requireOperatorApprovalForNewAgents,
     interactionResolverPolicy: spaces.interactionResolverPolicy,
     feedbackDataSharingEnabled: spaces.feedbackDataSharingEnabled,

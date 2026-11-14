@@ -19,7 +19,7 @@ export const spaces = pgTable(
     spentMonthlyCents: numeric("spent_monthly_cents", { precision: 24, scale: 7, mode: "number" }).notNull().default(0),
     defaultResponsibleUserId: text("default_responsible_user_id"),
     /** Space-wide default for entry points that need one agent. Not a rank. */
-    primaryAgentId: uuid("primary_agent_id"),
+    defaultAgentId: uuid("default_agent_id"),
     requireOperatorApprovalForNewAgents: boolean("require_operator_approval_for_new_agents")
       .notNull()
       .default(false),
@@ -40,6 +40,6 @@ export const spaces = pgTable(
     issuePrefixUniqueIdx: uniqueIndex("spaces_issue_prefix_idx").on(table.issuePrefix),
     workspaceRootUniqueIdx: uniqueIndex("spaces_workspace_root_key_idx")
       .on(table.workspaceRootKey),
-    primaryAgentIdx: index("spaces_primary_agent_id_idx").on(table.primaryAgentId),
+    defaultAgentIdx: index("spaces_default_agent_id_idx").on(table.defaultAgentId),
   }),
 );

@@ -71,7 +71,7 @@ export async function restoreCaseHandoffActor(db: Db, row: Handoff, issue: Issue
       if (!isCurrentCloudTenantAuthority(row.actorId, cloudAuthority)) throw forbidden("Current Cloud tenant authority is unavailable");
       if (cloudAuthority.role === "viewer") throw forbidden("Current Cloud tenant membership does not allow task assignment");
     }
-    const access = await operatorAuthService(db).resolveBoardAccess(row.actorId);
+    const access = await operatorAuthService(db).resolveOperatorAccess(row.actorId);
     if (!access.user) throw forbidden("Handoff original user is unavailable");
     if (source === "cloud_tenant" && !access.spaceIds.includes(row.spaceId)) throw forbidden("Handoff original user is not a current space member");
     if (source === "operator_key") {

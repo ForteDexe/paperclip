@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { createAgentKeySchema, createBoardApiKeySchema, type Agent } from "@outpost/shared";
+import { createAgentKeySchema, createOperatorApiKeySchema, type Agent } from "@outpost/shared";
 import {
   addCommonClientOptions,
   apiPath,
@@ -39,7 +39,7 @@ interface AgentKeyRow {
   revokedAt?: string | null;
 }
 
-interface CreatedBoardKey {
+interface CreatedOperatorKey {
   id: string;
   name: string;
   token: string;
@@ -152,13 +152,13 @@ export function registerTokenCommands(program: Command): void {
       .action(async (opts: OperatorTokenOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
-          const expiresAt = resolveBoardKeyExpiresAt(opts);
-          const payload = createBoardApiKeySchema.parse({
+          const expiresAt = resolveOperatorKeyExpiresAt(opts);
+          const payload = createOperatorApiKeySchema.parse({
             name: opts.name,
             requestedSpaceId: opts.spaceId ?? ctx.spaceId ?? null,
             expiresAt,
           });
-          const key = await ctx.api.post<CreatedBoardKey>("/api/operator-api-keys", payload);
+          const key = await ctx.api.post<CreatedOperatorKey>("/api/operator-api-keys", payload);
           if (!key) throw new Error("Failed to create operator API key");
           printOutput({ key }, { json: ctx.json });
         } catch (err) {
@@ -200,7 +200,7 @@ export function registerTokenCommands(program: Command): void {
   addCommonClientOptions(
     operator
       .command("revoke")
-      .description("Revoke a operator API key")
+      .description("Revoke an operator API key")
       .argument("<keyId>", "Operator API key ID")
       .action(async (keyId: string, opts: BaseClientOptions) => {
         try {
@@ -228,7 +228,7 @@ async function resolveAgent(api: { get<T>(path: string): Promise<T | null> }, sp
   return agent;
 }
 
-function resolveBoardKeyExpiresAt(opts: OperatorTokenOptions): Date | null | undefined {
+function resolveOperatorKeyExpiresAt(opts: OperatorTokenOptions): Date | null | undefined {
   if (opts.neverExpires) return null;
   if (opts.expiresAt?.trim()) {
     const date = new Date(opts.expiresAt.trim());

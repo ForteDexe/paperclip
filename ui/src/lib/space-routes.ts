@@ -60,7 +60,7 @@ export function isGlobalPath(pathname: string): boolean {
   return GLOBAL_ROUTE_ROOTS.has(root.toLowerCase());
 }
 
-export function isBoardPathWithoutPrefix(pathname: string): boolean {
+export function isOperatorPathWithoutPrefix(pathname: string): boolean {
   const root = getRootSegment(pathname);
   if (!root) return false;
   return OPERATOR_ROUTE_ROOTS.has(root.toLowerCase());

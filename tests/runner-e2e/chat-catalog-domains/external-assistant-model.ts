@@ -10,7 +10,7 @@ export interface CompanionResult {
 }
 /** Finite real provider loop, exclusively for the scoped public-MCP companion.
  * Only the selected model credential and MCP call closure enter this function;
- * neither a operator API nor Agent Chat/runtime credentials are accepted. */
+ * neither an operator API nor Agent Chat/runtime credentials are accepted. */
 export async function runScopedCompanion(input: {
   query:string; credential:string; tools:Tool[]; signal:AbortSignal;
   call:(name:string,args:Record<string,unknown>)=>Promise<unknown>;

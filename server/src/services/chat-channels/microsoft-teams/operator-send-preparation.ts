@@ -4,9 +4,9 @@ import { chatActions, chatPublications } from "@outpost/db";
 import type { EndpointRow, EndpointRecord } from "../runtime-types.js";
 import type { ChatEndpointRuntime } from "../../voice/voice-runtime.js";
 type OperatorPreparationOptions = { endpointRecord: (endpointId: string) => Promise<EndpointRecord | null>; runtimeFor: (endpoint: EndpointRow) => Promise<ChatEndpointRuntime> };
-export function createTeamsBoardSendPreparation(db: Db, options: OperatorPreparationOptions) {
+export function createTeamsOperatorSendPreparation(db: Db, options: OperatorPreparationOptions) {
   const { endpointRecord, runtimeFor } = options;
-  async function prepareTeamsBoardSend(endpointId: string, conversationId: string, idempotencyKey: string, rejectionActionId: string) {
+  async function prepareTeamsOperatorSend(endpointId: string, conversationId: string, idempotencyKey: string, rejectionActionId: string) {
     const record = await endpointRecord(endpointId);
     if (
       record?.endpoint.provider === "microsoft-teams" &&
@@ -44,5 +44,5 @@ export function createTeamsBoardSendPreparation(db: Db, options: OperatorPrepara
       if (!existing && !rejected) await runtimeFor(record.endpoint);
     }
   }
-  return { prepareTeamsBoardSend };
+  return { prepareTeamsOperatorSend };
 }

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeContext } from "../client/context.js";
-import { setStoredBoardCredential } from "../client/operator-auth.js";
+import { setStoredOperatorCredential } from "../client/operator-auth.js";
 import { apiPath, inferContentTypeFromPath, resolveApiBase, resolveCommandContext } from "../commands/client/common.js";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -124,7 +124,7 @@ describe("resolveCommandContext", () => {
     const authStorePath = createTempPath("auth.json");
     process.env.OUTPOST_AUTH_STORE = authStorePath;
     process.env.PROFILE_KEY = "profile-token";
-    setStoredBoardCredential({
+    setStoredOperatorCredential({
       apiBase: "http://localhost:3100",
       token: "stored-operator-token",
       userId: "user-1",

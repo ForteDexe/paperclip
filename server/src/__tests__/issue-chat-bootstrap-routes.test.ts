@@ -10,7 +10,7 @@ import { issueRoutes } from "../routes/issues.js";
 import { activityRoutes } from "../routes/activity.js";
 import { agentRoutes } from "../routes/agents.js";
 import { errorHandler } from "../middleware/index.js";
-import { describeEmbeddedPostgres, seedSpaceWithBoardAccess, useEmbeddedPostgres, type OperatorActor } from "./helpers/route-test-harness.js";
+import { describeEmbeddedPostgres, seedSpaceWithOperatorAccess, useEmbeddedPostgres, type OperatorActor } from "./helpers/route-test-harness.js";
 
 describeEmbeddedPostgres("task chat bootstrap", () => {
   const ctx = useEmbeddedPostgres("outpost-issue-chat-bootstrap-");
@@ -109,7 +109,7 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   }
 
   it("serves each field exactly as its single endpoint does, for an ordinary task and a conversation", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Bootstrap");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Bootstrap");
     const ordinary = await seedTask(f.spaceId, { userId: f.userId, description: null });
     const conversation = await seedTask(f.spaceId, { userId: f.userId, conversation: true });
     const server = app(f.actor);
@@ -141,7 +141,7 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   });
 
   it("follows request order with mixed UUIDs and identifiers, and reads a task named twice once per ref", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Order");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Order");
     const a = await seedTask(f.spaceId, { userId: f.userId });
     const b = await seedTask(f.spaceId, { userId: f.userId });
     const ids = [b.identifier.toLowerCase(), a.issueId.toUpperCase(), b.issueId, ` ${b.identifier} `];
@@ -154,8 +154,8 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   });
 
   it("omits foreign, private, missing and unknown tasks and never discloses their data", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Visible");
-    const foreign = await seedSpaceWithBoardAccess(ctx.db, "Foreign");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Visible");
+    const foreign = await seedSpaceWithOperatorAccess(ctx.db, "Foreign");
     const visible = await seedTask(f.spaceId, { userId: f.userId });
     const foreignTask = await seedTask(foreign.spaceId, { userId: foreign.userId });
     const privateTask = await seedTask(f.spaceId, { userId: "someone-else" });
@@ -179,7 +179,7 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   });
 
   it("serves one task by UUID or identifier as exactly the batch item, never as a 304", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Single");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Single");
     const ordinary = await seedTask(f.spaceId, { userId: f.userId });
     const conversation = await seedTask(f.spaceId, { userId: f.userId, conversation: true });
     const server = app(f.actor);
@@ -200,8 +200,8 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   });
 
   it("returns 404 for a missing, private or other-space task through the single-task route", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Single404");
-    const foreign = await seedSpaceWithBoardAccess(ctx.db, "Single404 foreign");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Single404");
+    const foreign = await seedSpaceWithOperatorAccess(ctx.db, "Single404 foreign");
     const foreignTask = await seedTask(foreign.spaceId, { userId: foreign.userId });
     const privateTask = await seedTask(f.spaceId, { userId: "someone-else" });
     await ctx.db.update(issues).set({
@@ -220,12 +220,12 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
     `?ids=${randomUUID()}&extra=1`, `?ids=${randomUUID()}&ids=${randomUUID()}`,
     `?ids=${Array.from({ length: 11 }, () => randomUUID()).join(",")}`,
   ])("rejects invalid query %s", async (query) => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Invalid");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Invalid");
     await request(app(f.actor)).get(url(f.spaceId) + query).expect(400);
   });
 
   it("rejects task-bridge keys and serves ordinary same-space agents", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Bridge");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Bridge");
     const task = await seedTask(f.spaceId, { userId: f.userId });
     const actor: Express.Request["actor"] = { type: "agent", agentId: task.agentId, spaceId: f.spaceId, source: "agent_key" };
     const res = await request(app(actor)).get(url(f.spaceId)).query({ ids: task.issueId }).expect(200);
@@ -235,7 +235,7 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   });
 
   it("is read-only and bounds the database work for ten tasks", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Cost");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Cost");
     const tasks = [];
     for (let i = 0; i < 10; i++) tasks.push(await seedTask(f.spaceId, { userId: f.userId, conversation: i % 2 === 0 }));
     const server = app(f.actor);
@@ -274,7 +274,7 @@ describeEmbeddedPostgres("task chat bootstrap", () => {
   });
 
   it("does not start the run liveness backfill for finished runs", async () => {
-    const f = await seedSpaceWithBoardAccess(ctx.db, "Backfill");
+    const f = await seedSpaceWithOperatorAccess(ctx.db, "Backfill");
     const task = await seedTask(f.spaceId, { userId: f.userId });
     const [run] = await ctx.db.select({ agentId: heartbeatRuns.agentId }).from(heartbeatRuns).where(eq(heartbeatRuns.issueId, task.issueId));
     // A finished run without a liveness state is what `/runs` backfills in the background.

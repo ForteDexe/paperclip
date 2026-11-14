@@ -43,7 +43,7 @@ function operatorActor(role: "operator" | "viewer"): Express.Request["actor"] {
 }
 
 describe("managed provider profile route authorization", () => {
-  it("does not allow a operator member to enumerate another space's profiles", async () => {
+  it("does not allow an operator member to enumerate another space's profiles", async () => {
     const app = createApp(operatorActor("operator"));
 
     await request(app)

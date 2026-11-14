@@ -913,7 +913,7 @@ describe("agent issue mutation checkout ownership", () => {
     }));
   });
 
-  it("admits ordinary Retry only for a operator actor with task mutation permission", async () => {
+  it("admits ordinary Retry only for an operator actor with task mutation permission", async () => {
     const body = { idempotencyKey: recoveryActionId, observedRunId: ownerRunId };
     const deniedAgent = await request(createApp(peerActor())).post(`/api/issues/${issueId}/retry`).send(body);
     expect(deniedAgent.status).toBe(403);
@@ -1851,7 +1851,7 @@ describe("agent issue mutation checkout ownership", () => {
     expect(mockIssueService.update).not.toHaveBeenCalled();
   });
 
-  it("allows a operator actor to name the operator as unblock owner", async () => {
+  it("allows an operator actor to name the operator as unblock owner", async () => {
     mockIssueService.getById.mockResolvedValue(makeIssue({ status: "in_progress" }));
     mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) => ({
       ...makeIssue({ status: "in_progress" }),
@@ -1915,7 +1915,7 @@ describe("agent issue mutation checkout ownership", () => {
     expect(mockIssueService.update).not.toHaveBeenCalled();
   });
 
-  it("rejects peer-agent recovery resolution on a operator-owned source issue", async () => {
+  it("rejects peer-agent recovery resolution on an operator-owned source issue", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" }),
     );
@@ -1937,7 +1937,7 @@ describe("agent issue mutation checkout ownership", () => {
     expect(mockIssueRecoveryActionService.resolveActiveForIssue).not.toHaveBeenCalled();
   });
 
-  it("rejects the named recovery owner completing a operator-owned source issue", async () => {
+  it("rejects the named recovery owner completing an operator-owned source issue", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" }),
     );
@@ -2075,7 +2075,7 @@ describe("agent issue mutation checkout ownership", () => {
     expect(mockIssueService.update).not.toHaveBeenCalled();
   });
 
-  it("allows a recovery owner to record a receipt without mutating a operator-owned source", async () => {
+  it("allows a recovery owner to record a receipt without mutating an operator-owned source", async () => {
     mockIssueService.getById.mockResolvedValue(makeIssue({
       status: "in_review",
       assigneeAgentId: null,
@@ -2743,7 +2743,7 @@ describe("agent issue mutation checkout ownership", () => {
       expect(mockIssueRecoveryActionService.resolveActiveForIssue).not.toHaveBeenCalled();
       expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
     });
-    it.each(["owner", "budget", "approval", "pause", "run", "blocker", "pausedAgent", "terminatedAgent"])("keeps the %s gate authoritative for a operator retry", async gate => {
+    it.each(["owner", "budget", "approval", "pause", "run", "blocker", "pausedAgent", "terminatedAgent"])("keeps the %s gate authoritative for an operator retry", async gate => {
       seedRetry();
       if (gate === "owner") mockIssueService.getById.mockResolvedValue(makeIssue({ status: "blocked", assigneeAgentId: peerAgentId }));
       if (gate === "budget") mockBudgetService.getInvocationBlock.mockResolvedValue({ scope: "agent", reason: "hard_limit_reached" });
@@ -3366,7 +3366,7 @@ describe("agent issue mutation checkout ownership", () => {
       expect(mockIssueService.update).not.toHaveBeenCalled();
     });
 
-    it("does not intercept a operator user changing the status", async () => {
+    it("does not intercept an operator user changing the status", async () => {
       const res = await request(createApp(operatorActor())).patch(`/api/issues/${issueId}`).send({ status: "in_review" });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -3473,7 +3473,7 @@ describe("agent issue mutation checkout ownership", () => {
       expect(mockIssueService.update.mock.calls[0]?.[1]).toMatchObject({ status: "in_review" });
     });
 
-    it("lets a operator user change the status", async () => {
+    it("lets an operator user change the status", async () => {
       const res = await request(createApp(operatorActor())).patch(`/api/issues/${issueId}`).send({ status: "todo" });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);

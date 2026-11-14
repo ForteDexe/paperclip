@@ -211,7 +211,7 @@ Review: `operation-reviewed`.
 
 API: `present` — `GET /api/tools/oauth/cloud-connector/enrollment`; JSON REST.
 Agent access: `operator-only` — existing human setup or approval surface; agent can identify the saved setup and inspect the result.
-Policy: Board actor (`assertBoard`) for instance enrollment status; agents cannot read this operator surface.
+Policy: Board actor (`assertOperator`) for instance enrollment status; agents cannot read this operator surface.
 Evidence: `source-only` — [route](../../server/src/routes/tool-access.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.

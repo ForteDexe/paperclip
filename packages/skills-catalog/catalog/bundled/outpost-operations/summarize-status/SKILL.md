@@ -28,7 +28,7 @@ This is a **read-and-report** loop. You never change the underlying issues, work
 ## When to use
 
 - A summary-generation issue is assigned to you naming a scope (`project`, `workspaces_overview`, `project_workspace`, or `execution_workspace`) and slot (`header`).
-- A operator clicked **Generate** / **Refresh** on a summary card and Outpost created work for you.
+- An operator clicked **Generate** / **Refresh** on a summary card and Outpost created work for you.
 - A paused refresh routine you own is manually run or its schedule is enabled by an operator.
 
 ## When not to use

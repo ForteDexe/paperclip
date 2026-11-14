@@ -2,10 +2,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   operatorSendDraftKey,
-  clearBoardSendDraft,
-  readBoardSendDraft,
-  writeBoardSendDraft,
-  canDismissBoardSendBatch,
+  clearOperatorSendDraft,
+  readOperatorSendDraft,
+  writeOperatorSendDraft,
+  canDismissOperatorSendBatch,
 } from "./operator-send-draft";
 
 describe("session-scoped Operator send identity", () => {
@@ -20,8 +20,8 @@ describe("session-scoped Operator send identity", () => {
         attempts: 1,
       },
     };
-    writeBoardSendDraft("waiting", draft);
-    expect(readBoardSendDraft("waiting")).toEqual(draft);
+    writeOperatorSendDraft("waiting", draft);
+    expect(readOperatorSendDraft("waiting")).toEqual(draft);
   });
   it("requires consistent whole-batch terminal proof to release a retained anchor", () => {
     const batch = {
@@ -39,7 +39,7 @@ describe("session-scoped Operator send identity", () => {
       settled: 3,
       canDismiss: true,
     };
-    expect(canDismissBoardSendBatch(batch)).toBe(true);
+    expect(canDismissOperatorSendBatch(batch)).toBe(true);
     for (const change of [
       { canDismiss: undefined },
       { settled: 2 },
@@ -49,7 +49,7 @@ describe("session-scoped Operator send identity", () => {
       { expired: undefined },
       { parts: [{ id: "waiting", state: "pending" as const, attempts: 0 }] },
     ]) {
-      expect(canDismissBoardSendBatch({ ...batch, ...change })).toBe(false);
+      expect(canDismissOperatorSendBatch({ ...batch, ...change })).toBe(false);
     }
   });
   afterEach(() => {
@@ -65,15 +65,15 @@ describe("session-scoped Operator send identity", () => {
       idempotencyKey: "stable-request-key-1",
       publication: null,
     };
-    writeBoardSendDraft(key, draft);
-    expect(readBoardSendDraft(key)).toEqual(draft);
+    writeOperatorSendDraft(key, draft);
+    expect(readOperatorSendDraft(key)).toEqual(draft);
     for (let index = 0; index < scope.length; index += 1) {
       const other = [...scope] as [string, string, string, string];
       other[index] = "other";
-      expect(readBoardSendDraft(operatorSendDraftKey(...other))).toBeNull();
+      expect(readOperatorSendDraft(operatorSendDraftKey(...other))).toBeNull();
     }
-    clearBoardSendDraft(key);
-    expect(readBoardSendDraft(key)).toBeNull();
+    clearOperatorSendDraft(key);
+    expect(readOperatorSendDraft(key)).toBeNull();
   });
   it("keeps account-scoped sends separate from each other and unowned legacy records", () => {
     const scope = ["space", "task", "endpoint", "conversation"] as const;
@@ -81,15 +81,15 @@ describe("session-scoped Operator send identity", () => {
     const b = operatorSendDraftKey(...scope, "user-b");
     const legacy = operatorSendDraftKey(...scope);
     const draft = { body: "Private A", attachmentIds: [], idempotencyKey: "stable-request-key-a", publication: null };
-    writeBoardSendDraft(a, draft);
-    expect(readBoardSendDraft(a)).toEqual(draft);
-    expect(readBoardSendDraft(b)).toBeNull();
-    expect(readBoardSendDraft(legacy)).toBeNull();
+    writeOperatorSendDraft(a, draft);
+    expect(readOperatorSendDraft(a)).toEqual(draft);
+    expect(readOperatorSendDraft(b)).toBeNull();
+    expect(readOperatorSendDraft(legacy)).toBeNull();
   });
 
   it("rejects corrupt retained identity instead of silently enabling a new send", () => {
     sessionStorage.setItem("corrupt", '{"body":"draft"}');
-    expect(() => readBoardSendDraft("corrupt")).toThrow(
+    expect(() => readOperatorSendDraft("corrupt")).toThrow(
       "Saved channel delivery identity",
     );
   });
@@ -101,8 +101,8 @@ describe("session-scoped Operator send identity", () => {
       idempotencyKey: "stable-request-key-1",
       publication: null,
     };
-    writeBoardSendDraft("named", draft);
-    expect(readBoardSendDraft("named")).toEqual(draft);
+    writeOperatorSendDraft("named", draft);
+    expect(readOperatorSendDraft("named")).toEqual(draft);
     for (const attachmentNames of [
       [],
       [{ id: "other-file", name: "internal-only.txt" }],
@@ -116,7 +116,7 @@ describe("session-scoped Operator send identity", () => {
         "named",
         JSON.stringify({ ...draft, attachmentNames }),
       );
-      expect(() => readBoardSendDraft("named")).toThrow(
+      expect(() => readOperatorSendDraft("named")).toThrow(
         "Saved channel delivery identity",
       );
     }
@@ -129,7 +129,7 @@ describe("session-scoped Operator send identity", () => {
       throw new Error("Storage full");
     });
     expect(() =>
-      writeBoardSendDraft("key", {
+      writeOperatorSendDraft("key", {
         body: "draft",
         attachmentIds: [],
         idempotencyKey: "stable-request-key-1",
@@ -144,12 +144,12 @@ describe("session-scoped Operator send identity", () => {
       idempotencyKey: "stable-request-key-1",
       publication: null,
       rejection: {
-        code: "chat_board_send_attachments_already_bound" as const,
+        code: "chat_operator_send_attachments_already_bound" as const,
         attachmentIds: ["file-1"],
       },
     };
-    writeBoardSendDraft("rejected", draft);
-    expect(readBoardSendDraft("rejected")).toEqual(draft);
+    writeOperatorSendDraft("rejected", draft);
+    expect(readOperatorSendDraft("rejected")).toEqual(draft);
     for (const change of [
       { rejection: { code: "unknown", attachmentIds: ["file-1"] } },
       { rejection: { ...draft.rejection, attachmentIds: [] } },
@@ -163,7 +163,7 @@ describe("session-scoped Operator send identity", () => {
         "rejected",
         JSON.stringify({ ...draft, ...change }),
       );
-      expect(() => readBoardSendDraft("rejected")).toThrow(
+      expect(() => readOperatorSendDraft("rejected")).toThrow(
         "Saved channel delivery identity",
       );
     }

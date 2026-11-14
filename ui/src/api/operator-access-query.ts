@@ -13,13 +13,13 @@ export function operatorAccessQueryOptions(
     ? bootstrap.operatorAccess
     : undefined;
   return {
-    queryKey: [...queryKeys.access.currentBoardAccess, userId] as const,
+    queryKey: [...queryKeys.access.currentOperatorAccess, userId] as const,
     initialData,
     initialDataUpdatedAt: initialData ? updatedAt : undefined,
     queryFn: async (): Promise<OperatorBootstrap["operatorAccess"]> => {
       // Path-only request coalescing must not join reads from two accounts.
       detachInflightGet("/cli-auth/me");
-      const access = await accessApi.getCurrentBoardAccess();
+      const access = await accessApi.getCurrentOperatorAccess();
       if (access.userId !== userId) {
         onAccountChanged();
         throw new ApiError("The signed-in account changed. Checking your session again.", 401, { code: "session_changed" });

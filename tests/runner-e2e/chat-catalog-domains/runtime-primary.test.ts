@@ -1,12 +1,12 @@
 import { it, expect } from "vitest";
 import { gradePrimary } from "./runtime-primary.js";
 function valid() {
-  const primaryBefore = { spaceId: "space", userId: "person", primaryAgentId: "ceo" };
-  const other = { spaceId: "space", userId: "other-person", primaryAgentId: null as string | null };
+  const primaryBefore = { spaceId: "space", userId: "person", defaultAgentId: "ceo" };
+  const other = { spaceId: "space", userId: "other-person", defaultAgentId: null as string | null };
   return { scenarioId: "agents.choose-primary", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
-    state: { worker: { id: "morgan", urlKey: "morgan" }, profileLinkFollowed: "/RUN/agents/morgan" as unknown, primaryBefore, primaryAfter: { ...primaryBefore, primaryAgentId: "morgan" }, beforeHumanPrimary: "ceo",
+    state: { worker: { id: "morgan", urlKey: "morgan" }, profileLinkFollowed: "/RUN/agents/morgan" as unknown, primaryBefore, primaryAfter: { ...primaryBefore, defaultAgentId: "morgan" }, beforeHumanPrimary: "ceo",
       replacementConfirmed: true, agentWriteStatus: 403, otherPersonBefore: other, otherPersonAfter: { ...other },
-      otherSpaceBefore: { spaceId: "other-space", primaryAgentId: null }, otherSpaceAfter: { spaceId: "other-space", primaryAgentId: null },
+      otherSpaceBefore: { spaceId: "other-space", defaultAgentId: null }, otherSpaceAfter: { spaceId: "other-space", defaultAgentId: null },
       reopenedRecentAgent: "ceo", runsAfterNavigation: 1, chatCountBeforeNavigation: 1, chatCountAfterNavigation: 1 },
     agents: [], tasks: [], links: ["/RUN/agents/morgan"], activity: [], runs: [], humanQueries: [],
     reply: "Open Morgan's profile and choose Set as my primary; confirm replacing your personal primary." };
@@ -21,7 +21,7 @@ it("rejects an agent preference write before the human control", () => {
   const o = valid(); o.state.beforeHumanPrimary = "morgan"; expect(gradePrimary(o).passed).toBe(false);
 });
 it("rejects a preference changed for another person", () => {
-  const o = valid(); o.state.otherPersonAfter = { ...o.state.otherPersonAfter, primaryAgentId: "morgan" };
+  const o = valid(); o.state.otherPersonAfter = { ...o.state.otherPersonAfter, defaultAgentId: "morgan" };
   expect(gradePrimary(o).passed).toBe(false);
 });
 it("rejects navigation that starts a new execution", () => {

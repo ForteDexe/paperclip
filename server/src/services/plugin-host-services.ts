@@ -2684,7 +2684,7 @@ export function buildHostServices(
         });
 
         // Human-attributed comments participate in the same "wake the
-        // assignee" behavior a operator user's comment gets in the web app
+        // assignee" behavior an operator user's comment gets in the web app
         // (routes/issues.ts's addComment route) — a plugin's own
         // agent-attributed comments never do this. Deliberately narrower
         // than the HTTP route: no reopen/resume/interrupt/scheduled-retry
@@ -2781,12 +2781,12 @@ export function buildHostServices(
         const spaceId = ensureSpaceId(params.spaceId);
         await ensurePluginAvailableForSpace(spaceId);
         const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
-        // Resolving an interaction is a operator-user action (the web app's
+        // Resolving an interaction is an operator-user action (the web app's
         // interaction-resolve routes are operator-only). The host re-verifies the
         // paired user is an active human member at apply time and never trusts
         // the plugin-supplied identity — matching the createComment bar.
         if (!params.actorUserId) {
-          throw new Error("actorUserId is required to respond to an interaction on behalf of a operator user");
+          throw new Error("actorUserId is required to respond to an interaction on behalf of an operator user");
         }
         await requireActiveHumanMember(spaceId, params.actorUserId);
 
@@ -2950,11 +2950,11 @@ export function buildHostServices(
         if (!existing || existing.spaceId !== spaceId) {
           throw new Error(`Approval "${params.approvalId}" not found`);
         }
-        // Deciding an approval is a operator-user action (the web app's approval
+        // Deciding an approval is an operator-user action (the web app's approval
         // decision routes are operator-only). Re-verify active membership at apply
         // time; never trust the plugin-supplied identity.
         if (!params.actorUserId) {
-          throw new Error("actorUserId is required to decide an approval on behalf of a operator user");
+          throw new Error("actorUserId is required to decide an approval on behalf of an operator user");
         }
         await requireActiveHumanMember(spaceId, params.actorUserId);
 

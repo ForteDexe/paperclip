@@ -106,7 +106,7 @@ export function gradeChooseCliContext(value: unknown) {
   c.add("other-profile-preserved", o.state.otherProfilePreserved === true && o.state.onlyOwnedContextWritten === true,
     "The other configured profile is byte-equivalent semantically, and only the explicit owned context path is used.");
   c.add("identity-readback", typeof o.state.operatorUserId === "string" && !!o.state.operatorUserId
-    && o.state.identityIsBoardUser === true && o.state.identityIncludesSelectedSpace === true,
+    && o.state.identityIsOperatorUser === true && o.state.identityIncludesSelectedSpace === true,
     "An actual authenticated CLI read confirms the human identity and membership before future writes.");
   return c.result();
 }
@@ -142,7 +142,7 @@ const context = privilegedDefinition("cli-operations.choose-cli-context", "privi
     state.selectedPersona = selected.profile.persona; state.actualScopedSpaceId = scopedSpace.id;
     state.otherProfilePreserved = JSON.stringify(selected.profiles.birch) === JSON.stringify(state.otherProfile);
     state.onlyOwnedContextWritten = selected.contextPath === `${state.operatorDirectory}/context.json`;
-    state.operatorUserId = identity.userId; state.identityIsBoardUser = !!identity.user && identity.user.id === identity.userId;
+    state.operatorUserId = identity.userId; state.identityIsOperatorUser = !!identity.user && identity.user.id === identity.userId;
     state.identityIncludesSelectedSpace = identity.spaceIds?.includes(ctx.input.fixtures.space.id) === true;
     await ctx.input.evidence("chat-catalog-cli-context-readback.json", { ...state, persona: "authenticated-human" });
   }, grade: gradeChooseCliContext,

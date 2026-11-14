@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  getStoredBoardCredential,
-  loginBoardCli,
+  getStoredOperatorCredential,
+  loginOperatorCli,
   readOperatorAuthStore,
-  removeStoredBoardCredential,
-  setStoredBoardCredential,
+  removeStoredOperatorCredential,
+  setStoredOperatorCredential,
 } from "../client/operator-auth.js";
 
 function createTempAuthPath(): string {
@@ -26,14 +26,14 @@ describe("operator auth store", () => {
 
   it("stores and retrieves credentials by normalized api base", () => {
     const authPath = createTempAuthPath();
-    setStoredBoardCredential({
+    setStoredOperatorCredential({
       apiBase: "http://localhost:3100/",
       token: "token-123",
       userId: "user-1",
       storePath: authPath,
     });
 
-    expect(getStoredBoardCredential("http://localhost:3100", authPath)).toMatchObject({
+    expect(getStoredOperatorCredential("http://localhost:3100", authPath)).toMatchObject({
       apiBase: "http://localhost:3100",
       token: "token-123",
       userId: "user-1",
@@ -42,14 +42,14 @@ describe("operator auth store", () => {
 
   it("removes stored credentials", () => {
     const authPath = createTempAuthPath();
-    setStoredBoardCredential({
+    setStoredOperatorCredential({
       apiBase: "http://localhost:3100",
       token: "token-123",
       storePath: authPath,
     });
 
-    expect(removeStoredBoardCredential("http://localhost:3100", authPath)).toBe(true);
-    expect(getStoredBoardCredential("http://localhost:3100", authPath)).toBeNull();
+    expect(removeStoredOperatorCredential("http://localhost:3100", authPath)).toBe(true);
+    expect(getStoredOperatorCredential("http://localhost:3100", authPath)).toBeNull();
   });
 });
 
@@ -75,7 +75,7 @@ describe("operator CLI polling backoff", () => {
         headers: next.retryAfter === undefined ? undefined : { "Retry-After": next.retryAfter } });
     });
     vi.stubGlobal("fetch", fetcher);
-    const outcome = loginBoardCli({ apiBase: "https://cli.example.invalid", requestedAccess: "operator", storePath: authPath,
+    const outcome = loginOperatorCli({ apiBase: "https://cli.example.invalid", requestedAccess: "operator", storePath: authPath,
       openBrowser: false, print: false }).then(value => ({ value }), error => ({ error }));
     return { authPath, created, outcome, counts: () => ({ creates, polls }), cleanup: () => fs.rmSync(path.dirname(authPath), { recursive: true, force: true }) };
   }
@@ -85,10 +85,10 @@ describe("operator CLI polling backoff", () => {
     try {
       await vi.advanceTimersByTimeAsync(1999);
       expect(f.counts()).toEqual({ creates: 1, polls: 1 });
-      expect(getStoredBoardCredential("https://cli.example.invalid", f.authPath)).toBeNull();
+      expect(getStoredOperatorCredential("https://cli.example.invalid", f.authPath)).toBeNull();
       await vi.advanceTimersByTimeAsync(1);
       expect(await f.outcome).toHaveProperty("value.token", f.created.operatorApiToken);
-      expect(getStoredBoardCredential("https://cli.example.invalid", f.authPath)?.token).toBe(f.created.operatorApiToken);
+      expect(getStoredOperatorCredential("https://cli.example.invalid", f.authPath)?.token).toBe(f.created.operatorApiToken);
       expect(f.counts()).toEqual({ creates: 1, polls: 2 });
     } finally { f.cleanup(); }
   });
@@ -115,7 +115,7 @@ describe("operator CLI polling backoff", () => {
       await vi.advanceTimersByTimeAsync(1500);
       expect(await f.outcome).toHaveProperty("error.message", "CLI auth challenge expired before approval.");
       expect(f.counts()).toEqual({ creates: 1, polls: 1 });
-      expect(getStoredBoardCredential("https://cli.example.invalid", f.authPath)).toBeNull();
+      expect(getStoredOperatorCredential("https://cli.example.invalid", f.authPath)).toBeNull();
     } finally { f.cleanup(); }
   });
 
@@ -125,7 +125,7 @@ describe("operator CLI polling backoff", () => {
       await vi.advanceTimersByTimeAsync(1000);
       expect(await f.outcome).toHaveProperty("error.message", status === "cancelled" ? "CLI auth challenge was cancelled." : "CLI auth challenge expired before approval.");
       expect(f.counts()).toEqual({ creates: 1, polls: 2 });
-      expect(getStoredBoardCredential("https://cli.example.invalid", f.authPath)).toBeNull();
+      expect(getStoredOperatorCredential("https://cli.example.invalid", f.authPath)).toBeNull();
     } finally { f.cleanup(); }
   });
 

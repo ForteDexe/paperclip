@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { activityLog, agents, authUsers, issues } from "@outpost/db";
 import { issueRoutes } from "../routes/issues.js";
 import { deriveIssueUserContext, issueService } from "../services/issues.js";
-import { describeEmbeddedPostgres, resetSpaceIssueFixtures, routeApp, seedSpaceWithBoardAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
+import { describeEmbeddedPostgres, resetSpaceIssueFixtures, routeApp, seedSpaceWithOperatorAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
 
 // list() adds the user's read fields when a user filter is present. The
 // declared return type collapses that union to the base row.
@@ -23,8 +23,8 @@ describeEmbeddedPostgres("human assignee unread comments", () => {
   });
 
   it.each([false, true])("keeps another human's real comment unread through recency updates (prior read: %s)", async priorRead => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Assigned human task");
-    const otherSpace = await seedSpaceWithBoardAccess(ctx.db, "Unrelated space");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Assigned human task");
+    const otherSpace = await seedSpaceWithOperatorAccess(ctx.db, "Unrelated space");
     const svc = issueService(ctx.db), app = routeApp(ctx.db, actor, issueRoutes);
     const issue = await svc.create(spaceId, {
       title: "Human inbox comment", status: "in_progress", createdByUserId: userId, assigneeUserId: userId,
@@ -67,7 +67,7 @@ describeEmbeddedPostgres("human assignee unread comments", () => {
   });
 
   it("shows existing comments as unread when a task is subsequently assigned to a human", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "New assignment");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "New assignment");
     const svc = issueService(ctx.db), app = routeApp(ctx.db, actor, issueRoutes);
     const issue = await svc.create(spaceId, { title: "Assigned after discussion", status: "backlog" });
     await svc.addComment(issue.id, "Context written before assignment", { userId: `author-${randomUUID()}` });
@@ -80,7 +80,7 @@ describeEmbeddedPostgres("human assignee unread comments", () => {
   });
 
   it("excludes deleted external comments but retains the historical touch from a deleted own reply", async () => {
-    const { spaceId, userId } = await seedSpaceWithBoardAccess(ctx.db, "Deleted comment controls");
+    const { spaceId, userId } = await seedSpaceWithOperatorAccess(ctx.db, "Deleted comment controls");
     const svc = issueService(ctx.db);
     const issue = await svc.create(spaceId, {
       title: "Deleted inbox activity", status: "in_progress", assigneeUserId: userId,

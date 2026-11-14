@@ -15,18 +15,18 @@ import { projectSafeChatPublication } from "../../chat-publication-projection.js
 import type { EndpointRecord } from "../runtime-types.js";
 import type { createTeamsFileAuthority } from "../microsoft-teams/file-transfer-authority.js";
 import type { createChatPublicationQueue } from "./queue.js";
-import type { createSlackBoardMessages } from "../slack/operator-messages.js";
-import type { createTeamsBoardSendPreparation } from "../microsoft-teams/operator-send-preparation.js";
-import { stageSlackBoardSend } from "../slack/operator-send.js";
+import type { createSlackOperatorMessages } from "../slack/operator-messages.js";
+import type { createTeamsOperatorSendPreparation } from "../microsoft-teams/operator-send-preparation.js";
+import { stageSlackOperatorSend } from "../slack/operator-send.js";
 type RequestOptions = {
   endpointRecord: (endpointId: string) => Promise<EndpointRecord | null>;
-  stageTeamsBoardFileIntent: ReturnType<typeof createTeamsFileAuthority>["stageTeamsBoardFileIntent"];
-  processPendingSlackBoardMessages: ReturnType<typeof createSlackBoardMessages>["processPendingSlackBoardMessages"];
+  stageTeamsOperatorFileIntent: ReturnType<typeof createTeamsFileAuthority>["stageTeamsOperatorFileIntent"];
+  processPendingSlackOperatorMessages: ReturnType<typeof createSlackOperatorMessages>["processPendingSlackOperatorMessages"];
   processPendingPublications: ReturnType<typeof createChatPublicationQueue>["processPendingPublications"];
-  prepareTeamsBoardSend: ReturnType<typeof createTeamsBoardSendPreparation>["prepareTeamsBoardSend"];
+  prepareTeamsOperatorSend: ReturnType<typeof createTeamsOperatorSendPreparation>["prepareTeamsOperatorSend"];
 };
 export function createChatPublicationRequests(db: Db, options: RequestOptions) {
-  const { endpointRecord, stageTeamsBoardFileIntent, processPendingSlackBoardMessages, processPendingPublications, prepareTeamsBoardSend } = options;
+  const { endpointRecord, stageTeamsOperatorFileIntent, processPendingSlackOperatorMessages, processPendingPublications, prepareTeamsOperatorSend } = options;
   async function getPublicationBatchStatus(
     endpointId: string,
     conversationId: string,
@@ -141,7 +141,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
           idempotencyKey: `explicit:${commentId}:${endpointId}`,
           payload: projectSafeChatPublication({
             classification: "external",
-            source: "explicit_board_send",
+            source: "explicit_operator_send",
             text: comment.body,
           }),
           state: "pending",
@@ -172,7 +172,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
     );
   }
 
-  async function publishBoardMessage(
+  async function publishOperatorMessage(
     endpointId: string,
     conversationId: string,
     body: string,
@@ -189,7 +189,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
     // publication.
     const idempotencyKey = `explicit-operator:${endpointId}:${conversationId}:${clientIdempotencyKey}`;
     const rejectionActionId = `operator-send-rejected:${conversationId}:${clientIdempotencyKey}`;
-    const rejectionCode = "chat_board_send_attachments_already_bound";
+    const rejectionCode = "chat_operator_send_attachments_already_bound";
     const rejectionDetails = (ids: string[]) => ({
       code: rejectionCode,
       endpointId,
@@ -203,7 +203,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       value.length <= 20 &&
       value.every((id) => typeof id === "string" && isUuidLike(id)) &&
       new Set(value).size === value.length;
-    if (attachmentIds.length > 0) { await prepareTeamsBoardSend(endpointId, conversationId, idempotencyKey, rejectionActionId); }
+    if (attachmentIds.length > 0) { await prepareTeamsOperatorSend(endpointId, conversationId, idempotencyKey, rejectionActionId); }
     const publication = await db.transaction(async (tx) => {
       const conversation = await tx
         .select()
@@ -333,7 +333,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
         });
         return { rejection: rejectionDetails(invalidIds) };
       }
-      if (emailBoundary?.endpoint.provider === "slack") { return stageSlackBoardSend(tx, { conversation, comment, idempotencyKey, endpointId, conversationId, attachmentIds }); }
+      if (emailBoundary?.endpoint.provider === "slack") { return stageSlackOperatorSend(tx, { conversation, comment, idempotencyKey, endpointId, conversationId, attachmentIds }); }
       const attachedFiles = attachmentIds.length
         ? await tx
           .select({
@@ -370,7 +370,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
           idempotencyKey,
           payload: projectSafeChatPublication({
             classification: "external",
-            source: "explicit_board_send",
+            source: "explicit_operator_send",
             text: comment.body,
           }),
           state: "pending",
@@ -395,7 +395,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
             idempotencyKey: `${idempotencyKey}:attachment:${file.id}`,
             payload: projectSafeChatPublication({
               classification: "external",
-              source: "explicit_board_send",
+              source: "explicit_operator_send",
               text: `Shared ${file.originalFilename ?? "a file"}.`,
               attachmentIds: [file.id],
             }),
@@ -404,7 +404,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
             updatedAt: attachmentCreatedAt,
           })
           .returning();
-        await stageTeamsBoardFileIntent(
+        await stageTeamsOperatorFileIntent(
           tx,
           attachmentPublication,
           userId,
@@ -424,7 +424,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
           endpointId,
           conversationId,
           commentId: comment.id,
-          source: "explicit_board_send",
+          source: "explicit_operator_send",
         },
       });
       return terminalPublication;
@@ -435,7 +435,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
         publication.rejection,
       );
     }
-    if (emailBoundary?.endpoint.provider === "slack") await processPendingSlackBoardMessages();
+    if (emailBoundary?.endpoint.provider === "slack") await processPendingSlackOperatorMessages();
     await processPendingPublications();
     const batch = publication.commentId
       ? await db
@@ -463,5 +463,5 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       publication
     );
   }
-  return { getPublicationBatchStatus, publishComment, publishBoardMessage };
+  return { getPublicationBatchStatus, publishComment, publishOperatorMessage };
 }

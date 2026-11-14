@@ -43,7 +43,7 @@ function completedSlackConnectorAction(a: string): string {
           AND invocation.agent_id::text = ${a}.payload->'binding'->>'agentId'
           AND invocation.issue_id::text = ${a}.payload->'binding'->>'issueId'
           AND ${a}.payload->'binding'->>'spaceId' = ${a}.space_id::text))
-    OR (${a}.kind = 'slack_board_message' AND ${issue} AND EXISTS (
+    OR (${a}.kind = 'slack_operator_message' AND ${issue} AND EXISTS (
       SELECT 1 FROM issue_comments comment JOIN chat_publications publication
         ON publication.comment_id = comment.id AND publication.space_id = comment.space_id
       WHERE comment.id::text = ${a}.payload->>'commentId' AND comment.space_id = ${a}.space_id
@@ -51,7 +51,7 @@ function completedSlackConnectorAction(a: string): string {
         AND publication.endpoint_id = ${a}.endpoint_id AND publication.conversation_id = ${a}.conversation_id
         AND ((publication.state = 'published' AND publication.published_at IS NOT NULL)
           OR (publication.state IN ('failed', 'cancelled') AND publication.next_attempt_at IS NULL)))
-      AND ((${a}.status = 'cancelled' AND ${a}.result->>'code' = 'slack_board_work_not_authorized')
+      AND ((${a}.status = 'cancelled' AND ${a}.result->>'code' = 'slack_operator_work_not_authorized')
         OR (${a}.status = 'processed' AND (${a}.result IS NULL OR (${a}.result->>'resumeApplied' = 'true'
           AND EXISTS (SELECT 1 FROM agent_wakeup_requests wake WHERE wake.space_id = ${a}.space_id
             AND wake.idempotency_key = 'slack-operator-comment:' || ${a}.id::text AND wake.finished_at IS NOT NULL

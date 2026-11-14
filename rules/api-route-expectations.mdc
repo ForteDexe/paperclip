@@ -25,8 +25,8 @@ When you add or change an endpoint that reads or writes space data:
 
 - Apply space access checks. Use the helpers in `server/src/routes/authz.ts`,
   such as `assertSpaceAccess`, instead of a new check.
-- Enforce actor permissions (board vs agent), for example with `assertBoard` or
-  `assertBoardOrAgent`.
+- Enforce actor permissions (board vs agent), for example with `assertOperator` or
+  `assertOperatorOrAgent`.
 - Write an activity log entry for each mutation.
 - Return consistent HTTP errors. The common codes are
   `400/401/403/404/409/422/500`. Other codes are valid when they are the correct

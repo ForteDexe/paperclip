@@ -17,7 +17,7 @@ const spaceSnapshotSchema: z.ZodType<Space> = z.object({
   budgetMonthlyCents: z.number(),
   spentMonthlyCents: z.number(),
   defaultResponsibleUserId: z.string().nullable(),
-  primaryAgentId: z.string().nullable(),
+  defaultAgentId: z.string().nullable(),
   requireOperatorApprovalForNewAgents: z.boolean(),
   interactionResolverPolicy: interactionResolverPolicySchema,
   feedbackDataSharingEnabled: z.boolean(),
@@ -41,7 +41,7 @@ const bootstrapSchema: z.ZodType<OperatorBootstrap> = z.object({
 });
 
 /** An unusable optional projection falls back to the existing authenticated reads. */
-export function readBoardBootstrap(value: unknown, userId: string): OperatorBootstrap | undefined {
+export function readOperatorBootstrap(value: unknown, userId: string): OperatorBootstrap | undefined {
   const parsed = bootstrapSchema.safeParse(value);
   return parsed.success && parsed.data.userId === userId && parsed.data.operatorAccess.userId === userId
     ? parsed.data

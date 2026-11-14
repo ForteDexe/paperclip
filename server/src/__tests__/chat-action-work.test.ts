@@ -27,7 +27,7 @@ function setup() {
     processPendingProviderEffects: vi.fn(async () => {}),
     processPendingGitHubWebhookIngress: vi.fn(async () => {}),
     processPendingSlackSessionSyncs: vi.fn(async () => {}),
-    processPendingSlackBoardMessages: vi.fn(async () => {}),
+    processPendingSlackOperatorMessages: vi.fn(async () => {}),
     processPendingSlackTaskStarts: vi.fn(async () => {}),
     processPendingReceiptReactions: vi.fn(async () => {}),
     processPendingSlackSessionStops: vi.fn(async () => {}),
@@ -35,7 +35,7 @@ function setup() {
     nextChatActionAt: vi.fn(async (): Promise<number | null> => null),
     nextVerificationMessageAt: vi.fn(async (): Promise<number | null> => null),
   };
-  const runs = [service.processFailedChatRunRetries, service.processPendingTelegramActions, service.processPendingProviderEffects, service.processPendingGitHubWebhookIngress, service.processPendingSlackSessionSyncs, service.processPendingSlackBoardMessages, service.processPendingSlackTaskStarts,
+  const runs = [service.processFailedChatRunRetries, service.processPendingTelegramActions, service.processPendingProviderEffects, service.processPendingGitHubWebhookIngress, service.processPendingSlackSessionSyncs, service.processPendingSlackOperatorMessages, service.processPendingSlackTaskStarts,
     service.processPendingReceiptReactions, service.processPendingSlackSessionStops, service.processPendingVerificationMessages];
   return { owner, service, runs, coordinator, enabled, onError, start: () => registerChatActionWork(coordinator, service, enabled) };
 }
@@ -114,16 +114,16 @@ describe("chat action scheduling", () => {
   it("keeps lanes independent and retains a commit received during a drain", async () => {
     const s = setup();
     let release!: () => void;
-    s.service.processPendingSlackBoardMessages.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    s.service.processPendingSlackOperatorMessages.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
     const work = s.start();
     await vi.advanceTimersByTimeAsync(1);
-    await s.owner.transaction(tx => notifyChatActionWork(tx, "slack_board_message"));
+    await s.owner.transaction(tx => notifyChatActionWork(tx, "slack_operator_message"));
     await s.owner.transaction(tx => notifyChatActionWork(tx, "slack_session_stop"));
     await vi.advanceTimersByTimeAsync(1);
     expect(s.service.processPendingSlackSessionStops).toHaveBeenCalledTimes(2);
     release(); await work.ready;
     await vi.advanceTimersByTimeAsync(1);
-    expect(s.service.processPendingSlackBoardMessages).toHaveBeenCalledTimes(2);
+    expect(s.service.processPendingSlackOperatorMessages).toHaveBeenCalledTimes(2);
   });
   it("retries failed recovery and does no dispatch or deadline queries during standby", async () => {
     const s = setup();

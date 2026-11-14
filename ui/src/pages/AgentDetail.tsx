@@ -3,7 +3,7 @@ import { describeError } from "../api/errors";
 import { useSelectedHeartbeatRun } from "../hooks/useSelectedHeartbeatRun";
 import { grokBotApi } from "@/api/grokBot";
 import { GrokBotWorkSummary } from "@/components/GrokBotWorkSummary";
-import { PrimaryAgentCrownButton } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { DefaultAgentCrownButton } from "@/components/default-agent/DefaultAgentPresentation";
 import { AiConnectionPoolRunDetails } from "@/components/ai-connections/AiConnectionPoolRunDetails";
 import { ProviderFailureNotice } from "@/components/ProviderFailureNotice";
 import { readProviderFailure } from "@outpost/shared";
@@ -426,8 +426,8 @@ export function AgentDetail() {
   const agentLookupRef = agent?.id ?? routeAgentRef;
   const resolvedAgentId = agent?.id ?? null;
   const { data: operatorAccess } = useQuery({
-    queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess(),
+    queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess(),
   });
   const canUseProviderTrace =
     operatorAccess?.source === "local_implicit" ||
@@ -870,7 +870,7 @@ export function AgentDetail() {
               className="min-w-0 truncate text-2xl font-semibold leading-8 text-foreground"
               onSave={(title) => saveHeaderField({ title: title || null })}
             />
-            <PrimaryAgentCrownButton agent={agent} />
+            <DefaultAgentCrownButton agent={agent} />
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-sm leading-5 text-muted-foreground">
             <Link
@@ -2843,8 +2843,8 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   });
   const run = hydratedRun ?? initialRun;
   const { data: operatorAccess } = useQuery({
-    queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess(),
+    queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess(),
   });
   const canUseProviderTrace =
     operatorAccess?.source === "local_implicit" ||

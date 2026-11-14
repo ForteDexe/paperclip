@@ -25,7 +25,7 @@ export interface ConferenceRoomOffObservation { spaceId: string; spacePrefix: st
   beforeTaskIds: string[]; afterTasks: Array<{ id: string; conversationAgentId: string | null }>; runIds: string[] }
 /** Probe the board discussion API with the genuine person's same-origin session wrapper.
  * Return only the closed refusal code, never the raw response or credential. */
-export async function probeBoardChatAsPerson(person: Pick<Person, "id" | "request">, spaceId: string, message: string) {
+export async function probeOperatorChatAsPerson(person: Pick<Person, "id" | "request">, spaceId: string, message: string) {
   const response = await person.request("/api/board/chat/stream", "POST", { spaceId, message });
   const status = response.status;
   const body = await response.json().catch(() => undefined) as { code?: unknown; error?: unknown } | undefined;
@@ -102,7 +102,7 @@ export const runtimeDisabledChatCases: readonly IdentityBoundaryCase[] = [{
     const denied = await fetch(new URL("/api/instance/settings/experimental", api.baseURL), { method: "PATCH", redirect: "error", signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${key.token}`, "content-type": "application/json" }, body: JSON.stringify({ enableConferenceRoomChat: true }) });
     const agentSettingsStatus = denied.status; await denied.body?.cancel();
-    const boardProbe = await probeBoardChatAsPerson(person, fixtures.space.id, ctx.scenario.query);
+    const boardProbe = await probeOperatorChatAsPerson(person, fixtures.space.id, ctx.scenario.query);
     const gateAfterProbe = (await api.get<{ enableConferenceRoomChat: boolean }>("/api/instance/settings/experimental")).enableConferenceRoomChat;
     const tasks = await api.get<Array<{ id: string; conversationAgentId?: string | null }>>(`${root}/issues?includeAgentCreatedTasks=true&limit=1000`);
     const runIds = (await api.get<Array<{ id: string }>>(`${root}/heartbeat-runs?limit=100`)).map(row => row.id);

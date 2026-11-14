@@ -30,7 +30,7 @@ async function resolveAuthority(db: Db, session: SpekoTaskSession, endpointId: s
   const [member] = await db.select({ id: spaceMemberships.id }).from(spaceMemberships).where(and(eq(spaceMemberships.spaceId, session.spaceId), eq(spaceMemberships.principalId, userId), eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.status, "active")));
   // Local authority is rechecked by the live service, never supplied by model arguments.
   if (!admin && !member && userId !== "local-operator") throw forbidden("The responsible person no longer has space access");
-  const caller: VoiceCaller = { id: userId, authority: admin ? "instance_admin" : userId === "local-operator" ? "local_board" : "member" };
+  const caller: VoiceCaller = { id: userId, authority: admin ? "instance_admin" : userId === "local-operator" ? "local_operator" : "member" };
   return { endpoint, caller };
 }
 export async function executeSpekoVoiceTool(db: Db, session: SpekoTaskSession, endpointId: string, parameters: unknown, invocationId?: string) {
@@ -58,12 +58,12 @@ export async function syncSpekoVoiceTools(
   endpoint: typeof chatEndpoints.$inferSelect,
   userId: string,
   enabled = true,
-  allowLocalBoard = false,
+  allowLocalOperator = false,
 ) {
   const [admin] = await tx.select({id: instanceUserRoles.id}).from(instanceUserRoles)
     .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")));
   const decision = await authorizationService(tx).decide({
-    actor: {type: "operator", userId, source: allowLocalBoard && userId === "local-operator" ? "local_implicit" : "session", isInstanceAdmin: Boolean(admin)},
+    actor: {type: "operator", userId, source: allowLocalOperator && userId === "local-operator" ? "local_implicit" : "session", isInstanceAdmin: Boolean(admin)},
     action: "agent_config:update", resource: {type: "agent", spaceId: endpoint.spaceId, agentId: endpoint.assignedAgentId},
   });
   if (!decision.allowed) throw forbidden("Editing this agent is required to install Speko phone tools");

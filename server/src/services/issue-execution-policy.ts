@@ -49,7 +49,7 @@ type TransitionInput = {
   requestedStatus?: string;
   requestedAssigneePatch: RequestedAssigneePatch;
   actor: ActorLike;
-  allowBoardOverride?: boolean;
+  allowOperatorOverride?: boolean;
   commentBody?: string | null;
   reviewRequest?: IssueExecutionState["reviewRequest"] | null;
   monitorExplicitlyUpdated?: boolean;
@@ -701,7 +701,7 @@ function applyIssueExecutionStageTransition(input: TransitionInput): TransitionR
     // changes requested), letting `done` ride along on that request would
     // silently drop the cycle and mark the issue complete through a review
     // that never ran — so `done` is rejected. Every other requested status,
-    // including a operator cancellation that deliberately abandons the cycle,
+    // including an operator cancellation that deliberately abandons the cycle,
     // keeps the established clear/return-to-executor behavior below, exactly
     // like a bare policy edit with no requested status.
     const hasLiveReviewCycle =
@@ -855,7 +855,7 @@ function applyIssueExecutionStageTransition(input: TransitionInput): TransitionR
       }
 
       if (
-        input.allowBoardOverride &&
+        input.allowOperatorOverride &&
         requestedStatus &&
         requestedStatus !== "in_review" &&
         requestedStatus !== "in_progress"
@@ -925,7 +925,7 @@ function applyIssueExecutionStageTransition(input: TransitionInput): TransitionR
       !principalsEqual(currentAssignee, currentParticipant) ||
       !principalsEqual(existingState?.currentParticipant ?? null, currentParticipant);
 
-    if (input.allowBoardOverride && attemptedStageAdvance) {
+    if (input.allowOperatorOverride && attemptedStageAdvance) {
       if (requestedStatus !== undefined && requestedStatus !== "in_review") {
         patch.executionState = null;
         return { patch };

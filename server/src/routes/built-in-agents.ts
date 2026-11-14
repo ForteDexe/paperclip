@@ -96,7 +96,7 @@ export function builtInAgentRoutes(db: Db) {
   async function assertCanControlBuiltInRoutine(req: Request, spaceId: string) {
     assertSpaceAccess(req, spaceId);
     if (req.actor.type !== "operator") {
-      throw forbidden("Only operator operators can control built-in routines.");
+      throw forbidden("Only operators can control built-in routines.");
     }
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
     const allowed = await access.canUser(spaceId, req.actor.userId, "tasks:assign");

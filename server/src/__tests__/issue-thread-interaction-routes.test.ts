@@ -347,7 +347,7 @@ describe("issue thread interaction routes", () => {
     vi.resetAllMocks();
     // mockRunAttribution.value is a plain object, not a vi.fn().
     // resetAllMocks() does not reset it. createApp() overwrites it for an
-    // agent actor. A operator actor leaves whatever value a prior test set here.
+    // agent actor. An operator actor leaves whatever value a prior test set here.
     mockRunAttribution.value = {
       spaceId: "space-1",
       agentId: CREATED_AGENT_ID,
@@ -795,7 +795,7 @@ describe("issue thread interaction routes", () => {
     );
   }, 10_000);
 
-  it("records a operator dismissal without resolving or waking, and denies agent dismissal", async () => {
+  it("records an operator dismissal without resolving or waking, and denies agent dismissal", async () => {
     mockInteractionService.dismissInteraction.mockResolvedValue({ id: "request-1", kind: "request_confirmation", status: "pending", dismissedAt: "2026-10-22T12:00:00Z" });
     const path = "/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/interactions/request-1/dismiss";
     const result = await request(await createApp()).post(path).send({});
@@ -1186,7 +1186,7 @@ describe("issue thread interaction routes", () => {
     );
   });
 
-  it("allows a operator user to withdraw and wakes the assignee", async () => {
+  it("allows an operator user to withdraw and wakes the assignee", async () => {
     const app = await createApp();
     const res = await request(app)
       .post("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/interactions/interaction-withdraw/withdraw")
@@ -1383,7 +1383,7 @@ describe("issue thread interaction routes", () => {
     );
   });
 
-  it("durably marks a operator-cancelled native question before cancelling its run", async () => {
+  it("durably marks an operator-cancelled native question before cancelling its run", async () => {
     mockRequestNativeQuestionRunCancellation.mockResolvedValueOnce(RUN_2);
 
     const res = await request(await createApp())
@@ -2180,7 +2180,7 @@ describe("issue thread interaction routes", () => {
     );
   });
 
-  it("wakes the returned agent when accepting an agent-authored confirmation from a operator review assignee", async () => {
+  it("wakes the returned agent when accepting an agent-authored confirmation from an operator review assignee", async () => {
     mockIssueService.getById.mockResolvedValueOnce(createIssue({
       status: "in_review",
       assigneeAgentId: null,

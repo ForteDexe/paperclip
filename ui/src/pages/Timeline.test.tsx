@@ -55,7 +55,7 @@ const populatedTimeline: WorkTimelineResult = {
   actors: [
     { id: "agent:codex", type: "agent", name: "CodexCoder", avatar: "code" },
     { id: "agent:qa", type: "agent", name: "QA", avatar: "shield" },
-    { id: "user:operator", type: "user", name: "Operator Operator", avatar: "/avatar.png" },
+    { id: "user:operator", type: "user", name: "Operator", avatar: "/avatar.png" },
   ],
   spans: [
     {

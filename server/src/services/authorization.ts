@@ -140,7 +140,7 @@ export type AuthorizationDecision = {
   interactionDenial?: AgentInteractionDenial;
   reason:
     | "allow_low_trust_boundary"
-    | "allow_local_board"
+    | "allow_local_operator"
     | "allow_instance_admin"
     | "allow_explicit_grant"
     | "allow_role_default"
@@ -2015,7 +2015,7 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
       if (input.actor.source === "local_implicit") {
         return allow({
           action: input.action,
-          reason: "allow_local_board",
+          reason: "allow_local_operator",
           explanation: "Allowed because the actor is the local implicit operator.",
         });
       }
@@ -2888,7 +2888,7 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
       && input.resource.projectId
       && intersectedDecision.allowed
       && intersectedDecision.reason !== "allow_instance_admin"
-      && intersectedDecision.reason !== "allow_local_board"
+      && intersectedDecision.reason !== "allow_local_operator"
       && (input.actor.authorizingUserId || issuePrivacyMode() !== "off")
     ) {
       const resource = input.resource;
@@ -2928,7 +2928,7 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
       || !input.resource.issueId
       || !intersectedDecision.allowed
       || intersectedDecision.reason === "allow_instance_admin"
-      || intersectedDecision.reason === "allow_local_board"
+      || intersectedDecision.reason === "allow_local_operator"
       || (!input.actor.authorizingUserId && issuePrivacyMode() === "off")
     ) return intersectedDecision;
 

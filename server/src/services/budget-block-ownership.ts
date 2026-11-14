@@ -7,7 +7,7 @@ import { policyBlocks } from "./budgets.js";
  * policy left to judge it) is an explicit pause that clears when it is lifted.
  * Unfinished accounting never blocks admission. Read only: the admission check
  * already reconciled. */
-export async function isBoardOwnedBudgetBlock(
+export async function isOperatorOwnedBudgetBlock(
   db: Db,
   spaceId: string,
   block: { scopeType: string; scopeId: string },

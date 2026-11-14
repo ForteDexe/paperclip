@@ -108,7 +108,7 @@ See [the implementation notes](https://github.com/paperclipai/paperclip).`;
 const editorMentions: MentionOption[] = [
   { id: "agent-codex", name: "CodexCoder", kind: "agent", agentId: "agent-codex", agentIcon: "code" },
   { id: "agent-qa", name: "QAChecker", kind: "agent", agentId: "agent-qa", agentIcon: "shield" },
-  { id: "project-board-ui", name: "Board UI", kind: "project", projectId: "project-board-ui", projectColor: "#0f766e" },
+  { id: "project-operator-ui", name: "Board UI", kind: "project", projectId: "project-operator-ui", projectColor: "#0f766e" },
   { id: "user-board", name: "Board Operator", kind: "user", userId: "user-board" },
 ];
 
@@ -290,9 +290,9 @@ const routineVariables: RoutineVariable[] = [
 ];
 
 const storybookProject: Project = {
-  id: "project-board-ui",
+  id: "project-operator-ui",
   spaceId: "space-storybook",
-  urlKey: "board-ui",
+  urlKey: "operator-ui",
   goalId: "goal-space",
   goalIds: ["goal-space"],
   goals: [{ id: "goal-space", title: "We're building Outpost" }],
@@ -308,7 +308,7 @@ const storybookProject: Project = {
   pausedAt: null,
   executionWorkspacePolicy: null,
   codebase: {
-    workspaceId: "workspace-board-ui",
+    workspaceId: "workspace-operator-ui",
     repoUrl: "https://github.com/paperclipai/paperclip",
     repoRef: "master",
     defaultRef: "master",
@@ -327,7 +327,7 @@ const storybookProject: Project = {
 
 const entityOptions: InlineEntityOption[] = [
   { id: "issue-1672", label: "Storybook forms and editors", searchText: "PAP-1672 ui story coverage" },
-  { id: "project-board-ui", label: "Board UI", searchText: "project frontend Storybook" },
+  { id: "project-operator-ui", label: "Board UI", searchText: "project frontend Storybook" },
   { id: "agent-codex", label: "CodexCoder", searchText: "engineer implementation" },
 ];
 
@@ -559,7 +559,7 @@ function PickerGallery() {
     }),
   );
   const [manager, setManager] = useState<string | null>("agent-cto");
-  const [selectorValue, setSelectorValue] = useState("project-board-ui");
+  const [selectorValue, setSelectorValue] = useState("project-operator-ui");
   const agentsWithTerminated: Agent[] = useMemo(
     () => [
       ...storybookAgents,
@@ -698,7 +698,7 @@ function RoutineRunDialogStory() {
         routineName="Weekly release review"
         projects={[storybookProject]}
         agents={storybookAgents}
-        defaultProjectId="project-board-ui"
+        defaultProjectId="project-operator-ui"
         defaultAssigneeAgentId="agent-codex"
         variables={routineVariables}
         isPending={false}

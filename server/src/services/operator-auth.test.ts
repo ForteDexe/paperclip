@@ -11,7 +11,7 @@ import type { Db } from "@outpost/db";
 import { operatorAuthService } from "./operator-auth.js";
 import { subscribeSpaceLiveEvents } from "./live-events.js";
 
-describe("operatorAuthService touchBoardApiKey", () => {
+describe("operatorAuthService touchOperatorApiKey", () => {
   it("retries the audit write after a transient failure", async () => {
     const writes = [Promise.reject(new Error("transient")), Promise.resolve([])];
     const update = vi.fn(() => ({
@@ -21,8 +21,8 @@ describe("operatorAuthService touchBoardApiKey", () => {
     }));
     const service = operatorAuthService({ update } as unknown as Db);
 
-    await expect(service.touchBoardApiKey("key-1")).rejects.toThrow("transient");
-    await expect(service.touchBoardApiKey("key-1")).resolves.toBeUndefined();
+    await expect(service.touchOperatorApiKey("key-1")).rejects.toThrow("transient");
+    await expect(service.touchOperatorApiKey("key-1")).resolves.toBeUndefined();
 
     expect(update).toHaveBeenCalledTimes(2);
   });
@@ -39,8 +39,8 @@ describe("operatorAuthService touchBoardApiKey", () => {
     }));
     const service = operatorAuthService({ update } as unknown as Db);
 
-    const first = service.touchBoardApiKey("key-1");
-    const second = service.touchBoardApiKey("key-1");
+    const first = service.touchOperatorApiKey("key-1");
+    const second = service.touchOperatorApiKey("key-1");
     releaseWrite?.();
     await Promise.all([first, second]);
 
@@ -100,12 +100,12 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     const f = await fixture();
     expect(f.challenge.secretHash).not.toBe(f.challenge.pendingKeyHash);
     expect(f.challenge.secretHash).not.toContain(f.challengeSecret);
-    expect(f.challenge.pendingKeyHash).not.toContain(f.pendingBoardToken);
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
+    expect(f.challenge.pendingKeyHash).not.toContain(f.pendingOperatorToken);
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
     expect(await f.service.getCliAuthChallengeBySecret(f.challenge.id, "wrong-secret")).toBeNull();
     await db.update(cliAuthChallenges).set({ expiresAt: new Date(Date.now() - 1) }).where(eq(cliAuthChallenges.id, f.challenge.id));
     expect((await f.service.approveCliAuthChallenge(f.challenge.id, f.challengeSecret, f.userId)).status).toBe("expired");
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
   });
 
   it("retains the first key owner and approver on same-user and competing-user replay", async () => {
@@ -116,7 +116,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     expect(repeat.challenge).toEqual(first.challenge);
     const [stored] = await db.select().from(cliAuthChallenges).where(eq(cliAuthChallenges.id, f.challenge.id));
     expect(stored).toEqual(first.challenge);
-    const key = await f.service.findBoardApiKeyByToken(f.pendingBoardToken);
+    const key = await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken);
     expect(key?.userId).toBe(f.userId);
     expect(stored.approvedByUserId).toBe(key?.userId);
     expect(await db.select().from(operatorApiKeys).where(eq(operatorApiKeys.keyHash, f.challenge.pendingKeyHash))).toHaveLength(1);
@@ -126,8 +126,8 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     const f = await fixture();
     await db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, f.otherUserId));
     await expect(f.service.approveCliAuthChallenge(f.challenge.id, f.challengeSecret, f.otherUserId)).rejects.toThrow("requested organization");
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
-    expect(await f.service.resolveBoardActivitySpaceIds({ userId: f.otherUserId, requestedSpaceId: f.spaceId })).toEqual([]);
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
+    expect(await f.service.resolveOperatorActivitySpaceIds({ userId: f.otherUserId, requestedSpaceId: f.spaceId })).toEqual([]);
   });
 
   it("rechecks space membership after waiting for the approval lock", async () => {
@@ -149,7 +149,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     const result = await outcome;
     expect(result).toHaveProperty("error");
     expect("error" in result ? String(result.error) : "").toContain("requested organization");
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
   });
 
   it("serializes cancellation behind an actual approval transaction without cancelling its live key", async () => {
@@ -174,7 +174,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     const [stored] = await db.select().from(cliAuthChallenges).where(eq(cliAuthChallenges.id, f.challenge.id));
     expect(stored.cancelledAt).toBeNull();
     expect(stored.approvedByUserId).toBe(f.userId);
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toMatchObject({ userId: f.userId });
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toMatchObject({ userId: f.userId });
   });
 
   it("publishes approval activity only after key, challenge and audit rows commit", async () => {
@@ -195,7 +195,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     try {
       await ready;
       expect(events).toEqual([]);
-      expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
+      expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
       expect(await db.select().from(activityLog).where(eq(activityLog.actorId, f.userId))).toHaveLength(0);
       release(); await approval;
       expect(events).toEqual([f.userId]);
@@ -210,7 +210,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     const first = await f.service.cancelCliAuthChallenge(f.challenge.id, f.challengeSecret);
     expect((await f.service.cancelCliAuthChallenge(f.challenge.id, f.challengeSecret)).challenge).toEqual(first.challenge);
     expect((await f.service.approveCliAuthChallenge(f.challenge.id, f.challengeSecret, f.userId)).status).toBe("cancelled");
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
   });
 
   it("shows the requested space name only to a currently authorized viewer", async () => {
@@ -231,8 +231,8 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     await expect(f.service.approveCliAuthChallenge(created.challenge.id, created.challengeSecret, f.otherUserId)).rejects.toThrow("Instance admin required");
     const approved = await f.service.approveCliAuthChallenge(created.challenge.id, created.challengeSecret, f.userId);
     expect(approved.status).toBe("approved");
-    expect(await f.service.findBoardApiKeyByToken(created.pendingBoardToken)).toMatchObject({ userId: f.userId });
-    expect((await f.service.resolveBoardAccess(f.userId)).isInstanceAdmin).toBe(true);
+    expect(await f.service.findOperatorApiKeyByToken(created.pendingOperatorToken)).toMatchObject({ userId: f.userId });
+    expect((await f.service.resolveOperatorAccess(f.userId)).isInstanceAdmin).toBe(true);
   });
 
   it("authenticates the real pending, approved and revoked HTTP handshake without synthesizing an anonymous actor", async () => {
@@ -260,7 +260,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     expect((await request(app).post(`/api/cli-auth/challenges/${id}/approve`).send({ token })).status).toBe(401);
     await db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, f.otherUserId));
     expect((await request(app).post(`/api/cli-auth/challenges/${id}/approve`).set("X-Test-Session", f.otherUserId).send({ token })).status).toBe(403);
-    expect(await f.service.findBoardApiKeyByToken(operatorApiToken)).toBeNull();
+    expect(await f.service.findOperatorApiKeyByToken(operatorApiToken)).toBeNull();
     expect(await db.select().from(activityLog).where(eq(activityLog.actorId, f.otherUserId))).toHaveLength(0);
     const browser = await request(app).get(`/api/cli-auth/challenges/${id}?token=${token}`).set("X-Test-Session", f.userId);
     expect(browser.body).toMatchObject({ canApprove: true, requestedSpaceName: "Private CLI organization" });
@@ -268,7 +268,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     try {
       const failed = await request(app).post(`/api/cli-auth/challenges/${id}/approve`).set("X-Test-Session", f.userId).send({ token });
       expect(failed.status).toBe(500);
-      expect(await f.service.findBoardApiKeyByToken(operatorApiToken)).toBeNull();
+      expect(await f.service.findOperatorApiKeyByToken(operatorApiToken)).toBeNull();
       const [pending] = await db.select().from(cliAuthChallenges).where(eq(cliAuthChallenges.id, id));
       expect(pending.approvedAt).toBeNull();
       expect(pending.operatorApiKeyId).toBeNull();
@@ -307,7 +307,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     await db.update(cliAuthChallenges).set({ operatorApiKeyId: keyId, approvedByUserId: foreign.userId, approvedAt: new Date() })
       .where(eq(cliAuthChallenges.id, foreign.challenge.id));
     await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.principalId, f.userId));
-    expect(await f.service.resolveBoardActivitySpaceIds({ userId: f.userId, requestedSpaceId: foreign.spaceId })).toEqual([]);
+    expect(await f.service.resolveOperatorActivitySpaceIds({ userId: f.userId, requestedSpaceId: foreign.spaceId })).toEqual([]);
     const [{ default: express }, { default: request }, { actorMiddleware }, { accessRoutes }, { errorHandler }, { activityRoutes }] = await Promise.all([
       import("express"), import("supertest"), import("../middleware/auth.js"), import("../routes/access.js"), import("../middleware/error-handler.js"), import("../routes/activity.js"),
     ]);
@@ -315,22 +315,22 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     app.use(actorMiddleware(db, { deploymentMode: "authenticated", resolveSession: async req => (req.header("X-Test-Session") === f.userId || req.header("X-Test-Session") === foreign.userId)
       ? { session: { id: "synthetic-session" }, user: { id: req.header("X-Test-Session"), name: "CLI owner", email: "owner@example.invalid" } } as any : null }));
     app.use("/api", accessRoutes(db, { deploymentMode: "authenticated", deploymentExposure: "private", bindHost: "127.0.0.1", allowedHostnames: [] })); app.use("/api", activityRoutes(db)); app.use(errorHandler);
-    const foreignKey = await f.service.createNamedBoardApiKey({ userId: foreign.userId, name: "Synthetic foreign operator" });
+    const foreignKey = await f.service.createNamedOperatorApiKey({ userId: foreign.userId, name: "Synthetic foreign operator" });
     const forged = await request(app).post(`/api/spaces/${foreign.spaceId}/activity`).set("Authorization", `Bearer ${foreignKey.token}`).send({
       actorType: "user", actorId: f.userId, action: "operator_api_key.created", entityType: "user", entityId: f.userId,
       responsibleUserId: f.userId, responsible_user_id: f.userId, details: { operatorApiKeyId: keyId, responsibleUserId: f.userId },
     });
     expect(forged.status).toBe(201);
     expect(forged.body.responsibleUserId).toBeNull();
-    expect(await f.service.revokeBoardApiKey(keyId, { userId: foreign.userId, revokedVia: "operator_api_key_lifecycle" })).toBeNull();
+    expect(await f.service.revokeOperatorApiKey(keyId, { userId: foreign.userId, revokedVia: "operator_api_key_lifecycle" })).toBeNull();
     const denied = await request(app).delete(`/api/operator-api-keys/${keyId}`).set("X-Test-Session", foreign.userId);
     expect(denied.status).toBe(404);
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).not.toBeNull();
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).not.toBeNull();
     const response = revokedVia === "cli_auth_logout"
-      ? await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingBoardToken}`).send({ requestedSpaceId: foreign.spaceId })
+      ? await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingOperatorToken}`).send({ requestedSpaceId: foreign.spaceId })
       : await request(app).delete(`/api/operator-api-keys/${keyId}`).set("X-Test-Session", f.userId);
     expect(response.status).toBe(200);
-    expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).toBeNull();
+    expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).toBeNull();
     const rows = await db.select().from(activityLog).where(eq(activityLog.action, "operator_api_key.revoked"));
     const matching = rows.filter(row => row.details?.operatorApiKeyId === keyId);
     expect(matching).toHaveLength(1);
@@ -346,11 +346,11 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     const app = express(); app.use(express.json()); app.use(actorMiddleware(db, { deploymentMode: "authenticated", resolveSession: async () => null }));
     app.use("/api", accessRoutes(db, { deploymentMode: "authenticated", deploymentExposure: "private", bindHost: "127.0.0.1", allowedHostnames: [] }));
     app.use("/api", activityRoutes(db)); app.use(errorHandler);
-    const created = await request(app).post("/api/operator-api-keys").set("Authorization", `Bearer ${f.pendingBoardToken}`)
+    const created = await request(app).post("/api/operator-api-keys").set("Authorization", `Bearer ${f.pendingOperatorToken}`)
       .send({ name: "Synthetic named key", requestedSpaceId: f.spaceId });
     expect(created.status).toBe(201);
     expect(await db.select().from(cliAuthChallenges).where(eq(cliAuthChallenges.operatorApiKeyId, created.body.id))).toHaveLength(0);
-    const foreignKey = await f.service.createNamedBoardApiKey({ userId: foreign.userId, name: "Synthetic foreign operator" });
+    const foreignKey = await f.service.createNamedOperatorApiKey({ userId: foreign.userId, name: "Synthetic foreign operator" });
     const forged = await request(app).post(`/api/spaces/${foreign.spaceId}/activity`).set("Authorization", `Bearer ${foreignKey.token}`).send({
       actorType: "user", actorId: f.userId, action: "operator_api_key.created", entityType: "user", entityId: f.userId,
       responsibleUserId: f.userId, details: { operatorApiKeyId: created.body.id, responsibleUserId: f.userId },
@@ -377,15 +377,15 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
     app.use("/api", accessRoutes(db, { deploymentMode: "authenticated", deploymentExposure: "private", bindHost: "127.0.0.1", allowedHostnames: [] })); app.use(errorHandler);
     await db.execute(sql.raw(`alter table activity_log add constraint operator_cli_revoke_failure check (action != 'operator_api_key.revoked' or space_id != '${secondSpaceId}')`));
     try {
-      expect((await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingBoardToken}`)).status).toBe(500);
-      expect(await f.service.findBoardApiKeyByToken(f.pendingBoardToken)).not.toBeNull();
+      expect((await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingOperatorToken}`)).status).toBe(500);
+      expect(await f.service.findOperatorApiKeyByToken(f.pendingOperatorToken)).not.toBeNull();
       expect((await db.select().from(activityLog).where(eq(activityLog.actorId, f.userId))).filter(row => row.action === "operator_api_key.revoked")).toHaveLength(0);
     } finally { await db.execute(sql`alter table activity_log drop constraint operator_cli_revoke_failure`); }
-    expect((await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingBoardToken}`)).status).toBe(200);
+    expect((await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingOperatorToken}`)).status).toBe(200);
     const revoked = (await db.select().from(activityLog).where(eq(activityLog.actorId, f.userId))).filter(row => row.action === "operator_api_key.revoked");
     expect(new Set(revoked.map(row => row.spaceId))).toEqual(new Set([f.spaceId, secondSpaceId]));
     expect(revoked).toHaveLength(2);
-    expect((await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingBoardToken}`)).status).toBe(401);
+    expect((await request(app).post("/api/cli-auth/revoke-current").set("Authorization", `Bearer ${f.pendingOperatorToken}`)).status).toBe(401);
     expect((await db.select().from(activityLog).where(eq(activityLog.action, "operator_api_key.revoked"))).filter(row => row.details?.operatorApiKeyId === keyId)).toHaveLength(2);
   });
 
@@ -421,7 +421,7 @@ databaseSuite("CLI challenge authority and transitions (real PostgreSQL)", () =>
       const loader = new URL("../../node_modules/tsx/dist/loader.mjs", import.meta.url).href;
       const outcomes = [0, 1, 2].map(i => {
         const worker = path.join(folder, `client-${i}.mjs`);
-        fs.writeFileSync(worker, `import { loginBoardCli } from ${JSON.stringify(module)}; await loginBoardCli(${JSON.stringify({ apiBase, requestedAccess: "operator", requestedSpaceId: f.spaceId, storePath: path.join(folder, `auth-${i}.json`), openBrowser: false, print: false })});`, { mode: 0o600 });
+        fs.writeFileSync(worker, `import { loginOperatorCli } from ${JSON.stringify(module)}; await loginOperatorCli(${JSON.stringify({ apiBase, requestedAccess: "operator", requestedSpaceId: f.spaceId, storePath: path.join(folder, `auth-${i}.json`), openBrowser: false, print: false })});`, { mode: 0o600 });
         const child = spawn(process.execPath, ["--import", loader, worker], { cwd: folder, stdio: ["ignore", "ignore", "pipe"] }); children.push(child);
         let errors = ""; child.stderr?.on("data", chunk => { errors += chunk.toString(); });
         return new Promise<{ code: number | null; errors: string }>(resolve => child.once("exit", code => resolve({ code, errors })));

@@ -4,13 +4,13 @@ import { operatorAuthService } from "./operator-auth.js";
 import { spaceService } from "./space-service.js";
 
 /** The actor has already authenticated and resolved current space authority. */
-export async function loadBoardBootstrap(db: Db, principal: {
+export async function loadOperatorBootstrap(db: Db, principal: {
   userId: string;
   spaceIds: readonly string[];
 }): Promise<OperatorBootstrap> {
   const [spaces, access] = await Promise.all([
     spaceService(db).list(),
-    operatorAuthService(db).resolveBoardAccess(principal.userId),
+    operatorAuthService(db).resolveOperatorAccess(principal.userId),
   ]);
   const accessible = new Set(principal.spaceIds);
   return {

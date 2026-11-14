@@ -30,7 +30,7 @@ import {
 } from "../../fixtures/outpostData";
 
 const SPACE_ID = "space-storybook";
-const boardProject = storybookProjects.find((project) => project.id === "project-board-ui") ?? storybookProjects[0]!;
+const boardProject = storybookProjects.find((project) => project.id === "project-operator-ui") ?? storybookProjects[0]!;
 const archivedProject =
   storybookProjects.find((project) => project.id === "project-archived-import")
   ?? storybookProjects[storybookProjects.length - 1]!;
@@ -183,7 +183,7 @@ function WorkspacesMatrix() {
     issues: storybookIssues.filter((issue) => issue.projectId === boardProject.id),
     executionWorkspaces: storybookExecutionWorkspaces,
   });
-  const localSummary = summaries.find((summary) => summary.kind === "project_workspace" && summary.workspaceId === "workspace-board-ui");
+  const localSummary = summaries.find((summary) => summary.kind === "project_workspace" && summary.workspaceId === "workspace-operator-ui");
   const remoteSummary = summaries.find((summary) => summary.workspaceId === "workspace-docs-remote");
   const cleanupSummary = summaries.find((summary) => summary.executionWorkspaceStatus === "cleanup_failed");
   const featuredSummaries = [localSummary, remoteSummary, cleanupSummary].filter(

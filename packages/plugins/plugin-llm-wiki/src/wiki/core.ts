@@ -56,7 +56,7 @@ export type OutpostIngestionSourceScope =
   | { kind: "active_projects"; limit: number; statuses?: Array<"in_progress" | "todo" | "done"> }
   | { kind: "selected_projects"; projectIds: string[] }
   | { kind: "root_issues"; issueIds: string[] }
-  | { kind: "space_all"; requiresBoardConfirmation: true };
+  | { kind: "space_all"; requiresOperatorConfirmation: true };
 
 export type OutpostIngestionProfileV1 = {
   version: 1;
@@ -725,7 +725,7 @@ function defaultOutpostIngestionProfile(input: {
   return {
     version: 1,
     enabled: legacy?.enabled ?? false,
-    sourceScopes: legacy?.enabled ? [{ kind: "space_all", requiresBoardConfirmation: true }] : [],
+    sourceScopes: legacy?.enabled ? [{ kind: "space_all", requiresOperatorConfirmation: true }] : [],
     sourceKinds: {
       issues: legacy?.sources.issues ?? true,
       comments: legacy?.sources.comments ?? true,
@@ -775,7 +775,7 @@ function normalizeOutpostIngestionSourceScope(value: unknown): OutpostIngestionS
     return { kind, issueIds: stringArray(record.issueIds).slice(0, MAX_OUTPOST_PROFILE_ROOT_ISSUES) };
   }
   if (kind === "space_all") {
-    return { kind, requiresBoardConfirmation: true };
+    return { kind, requiresOperatorConfirmation: true };
   }
   return null;
 }

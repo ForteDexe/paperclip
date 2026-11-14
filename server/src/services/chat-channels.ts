@@ -35,7 +35,7 @@ import { slackOrphanFollowUp, stripSlackTitleMentions, slackMessageMeetsMentionR
 import type { ConnectionManagementContext } from "./connection-management.js";
 import { createChatPublicationResolution } from "./chat-channels/publications/resolution.js";
 import { createChatPublicationRequests } from "./chat-channels/publications/requests.js";
-import { createTeamsBoardSendPreparation } from "./chat-channels/microsoft-teams/operator-send-preparation.js";
+import { createTeamsOperatorSendPreparation } from "./chat-channels/microsoft-teams/operator-send-preparation.js";
 import { createInboundWakeAuthority, inboundWakeScope } from "./chat-channels/inbound/wakeup-authorization.js";
 import { createInboundWakeups } from "./chat-channels/inbound/wakeups.js";
 import { createInboundWakeNotices } from "./chat-channels/inbound/wakeup-notices.js";
@@ -47,7 +47,7 @@ import { createGitHubWebhookAuthentication, retryableGitHubWebhookResponse } fro
 import { createSlackWebhookCallbacks } from "./chat-channels/slack/webhook-callbacks.js";
 import { createGitHubWebhookEvents } from "./chat-channels/github/webhook-events.js";
 import { createSlackTaskStartResolution } from "./chat-channels/slack/task-start-resolution.js";
-import { createSlackBoardMessages } from "./chat-channels/slack/operator-messages.js";
+import { createSlackOperatorMessages } from "./chat-channels/slack/operator-messages.js";
 import { PROVIDER_LABELS, CAPABILITIES } from "./chat-channels/provider-catalog.js";
 import { createMessageResourceAdmission } from "./chat-channels/inbound/resource-admission.js";
 import type { DiscordGatewayOwnership } from "./chat-channels/runtime-types.js";
@@ -347,7 +347,7 @@ export interface ChatChannelServiceOptions {
    */
   deferWebhookProcessing?: boolean;
   /** Derived from instance deployment mode, never a provider request. */
-  allowLocalVoiceBoard?: boolean;
+  allowLocalVoiceOperator?: boolean;
   /** Test override for GitHub's end-to-end webhook response budget. */
   githubWebhookResponseBudgetMs?: number;
   /** Testable boundary after reading a GitHub webhook and before authentication. */
@@ -551,10 +551,10 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
   // can remove credentials or other evidence that makes it unsafe to publish.
   const getTaskBaseUrl = () => runtimeCanonicalOrigin() ?? options.publicBaseUrl;
   const getWebhookPublicBaseUrl = () => configuredWebhookPublicBaseUrl ?? getPublicBaseUrl();
-  const voiceStore = voiceSessionStore(db, { allowLocalBoard: options.allowLocalVoiceBoard === true });
+  const voiceStore = voiceSessionStore(db, { allowLocalOperator: options.allowLocalVoiceOperator === true });
   const { findAuthorizedIdentityLink, ensurePrincipal, sponsorAllowsGuest, lockCurrentPrincipalAuthorization, requireCurrentExternalActionAuthorization, isExternalActionAuthorizationChange, ensureResource } = createChatInboundAuthority(db, { voiceStore, runtimeCallbackEndpoint });
   const voice = createSpekoChannelService(db, { endpointRecord, resolveCredentialRefs: (...args) => resolveCredentialRefs(...args), fetchImpl,
-    allowLocalBoard: options.allowLocalVoiceBoard === true,
+    allowLocalOperator: options.allowLocalVoiceOperator === true,
     onQuestionAnswered: (interactionId) => scheduleMessageProcessing(async () => {
       await questionResponses.deliver(interactionId);
       await processPendingPublications();
@@ -911,7 +911,7 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
   const { reconcileDiscordCommands, handleDiscordNativeCommand } = createDiscordCommands(db, { endpointRecord, runtimeContextForRecord, runtimeGeneration, credentialFingerprint, resolveCredentialRefs, fetchImpl, withCredentialMutationLease, runtimeCallbackRecord, ensurePrincipal, runtimeCallbackEndpoint, nonDirectDestinationAllowed, lockCurrentPrincipalAuthorization, getDiscordGatewayOwnership: (endpointId) => discordGatewayOwnerships.get(endpointId), discordGatewayRuntimeIsCurrent, stageAuthorizedTaskControlPublication, scheduleMessageProcessing, processPendingPublications });
   const { latestSlackDmControlThreadId, finalizeSlackTaskStartFailure, admitConfirmedSlackTaskStart, processSlackTaskStart, processPendingSlackTaskStarts } = createSlackTaskStart(db, { endpointRecord, runtimeGeneration, credentialFingerprint, invalidateRuntime, runtimeFor, processMessage, runtimeContextForRecord, redactError, withCredentialMutationLease, sponsorAllowsGuest, nonDirectDestinationAllowed, runtimeCallbackEndpoint, lockCurrentPrincipalAuthorization, get slackTaskAdmissionClaimBarrier() { return options.slackTaskAdmissionClaimBarrier; }, maxErrorText: MAX_ERROR_TEXT });
   const { resolveSlackTaskStart } = createSlackTaskStartResolution(db, { endpointRecord, withCredentialMutationLease, runtimeFor, runtimeContextForRecord, runtimeCallbackEndpoint, lockCurrentPrincipalAuthorization, sponsorAllowsGuest, nonDirectDestinationAllowed, finalizeSlackTaskStartFailure, admitConfirmedSlackTaskStart, get deferWebhookProcessing() { return options.deferWebhookProcessing; } });
-  const { processPendingSlackBoardMessages } = createSlackBoardMessages(db, { endpointRecord, resolveCredentials, fetchImpl, get heartbeat() { return options.heartbeat; } });
+  const { processPendingSlackOperatorMessages } = createSlackOperatorMessages(db, { endpointRecord, resolveCredentials, fetchImpl, get heartbeat() { return options.heartbeat; } });
   const { handleSlackSlashCommand } = createSlackCommands(db, {
     runtime, runtimeFor, handleSdkMessage, stageProviderEffect, scheduleProviderEffect, ensurePrincipal,
     runtimeCallbackEndpoint, getPublicBaseUrl, canonicalProviderResourceId, nonDirectDestinationAllowed,
@@ -1301,7 +1301,7 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
     FailedChatRetryPublicationReadError, endpointRecord, runIdFromMilestonePublication, fetchImpl,
     stageTerminalReceiptReactionRemovals, runtimeContextForRecord, scheduleMessageProcessing, processReceiptReaction,
   });
-  const { stageTeamsBoardFileIntent, deriveTeamsFileTransferAuthority } = createTeamsFileAuthority({ runtimeGeneration, credentialFingerprint, runtime, runtimeContexts, localRuntimeEpoch, runtimeVersions, lockCurrentPrincipalAuthorization, lifecycleRuntimeFence, assertFailedRetryReceipt, inboundWakeScope, failedChatRetrySource, isExplicitOperatorPublication, retryCommentIds });
+  const { stageTeamsOperatorFileIntent, deriveTeamsFileTransferAuthority } = createTeamsFileAuthority({ runtimeGeneration, credentialFingerprint, runtime, runtimeContexts, localRuntimeEpoch, runtimeVersions, lockCurrentPrincipalAuthorization, lifecycleRuntimeFence, assertFailedRetryReceipt, inboundWakeScope, failedChatRetrySource, isExplicitOperatorPublication, retryCommentIds });
   const { registerTeamsAttemptRecoveryWork, registerTeamsConsentExpiryWork, teamsTransferProtocol, handleTeamsFileConsent, tryProcessTeamsFilePublication } = createTeamsFileDelivery(db, {
     endpointRecord, runtimeContextForRecord, runtimeFor, runtimeContexts, localRuntimeEpoch, runtime,
     deriveTeamsFileTransferAuthority, publicationFiles, scheduleMessageProcessing, processPendingPublications,
@@ -3133,7 +3133,7 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
     const actionRecovery = onlyDeliveryId || !maintenance ? null : Promise.allSettled([
       processPendingChatMaintenance(limit), processFailedChatRunRetries(limit),
       processPendingGitHubWebhookIngress(limit),
-      processPendingProviderEffects(limit), processPendingSlackBoardMessages(limit),
+      processPendingProviderEffects(limit), processPendingSlackOperatorMessages(limit),
       processPendingSlackTaskStarts(limit), processPendingReceiptReactions(limit),
       processPendingSlackSessionStops(limit), slackRegistration.processPendingVerificationMessages(limit),
     ]);
@@ -3472,7 +3472,7 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
     get slackRegistration() { return slackRegistration; },
     get githubWizard() { return githubWizard; },
     get nativeBotIdentityClaimBarrier() { return options.nativeBotIdentityClaimBarrier; },
-    get allowLocalVoiceBoard() { return options.allowLocalVoiceBoard; },
+    get allowLocalVoiceOperator() { return options.allowLocalVoiceOperator; },
   });
   const { slackRegistration, verifySlackRequestUrl, sendSlackTestMessage } = createSlackSetupServices(db, {
     endpointRecord, ensurePrincipal, withCredentialMutationLease, resolveCredentials,
@@ -3567,8 +3567,8 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
   const { unregisterSlackTaskAuthority } = createSlackTaskAuthorityRegistration(db, { authorizeInboundWakeup, resolveCredentials });
 
   const { replayPublication, resolvePublication, resolveProviderEffect } = createChatPublicationResolution(db, { endpointRecord, withCredentialMutationLease, teamsTransferProtocol, commitTaskControlCompletion, processPendingPublications, processProviderEffect });
-  const { prepareTeamsBoardSend } = createTeamsBoardSendPreparation(db, { endpointRecord, runtimeFor });
-  const { getPublicationBatchStatus, publishComment, publishBoardMessage } = createChatPublicationRequests(db, { endpointRecord, stageTeamsBoardFileIntent, processPendingSlackBoardMessages, processPendingPublications, prepareTeamsBoardSend });
+  const { prepareTeamsOperatorSend } = createTeamsOperatorSendPreparation(db, { endpointRecord, runtimeFor });
+  const { getPublicationBatchStatus, publishComment, publishOperatorMessage } = createChatPublicationRequests(db, { endpointRecord, stageTeamsOperatorFileIntent, processPendingSlackOperatorMessages, processPendingPublications, prepareTeamsOperatorSend });
 return {
     registerInteractionContinuationWork,
     registerGitHubReviewCheckWork: githubReviewCheckService(db, fetchImpl).registerCheckWork,
@@ -3627,7 +3627,7 @@ return {
     resolvePublication,
     publishComment,
     getPublicationBatchStatus,
-    publishBoardMessage,
+    publishOperatorMessage,
     reconcileProviderRuntimes,
     processPendingPublications,
     enqueueInboundWakeupPublications,
@@ -3642,7 +3642,7 @@ return {
     processTelegramSubscriptionDiscovery,
     scheduleTelegramSubscriptionDiscovery,
     hasPendingTelegramSubscriptionDiscovery,
-    processPendingSlackBoardMessages,
+    processPendingSlackOperatorMessages,
     processPendingSlackTaskStarts,
     processPendingVerificationMessages: slackRegistration.processPendingVerificationMessages,
     nextVerificationMessageAt: slackRegistration.nextVerificationMessageAt,

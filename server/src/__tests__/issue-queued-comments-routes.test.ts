@@ -325,7 +325,7 @@ describeEmbeddedPostgres("issue queued-comment routes", () => {
       actorAgentId: seeded.agentId, actorRunId: seeded.runId,
     })).rejects.toMatchObject({ status: 403, details: { code: "agent_run_cancelled" } });
     expect((await db.select().from(issues).where(eq(issues.id, seeded.issueId)))[0].status).toBe("blocked");
-    // A operator disposition remains authoritative.
+    // An operator disposition remains authoritative.
     expect(await issueService(db).update(seeded.issueId, { status: "done", actorUserId: "queue-owner" }))
       .toMatchObject({ status: "done" });
   });

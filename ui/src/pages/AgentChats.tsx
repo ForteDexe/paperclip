@@ -1,4 +1,4 @@
-import { usePrimaryAgentPresentation } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { useDefaultAgentPresentation } from "@/components/default-agent/DefaultAgentPresentation";
 import { useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -19,7 +19,7 @@ export function AgentChats() {
 }
 
 function AgentChatsContent({ spaceId, userId, enabled, loaded, agents, chats, session }: Pick<ReturnType<typeof useAgentChatNavigation>, "spaceId" | "userId" | "enabled" | "loaded" | "agents" | "chats" | "session">) {
-  const primary = usePrimaryAgentPresentation(spaceId);
+  const primary = useDefaultAgentPresentation(spaceId);
   const openChat = useOpenAgentChat(spaceId, userId);
   const navigate = useNavigate();
   const recentIds = useRecentAgentChats(spaceId ?? "", userId);
@@ -49,11 +49,11 @@ function AgentChatsContent({ spaceId, userId, enabled, loaded, agents, chats, se
       return null;
     }).find((path): path is string => path !== null)
     : undefined;
-  const primaryAgent = eligibleAgents.find(agent => agent.id === primary?.primaryAgentId
+  const defaultAgent = eligibleAgents.find(agent => agent.id === primary?.defaultAgentId
     && agent.status !== "pending_approval");
   const entryPath = recentChatPath ?? (loaded && enabled && !blockingError && !resolvingRecent
-    && agents.isFetched && session.isFetched && !primary?.loading && primaryAgent
-    ? `/chats/${encodeURIComponent(agentRouteRef(primaryAgent))}` : undefined);
+    && agents.isFetched && session.isFetched && !primary?.loading && defaultAgent
+    ? `/chats/${encodeURIComponent(agentRouteRef(defaultAgent))}` : undefined);
   useEffect(() => {
     if (entryPath) navigate(entryPath, { replace: true });
   }, [navigate, entryPath]);

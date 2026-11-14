@@ -16,7 +16,7 @@ const downloadMock = vi.hoisted(() => vi.fn());
 const deleteMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/access", () => ({
-  accessApi: { getCurrentBoardAccess: accessMock },
+  accessApi: { getCurrentOperatorAccess: accessMock },
 }));
 
 vi.mock("@/api/heartbeats", () => ({

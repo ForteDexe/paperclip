@@ -58,7 +58,7 @@ describe("voice caller authentication", () => {
   it("preserves local trusted callers", async () => {
     await request(app({ type: "operator", source: "local_implicit" }))
       .get(`/api/spaces/${spaceId}/voice-history/${endpointId}`).expect(200);
-    expect(service.history).toHaveBeenCalledWith(spaceId, endpointId, { id: "local-operator", authority: "local_board" });
+    expect(service.history).toHaveBeenCalledWith(spaceId, endpointId, { id: "local-operator", authority: "local_operator" });
   });
 
   it.each(["operator_key", "mcp_oauth", "cloud_control"] as const)("rejects %s credentials as private human callers", async (source) => {

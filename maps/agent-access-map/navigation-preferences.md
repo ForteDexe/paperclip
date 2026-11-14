@@ -65,7 +65,7 @@ Verification: `not-run` — assert the documented agent denial with an owned tes
 verify any listed agent request/result path separately. A delegated operation needs its
 own policy and access review.
 
-Gaps: Catalog metadata says board_or_agent, but requireBoardUserId rejects agents.
+Gaps: Catalog metadata says board_or_agent, but requireOperatorUserId rejects agents.
 Collapse is in-memory; global collapse is disabled.
 
 Personal workspace addition: the [workspace preference route](../../server/src/routes/workspace-preferences.ts)

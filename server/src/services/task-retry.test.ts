@@ -679,7 +679,7 @@ describe("durable task Retry admission", () => {
     expect(wakes.filter(row => row.status === "deferred_issue_execution")).toHaveLength(1);
   });
   it("accepts Retry for an old-release retained-export hold whose source ownership could not be verified", async () => {
-    // State saved by an earlier release: a operator-owned export hold whose only
+    // State saved by an earlier release: an operator-owned export hold whose only
     // attempt ended with a permanent ownership refusal. The task UI now offers
     // Retry for it; Retry must open one new bounded generation that re-verifies
     // the source, keep the hold in place, and never resolve or bypass it.

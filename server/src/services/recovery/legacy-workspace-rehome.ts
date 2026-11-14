@@ -36,7 +36,7 @@ type RehomeWakeup = (agentId: string, options: {
  * (#19860). This pass does the release now, in one transaction: the task gets
  * its own workspace from the project base, the operator escalation resolves with
  * a named outcome, the task returns to `todo`, and a pending wake is recorded.
- * After commit the assignee is woken once, like a operator restore; a wake lost
+ * After commit the assignee is woken once, like an operator restore; a wake lost
  * to a crash stays pending and the next pass delivers it. The parent and the shared
  * workspace are never changed. Bounded and idempotent: a resolved escalation
  * is never revisited, and a failed guard leaves the task as it is. Returns the

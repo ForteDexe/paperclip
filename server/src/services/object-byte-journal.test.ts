@@ -91,7 +91,7 @@ describe("object byte journal", () => {
     const claimB = waitOutStorageOutages(() => createObjectByteJournal({ provider: s.provider, prefix: "space/b/log" })
       .claim({ assertAuthority: authority }));
     void claimA.catch(() => undefined);
-    setTimeout(() => stopA.abort(new Error("Stopped by a operator operator")), 200);
+    setTimeout(() => stopA.abort(new Error("Stopped by an operator")), 200);
     await expect(claimA).rejects.toBeTruthy();
     await expect(claimB).resolves.toMatchObject({ head: { generation: 1 } });
   }, 30_000);

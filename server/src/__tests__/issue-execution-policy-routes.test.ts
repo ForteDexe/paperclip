@@ -892,7 +892,7 @@ describe("issue execution policy routes", () => {
     expect(mockIssueApprovalService.listApprovalsForIssue).not.toHaveBeenCalled();
   });
 
-  it("allows a operator user to cancel an active agent review task", async () => {
+  it("allows an operator user to cancel an active agent review task", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -951,7 +951,7 @@ describe("issue execution policy routes", () => {
     expect(mockHeartbeatService.cancelRun).not.toHaveBeenCalled();
   });
 
-  it("allows a operator user to cancel a drifted pending agent review task", async () => {
+  it("allows an operator user to cancel a drifted pending agent review task", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -1014,7 +1014,7 @@ describe("issue execution policy routes", () => {
     expect(mockHeartbeatService.cancelRun).not.toHaveBeenCalled();
   });
 
-  it("keeps the review stage pending when a operator user reassigns to an eligible participant", async () => {
+  it("keeps the review stage pending when an operator user reassigns to an eligible participant", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -1075,7 +1075,7 @@ describe("issue execution policy routes", () => {
     expect(mockHeartbeatService.cancelRun).not.toHaveBeenCalled();
   });
 
-  it("dissolves the review when a operator user reassigns an in_review task to a non-participant", async () => {
+  it("dissolves the review when an operator user reassigns an in_review task to a non-participant", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -1227,7 +1227,7 @@ describe("issue execution policy routes", () => {
     expect(res.body.ok).toBeUndefined();
   });
 
-  it("lets a operator user create a child issue with a scheduled monitor", async () => {
+  it("lets an operator user create a child issue with a scheduled monitor", async () => {
     mockIssueService.getById.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       spaceId: "space-1",
@@ -1306,7 +1306,7 @@ describe("issue execution policy routes", () => {
       });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("Only the assignee agent or a operator user can manage issue monitors");
+    expect(res.body.error).toBe("Only the assignee agent or an operator user can manage issue monitors");
     expect(mockIssueService.createChild).not.toHaveBeenCalled();
   });
 

@@ -9,7 +9,7 @@ import {
 import { unauthorized } from "../errors.js";
 import { resolveSentryDsns } from "../sentry-dsn.js";
 import { logger } from "../middleware/logger.js";
-import { loadBoardBootstrap } from "../services/operator-bootstrap.js";
+import { loadOperatorBootstrap } from "../services/operator-bootstrap.js";
 
 async function loadCurrentUserProfile(db: Db, userId: string) {
   const user = await db
@@ -45,7 +45,7 @@ export function authRoutes(db: Db) {
 
     const bootstrap = (req.actor.source === "session" || req.actor.source === "cloud_tenant")
       && Array.isArray(req.actor.spaceIds)
-      ? loadBoardBootstrap(db, { userId: req.actor.userId, spaceIds: req.actor.spaceIds }).catch((err) => {
+      ? loadOperatorBootstrap(db, { userId: req.actor.userId, spaceIds: req.actor.spaceIds }).catch((err) => {
         logger.warn({ err }, "failed to load optional operator bootstrap");
         return undefined;
       })

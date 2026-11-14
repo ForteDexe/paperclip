@@ -31,7 +31,7 @@ import { requestTaskRetry } from "../services/task-retry.js";
 const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZATION_TEST_DATABASE_URL");
 
 // A provider-succeeded native run whose accepted result could not be applied
-// to its task used to rest in review with a operator recovery card and no Retry.
+// to its task used to rest in review with an operator recovery card and no Retry.
 // Retry must apply the same saved result again, never start a provider run.
 describe("Retry after native finalization runs out of retries", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;

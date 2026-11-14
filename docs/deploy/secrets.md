@@ -56,7 +56,7 @@ named `GITHUB_TOKEN`, `GH_TOKEN`, or `OUTPOST_GITHUB_TOKEN` (by name, no
 binding needed) to authenticate server-side git operations — cloning private
 GitHub repos for repo-only project workspaces and refreshing worktree base
 refs. See
-[Execution workspaces](../guides/board-operator/execution-workspaces-and-runtime-services.md#private-repositories-and-repo-only-project-workspaces).
+[Execution workspaces](../guides/operator/execution-workspaces-and-runtime-services.md#private-repositories-and-repo-only-project-workspaces).
 
 ## User-Specific Secrets
 

@@ -4110,7 +4110,7 @@ describeEmbeddedPostgres("tool access service", () => {
     expect(summary.lastChangedByName).toBe(agent.name);
   });
 
-  it("executes allowed test calls as a operator user while attributing the selected agent", async () => {
+  it("executes allowed test calls as an operator user while attributing the selected agent", async () => {
     const space = await createSpace(db);
     const userId = `tool-tester-${randomUUID()}`;
     await grantOperatorUser(db, space.id, userId, ["tools:use"]);

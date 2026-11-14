@@ -35,7 +35,7 @@ establish it.
 ## Defaults and validation
 
 For an agent API request, use that agent's default environment. For a person,
-use their primary agent's default environment when present. Fall back to the
+use their default agent's default environment when present. Fall back to the
 instance default, then local execution. There is no separate user or space
 `defaultEnvironmentId` setting today. Managed-only and forced Kubernetes policies
 retain their execution restrictions and default redirection.

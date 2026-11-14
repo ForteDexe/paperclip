@@ -68,7 +68,7 @@ consumers can opt into rich item bodies through the one renderer contract.
   progressively at the character level. Reduced-motion clients receive the
   complete current text immediately; protocol events and replay stay unchanged.
 - A completed assistant item that contains a semantic result JSON object shows
-  its summary and disposition as the primary agent response. Completion checks,
+  its summary and disposition as the default agent response. Completion checks,
   remaining work, and the exact protocol JSON stay behind a `Completion details`
   disclosure, while the protocol inspector continues to expose the full event
   record.

@@ -1379,12 +1379,12 @@
     {
       "id": "agents.choose-primary",
       "capabilities": [
-        "agents/primary-agent",
+        "agents/default-agent",
         "agent-chat/discovery"
       ],
-      "context": "The person has a primary agent already and wants Morgan instead. Primary-agent preferences require the person's operator session.",
+      "context": "The person has a default agent already and wants Morgan instead. Primary-agent preferences require the person's operator session.",
       "query": "Make Morgan my go-to agent when I open Chat.",
-      "expected_outcome": "The agent explains the personal primary-agent choice and directs the person to Morgan's supported profile control, including the replacement confirmation. After the human action, the preference belongs only to that person and space; a valid recent chat can still reopen first. Chat does not falsely report a preference write by the agent.",
+      "expected_outcome": "The agent explains the personal default-agent choice and directs the person to Morgan's supported profile control, including the replacement confirmation. After the human action, the preference belongs only to that person and space; a valid recent chat can still reopen first. Chat does not falsely report a preference write by the agent.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",

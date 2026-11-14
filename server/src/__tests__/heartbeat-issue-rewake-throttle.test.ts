@@ -234,7 +234,7 @@ describeEmbeddedPostgres("heartbeat issue rewake throttle", () => {
       .then((rows) => rows[0]?.count ?? 0);
     expect(runCount).toBe(2);
 
-    // A operator comment on the issue is new input: the next event-free wake is
+    // An operator comment on the issue is new input: the next event-free wake is
     // admitted even though the streak has not been broken by a run.
     await db.insert(activityLog).values({
       spaceId,

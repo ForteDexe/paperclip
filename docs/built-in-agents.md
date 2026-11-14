@@ -33,7 +33,7 @@ All routes are space-scoped:
 - `POST /api/spaces/:spaceId/built-in-agents/:key/reset`
   Restores registry-owned display/default fields on the marked row while preserving operator adapter setup.
 
-Provision and reset require `agents:create`. Provision intentionally skips `requireBoardApprovalForNewAgents` because built-ins are registry-owned system capacity, not ad hoc hires.
+Provision and reset require `agents:create`. Provision intentionally skips `requireOperatorApprovalForNewAgents` because built-ins are registry-owned system capacity, not ad hoc hires.
 
 ## Add a New Built-in Agent
 

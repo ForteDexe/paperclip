@@ -11,7 +11,7 @@ const api = vi.hoisted(() => ({ confirmRunStopped: vi.fn() }));
 vi.mock("../api/issues", () => ({ issuesApi: { confirmRunStopped: api.confirmRunStopped } }));
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const message = "Outpost can't confirm that the previous run stopped. If no agent is still working on this task, a operator operator can confirm that it stopped, and your Retry starts right away. Your message is saved.";
+const message = "Outpost can't confirm that the previous run stopped. If no agent is still working on this task, an operator can confirm that it stopped, and your Retry starts right away. Your message is saved.";
 const presentation: TaskInterruptionPresentation = { intentId: "intent", responsibility: "user", state: "waiting_for_user",
   nextRetryAt: null, canRetry: false, userAction: "confirm_run_stopped", sourceRunIds: ["run-1"], observedRunId: "run-1",
   retryWait: { reason: "process_identity_missing", message } };
@@ -21,7 +21,7 @@ describe("confirming that an unidentified previous run stopped", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
-    client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+    client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
       spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
     container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   });
@@ -43,7 +43,7 @@ describe("confirming that an unidentified previous run stopped", () => {
   it("explains the wait and confirms the stop instead of offering a Retry that cannot start (storage chaos ST1)", async () => {
     api.confirmRunStopped.mockResolvedValue({ runId: "run-1", alreadyStopped: false, presentation: null });
     await mount();
-    expect(container.textContent).toContain("a operator operator can confirm");
+    expect(container.textContent).toContain("an operator can confirm");
     expect(Array.from(container.querySelectorAll("button")).some(button => button.textContent === "Retry")).toBe(false);
     await click("Confirm it stopped");
     const textarea = container.querySelector("textarea")!;
@@ -74,10 +74,10 @@ describe("confirming that an unidentified previous run stopped", () => {
   });
 
   it("does not offer the confirmation to someone who cannot confirm a stop", async () => {
-    client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+    client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
       spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "viewer", status: "active" }] });
     await mount();
-    expect(container.textContent).toContain("a operator operator can confirm");
+    expect(container.textContent).toContain("an operator can confirm");
     expect(Array.from(container.querySelectorAll("button")).some(button => button.textContent === "Confirm it stopped")).toBe(false);
   });
 });

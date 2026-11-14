@@ -176,7 +176,7 @@ describe("Dot onboarding with an operator-issued pairing capability", () => {
     for (const invalid of ["http://browser.example", "https://secret@browser.example", "https://browser.example/path", "https://browser.example?next=evil", "https://browser.example#fragment"])
       expect(() => publicMcpConfig({ OUTPOST_PUBLIC_URL: config.origin, OUTPOST_MCP_AUTHORIZATION_ORIGIN: invalid })).toThrow();
   });
-  it.each(["mcp", "dot-mcp"])("connects via %s without a operator session, binds the exact agent, and consumes the capability once", async prefix => {
+  it.each(["mcp", "dot-mcp"])("connects via %s without an operator session, binds the exact agent, and consumes the capability once", async prefix => {
     const f = await fixture();
     const personal = createPublicMcpOAuth(db, { ...config, resource: config.origin + "/mcp/outpost" });
     const app = express(); app.use(express.json());

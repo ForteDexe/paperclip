@@ -6,7 +6,7 @@ import { isChatQuestionFormOpenActionId } from "../../chat-question-forms.js";
 
 const MAX_CARD_BODY_LENGTH = 32_000;
 
-export function slackInteractionRequiresBoard(body: string): boolean {
+export function slackInteractionRequiresOperator(body: string): boolean {
   return Array.from(body).length > MAX_CARD_BODY_LENGTH;
 }
 

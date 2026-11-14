@@ -97,7 +97,7 @@ function buildItem(overrides: Partial<AttentionItem> = {}): AttentionItem {
       href: "/PAP/approvals/approval-1",
       metadata: {},
     },
-    whyNow: "Approval is pending a operator decision.",
+    whyNow: "Approval is pending an operator decision.",
     decisionVerbs: [],
     inlineResolvable: true,
     entryRule: "",

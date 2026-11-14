@@ -103,7 +103,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
 
   // Native Teams file consent is authority for one personal recipient and one
   // immutable file, not authority inferred from the SDK's latest route cache.
-  const teamsBoardFileIntentKind = "teams_board_file_intent";
+  const teamsOperatorFileIntentKind = "teams_board_file_intent";
   const teamsFileProofHash = (value: unknown) =>
     createHash("sha256")
       .update(
@@ -620,7 +620,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     };
   }
 
-  async function teamsBoardOriginBinding(
+  async function teamsOperatorOriginBinding(
     tx: DbTransaction,
     scope: NonNullable<Awaited<ReturnType<typeof teamsFileCurrentScope>>>,
   ) {
@@ -680,7 +680,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     );
   }
 
-  function teamsBoardFileIntentPayload(
+  function teamsOperatorFileIntentPayload(
     scope: NonNullable<Awaited<ReturnType<typeof teamsFileCurrentScope>>>,
     source: NonNullable<Awaited<ReturnType<typeof teamsFileSourceBinding>>>,
     userId: string,
@@ -717,7 +717,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     );
   }
 
-  async function stageTeamsBoardFileIntent(
+  async function stageTeamsOperatorFileIntent(
     tx: DbTransaction,
     publication: typeof chatPublications.$inferSelect,
     userId: string,
@@ -739,10 +739,10 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       !(await teamsOperatorAuthorIsCurrent(tx, scope.endpoint.spaceId, userId))
     )
       return;
-    const source = await teamsBoardOriginBinding(tx, scope);
+    const source = await teamsOperatorOriginBinding(tx, scope);
     if (!source || !teamsFileRuntimeStillCurrent(scope)) return;
-    const key = `${teamsBoardFileIntentKind}:${publication.id}`;
-    const payload = teamsBoardFileIntentPayload(scope, source, userId);
+    const key = `${teamsOperatorFileIntentKind}:${publication.id}`;
+    const payload = teamsOperatorFileIntentPayload(scope, source, userId);
     const [existing] = await tx
       .select()
       .from(chatActions)
@@ -756,7 +756,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .for("update", { noWait: true });
     if (existing) {
       if (
-        existing.kind !== teamsBoardFileIntentKind ||
+        existing.kind !== teamsOperatorFileIntentKind ||
         existing.status !== "processed" ||
         existing.deliveryId !== source.binding.deliveryId ||
         existing.principalId !== source.binding.principalId ||
@@ -774,7 +774,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       conversationId: scope.conversation.id,
       deliveryId: source.binding.deliveryId,
       principalId: source.binding.principalId,
-      kind: teamsBoardFileIntentKind,
+      kind: teamsOperatorFileIntentKind,
       providerActionId: key,
       status: "processed",
       payload,
@@ -816,10 +816,10 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
             eq(chatActions.spaceId, scope.endpoint.spaceId),
             eq(chatActions.endpointId, scope.endpoint.id),
             eq(chatActions.conversationId, scope.conversation.id),
-            eq(chatActions.kind, teamsBoardFileIntentKind),
+            eq(chatActions.kind, teamsOperatorFileIntentKind),
             eq(
               chatActions.providerActionId,
-              `${teamsBoardFileIntentKind}:${scope.publication.id}`,
+              `${teamsOperatorFileIntentKind}:${scope.publication.id}`,
             ),
             eq(chatActions.status, "processed"),
           ),
@@ -831,7 +831,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         !isUuidLike(intent.payload.sourceActionId)
       )
         return null;
-      const bound = await teamsBoardOriginBinding(tx, scope);
+      const bound = await teamsOperatorOriginBinding(tx, scope);
       if (
         !bound ||
         bound.action.id !== intent.payload.sourceActionId ||
@@ -839,7 +839,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         intent.principalId !== bound.binding.principalId
       )
         return null;
-      const currentPayload = teamsBoardFileIntentPayload(
+      const currentPayload = teamsOperatorFileIntentPayload(
         scope,
         bound,
         scope.comment.authorUserId,
@@ -851,7 +851,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         return null;
       source = bound;
       causal = {
-        kind: "explicit_board_send",
+        kind: "explicit_operator_send",
         intentId: intent.id,
         ...currentPayload,
       };
@@ -1037,5 +1037,5 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       filename: scope.filename,
     };
   }
-  return { stageTeamsBoardFileIntent, deriveTeamsFileTransferAuthority };
+  return { stageTeamsOperatorFileIntent, deriveTeamsFileTransferAuthority };
 }

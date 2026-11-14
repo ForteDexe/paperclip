@@ -196,7 +196,7 @@ export function issueTreeControlRoutes(
             // do not manufacture recovery incidents while the hold is active.
             await heartbeat.cancelRun(
               heartbeatRunId,
-              `Cancelled by a operator operator's subtree ${result.hold.mode}`,
+              `Cancelled by an operator's subtree ${result.hold.mode}`,
               {
                 resultJson: {
                   cancelledByActorType: "user",

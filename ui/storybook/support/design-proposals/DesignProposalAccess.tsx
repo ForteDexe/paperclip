@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { CurrentBoardAccess } from "@/api/access";
+import type { CurrentOperatorAccess } from "@/api/access";
 import type { HealthStatus } from "@/api/health";
 import { queryKeys } from "@/lib/queryKeys";
 import { storybookAuthSession, storybookSpaces } from "../../fixtures/outpostData";
@@ -12,14 +12,14 @@ export function DesignProposalAccess({ children }: { children: ReactNode }) {
   const client = useQueryClient();
   const [ready, setReady] = useState(false);
   useLayoutEffect(() => {
-    const access: CurrentBoardAccess = {
+    const access: CurrentOperatorAccess = {
       user: storybookAuthSession.user, userId: "user-board", isInstanceAdmin: false,
       spaceIds: storybookSpaces.map(space => space.id), source: "authenticated", keyId: null,
       memberships: storybookSpaces.map(space => ({ spaceId: space.id, membershipRole: "owner", status: "active" })),
     };
     const fixtures = installFixtureApi([{ path: "/api/cli-auth/me", read: () => access }]);
     client.setQueryData<HealthStatus>(queryKeys.health, { status: "ok", deploymentMode: "authenticated", hiddenSettings: [] });
-    client.setQueryData<CurrentBoardAccess>(queryKeys.access.currentBoardAccess, access);
+    client.setQueryData<CurrentOperatorAccess>(queryKeys.access.currentOperatorAccess, access);
     setReady(true);
     return () => fixtures.cleanup();
   }, [client]);

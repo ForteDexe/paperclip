@@ -328,7 +328,7 @@ describe("durable case handoff queue admission", () => {
     await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded", finishedAt: new Date(),
       contextSnapshot: { issueId: f.issueId } });
     await db.update(caseHandoffs).set({ sourceRunId, state: "awaiting_release" }).where(eq(caseHandoffs.id, f.handoffId));
-    await heartbeatService(db).cancelRun(sourceRunId, "Cancelled by a operator operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: f.userId } });
+    await heartbeatService(db).cancelRun(sourceRunId, "Cancelled by an operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: f.userId } });
     expect((await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.handoffId)))[0]?.state).toBe("cancelled");
     expect(await db.select().from(caseEvents).where(and(eq(caseEvents.caseId, f.caseId), eq(caseEvents.kind, "handoff_cancelled")))).toHaveLength(1);
   });

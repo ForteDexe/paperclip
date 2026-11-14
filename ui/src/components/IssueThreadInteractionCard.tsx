@@ -1693,7 +1693,7 @@ function RequestConfirmationResolution({
         )}
         <p className="leading-6">
           {expiredByComment
-            ? "A operator comment superseded this confirmation before it was resolved."
+            ? "An operator comment superseded this confirmation before it was resolved."
             : expiredByIssueClosed
               ? "This confirmation expired automatically when the issue reached a terminal state."
               : "The requested target changed before this confirmation was resolved."}
@@ -3822,7 +3822,7 @@ export function IssueThreadInteractionCard({
   const adminOutcome = getAdministrativeOutcome(interaction);
   const adminReason = adminOutcome ? getAdministrativeReason(interaction) : null;
   // P4 (design review R2): a withdrawal is a neutral administrative retraction by
-  // the requester — NOT a operator "no". It must not inherit the `cancelled` card's
+  // the requester — NOT an operator "no". It must not inherit the `cancelled` card's
   // rose/red border + XCircle, which is pixel-identical to a rejected plan and
   // mis-signals a denial to anyone scanning the thread. Give withdrawn its own
   // inert lane (sibling to the calm `expired` state): muted border/badge +

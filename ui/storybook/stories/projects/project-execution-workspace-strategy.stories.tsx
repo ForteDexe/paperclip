@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { storybookProjects } from "../../fixtures/outpostData";
 
 const SPACE_ID = "space-storybook";
-const boardProject = storybookProjects.find((project) => project.id === "project-board-ui") ?? storybookProjects[0]!;
+const boardProject = storybookProjects.find((project) => project.id === "project-operator-ui") ?? storybookProjects[0]!;
 
 function fieldState(field: ProjectConfigFieldKey): ProjectFieldSaveState {
   return field === "execution_workspace_runtime_provision_command" ? "saved" : "idle";

@@ -157,7 +157,7 @@ export function describeIssueWriteDenial(
           `skill-test, and task-bridge scopes keep their existing tight walls, so ` +
           `${actor} cannot write to ${issue} no matter who it acts for.`,
         whoCanAct:
-          `A standard-trust agent in this space, or a operator member.`,
+          `A standard-trust agent in this space, or an operator member.`,
         sanctionedPath:
           `Report the request upward and let a standard-trust agent make the write — ` +
           `actor-class scope cannot be widened per task.`,
@@ -193,7 +193,7 @@ export function describeIssueWriteDenial(
         boundary: "Responsible-user availability",
         title: unavailable.title,
         description: `${unavailable.description} The write to ${issue} was refused for that reason.`,
-        whoCanAct: `A operator member, or ${actor} once it has an active responsible user.`,
+        whoCanAct: `An operator member, or ${actor} once it has an active responsible user.`,
         sanctionedPath: unavailable.recommendedAction,
       };
     }
@@ -232,7 +232,7 @@ export function describeIssueWriteDenial(
           `going with no task bound to it. Agents cannot stop or interrupt another ` +
           `agent's run, so this status change is refused.`,
         whoCanAct:
-          `A operator user, or the run of ${assignee} that holds the lock.`,
+          `An operator user, or the run of ${assignee} that holds the lock.`,
         sanctionedPath:
           `This refusal is final: do not retry with another status, assignee or route. ` +
           `Reply now and send the person to ${taskLink}. To stop the live run they use its ` +

@@ -2,7 +2,7 @@
  * Protected workspace readiness (PAP-17572).
  *
  * `/api/health` answering 200 only proves a listener exists. This module answers
- * the question the control plane and the UI actually need — "can a operator user
+ * the question the control plane and the UI actually need — "can an operator user
  * open this clone and see their data?" — from four independent signals: the
  * isolated database, the versioned seed manifest, representative cloned rows,
  * and the login-handoff configuration.

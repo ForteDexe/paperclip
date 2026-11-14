@@ -41,7 +41,7 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
   const features = await api.get<Row>("/api/instance/settings/experimental");
   if (features.enableAgentChat !== true) throw new JourneyError("unsupported", "agent_chat_required");
   const space = await api.get<Row>(`/api/spaces/${context.space.id}`);
-  if (space.requireBoardApprovalForNewAgents !== false) throw new JourneyError("unsupported", "automatic_hiring_policy_required");
+  if (space.requireOperatorApprovalForNewAgents !== false) throw new JourneyError("unsupported", "automatic_hiring_policy_required");
   const lead = await api.get<Row>(`/api/agents/${agent.id}`), names = hireDelegateNames(campaignId);
   if (lead.id !== agent.id || lead.spaceId !== context.space.id || lead.permissions?.canCreateAgents !== true || !lead.runtimeConfig?.aiConnection) {
     throw new JourneyError("unsupported", "owned_hiring_agent_required");

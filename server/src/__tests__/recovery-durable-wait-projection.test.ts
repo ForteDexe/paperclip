@@ -113,7 +113,7 @@ const pendingExecution = { status: "pending", currentStageId: null, currentStage
     expect((await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId })).resolved).toBe(1);
   });
 
-  it("keeps native reconciliation holds and resolves a operator action through a healthy child", async () => {
+  it("keeps native reconciliation holds and resolves an operator action through a healthy child", async () => {
     const held = await fixture(), parent = await fixture();
     await db.update(issueRecoveryActions).set({ ownerType: "operator", ownerAgentId: null,
       cause: "native_workspace_finalization_owner_unverified" }).where(eq(issueRecoveryActions.id, held.action.id));

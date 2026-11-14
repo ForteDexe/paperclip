@@ -73,17 +73,17 @@ export function readTaskRetryIntent(payload: Record<string, unknown> | null | un
   return result.success ? result.data : null;
 }
 
-/** A operator message has its own accepted user identity, not an external inbound
+/** An operator message has its own accepted user identity, not an external inbound
  * receipt. Certify its exact unchanged source and retained pre-provider evidence;
  * this selects the canonical Retry owner and never substitutes chat authority.
  * Normal queue containment and current permissions still govern dispatch. */
-export async function readTaskRetryBoardMessageOrigin(db: Db, input: {
+export async function readTaskRetryOperatorMessageOrigin(db: Db, input: {
   spaceId: string; issueId: string; agentId: string; sourceRunId: string; actorId: string;
 }) {
-  return readBoardMessageRetrySource(db, input, new Set<string>());
+  return readOperatorMessageRetrySource(db, input, new Set<string>());
 }
 
-async function readBoardMessageRetrySource(db: Db, input: {
+async function readOperatorMessageRetrySource(db: Db, input: {
   spaceId: string; issueId: string; agentId: string; sourceRunId: string; actorId: string;
 }, seen: Set<string>): Promise<{ commentId: string; identityContextId: string } | null> {
   if (seen.size >= 20 || seen.has(input.sourceRunId) || adapterExecutionControls.has(input.sourceRunId)) return null;
@@ -187,7 +187,7 @@ async function readBoardMessageRetrySource(db: Db, input: {
     eq(runIdentityContexts.parentContextId, intent.operatorMessageOrigin.identityContextId),
     sql`${runIdentityContexts.messageId} is null`)).limit(1);
   if (!identity) return null;
-  const parent = await readBoardMessageRetrySource(db, { ...input, sourceRunId: intent.sourceRunId }, seen);
+  const parent = await readOperatorMessageRetrySource(db, { ...input, sourceRunId: intent.sourceRunId }, seen);
   return parent && parent.commentId === intent.operatorMessageOrigin.commentId &&
     parent.identityContextId === intent.operatorMessageOrigin.identityContextId
     ? { commentId: parent.commentId, identityContextId: identity.id } : null;
@@ -402,7 +402,7 @@ function admitTaskRetry(input: TaskRetryRequest) {
         eq(chatConversations.spaceId, issue.spaceId), eq(chatConversations.issueId, issue.id),
         eq(chatEndpoints.externalExecutionPolicy, "restricted"))).limit(1);
     const operatorMessageOrigin = chat && !active && !busy
-      ? await readTaskRetryBoardMessageOrigin(db, { spaceId: issue.spaceId,
+      ? await readTaskRetryOperatorMessageOrigin(db, { spaceId: issue.spaceId,
         issueId: issue.id, agentId: issue.assigneeAgentId, sourceRunId: latest.id, actorId: input.actorId }) : null;
     if (operatorMessageOrigin) intent.operatorMessageOrigin = operatorMessageOrigin;
     if (chat && !active && latest.status === "succeeded") {
@@ -421,7 +421,7 @@ function admitTaskRetry(input: TaskRetryRequest) {
     if (chat && !active && !busy && !operatorMessageOrigin && !intent.queuedChatRequestId && (latest.contextSnapshot?.source === "issue.comment.reopen" || latest.contextSnapshot?.operatorMessageRetry === true) &&
         latest.responsibleUserId === input.actorId) {
       throw conflict("This saved message cannot be retried safely. Send a new message on the task to continue from saved work.",
-        { code: "chat_failed_run_retry_not_authorized", reason: "saved_board_message_not_replayable" });
+        { code: "chat_failed_run_retry_not_authorized", reason: "saved_operator_message_not_replayable" });
     }
     await tx.insert(agentWakeupRequests).values({ id, spaceId: issue.spaceId, agentId: issue.assigneeAgentId,
       source: "on_demand", triggerDetail: "manual", reason: "task_retry", idempotencyKey: key,

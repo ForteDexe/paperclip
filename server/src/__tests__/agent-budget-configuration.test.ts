@@ -17,7 +17,7 @@ describe("budget authority in configuration preparation", () => {
     await expect(prepareAgentConfiguration(db, existing, { budgetMonthlyCents: 5000 }, { recordRevision: { createdByAgentId: "lead" } })).rejects.toMatchObject({ status: 403 });
     await expect(prepareAgentConfiguration(db, existing, { budgetMonthlyCents: 0 }, { recordRevision: { createdByAgentId: "lead" } })).rejects.toMatchObject({ status: 403 });
   });
-  it("removes an unchanged legacy budget from agent rollback so it cannot rewrite policy or invent a operator actor", async () => {
+  it("removes an unchanged legacy budget from agent rollback so it cannot rewrite policy or invent an operator actor", async () => {
     expect(await prepareAgentConfiguration(fakeDb(), existing, { budgetMonthlyCents: 500 }, { recordRevision: { createdByAgentId: "lead", source: "rollback" } })).toEqual({});
   });
   it("preserves the actual operator-authorized amount for the existing policy writer", async () => {

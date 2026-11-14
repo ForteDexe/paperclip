@@ -7,7 +7,7 @@ import { useQueryView } from "./QueryView";
 import { accessApi } from "../api/access";
 import { issuesApi } from "../api/issues";
 import { useDraftOwner, useDraftOwnerReader } from "../hooks/useDraftOwner";
-import { canBoardConfirmOwnerStop, canBoardResolveRecoveryAction, isRetainedWorkspaceExportCause } from "../lib/recovery-reconcile";
+import { canOperatorConfirmOwnerStop, canOperatorResolveRecoveryAction, isRetainedWorkspaceExportCause } from "../lib/recovery-reconcile";
 import { queryKeys } from "../lib/queryKeys";
 import { classifySendFailure, pendingSendKeyFor, readPendingSend, writePendingSend } from "../lib/pending-send";
 import { asObject, cn } from "../lib/utils";
@@ -174,10 +174,10 @@ export function PreviousServerStopConfirmation({ action, runId: givenRunId, form
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState("");
-  const access = useQuery({ queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess() });
+  const access = useQuery({ queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess() });
   const accessView = useQueryView(access);
-  const canConfirm = (accessView.kind === "ready" || accessView.kind === "stale") && canBoardConfirmOwnerStop(spaceId, access.data);
+  const canConfirm = (accessView.kind === "ready" || accessView.kind === "stale") && canOperatorConfirmOwnerStop(spaceId, access.data);
   const confirm = useMutation({ retry: false, // query-error-ok: an explicit operator confirmation; the error is shown below.
     mutationFn: () => confirmStop ? confirmStop(evidence.trim())
       : issuesApi.resumeWorkspaceFinalization(issueId, { actionId: action!.id, runId, ownerToken: ownerToken!,
@@ -238,13 +238,13 @@ function RetainedFilesRecovery({ action, issueId, spaceId, className, onRecovery
   const [acknowledged, setAcknowledged] = useState(false);
   const [checkedUnconfirmed, setCheckedUnconfirmed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const access = useQuery({ queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess() });
+  const access = useQuery({ queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess() });
   const accessView = useQueryView(access);
   const accessReady = accessView.kind === "ready" || accessView.kind === "stale";
   const canMutate = Boolean(accessReady && owner && (access.data?.source === "local_implicit"
     || owner !== "signed-out" && access.data?.userId === owner)
-    && canBoardResolveRecoveryAction(spaceId, access.data));
+    && canOperatorResolveRecoveryAction(spaceId, access.data));
   const source = useQuery({ queryKey: queryKeys.issues.recoveryActions(issueId, action.id, runId),
     queryFn: () => issuesApi.recoveryActions(issueId, { runId, actionId: action.id }), enabled: canMutate });
   const sourceView = useQueryView(source);

@@ -644,13 +644,13 @@ describeEmbeddedPostgres("cases routes", () => {
       memberships: [{ spaceId: ownSpace.id, membershipRole: "operator", status: "active" }],
     };
     await db.insert(spaceMemberships).values({ spaceId: ownSpace.id, principalType: "user", principalId: "limited-operator-user", status: "active", membershipRole: "operator" });
-    const limitedBoardHttp = request(app(limitedOperatorActor));
-    const ownCaseResponse = await limitedBoardHttp.get(`/api/cases/${ownCase!.id}`).expect(200);
+    const limitedOperatorHttp = request(app(limitedOperatorActor));
+    const ownCaseResponse = await limitedOperatorHttp.get(`/api/cases/${ownCase!.id}`).expect(200);
     expect(ownCaseResponse.body.id).toBe(ownCase!.id);
-    await limitedBoardHttp.get(`/api/cases/${caseRow!.id}`).expect(404);
-    await limitedBoardHttp.get(`/api/cases/${caseRow!.identifier}`).expect(404);
-    await limitedBoardHttp.get(`/api/issues/${otherIssue!.id}/cases`).expect(404);
-    await limitedBoardHttp.get(`/api/issues/${otherIssue!.identifier}/cases`).expect(404);
+    await limitedOperatorHttp.get(`/api/cases/${caseRow!.id}`).expect(404);
+    await limitedOperatorHttp.get(`/api/cases/${caseRow!.identifier}`).expect(404);
+    await limitedOperatorHttp.get(`/api/issues/${otherIssue!.id}/cases`).expect(404);
+    await limitedOperatorHttp.get(`/api/issues/${otherIssue!.identifier}/cases`).expect(404);
 
     const scopedAdminHttp = request(app({ ...limitedOperatorActor, isInstanceAdmin: true }));
     await scopedAdminHttp.get(`/api/cases/${caseRow!.id}`).expect(404);
@@ -676,12 +676,12 @@ describeEmbeddedPostgres("cases routes", () => {
       { spaceId: foreign.id, caseNumber: 1, identifier: `${foreign.issuePrefix}-C1`, caseType: "work", title: "Foreign confidential case", fields: { privateFact: "Keep this private" } },
     ]).returning();
     await db.insert(spaceMemberships).values({ spaceId: own.id, principalType: "user", principalId: "handoff-operator", status: "active", membershipRole: "operator" });
-    const scopedBoard: Express.Request["actor"] = { type: "operator", source: "session", userId: "handoff-operator",
+    const scopedOperator: Express.Request["actor"] = { type: "operator", source: "session", userId: "handoff-operator",
       spaceIds: [own.id], isInstanceAdmin: false,
       memberships: [{ spaceId: own.id, membershipRole: "operator", status: "active" }] };
     const actors: Express.Request["actor"][] = [
       { type: "agent", spaceId: own.id, agentId: agent.id, source: "agent_key" },
-      scopedBoard, { ...scopedBoard, isInstanceAdmin: true },
+      scopedOperator, { ...scopedOperator, isInstanceAdmin: true },
     ];
     // An authorized passive case has an empty history, proving the real router
     // is mounted rather than accepting Express's unmatched-route 404.

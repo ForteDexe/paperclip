@@ -48,7 +48,7 @@ export const runtimeClaudeAccountCases = [runtimeDefinition("agents.hire-needs-a
   if (!matchesClaudeFixtureTarget({ space, expectedSpaceId: spaceId, fixtureEnvironmentId: ctx.input.fixtures.environment.id, detail, listed }) || accounts.connections.some(row => row.provider === "anthropic" && row.status === "connected") || agents.some(row => row.name === "Morgan")) throw new Error("The missing-account context requires actual installed local Claude, absent Anthropic access and absent Morgan");
   const key = selected.credentials.ANTHROPIC_API_KEY!; ctx.input.privateSecrets.push(key);
   const available = await privateClaudeOperation({ operation: "check-harness", harnessExecutable: selected.values.harnessExecutable, spaceId, environmentId: detail.id, baseURL: ctx.input.api.baseURL, cookies: await ctx.input.page.context().cookies(ctx.input.api.baseURL) }, key);
-  await ctx.input.api.patch(`/api/spaces/${spaceId}`, { requireBoardApprovalForNewAgents: false });
+  await ctx.input.api.patch(`/api/spaces/${spaceId}`, { requireOperatorApprovalForNewAgents: false });
   return { selectedEnvironmentId: detail.id, initialAnthropicAccounts: 0, actualInstalledClaude: available.probeStatus === "pass", providerProbes: [{ phase: "setup", operation: available.operation, publicProbeCount: 0, localProcessProbeCount: 1, status: available.probeStatus, usage: "unavailable", cost: "unavailable" }] };
 }, gradeClaudeAccount, {
   ...runtimePrivateSpec("agents.hire-needs-account"), authentication: "human-session", expectedRunCount: 3, minimumRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 900000,

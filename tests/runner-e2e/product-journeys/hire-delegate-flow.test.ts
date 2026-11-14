@@ -39,7 +39,7 @@ async function fixture(options: { readError?: Error; mutate?(agents: Row[], task
   });
   const api = { origin: "https://qa.example.test", async get(route: string) {
     if (route === "/api/instance/settings/experimental") return { enableAgentChat: true };
-    if (route === "/api/spaces/space") return { requireBoardApprovalForNewAgents: false };
+    if (route === "/api/spaces/space") return { requireOperatorApprovalForNewAgents: false };
     if (route === "/api/agents/lead") return lead;
     if (route === "/api/spaces/space/ai-connections") {
       if (sent && options.connectionReadError && !failedConnectionRead) { failedConnectionRead = true; throw options.connectionReadError; }
@@ -252,7 +252,7 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
   });
   const api = { origin: "https://qa.example.test", async get(route: string) {
     if (route === "/api/instance/settings/experimental") return { enableAgentChat: true };
-    if (route === "/api/spaces/space") return { requireBoardApprovalForNewAgents: false };
+    if (route === "/api/spaces/space") return { requireOperatorApprovalForNewAgents: false };
     if (route === "/api/agents/lead") return lead;
     if (route === "/api/spaces/space/chats/lead") return sent ? chat : null;
     if (route === "/api/spaces/space/ai-connections") return { currentUserId: "user", connections: [{ spaceId: "space", id: "approved", grantId: "grant",

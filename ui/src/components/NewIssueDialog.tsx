@@ -1,5 +1,5 @@
 import { spaceProjectsQuery } from "@/lib/space-projects-query";
-import { usePrimaryAgentPresentation } from "./primary-agent/PrimaryAgentPresentation";
+import { useDefaultAgentPresentation } from "./default-agent/DefaultAgentPresentation";
 import { useWorkspaceIsolationControls } from "@/hooks/useWorkspaceIsolationControls";
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -505,7 +505,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   });
   const awaitingFilesKey = draftOwner !== undefined ? pendingSendKeyFor(CREATE_AWAITING_FILES_KEY, draftOwner) : null;
 
-  const primaryAgent = usePrimaryAgentPresentation(effectiveSpaceId);
+  const defaultAgent = useDefaultAgentPresentation(effectiveSpaceId);
   const isSubIssueMode = Boolean(parentId);
   const parentIssueLabel =
     (newIssueDefaults.parentId === parentId ? newIssueDefaults.parentIdentifier : undefined) ?? (parentId ? parentId.slice(0, 8) : "");
@@ -1251,7 +1251,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   // the queries were in flight or replacing an explicit/restored assignee.
   useEffect(() => {
     if (!newIssueOpen || !effectiveSpaceId || !defaultAssigneePendingRef.current
-      || !agents || !sessionFetched || !membersFetched || primaryAgent?.loading) return;
+      || !agents || !sessionFetched || !membersFetched || defaultAgent?.loading) return;
     defaultAssigneePendingRef.current = false;
     const available = new Set(assigneeOptions.map((option) => option.id));
     const scopedRecents = getRecentAssigneeSelectionIds(effectiveSpaceId);
@@ -1261,10 +1261,10 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       : getRecentAssigneeSelectionIds().filter((value) => value.startsWith("agent:"));
     const recent = recents.find((value) => available.has(value));
     const targets = agents.filter(isAgentTaskTarget);
-    const fallback = targets.find((agent) => agent.id === primaryAgent?.primaryAgentId)
+    const fallback = targets.find((agent) => agent.id === defaultAgent?.defaultAgentId)
       ?? targets[0];
     setAssigneeValue(recent ?? (fallback ? assigneeValueFromSelection({ assigneeAgentId: fallback.id }) : ""));
-  }, [newIssueOpen, effectiveSpaceId, agents, assigneeOptions, sessionFetched, membersFetched, primaryAgent?.loading, primaryAgent?.primaryAgentId]);
+  }, [newIssueOpen, effectiveSpaceId, agents, assigneeOptions, sessionFetched, membersFetched, defaultAgent?.loading, defaultAgent?.defaultAgentId]);
   useEffect(() => {
     if (!newIssueOpen || !effectiveSpaceId || !defaultProjectPendingRef.current || !projects) return;
     defaultProjectPendingRef.current = false;

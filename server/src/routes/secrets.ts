@@ -888,7 +888,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     const spaceId = req.params.spaceId as string;
     if (req.actor.type === "agent") {
       assertSpaceAccess(req, spaceId);
-      throw forbidden("Outpost secret creation requires a human operator operator. Ask the human to enter the value in Settings → Secrets for this space. Do not send secret values in chat or tool calls. You can finish the current conversation response with these secure-entry instructions without claiming that credential setup is complete. If you need a resumable wait, first create a non-controlling secure-save acknowledgment with request_human_input with interactionKind=\"confirmation\"; ask only whether secure entry is complete, never ask for the secret value in that card. Wait only on the actual saved request.");
+      throw forbidden("Outpost secret creation requires a human operator. Ask the human to enter the value in Settings → Secrets for this space. Do not send secret values in chat or tool calls. You can finish the current conversation response with these secure-entry instructions without claiming that credential setup is complete. If you need a resumable wait, first create a non-controlling secure-save acknowledgment with request_human_input with interactionKind=\"confirmation\"; ask only whether secure entry is complete, never ask for the secret value in that card. Wait only on the actual saved request.");
     }
     assertSpaceSecretWrite(req, spaceId);
     next();

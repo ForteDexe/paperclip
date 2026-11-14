@@ -39,7 +39,7 @@ console.log(JSON.stringify({ root, spaceId, agentId, issueId }));
 try {
   const cwd = join(root, "workspace");
   await mkdir(cwd);
-  await db.insert(spaces).values({ id: spaceId, name: "Isolated monitor smoke", issuePrefix: "MON", defaultResponsibleUserId: "monitor-smoke", requireBoardApprovalForNewAgents: false });
+  await db.insert(spaces).values({ id: spaceId, name: "Isolated monitor smoke", issuePrefix: "MON", defaultResponsibleUserId: "monitor-smoke", requireOperatorApprovalForNewAgents: false });
   await db.insert(authUsers).values({ id: "monitor-smoke", name: "Monitor smoke", email: "monitor-smoke@example.test", createdAt: new Date(), updatedAt: new Date() });
   await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "monitor-smoke", status: "active", membershipRole: "owner" });
   await createAgentLifecycle(db).requestHire(spaceId, { id: agentId, name: "Monitor verifier", status: "active", adapterType: "outpost_runner",

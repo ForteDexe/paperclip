@@ -91,7 +91,7 @@ export const DELIVERY_QUEUES = {
   taskDrainExpiry: "task-drain-expiry",
   controllerInstanceLease: "controller-instance-lease",
   agentLifecycle: "agent-lifecycle",
-  chatBoardMessages: "chat-operator-messages",
+  chatOperatorMessages: "chat-operator-messages",
   chatTaskStarts: "chat-task-starts",
   chatReceiptReactions: "chat-receipt-reactions",
   chatSessionStops: "chat-session-stops",

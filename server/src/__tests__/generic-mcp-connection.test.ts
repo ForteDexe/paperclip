@@ -1139,7 +1139,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     expect(await summary(other!.id)).toEqual([["create_insight", "off"], ["list_insights", "off"]]);
   });
 
-  it("applies the connection profile on the direct policy check and keeps a operator user's unscoped grant", async () => {
+  it("applies the connection profile on the direct policy check and keeps an operator user's unscoped grant", async () => {
     const { space, agent, connection, summary } = await setUpControlledTwoActionConnection({ enabled: "read", access: "all_agents" });
     expect(await summary()).toEqual([["create_insight", "off"], ["list_insights", "allowed"]]);
     const [create] = await db.select().from(toolCatalogEntries).where(and(eq(toolCatalogEntries.connectionId, connection.id), eq(toolCatalogEntries.toolName, "create_insight")));

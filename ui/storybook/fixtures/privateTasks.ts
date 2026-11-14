@@ -5,7 +5,7 @@ import type {
   Project,
   ProjectAccessMember,
 } from "@outpost/shared";
-import type { CurrentBoardAccess } from "@/api/access";
+import type { CurrentOperatorAccess } from "@/api/access";
 import {
   storybookAgents,
   storybookAuthSession,
@@ -308,7 +308,7 @@ export function createPrivacyState(options: PrivacyScenario = {}) {
       subjectAvatarUrl: null,
       createdAt,
     }));
-  const access: CurrentBoardAccess = {
+  const access: CurrentOperatorAccess = {
     user,
     userId: user.id,
     isInstanceAdmin: false,

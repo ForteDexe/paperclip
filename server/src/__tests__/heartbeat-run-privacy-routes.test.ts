@@ -246,7 +246,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     return app;
   }
 
-  function createBoardApp(spaceId: string, userId: string) {
+  function createOperatorApp(spaceId: string, userId: string) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -433,7 +433,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
         credentialAccess: { connectionName: "Owner's API key", grantId } } },
     }).where(eq(heartbeatRuns.id, fixture.privateRunId));
     for (const userId of [fixture.ownerUserId, fixture.otherUserId, readerId]) {
-      const app = createBoardApp(fixture.spaceId, userId);
+      const app = createOperatorApp(fixture.spaceId, userId);
       const detail = await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
       const history = await request(app).get(`/api/spaces/${fixture.spaceId}/heartbeat-runs`);
       expect(detail.status).toBe(200);
@@ -462,7 +462,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       issueId: fixture.issueId, phase: "retryable_failure" });
     const requestId = randomUUID();
     await claimCancellationRequest(db, fixture.privateRunId, fixture.spaceId, requestId, fixture.ownerUserId);
-    const detail = await request(createBoardApp(fixture.spaceId, fixture.ownerUserId)).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
+    const detail = await request(createOperatorApp(fixture.spaceId, fixture.ownerUserId)).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.execution.canStop).toBe(true);
     expect(detail.body.resultJson.startupCancellation).toMatchObject({ cancellationRequestId: requestId,
@@ -481,7 +481,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     }).where(eq(heartbeatRuns.id, fixture.privateRunId));
     await db.insert(nativeRunFinalizations).values({ runId: fixture.privateRunId, spaceId: fixture.spaceId,
       issueId: fixture.issueId, phase: "retryable_failure" });
-    const app = createBoardApp(fixture.spaceId, fixture.ownerUserId);
+    const app = createOperatorApp(fixture.spaceId, fixture.ownerUserId);
     const detail = await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.execution.canStop).toBe(true);
@@ -505,7 +505,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
   it("conceals private runs from unauthorized cancellation and watchdog mutations", async () => {
     const fixture = await seedFixture();
 
-    const deniedCancel = await request(createBoardApp(fixture.spaceId, fixture.otherUserId))
+    const deniedCancel = await request(createOperatorApp(fixture.spaceId, fixture.otherUserId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/cancel`);
     expect(deniedCancel.status).toBe(404);
 
@@ -514,7 +514,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       .send({ decision: "continue" });
     expect(deniedWatchdog.status).toBe(404);
 
-    const allowedWatchdog = await request(createBoardApp(fixture.spaceId, fixture.ownerUserId))
+    const allowedWatchdog = await request(createOperatorApp(fixture.spaceId, fixture.ownerUserId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/watchdog-decisions`)
       .send({ decision: "continue" });
     expect(allowedWatchdog.status).toBe(200);
@@ -522,7 +522,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     await db.update(heartbeatRuns)
       .set({ status: "succeeded" })
       .where(eq(heartbeatRuns.id, fixture.privateRunId));
-    const allowedCancel = await request(createBoardApp(fixture.spaceId, fixture.ownerUserId))
+    const allowedCancel = await request(createOperatorApp(fixture.spaceId, fixture.ownerUserId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/cancel`);
     expect(allowedCancel.status).toBe(200);
     expect(allowedCancel.body.id).toBe(fixture.privateRunId);

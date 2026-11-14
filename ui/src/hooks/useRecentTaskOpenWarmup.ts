@@ -41,7 +41,7 @@ export function useRecentTaskOpenWarmup({
   latestTasks.current = tasks;
   useEffect(() => {
     if (!spaceId || !hasTasks || typeof window.requestAnimationFrame !== "function") return;
-    const scope = `${spaceId}:${userId ?? "__local_board__"}`;
+    const scope = `${spaceId}:${userId ?? "__local_operator__"}`;
     if (preloadedScopes.has(scope)) return;
     const controller = new AbortController();
     const cancel = whenPageSettles(queryClient, () => {

@@ -11,7 +11,7 @@ import { AGENT_LIFECYCLE_STOP_REASON } from "./policy-pause-stop.js";
  * Resuming after a budget hard stop continues the work that the stop
  * cancelled, exactly once.
  *
- * When a operator member resolves the incident with Raise budget and resume,
+ * When an operator member resolves the incident with Raise budget and resume,
  * `markBudgetCancelledWorkForResume` saves a pending `budget_resume_claims` row
  * (the operator member and their session source) for every task run this
  * scope's stop cancelled, before the incident closes. That includes runs whose

@@ -97,9 +97,9 @@ import {
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { accessApi } from "../api/access";
 import {
-  canBoardManageRuntime,
-  canBoardConfirmOwnerStop,
-  canBoardResolveRecoveryAction,
+  canOperatorManageRuntime,
+  canOperatorConfirmOwnerStop,
+  canOperatorResolveRecoveryAction,
   isRetainedWorkspaceExportCause,
   readRecoveryReconcileWorkspaceId,
 } from "../lib/recovery-reconcile";
@@ -499,11 +499,11 @@ function treeControlPreviewErrorCopy(error: unknown): string {
   return error instanceof Error ? error.message : "Unable to load preview.";
 }
 
-// `canBoardManageRuntime` and `readRecoveryReconcileWorkspaceId` moved to `@/lib/recovery-reconcile`
+// `canOperatorManageRuntime` and `readRecoveryReconcileWorkspaceId` moved to `@/lib/recovery-reconcile`
 // so the run-page recovery surface can reuse them without importing this page module. Re-exported
 // here (from the top-of-file import) to keep existing import sites — and their tests — stable, while
 // the imported bindings stay usable within this module.
-export { canBoardManageRuntime, canBoardResolveRecoveryAction, readRecoveryReconcileWorkspaceId };
+export { canOperatorManageRuntime, canOperatorResolveRecoveryAction, readRecoveryReconcileWorkspaceId };
 
 export function shouldScrollIssueDetailToTopOnNavigation(input: {
   previousIssueId: string | undefined;
@@ -3608,24 +3608,24 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     recordRecentTask(issue, currentUserId);
   }, [issue, currentUserId, sessionResolved, streamlinedUiEnabled]);
   const { data: operatorAccess } = useQuery({
-    queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess(),
+    queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess(),
     enabled: !!session?.user?.id,
   });
   const canManageTreeControl = Boolean(
     selectedSpaceId && operatorAccess?.spaceIds?.includes(selectedSpaceId),
   );
-  const canResolveBoardRecoveryAction = canBoardResolveRecoveryAction(
+  const canResolveOperatorRecoveryAction = canOperatorResolveRecoveryAction(
     selectedSpaceId,
     operatorAccess,
   );
-  const canConfirmOwnerStop = canBoardConfirmOwnerStop(selectedSpaceId, operatorAccess);
+  const canConfirmOwnerStop = canOperatorConfirmOwnerStop(selectedSpaceId, operatorAccess);
   // Retained-file recovery reports whether it offers its own control. The task's
   // Retry stays visible whenever it does not, so a retryable hold never dead-ends.
   const [retainedRecoveryOwnsRetry, setRetainedRecoveryOwnsRetry] = useState(true);
   // The break-glass override reconcile is `runtime:manage`-gated server-side, not gated on the
   // recovery-resolution permission — so hide its affordance behind the matching client check.
-  const canManageBoardRuntime = canBoardManageRuntime(
+  const canManageOperatorRuntime = canOperatorManageRuntime(
     selectedSpaceId,
     operatorAccess,
   );
@@ -8078,7 +8078,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           {resolvedDetailTab === "chat" && (
             <ExecutionBlockerNotice className={shellSectionClass} presentation={issue.interruption} blockers={issue.blockedBy}
               issueId={issue.id} spaceId={issue.spaceId} agentName={agentMap.get(issue.assigneeAgentId ?? "")?.name} projectName={issue.project?.name}
-              canRetry={canResolveBoardRecoveryAction && !(issue.executionBlocker?.workspaceRepairRequired
+              canRetry={canResolveOperatorRecoveryAction && !(issue.executionBlocker?.workspaceRepairRequired
                 && isRetainedWorkspaceExportCause(issue.executionBlocker.cause) && retainedRecoveryOwnsRetry)} onRetry={taskRetry.retry}
               optimistic={taskRetry.optimistic} takingLonger={taskRetry.takingLonger} error={taskRetry.error} />
           )}
@@ -8363,8 +8363,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
             >
               {resolvedDetailTab === "chat" ? (
                 <WorkspaceBaseRefRecoveryProvider issue={issue} agentMap={agentMap} onRepaired={() => { invalidateIssueDetail(); invalidateIssueCollections(); }}
-                  baseRefUnavailableReason={!canManageBoardRuntime ? "You don’t have permission to repair this task’s workspace." : null}
-                  unavailableReason={!canResolveBoardRecoveryAction ? "You don’t have permission to retry this task."
+                  baseRefUnavailableReason={!canManageOperatorRuntime ? "You don’t have permission to repair this task’s workspace." : null}
+                  unavailableReason={!canResolveOperatorRecoveryAction ? "You don’t have permission to retry this task."
                     : treeControlStateError ? "Couldn’t check whether this task is paused. Refresh to try again."
                     : activePauseHold ? "Resume the task before retrying."
                     : issue.project?.pausedAt ? "Resume the project before retrying."
@@ -8373,7 +8373,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                   issue,
                   agentMap,
                   hasPendingInteraction,
-                  unavailableReason: operatorAccess && !canResolveBoardRecoveryAction
+                  unavailableReason: operatorAccess && !canResolveOperatorRecoveryAction
                     ? "You don’t have permission to retry this recovery action."
                     : treeControlStateError
                     ? "Couldn’t check whether this task is paused. Refresh to try again."
@@ -8479,11 +8479,11 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                   quarantineRestoreRecoveryActionPending={
                     reconcileRecoveryAction.isPending
                   }
-                  canBreakGlassRecoveryAction={canManageBoardRuntime}
+                  canBreakGlassRecoveryAction={canManageOperatorRuntime}
                   reconcileRecoveryActionPending={
                     reconcileRecoveryAction.isPending
                   }
-                  canFalsePositiveRecoveryAction={canResolveBoardRecoveryAction}
+                  canFalsePositiveRecoveryAction={canResolveOperatorRecoveryAction}
                   legacyRecoverySourceIssue={legacyRecoverySourceIssue}
                   comments={threadComments}
                   commentsInitialLoading={historyExpanded ? commentsLoading : recentComments.isLoading}

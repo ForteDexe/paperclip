@@ -358,7 +358,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
     assertSpaceAccess(req, target.spaceId);
   }
 
-  async function assertSameSpaceAgentOrBoard(req: Request, spaceId: string, capability: string) {
+  async function assertSameSpaceAgentOrOperator(req: Request, spaceId: string, capability: string) {
     assertSpaceAccess(req, spaceId);
     if (req.actor.type === "operator") {
       return;
@@ -504,7 +504,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.post("/:spaceId/export", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space exports");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space exports");
     const body = spacePortabilityExportSchema.parse(req.body);
     const allowExternalInstructions = await assertExternalInstructionExportAllowed(req, spaceId, body);
     const result = await portability.exportBundle(spaceId, body, { allowExternalInstructions });
@@ -513,7 +513,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.get("/:spaceId/export/fidelity", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space export fidelity");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space export fidelity");
     const counts = await collectExportFidelityCounts(db, spaceId);
     res.json(buildExportFidelityReport(spaceId, counts));
   });
@@ -1100,7 +1100,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.post("/:spaceId/exports/preview", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space exports");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space exports");
     const body = spacePortabilityExportSchema.parse(req.body);
     const allowExternalInstructions = await assertExternalInstructionExportAllowed(req, spaceId, body);
     const preview = await portability.previewExport(spaceId, body, { allowExternalInstructions });
@@ -1109,7 +1109,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.post("/:spaceId/exports", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space exports");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space exports");
     const body = spacePortabilityExportSchema.parse(req.body);
     const allowExternalInstructions = await assertExternalInstructionExportAllowed(req, spaceId, body);
     const result = await portability.exportBundle(spaceId, body, { allowExternalInstructions });
@@ -1118,7 +1118,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.post("/:spaceId/imports/preview", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space imports");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space imports");
     const body = spacePortabilityPreviewSchema.parse(req.body);
     if (body.target.mode === "existing_space" && body.target.spaceId !== spaceId) {
       throw forbidden("Safe import route can only target the route space");
@@ -1135,7 +1135,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.post("/:spaceId/imports/apply", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space imports");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space imports");
     const body = spacePortabilityImportSchema.parse(req.body);
     if (body.target.mode === "existing_space" && body.target.spaceId !== spaceId) {
       throw forbidden("Safe import route can only target the route space");
@@ -1154,7 +1154,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
       // like the create routes: titles never override explicit permissions.
       ...(req.actor.type === "agent" ? { assertCanCreateAgents: async () => {
         const decision = await access.decide({ actor: req.actor, action: "agents:create", resource: { type: "space", spaceId } });
-        if (!decision.allowed) throw forbidden(`${decision.explanation} Importing new agents is creation; a operator user can import them instead.`, authorizationDeniedDetails(decision));
+        if (!decision.allowed) throw forbidden(`${decision.explanation} Importing new agents is creation; an operator user can import them instead.`, authorizationDeniedDetails(decision));
       } } : {}),
     });
     await logActivity(db, {
@@ -1268,7 +1268,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.patch("/:spaceId", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space settings");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space settings");
 
     const actor = getActorInfo(req);
     let body: Record<string, unknown>;
@@ -1331,7 +1331,7 @@ export function spaceRoutes(db: Db, storage?: StorageService, options?: SpaceRou
 
   router.patch("/:spaceId/branding", async (req, res) => {
     const spaceId = req.params.spaceId as string;
-    await assertSameSpaceAgentOrBoard(req, spaceId, "space branding");
+    await assertSameSpaceAgentOrOperator(req, spaceId, "space branding");
     const body = updateSpaceBrandingSchema.parse(req.body);
     const space = await svc.update(spaceId, body);
     if (!space) {
@@ -1445,7 +1445,7 @@ function cloudTenantRequestKey(req: Request) {
  * Identity a job is created under and authorized against. Cloud tenant
  * callers keep their header-derived tenant key; every other operator session is
  * keyed by its user id. The distinct prefixes keep the two namespaces
- * disjoint, so crafted tenant headers can never collide with a operator key.
+ * disjoint, so crafted tenant headers can never collide with an operator key.
  */
 function importJobActorKey(req: Request) {
   if (req.actor.source === "cloud_tenant") {

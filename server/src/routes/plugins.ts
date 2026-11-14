@@ -23,7 +23,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { pluginApiUpgrade, proxyPluginApiWebSocket } from "../realtime/plugin-api-ws.js";
-import { trustedBoardMutationOrigin } from "../middleware/operator-mutation-guard.js";
+import { trustedOperatorMutationOrigin } from "../middleware/operator-mutation-guard.js";
 import { authorizationService } from "../services/authorization.js";
 import { fileURLToPath } from "node:url";
 import { Router } from "express";
@@ -1923,7 +1923,7 @@ export function pluginRoutes(
           res.status(426).json({ error: "Browser WebSocket required" });
           return;
         }
-        if (!req.header("origin") || trustedBoardMutationOrigin(req) !== req.header("origin")?.toLowerCase()) {
+        if (!req.header("origin") || trustedOperatorMutationOrigin(req) !== req.header("origin")?.toLowerCase()) {
           res.status(403).json({ error: "Trusted browser origin required" });
           return;
         }

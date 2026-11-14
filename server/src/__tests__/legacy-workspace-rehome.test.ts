@@ -18,14 +18,14 @@ const describePostgres = recoveryPostgresSupport.supported ? describe : describe
 if (!recoveryPostgresSupport.supported) console.warn(`Skipping legacy workspace rehome tests: ${recoveryPostgresSupport.reason}`);
 
 // Recovery text never asks a person to inspect or fix a sandbox.
-const adminText = /sandbox|environment|administrator|operator member|operator operator|owner must|inspect the/i;
+const adminText = /sandbox|environment|administrator|operator member|operator|owner must|inspect the/i;
 
 /**
  * The staging shape (Nov 4-5): a parent task and three children that an older
  * release bound to the parent's remote workspace (before #19860). One child's
  * ended run still holds that workspace with unsaved files. The other two
  * children's runs failed setup on that hold before any provider work, and
- * stranded-work recovery blocked them with a operator-owned escalation.
+ * stranded-work recovery blocked them with an operator-owned escalation.
  */
 describePostgres("stranded subtasks bound to a parent's held workspace", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>>;
@@ -97,7 +97,7 @@ describePostgres("stranded subtasks bound to a parent's held workspace", () => {
       const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "stranded_assigned_issue",
         status: "active", ownerType: "operator", previousOwnerAgentId: agentId, returnOwnerAgentId: agentId, cause: "stranded_assigned_issue",
         fingerprint: `source_scoped_recovery:${spaceId}:${issueId}:stranded_assigned_issue`,
-        nextAction: "Operator operator: inspect the evidence, repair the runtime if appropriate, then explicitly retry the original owner, reassign, or intentionally resolve the task.",
+        nextAction: "Operator: inspect the evidence, repair the runtime if appropriate, then explicitly retry the original owner, reassign, or intentionally resolve the task.",
         evidence: { latestRunId: run.id, retryReason: "workspace_busy", recoveryCause: "stranded_assigned_issue",
           routingPolicy: "operator_escalation_no_takeover_v1", sourceIssueId: issueId, previousStatus: "in_progress",
           latestRunStatus: "failed", latestIssueStatus: "in_progress", latestRunErrorCode: "setup_failed" },

@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { authUsers, spaces, spaceMemberships, instanceUserRoles } from "@outpost/db";
-import { readBoardBootstrap } from "@outpost/shared";
+import { readOperatorBootstrap } from "@outpost/shared";
 import { expect, it } from "vitest";
 import { actorMiddleware } from "../middleware/auth.js";
 import { errorHandler } from "../middleware/error-handler.js";
@@ -37,7 +37,7 @@ describeEmbeddedPostgres("authenticated operator bootstrap", () => {
     expect(first.body.operatorBootstrap.userId).toBe(userId);
     expect(first.body.operatorBootstrap.spaces.map((value: { id: string }) => value.id)).toEqual([spaceId]);
     expect(first.body.operatorBootstrap.operatorAccess).toEqual({ userId, isInstanceAdmin: true, spaceIds: [spaceId] });
-    expect(readBoardBootstrap(first.body.operatorBootstrap, userId)?.spaces[0]?.id).toBe(spaceId);
+    expect(readOperatorBootstrap(first.body.operatorBootstrap, userId)?.spaces[0]?.id).toBe(spaceId);
     expect(first.headers["cache-control"]).toBe("private, no-store");
 
     await ctx.db.update(spaceMemberships).set({ status: "archived" }).where(eq(spaceMemberships.id, membership!.id));

@@ -14,7 +14,7 @@ function fixture(options: { loadingForever?: boolean; extraRun?: boolean; extraC
   const source = { id: "source", spaceId: "space", conversationAgentId: "ceo", conversationUserId: "person" };
   const comments = [{ id: "human", authorUserId: "person", body: "Make Morgan my go-to agent." },
     ...(options.noReply ? [] : [{ id: "reply", authorAgentId: "ceo", createdByRunId: "native", body: "Use the human primary control." }])];
-  const primary = { spaceId: "space", userId: options.wrongPerson ? "foreign" : "person", primaryAgentId: options.wrongPrimary ? "ceo" : "morgan" };
+  const primary = { spaceId: "space", userId: options.wrongPerson ? "foreign" : "person", defaultAgentId: options.wrongPrimary ? "ceo" : "morgan" };
   const locator = (kind: string): any => ({ first() { return this; }, locator: () => locator("editor"), getByRole: () => locator("heading"),
     visible: async () => {
       calls.push(kind);
@@ -27,13 +27,13 @@ function fixture(options: { loadingForever?: boolean; extraRun?: boolean; extraC
   const page = { url: () => current, goto: async (url: string) => { current = new URL(url, "https://fixture.test").href; ready = false; },
     reload: async () => {}, getByRole: () => locator("heading"), getByTestId: () => locator("composer"), locator };
   const api = { baseURL: "https://fixture.test", get: async (path: string) => {
-    calls.push(path); if (path.endsWith("/primary-agent/me")) return primary;
+    calls.push(path); if (path.endsWith("/default-agent/me")) return primary;
     if (path.endsWith("/chats/ceo")) return { ...source, ...(options.wrongChat ? { id: "different-source" } : {}) };
     if (path.includes("/comments?")) return comments.map(row => options.wrongRequest && row.id === "human" ? { ...row, body: "different query" } : row);
     if (path.endsWith("/chats")) return [source, ...(options.extraChat && ready ? [{ ...source, id: "extra" }] : [])];
     throw Error("Unexpected API read");
   } };
-  const state = { worker: { id: "morgan", name: "Morgan", spaceId: "space" }, primaryBefore: { spaceId: "space", userId: "person", primaryAgentId: "ceo" },
+  const state = { worker: { id: "morgan", name: "Morgan", spaceId: "space" }, primaryBefore: { spaceId: "space", userId: "person", defaultAgentId: "ceo" },
     sourceBeforeNavigation: "source", nativeIdsBeforeNavigation: ["native"], chatCountBeforeNavigation: 1 };
   const evidence = vi.fn(async (_name: string, _value: unknown) => {});
   const ctx = { observationDeadlineAt: deadline, scenario: { id: "agents.choose-primary", query: "Make Morgan my go-to agent." },
@@ -45,7 +45,7 @@ function fixture(options: { loadingForever?: boolean; extraRun?: boolean; extraC
 }
 it("actual final verifier waits for meaningful selected Chat then rechecks preference and no extra work before capture", async () => {
   const f = fixture(); await runtimePrimaryCases[0]!.verifyResult(f.ctx, f.state, f.observation);
-  expect(f.ready()).toBe(true); expect(f.evidence).toHaveBeenCalledWith("chat-primary-ready-conversation.json", expect.objectContaining({ sourceId: "source", agentId: "ceo", primaryAgentId: "morgan", noExtraWork: true }));
+  expect(f.ready()).toBe(true); expect(f.evidence).toHaveBeenCalledWith("chat-primary-ready-conversation.json", expect.objectContaining({ sourceId: "source", agentId: "ceo", defaultAgentId: "morgan", noExtraWork: true }));
   expect(f.calls).toContain('[id="comment-human"]'); expect(f.calls).toContain('[id="comment-reply"]');
 });
 it.each([{ loadingForever: true }, { extraRun: true }, { extraChat: true }, { wrongPrimary: true }, { wrongPerson: true }, { wrongChat: true },

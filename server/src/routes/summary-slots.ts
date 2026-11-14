@@ -37,11 +37,11 @@ export function summarySlotRoutes(db: Db) {
     }
   }
 
-  /** Manual generate is a operator/user action; agents cannot trigger it. */
+  /** Manual generate is an operator/user action; agents cannot trigger it. */
   async function assertCanGenerateSummary(req: Request, spaceId: string) {
     assertSpaceAccess(req, spaceId);
     if (req.actor.type !== "operator") {
-      throw forbidden("Only operator operators can generate summaries.");
+      throw forbidden("Only operators can generate summaries.");
     }
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
     const allowed = await access.canUser(spaceId, req.actor.userId, "tasks:assign");

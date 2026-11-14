@@ -250,7 +250,7 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
         runId: null,
         responsibleUserId: fixture.operatorUserId,
         details: expect.objectContaining({
-          authorizationReason: "allow_board_actor",
+          authorizationReason: "allow_operator_actor",
           changes: expect.objectContaining({
             title: { from: "Foreign issue", to: "Human-edited issue" },
           }),

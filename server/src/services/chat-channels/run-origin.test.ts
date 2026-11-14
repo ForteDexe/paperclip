@@ -73,7 +73,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await chatRunSourceMessageId(db, f.run, { allowLegacyWakeComment: true })).toBeNull();
   });
 
-  it("does not borrow GitHub origin from an earlier requester after a operator message", async () => {
+  it("does not borrow GitHub origin from an earlier requester after an operator message", async () => {
     const f = await fixture();
     const [message] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: f.issue.id, authorType: "user", authorUserId: "new-requester", body: "Continue" }).returning();
     await db.update(runIdentityContexts).set({ messageId: message.id, responsibleUserId: "new-requester" }).where(eq(runIdentityContexts.id, f.context.id));
@@ -214,7 +214,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.update(runIdentityContexts).set({ responsibleUserId: "another-person" }).where(eq(runIdentityContexts.id, reassigned.activeIdentityContextId));
     states.push({ state: "identity context of another requester", run: reassigned.run, github: { forbidden: FORBIDDEN.changed } });
 
-    // Without an inbound link, the accepted message must be a operator message
+    // Without an inbound link, the accepted message must be an operator message
     // of the requester on the task of the run.
     const unlinked = async (change: (f: Seeded) => Promise<unknown>) => {
       const f = await seedGitHubReviewWait(db);
@@ -241,7 +241,7 @@ const support = await getEmbeddedPostgresTestSupport();
     states.push({ state: "outbound link only", run: outbound.run, github: null });
 
     // The states of the single-check tests above: a continuation whose
-    // accepted message has no link and is not a operator message.
+    // accepted message has no link and is not an operator message.
     states.push({ state: "continuation of an unlinked message", run: (await fixture()).run, github: { forbidden: FORBIDDEN.changed } });
     for (const fault of ["task", "agent", "space", "requester", "missing-parent", "pending-parent", "pending-current", "cycle"]) {
       const f = await fixture();
@@ -251,7 +251,7 @@ const support = await getEmbeddedPostgresTestSupport();
     }
 
     // A legacy wake comment, through a verified parent run of the same
-    // requester, and after a operator message of the same requester.
+    // requester, and after an operator message of the same requester.
     const legacy = await fixture();
     await db.update(runIdentityContexts).set({ messageId: null }).where(eq(runIdentityContexts.id, legacy.origin.id));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: legacy.issue.id, wakeCommentId: legacy.messageId } }).where(eq(heartbeatRuns.id, legacy.source.id));
@@ -262,7 +262,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: operator.issue.id, wakeCommentId: operator.messageId } }).where(eq(heartbeatRuns.id, operator.source.id));
     await db.update(runIdentityContexts).set({ messageId: operatorMessage.id }).where(eq(runIdentityContexts.id, operator.context.id));
     const [operatorRun] = await db.update(heartbeatRuns).set({ contextSnapshot: { wakeCommentId: operatorMessage.id } }).where(eq(heartbeatRuns.id, operator.run.id)).returning();
-    states.push({ state: "legacy wake after a operator message of the requester", run: operatorRun, github: null });
+    states.push({ state: "legacy wake after an operator message of the requester", run: operatorRun, github: null });
     const later = await fixture();
     const [laterMessage] = await db.insert(issueComments).values({ spaceId: later.space.id, issueId: later.issue.id, authorType: "user", authorUserId: "new-requester", body: "Continue" }).returning();
     await db.update(runIdentityContexts).set({ messageId: laterMessage.id, responsibleUserId: "new-requester" }).where(eq(runIdentityContexts.id, later.context.id));

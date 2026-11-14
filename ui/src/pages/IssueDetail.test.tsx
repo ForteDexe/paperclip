@@ -32,8 +32,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
-  canBoardManageRuntime,
-  canBoardResolveRecoveryAction,
+  canOperatorManageRuntime,
+  canOperatorResolveRecoveryAction,
   IssueDetail,
   TaskDetailSurface,
   readRecoveryReconcileWorkspaceId,
@@ -133,7 +133,7 @@ const mockAgentsApi = vi.hoisted(() => ({
 }));
 
 const mockAccessApi = vi.hoisted(() => ({
-  getCurrentBoardAccess: vi.fn(),
+  getCurrentOperatorAccess: vi.fn(),
   listUserDirectory: vi.fn(),
 }));
 
@@ -1431,7 +1431,7 @@ describe("IssueDetail", () => {
     mockHeartbeatsApi.liveRunsForIssue.mockResolvedValue([]);
     mockHeartbeatsApi.activeRunForIssue.mockResolvedValue(null);
     mockAgentsApi.list.mockResolvedValue([]);
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({
+    mockAccessApi.getCurrentOperatorAccess.mockResolvedValue({
       spaceIds: ["space-1"],
       isInstanceAdmin: true,
       source: "session",
@@ -3788,7 +3788,7 @@ describe("IssueDetail", () => {
     });
     mockIssuesApi.get.mockResolvedValue(issue);
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "file-operator" } });
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "file-operator", source: "session",
+    mockAccessApi.getCurrentOperatorAccess.mockResolvedValue({ userId: "file-operator", source: "session",
       isInstanceAdmin: false, spaceIds: ["space-1"],
       memberships: [{ spaceId: "space-1", status: "active", membershipRole: mode === "denied" ? "viewer" : "operator" }],
     });
@@ -3853,7 +3853,7 @@ describe("IssueDetail", () => {
     });
     mockIssuesApi.get.mockResolvedValue(issue);
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "legacy-operator" } });
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "legacy-operator", source: "session",
+    mockAccessApi.getCurrentOperatorAccess.mockResolvedValue({ userId: "legacy-operator", source: "session",
       isInstanceAdmin: false, spaceIds: ["space-1"],
       memberships: [{ spaceId: "space-1", status: "active", membershipRole: "operator" }],
     });
@@ -7856,10 +7856,10 @@ describe("IssueDetail", () => {
   });
 });
 
-describe("canBoardResolveRecoveryAction", () => {
+describe("canOperatorResolveRecoveryAction", () => {
   it("falls back to spaceIds when memberships are not populated", () => {
     expect(
-      canBoardResolveRecoveryAction("space-1", {
+      canOperatorResolveRecoveryAction("space-1", {
         spaceIds: ["space-1"],
         memberships: [],
         isInstanceAdmin: false,
@@ -7873,7 +7873,7 @@ describe("canBoardResolveRecoveryAction", () => {
 
   it("uses populated memberships as the authoritative operator access source", () => {
     expect(
-      canBoardResolveRecoveryAction("space-1", {
+      canOperatorResolveRecoveryAction("space-1", {
         spaceIds: ["space-1"],
         memberships: [
           {
@@ -7892,10 +7892,10 @@ describe("canBoardResolveRecoveryAction", () => {
   });
 });
 
-describe("canBoardManageRuntime", () => {
+describe("canOperatorManageRuntime", () => {
   it("falls back to spaceIds when memberships are not populated", () => {
     expect(
-      canBoardManageRuntime("space-1", {
+      canOperatorManageRuntime("space-1", {
         spaceIds: ["space-1"],
         memberships: [],
         isInstanceAdmin: false,
@@ -7909,7 +7909,7 @@ describe("canBoardManageRuntime", () => {
 
   it("denies viewers the runtime-manage-gated break-glass affordance", () => {
     expect(
-      canBoardManageRuntime("space-1", {
+      canOperatorManageRuntime("space-1", {
         spaceIds: ["space-1"],
         memberships: [
           {
@@ -7929,7 +7929,7 @@ describe("canBoardManageRuntime", () => {
 
   it("allows non-viewer active members (mirrors the backend runtime:manage member gate)", () => {
     expect(
-      canBoardManageRuntime("space-1", {
+      canOperatorManageRuntime("space-1", {
         spaceIds: ["space-1"],
         memberships: [
           {

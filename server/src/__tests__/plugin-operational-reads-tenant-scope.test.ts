@@ -23,7 +23,7 @@ import {
  * Regression coverage for tenant scoping on plugin operational reads.
  *
  * `plugin_logs`, `plugin_job_runs` and `plugin_webhook_deliveries` all carry a
- * `space_id` attribution (NULL for instance-scope rows). A operator member of
+ * `space_id` attribution (NULL for instance-scope rows). An operator member of
  * one space must not be able to read rows attributed to another space
  * through the plugin diagnostics routes; instance administrators keep the
  * instance-wide view.

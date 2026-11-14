@@ -1293,7 +1293,7 @@ describe("agent permission routes", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(res.body.error).toContain("Missing permission: agents:create.");
     expect(res.body.error).toContain("no other route overrides this denial");
-    expect(res.body.error).toContain("A operator user can create the agent directly");
+    expect(res.body.error).toContain("An operator user can create the agent directly");
     expect(mockAgentService.create).not.toHaveBeenCalled();
     expect(mockApprovalService.create).not.toHaveBeenCalled();
   });
@@ -1765,7 +1765,7 @@ describe("agent permission routes", () => {
     const res = await requestApp(app, send);
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("only a operator user can terminate an agent");
+    expect(res.body.error).toContain("only an operator user can terminate an agent");
     expect(res.body.error).toContain(`[the agent's profile](/PAP/agents/${agentId})`);
     expect(mockAgentService.terminate).not.toHaveBeenCalled();
     expect(mockAgentService.update).not.toHaveBeenCalled();
@@ -1773,7 +1773,7 @@ describe("agent permission routes", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("still lets a operator user terminate through PATCH status", async () => {
+  it("still lets an operator user terminate through PATCH status", async () => {
     mockAgentService.getById.mockResolvedValue({ ...baseAgent, status: "idle" });
     mockAgentService.updateAndTransition.mockResolvedValue({ ...baseAgent, status: "terminated" });
     const app = await createApp({
@@ -1819,7 +1819,7 @@ describe("agent permission routes", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("still lets a operator user pause through PATCH status", async () => {
+  it("still lets an operator user pause through PATCH status", async () => {
     mockAgentService.getById.mockResolvedValue({ ...baseAgent, status: "idle" });
     mockAgentService.updateAndTransition.mockResolvedValue({ ...baseAgent, status: "paused" });
     const app = await createApp({
@@ -2446,7 +2446,7 @@ describe("agent permission routes", () => {
       }));
     });
 
-    it("allows a operator member without agents:create to read agent configuration", async () => {
+    it("allows an operator member without agents:create to read agent configuration", async () => {
       // Operator (human) users with space membership but no agents:create
       // grant should still be able to view agent configuration — this is
       // the read-only permission loosening introduced by this PR.

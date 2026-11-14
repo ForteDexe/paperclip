@@ -6,18 +6,18 @@ import {
 import { ApiError } from "@/api/client";
 
 export type OperatorSendRejection = {
-  code: "chat_board_send_attachments_already_bound";
+  code: "chat_operator_send_attachments_already_bound";
   attachmentIds: string[];
 };
 
-function isBoardSendRejection(
+function isOperatorSendRejection(
   value: unknown,
   selected: string[],
 ): value is OperatorSendRejection {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const rejection = value as Partial<OperatorSendRejection>;
   return (
-    rejection.code === "chat_board_send_attachments_already_bound" &&
+    rejection.code === "chat_operator_send_attachments_already_bound" &&
     Array.isArray(rejection.attachmentIds) &&
     rejection.attachmentIds.length > 0 &&
     new Set(rejection.attachmentIds).size === rejection.attachmentIds.length &&
@@ -29,7 +29,7 @@ function isBoardSendRejection(
 
 /** Only a durable negative receipt for this exact request permits correction.
  * Generic 409s, transport errors and foreign receipts remain uncertain. */
-export function readBoardSendRejection(
+export function readOperatorSendRejection(
   error: unknown,
   request: {
     endpointId: string;
@@ -46,7 +46,7 @@ export function readBoardSendRejection(
   )
     return null;
   const details = (error.body as { details?: unknown }).details;
-  if (!isBoardSendRejection(details, request.attachmentIds)) return null;
+  if (!isOperatorSendRejection(details, request.attachmentIds)) return null;
   const scope = details as OperatorSendRejection & Record<string, unknown>;
   if (
     scope.endpointId !== request.endpointId ||
@@ -57,7 +57,7 @@ export function readBoardSendRejection(
   return { code: details.code, attachmentIds: [...details.attachmentIds] };
 }
 
-export interface RetainedBoardSend {
+export interface RetainedOperatorSend {
   body: string;
   attachmentIds: string[];
   attachmentNames?: { id: string; name: string }[];
@@ -79,10 +79,10 @@ export function operatorSendDraftKey(
     : `outpost:operator-send:v2:${JSON.stringify([owner, ...scope])}`;
 }
 
-export function readBoardSendDraft(key: string): RetainedBoardSend | null {
+export function readOperatorSendDraft(key: string): RetainedOperatorSend | null {
   const raw = sessionStorage.getItem(key);
   if (!raw) return null;
-  const value = JSON.parse(raw) as Partial<RetainedBoardSend>;
+  const value = JSON.parse(raw) as Partial<RetainedOperatorSend>;
   if (
     !value ||
     typeof value !== "object" ||
@@ -97,7 +97,7 @@ export function readBoardSendDraft(key: string): RetainedBoardSend | null {
     !value.attachmentIds.every((id) => typeof id === "string") ||
     (value.rejection !== undefined &&
       (value.publication !== null ||
-        !isBoardSendRejection(value.rejection, value.attachmentIds))) ||
+        !isOperatorSendRejection(value.rejection, value.attachmentIds))) ||
     (value.attachmentNames !== undefined &&
       (!Array.isArray(value.attachmentNames) ||
         value.attachmentNames.length !== value.attachmentIds.length ||
@@ -121,21 +121,21 @@ export function readBoardSendDraft(key: string): RetainedBoardSend | null {
     throw new Error(
       "Saved channel delivery identity could not be read. Check Activity before starting another send.",
     );
-  return value as RetainedBoardSend;
+  return value as RetainedOperatorSend;
 }
 
-export function writeBoardSendDraft(key: string, value: RetainedBoardSend) {
+export function writeOperatorSendDraft(key: string, value: RetainedOperatorSend) {
   // This is a delivery identity, not a best-effort text draft. The caller must
   // stop before POST when storage fails; otherwise reload could create a duplicate.
   sessionStorage.setItem(key, JSON.stringify(value));
 }
 
-export function clearBoardSendDraft(key: string) {
+export function clearOperatorSendDraft(key: string) {
   sessionStorage.removeItem(key);
 }
 
 /** A terminal selected row alone cannot release a still-running batch. */
-export function canDismissBoardSendBatch(
+export function canDismissOperatorSendBatch(
   batch: ChatPublicationBatchStatus | undefined,
 ): boolean {
   if (

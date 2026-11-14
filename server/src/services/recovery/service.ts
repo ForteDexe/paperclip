@@ -61,8 +61,8 @@ import {
 } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import {
-  hasCommittedNativeBoardResponseWait,
-  readNativeBoardResponseWaitSource,
+  hasCommittedNativeOperatorResponseWait,
+  readNativeOperatorResponseWaitSource,
 } from "../native-runtime/native-operator-response-wait.js";
 import { authorizeChatConversationForBoundRun } from "../native-runtime/chat-attachment-reuse.js";
 import {
@@ -122,7 +122,7 @@ import {
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import { budgetService } from "../budgets.js";
-import { isBoardOwnedBudgetBlock } from "../budget-block-ownership.js";
+import { isOperatorOwnedBudgetBlock } from "../budget-block-ownership.js";
 import { unadmittedChatWakeupCondition } from "../durable-chat-wakeup.js";
 import { issueRecoveryActionService } from "../issue-recovery-actions.js";
 import { PROVIDER_LIMIT_DEFAULT_COOLDOWN_MS } from "../system-recovery-state.js";
@@ -449,7 +449,7 @@ function isProviderQuotaRecovery(latestRun: LatestIssueRun) {
 /**
  * Lease acquisition failed before any provider work, and its bounded retry
  * budget is spent. Nothing needs inspection or repair by the operator: the task
- * rests on a system-owned action and the normal Retry, never on a operator one.
+ * rests on a system-owned action and the normal Retry, never on an operator one.
  */
 function isPreDispatchEnvironmentProviderFailure(latestRun: LatestIssueRun) {
   if (latestRun?.errorCode !== ENVIRONMENT_PROVIDER_UNAVAILABLE_CODE) return false;
@@ -856,7 +856,7 @@ function isStrandedIssueRecoveryIssue(
 }
 
 /**
- * True when the issue's latest run was cancelled by a operator operator (the
+ * True when the issue's latest run was cancelled by an operator (the
  * operator cancel route stamps the attribution; interrupt-by-comment uses the
  * operator_interrupted error code). While such a run is the latest activity
  * on an issue, recovery stands down entirely: the operator deliberately
@@ -1357,8 +1357,8 @@ export function recoveryService(
       return false;
     if (receipt.reason === "operator_response_waiting") {
       return (
-        (await hasCommittedNativeBoardResponseWait(db, binding)) &&
-        (await readNativeBoardResponseWaitSource(db, binding)) !== null
+        (await hasCommittedNativeOperatorResponseWait(db, binding)) &&
+        (await readNativeOperatorResponseWaitSource(db, binding)) !== null
       );
     }
 
@@ -1477,7 +1477,7 @@ export function recoveryService(
       issue.status === "in_progress" &&
       latestRun?.status === "succeeded" &&
       latestRun.agentId === issue.assigneeAgentId &&
-      (await hasCommittedNativeBoardResponseWait(db, {
+      (await hasCommittedNativeOperatorResponseWait(db, {
         spaceId: issue.spaceId,
         issueId: issue.id,
         runId: latestRun.id,
@@ -2448,7 +2448,7 @@ export function recoveryService(
       "",
       "- Nested recovery: suppressed because this issue is already a `stranded_issue_recovery` issue.",
       sourceLine,
-      "- Next action: the assigned recovery owner or operator operator should fix the runtime/adapter problem, resolve or reassign the original source issue, then mark this recovery issue done or cancelled.",
+      "- Next action: the assigned recovery owner or operator should fix the runtime/adapter problem, resolve or reassign the original source issue, then mark this recovery issue done or cancelled.",
     ].join("\n");
   }
 
@@ -2612,24 +2612,24 @@ export function recoveryService(
         : { routingPolicy: STRANDED_OPERATOR_ESCALATION_POLICY },
       nextAction:
         recoveryCause === SUCCESSFUL_RUN_MISSING_STATE_REASON
-          ? "Operator operator: inspect the run evidence, then explicitly choose a valid issue disposition, retry the original owner, reassign, or intentionally resolve the task."
+          ? "Operator: inspect the run evidence, then explicitly choose a valid issue disposition, retry the original owner, reassign, or intentionally resolve the task."
           : recoveryCause === "process_lost"
-            ? "Operator operator: inspect the retry history, then explicitly retry the original owner, reassign, or intentionally resolve the task."
+            ? "Operator: inspect the retry history, then explicitly retry the original owner, reassign, or intentionally resolve the task."
             : recoveryCause === "provider_quota"
               ? "Wait for provider quota recovery, then retry the original assignee; do not wake a takeover owner."
               : isEnvironmentProviderWait
               ? "No agent work started. Retry the task once the environment provider is available."
               : recoveryCause === "codex_output_inactivity_monitor"
-                ? "Operator operator: inspect the inactivity evidence, then explicitly retry the original owner, reassign, or intentionally resolve the task."
+                ? "Operator: inspect the inactivity evidence, then explicitly retry the original owner, reassign, or intentionally resolve the task."
                 : recoveryCause === "workspace_validation_failed"
                   ? readWorkspaceValidationPayload(input.latestRun)?.reason ===
                     "git_worktree_branch_incoherence"
-                    ? "Operator operator: repair the source task git worktree branch incoherence or choose a new execution workspace, then explicitly retry or reassign."
+                    ? "Operator: repair the source task git worktree branch incoherence or choose a new execution workspace, then explicitly retry or reassign."
                     : readWorkspaceValidationPayload(input.latestRun)
                           ?.reason ===
                         "git_worktree_base_materialization_failed"
-                      ? "Operator operator: repair the project workspace repository URL or clone access, or configure a local checkout cwd, then explicitly retry or reassign."
-                      : "Operator operator: repair the source task workspace link, project workspace cwd, or git checkout, then explicitly retry or reassign."
+                      ? "Operator: repair the project workspace repository URL or clone access, or configure a local checkout cwd, then explicitly retry or reassign."
+                      : "Operator: repair the source task workspace link, project workspace cwd, or git checkout, then explicitly retry or reassign."
                   : recoveryCause === "configuration_incomplete"
                     ? readConfigurationIncompletePayload(input.latestRun)?.reason === "workspace_base_ref_unresolved"
                       ? "Check the starting branch and repository access, then repair the task’s branch and retry the original assignee."
@@ -2639,16 +2639,16 @@ export function recoveryService(
                       ? "Retry the task."
                       : readConfigurationIncompletePayload(input.latestRun)
                         ?.reason === SANDBOX_PROVIDER_PLUGIN_NOT_READY_REASON
-                      ? `Operator operator: the sandbox provider plugin named in the run failure is not ready; ${sandboxProviderPluginRemedy(
+                      ? `Operator: the sandbox provider plugin named in the run failure is not ready; ${sandboxProviderPluginRemedy(
                           readNonEmptyString(
                             readConfigurationIncompletePayload(input.latestRun)
                               ?.pluginStatus,
                           ) ?? "error",
                         )}, then explicitly retry the original owner or reassign.`
-                      : "Operator operator: bind the missing secret(s) named in the run failure, then explicitly retry the original owner or reassign."
+                      : "Operator: bind the missing secret(s) named in the run failure, then explicitly retry the original owner or reassign."
                     : recoveryCause === "execution_review_participant_recovery"
-                      ? "Operator operator: repair the failed review participant path, restore a live reviewer, explicitly reassign, or record an intentional resolution."
-                      : "Operator operator: inspect the evidence, repair the runtime if appropriate, then explicitly retry the original owner, reassign, or intentionally resolve the task.",
+                      ? "Operator: repair the failed review participant path, restore a live reviewer, explicitly reassign, or record an intentional resolution."
+                      : "Operator: inspect the evidence, repair the runtime if appropriate, then explicitly retry the original owner, reassign, or intentionally resolve the task.",
       wakePolicy: isProviderQuotaWait
         ? {
             type: "monitor_only",
@@ -3674,7 +3674,7 @@ export function recoveryService(
       // longer schedules another agent-owned wake for them.
       result.skipped += 1;
     }
-    // A child or blocker stalled on a operator-owned action: tell whoever waits on it, once per stall.
+    // A child or blocker stalled on an operator-owned action: tell whoever waits on it, once per stall.
     const stalls = await wakeWaitersOfStalledIssues(db, deps.enqueueWakeup as BlockerStallWakeup, { spaceId: opts?.spaceId });
     // A failed delivery is reported so the recovery worker retries this pass.
     // The earliest owed wake of a moved legacy subtask is a deadline of this pass too.
@@ -4826,7 +4826,7 @@ export function recoveryService(
         continue;
       }
 
-      // A operator-owned recovery action is already the durable, human-owned
+      // An operator-owned recovery action is already the durable, human-owned
       // continuation path. Generic stranded-work recovery must not race that
       // authority by launching another provider turn (most importantly after
       // bounded native-session recovery has reached terminal exhaustion).
@@ -4918,7 +4918,7 @@ export function recoveryService(
       // start or continuation; it is not a reason to escalate. Leave the task
       // as it is: settling accounting wakes this recovery again, which then
       // admits it. A reached hard stop still goes to the operator.
-      if (budgetBlock && !(await isBoardOwnedBudgetBlock(db, issue.spaceId, budgetBlock))) {
+      if (budgetBlock && !(await isOperatorOwnedBudgetBlock(db, issue.spaceId, budgetBlock))) {
         result.skipped += 1;
         continue;
       }
@@ -6142,7 +6142,7 @@ export function recoveryService(
 
     // A stalled child or blocker: tell whoever waits on it, once per stall
     // (blocker-stall-wakeups.ts). This sweep visits each blocked issue, which
-    // covers a operator action already resolved as "blocked".
+    // covers an operator action already resolved as "blocked".
     if (!opts?.runId && !opts?.blockerIssueId) {
       const stalls = await wakeWaitersOfStalledIssues(db, deps.enqueueWakeup as BlockerStallWakeup,
         { spaceId: opts?.spaceId ?? null, issueId: opts?.issueId ?? null });

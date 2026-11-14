@@ -361,7 +361,7 @@ describe("built-in agent routes", () => {
       .send({});
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
-    expect(res.body.error).toContain("Only operator operators can control built-in routines.");
+    expect(res.body.error).toContain("Only operators can control built-in routines.");
     expect(mockAccessService.canUser).not.toHaveBeenCalled();
     expect(mockBuiltInAgentService.runRoutine).not.toHaveBeenCalled();
   });

@@ -27,7 +27,7 @@ interface RecentTasksUpdatedDetail {
 
 export function getRecentTasksStorageKey(spaceId: string, userId: string | null | undefined) {
   // Old tabs can still publish stale snapshots. Keep their writes out of v2.
-  return `${STORAGE_PREFIX}${spaceId}:${userId ?? "__local_board__"}`;
+  return `${STORAGE_PREFIX}${spaceId}:${userId ?? "__local_operator__"}`;
 }
 
 function isRecentTaskEntry(value: unknown, spaceId: string): value is RecentTaskEntry {

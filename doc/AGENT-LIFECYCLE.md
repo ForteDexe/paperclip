@@ -127,7 +127,7 @@ A retry uses the approved secret. It does not create another secret.
 The binding transaction checks authorization, expiry, and the current reporting
 structure again before it changes the agent.
 The hire service owns names, appearance, permissions, credential binding,
-connection installs, identity setup, and primary-agent selection.
+connection installs, identity setup, and default-agent selection.
 The module calls the hire service before and after the agent record write.
 These operations use the lifecycle transaction. A failed operation rolls back
 the hire and its dependent records.

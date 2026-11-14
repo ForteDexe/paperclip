@@ -333,7 +333,7 @@ outpost space import ./my-export --dry-run
 outpost space import org/repo --target new
 ```
 
-The board UI has matching Export and Import pages in outpost settings: the Export page shows a fidelity panel listing what the bundle will not carry, and the Import page starts imported agents and routines paused by default, with a post-import activation step. See the [Importing & Exporting guide](https://github.com/paperclipai/paperclip/blob/master/docs/guides/board-operator/importing-and-exporting.md) for details.
+The board UI has matching Export and Import pages in outpost settings: the Export page shows a fidelity panel listing what the bundle will not carry, and the Import page starts imported agents and routines paused by default, with a post-import activation step. See the [Importing & Exporting guide](https://github.com/paperclipai/paperclip/blob/master/docs/guides/operator/importing-and-exporting.md) for details.
 
 ## Development
 

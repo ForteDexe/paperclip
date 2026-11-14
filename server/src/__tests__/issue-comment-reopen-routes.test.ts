@@ -1622,7 +1622,7 @@ describe("issue comment reopen routes", () => {
       {
         attachmentIds: undefined,
         authorType: "user",
-        authorizationReason: "allow_board_actor",
+        authorizationReason: "allow_operator_actor",
         clientRequestId: undefined,
         mirrorToSlack: true,
         presentation: {
@@ -2268,7 +2268,7 @@ describe("issue comment reopen routes", () => {
     );
   });
 
-  it("wakes the assignee when a operator user moves an assigned review back to todo", async () => {
+  it("wakes the assignee when an operator user moves an assigned review back to todo", async () => {
     const issue = makeIssue("in_review");
     mockIssueService.getById.mockResolvedValue(issue);
     mockIssueService.update.mockImplementation(

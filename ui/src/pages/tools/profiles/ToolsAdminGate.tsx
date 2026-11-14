@@ -19,8 +19,8 @@ import { useSpace } from "@/context/SpaceContext";
 export function ToolsAdminGate({ children }: { children: ReactNode }) {
   const { selectedSpaceId } = useSpace();
   const operatorAccess = useQuery({
-    queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess(),
+    queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess(),
   });
   const view = useQueryView(operatorAccess);
 

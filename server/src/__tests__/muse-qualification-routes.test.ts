@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import type { Db } from "@outpost/db";
 import { museQualificationRoutes } from "../routes/muse-qualification.js";
-import { museBoardRoutes } from "../routes/muse.js";
+import { museOperatorRoutes } from "../routes/muse.js";
 const mocks = vi.hoisted(() => ({ beginQualification: vi.fn(), endQualification: vi.fn(), readQualificationEvidence: vi.fn(), verify: vi.fn(), attestDetectorCleanup: vi.fn(), decide: vi.fn(), getById: vi.fn() }));
 vi.mock("../services/muse-runner-broker.js", () => ({ museRunnerBroker: () => mocks }));
 vi.mock("../services/access.js", () => ({ accessService: () => mocks }));
@@ -18,7 +18,7 @@ function app(actor: Record<string, unknown> = { type: "operator", source: "opera
   const result = express(); result.use(express.json());
   result.use((req, _res, next) => { Object.assign(req, { actor }); next(); });
   result.use(museQualificationRoutes({} as Db));
-  result.use(museBoardRoutes({} as Db));
+  result.use(museOperatorRoutes({} as Db));
   result.use((error: { status?: number; name?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(error.status ?? (error.name === "ZodError" ? 400 : 500)).json({ error: "request_rejected" });
   });

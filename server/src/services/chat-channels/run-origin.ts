@@ -48,7 +48,7 @@ const provenanceReads = {
     .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatConversations.endpointId), eq(chatEndpoints.spaceId, of.spaceId)))
     .where(and(eq(chatMessageLinks.spaceId, of.spaceId), eq(chatMessageLinks.commentId, of.messageId),
       eq(chatMessageLinks.direction, "inbound"))).limit(1),
-  /** The accepted message as a operator message of the task of the run. */
+  /** The accepted message as an operator message of the task of the run. */
   operatorMessage: (db: Db, of: Record<"messageId" | "spaceId" | "issueId", Value>) => db.select(readColumns.operatorMessage)
     .from(issueComments).where(and(
       eq(issueComments.id, of.messageId), eq(issueComments.spaceId, of.spaceId),

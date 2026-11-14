@@ -73,10 +73,10 @@ describe.skipIf(!support.supported)("project environment compatibility", () => {
     expect(projectStorageForEnvironment({ driver: "sandbox", config: { provider: "fake" } }, [f.plugin])).toBeNull();
   });
 
-  it("uses the creating agent, the user's primary agent, then the instance default", async () => {
+  it("uses the creating agent, the user's default agent, then the instance default", async () => {
     const f = await fixture();
     await db.update(agents).set({ defaultEnvironmentId: f.computer.id }).where(eq(agents.id, f.input.agentId));
-    await db.insert(userSpacePreferences).values({ spaceId: f.spaceId, userId: "person", primaryAgentId: f.input.agentId });
+    await db.insert(userSpacePreferences).values({ spaceId: f.spaceId, userId: "person", defaultAgentId: f.input.agentId });
     expect((await projectEnvironmentOptions(db, f.spaceId)).defaultEnvironmentId).toBe(f.sandbox.id);
     expect((await projectEnvironmentOptions(db, f.spaceId, { userId: "person" })).defaultEnvironmentId).toBe(f.computer.id);
     expect((await projectEnvironmentOptions(db, f.spaceId, { agentId: f.input.agentId })).defaultEnvironmentId).toBe(f.computer.id);
@@ -217,7 +217,7 @@ describe.skipIf(!support.supported)("project environment compatibility", () => {
     if (source === "instance") await db.update(instanceSettings).set({ defaultEnvironmentId: f.computer.id });
     else {
       await db.update(agents).set({ defaultEnvironmentId: f.computer.id }).where(eq(agents.id, f.input.agentId));
-      await db.insert(userSpacePreferences).values({ spaceId: f.spaceId, userId, primaryAgentId: f.input.agentId });
+      await db.insert(userSpacePreferences).values({ spaceId: f.spaceId, userId, defaultAgentId: f.input.agentId });
     }
     const task = await issueService(db).create(f.spaceId, { title: "Private note", visibility: "private", createdByUserId: userId });
     expect(task.visibility).toBe("private");

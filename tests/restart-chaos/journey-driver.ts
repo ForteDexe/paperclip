@@ -189,7 +189,7 @@ export class JourneyDriver {
   }
 
   /** The task waits on the board: not a rest, not a stall, no Retry. */
-  awaitingBoard(): boolean {
+  awaitingOperator(): boolean {
     const state = this.state;
     if (!state.requestSeenAt) return false;
     if (this.workload === "Q2") return !state.blockerResolved && (!state.answer || state.answer.error === null);

@@ -201,7 +201,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     return app;
   }
 
-  function createBoardApp(
+  function createOperatorApp(
     fixture: Awaited<ReturnType<typeof seedRun>>,
     options?: {
       admin?: boolean;
@@ -529,7 +529,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       .post("/api/agents/me/secret-proposals")
       .send({ kind: "secret", name: "dev/reject/token", value: "reject-secret", justification: "Needed" });
 
-    const rejected = await request(createBoardApp(fixture, { admin: false }))
+    const rejected = await request(createOperatorApp(fixture, { admin: false }))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposed.body.id}/reject`)
       .send({ reason: "Not approved" });
 
@@ -546,7 +546,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const wakeup = vi.fn().mockRejectedValue(new Error("wakeup queue unavailable"));
     const persistedIssues = issueService(db);
     const addComment = vi.fn().mockRejectedValue(new Error("comment store unavailable"));
-    const operatorApp = createBoardApp(fixture, {
+    const operatorApp = createOperatorApp(fixture, {
       heartbeat: { wakeup },
       issues: { getById: persistedIssues.getById, addComment },
     });
@@ -619,7 +619,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         value: "provider-secret",
         justification: "Store this credential in the space vault",
       });
-    const approved = await request(createBoardApp(fixture))
+    const approved = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({ overrides: { providerConfigId: vault.id } });
 
@@ -715,13 +715,13 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(agentApprovalDenied.status).toBe(403);
     expect(await db.select().from(spaceSecrets)).toHaveLength(0);
 
-    const prerequisite = await request(createBoardApp(fixture))
+    const prerequisite = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingResponse.body.id}/approve`)
       .send({});
     expect(prerequisite.status).toBe(409);
     expect(await db.select().from(spaceSecrets)).toHaveLength(0);
 
-    const approved = await request(createBoardApp(fixture))
+    const approved = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingResponse.body.id}/approve`)
       .send({ cascade: true });
     expect(approved.status).toBe(200);
@@ -780,7 +780,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   it("keeps an approved secret after binding fails and reuses it on retry", async () => {
     const fixture = await seedRun();
     const agentApp = createAgentApp(fixture);
-    const operatorApp = createBoardApp(fixture);
+    const operatorApp = createOperatorApp(fixture);
     const secret = await request(agentApp).post("/api/agents/me/secret-proposals").send({
       kind: "secret", name: "dev/retry/token", value: "retry-fixture", justification: "Needed by task",
     });
@@ -823,7 +823,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   ])("fills a target key left as %s instead of refusing the approved binding", async (_label, blank) => {
     const fixture = await seedRun();
     const agentApp = createAgentApp(fixture);
-    const operatorApp = createBoardApp(fixture);
+    const operatorApp = createOperatorApp(fixture);
     const secret = await request(agentApp).post("/api/agents/me/secret-proposals").send({
       kind: "secret", name: "dev/blank/token", value: "blank-fixture", justification: "Needed by task",
     });
@@ -849,7 +849,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   it("approves a binding without cascade after its secret proposal was approved separately", async () => {
     const fixture = await seedRun();
     const agentApp = createAgentApp(fixture);
-    const operatorApp = createBoardApp(fixture);
+    const operatorApp = createOperatorApp(fixture);
     const secretProposal = await request(agentApp)
       .post("/api/agents/me/secret-proposals")
       .send({
@@ -921,7 +921,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const wakeup = vi.fn().mockResolvedValue(null);
     const persistedIssues = issueService(db);
     const addComment = vi.fn().mockResolvedValue(undefined);
-    const deleted = await request(createBoardApp(fixture, {
+    const deleted = await request(createOperatorApp(fixture, {
       heartbeat: { wakeup },
       issues: { getById: persistedIssues.getById, addComment },
     })).delete(`/api/secrets/${secret.id}`);
@@ -996,7 +996,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(await db.select().from(spaceSecretProposals).where(eq(spaceSecretProposals.id, proposal.body.id)))
       .toEqual([expect.objectContaining({ secretId: sourceSecret.id, targetId: fixture.agentId })]);
 
-    const approved = await request(createBoardApp(fixture))
+    const approved = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({});
 
@@ -1077,7 +1077,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(proposal.status).toBe(201);
     expect(proposal.body).toMatchObject({ secretId: userSecret.id, target: { id: fixture.agentId } });
 
-    const approved = await request(createBoardApp(fixture))
+    const approved = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({});
 
@@ -1158,7 +1158,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(proposal.status).toBe(201);
     expect(proposal.body).toMatchObject({ secretId: userSecret.id, target: { id: reportAgentId } });
 
-    const approved = await request(createBoardApp(fixture))
+    const approved = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({});
 
@@ -1294,11 +1294,11 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(firstPage.body.nextOffset).toBe(7);
     expect(firstPage.headers["x-next-offset"]).toBe("7");
 
-    const lastBoardPage = await request(createBoardApp(fixture))
+    const lastOperatorPage = await request(createOperatorApp(fixture))
       .get(`/api/spaces/${fixture.spaceId}/secret-proposals?status=pending&limit=7&offset=14`);
-    expect(lastBoardPage.status).toBe(200);
-    expect(lastBoardPage.body).toHaveLength(6);
-    expect(lastBoardPage.headers["x-next-offset"]).toBeUndefined();
+    expect(lastOperatorPage.status).toBe(200);
+    expect(lastOperatorPage.body).toHaveLength(6);
+    expect(lastOperatorPage.headers["x-next-offset"]).toBeUndefined();
   });
 
   it("bounds each expiry sweep batch", async () => {
@@ -1346,7 +1346,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       value: "lifecycle-secret",
     });
     const agentApp = createAgentApp(fixture);
-    const operatorApp = createBoardApp(fixture);
+    const operatorApp = createOperatorApp(fixture);
     const createBinding = async (configPath: string) => request(agentApp)
       .post("/api/agents/me/secret-proposals")
       .send({
@@ -1582,7 +1582,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(proposed.status).toBe(201);
 
     const [approval, rejection] = await Promise.allSettled([
-      request(createBoardApp(fixture))
+      request(createOperatorApp(fixture))
         .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposed.body.id}/approve`)
         .send({}),
       issueThreadInteractionService(db).rejectInteraction(
@@ -1637,12 +1637,12 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       .set({ expiresAt: new Date(Date.now() - 1_000) })
       .where(eq(spaceSecretProposals.id, secretProposal.body.id));
 
-    const directApproval = await request(createBoardApp(fixture))
+    const directApproval = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${secretProposal.body.id}/approve`)
       .send({});
     expect(directApproval.status).toBe(409);
 
-    const cascadeApproval = await request(createBoardApp(fixture))
+    const cascadeApproval = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
       .send({ cascade: true });
     expect(cascadeApproval.status).toBe(409);
@@ -1665,7 +1665,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       await tx.select().from(spaceSecretProposals)
         .where(eq(spaceSecretProposals.id, proposal.body.id))
         .for("update");
-      approvalPromise = request(createBoardApp(fixture))
+      approvalPromise = request(createOperatorApp(fixture))
         .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
         .send({})
         .then((response) => response);
@@ -1712,7 +1712,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(bindingProposal.status).toBe(201);
 
     await db.update(agents).set({ reportsTo: null }).where(eq(agents.id, targetAgentId));
-    const response = await request(createBoardApp(fixture))
+    const response = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
       .send({ cascade: true });
     expect(response.status).toBe(409);
@@ -1815,7 +1815,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       expect(bindingPaused).toBe(true);
 
       let rejectionFinished = false;
-      const rejectionPromise = request(createBoardApp(fixture))
+      const rejectionPromise = request(createOperatorApp(fixture))
         .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${secretProposal.body.id}/reject`)
         .send({ reason: "Reject during binding creation" })
         .then((response) => {
@@ -1935,7 +1935,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     `));
 
     try {
-      const approvalPromise = request(createBoardApp(fixture))
+      const approvalPromise = request(createOperatorApp(fixture))
         .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
         .send({ cascade: true })
         .then((response) => response);

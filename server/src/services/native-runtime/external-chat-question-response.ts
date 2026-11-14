@@ -472,7 +472,7 @@ async function resolveQuestionResponseChain(
       if (origins.length !== 1) return null;
       const { session, endpoint, connection, conversation, comment, inbound, link } = origins[0]!;
       if (comment.deletedAt || inbound.state !== "processed" || comment.authorUserId !== interaction.resolvedByUserId
-        || session.callerId !== interaction.resolvedByUserId || !["member", "instance_admin", "local_board"].includes(session.callerAuthority)
+        || session.callerId !== interaction.resolvedByUserId || !["member", "instance_admin", "local_operator"].includes(session.callerAuthority)
         || session.assignedAgentId !== binding.agentId || endpoint.assignedAgentId !== binding.agentId
         || endpoint.provider !== "speko" || !["active", "verifying"].includes(endpoint.status)
         || !connection.enabled || connection.status !== "active" || connection.transport !== "voice"
@@ -481,7 +481,7 @@ async function resolveQuestionResponseChain(
         || !["active", "waiting"].includes(conversation.state) || conversation.issueId !== binding.issueId
         || (parent && (parent.marker.endpointId !== endpoint.id || parent.marker.conversationId !== conversation.id))) return null;
       try {
-        const store = voiceSessionStore(tx, { allowLocalBoard: session.callerAuthority === "local_board" });
+        const store = voiceSessionStore(tx, { allowLocalOperator: session.callerAuthority === "local_operator" });
         await store.authorizePrincipal(tx as unknown as VoiceTransaction, binding.spaceId, endpoint.id, `voice:${session.id}`);
       } catch (error) {
         if (error && typeof error === "object" && "code" in error && error.code === "55P03") throw error;
@@ -517,7 +517,7 @@ async function resolveQuestionResponseChain(
         eq(issueComments.issueId, binding.issueId), eq(chatDeliveries.spaceId, binding.spaceId)));
     if (!original || original.comment.deletedAt || original.inbound.state !== "processed"
       || original.comment.authorUserId !== interaction.resolvedByUserId
-      || session.callerId !== interaction.resolvedByUserId || !["member", "instance_admin", "local_board"].includes(session.callerAuthority)
+      || session.callerId !== interaction.resolvedByUserId || !["member", "instance_admin", "local_operator"].includes(session.callerAuthority)
       || session.assignedAgentId !== binding.agentId || endpoint.assignedAgentId !== binding.agentId
       || endpoint.provider !== "speko" || !["active", "verifying"].includes(endpoint.status)
       || !connection.enabled || connection.status !== "active" || connection.transport !== "voice"

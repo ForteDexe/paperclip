@@ -195,7 +195,7 @@ async function classify(owner: RecordOwner, runProofs: Map<string, Classificatio
 }
 
 /**
- * A operator confirmation that a record's unrecorded owner stopped proves that owner gone
+ * An operator confirmation that a record's unrecorded owner stopped proves that owner gone
  * (`operator_attested`), but only while the prover still finds the owner unprovable for a legacy
  * reason and the record is unchanged since recovery asked. A live or provable owner always wins.
  */

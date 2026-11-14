@@ -66,7 +66,7 @@ export async function withHumanDirectedWork(
   return issue ? { ...resolution, humanDirectedIssueId: issue.id } : resolution;
 }
 
-/** Preserve a operator assignment made before a task is runnable, without starting it.
+/** Preserve an operator assignment made before a task is runnable, without starting it.
  * Uses the existing requester columns, not another user identity or grant table.
  * Call only with the authenticated HTTP actor and the committed write result.
  */

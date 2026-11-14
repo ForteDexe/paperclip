@@ -127,7 +127,7 @@ export default meta;
 
 type Story = StoryObj;
 
-/** Boards 1, 2, 4, 5 — all presentational states in one gallery. */
+/** Operators 1, 2, 4, 5 — all presentational states in one gallery. */
 export const SurfaceGallery: Story = {
   render: () => (
     <div className="mx-auto max-w-3xl space-y-8 p-6">

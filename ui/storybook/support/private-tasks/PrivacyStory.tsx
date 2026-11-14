@@ -41,7 +41,7 @@ function PrivacySandbox({
   useLayoutEffect(() => {
     const restore = installPrivacyApi(state);
     queryClient.setQueryData(queryKeys.auth.session, state.session);
-    queryClient.setQueryData(queryKeys.access.currentBoardAccess, state.access);
+    queryClient.setQueryData(queryKeys.access.currentOperatorAccess, state.access);
     queryClient.setQueryData(
       queryKeys.agents.list(privacySpaceId),
       privacyAgents,

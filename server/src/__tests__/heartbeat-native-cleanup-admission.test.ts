@@ -136,7 +136,7 @@ suite("native terminal-run cleanup admission", () => {
         }, () => true).ready;
         expect((await heartbeat.getRun(successorId))?.status).toBe("queued");
         expect(execute).not.toHaveBeenCalled();
-        if (mode === "stop") await heartbeat.cancelRun(successorId, "Cancelled by a operator operator", {
+        if (mode === "stop") await heartbeat.cancelRun(successorId, "Cancelled by an operator", {
           resultJson: { cancelledByActorType: "user", cancelledByUserId: ownerId },
         });
         if (mode === "reassign") {

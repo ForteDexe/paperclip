@@ -400,7 +400,7 @@ describe("automatic retained workspace recovery", () => {
     await recoverRunHolds(f.input);
     expect(readSystemRecovery((await action(f.actionId)).evidence)?.state).toBe("complete");
     await heartbeatService(db).resumeTaskRetry(f.spaceId, second.requestId!);
-    // After a operator handoff the Retry applies the accepted result from the
+    // After an operator handoff the Retry applies the accepted result from the
     // recovered files, never another wait and never a new agent turn.
     const [settled] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, second.requestId!));
     expect(settled).toMatchObject({ status: "coalesced", runId: f.runId, payload: { taskRetry: { strategy: "finalize_result" } } });

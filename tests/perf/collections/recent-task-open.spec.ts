@@ -42,7 +42,7 @@ async function seedRecents(page: Page, request: APIRequestContext) {
     const entries = recents.map((task, index) => ({
       id: task.id, spaceId, title: task.title, identifier: task.identifier, status: "backlog", recordedAt: Date.now() - index * 1000,
     }));
-    for (const owner of new Set([userId ?? "__local_board__", "__local_board__"])) {
+    for (const owner of new Set([userId ?? "__local_operator__", "__local_operator__"])) {
       localStorage.setItem(`outpost.recentTasks.v2:${spaceId}:${owner}`, JSON.stringify(entries));
     }
   }, { spaceId: fixture.space.id, userId, recents });

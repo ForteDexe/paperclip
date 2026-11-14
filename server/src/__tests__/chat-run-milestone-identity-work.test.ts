@@ -50,7 +50,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it.each([false, true])("rechecks concurrent membership suspension before restoring notice access (rollback=%s)", async rollback => {
     const membershipWhere = and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, f.userId));
-    // A Operator-origin reply uses the linked author and current membership.
+    // An Operator-origin reply uses the linked author and current membership.
     // Remove the fixture's unrelated provider-ingress provenance.
     await db.delete(chatMessageLinks).where(eq(chatMessageLinks.commentId, f.commentId));
     await db.update(issueComments).set({ authorUserId: f.userId }).where(eq(issueComments.id, f.commentId));
@@ -61,7 +61,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       principalId: principal.id, outpostUserId: f.userId, status: "linked",
     });
     await db.insert(chatActions).values({ spaceId: f.spaceId, endpointId: f.endpointId,
-      conversationId: f.conversationId, kind: "slack_board_message", status: "processed",
+      conversationId: f.conversationId, kind: "slack_operator_message", status: "processed",
       providerActionId: `operator-comment:${f.commentId}`, payload: { issueId: f.issueId, commentId: f.commentId,
         userId: f.userId, principalId: principal.id, agentId: f.agentId },
     });

@@ -3166,10 +3166,10 @@
       "externalInput": null,
       "installedSource": null,
       "originalQuery": "Make Morgan my go-to agent when I open Chat.",
-      "expectedOutcome": "The agent explains the personal primary-agent choice and directs the person to Morgan's supported profile control, including the replacement confirmation. After the human action, the preference belongs only to that person and space; a valid recent chat can still reopen first. Chat does not falsely report a preference write by the agent.",
-      "originalContext": "The person has a primary agent already and wants Morgan instead. Primary-agent preferences require the person's operator session.",
+      "expectedOutcome": "The agent explains the personal default-agent choice and directs the person to Morgan's supported profile control, including the replacement confirmation. After the human action, the preference belongs only to that person and space; a valid recent chat can still reopen first. Chat does not falsely report a preference write by the agent.",
+      "originalContext": "The person has a default agent already and wants Morgan instead. Primary-agent preferences require the person's operator session.",
       "capabilities": [
-        "agents/primary-agent",
+        "agents/default-agent",
         "agent-chat/discovery"
       ],
       "checks": null,

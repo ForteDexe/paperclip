@@ -59,10 +59,10 @@ import {
 import { nativeSha256 } from "./canonical.js";
 import { getNativeReviewAssignment, type NativeReviewAssignmentContext } from "./native-review-participant.js";
 import {
-  readNativeBoardResponseWaitSource,
-  readNativeBoardResponseWaitOrigin,
-  type NativeBoardResponseWaitOrigin,
-  type NativeBoardResponseWaitSource,
+  readNativeOperatorResponseWaitSource,
+  readNativeOperatorResponseWaitOrigin,
+  type NativeOperatorResponseWaitOrigin,
+  type NativeOperatorResponseWaitSource,
 } from "./native-operator-response-wait.js";
 import {
   prepareNativeChatReviewPresentationInTransaction,
@@ -649,7 +649,7 @@ async function materializeDecisionEffect(input: {
         idempotencyKey: `native-attention:${input.decisionId}`,
         sourceRunId: input.runId,
         title: "Native attention request",
-        summary: "The native runner requires a operator response.",
+        summary: "The native runner requires an operator response.",
         continuationPolicy: "wake_assignee",
         payload: {
           version: 1,
@@ -1683,8 +1683,8 @@ export async function commitNativeStatusDecision(input: {
   };
   requireModelRejectionOwner?: { agentId: string; reviewContext: NativeReviewAssignmentContext | null };
   requireProviderFailureOwner?: { agentId: string; reviewContext: NativeReviewAssignmentContext | null };
-  requireBoardResponseWaitSource?: NativeBoardResponseWaitSource;
-  requireBoardResponseWaitOrigin?: NativeBoardResponseWaitOrigin;
+  requireOperatorResponseWaitSource?: NativeOperatorResponseWaitSource;
+  requireOperatorResponseWaitOrigin?: NativeOperatorResponseWaitOrigin;
   reviewResponsePresentation?: {
     agentId: string;
     resultId: string;
@@ -2007,7 +2007,7 @@ export async function commitNativeStatusDecision(input: {
           throw new NativeStatusRaceError();
       }
     }
-    const passiveBoardResponseWait =
+    const passiveOperatorResponseWait =
       reasonCode === "operator_response_waiting" ||
       reasonCode === "operator_response_wait_superseded";
     let planWait: Awaited<ReturnType<typeof readNativePlanWait>> = null;
@@ -2036,22 +2036,22 @@ export async function commitNativeStatusDecision(input: {
         throw error;
       }
     }
-    let operatorResponseWaitOrigin: NativeBoardResponseWaitOrigin | null = null;
+    let operatorResponseWaitOrigin: NativeOperatorResponseWaitOrigin | null = null;
     if (
-      passiveBoardResponseWait ||
-      input.requireBoardResponseWaitOrigin
+      passiveOperatorResponseWait ||
+      input.requireOperatorResponseWaitOrigin
     ) {
-      const expected = input.requireBoardResponseWaitOrigin;
+      const expected = input.requireOperatorResponseWaitOrigin;
       if (
         !expected ||
         expected.spaceId !== input.spaceId ||
         expected.issueId !== input.issueId ||
         expected.runId !== input.runId ||
-        (passiveBoardResponseWait && input.decision.effects.length !== 0)
+        (passiveOperatorResponseWait && input.decision.effects.length !== 0)
       )
         throw new NativeStatusRaceError();
       try {
-        operatorResponseWaitOrigin = await readNativeBoardResponseWaitOrigin(
+        operatorResponseWaitOrigin = await readNativeOperatorResponseWaitOrigin(
           tx as unknown as Db,
           {
             spaceId: input.spaceId,
@@ -2073,22 +2073,22 @@ export async function commitNativeStatusDecision(input: {
         throw new NativeStatusRaceError();
     }
     let operatorResponseWait: Awaited<
-      ReturnType<typeof readNativeBoardResponseWaitSource>
+      ReturnType<typeof readNativeOperatorResponseWaitSource>
     > = null;
     // Corrective continuations also carry this precondition. Revalidate it
     // under the same locks before any decision effects can restart old work.
-    if (reasonCode === "operator_response_waiting" || input.requireBoardResponseWaitSource) {
-      const expected = input.requireBoardResponseWaitSource;
+    if (reasonCode === "operator_response_waiting" || input.requireOperatorResponseWaitSource) {
+      const expected = input.requireOperatorResponseWaitSource;
       if (
         !expected ||
-        (passiveBoardResponseWait && input.decision.effects.length !== 0) ||
+        (passiveOperatorResponseWait && input.decision.effects.length !== 0) ||
         expected.spaceId !== input.spaceId ||
         expected.issueId !== input.issueId ||
         expected.runId !== input.runId
       )
         throw new NativeStatusRaceError();
       try {
-        operatorResponseWait = await readNativeBoardResponseWaitSource(
+        operatorResponseWait = await readNativeOperatorResponseWaitSource(
           tx as unknown as Db,
           {
             spaceId: input.spaceId,

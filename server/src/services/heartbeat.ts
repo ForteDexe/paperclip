@@ -96,7 +96,7 @@ import {
   retryTransientRunWrite,
 } from "./heartbeat/run-lifecycle.js";
 export {
-  redactDetectedSuccessfulRunProgressSummaryForBoard,
+  redactDetectedSuccessfulRunProgressSummaryForOperator,
   redactSuccessfulRunHandoffEvidence,
   persistHeartbeatRunProcessMetadata,
   resolveSkillTestRunCompletionForHeartbeatOutcome,

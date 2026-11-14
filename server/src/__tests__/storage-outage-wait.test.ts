@@ -79,7 +79,7 @@ describe("waiting out a storage outage on a run's critical path (Daytona storage
   it("stops waiting when the run is stopped", async () => {
     outageUntil = Date.now() + 60_000;
     const stop = new AbortController();
-    setTimeout(() => stop.abort(new Error("Stopped by a operator operator")), 3_000);
+    setTimeout(() => stop.abort(new Error("Stopped by an operator")), 3_000);
     const startedAt = Date.now();
     await expect(waitOutStorageOutages(() => provider().getObject({ objectKey: "space/workspace.pcws", signal: stop.signal })))
       .rejects.toBeTruthy();
@@ -111,7 +111,7 @@ describe("the shared storage outage wait", () => {
     await expect(retryThroughStorageOutage(outage, AbortSignal.timeout(50), slow))
       .rejects.toSatisfy(isStorageUnavailableError);
     const stop = new AbortController();
-    setTimeout(() => stop.abort(new Error("Stopped by a operator operator")), 50);
+    setTimeout(() => stop.abort(new Error("Stopped by an operator")), 50);
     const stopped = await retryThroughStorageOutage(outage, stop.signal, slow).catch((error: unknown) => error);
     expect(stopped).toMatchObject({ name: "AbortError" });
     expect(isStorageUnavailableError(stopped)).toBe(false);
@@ -179,7 +179,7 @@ describe("the shared storage outage wait", () => {
 
   it("gives a run started from a stopped run's cleanup its own scope", async () => {
     const stopped = new AbortController();
-    stopped.abort(new Error("Stopped by a operator operator"));
+    stopped.abort(new Error("Stopped by an operator"));
     const wide = { budgetMs: 2_000, firstDelayMs: 20, maxDelayMs: 40 };
     let calls = 0;
     const next = await waitOutStorageOutages(async () => {
@@ -199,7 +199,7 @@ describe("the shared storage outage wait", () => {
       shared = runSharedStorageWork(() => retryThroughStorageOutage(async () => (Date.now() < endsAt ? outage() : "shared"), undefined, wide));
       return retryThroughStorageOutage(outage, undefined, wide);
     });
-    setTimeout(() => stopA.abort(new Error("Stopped by a operator operator")), 30);
+    setTimeout(() => stopA.abort(new Error("Stopped by an operator")), 30);
     await expect(runA).rejects.toMatchObject({ name: "AbortError" });
     await expect(shared).resolves.toBe("shared");
   });

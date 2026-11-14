@@ -57,7 +57,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
       sql`not (${unresolvedSlackPublicationCondition()})`,
       // An explicit Operator send promises both delivery and work. Keep
       // its text/files pending until the durable wake has been accepted.
-      sql`not exists (select 1 from chat_actions a where a.space_id = ${chatPublications.spaceId} and a.endpoint_id = ${chatPublications.endpointId} and a.conversation_id = ${chatPublications.conversationId} and a.kind = 'slack_board_message' and a.status = 'received' and a.payload->>'commentId' = ${chatPublications.commentId}::text)`,
+      sql`not exists (select 1 from chat_actions a where a.space_id = ${chatPublications.spaceId} and a.endpoint_id = ${chatPublications.endpointId} and a.conversation_id = ${chatPublications.conversationId} and a.kind = 'slack_operator_message' and a.status = 'received' and a.payload->>'commentId' = ${chatPublications.commentId}::text)`,
       or(
         and(
           sql`not exists (select 1 from chat_endpoints e where e.id = ${chatPublications.endpointId} and e.publication_mode = 'explicit')`,

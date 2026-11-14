@@ -1,4 +1,4 @@
-import { usePrimaryAgentPresentation } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { useDefaultAgentPresentation } from "@/components/default-agent/DefaultAgentPresentation";
 import { AgentCoordinationIndicator } from "@/components/AgentCoordinationIndicator";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -298,7 +298,7 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
   const lastSeenLiveAtRef = useRef<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
   const { selectedSpaceId } = useSpace();
-  const primary = usePrimaryAgentPresentation(selectedSpaceId);
+  const primary = useDefaultAgentPresentation(selectedSpaceId);
   const { openNewAgent } = useDialogActions();
   const { isMobile, setSidebarOpen, collapsed, peeking } = useSidebar();
   const rail = collapsed && !peeking;
@@ -616,8 +616,8 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
     return counts;
   }, [visibleAgents]);
 
-  const primaryAgent = primary && !primary.loading
-    ? visibleAgents.find(agent => agent.id === primary.primaryAgentId)
+  const defaultAgent = primary && !primary.loading
+    ? visibleAgents.find(agent => agent.id === primary.defaultAgentId)
     : undefined;
 
   const renderAgentRow = (agent: Agent, isStarredRow: boolean) => (
@@ -664,9 +664,9 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
       }}
     >
       {[
-        ...(primaryAgent ? [primaryAgent] : []),
-        ...starredAgents.filter(agent => agent.id !== primaryAgent?.id),
-        ...dedupedDisplayedAgents.filter(agent => agent.id !== primaryAgent?.id),
+        ...(defaultAgent ? [defaultAgent] : []),
+        ...starredAgents.filter(agent => agent.id !== defaultAgent?.id),
+        ...dedupedDisplayedAgents.filter(agent => agent.id !== defaultAgent?.id),
       ].map(agent => renderAgentRow(agent, starredAgentIdSet.has(agent.id)))}
       {showSeeAllLink && (() => {
         // Deliberately NOT a SidebarNavItem: this is a quiet muted affordance

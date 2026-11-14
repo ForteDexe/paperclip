@@ -65,7 +65,7 @@ describe("CLI public-state oracles", () => {
     const o = { ...base, tasks: [], reply: command("outpost context use acorn\noutpost context show --json"),
       state: { initialProfile: "birch", finalProfile: "acorn", selectedSpaceId: target.space, selectedApiBase: target.apiBase,
         selectedPersona: "board", actualScopedSpaceId: target.space, contextCommandsExecuted: true,
-        otherProfilePreserved: true, onlyOwnedContextWritten: true, operatorUserId: "synthetic-person", identityIsBoardUser: true, identityIncludesSelectedSpace: true } };
+        otherProfilePreserved: true, onlyOwnedContextWritten: true, operatorUserId: "synthetic-person", identityIsOperatorUser: true, identityIncludesSelectedSpace: true } };
     expect(gradeChooseCliContext(o).passed).toBe(true);
     // The profile name is the model's choice; selecting the other (birch) profile is not.
     expect(gradeChooseCliContext({ ...o, state: { ...o.state, finalProfile: "acorn-space" } }).passed).toBe(true);

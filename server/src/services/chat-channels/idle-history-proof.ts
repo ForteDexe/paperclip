@@ -50,7 +50,7 @@ function completedAction(a: string): string {
           AND interaction.space_id = ${a}.space_id AND interaction.status = ${a}.result->>'interactionStatus'
           AND interaction.resolved_at IS NOT NULL))
       WHEN ${a}.kind = 'operator_send_rejected' THEN ${a}.status = 'processed'
-        AND ${a}.result->>'code' = 'chat_board_send_attachments_already_bound'
+        AND ${a}.result->>'code' = 'chat_operator_send_attachments_already_bound'
         AND ${a}.payload->>'schemaVersion' = '1' AND length(${a}.payload->>'requestedByUserId') > 0
         AND jsonb_typeof(${a}.payload->'attachmentIds') = 'array' AND jsonb_array_length(CASE WHEN jsonb_typeof(${a}.payload->'attachmentIds') = 'array' THEN ${a}.payload->'attachmentIds' ELSE '[]'::jsonb END) BETWEEN 1 AND 20
         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(${a}.payload->'attachmentIds') = 'array' THEN ${a}.payload->'attachmentIds' ELSE '[]'::jsonb END) rejected_id(value)

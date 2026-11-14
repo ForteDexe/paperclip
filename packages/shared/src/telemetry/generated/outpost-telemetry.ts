@@ -464,14 +464,14 @@ export const OUTPOST_ENUM_DESCRIPTIONS = {
       "other": "Fallback when the resolution reason is unknown or not represented by the tracked enum."
     },
     "resolved_by_kind": {
-      "user": "A operator or human user resolved the interaction.",
+      "user": "An operator or human user resolved the interaction.",
       "agent": "An agent resolved the interaction.",
       "system": "Outpost resolved the interaction automatically.",
       "other": "Fallback when the resolver kind is unknown or not represented by the tracked enum."
     },
     "created_by_kind": {
       "agent": "Interaction was created by an agent.",
-      "user": "Interaction was created by a operator or human user.",
+      "user": "Interaction was created by an operator or human user.",
       "other": "Fallback when the creator kind is unknown or not represented by the tracked enum."
     },
     "creator_agent_role": {

@@ -1899,7 +1899,7 @@ async function listSpacesForContext(ctx: {
   try {
     return (await ctx.api.get<Space[]>("/api/spaces")) ?? [];
   } catch (error) {
-    if (!isBoardAccessRequiredError(error)) {
+    if (!isOperatorAccessRequiredError(error)) {
       throw error;
     }
   }
@@ -1915,9 +1915,9 @@ async function createSpaceForContext(ctx: {
   try {
     return await ctx.api.post("/api/spaces", payload);
   } catch (error) {
-    if (isBoardAccessRequiredError(error) || isInstanceAdminRequiredError(error)) {
+    if (isOperatorAccessRequiredError(error) || isInstanceAdminRequiredError(error)) {
       throw new Error(
-        "Creating spaces requires operator/instance-admin authentication. Agent API keys are scoped to one space; use `outpost space list --json` or `outpost space current --json` to select the scoped space, or rerun create with a operator token/login.",
+        "Creating spaces requires operator/instance-admin authentication. Agent API keys are scoped to one space; use `outpost space list --json` or `outpost space current --json` to select the scoped space, or rerun create with an operator token/login.",
       );
     }
     throw error;
@@ -1947,7 +1947,7 @@ async function resolveCurrentSpaceId(ctx: { spaceId?: string; api: { get<T>(path
   );
 }
 
-function isBoardAccessRequiredError(error: unknown): error is ApiRequestError {
+function isOperatorAccessRequiredError(error: unknown): error is ApiRequestError {
   return error instanceof ApiRequestError && error.status === 403 && error.message.toLowerCase().includes("operator access required");
 }
 

@@ -15,7 +15,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   };
   const space = await post("/spaces", { name: "Speko integrated", issuePrefix: "SPE" });
   const other = await post("/spaces", { name: "Separate space", issuePrefix: "OTH" });
-  const policy = await page.request.patch(`${origin}/api/spaces/${space.id}`, { headers: { Origin: origin }, data: { requireBoardApprovalForNewAgents: false } });
+  const policy = await page.request.patch(`${origin}/api/spaces/${space.id}`, { headers: { Origin: origin }, data: { requireOperatorApprovalForNewAgents: false } });
   expect(policy.ok()).toBe(true);
   const agent = await post(`/spaces/${space.id}/agents`, { name: "Existing Outpost Agent", role: "general", adapterType: "process", adapterConfig: { command: "fixture" }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
   // Discover the built SDK chunk by its export, rather than mock any Outpost API.

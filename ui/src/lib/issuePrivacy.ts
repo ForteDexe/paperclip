@@ -1,4 +1,4 @@
-import type { CurrentBoardAccess } from "../api/access";
+import type { CurrentOperatorAccess } from "../api/access";
 import type { Issue, Project } from "@outpost/shared";
 import type {
   IssueAccessGrant,
@@ -53,7 +53,7 @@ export function grantIsRevocable(source: IssueAccessGrantSource): boolean {
 export function canManageIssuePrivacy(
   issue: Pick<Issue, "spaceId" | "responsibleUserId" | "createdByUserId" | "assigneeUserId"> | undefined,
   userId: string | null,
-  access: CurrentBoardAccess | undefined,
+  access: CurrentOperatorAccess | undefined,
 ): boolean {
   if (!issue || !access) return false;
   if (access.source === "local_implicit" || access.isInstanceAdmin) return true;
@@ -62,7 +62,7 @@ export function canManageIssuePrivacy(
     && member.status === "active" && ["owner", "admin"].includes(member.membershipRole ?? "")) ?? false;
 }
 
-export function canManageProjectPrivacy(project: Pick<Project, "spaceId" | "privacyOwnerUserId" | "personalOwnerUserId">, userId: string | null, access: CurrentBoardAccess | undefined): boolean {
+export function canManageProjectPrivacy(project: Pick<Project, "spaceId" | "privacyOwnerUserId" | "personalOwnerUserId">, userId: string | null, access: CurrentOperatorAccess | undefined): boolean {
   return canManageIssuePrivacy({ spaceId: project.spaceId, responsibleUserId: project.privacyOwnerUserId ?? null,
     createdByUserId: project.personalOwnerUserId ?? null, assigneeUserId: null }, userId, access);
 }

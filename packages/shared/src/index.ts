@@ -2372,7 +2372,7 @@ export {
   operatorCliAuthAccessLevelSchema,
   createCliAuthChallengeSchema,
   resolveCliAuthChallengeSchema,
-  createBoardApiKeySchema,
+  createOperatorApiKeySchema,
   currentUserProfileSchema,
   authSessionSchema,
   updateSpaceMemberSchema,
@@ -2396,7 +2396,7 @@ export {
   type OperatorCliAuthAccessLevel,
   type CreateCliAuthChallenge,
   type ResolveCliAuthChallenge,
-  type CreateBoardApiKey,
+  type CreateOperatorApiKey,
   type CurrentUserProfile,
   type AuthSession,
   type UpdateSpaceMember,
@@ -2860,7 +2860,7 @@ export * from "./connection-instructions.js";
 export * from "./customer-success.js";
 export type { GitHubAppOwner, GitHubAppRegistrationInput, GitHubAppCloudState, GitHubAppWizardState } from "./types/github-app-setup.js";
 export * from "./decision-models.js";
-export { updatePrimaryAgentSchema, type UpdatePrimaryAgent, type PrimaryAgentPreference } from "./primary-agent.js";
+export { updateDefaultAgentSchema, type UpdateDefaultAgent, type DefaultAgentPreference } from "./default-agent.js";
 
 export * from "./agent-avatar-upload.js";
 
@@ -2905,7 +2905,7 @@ export {
 
 export { readProviderFailure, type ProviderFailure } from "./provider-failure.generated.js";
 export type { OperatorBootstrap, OperatorBootstrapSession } from "./types/operator-bootstrap.js";
-export { readBoardBootstrap } from "./operator-bootstrap.js";
+export { readOperatorBootstrap } from "./operator-bootstrap.js";
 export * from "./provider-rate-limits.js";
 export * from "./agent-interaction-permissions.js";
 export * from "./run-failure-cause.js";

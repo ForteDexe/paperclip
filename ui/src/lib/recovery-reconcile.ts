@@ -1,5 +1,5 @@
 import type { IssueRecoveryAction } from "@outpost/shared";
-import type { CurrentBoardAccess } from "../api/access";
+import type { CurrentOperatorAccess } from "../api/access";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -17,9 +17,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * `server/src/services/authorization.ts`), so the shape matches; per-permission-key overrides
  * are not surfaced to the client and remain the server's call.
  */
-export function canBoardManageRuntime(
+export function canOperatorManageRuntime(
   spaceId: string | null | undefined,
-  operatorAccess: CurrentBoardAccess | undefined,
+  operatorAccess: CurrentOperatorAccess | undefined,
 ) {
   if (!spaceId || !operatorAccess) return false;
   if (operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin) return true;
@@ -35,13 +35,13 @@ export function canBoardManageRuntime(
 }
 
 /** Client affordance for operator task mutations; the server rechecks issue access. */
-export const canBoardResolveRecoveryAction = canBoardManageRuntime;
+export const canOperatorResolveRecoveryAction = canOperatorManageRuntime;
 
 /** Client mirror of `runtime:confirm_owner_stop`: space owners and administrators,
  * the trusted local operator, or an instance administrator. The server is authoritative. */
-export function canBoardConfirmOwnerStop(
+export function canOperatorConfirmOwnerStop(
   spaceId: string | null | undefined,
-  operatorAccess: CurrentBoardAccess | undefined,
+  operatorAccess: CurrentOperatorAccess | undefined,
 ) {
   if (!spaceId || !operatorAccess) return false;
   if (operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin) return true;

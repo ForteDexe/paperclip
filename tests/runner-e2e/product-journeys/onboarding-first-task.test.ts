@@ -274,7 +274,7 @@ describe("Cloud canonical onboarding first task", () => {
     vi.spyOn(Date, "now").mockImplementation(() => now);
     vi.mocked(connectionDelay).mockImplementation(async ms => { now += ms; });
     const f = fixture({ mutate(phase, state) {
-      if (phase === "accepted") withBoardBlockedChild(state);
+      if (phase === "accepted") withOperatorBlockedChild(state);
     } });
     f.input.deadlineAt = now + 2000;
     await expect(onboardingFirstTask(f.input)).rejects.toMatchObject({ outcome: "failed", code: "onboarding_child_task_blocked" });
@@ -303,7 +303,7 @@ describe("Cloud canonical onboarding first task", () => {
         if (!waiting) linkWorkspaceRetry(state.runs.find(run => run.id === "child-run")!);
       }
       if (!waiting) return;
-      withBoardBlockedChild(state);
+      withOperatorBlockedChild(state);
       if (mode === "active") Object.assign(state.runs[1]!, { status: "running", finishedAt: null });
       if (mode === "native-recovery") withPendingNativeRecovery(state.runs[1]!, now - 1000, now + 30_000);
     } });
@@ -315,7 +315,7 @@ describe("Cloud canonical onboarding first task", () => {
     vi.mocked(connectionDelay).mockImplementation(async () => { waiting = false; });
     const f = fixture({ mutate(phase, state) {
       if (phase !== "accepted" || !waiting) return;
-      const run = withBoardBlockedChild(state);
+      const run = withOperatorBlockedChild(state);
       if (mode === "stale-version") state.tasks[1]!.statusVersion++;
       if (mode === "newer-producer") state.runs.push({ ...run, id: "newer-child-run", createdAt: "2026-01-01T00:00:02Z",
         finishedAt: "2026-01-01T00:00:03Z", resultJson: { finalizationPhase: "committed", orpReportedWorkDisposition: "completed" } });
@@ -622,7 +622,7 @@ function withPendingNativeRecovery(run: Row, failedAt: number, retryAt: number, 
     } });
 }
 
-function withBoardBlockedChild(state: Parameters<NonNullable<Options["mutate"]>>[1]): Row {
+function withOperatorBlockedChild(state: Parameters<NonNullable<Options["mutate"]>>[1]): Row {
   Object.assign(state.tasks[0]!, { status: "blocked" });
   Object.assign(state.tasks[1]!, { status: "blocked", statusVersion: 2,
     unblockDescriptor: { owner: "board", action: "Provide an accessible delivery artifact." } });

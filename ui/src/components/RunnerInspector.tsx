@@ -732,7 +732,7 @@ export function RunnerInspector({
     fetcher: async () => {
       const loadEpoch = rawTraceAccessEpochRef.current;
       const [operatorAccess, nextEvents] = await Promise.all([
-        accessApi.getCurrentBoardAccess(),
+        accessApi.getCurrentOperatorAccess(),
         loadAllRunEvents(runId),
       ]);
       // Superseded by a newer denial or deletion: do not read the raw trace.
@@ -771,7 +771,7 @@ export function RunnerInspector({
     let active = true;
     const revalidate = async () => {
       try {
-        const operatorAccess = await accessApi.getCurrentBoardAccess();
+        const operatorAccess = await accessApi.getCurrentOperatorAccess();
         if (!active) return;
         const canRaw =
           operatorAccess.source === "local_implicit" ||
@@ -960,7 +960,7 @@ export function RunnerInspector({
     if (rawTraceAccessRef.current?.epoch !== deletionAccess.epoch) return;
     let operatorAccess;
     try {
-      operatorAccess = await accessApi.getCurrentBoardAccess();
+      operatorAccess = await accessApi.getCurrentOperatorAccess();
     } catch {
       if (rawTraceAccessRef.current?.epoch === deletionAccess.epoch) {
         denyRawTraceAccess();

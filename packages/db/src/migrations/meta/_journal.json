@@ -3305,6 +3305,20 @@
       "when": 1794597665601,
       "tag": "0473_outpost_focused_skills",
       "breakpoints": true
+    },
+    {
+      "idx": 474,
+      "version": "7",
+      "when": 1794654038461,
+      "tag": "0474_elite_ken_ellis",
+      "breakpoints": true
+    },
+    {
+      "idx": 475,
+      "version": "7",
+      "when": 1794654454886,
+      "tag": "0475_amused_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

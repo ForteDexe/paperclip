@@ -38,7 +38,7 @@ const NEW_TASK_AGENTS = [...storybookAgents, { ...storybookAgents[2]!, id: "agen
 const REQUEST = "Review the sign-in flow and fix the redirect after a session expires.";
 const ROUTINES = [{ id: "routine-daily-check", title: "Daily check-in", status: "active" }];
 const RICH_REQUEST = [
-  `Ask [@CodexCoder](${buildAgentMentionHref("agent-codex", "code")}) and [@QAChecker](${buildAgentMentionHref("agent-qa", "shield")}) to review [@Board UI](${buildProjectMentionHref("project-board-ui", storybookProjects[0]!.color)}).`,
+  `Ask [@CodexCoder](${buildAgentMentionHref("agent-codex", "code")}) and [@QAChecker](${buildAgentMentionHref("agent-qa", "shield")}) to review [@Board UI](${buildProjectMentionHref("project-operator-ui", storybookProjects[0]!.color)}).`,
   `Check [PAP-1602](${buildIssueReferenceHref("PAP-1602")}) with [@Product Lead](${buildUserMentionHref("user-product")}) using [/test-it-for-real](${buildSkillMentionHref(SKILLS[0]!.id, SKILLS[0]!.slug)}).`,
   `Use [/routine:Daily check-in](${buildRoutineMentionHref(ROUTINES[0]!.id)}) as the checklist.`,
 ].join("\n\n");
@@ -81,7 +81,7 @@ function NewTaskStory({
       if (url.pathname === `/api/spaces/${SPACE_ID}/execution-workspaces`) {
         if (worktrees === "loading") return new Promise<Response>(() => {});
         if (worktrees === "error") return Response.json({ error: "Worktrees unavailable" }, { status: 503 });
-        return Response.json(worktrees === "empty" || url.searchParams.get("projectId") !== "project-board-ui" ? [] : WORKTREES);
+        return Response.json(worktrees === "empty" || url.searchParams.get("projectId") !== "project-operator-ui" ? [] : WORKTREES);
       }
       if (url.pathname === `/api/spaces/${SPACE_ID}/issues` && init?.method === "POST") {
         if (scenario === "saving") return new Promise<Response>(() => {});
@@ -123,7 +123,7 @@ function NewTaskStory({
     localStorage.removeItem(`outpost:composer-effort:${SPACE_ID}`);
     if (rememberedAssignee === "agent") trackRecentAssignee("agent-codex", SPACE_ID);
     if (rememberedAssignee === "human") trackRecentAssigneeUser(storybookAuthSession.user.id, SPACE_ID);
-    if (rememberedProject) trackRecentProject("project-board-ui", SPACE_ID);
+    if (rememberedProject) trackRecentProject("project-operator-ui", SPACE_ID);
     if (rememberedEffort) rememberComposerEffort(SPACE_ID, "high");
     client.setQueryData(queryKeys.health, { hiddenSettings: [] });
     client.setQueryData(queryKeys.auth.session, storybookAuthSession);
@@ -145,7 +145,7 @@ function NewTaskStory({
       enableIsolatedWorkspaces: true,
     });
     const worktreeQueryKey = queryKeys.executionWorkspaces.summaryList(SPACE_ID, {
-      projectId: "project-board-ui",
+      projectId: "project-operator-ui",
       reuseEligible: true,
     });
     client.removeQueries({ queryKey: worktreeQueryKey, exact: true });
@@ -160,8 +160,8 @@ function NewTaskStory({
             description: scenario === "rich" ? RICH_REQUEST : REQUEST,
             ...(scenario === "title" ? { title: "Fix the sign-in redirect" } : {}),
             assigneeAgentId: "agent-codex",
-            projectId: "project-board-ui",
-            projectWorkspaceId: "workspace-board-ui",
+            projectId: "project-operator-ui",
+            projectWorkspaceId: "workspace-operator-ui",
             workMode: scenario === "planning" ? "planning" : "standard",
             ...(worktrees === "reuse" ? { executionWorkspaceId: WORKTREES[0]!.id } : {}),
             ...(scenario === "subtask"
@@ -431,7 +431,7 @@ export const NewWorktreeAfterReuse: Story = {
     await userEvent.click(page.getByRole("option", { name: /New worktree/ }));
     await userEvent.click(page.getByRole("button", { name: "Create task" }));
     await expect(await page.findByRole("status")).toHaveTextContent("Worktrees: isolated_workspace");
-    await expect(page.getByRole("status")).toHaveTextContent("Checkout: workspace-board-ui");
+    await expect(page.getByRole("status")).toHaveTextContent("Checkout: workspace-operator-ui");
     await expect(page.getByRole("status")).not.toHaveTextContent("Reused:");
   },
 };

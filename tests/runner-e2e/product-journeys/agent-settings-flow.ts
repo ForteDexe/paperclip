@@ -6,7 +6,7 @@ import { createTaskThroughUi } from "../user-actions.js";
 import { waitFor } from "./agent-flows.js";
 import { createObservedReader } from "./observation-read.js";
 import { openDocumentAuthoring } from "./task-document-flow.js";
-import { AGENT_SETTINGS_CHECKS, gradeAgentSettings, instructionDigest, matchedBoardSaveAudit, settingsInstructionContent,
+import { AGENT_SETTINGS_CHECKS, gradeAgentSettings, instructionDigest, matchedOperatorSaveAudit, settingsInstructionContent,
   settingsDocumentKey, settingsProofHeading, settingsTaskPrompt, type AgentSettingsEvidence, type AgentSettingsScope,
   type SettingsSnapshot } from "./agent-settings-evidence.js";
 import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSession } from "./types.js";
@@ -83,7 +83,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
     // Disabled can also mean saving. Confirm persisted bytes and the new audit
     // before navigating, including during restoration.
     return waitFor(options.deadlineAt, snapshot, point => point.file.content === content
-      && Boolean(matchedBoardSaveAudit(point, beforePoint, scope)), "agent_settings_save_not_persisted");
+      && Boolean(matchedOperatorSaveAudit(point, beforePoint, scope)), "agent_settings_save_not_persisted");
   };
   const check = (name: typeof AGENT_SETTINGS_CHECKS[number]) => {
     const result = gradeAgentSettings(scope, observations).find(row => row.id === name)!;
@@ -165,8 +165,8 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
         })),
         issueId: observations.task?.issue.id ?? null, runIds: observations.task?.runs.map(row => row.id) ?? [],
         documentId: observations.task?.document.id ?? null, documentRevisionId: observations.task?.revision.id ?? null,
-        saveAudits: { saved: matchedBoardSaveAudit(observations.saved, observations.original, scope),
-          restored: matchedBoardSaveAudit(observations.restored, observations.afterWork, scope) },
+        saveAudits: { saved: matchedOperatorSaveAudit(observations.saved, observations.original, scope),
+          restored: matchedOperatorSaveAudit(observations.restored, observations.afterWork, scope) },
         checks: gradeAgentSettings(scope, observations),
       }, null, 2), { mode: 0o600 });
     } catch (error) { if (!failed) throw error; }

@@ -134,7 +134,7 @@ function resolveLiveRunId(
 
 /**
  * Read the bounded retry lineage the server stored on a recovery action, or null when the
- * action does not carry one (older kinds, or a operator escalation that is not part of the
+ * action does not carry one (older kinds, or an operator escalation that is not part of the
  * owner-sticky contract).
  */
 export function readRecoveryRetryLineage(

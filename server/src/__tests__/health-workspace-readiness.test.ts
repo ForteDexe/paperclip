@@ -94,7 +94,7 @@ afterEach(() => {
 });
 
 describe("GET /api/health workspace readiness", () => {
-  it("exposes readiness to a operator actor of a managed workspace", async () => {
+  it("exposes readiness to an operator actor of a managed workspace", async () => {
     setEnv({
       OUTPOST_CONFIG: createSeededWorkspace(),
       [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "handoff-key",

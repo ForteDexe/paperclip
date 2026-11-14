@@ -636,7 +636,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     async (req, res) => {
       if (!(await assertEndpointManagementAccess(req, res))) return;
       const userId = actorUserId(req);
-      if (!userId) throw badRequest("A operator user is required");
+      if (!userId) throw badRequest("An operator user is required");
       await service.resolvePublication(
         endpointId(req),
         req.params.publicationId as string,
@@ -654,7 +654,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     async (req, res) => {
       if (!(await assertEndpointManagementAccess(req, res))) return;
       const userId = actorUserId(req);
-      if (!userId) throw badRequest("A operator user is required");
+      if (!userId) throw badRequest("An operator user is required");
       await service.resolveAction(
         endpointId(req),
         req.params.actionId as string,
@@ -683,11 +683,11 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
         return;
       }
       const userId = actorUserId(req);
-      if (!userId) throw badRequest("A operator user is required");
+      if (!userId) throw badRequest("An operator user is required");
       res
         .status(201)
         .json(
-          await service.publishBoardMessage(
+          await service.publishOperatorMessage(
             endpointId(req),
             req.params.conversationId as string,
             req.body.body,

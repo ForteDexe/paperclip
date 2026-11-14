@@ -32,7 +32,7 @@ const responses: Record<string, unknown> = {
 const checks = [
   ["/api/health", queryKeys.health],
   ["/api/auth/get-session", queryKeys.auth.session],
-  ["/api/cli-auth/me", queryKeys.access.currentBoardAccess],
+  ["/api/cli-auth/me", queryKeys.access.currentOperatorAccess],
 ] as const;
 
 describe("CloudAccessGate restart recovery", () => {
@@ -113,7 +113,7 @@ describe("CloudAccessGate restart recovery", () => {
       await render();
       expect(container.querySelector("textarea")).not.toBeNull();
       expect(callsTo("/api/cli-auth/me")).toBe(0);
-      void client.invalidateQueries({ queryKey: queryKeys.access.currentBoardAccess });
+      void client.invalidateQueries({ queryKey: queryKeys.access.currentOperatorAccess });
       await flushReact();
       expect(callsTo("/api/cli-auth/me")).toBe(1);
     } finally { responses["/api/auth/get-session"] = previous; }
@@ -137,11 +137,11 @@ describe("CloudAccessGate restart recovery", () => {
       client.setQueryData(queryKeys.auth.session, boot("user", []));
       await flushReact();
       expect(container.querySelector("textarea")).toBeNull();
-      expect(client.getQueryData([...queryKeys.access.currentBoardAccess, "user"])).toMatchObject({ spaceIds: [] });
+      expect(client.getQueryData([...queryKeys.access.currentOperatorAccess, "user"])).toMatchObject({ spaceIds: [] });
       expect(callsTo("/api/cli-auth/me")).toBe(0);
 
       // An ordinary post-bootstrap grant is allowed to replace that snapshot.
-      void client.invalidateQueries({ queryKey: queryKeys.access.currentBoardAccess });
+      void client.invalidateQueries({ queryKey: queryKeys.access.currentOperatorAccess });
       await flushReact();
       expect(callsTo("/api/cli-auth/me")).toBe(1);
       expect(container.querySelector("textarea")).not.toBeNull();
@@ -290,7 +290,7 @@ describe("CloudAccessGate restart recovery", () => {
     await render();
     failingPath = "/api/cli-auth/me";
     failure = () => Response.json({ error: "Forbidden" }, { status: 403 });
-    await client.refetchQueries({ queryKey: queryKeys.access.currentBoardAccess });
+    await client.refetchQueries({ queryKey: queryKeys.access.currentOperatorAccess });
     await flushReact();
     expect(container.textContent).toContain("Unable to load Outpost");
     expect(container.textContent).not.toContain("reconnect automatically");

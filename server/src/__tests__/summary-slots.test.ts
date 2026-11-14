@@ -454,7 +454,7 @@ describeEmbeddedPostgres("summary slot service", () => {
       return { svc, generationIssueId: generated.generatingIssue.id, runId };
     }
 
-    it("writes a operator-readable revision, preserves the previous revision, and clears the generating state", async () => {
+    it("writes an operator-readable revision, preserves the previous revision, and clears the generating state", async () => {
       const spaceId = await seedSpace();
       const projectId = await seedProject(spaceId);
       const summarizerAgentId = await seedSummarizer(spaceId);

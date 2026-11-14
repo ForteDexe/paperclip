@@ -46,11 +46,11 @@ function createAgent(id: string, name: string, icon: string, urlKey: string): Ag
   };
 }
 
-const primaryAgent = createAgent("agent-perf-codex", "CodexCoder", "code", "codexcoder");
+const defaultAgent = createAgent("agent-perf-codex", "CodexCoder", "code", "codexcoder");
 const reviewerAgent = createAgent("agent-perf-reviewer", "ReviewBot", "sparkles", "reviewbot");
 
 export const issueChatLongThreadAgentMap = new Map<string, Agent>([
-  [primaryAgent.id, primaryAgent],
+  [defaultAgent.id, defaultAgent],
   [reviewerAgent.id, reviewerAgent],
 ]);
 
@@ -87,7 +87,7 @@ function createComment(index: number): IssueChatComment {
   const isMarkdown = index < LONG_THREAD_MARKDOWN_COMMENT_COUNT;
   const isAssistant = isMarkdown || index % 4 === 1 || index % 4 === 2;
   const authorAgentId = isAssistant
-    ? (index % 7 === 0 ? reviewerAgent.id : primaryAgent.id)
+    ? (index % 7 === 0 ? reviewerAgent.id : defaultAgent.id)
     : null;
 
   return {
@@ -126,14 +126,14 @@ export const issueChatLongThreadEvents: IssueTimelineEvent[] = Array.from(
     id: `long-thread-event-${index + 1}`,
     createdAt: atMinute(index * 36 + 18),
     actorType: index % 3 === 0 ? "user" : "agent",
-    actorId: index % 3 === 0 ? "user-operator" : primaryAgent.id,
+    actorId: index % 3 === 0 ? "user-operator" : defaultAgent.id,
     statusChange: index % 2 === 0
       ? { from: index === 0 ? "todo" : "in_progress", to: "in_progress" }
       : undefined,
     assigneeChange: index % 2 === 1
       ? {
           from: { agentId: null, userId: null },
-          to: { agentId: index % 4 === 1 ? primaryAgent.id : reviewerAgent.id, userId: null },
+          to: { agentId: index % 4 === 1 ? defaultAgent.id : reviewerAgent.id, userId: null },
         }
       : undefined,
   }),
@@ -144,8 +144,8 @@ export const issueChatLongThreadLinkedRuns: IssueChatLinkedRun[] = Array.from(
   (_, index) => ({
     runId: `long-thread-run-${index + 1}`,
     status: index % 3 === 0 ? "failed" : index % 3 === 1 ? "timed_out" : "succeeded",
-    agentId: index % 2 === 0 ? primaryAgent.id : reviewerAgent.id,
-    agentName: index % 2 === 0 ? primaryAgent.name : reviewerAgent.name,
+    agentId: index % 2 === 0 ? defaultAgent.id : reviewerAgent.id,
+    agentName: index % 2 === 0 ? defaultAgent.name : reviewerAgent.name,
     adapterType: "codex_local",
     createdAt: atMinute(index * 72 + 12),
     startedAt: atMinute(index * 72 + 12),

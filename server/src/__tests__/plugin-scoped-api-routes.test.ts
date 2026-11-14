@@ -128,7 +128,7 @@ describe("plugin scoped API routes", () => {
     });
   });
 
-  it("dispatches a operator GET route with params, query, actor, and space context", async () => {
+  it("dispatches an operator GET route with params, query, actor, and space context", async () => {
     const apiRoutes = manifest([
       {
         routeKey: "summary.get",

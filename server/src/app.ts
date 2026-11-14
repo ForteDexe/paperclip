@@ -38,7 +38,7 @@ import { createPublicMcpOAuth, publicMcpConfig } from "./services/public-mcp/oau
 import { createDotPrincipalHttp } from "./modules/external-agents/index.js";
 import { createDotRunnerMcpTools, dotRunnerBroker } from "./services/dot-runner-broker.js";
 import { agentProfileAvatarRoutes } from "./routes/agent-profile-avatar.js";
-import { museTransportRoutes, museBoardRoutes } from "./routes/muse.js";
+import { museTransportRoutes, museOperatorRoutes } from "./routes/muse.js";
 import { museQualificationRoutes } from "./routes/muse-qualification.js";
 import { startMuseMaintenance } from "./services/muse-maintenance.js";
 import { grokBotRoutes } from "./routes/grok-bot.js";
@@ -158,7 +158,7 @@ import { sidebarPreferenceRoutes } from "./routes/sidebar-preferences.js";
 import { announcementRoutes } from "./routes/announcements.js";
 import { serverVersion } from "./version.js";
 import { workspacePreferenceRoutes } from "./routes/workspace-preferences.js";
-import { primaryAgentRoutes } from "./routes/primary-agent.js";
+import { defaultAgentRoutes } from "./routes/default-agent.js";
 import { resourceMembershipRoutes } from "./routes/resource-memberships.js";
 import { inboxDismissalRoutes } from "./routes/inbox-dismissals.js";
 import { instanceSettingsRoutes } from "./routes/instance-settings.js";
@@ -179,7 +179,7 @@ import {
   toolGatewayRoutes,
 } from "./routes/tool-gateway.js";
 import {
-  connectionIntentBoardRoutes,
+  connectionIntentOperatorRoutes,
   runtimeConnectionIntentRoutes,
 } from "./routes/connection-intents.js";
 import { adapterRoutes } from "./routes/adapters.js";
@@ -575,7 +575,7 @@ export async function createApp(
     pluginWorkerManager: workerManager,
   });
   const chatChannels = chatChannelService(db, {
-    allowLocalVoiceBoard: opts.deploymentMode === "local_trusted",
+    allowLocalVoiceOperator: opts.deploymentMode === "local_trusted",
     deferWebhookProcessing: true,
     heartbeat: connectionIntentHeartbeat,
     publicBaseUrl: opts.authPublicBaseUrl,
@@ -849,7 +849,7 @@ export async function createApp(
   api.use(sidebarPreferenceRoutes(db));
   api.use(announcementRoutes(db, { ...opts.announcements, version: opts.hostVersion ?? serverVersion }));
   api.use(resourceMembershipRoutes(db));
-  api.use(primaryAgentRoutes(db));
+  api.use(defaultAgentRoutes(db));
   api.use(workspacePreferenceRoutes(db));
   api.use(inboxDismissalRoutes(db));
   api.use(instanceSettingsRoutes(db, workerManager, opts.prepareIdleDatabaseBackup, opts.idleDeadlineOwners,
@@ -919,7 +919,7 @@ export async function createApp(
       connectionIntentHeartbeat,
     }),
   );
-  api.use(connectionIntentBoardRoutes(db, connectionIntentHeartbeat));
+  api.use(connectionIntentOperatorRoutes(db, connectionIntentHeartbeat));
   api.use(
     smokeLabRoutes(db, {
       deploymentMode: opts.deploymentMode,
@@ -1050,7 +1050,7 @@ export async function createApp(
     api.use(grokBotRoutes(db, publicMcpOAuth.config.origin + "/mcp/runner"));
   }
 
-  api.use(museBoardRoutes(db, opts.authPublicBaseUrl));
+  api.use(museOperatorRoutes(db, opts.authPublicBaseUrl));
   api.use(museQualificationRoutes(db));
   app.use("/api", api);
   app.use("/api", (_req, res) => {

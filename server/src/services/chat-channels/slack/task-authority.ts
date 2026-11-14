@@ -106,7 +106,7 @@ export function createSlackTaskAuthorityRegistration(db: Db, options: SlackTaskA
             eq(chatIdentityLinks.outpostUserId, run.responsibleUserId!), eq(chatIdentityLinks.status, "linked"),
             eq(chatExternalPrincipals.provider, "slack"), eq(chatExternalPrincipals.providerAccountId, endpoint.providerAccountId!), eq(chatExternalPrincipals.isBot, false)));
         if (links.length !== 1) throw forbidden("Link your Slack account to this connection before using it from tasks or routines");
-        // A Operator message changes who is directing the work, not the privacy
+        // An Operator message changes who is directing the work, not the privacy
         // of context already present in its linked Slack conversation.
         const conversations = await tx.select().from(chatConversations).where(and(
           eq(chatConversations.spaceId, binding.spaceId), eq(chatConversations.endpointId, endpoint.id),

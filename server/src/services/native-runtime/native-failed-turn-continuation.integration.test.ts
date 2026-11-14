@@ -124,7 +124,7 @@ describe("native failed-turn continuation", () => {
     expect(task.assigneeAgentId).toBe(agentId);
 
     // The continuation's own turn fails the same way: no second automatic
-    // wake, and a operator blocker whose Retry restarts the work.
+    // wake, and an operator blocker whose Retry restarts the work.
     await db.update(issues).set({ status: "in_progress", executionRunId: null, checkoutRunId: null }).where(eq(issues.id, issueId));
     const before = (await issueWakes(issueId)).length;
     const second = await failTurn(issueId, code, { nativeStatusWakeIntentId: intent.id }, intent.id);

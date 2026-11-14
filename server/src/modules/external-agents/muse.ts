@@ -268,7 +268,7 @@ function createMuseBroker(db:Db, publicOrigin?:string) {
       const result=await db.transaction(tx=>withExternalAdmissionGuard(tx,spaceId,agentId,async()=>{
         const [b]=await tx.select().from(bindings).where(and(eq(bindings.spaceId,spaceId),eq(bindings.agentId,agentId))).orderBy(desc(bindings.generation)).limit(1).for("update");
         if(!b||b.id!==input.bindingId||b.generation!==input.generation||b.qualificationId!==input.qualificationId||input.hookScript!==detectorHook(b)||!detectorAttestationEligible(b))throw conflict("Detector cleanup scope changed or its deadline has not ended. Refresh before attesting.");
-        if(actor.type!=="operator"||actor.userId!==operatorId)throw forbidden("A current Operator operator is required.");
+        if(actor.type!=="operator"||actor.userId!==operatorId)throw forbidden("A current Operator is required.");
         const decision=await authorizationService(tx).decide({actor,action:"agent_config:update",resource:{type:"agent",spaceId,agentId},scope:{requiresChangeGrant:true}});
         if(!decision.allowed)throw forbidden(decision.explanation);
         const digest=externalOperationDigest("tool",{input,operatorId});

@@ -48,7 +48,7 @@ it("owning act observes a delayed real completion only within the remaining orig
   expect(port.deadlines).toEqual([300_000]);
   expect(port.now).toBeGreaterThan(195_000); // old150s allowance from45s setup boundary
   expect(port.now).toBeLessThan(300_000);
-  expect(f.get).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/primary-agent/me");
+  expect(f.get).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/default-agent/me");
 });
 it.each([{ deadline: "missing" }, { deadline: NaN }, { deadline: Infinity }, { deadline: 44_999 }])("owning act refuses unavailable or expired originalclock before native reads %j", async options => {
   const f = fixture(options as Options);

@@ -1582,11 +1582,11 @@ function invalidateActivityQueries(
     queryClient.invalidateQueries({ queryKey: ["ai-connections", spaceId] });
   }
 
-  if (action?.startsWith("primary_agent.") || action?.startsWith("agent.") || action?.startsWith("resource_membership.")) {
-    queryClient.invalidateQueries({ queryKey: ["primary-agent", spaceId] });
+  if (action?.startsWith("default_agent.") || action?.startsWith("agent.") || action?.startsWith("resource_membership.")) {
+    queryClient.invalidateQueries({ queryKey: ["default-agent", spaceId] });
   }
 
-  if (action?.startsWith("resource_membership.") || action?.startsWith("primary_agent.")) {
+  if (action?.startsWith("resource_membership.") || action?.startsWith("default_agent.")) {
     const targetUserId = readString(details?.userId);
     if (!targetUserId || targetUserId === currentActor.userId) {
       queryClient.invalidateQueries({

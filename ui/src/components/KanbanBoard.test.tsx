@@ -80,7 +80,7 @@ function createIssues(count: number, status: IssueStatus): Issue[] {
   return Array.from({ length: count }, (_, index) => createIssue(index + 1, status));
 }
 
-function renderBoard(
+function renderOperator(
   props: Partial<React.ComponentProps<typeof KanbanBoard>> & { issues: Issue[] },
 ) {
   const container = document.createElement("div");
@@ -122,7 +122,7 @@ describe("KanbanBoard", () => {
   });
 
   it("limits visible cards and reveals more cards per column", () => {
-    const { container } = renderBoard({
+    const { container } = renderOperator({
       issues: createIssues(60, "todo"),
       compactCards: true,
       initialVisibleCount: 50,
@@ -149,7 +149,7 @@ describe("KanbanBoard", () => {
 
   it("resets visible counts when the column page size changes", () => {
     const issues = createIssues(60, "todo");
-    const { container, render } = renderBoard({
+    const { container, render } = renderOperator({
       issues,
       initialVisibleCount: 50,
       revealIncrement: 50,
@@ -179,7 +179,7 @@ describe("KanbanBoard", () => {
   });
 
   it("renders collapsed statuses as rails without cards", () => {
-    const { container } = renderBoard({
+    const { container } = renderOperator({
       issues: createIssues(3, "done"),
       collapsedStatuses: ["done"],
     });
@@ -201,7 +201,7 @@ describe("KanbanBoard", () => {
   });
 
   it("ghosts cancelled lane cards", () => {
-    const { container } = renderBoard({
+    const { container } = renderOperator({
       issues: createIssues(1, "cancelled"),
     });
 
@@ -212,7 +212,7 @@ describe("KanbanBoard", () => {
   });
 
   it("keeps core issue signals in compact cards", () => {
-    const { container } = renderBoard({
+    const { container } = renderOperator({
       issues: createIssues(1, "todo"),
       compactCards: true,
     });
@@ -236,7 +236,7 @@ describe("KanbanBoard", () => {
 
   it("moves a cached card into its new column before the server responds", () => {
     const issue = { ...createIssue(1, "todo"), displayStatus: "todo" as const };
-    const { container, render } = renderBoard({ issues: [issue] });
+    const { container, render } = renderOperator({ issues: [issue] });
     const column = () => container.querySelector('a[href="/issues/PAP-1"]')?.closest('[data-issue-row-details]')?.parentElement?.parentElement;
     expect(column()?.textContent).toContain("Todo");
     render({ issues: [applyOptimisticIssueFieldUpdate(issue, { status: "done" })!] });

@@ -12,7 +12,7 @@ const url = spacePrefix
   : `${baseUrl}/tests/perf/long-thread`;
 const origin = new URL(url).origin;
 
-function loadBoardToken() {
+function loadOperatorToken() {
   const authPath = path.resolve(os.homedir(), ".outpost/auth.json");
   try {
     const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
@@ -31,7 +31,7 @@ function loadBoardToken() {
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-const operatorToken = process.env.OUTPOST_PERF_BEARER_TOKEN || loadBoardToken();
+const operatorToken = process.env.OUTPOST_PERF_BEARER_TOKEN || loadOperatorToken();
 
 if (operatorToken) {
   await page.route(`${origin}/**`, async (route) => {

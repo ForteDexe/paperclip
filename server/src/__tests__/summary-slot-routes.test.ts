@@ -167,7 +167,7 @@ describe("summary slot routes", () => {
   });
 
   describe("generate route", () => {
-    it("creates a generation task and logs activity for operator operators", async () => {
+    it("creates a generation task and logs activity for operators", async () => {
       const app = await createApp(operatorActor);
       const res = await request(app).post(
         `/api/spaces/${spaceId}/summary-slots/project/header/generate`,

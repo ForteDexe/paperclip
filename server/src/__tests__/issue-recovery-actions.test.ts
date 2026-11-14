@@ -1095,7 +1095,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     },
   );
 
-  it("stands down while the latest run was cancelled by a operator operator", async () => {
+  it("stands down while the latest run was cancelled by an operator", async () => {
     const { spaceId, coderId, sourceIssueId } = await seedSpace();
     await db.insert(heartbeatRuns).values({
       id: randomUUID(),
@@ -1103,7 +1103,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       agentId: coderId,
       invocationSource: "manual",
       status: "cancelled",
-      error: "Cancelled by a operator operator",
+      error: "Cancelled by an operator",
       errorCode: "cancelled",
       resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator-user" },
       startedAt: new Date("2026-07-15T20:00:00.000Z"),
@@ -3285,7 +3285,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     });
   });
 
-  it("rejects peer-agent recovery action resolution on a operator-owned source issue", async () => {
+  it("rejects peer-agent recovery action resolution on an operator-owned source issue", async () => {
     const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
@@ -3335,7 +3335,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     });
   });
 
-  it("keeps the named recovery owner from completing a operator-owned source issue", async () => {
+  it("keeps the named recovery owner from completing an operator-owned source issue", async () => {
     const { spaceId, managerId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)

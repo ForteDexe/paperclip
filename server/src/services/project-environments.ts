@@ -28,7 +28,7 @@ export async function projectEnvironmentOptions(db: Db, spaceId: string, actor: 
     const candidates = db.select({ environmentId: agents.defaultEnvironmentId }).from(agents);
     const [agent] = actor.agentId
       ? await candidates.where(and(eq(agents.spaceId, spaceId), eq(agents.id, actor.agentId)))
-      : await candidates.innerJoin(userSpacePreferences, and(eq(userSpacePreferences.primaryAgentId, agents.id),
+      : await candidates.innerJoin(userSpacePreferences, and(eq(userSpacePreferences.defaultAgentId, agents.id),
         eq(userSpacePreferences.spaceId, spaceId), eq(userSpacePreferences.userId, actor.userId!)))
         .where(and(eq(agents.spaceId, spaceId), notInArray(agents.status, ["terminated", "pending_approval"])));
     preferredEnvironmentId = agent?.environmentId ?? preferredEnvironmentId;

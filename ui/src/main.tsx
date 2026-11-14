@@ -16,7 +16,7 @@ import { SidebarProvider } from "./context/SidebarContext";
 import { DialogProvider } from "./context/DialogContext";
 import { EditorAutocompleteProvider } from "./context/EditorAutocompleteContext";
 import { applyLiveEventFreeQueryDefaults } from "./lib/live-reconcile";
-import { PrimaryAgentProvider } from "./context/PrimaryAgentProvider";
+import { DefaultAgentProvider } from "./context/DefaultAgentProvider";
 import { ToastProvider, useToastActions, type ToastInput } from "./context/ToastContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { DesignSandboxProvider } from "./context/DesignSandboxContext";
@@ -129,7 +129,7 @@ getOrCreateOutpostReactRoot(window, rootElement).render(
               <EditorAutocompleteProvider>
                 <ToastProvider>
                   <MutationErrorToastBridge />
-                  <PrimaryAgentProvider>
+                  <DefaultAgentProvider>
                   <LiveUpdatesProvider>
                     <TooltipProvider>
                       <SpaceAwareBreadcrumbProvider>
@@ -145,7 +145,7 @@ getOrCreateOutpostReactRoot(window, rootElement).render(
                       </SpaceAwareBreadcrumbProvider>
                     </TooltipProvider>
                   </LiveUpdatesProvider>
-                  </PrimaryAgentProvider>
+                  </DefaultAgentProvider>
                 </ToastProvider>
               </EditorAutocompleteProvider>
             </SpaceProvider>

@@ -115,10 +115,10 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
-      entityType: "user_preference", entityId: "user-1", action: "primary_agent.updated",
+      entityType: "user_preference", entityId: "user-1", action: "default_agent.updated",
       actorType: "user", actorId: "user-1",
     }, { userId: "user-1", agentId: null });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["primary-agent", "space-1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["default-agent", "space-1"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.resourceMemberships.mine("space-1") });
     client.clear();
   });

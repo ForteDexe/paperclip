@@ -26,7 +26,7 @@ test("representative UI surfaces use the shared presentation vocabulary", () => 
     "ui/src/components/Sidebar.production.tsx",
     "ui/src/pages/Spaces.tsx",
     "ui/src/pages/Goals.tsx",
-    "ui/src/components/primary-agent/PrimaryAgentPresentation.tsx",
+    "ui/src/components/default-agent/DefaultAgentPresentation.tsx",
   ]) {
     const source = fs.readFileSync(file, "utf8");
     assert.match(source, /productLabel/);

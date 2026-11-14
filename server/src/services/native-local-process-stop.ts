@@ -230,7 +230,7 @@ export async function confirmUnidentifiedLocalRunnerStopped(db: Db, input: {
       eventType: LOCAL_PROCESS_STOPPED,
       stream: "system",
       level: "info",
-      message: "A operator operator confirmed that this run's runner and its agent processes have stopped.",
+      message: "An operator confirmed that this run's runner and its agent processes have stopped.",
       payload: { processPid: null, processGroupId: null, processStartedAt: null, basis: "operator_attested",
         attestedByUserId: input.actorId },
     });

@@ -7,7 +7,7 @@ import { isAgentCreatedIssue } from "@outpost/shared";
 import { issueRoutes } from "../routes/issues.js";
 import { issueService } from "../services/issues.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
-import { describeEmbeddedPostgres, resetSpaceIssueFixtures, routeApp, seedSpaceWithBoardAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
+import { describeEmbeddedPostgres, resetSpaceIssueFixtures, routeApp, seedSpaceWithOperatorAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
 
 describeEmbeddedPostgres("issue creation visibility", () => {
   const ctx = useEmbeddedPostgres("outpost-creation-visibility-", {
@@ -26,8 +26,8 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it("filters ordinary and compact searches before pagination without changing API defaults", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Creation visibility");
-    const other = await seedSpaceWithBoardAccess(ctx.db, "Other space");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Creation visibility");
+    const other = await seedSpaceWithOperatorAccess(ctx.db, "Other space");
     const rows = [
       { id: randomUUID(), spaceId, title: "Visibility human", createdByUserId: userId, originKind: "manual" },
       { id: randomUUID(), spaceId, title: "Visibility second human", createdByUserId: userId, originKind: "manual" },
@@ -60,7 +60,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it("preserves participation but excludes routine ownership and read-only activity", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Inbox participation");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Inbox participation");
     const ids = Object.fromEntries(["scheduled", "commented", "assigned", "manual", "read", "touched", "channelScheduled", "channelCommented", "channelManual"].map((name) => [name, randomUUID()]));
     await ctx.db.insert(issues).values(Object.entries(ids).map(([name, id]) => ({
       id, spaceId, title: `Participation ${name}`, status: "todo", originKind: name.startsWith("channel") ? "chat_channel" : "routine_execution",
@@ -86,7 +86,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it("uses source evidence for existing imports and keeps direct operator/API participation", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Personal inbox sources");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Personal inbox sources");
     const svc = issueService(ctx.db);
     const names = ["github", "slack", "legacySender", "legacyLink", "direct", "outbound", "manualRun", "human", "agent", "private"];
     const ids = Object.fromEntries(names.map((name) => [name, randomUUID()]));
@@ -144,7 +144,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it("admits open addressed requests and removes that reason when they resolve", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Human requests");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Human requests");
     const ids = Object.fromEntries(["question", "confirmation", "otherUser", "creatorExcluded", "private"].map((name) => [name, randomUUID()]));
     await ctx.db.insert(issues).values(Object.entries(ids).map(([name, id]) => ({ id, spaceId, title: name, status: "todo", originKind: "chat_channel", visibility: name === "private" ? "private" : "open", createdAt: new Date("2026-01-01") })));
     const requests = await ctx.db.insert(issueThreadInteractions).values(Object.entries(ids).map(([name, issueId]) => ({
@@ -173,7 +173,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it("keeps a service-created request unread for the human assignee until they read it", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Assigned request");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Assigned request");
     await ctx.db.insert(authUsers).values({ id: userId, name: "Recipient", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
     const [agent] = await ctx.db.insert(agents).values({ spaceId, name: "Requester", role: "engineer", adapterType: "process" }).returning();
     const [issue] = await ctx.db.insert(issues).values({
@@ -203,7 +203,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it.each(["request_checkbox_confirmation", "request_item_verdicts"] as const)("resurfaces archived automatic work for an addressed %s", async (kind) => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Archived requests");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Archived requests");
     await ctx.db.insert(authUsers).values({ id: userId, name: "Recipient", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
     const [agent] = await ctx.db.insert(agents).values({ spaceId, name: "Requester", role: "engineer", adapterType: "process" }).returning();
     const tasks = await ctx.db.insert(issues).values(["addressed", "otherRecipient"].map((title) => ({
@@ -250,7 +250,7 @@ describeEmbeddedPostgres("issue creation visibility", () => {
   });
 
   it("excludes historical and closed requests while preserving current questions and authorization requests", async () => {
-    const { spaceId, userId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Current requests");
+    const { spaceId, userId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Current requests");
     const names = ["historical", "done", "cancelled", "current", "authorization"];
     const ids = Object.fromEntries(names.map((name) => [name, randomUUID()]));
     await ctx.db.insert(issues).values(names.map((name) => ({

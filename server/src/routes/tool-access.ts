@@ -87,7 +87,7 @@ import {
   oauthClientIdMetadataDocument,
 } from "../services/tool-access.js";
 import { isLoopbackHost } from "../url-utils.js";
-import { trustedBoardMutationOrigin } from "../middleware/operator-mutation-guard.js";
+import { trustedOperatorMutationOrigin } from "../middleware/operator-mutation-guard.js";
 import { connectionIntentService } from "../services/connection-intents.js";
 import { redactRemoteUrlCredential } from "../services/remote-url-credentials.js";
 import { connectionIntentDeliveryService } from "../services/connection-intent-delivery.js";
@@ -367,7 +367,7 @@ export function toolAccessRoutes(
   }
 
   function trustedBrowserBaseUrl(req: Request) {
-    const origin = trustedBoardMutationOrigin(req);
+    const origin = trustedOperatorMutationOrigin(req);
     if (!origin) return null;
     try {
       const parsed = new URL(origin);

@@ -87,13 +87,13 @@ export function gradeTaskDependencyResume(value: DependencyEvidence | undefined)
     && waiting[0]!.observedAt >= created.observedAt
     && Number.isFinite(value.releaseRequestedAt) && value.releaseRequestedAt >= waiting[waiting.length - 1]!.observedAt
     && released.observedAt >= value.releaseRequestedAt && finished.observedAt >= released.observedAt && reopened.observedAt >= finished.observedAt;
-  const completedByBoard = held && [released, finished, reopened].every(p => p.blocker.status === "done"
+  const completedByOperator = held && [released, finished, reopened].every(p => p.blocker.status === "done"
     && Number.isFinite(date(p.blocker.completedAt)))
     && reopened.activity.filter(row => row.spaceId === s.spaceId && row.entityType === "issue"
       && row.entityId === s.blockerId && row.action === "issue.updated" && row.actorType === "user"
       && row.actorId === s.userId && row.details?.status === "done").length === 1;
   const run = finished.dependentRuns[0];
-  const oneRun = completedByBoard && finished.dependent.status === "done" && reopened.dependent.status === "done"
+  const oneRun = completedByOperator && finished.dependent.status === "done" && reopened.dependent.status === "done"
     && !finished.dependent.executionRunId && !finished.dependent.checkoutRunId
     && !reopened.dependent.executionRunId && !reopened.dependent.checkoutRunId
     && finished.dependentRuns.length === 1 && reopened.dependentRuns.length === 1
@@ -126,6 +126,6 @@ export function gradeTaskDependencyResume(value: DependencyEvidence | undefined)
     && !reopened.activity.some(row => row.runId === run?.id
       && ["issue.created", "issue.child_created", "project.created", "agent.created", "agent.hire_created"].includes(row.action))
     && reopened.blocker.completedAt === released.blocker.completedAt;
-  const values = [linked, held, completedByBoard, oneRun, authored, resultReopened, history, runtime];
+  const values = [linked, held, completedByOperator, oneRun, authored, resultReopened, history, runtime];
   return TASK_DEPENDENCY_RESUME_CHECKS.map((id, index) => ({ id, passed: Boolean(values[index]) }));
 }

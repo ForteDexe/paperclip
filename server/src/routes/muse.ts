@@ -81,7 +81,7 @@ export function museTransportRoutes(db:Db,publicOrigin?:string,options:{allowLeg
   }
   return router;
 }
-export function museBoardRoutes(db:Db,publicOrigin?:string) {
+export function museOperatorRoutes(db:Db,publicOrigin?:string) {
   const router=Router(),broker=museExternalAgents(db,{publicOrigin}),invitations=museInvitationService(db);
   async function scope(req:Request,write=false) {
     const spaceId=z.uuid().parse(req.params.spaceId);assertOperator(req);assertSpaceAccess(req,spaceId);

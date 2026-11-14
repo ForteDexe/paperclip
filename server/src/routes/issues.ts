@@ -890,7 +890,7 @@ function issueWriteAuthorizationReason(
   if (decision !== true && decision.reason) return decision.reason;
   return req.actor.type === "agent"
     ? "allow_scoped_agent_write"
-    : "allow_board_actor";
+    : "allow_operator_actor";
 }
 
 function readPlanConfirmationTargetForIssue(payload: unknown, issueId: string) {
@@ -6557,7 +6557,7 @@ export function issueRoutes(
     if (!isCreator && !isAssignee) {
       res.status(403).json({
         error:
-          "Only the interaction creator, current issue assignee, or a operator user may withdraw it",
+          "Only the interaction creator, current issue assignee, or an operator user may withdraw it",
       });
       return false;
     }
@@ -7934,7 +7934,7 @@ export function issueRoutes(
     if (!ancestor) return;
     throw conflict(
       `Delegation cycle: ${ancestor.identifier ?? "an ancestor issue"} in this chain was created by the agent this child would be assigned to. ` +
-        "Complete the remaining work in your own issue, leave the child unassigned, or escalate to a operator operator — do not delegate the work back to the agent that delegated it to you.",
+        "Complete the remaining work in your own issue, leave the child unassigned, or escalate to an operator — do not delegate the work back to the agent that delegated it to you.",
       {
         code: "delegation_cycle",
         ancestorIssueId: ancestor.id,
@@ -7980,7 +7980,7 @@ export function issueRoutes(
     // for a later unpause is a legitimate workflow.
     if (options.actorType === "agent" && resolved.agent.status === "paused") {
       throw conflict(
-        "Cannot assign work to a paused agent. Assign an invokable agent, leave the issue unassigned, or escalate to a operator operator instead.",
+        "Cannot assign work to a paused agent. Assign an invokable agent, leave the issue unassigned, or escalate to an operator instead.",
         { assigneeAgentId: resolved.agent.id, assigneeStatus: "paused" },
       );
     }
@@ -10627,7 +10627,7 @@ export function issueRoutes(
         // Retrying an exhausted disposition repair is an explicit retry of the
         // recorded owner, never permission to reopen a stopped/completed task or
         // silently retry a new assignee from an old notice. All admission gates
-        // below still apply, even for a operator operator.
+        // below still apply, even for an operator.
         if (
           outcome === "restored" &&
           sourceIssueStatus === "todo" &&
@@ -10873,7 +10873,7 @@ export function issueRoutes(
                 agentId: actor.agentId ?? null,
                 userId: actor.actorType === "user" ? actor.actorId : null,
               },
-              allowBoardOverride: req.actor.type === "operator" && req.actor.source !== "mcp_oauth",
+              allowOperatorOverride: req.actor.type === "operator" && req.actor.source !== "mcp_oauth",
               commentBody: resolutionNote ?? null,
             });
             Object.assign(updateFields, transition.patch);
@@ -15260,7 +15260,7 @@ export function issueRoutes(
           agentId: actor.agentId ?? null,
           userId: actor.actorType === "user" ? actor.actorId : null,
         },
-        allowBoardOverride: req.actor.type === "operator" && req.actor.source !== "mcp_oauth",
+        allowOperatorOverride: req.actor.type === "operator" && req.actor.source !== "mcp_oauth",
         commentBody,
         reviewRequest: reviewRequest === undefined ? undefined : reviewRequest,
         monitorExplicitlyUpdated:

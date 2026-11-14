@@ -1077,7 +1077,7 @@ const DELETE_METHOD = "DELETE" as never;
       const { chatChannelService } = await import("../services/chat-channels.js");
       const chat = chatChannelService(db, { heartbeat: { wakeup: unused }, fetch: unused });
       try {
-        await expect(chat.publishBoardMessage(endpoint.id, f.conversation.id, "Reuse an already bound attachment", randomUUID(), f.userId,
+        await expect(chat.publishOperatorMessage(endpoint.id, f.conversation.id, "Reuse an already bound attachment", randomUUID(), f.userId,
           [result.storedIds[0]])).rejects.toMatchObject({ status: 409 });
         expect(await blockedActionKind("operator_send_rejected")).toBe(false);
       } finally { await chat.shutdown(); }
@@ -1231,7 +1231,7 @@ const DELETE_METHOD = "DELETE" as never;
 
   it("retires actual Slack invitation, test-message and mirror receipts without hiding their publication", async () => {
     const { slackTestMessageService } = await import("../services/connectors/slack/test-message.js");
-    const { mirrorSlackBoardComment } = await import("../services/slack-operator-messages.js");
+    const { mirrorSlackOperatorComment } = await import("../services/slack-operator-messages.js");
     const { chatChannelService } = await import("../services/chat-channels.js");
     const { chatCredentialMutationLease } = await import("../services/chat-credential-mutation-lease.js");
     const { instanceSettingsService } = await import("../services/instance-settings.js");
@@ -1258,7 +1258,7 @@ const DELETE_METHOD = "DELETE" as never;
     expect(await blocked("chat_actions")).toBe(false);
     const [comment] = await db.insert(tables.issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorType: "user", authorUserId: f.userId, body: "Mirror this operator comment" }).returning();
-    await db.transaction(tx => mirrorSlackBoardComment(tx, comment));
+    await db.transaction(tx => mirrorSlackOperatorComment(tx, comment));
     const [publication] = await db.select().from(tables.chatPublications);
     expect(publication).toMatchObject({ state: "pending", commentId: comment.id });
     expect(await blocked("chat_actions")).toBe(true);
@@ -1605,7 +1605,7 @@ const DELETE_METHOD = "DELETE" as never;
     expect(await blocked("chat_deliveries")).toBe(true);
     const [publication] = await db.insert(tables.chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpoint.id, conversationId: conversation.id,
       issueId: issue.id, idempotencyKey: randomUUID(), state: "delivery_unknown",
-      payload: projectSafeChatPublication({ classification: "external", source: "explicit_board_send", text: "Retained result" }) }).returning();
+      payload: projectSafeChatPublication({ classification: "external", source: "explicit_operator_send", text: "Retained result" }) }).returning();
     expect(await blocked("chat_publications")).toBe(true);
     const service = chatChannelService(db, { heartbeat: { wakeup: async () => { throw new Error("No turn expected"); } },
       fetch: async () => { throw new Error("No external network expected"); } });

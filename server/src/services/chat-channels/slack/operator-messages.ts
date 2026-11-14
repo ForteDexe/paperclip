@@ -1,9 +1,9 @@
 import { dueChatAction } from "../../chat-action-work.js";
 import { notifyChatPublicationWork, notifyChatActionWork } from "../../chat-work-notifications.js";
-import { withSlackBoardLease } from "../../slack-operator-lease.js";
-import { slackBoardReplyBindings } from "../../slack-operator-messages.js";
-import { authorizeSlackBoardPublication } from "../../slack-operator-authority.js";
-import { assertSlackBoardWorkAllowed } from "../../slack-operator-resume.js";
+import { withSlackOperatorLease } from "../../slack-operator-lease.js";
+import { slackOperatorReplyBindings } from "../../slack-operator-messages.js";
+import { authorizeSlackOperatorPublication } from "../../slack-operator-authority.js";
+import { assertSlackOperatorWorkAllowed } from "../../slack-operator-resume.js";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { chatActions, chatConversations, chatEndpoints, chatPublications, issues } from "@outpost/db";
@@ -20,15 +20,15 @@ type OperatorMessageOptions = {
  fetchImpl: typeof globalThis.fetch;
  readonly heartbeat: IssueAssignmentWakeupDeps;
 };
-export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions) {
+export function createSlackOperatorMessages(db: Db, options: OperatorMessageOptions) {
  const { endpointRecord, resolveCredentials, fetchImpl } = options;
- async function processPendingSlackBoardMessages(limit = 25) {
+ async function processPendingSlackOperatorMessages(limit = 25) {
     const pending = await db.select({ id: chatActions.id, spaceId: chatActions.spaceId, endpointId: chatActions.endpointId }).from(chatActions)
       .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
-      .where(dueChatAction("slack_board_message"))
+      .where(dueChatAction("slack_operator_message"))
       .orderBy(asc(chatActions.createdAt)).limit(limit);
     for (const candidate of pending) {
-      await withSlackBoardLease(db, { ...candidate, actionId: candidate.id }, fetchImpl, async (lease) => {
+      await withSlackOperatorLease(db, { ...candidate, actionId: candidate.id }, fetchImpl, async (lease) => {
         const [action] = await db.select().from(chatActions).where(and(eq(chatActions.id, candidate.id), eq(chatActions.status, "received")));
         if (!action) return;
         const issueId = String(action.payload.issueId);
@@ -37,8 +37,8 @@ export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions
         const commentId = String(action.payload.commentId);
         async function cancelWork(message: string) {
           await lease.commit(async (tx) => {
-            await notifyChatActionWork(tx, "slack_board_message");
-            await tx.update(chatActions).set({ status: "cancelled", result: { code: "slack_board_work_not_authorized", message }, updatedAt: new Date() }).where(eq(chatActions.id, action.id));
+            await notifyChatActionWork(tx, "slack_operator_message");
+            await tx.update(chatActions).set({ status: "cancelled", result: { code: "slack_operator_work_not_authorized", message }, updatedAt: new Date() }).where(eq(chatActions.id, action.id));
             await notifyChatPublicationWork(tx);
             await tx.update(chatPublications).set({ state: "cancelled", redactedError: message, nextAttemptAt: null, updatedAt: new Date() }).where(and(
               eq(chatPublications.spaceId, action.spaceId), eq(chatPublications.endpointId, action.endpointId),
@@ -49,7 +49,7 @@ export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions
         }
         const currentEndpoint = await endpointRecord(action.endpointId);
         if (currentEndpoint && ["paused", "attention"].includes(currentEndpoint.endpoint.status)) return;
-        const bindings = await slackBoardReplyBindings(db, { spaceId: action.spaceId, issueId, userId, agentId, commentIds: [commentId] });
+        const bindings = await slackOperatorReplyBindings(db, { spaceId: action.spaceId, issueId, userId, agentId, commentIds: [commentId] });
         if (!bindings.some(binding => binding.endpointId === action.endpointId && binding.conversationId === action.conversationId)) {
           await cancelWork("The Slack message author no longer has access to this conversation");
           return;
@@ -58,7 +58,7 @@ export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions
           const [publication] = await db.select().from(chatPublications).where(and(eq(chatPublications.spaceId, action.spaceId), eq(chatPublications.endpointId, action.endpointId), eq(chatPublications.commentId, commentId))).limit(1);
           const [conversation] = await db.select().from(chatConversations).where(and(eq(chatConversations.spaceId, action.spaceId), eq(chatConversations.id, action.conversationId!)));
           const credentials = currentEndpoint ? await resolveCredentials(currentEndpoint.endpoint) : null;
-          if (!publication || !conversation || !currentEndpoint || !await authorizeSlackBoardPublication(db, currentEndpoint.endpoint, conversation, publication, credentials?.botToken ?? "", lease.fetch)) {
+          if (!publication || !conversation || !currentEndpoint || !await authorizeSlackOperatorPublication(db, currentEndpoint.endpoint, conversation, publication, credentials?.botToken ?? "", lease.fetch)) {
             throw forbidden("The Slack message author no longer has access to this conversation");
           }
           // Persist the resume and its marker together before waking. If a
@@ -66,13 +66,13 @@ export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions
           const issue = await lease.commit(async (tx) => {
             const [current] = await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, action.spaceId), eq(issues.assigneeAgentId, agentId))).for("update");
             if (!current) throw forbidden("The task is no longer assigned to the Slack agent");
-            await assertSlackBoardWorkAllowed(tx as unknown as Db, current);
+            await assertSlackOperatorWorkAllowed(tx as unknown as Db, current);
             if (action.result?.resumeApplied !== true) {
               if (["done", "blocked"].includes(current.status)) {
                 await issueService(tx as unknown as Db).update(current.id, { status: "todo", actorUserId: userId });
-                await logActivity(tx as unknown as Db, { spaceId: current.spaceId, actorType: "user", actorId: userId, action: "issue.updated", entityType: "issue", entityId: current.id, details: { status: "todo", source: "slack_board_message" } });
+                await logActivity(tx as unknown as Db, { spaceId: current.spaceId, actorType: "user", actorId: userId, action: "issue.updated", entityType: "issue", entityId: current.id, details: { status: "todo", source: "slack_operator_message" } });
               }
-              await notifyChatActionWork(tx, "slack_board_message");
+              await notifyChatActionWork(tx, "slack_operator_message");
               await tx.update(chatActions).set({ result: { resumeApplied: true }, updatedAt: new Date() }).where(eq(chatActions.id, action.id));
             }
             return current;
@@ -87,7 +87,7 @@ export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions
           });
           await lease.commit(async (tx) => {
             await notifyChatPublicationWork(tx);
-            await notifyChatActionWork(tx, "slack_board_message");
+            await notifyChatActionWork(tx, "slack_operator_message");
             await tx.update(chatActions).set({ status: "processed", updatedAt: new Date() }).where(eq(chatActions.id, action.id));
           });
         } catch (error) {
@@ -100,5 +100,5 @@ export function createSlackBoardMessages(db: Db, options: OperatorMessageOptions
       });
     }
   }
- return { processPendingSlackBoardMessages };
+ return { processPendingSlackOperatorMessages };
 }

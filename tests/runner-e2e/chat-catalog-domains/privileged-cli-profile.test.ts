@@ -55,11 +55,11 @@ it("actual production partial profile update preserves configured API and Birch 
 it("requires independently executed context, actual scoped space and a board identity rather than grammar alone", () => {
   const o = { scenarioId: "cli", origin: fixture.apiBase, spaceId: fixture.space, leadId: "lead", projects: [], tasks: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical"], runs: [{id:"native",status:"succeeded"}], reply: fence(exact),
     state: { initialProfile: "birch", finalProfile: "acorn", selectedSpaceId: fixture.space, selectedApiBase: fixture.apiBase, selectedPersona: "board", actualScopedSpaceId: fixture.space,
-      contextCommandsExecuted: true, otherProfilePreserved: true, onlyOwnedContextWritten: true, operatorUserId: "person", identityIsBoardUser: true, identityIncludesSelectedSpace: true } };
+      contextCommandsExecuted: true, otherProfilePreserved: true, onlyOwnedContextWritten: true, operatorUserId: "person", identityIsOperatorUser: true, identityIncludesSelectedSpace: true } };
   expect(gradeChooseCliContext(o).passed).toBe(true);
   // The optional persona label may be left unset: the authenticated identity decides who runs the commands.
   expect(gradeChooseCliContext({ ...o, state: { ...o.state, selectedPersona: undefined } }).passed).toBe(true);
-  for (const delta of [{ selectedPersona: "agent" }, { identityIsBoardUser: false }, { actualScopedSpaceId: "foreign" }, { actualScopedSpaceId: undefined },
+  for (const delta of [{ selectedPersona: "agent" }, { identityIsOperatorUser: false }, { actualScopedSpaceId: "foreign" }, { actualScopedSpaceId: undefined },
     { contextCommandsExecuted: false }, { identityIncludesSelectedSpace: false }, { otherProfilePreserved: false }])
     expect(gradeChooseCliContext({ ...o, state: { ...o.state, ...delta } }).passed).toBe(false);
 });

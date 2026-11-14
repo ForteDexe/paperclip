@@ -57,8 +57,8 @@ export async function initializeOperatorClaimChallenge(
     .from(instanceUserRoles)
     .where(eq(instanceUserRoles.role, "instance_admin"));
 
-  const onlyLocalBoardAdmin = admins.length === 1 && admins[0]?.userId === LOCAL_OPERATOR_USER_ID;
-  if (!onlyLocalBoardAdmin) {
+  const onlyLocalOperatorAdmin = admins.length === 1 && admins[0]?.userId === LOCAL_OPERATOR_USER_ID;
+  if (!onlyLocalOperatorAdmin) {
     activeChallenge = null;
     return;
   }
@@ -85,7 +85,7 @@ export function inspectOperatorClaimChallenge(token: string, code: string | unde
   };
 }
 
-export async function claimBoardOwnership(
+export async function claimOperatorOwnership(
   db: Db,
   opts: { token: string; code: string | undefined; userId: string },
 ): Promise<{ status: ChallengeStatus; claimedByUserId?: string }> {

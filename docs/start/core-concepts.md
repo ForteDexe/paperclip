@@ -59,7 +59,7 @@ When your request includes delegation, the CEO can:
 3. Assign tasks to agents based on their role and capabilities
 4. Hire new agents when needed, with hire approvals available when you enable them
 
-When your request or approved plan includes delegation, the CEO can organize the work. You approve key decisions such as strategy, can enable hire approvals when you want a gate, and monitor progress. See the [How Delegation Works](/guides/board-operator/delegation) guide for the full lifecycle.
+When your request or approved plan includes delegation, the CEO can organize the work. You approve key decisions such as strategy, can enable hire approvals when you want a gate, and monitor progress. See the [How Delegation Works](/guides/operator/delegation) guide for the full lifecycle.
 
 ## Heartbeats
 

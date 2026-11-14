@@ -14,7 +14,7 @@ import type { WorkspaceWorker } from "./native-runtime/native-workspace-platform
 import { ephemeralServerEnabled } from "./ephemeral-server-mode.js";
 import { proveControllerInstance, registeredControllerInstanceDb, type ControllerInstanceState } from "./controller-instance-lease.js";
 
-/** `processSpace` value written when a operator operator confirmed that this exact
+/** `processSpace` value written when an operator confirmed that this exact
  * recorded owner stopped (native-controller-host-recovery.ts). The attestation
  * is the proof. */
 export const OPERATOR_ATTESTED_PROCESS_SPACE = "operator_attested";
@@ -272,7 +272,7 @@ async function proveLocalProcessGone(stamp: LocalOwnerStamp, probe: ProcessProbe
   if (stamp.processSpace === OPERATOR_ATTESTED_PROCESS_SPACE) return { verdict: "gone", reason: "operator_attested" };
   // A row saved before its kind stored a PID space: one-release local
   // fallback on single-host servers; an ephemeral server cannot assume the
-  // PID was recorded here, so a operator operator decides.
+  // PID was recorded here, so an operator decides.
   const legacy = !stamp.processSpace && stamp.processSpaceUnrecorded === true;
   if (legacy && (stamp.requireRecordedProcessSpace || ephemeralServerEnabled())) return { verdict: "unprovable", reason: "process_space_unrecorded" };
   if (!validPid(stamp.pid) || (!stamp.processSpace && !legacy)) return { verdict: "unprovable", reason: "missing_identity" };

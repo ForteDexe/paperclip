@@ -129,7 +129,7 @@ describe("useSignOut", () => {
       spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
-    queryClient.setQueryData(queryKeys.access.currentBoardAccess, {
+    queryClient.setQueryData(queryKeys.access.currentOperatorAccess, {
       isInstanceAdmin: false,
       spaceIds: ["space-a"],
     });
@@ -155,7 +155,7 @@ describe("useSignOut", () => {
     // which is the leak this guards.
     expect(queryClient.getQueryData(queryKeys.auth.session)).toBeUndefined();
     expect(queryClient.getQueryData(queryKeys.spaces.all)).toBeUndefined();
-    expect(queryClient.getQueryData(queryKeys.access.currentBoardAccess)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.access.currentOperatorAccess)).toBeUndefined();
     expect(queryClient.getQueryData(queryKeys.issues.list("space-a"))).toBeUndefined();
 
     // Health describes the instance, not the account, and several observers
@@ -305,7 +305,7 @@ describe("isAccountScopedQueryKey", () => {
   it("treats every other key root as account-scoped, including ones added later", () => {
     expect(isAccountScopedQueryKey(queryKeys.spaces.all)).toBe(true);
     expect(isAccountScopedQueryKey(queryKeys.auth.session)).toBe(true);
-    expect(isAccountScopedQueryKey(queryKeys.access.currentBoardAccess)).toBe(true);
+    expect(isAccountScopedQueryKey(queryKeys.access.currentOperatorAccess)).toBe(true);
     expect(isAccountScopedQueryKey(queryKeys.issues.list("space-a"))).toBe(true);
     expect(isAccountScopedQueryKey(queryKeys.secrets.list("space-a"))).toBe(true);
     expect(isAccountScopedQueryKey(["some-key-nobody-has-written-yet"])).toBe(true);

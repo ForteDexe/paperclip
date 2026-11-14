@@ -79,7 +79,7 @@ export async function resolveSlackTaskAuthorization(
 }
 
 /** Follow only immutable controller provenance, stopping at the latest human message.
- * A operator-authored message must not inherit an earlier Slack user's credentials. */
+ * An operator-authored message must not inherit an earlier Slack user's credentials. */
 export async function slackRunOrigin(db: Db, binding: SlackTaskBinding) {
   let captured;
   if (binding.approvedInvocationId) {

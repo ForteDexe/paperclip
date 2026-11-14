@@ -22,7 +22,7 @@ import { normalizeAgentPermissions } from "../lib/agent-permissions.js";
 import type { ActivityPublication } from "../types/activity-publication.js";
 import { secretService, assertClaudeOAuthBindingInvariant } from "./secrets.js";
 import { agentCredentialService } from "./agent-credentials.js";
-import { clearPrimaryAgent } from "./primary-agent.js";
+import { clearDefaultAgent } from "./default-agent.js";
 import { budgetServiceInTransaction } from "./budgets.js";
 
 export async function lockAgentConfigurationInteractions(tx: Db, id: string, data: AgentConfigurationPatch, options?: UpdateAgentOptions) {
@@ -44,7 +44,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
     operation: "mention", texts: changedConfigurationText(data, existing) });
   if (data.permissions !== undefined) data = { ...data, permissions: preserveAgentInteractionPermissions(existing.permissions, data.permissions) };
   if (options?.recordRevision?.createdByAgentId && data.budgetMonthlyCents !== undefined && data.budgetMonthlyCents !== existing.budgetMonthlyCents) {
-    throw forbidden("Only operator operators can change agent budgets");
+    throw forbidden("Only operators can change agent budgets");
   }
   await notifyAttentionRetentionWork(db, { spaceId: existing.spaceId });
   const id = existing.id;
@@ -138,7 +138,7 @@ export async function completeAgentConfiguration(txDb: Db, existing: AgentConfig
     ? buildConfigSnapshot(agentRecordQueries(txDb).normalizeAgentRow(existing))
     : null;
   if (updated.status === "terminated") {
-    await clearPrimaryAgent(txDb, updated.spaceId, id);
+    await clearDefaultAgent(txDb, updated.spaceId, id);
   }
 
   const priorAdapterConfig = isPlainRecord(existing.adapterConfig) ? existing.adapterConfig : {};

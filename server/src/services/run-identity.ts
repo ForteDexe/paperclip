@@ -1,4 +1,4 @@
-import { readTaskRetryIntent, readTaskRetryBoardMessageOrigin } from "./task-retry.js";
+import { readTaskRetryIntent, readTaskRetryOperatorMessageOrigin } from "./task-retry.js";
 import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import {
   agentWakeupRequests,
@@ -252,7 +252,7 @@ export async function initializeRunIdentity(
           receipt!.reason === "task_retry" && receipt!.requestedByActorType === "user" &&
           run.contextSnapshot?.previousRunId === retry.sourceRunId && retry.generationId === receipt!.id && !retry.chatActionId && !retry.canonicalIntentId &&
           receipt!.payload?.issueId === input.issueId && retry.actorId === receipt!.requestedByActorId &&
-          await readTaskRetryBoardMessageOrigin(tx as unknown as Db, { spaceId: input.spaceId, issueId: input.issueId,
+          await readTaskRetryOperatorMessageOrigin(tx as unknown as Db, { spaceId: input.spaceId, issueId: input.issueId,
             agentId: run.agentId, sourceRunId: retry.sourceRunId, actorId: retry.actorId });
         if (!origin || origin.commentId !== retry.operatorMessageOrigin.commentId ||
             origin.identityContextId !== retry.operatorMessageOrigin.identityContextId) {

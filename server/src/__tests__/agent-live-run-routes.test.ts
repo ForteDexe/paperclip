@@ -1937,7 +1937,7 @@ describe("agent live run routes", () => {
     );
   });
 
-  it("lets a operator member reproject only retained workspace diffs", async () => {
+  it("lets an operator member reproject only retained workspace diffs", async () => {
     mockProviderTraceStore.getByRun.mockResolvedValue({
       id: "trace-1",
       status: "complete",

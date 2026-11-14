@@ -55,7 +55,7 @@ Manual: Set a near-term disposable schedule or authorized test webhook, verify o
 Sentry alerts use the ordinary
 `/api/routine-triggers/public/:publicId/fire` webhook and its trigger authentication.
 Configure loop-prevention filters in Sentry as described in the
-[Sentry repair tutorial](../../docs/guides/board-operator/sentry-run-failure-repairs.md).
+[Sentry repair tutorial](../../docs/guides/operator/sentry-run-failure-repairs.md).
 
 ## Gotchas
 

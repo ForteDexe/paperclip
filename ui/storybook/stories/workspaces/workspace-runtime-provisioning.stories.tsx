@@ -24,7 +24,7 @@ function ContextCard({ status }: { status: RuntimeProvisionStatus }) {
         <CardDescription>Linked objects and relationships</CardDescription>
       </CardHeader>
       <CardContent>
-        <DetailRow label="Project">board-ui</DetailRow>
+        <DetailRow label="Project">operator-ui</DetailRow>
         <DetailRow label="Runtime provisioning">
           <RuntimeProvisionStatusValue status={status} onViewLogs={noop} />
         </DetailRow>

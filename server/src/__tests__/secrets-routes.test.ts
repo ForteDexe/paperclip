@@ -190,7 +190,7 @@ describe("secret routes", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, ""])("validates a operator caller's missing or empty managed value %j", async (value) => {
+  it.each([undefined, ""])("validates an operator caller's missing or empty managed value %j", async (value) => {
     const res = await request(createApp()).post("/api/spaces/space-1/secrets")
       .send({ name: "Deployment key", value });
 

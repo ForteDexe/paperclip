@@ -450,7 +450,7 @@ async function startServerWithDatabaseTeardown(
   const LOCAL_OPERATOR_USER_EMAIL = "local@outpost.local";
   const LOCAL_OPERATOR_USER_NAME = "Operator";
   
-  async function ensureLocalTrustedBoardPrincipal(db: any): Promise<void> {
+  async function ensureLocalTrustedOperatorPrincipal(db: any): Promise<void> {
     const now = new Date();
     const existingUser = await db
       .select({ id: authUsers.id })
@@ -813,7 +813,7 @@ async function startServerWithDatabaseTeardown(
     | ((headers: Headers) => Promise<BetterAuthSessionResult | null>)
     | undefined;
   if (config.deploymentMode === "local_trusted") {
-    await ensureLocalTrustedBoardPrincipal(db as any);
+    await ensureLocalTrustedOperatorPrincipal(db as any);
   }
   const accessBackfill = await backfillPrincipalAccessCompatibility(db as any);
   if (accessBackfill.agentMembershipsInserted > 0 || accessBackfill.humanGrantsInserted > 0) {

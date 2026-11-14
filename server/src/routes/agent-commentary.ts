@@ -29,7 +29,7 @@ export function agentCommentaryRoutes(db: Db) {
       && await access.hasPermission(spaceId, "agent", req.actor.agentId, "commentary:view");
   }
 
-  async function authorizeBoardRead(req: Request, spaceId: string) {
+  async function authorizeOperatorRead(req: Request, spaceId: string) {
     assertOperator(req);
     if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin
       && (!req.actor.userId || !await access.canUser(spaceId, req.actor.userId, "commentary:view"))) {
@@ -50,7 +50,7 @@ export function agentCommentaryRoutes(db: Db) {
       return;
     }
     if (req.actor.type !== "operator") await denyAgentRead(spaceId);
-    res.json(await reader.list(spaceId, query.data, await authorizeBoardRead(req, spaceId)));
+    res.json(await reader.list(spaceId, query.data, await authorizeOperatorRead(req, spaceId)));
   });
 
   router.get("/spaces/:spaceId/agent-commentary/:id", async (req, res) => {
@@ -65,7 +65,7 @@ export function agentCommentaryRoutes(db: Db) {
       return;
     }
     if (req.actor.type !== "operator") await denyAgentRead(spaceId);
-    const readCondition = await authorizeBoardRead(req, spaceId);
+    const readCondition = await authorizeOperatorRead(req, spaceId);
     if (!isUuidLike(id)) throw notFound("Commentary not found");
     const entry = await reader.get(spaceId, id, readCondition);
     if (!entry) throw notFound("Commentary not found");

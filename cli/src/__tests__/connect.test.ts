@@ -5,7 +5,7 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as prompts from "@clack/prompts";
 import { registerConnectCommand } from "../commands/client/connect.js";
-import { loginBoardCli } from "../client/operator-auth.js";
+import { loginOperatorCli } from "../client/operator-auth.js";
 
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 vi.mock("../client/operator-auth.js", () => ({
-  loginBoardCli: vi.fn(),
+  loginOperatorCli: vi.fn(),
 }));
 
 const SPACE_ID = "22222222-2222-4222-8222-222222222222";
@@ -57,7 +57,7 @@ describe("connect command", () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
     Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
     vi.restoreAllMocks();
-    vi.mocked(loginBoardCli).mockResolvedValue({
+    vi.mocked(loginOperatorCli).mockResolvedValue({
       token: "operator-login-token",
       approvalUrl: `${API_BASE}/cli-auth/challenge-1`,
       userId: "user-1",
@@ -85,7 +85,7 @@ describe("connect command", () => {
         return jsonResponse({
           id: "operator-key-1",
           name: "connect-operator-token",
-          token: "pcp_board_created",
+          token: "outpost_operator_created",
           createdAt: "2026-05-24T12:00:00.000Z",
           expiresAt: null,
         });
@@ -109,7 +109,7 @@ describe("connect command", () => {
       "--json",
     ], { from: "user" });
 
-    expect(loginBoardCli).toHaveBeenCalledWith(expect.objectContaining({
+    expect(loginOperatorCli).toHaveBeenCalledWith(expect.objectContaining({
       apiBase: API_BASE,
       requestedAccess: "operator",
       command: "outpost connect",

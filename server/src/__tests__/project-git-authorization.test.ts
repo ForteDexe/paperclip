@@ -357,7 +357,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await expect(f.service.resolve(f.request, { ...f.scope, runId: f.input.runId, agentId: f.input.agentId })).rejects.toThrow("low-trust");
       expect(vault.resolveUserSecretValue).not.toHaveBeenCalled();
     });
-    it("requires a operator project writer and grant owner on the consent route", async () => {
+    it("requires an operator project writer and grant owner on the consent route", async () => {
       const f = await projectAuthorizationFixture();
       function app(userId: string, agent = false) {
         const app = express(); app.use(express.json());

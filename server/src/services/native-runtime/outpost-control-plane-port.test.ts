@@ -3117,7 +3117,7 @@ describe("OutpostControlPlanePort conformance", () => {
           reportedWorkDisposition: "blocked",
           blocker: {
             reasonCode: "access",
-            owner: { kind: "user", name: "Operator operator" },
+            owner: { kind: "user", name: "Operator" },
             unblockAction: "Approve access",
             scope: "task_wide",
           },

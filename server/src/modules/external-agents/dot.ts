@@ -311,7 +311,7 @@ function createBroker(db: Db) {
       const b = await principalBinding(principal, false);
       const [agent] = await db.select().from(agents).where(eq(agents.id, b.agentId));
       const state = await this.bindingForAgent(b.spaceId, b.agentId);
-      const access = await operatorAuthService(db).resolveBoardAccess(b.operatorId);
+      const access = await operatorAuthService(db).resolveOperatorAccess(b.operatorId);
       const grok = b.providerKind === "grok_bot";
       const tool = (suffix: string) => `outpost_${grok ? "grok" : "dot"}_${suffix}`;
       return { provider: b.providerKind, spaceId: b.spaceId, agentId: b.agentId, agentName: agent!.name,

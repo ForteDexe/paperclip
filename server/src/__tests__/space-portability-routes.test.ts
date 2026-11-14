@@ -211,7 +211,7 @@ function operatorActor(userId: string) {
 // A single spaceRoutes instance (one shared in-memory job map) whose operator
 // actor is chosen per request from the `x-test-user-id` header. This lets one
 // app exercise cross-user isolation and the per-user duplicate guard.
-async function createBoardApp() {
+async function createOperatorApp() {
   registerSpaceRouteMocks();
   appImportCounter += 1;
   const routeModulePath = `../routes/spaces.js?space-portability-routes-${appImportCounter}`;
@@ -1101,7 +1101,7 @@ describe("space portability routes", () => {
       resolveImport = resolve;
     });
     mockSpacePortabilityService.importBundle.mockReturnValueOnce(pendingImport);
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
 
     const accepted = await request(app)
       .post("/api/spaces/import")
@@ -1135,9 +1135,9 @@ describe("space portability routes", () => {
     }));
   });
 
-  it("hides a operator import job from other operator users", async () => {
+  it("hides an operator import job from other operator users", async () => {
     mockSpacePortabilityService.importBundle.mockReturnValueOnce(new Promise(() => undefined));
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
 
     const accepted = await request(app)
       .post("/api/spaces/import")
@@ -1156,9 +1156,9 @@ describe("space portability routes", () => {
     expect(owner.body.job.status).toBe("running");
   });
 
-  it("returns 409 with the running job when a operator user resubmits an import", async () => {
+  it("returns 409 with the running job when an operator user resubmits an import", async () => {
     mockSpacePortabilityService.importBundle.mockReturnValueOnce(new Promise(() => undefined));
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
 
     const first = await request(app)
       .post("/api/spaces/import")
@@ -1196,7 +1196,7 @@ describe("space portability routes", () => {
     "rejects a concurrent different import without adopting the running job",
     async () => {
       mockSpacePortabilityService.importBundle.mockReturnValueOnce(new Promise(() => undefined));
-      const app = await createBoardApp();
+      const app = await createOperatorApp();
 
       const first = await request(app)
         .post("/api/spaces/import")
@@ -1224,9 +1224,9 @@ describe("space portability routes", () => {
     },
   );
 
-  it("fails a operator async import job when the bundle import throws", async () => {
+  it("fails an operator async import job when the bundle import throws", async () => {
     mockSpacePortabilityService.importBundle.mockRejectedValueOnce(new Error("import payload is incomplete"));
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
 
     const accepted = await request(app)
       .post("/api/spaces/import")
@@ -1264,7 +1264,7 @@ describe("space portability routes", () => {
   });
 
   it("returns 404 for an unknown import job id", async () => {
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
 
     const res = await request(app)
       .get("/api/spaces/import/jobs/import-missing")
@@ -1328,7 +1328,7 @@ describe("space portability routes", () => {
   });
 
   it("imports a space from a multipart zip upload, unzipping into the same inline bundle", async () => {
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
     const files = { "COMPANY.md": "---\nname: Test\n---\n", "agents/lead/AGENTS.md": "---\nname: Lead\n---\n" };
     const zip = buildStoreZip(files, "outpost");
 
@@ -1349,7 +1349,7 @@ describe("space portability routes", () => {
   });
 
   it("previews a space from a multipart zip upload", async () => {
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
     const files = { "COMPANY.md": "---\nname: Test\n---\n" };
     const zip = buildStoreZip(files, "outpost");
 
@@ -1371,7 +1371,7 @@ describe("space portability routes", () => {
       resolveImport = resolve;
     });
     mockSpacePortabilityService.importBundle.mockReturnValueOnce(pendingImport);
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
     const files = { "COMPANY.md": "---\nname: Test\n---\n" };
     const zip = buildStoreZip(files, "outpost");
 
@@ -1404,7 +1404,7 @@ describe("space portability routes", () => {
 
   it("engages the async path for operator sessions via ?async=1, not the stripped cloud header", async () => {
     mockSpacePortabilityService.importBundle.mockReturnValueOnce(new Promise(() => undefined));
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
 
     // The Cloud harness strips inbound x-outpost-cloud-* headers, so a browser
     // can only opt into async with the proxy-safe query parameter.
@@ -1418,8 +1418,8 @@ describe("space portability routes", () => {
     expect(accepted.body.statusUrl).toMatch(/^\/api\/spaces\/import\/jobs\/import-/);
   });
 
-  it("keeps a operator import synchronous when neither async signal is present", async () => {
-    const app = await createBoardApp();
+  it("keeps an operator import synchronous when neither async signal is present", async () => {
+    const app = await createOperatorApp();
 
     const res = await request(app)
       .post("/api/spaces/import")
@@ -1445,7 +1445,7 @@ describe("space portability routes", () => {
   });
 
   it("rejects a truncated zip upload without importing anything", async () => {
-    const app = await createBoardApp();
+    const app = await createOperatorApp();
     const zip = buildStoreZip({ "COMPANY.md": "---\nname: Test\n---\n" }, "outpost");
     const truncated = zip.subarray(0, 40);
 

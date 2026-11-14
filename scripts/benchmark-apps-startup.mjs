@@ -75,7 +75,7 @@ try {
           status: task.status, recordedAt: index + 1, snapshotUpdatedAt: new Date(task.updatedAt).getTime(),
         }));
         localStorage.setItem("outpost.selectedSpaceId", fixture.space.id);
-        localStorage.setItem(`outpost.recentTasks.v2:${fixture.space.id}:${fixture.userId ?? "__local_board__"}`, JSON.stringify(entries));
+        localStorage.setItem(`outpost.recentTasks.v2:${fixture.space.id}:${fixture.userId ?? "__local_operator__"}`, JSON.stringify(entries));
         window.__appsLongTasks = [];
         new PerformanceObserver(list => window.__appsLongTasks.push(...list.getEntries().map(e => ({ start: e.startTime, duration: e.duration }))))
           .observe({ type: "longtask", buffered: true });

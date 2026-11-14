@@ -11,7 +11,7 @@ import { beginIdleTrackedWork, idleWorkSnapshot } from "./task-admission.js";
 import { readIdleLocalWork, type IdleLocalWork } from "./idle-local-work.js";
 import { readIdleRoutineSchedule, type ScheduledWake } from "./idle-scheduled-work.js";
 import { combineIdleSchedules, readIdleIssueSchedule } from "./idle-issue-schedule.js";
-import { connectionDeliveryWaitingForResponse, finishedIdleRun as finishedRun, finishedIdleWake, finishedFailedIdleLease as finishedFailedLease, passiveBoardRecovery } from "./idle-work-proof.js";
+import { connectionDeliveryWaitingForResponse, finishedIdleRun as finishedRun, finishedIdleWake, finishedFailedIdleLease as finishedFailedLease, passiveOperatorRecovery } from "./idle-work-proof.js";
 import type { Db } from "@outpost/db";
 import { sql, type SQLWrapper } from "drizzle-orm";
 import { createIdleSleepDiagnostics, type IdleSleepDiagnosticSink, type IdleSleepDiagnostics } from "./idle-sleep-diagnostics.js";
@@ -165,7 +165,7 @@ const WORK_CHECKS = [
   // An explicit operator escalation has no automatic retry. Retain the visible
   // action and all execution/cleanup checks while the operator decides what to do.
   workCheck("issue_recovery_actions", `SELECT 1 FROM issue_recovery_actions a WHERE a.status NOT IN ('resolved', 'cancelled')
-    AND (${passiveBoardRecovery('a')}) IS NOT TRUE`),
+    AND (${passiveOperatorRecovery('a')}) IS NOT TRUE`),
   workCheck("status_cards", `SELECT 1 FROM status_cards WHERE archived_at IS NULL`),
   workCheck("external_objects", `SELECT 1 FROM external_objects WHERE NOT is_terminal OR next_refresh_at IS NOT NULL`),
   // Login history keeps its provider reference after teardown. A terminal

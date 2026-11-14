@@ -312,7 +312,7 @@ arbitrary `env` in either schema.
 
 The runner, package driver, and model/harness never receive:
 
-- the local agent JWT, `OUTPOST_API_KEY`, a operator session, or a operator API key;
+- the local agent JWT, `OUTPOST_API_KEY`, an operator session, or an operator API key;
 - managed MCP gateway credentials, runner-lease/bootstrap credentials, or
   credential-broker secret material;
 - rendered Outpost wake text, Outpost skill instructions, the Outpost API

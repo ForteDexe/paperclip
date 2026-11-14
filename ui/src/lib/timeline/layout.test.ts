@@ -119,7 +119,7 @@ describe("computeLayout", () => {
     expect(leadRun.kickoff?.id).toBe("user:dotta"); // human kickoff shown as chip
   });
 
-  it("does not reuse a operator-created assignment edge on later automation runs", () => {
+  it("does not reuse an operator-created assignment edge on later automation runs", () => {
     const data = sample();
     data.spans.push({
       actorId: "agent:lead",

@@ -301,7 +301,7 @@ taskSidePanel: {
 }
 ```
 
-Declare the exact availability path as a operator-only GET API route with
+Declare the exact availability path as an operator-only GET API route with
 `spaceResolution: { from: "agent", param: "entityId" }`. Core maps the declared
 namespace/activity pair to installed agent detail tabs. Runner knows no plugin
 or UI slot. Declarations without `activation` support manual task-panel selection.

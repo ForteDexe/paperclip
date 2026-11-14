@@ -21,7 +21,7 @@ export async function liveVoiceExecutionGuidance(db: Db, input: {
       eq(chatEndpoints.provider, "speko"), inArray(chatEndpoints.status, ["active", "verifying"]),
       eq(toolConnections.status, "active"), eq(toolConnections.enabled, true),
       eq(chatVoiceSessions.state, "active"), isNull(chatVoiceSessions.endedAt), gt(chatVoiceSessions.expiresAt, now),
-      inArray(chatVoiceSessions.callerAuthority, ["member", "instance_admin", "local_board", "guest_intake"]),
+      inArray(chatVoiceSessions.callerAuthority, ["member", "instance_admin", "local_operator", "guest_intake"]),
       sql`${chatVoiceSessions.generation} = coalesce((${chatEndpoints.setup}->>'runtimeGeneration')::integer, 0)`,
       sql`exists (select 1 from ${chatVoiceToolCalls} where ${chatVoiceToolCalls.spaceId} = ${chatVoiceSessions.spaceId}
         and ${chatVoiceToolCalls.sessionId} = ${chatVoiceSessions.id} and ${chatVoiceToolCalls.tool} = 'submit_request'

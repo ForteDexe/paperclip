@@ -26,7 +26,7 @@ function makeSpace(overrides: Partial<Space>): Space {
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-    primaryAgentId: overrides.primaryAgentId ?? null,
+    defaultAgentId: overrides.defaultAgentId ?? null,
     interactionResolverPolicy: overrides.interactionResolverPolicy ?? {},
   };
 }

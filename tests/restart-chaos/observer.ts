@@ -13,7 +13,7 @@ import type {
   TaskSample, TriggerId,
 } from "./types.js";
 import { restartProcessStartMatches } from "../runner-e2e/process-tree-owner.js";
-import type { UiRetryClick } from "./board-ui.js";
+import type { UiRetryClick } from "./operator-ui.js";
 import { runOracleCommand } from "./oracle-sandbox.js";
 import { awaitingQuestionAnswer, collectQuestionArtifacts, questionStep } from "./question-handoff.js";
 import { isSessionFault, rotateAgentSession } from "./session-faults.js";
@@ -508,7 +508,7 @@ export class TaskObserver {
       return;
     }
     // A task waiting on the board (G1's approval, H1's paused space) is in a named wait, not a stall.
-    this.stallSince = isStalledSample(sample) && !this.awaitingBoard() ? (this.stallSince ?? now) : null;
+    this.stallSince = isStalledSample(sample) && !this.awaitingOperator() ? (this.stallSince ?? now) : null;
     if (this.stallSince !== null && now - this.stallSince > STALL_GIVE_UP_MS) {
       this.record.restAt = this.stallSince;
       this.record.finalStatus = sample.issueStatus ?? null;
@@ -662,7 +662,7 @@ export class TaskObserver {
   private async onRest(sample: TaskSample, now: number) {
     const status = sample.issueStatus ?? null;
     // The board has not acted yet: the task waits on it, so it has not rested (and gets no Retry).
-    if (this.awaitingBoard()) { this.restCandidateSince = null; return; }
+    if (this.awaitingOperator()) { this.restCandidateSince = null; return; }
     if (this.plan.workload === "H1") {
       const space = await this.api.get<Json>(`/api/spaces/${this.lab.spaceId}`, 5_000).catch(() => null);
       (this.record.governance ??= {}).spaceActiveAtRest = space?.status === "active";
@@ -832,9 +832,9 @@ export class TaskObserver {
   }
 
   /** G1 before the board's decision, or H1 while its space is paused and not yet resumed. */
-  private awaitingBoard(): boolean {
+  private awaitingOperator(): boolean {
     const governance = this.record.governance;
-    if (this.journey) return this.journey.awaitingBoard();
+    if (this.journey) return this.journey.awaitingOperator();
     if (this.plan.workload === "G1") return Boolean(governance?.approvalSeenAt) && !governance?.decision;
     if (this.plan.workload === "H1") return Boolean(governance?.budgetPausedAt) && !governance?.resume && !governance?.pauseLostAt;
     if (this.plan.workload === "Q1" || this.plan.workload === "Q4") return awaitingQuestionAnswer(this.record);

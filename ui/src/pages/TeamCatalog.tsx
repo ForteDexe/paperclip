@@ -763,7 +763,7 @@ export function TeamDetailPane({
               <TooltipTrigger asChild>
                 <span tabIndex={0}>{installButton}</span>
               </TooltipTrigger>
-              <TooltipContent>Requires operator operator or agent-create permissions.</TooltipContent>
+              <TooltipContent>Requires operator or agent-create permissions.</TooltipContent>
             </Tooltip>
           ) : (
             installButton

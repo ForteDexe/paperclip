@@ -337,7 +337,7 @@ describe("routine routes", () => {
     expect(mockRoutineService.list).toHaveBeenCalledWith(spaceId, { projectId });
   });
 
-  it("lists routine revisions for a operator member in newest-first service order", async () => {
+  it("lists routine revisions for an operator member in newest-first service order", async () => {
     const app = await createApp({
       type: "operator",
       userId: "operator-user",

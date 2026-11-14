@@ -16,7 +16,7 @@ vi.mock("../api/heartbeats", async importOriginal => ({ heartbeatsApi: { ...(awa
   get, events: async () => [], workspaceOperations: async () => [] } }));
 vi.mock("../api/grokBot", () => ({ grokBotApi: { stop: grokStop } }));
 vi.mock("../api/client", () => ({ api: { get: async () => [], post: cancel }, detachInflightGet: vi.fn() }));
-vi.mock("../api/access", () => ({ accessApi: { getCurrentBoardAccess: async () => ({ userId: actor.id, source: actor.source, spaceIds: ["space-1"], memberships: [] }) } }));
+vi.mock("../api/access", () => ({ accessApi: { getCurrentOperatorAccess: async () => ({ userId: actor.id, source: actor.source, spaceIds: ["space-1"], memberships: [] }) } }));
 vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: false }) }));
 vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space-1", selectedSpace: { id: "space-1", issuePrefix: "TEST" }, spaces: [] }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -632,7 +632,7 @@ describe("issue execution policy transitions", () => {
         requestedStatus: "cancelled",
         requestedAssigneePatch: {},
         actor: { userId: operatorUserId },
-        allowBoardOverride: true,
+        allowOperatorOverride: true,
         commentBody: "Cancelling this task",
       });
 
@@ -664,7 +664,7 @@ describe("issue execution policy transitions", () => {
         requestedStatus: "cancelled",
         requestedAssigneePatch: {},
         actor: { userId: operatorUserId },
-        allowBoardOverride: true,
+        allowOperatorOverride: true,
         commentBody: "Cancelling this drifted task",
       });
 
@@ -705,7 +705,7 @@ describe("issue execution policy transitions", () => {
         policy: multiReviewerPolicy,
         requestedAssigneePatch: { assigneeAgentId: ctoAgentId },
         actor: { userId: operatorUserId },
-        allowBoardOverride: true,
+        allowOperatorOverride: true,
         commentBody: "Swapping the reviewer",
       });
 
@@ -744,7 +744,7 @@ describe("issue execution policy transitions", () => {
         policy,
         requestedAssigneePatch: { assigneeAgentId: coderAgentId },
         actor: { userId: operatorUserId },
-        allowBoardOverride: true,
+        allowOperatorOverride: true,
         commentBody: "Handing the task back",
       });
 
@@ -775,7 +775,7 @@ describe("issue execution policy transitions", () => {
         policy,
         requestedAssigneePatch: { assigneeAgentId: null, assigneeUserId: null },
         actor: { userId: operatorUserId },
-        allowBoardOverride: true,
+        allowOperatorOverride: true,
         commentBody: "Unassigning the reviewer",
       });
 
@@ -1734,7 +1734,7 @@ describe("issue execution policy transitions", () => {
       ).toThrow(expect.objectContaining({ status: 422, details: { code: "unexecuted_review_stage" } }));
     });
 
-    it("lets a operator cancellation through: the live cycle is abandoned, not claimed complete", () => {
+    it("lets an operator cancellation through: the live cycle is abandoned, not claimed complete", () => {
       const originalPolicy = twoStagePolicy();
       const replacementPolicy = twoStagePolicy();
 

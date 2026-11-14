@@ -1492,7 +1492,7 @@ describe("IssueThreadInteractionCard tool-action card", () => {
     expect(addresseeBadge?.textContent).toContain("For ");
   });
 
-  it("omits the addressee badge for a operator-only interaction", () => {
+  it("omits the addressee badge for an operator-only interaction", () => {
     const host = renderCard({
       interaction: pendingRequestConfirmationInteraction,
     });

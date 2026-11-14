@@ -209,7 +209,7 @@ export type AdminUserDirectoryEntry = {
   activeSpaceMembershipCount: number;
 };
 
-export type CurrentBoardAccess = {
+export type CurrentOperatorAccess = {
   user: { id: string; email: string | null; name: string | null; image: string | null } | null;
   userId: string;
   isInstanceAdmin: boolean;
@@ -359,7 +359,7 @@ export const accessApi = {
   getOperatorClaimStatus: (token: string, code: string) =>
     api.get<OperatorClaimStatus>(`/operator-claim/${token}?code=${encodeURIComponent(code)}`),
 
-  claimBoard: (token: string, code: string) =>
+  claimOperator: (token: string, code: string) =>
     api.post<{ claimed: true; userId: string }>(`/operator-claim/${token}/claim`, { code }),
 
   claimBootstrapAdmin: () =>
@@ -386,6 +386,6 @@ export const accessApi = {
   demoteInstanceAdmin: (userId: string) =>
     api.post(`/admin/users/${userId}/demote-instance-admin`, {}),
 
-  getCurrentBoardAccess: () =>
-    api.get<CurrentBoardAccess>("/cli-auth/me"),
+  getCurrentOperatorAccess: () =>
+    api.get<CurrentOperatorAccess>("/cli-auth/me"),
 };

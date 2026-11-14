@@ -447,7 +447,7 @@ describe("adapter device-login routes", () => {
     }
   });
 
-  it("requires a operator actor and rejects an agent-token start", async () => {
+  it("requires an operator actor and rejects an agent-token start", async () => {
     currentActor = {
       type: "agent",
       agentId: "agent-1",
@@ -464,7 +464,7 @@ describe("adapter device-login routes", () => {
     expect(harness.acquisitions).toHaveLength(0);
   });
 
-  it("starts a login for a operator actor with the configuration permission and acquires a fresh lease", async () => {
+  it("starts a login for an operator actor with the configuration permission and acquires a fresh lease", async () => {
     const app = await createApp();
 
     const res = await request(app)
@@ -1195,7 +1195,7 @@ describe("adapter device-login routes", () => {
   });
 
   it("fails closed when the account-home secret is rotated after validation but before the login service commits its terminal state", async () => {
-    // A operator user can rotate the matching `CODEX_HOME` secret after
+    // An operator user can rotate the matching `CODEX_HOME` secret after
     // `promote`'s own check passes and before the login service commits its
     // terminal state, because `promote`'s lock is fully released by then.
     // The service must catch this with a second check it runs right before

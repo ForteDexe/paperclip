@@ -1353,7 +1353,7 @@ describeEmbeddedPostgres("authorization service", () => {
     });
   });
 
-  it("allows simple-mode task assignment for active same-space operator operators without explicit grants", async () => {
+  it("allows simple-mode task assignment for active same-space operators without explicit grants", async () => {
     const space = await createSpace(db, "OperatorAssignmentDefault");
     const userId = `user-${randomUUID()}`;
     const targetAgent = await createAgent(db, space.id, { role: "engineer" });
@@ -1775,9 +1775,9 @@ describeEmbeddedPostgres("authorization service", () => {
   });
 
   it("allows active operator-user comments to create mention-scoped issue grants", async () => {
-    const space = await createSpace(db, "MentionCommentBoardGrant");
-    const allowedProject = await createProject(db, space.id, "MentionBoardAllowed");
-    const targetProject = await createProject(db, space.id, "MentionBoardTarget");
+    const space = await createSpace(db, "MentionCommentOperatorGrant");
+    const allowedProject = await createProject(db, space.id, "MentionOperatorAllowed");
+    const targetProject = await createProject(db, space.id, "MentionOperatorTarget");
     const ownerAgent = await createAgent(db, space.id, { role: "engineer" });
     const mentionedAgent = await createAgent(db, space.id, {
       role: "engineer",
@@ -2062,7 +2062,7 @@ describeEmbeddedPostgres("authorization service", () => {
     expect(decision).toMatchObject({ allowed: false, reason: "deny_missing_grant" });
   });
 
-  it("honors a operator-recorded creation denial on a Default agent instead of the Default agent title", async () => {
+  it("honors an operator-recorded creation denial on a Default agent instead of the Default agent title", async () => {
     const space = await createSpace(db, "DefaultAgentCreateDenied");
     const actorAgent = await createAgent(db, space.id, {
       role: "lead",

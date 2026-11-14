@@ -62,7 +62,7 @@ function trustedOriginsForRequest(req: Request) {
  * evidence, but must still apply any protocol-specific constraints (for
  * example OAuth requiring HTTPS outside loopback).
  */
-export function trustedBoardMutationOrigin(req: Request): string | null {
+export function trustedOperatorMutationOrigin(req: Request): string | null {
   const allowedOrigins = trustedOriginsForRequest(req);
   const origin = parseOrigin(req.header("origin"));
   if (origin && allowedOrigins.has(origin)) return origin;
@@ -99,7 +99,7 @@ export function operatorMutationGuard(): RequestHandler {
       return;
     }
 
-    if (!trustedBoardMutationOrigin(req)) {
+    if (!trustedOperatorMutationOrigin(req)) {
       res.status(403).json({ error: "Operator mutation requires trusted browser origin" });
       return;
     }

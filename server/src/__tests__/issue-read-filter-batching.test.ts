@@ -117,7 +117,7 @@ describeEmbeddedPostgres("batched task read filtering", () => {
     const sorted = (...groups: string[][]) => groups.flat().sort();
     expect(await readable("operator owner")).toEqual(sorted(f.ownedPrivateIds));
     expect(await readable("cloud tenant owner")).toEqual(sorted(f.ownedPrivateIds));
-    expect(await readable("operator operator")).toEqual(sorted(f.grantedPrivateIds));
+    expect(await readable("operator")).toEqual(sorted(f.grantedPrivateIds));
     expect(await readable("operator admin")).toEqual(sorted(f.privateProjectIssueIds));
     // The viewer's grant is revoked and the member has none.
     expect(await readable("operator viewer")).toEqual([]);
@@ -234,7 +234,7 @@ describeEmbeddedPostgres("batched task read filtering", () => {
     // Two different actors over the same tasks in one process, in both orders.
     const ids = [...f.ownedPrivateIds, ...f.grantedPrivateIds, randomUUID()];
     const owner = (await summaryIds(f.actors["operator owner"], ids)).ids;
-    const operator = (await summaryIds(f.actors["operator operator"], ids)).ids;
+    const operator = (await summaryIds(f.actors["operator"], ids)).ids;
     expect(owner).toEqual(f.ownedPrivateIds);
     expect(operator).toEqual(f.grantedPrivateIds);
     expect((await summaryIds(f.actors["operator owner"], ids)).ids).toEqual(owner);

@@ -7,7 +7,7 @@ import {
 } from "@outpost/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@/lib/router";
-import { accessApi, type CurrentBoardAccess } from "../api/access";
+import { accessApi, type CurrentOperatorAccess } from "../api/access";
 import {
   activityApi,
   type RunForIssue,
@@ -405,9 +405,9 @@ function formatSilenceAge(ms: number | null | undefined) {
   return `${hours}h ${minutes}m`;
 }
 
-function canBoardRecordWatchdogDecision(
+function canOperatorRecordWatchdogDecision(
   spaceId: string,
-  operatorAccess: CurrentBoardAccess | undefined,
+  operatorAccess: CurrentOperatorAccess | undefined,
 ) {
   if (!operatorAccess) return false;
   if (operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin)
@@ -451,8 +451,8 @@ export function IssueRunLedger({
     string | null
   >(null);
   const { data: operatorAccess } = useQuery({
-    queryKey: queryKeys.access.currentBoardAccess,
-    queryFn: () => accessApi.getCurrentBoardAccess(),
+    queryKey: queryKeys.access.currentOperatorAccess,
+    queryFn: () => accessApi.getCurrentOperatorAccess(),
   });
   const { data: runs } = useQuery({
     queryKey: queryKeys.issues.runs(issueId),
@@ -576,7 +576,7 @@ export function IssueRunLedger({
       renderActivityEvent={renderActivityEvent}
       resolveUserLabel={resolveUserLabel}
       pendingWatchdogDecision={watchdogDecision.variables?.decision ?? null}
-      canRecordWatchdogDecisions={canBoardRecordWatchdogDecision(
+      canRecordWatchdogDecisions={canOperatorRecordWatchdogDecision(
         spaceId,
         operatorAccess,
       )}

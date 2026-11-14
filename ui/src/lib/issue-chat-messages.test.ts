@@ -632,7 +632,7 @@ describe("buildIssueChatMessages", () => {
     });
   });
 
-  it("prefers derived agent attribution when a operator-authored comment is proven to come from a run", () => {
+  it("prefers derived agent attribution when an operator-authored comment is proven to come from a run", () => {
     const agentMap = new Map<string, Agent>([
       ["agent-1", createAgent("agent-1", "Claude")],
     ]);

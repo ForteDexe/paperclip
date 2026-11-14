@@ -678,7 +678,7 @@ for the proposed task page and reproduction trial. Supply accessible `items`,
 the selected `spaceId`, current `userId`, an isolated `viewStorageKey`, and
 optionally `initialQuery`. Feed its query/view/layout/filter handlers to
 `TaskListToolbar`, its `creators` directly to the Creator filter, and its
-`visibleItems`, `spaceItems` and expansion state to `TaskList`. Boards consume
+`visibleItems`, `spaceItems` and expansion state to `TaskList`. Operators consume
 `matchingItems`: contextual parents belong in the hierarchical list only.
 The caller owns data loading and mutations; this hook does not authorize data
 access, define server permissions, or integrate production persistence.
@@ -1031,7 +1031,7 @@ surface so they remain distinct from the module. Agent chips have hover/focus
 states and link to the agent's overview. Reports to precedes Direct reports:
 No manager opens the manager picker; an assigned manager has a linked chip and
 an adjacent edit control. The picker disables self/descendant choices to prevent
-reporting loops. The editable heading sizes to its live text so the primary-agent
+reporting loops. The editable heading sizes to its live text so the default-agent
 crown stays beside the name throughout editing.
 
 ### Segmented controller comparison

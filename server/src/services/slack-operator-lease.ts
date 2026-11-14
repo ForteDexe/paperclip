@@ -5,7 +5,7 @@ import { chatEndpointLeases, type Db } from "@outpost/db";
 type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 const TTL_SECONDS = 90;
 
-export class SlackBoardLeaseLost extends Error {
+export class SlackOperatorLeaseLost extends Error {
   constructor() {
     super("Slack Operator dispatch ownership was lost");
   }
@@ -14,7 +14,7 @@ export class SlackBoardLeaseLost extends Error {
 /** Serialize one durable Operator action without reserving a database connection
  * during scheduler/provider I/O. Renewal and fenced commits use the existing
  * endpoint-lease table; the action's stable wake key handles uncertain delivery. */
-export async function withSlackBoardLease<T>(
+export async function withSlackOperatorLease<T>(
   db: Db,
   scope: {
     spaceId: string;
@@ -59,18 +59,18 @@ export async function withSlackBoardLease<T>(
     gt(chatEndpointLeases.expiresAt, sql`now()`),
   );
   const renew = async (writer: Db | Transaction = db) => {
-    if (lost) throw new SlackBoardLeaseLost();
+    if (lost) throw new SlackOperatorLeaseLost();
     try {
       const rows = await writer
         .update(chatEndpointLeases)
         .set({ expiresAt, updatedAt: sql`now()` })
         .where(ownership)
         .returning({ id: chatEndpointLeases.id });
-      if (!rows.length) throw new SlackBoardLeaseLost();
+      if (!rows.length) throw new SlackOperatorLeaseLost();
     } catch {
       lost = true;
       controller.abort();
-      throw new SlackBoardLeaseLost();
+      throw new SlackOperatorLeaseLost();
     }
   };
   let renewal: Promise<void> | undefined;

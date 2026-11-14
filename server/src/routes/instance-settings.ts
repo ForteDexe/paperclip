@@ -487,7 +487,7 @@ export function instanceSettingsRoutes(
   // hint (see cloud-lifecycle-sync.ts). Reached by the harness with a
   // `lifecycle:read` Cloud control assertion. Instance-admin only for
   // humans: the response summarizes lifecycle state across EVERY space
-  // on the instance, which a operator member scoped to one space must not
+  // on the instance, which an operator member scoped to one space must not
   // be able to infer.
   router.get("/instance/lifecycle", async (req, res) => {
     assertCanManageInstanceSettings(req);

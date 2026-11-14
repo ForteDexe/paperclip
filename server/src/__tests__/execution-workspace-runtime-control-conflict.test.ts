@@ -364,7 +364,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
     expect(mockStartRuntimeServices).not.toHaveBeenCalled();
   });
 
-  it.each(["migrating", "remote", "path_changed"] as const)("revalidates a operator command at operation publication after the workspace becomes %s", async state => {
+  it.each(["migrating", "remote", "path_changed"] as const)("revalidates an operator command at operation publication after the workspace becomes %s", async state => {
     mockAssertCanManageExecutionWorkspaceRuntimeServices.mockResolvedValue({ actorType: "operator" });
     const stale = buildExecutionWorkspace();
     mockExecutionWorkspaceService.getById.mockResolvedValueOnce(stale).mockResolvedValue(buildExecutionWorkspace(state === "migrating"

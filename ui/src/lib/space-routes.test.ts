@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   applySpacePrefix,
   extractSpacePrefixFromPath,
-  isBoardPathWithoutPrefix,
+  isOperatorPathWithoutPrefix,
   toSpaceRelativePath,
 } from "./space-routes";
 
 describe("space routes", () => {
-  it("treats the Space collection as a operator route inside the active shell", () => {
-    expect(isBoardPathWithoutPrefix("/spaces")).toBe(true);
+  it("treats the Space collection as an operator route inside the active shell", () => {
+    expect(isOperatorPathWithoutPrefix("/spaces")).toBe(true);
     expect(extractSpacePrefixFromPath("/spaces")).toBeNull();
     expect(applySpacePrefix("/spaces", "HER")).toBe("/HER/spaces");
     expect(applySpacePrefix("/spaces?new=1", "HER")).toBe("/HER/spaces?new=1");
@@ -21,14 +21,14 @@ describe("space routes", () => {
     expect(applySpacePrefix(path, "DOT")).toBe(path);
   });
   it("treats the task-list alias as an unprefixed operator route", () => {
-    expect(isBoardPathWithoutPrefix("/tasks")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/tasks")).toBe(true);
     expect(extractSpacePrefixFromPath("/tasks")).toBeNull();
     expect(applySpacePrefix("/tasks", "PAP")).toBe("/PAP/tasks");
   });
 
   it("treats execution workspace paths as operator routes that need a space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/execution-workspaces/workspace-123")).toBe(true);
-    expect(isBoardPathWithoutPrefix("/execution-workspaces/workspace-123/routines")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/execution-workspaces/workspace-123")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/execution-workspaces/workspace-123/routines")).toBe(true);
     expect(extractSpacePrefixFromPath("/execution-workspaces/workspace-123")).toBeNull();
     expect(applySpacePrefix("/execution-workspaces/workspace-123", "PAP")).toBe(
       "/PAP/execution-workspaces/workspace-123",
@@ -47,8 +47,8 @@ describe("space routes", () => {
     );
   });
 
-  it("treats /search as a operator route that needs a space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/search")).toBe(true);
+  it("treats /search as an operator route that needs a space prefix", () => {
+    expect(isOperatorPathWithoutPrefix("/search")).toBe(true);
     expect(extractSpacePrefixFromPath("/search")).toBeNull();
     expect(applySpacePrefix("/search", "PAP")).toBe("/PAP/search");
     expect(applySpacePrefix("/search?q=hello%20world", "PAP")).toBe("/PAP/search?q=hello%20world");
@@ -77,9 +77,9 @@ describe("space routes", () => {
   // misread the first segment as a space prefix and `useNavigate` skipped the
   // rewrite, dropping the `/PAP/` prefix and crashing into "Space not found".
   it("re-prefixes team catalog routes so navigate preserves the space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/teams")).toBe(false);
-    expect(isBoardPathWithoutPrefix("/teams-catalog")).toBe(true);
-    expect(isBoardPathWithoutPrefix("/teams-catalog/core-exec-team")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/teams")).toBe(false);
+    expect(isOperatorPathWithoutPrefix("/teams-catalog")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/teams-catalog/core-exec-team")).toBe(true);
     expect(extractSpacePrefixFromPath("/teams-catalog/core-exec-team")).toBeNull();
 
     // Auto-select effect: `/teams-catalog/<first-key>` must gain the `/PAP/` prefix.
@@ -100,23 +100,23 @@ describe("space routes", () => {
     );
   });
 
-  it("treats /artifacts as a operator route that needs a space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/artifacts")).toBe(true);
+  it("treats /artifacts as an operator route that needs a space prefix", () => {
+    expect(isOperatorPathWithoutPrefix("/artifacts")).toBe(true);
     expect(extractSpacePrefixFromPath("/artifacts")).toBeNull();
     expect(applySpacePrefix("/artifacts", "PAP")).toBe("/PAP/artifacts");
     expect(toSpaceRelativePath("/PAP/artifacts")).toBe("/artifacts");
   });
 
-  it("treats /audit as a operator route that needs a space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/audit")).toBe(true);
+  it("treats /audit as an operator route that needs a space prefix", () => {
+    expect(isOperatorPathWithoutPrefix("/audit")).toBe(true);
     expect(extractSpacePrefixFromPath("/audit")).toBeNull();
     expect(applySpacePrefix("/audit", "PAP")).toBe("/PAP/audit");
     expect(toSpaceRelativePath("/PAP/audit")).toBe("/audit");
   });
 
   it("treats /tools routes as operator routes that need a space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/tools")).toBe(true);
-    expect(isBoardPathWithoutPrefix("/tools/runtime")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/tools")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/tools/runtime")).toBe(true);
     expect(extractSpacePrefixFromPath("/tools")).toBeNull();
     expect(applySpacePrefix("/tools", "PAP")).toBe("/PAP/tools");
     expect(applySpacePrefix("/tools/runtime", "PAP")).toBe("/PAP/tools/runtime");
@@ -125,23 +125,23 @@ describe("space routes", () => {
   });
 
   it("recognizes Decisions without retaining the legacy attention route", () => {
-    expect(isBoardPathWithoutPrefix("/decisions")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/decisions")).toBe(true);
     expect(extractSpacePrefixFromPath("/decisions")).toBeNull();
     expect(applySpacePrefix("/decisions", "PAP")).toBe("/PAP/decisions");
 
-    expect(isBoardPathWithoutPrefix("/attention")).toBe(false);
+    expect(isOperatorPathWithoutPrefix("/attention")).toBe(false);
     expect(extractSpacePrefixFromPath("/attention")).toBe("ATTENTION");
   });
 
-  it("treats /timeline as a operator route that needs a space prefix", () => {
-    expect(isBoardPathWithoutPrefix("/timeline")).toBe(true);
+  it("treats /timeline as an operator route that needs a space prefix", () => {
+    expect(isOperatorPathWithoutPrefix("/timeline")).toBe(true);
     expect(extractSpacePrefixFromPath("/timeline")).toBeNull();
     expect(applySpacePrefix("/timeline", "PAP")).toBe("/PAP/timeline");
     expect(toSpaceRelativePath("/PAP/timeline")).toBe("/timeline");
   });
 
   it("treats Skill Studio create mode as an unprefixed operator route", () => {
-    expect(isBoardPathWithoutPrefix("/skills/studio/new")).toBe(true);
+    expect(isOperatorPathWithoutPrefix("/skills/studio/new")).toBe(true);
     expect(extractSpacePrefixFromPath("/skills/studio/new")).toBeNull();
     expect(applySpacePrefix("/skills/studio/new?forkFrom=skill-1", "PAP")).toBe(
       "/PAP/skills/studio/new?forkFrom=skill-1",

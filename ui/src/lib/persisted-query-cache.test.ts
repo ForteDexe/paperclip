@@ -32,7 +32,7 @@ function seed(client: QueryClient, userId = "alice", spaceId = "space-one") {
   client.setQueryData(queryKeys.auth.session, session(userId));
   client.setQueryData(queryKeys.spaces.list(userId), { spaces: [{ id: spaceId, name: "Example" }], unauthorized: false });
   client.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "authenticated" });
-  client.setQueryData([...queryKeys.access.currentBoardAccess, userId], { userId, spaceIds: [spaceId], isInstanceAdmin: false });
+  client.setQueryData([...queryKeys.access.currentOperatorAccess, userId], { userId, spaceIds: [spaceId], isInstanceAdmin: false });
   client.setQueryData([...queryKeys.issues.detail("task-one"), "core"], { id: "task-one", spaceId, title: "Saved task" });
 }
 afterEach(() => { for (const dispose of handles.splice(0)) dispose(); vi.useRealTimers(); vi.clearAllMocks(); });

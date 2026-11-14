@@ -1,7 +1,7 @@
 import {
   authSessionSchema,
   type OperatorBootstrapSession,
-  readBoardBootstrap,
+  readOperatorBootstrap,
 } from "@outpost/shared";
 import { redactUrlSecrets } from "@/lib/redact-url-secrets";
 import { tenantSessionRecovery } from "@/lib/tenant-session-recovery";
@@ -39,7 +39,7 @@ export class AuthApiError extends Error {
 function toSession(value: unknown): OperatorBootstrapSession | null {
   const direct = authSessionSchema.safeParse(value);
   if (direct.success) {
-    const operatorBootstrap = readBoardBootstrap((value as Record<string, unknown>).operatorBootstrap, direct.data.user.id);
+    const operatorBootstrap = readOperatorBootstrap((value as Record<string, unknown>).operatorBootstrap, direct.data.user.id);
     return operatorBootstrap ? { ...direct.data, operatorBootstrap } : direct.data;
   }
 

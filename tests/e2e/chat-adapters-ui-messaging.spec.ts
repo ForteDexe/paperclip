@@ -627,7 +627,7 @@ test.describe("Board send delivery refresh", () => {
             {
               error: "A selected file already belongs to another comment",
               details: {
-                code: "chat_board_send_attachments_already_bound",
+                code: "chat_operator_send_attachments_already_bound",
                 endpointId,
                 conversationId,
                 idempotencyKey: input.idempotencyKey,

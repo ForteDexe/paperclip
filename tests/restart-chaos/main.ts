@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { ChaosApi, isSocketTypeOfServiceRace } from "./api.js";
-import { BoardUi } from "./board-ui.js";
+import { OperatorUi } from "./operator-ui.js";
 import { DEFAULT_MINIO_BINARY, MINIO_RELEASE, minioBinary, objectStoreServerEnvironment, startMinio, type ObjectStore } from "./object-store.js";
 import { StorageChaos, planStorageFaults, replayStorageWindows, type StorageFaultReceipt, type StorageFaultWindow } from "./storage-chaos.js";
 import { startStorageFaultProxy } from "./storage-proxy.js";
@@ -291,7 +291,7 @@ async function main(): Promise<number> {
   let anyFailure = false;
   let stopFailed = false;
   let remoteCleanupPending = false;
-  let board: BoardUi | null = null;
+  let board: OperatorUi | null = null;
   let objectStore: ObjectStore | null = null;
   let storageChaos: StorageChaos | null = null;
   let storageTrigger: StorageTrigger | null = null;
@@ -466,7 +466,7 @@ async function main(): Promise<number> {
     // The instance root holds the secrets master key and the database: oracle code may not read it.
     const protectedRoots = [os.homedir(), supervisor.paths.temporaryRoot, resultsRoot];
     board = serverEnvironment.SERVE_UI === "false" ? null
-      : new BoardUi(supervisor.baseUrl, undefined, path.join(waveDir, "ui-retry-diagnostics"));
+      : new OperatorUi(supervisor.baseUrl, undefined, path.join(waveDir, "ui-retry-diagnostics"));
     const observers = plan.tasks.map(task => new TaskObserver(task, api, lab, timeline, supervisor, protectedRoots, board));
     for (const observer of observers) if (isDiskFullFault(observer.plan.fault)) observer.diskFullSeam = diskFullSeam;
     classRObservers = observers;

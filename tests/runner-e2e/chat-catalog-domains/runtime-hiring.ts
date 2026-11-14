@@ -66,9 +66,9 @@ export function gradeGovernedHire(value: unknown) {
   return c.result();
 }
 export const runtimeHiringCases = [runtimeDefinition("agents.hire-needs-approval", async ctx => {
-  await ctx.input.api.patch(`/api/spaces/${ctx.input.fixtures.space.id}`, { requireBoardApprovalForNewAgents: true });
-  const space = await ctx.input.api.get<{ requireBoardApprovalForNewAgents: boolean }>(`/api/spaces/${ctx.input.fixtures.space.id}`);
-  if (!space.requireBoardApprovalForNewAgents) throw new Error("Actual space hire approval policy did not persist");
+  await ctx.input.api.patch(`/api/spaces/${ctx.input.fixtures.space.id}`, { requireOperatorApprovalForNewAgents: true });
+  const space = await ctx.input.api.get<{ requireOperatorApprovalForNewAgents: boolean }>(`/api/spaces/${ctx.input.fixtures.space.id}`);
+  if (!space.requireOperatorApprovalForNewAgents) throw new Error("Actual space hire approval policy did not persist");
   return { spaceRequiresApproval: true };
 }, gradeGovernedHire, {
   sourceFiles: ["chat-catalog-domains/runtime-hiring.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],

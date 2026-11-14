@@ -352,20 +352,20 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
 
-  it.each(["sponsored", "sponsored_git_residue", "sponsored_shared_git_residue", "local_board", "local_board_jwt", "routine"] as const)("prepares public Git from an idle workspace for a trusted %s task and reuses verified bytes after trust downgrade", async principal => {
+  it.each(["sponsored", "sponsored_git_residue", "sponsored_shared_git_residue", "local_operator", "local_operator_jwt", "routine"] as const)("prepares public Git from an idle workspace for a trusted %s task and reuses verified bytes after trust downgrade", async principal => {
     const f = await fixture();
     await db.update(executionWorkspaces).set({ status: "idle" }).where(eq(executionWorkspaces.id, f.workspace.id));
-    const localBoard = principal === "local_board" || principal === "local_board_jwt";
-    if (localBoard) await db.update(heartbeatRuns).set({ responsibleUserId: "local-operator" }).where(eq(heartbeatRuns.id, f.runId));
-    if (principal === "local_board_jwt") {
+    const localOperator = principal === "local_operator" || principal === "local_operator_jwt";
+    if (localOperator) await db.update(heartbeatRuns).set({ responsibleUserId: "local-operator" }).where(eq(heartbeatRuns.id, f.runId));
+    if (principal === "local_operator_jwt") {
       await db.insert(authUsers).values({ id: "local-operator", name: "Local Operator", email: "local-operator@example.invalid",
         emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
       await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: "local-operator", membershipRole: "owner", status: "active" });
     }
     const receipt = await f.service.request({ spaceId: f.spaceId, issueId: f.issueId,
-      actor: localBoard ? { ...f.actor, onBehalfOfUserId: principal === "local_board_jwt" ? "local-operator" : null } : f.actor,
+      actor: localOperator ? { ...f.actor, onBehalfOfUserId: principal === "local_operator_jwt" ? "local-operator" : null } : f.actor,
       request: { repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: randomUUID() } });
-    const responsibleUserId = localBoard ? "local-operator" : principal === "routine" ? null : f.userId;
+    const responsibleUserId = localOperator ? "local-operator" : principal === "routine" ? null : f.userId;
     await db.update(heartbeatRuns).set({ responsibleUserId }).where(eq(heartbeatRuns.id, f.runId));
     const admission = { ...f.admission, responsibleUserId };
     const source = path.join(root, `${f.issueId}-public-source`);
@@ -470,7 +470,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
 
-  it("retains previous run trust without confusing a operator request's reassigned agent", async () => {
+  it("retains previous run trust without confusing an operator request's reassigned agent", async () => {
     const f = await fixture();
     const [replacement] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Replacement", adapterType: "process" }).returning();
     await db.update(issues).set({ assigneeAgentId: replacement.id }).where(eq(issues.id, f.issueId));

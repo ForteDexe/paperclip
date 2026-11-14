@@ -9,7 +9,7 @@ import type { ChatSdkStatePersistence } from "../../chat-sdk-state.js";
 import type { createChatCredentials } from "../credentials.js";
 import type { EndpointRow, EndpointRecord } from "../runtime-types.js";
 
-type SpekoChannelOptions = Pick<Parameters<typeof voiceSessionService>[1], "allowLocalBoard" | "onQuestionAnswered"> & {
+type SpekoChannelOptions = Pick<Parameters<typeof voiceSessionService>[1], "allowLocalOperator" | "onQuestionAnswered"> & {
   endpointRecord: (endpointId: string) => Promise<EndpointRecord | null>;
   resolveCredentialRefs: ReturnType<typeof createChatCredentials>["resolveCredentialRefs"];
   fetchImpl: typeof globalThis.fetch;
@@ -17,7 +17,7 @@ type SpekoChannelOptions = Pick<Parameters<typeof voiceSessionService>[1], "allo
 export function createSpekoChannelService(db: Db, options: SpekoChannelOptions) {
   const { endpointRecord, resolveCredentialRefs, fetchImpl } = options;
   return voiceSessionService(db, {
-    allowLocalBoard: options.allowLocalBoard,
+    allowLocalOperator: options.allowLocalOperator,
     credentials: async (endpoint, expectedFingerprint) => {
       const record = await endpointRecord(endpoint.id);
       if (!record || record.endpoint.spaceId !== endpoint.spaceId) throw notFound("Voice connection not found");

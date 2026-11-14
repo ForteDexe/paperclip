@@ -9,10 +9,10 @@ import { ApiError } from "@/api/client";
 import { ConnectivityProvider, createConnectivityStore, type ConnectivityStore } from "@/lib/connectivity";
 import { ToolsAdminGate } from "./ToolsAdminGate";
 
-const getBoardAccessMock = vi.hoisted(() => vi.fn());
+const getOperatorAccessMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/access", () => ({
-  accessApi: { getCurrentBoardAccess: () => getBoardAccessMock() },
+  accessApi: { getCurrentOperatorAccess: () => getOperatorAccessMock() },
 }));
 
 vi.mock("@/context/SpaceContext", () => ({
@@ -84,21 +84,21 @@ describe("ToolsAdminGate", () => {
   }
 
   it("renders children once the loaded answer allows it", async () => {
-    getBoardAccessMock.mockResolvedValue({ source: "local_implicit", isInstanceAdmin: false, memberships: [] });
+    getOperatorAccessMock.mockResolvedValue({ source: "local_implicit", isInstanceAdmin: false, memberships: [] });
     await render();
     expect(container.textContent).toContain("gated content");
     expect(container.textContent).not.toContain(DENIAL);
   });
 
   it("shows the denial card only for a loaded answer that says no", async () => {
-    getBoardAccessMock.mockResolvedValue({ source: "cloud", isInstanceAdmin: false, memberships: [] });
+    getOperatorAccessMock.mockResolvedValue({ source: "cloud", isInstanceAdmin: false, memberships: [] });
     await render();
     expect(container.textContent).toContain(DENIAL);
     expect(container.textContent).not.toContain("gated content");
   });
 
   it("shows a placeholder, not a denial, during an outage before the first load", async () => {
-    getBoardAccessMock.mockRejectedValue(
+    getOperatorAccessMock.mockRejectedValue(
       new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await render({ browserOnline: false });
@@ -111,7 +111,7 @@ describe("ToolsAdminGate", () => {
   });
 
   it("shows readable copy with Retry for a real error, not a denial", async () => {
-    getBoardAccessMock
+    getOperatorAccessMock
       .mockRejectedValueOnce(new ApiError("Boom", 500, { error: "Boom" }))
       .mockResolvedValue({ source: "local_implicit", isInstanceAdmin: false, memberships: [] });
     await render();

@@ -127,7 +127,7 @@ describePostgres("heartbeat output through adapter dispatch and finalization", (
       payload: { issueId: f.issueId }, contextSnapshot: { issueId: f.issueId } });
     await vi.waitFor(() => expect(begin).toHaveBeenCalled(), { timeout: 10_000 });
     const stoppedAt = Date.now();
-    await heartbeat.cancelRun(run!.id, "Cancelled by a operator operator");
+    await heartbeat.cancelRun(run!.id, "Cancelled by an operator");
     await heartbeat.drainActiveRunExecutions();
     expect(Date.now() - stoppedAt).toBeLessThan(10_000);
     const [stopped] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id));

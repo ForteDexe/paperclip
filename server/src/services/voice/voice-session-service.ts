@@ -28,7 +28,7 @@ const terminalStates = ["ended", "failed", "expired"] as const;
 
 type Endpoint = typeof chatEndpoints.$inferSelect;
 export function voiceSessionService(db: Db, options: {
-  allowLocalBoard: boolean;
+  allowLocalOperator: boolean;
   credentials(endpoint: Endpoint, expectedFingerprint?: string): Promise<Record<string, string>>;
   provider?: typeof createSpekoProvider;
   /** Queue the canonical response delivery after its durable receipt commits. */

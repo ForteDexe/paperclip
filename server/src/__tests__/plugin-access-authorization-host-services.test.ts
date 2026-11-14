@@ -262,7 +262,7 @@ describeEmbeddedPostgres("plugin access and authorization host services", () => 
     expect(preview.explanation).not.toContain("approval");
     expect(explanation).toMatchObject(preview);
 
-    const injectedBoardPreview = await services.authorization.previewAssignment({
+    const injectedOperatorPreview = await services.authorization.previewAssignment({
       spaceId: space.id,
       actor: {
         type: "operator",
@@ -273,7 +273,7 @@ describeEmbeddedPostgres("plugin access and authorization host services", () => 
       } as any,
       target: { assigneeAgentId: targetAgent!.id },
     });
-    expect(injectedBoardPreview).toMatchObject({
+    expect(injectedOperatorPreview).toMatchObject({
       allowed: false,
       reason: "deny_policy_restricted",
     });

@@ -135,7 +135,7 @@ describe("token commands", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`http://localhost:3100/api/agents/${AGENT_ID}/keys`);
   });
 
-  it("creates a operator token with a ttl-derived expiration", async () => {
+  it("creates an operator token with a ttl-derived expiration", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-23T00:00:00.000Z"));
     const fetchMock = vi
@@ -143,7 +143,7 @@ describe("token commands", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "operator-key-1",
         name: "external-admin",
-        token: "pcp_board_plaintext",
+        token: "outpost_operator_plaintext",
         createdAt: "2026-05-23T00:00:00.000Z",
         lastUsedAt: null,
         revokedAt: null,
@@ -172,7 +172,7 @@ describe("token commands", () => {
       key: {
         id: "operator-key-1",
         name: "external-admin",
-        token: "pcp_board_plaintext",
+        token: "outpost_operator_plaintext",
         expiresAt: "2026-06-06T00:00:00.000Z",
       },
     });
@@ -184,7 +184,7 @@ describe("token commands", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "operator-key-1",
         name: "external-admin",
-        token: "pcp_board_plaintext",
+        token: "outpost_operator_plaintext",
         createdAt: "2026-05-23T00:00:00.000Z",
         lastUsedAt: null,
         revokedAt: null,

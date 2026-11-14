@@ -77,7 +77,7 @@ type ProjectionState = {
   space?: Pick<typeof spaces.$inferSelect, "status" | "pauseReason">;
   paused: boolean;
   approval: boolean;
-  /** A operator-owned workspace-owner fence on this run that no automatic proof has released. */
+  /** An operator-owned workspace-owner fence on this run that no automatic proof has released. */
   ownerStopRequired?: boolean;
   unidentifiedLaunchConfirmable?: boolean;
   /** The latest wake for a task with no run yet, when admission refused it. */
@@ -160,7 +160,7 @@ const retryWaitMessages: Record<string, string> = {
 };
 
 const UNIDENTIFIED_RUNNER_STOP_MESSAGE = "Outpost can't confirm that the previous run stopped. The server restarted after it started the agent but before it recorded the agent's process. "
-  + "If no agent is still working on this task, a operator operator can confirm that it stopped, and your Retry starts right away. Your message is saved.";
+  + "If no agent is still working on this task, an operator can confirm that it stopped, and your Retry starts right away. Your message is saved.";
 
 type RetryDependencies = { count: number; blocked: boolean; cancelled: boolean; savingFilesOnly: boolean };
 

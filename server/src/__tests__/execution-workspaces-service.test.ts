@@ -319,7 +319,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
   }
 
-  function insertBoardWorkspaceRecovery(spaceId: string, issueId: string, fingerprint: string) {
+  function insertOperatorWorkspaceRecovery(spaceId: string, issueId: string, fingerprint: string) {
     return db.insert(issueRecoveryActions).values({
       spaceId,
       sourceIssueId: issueId,
@@ -2824,7 +2824,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       branchName: "feature/recorded",
       baseRef: "main",
     });
-    await insertBoardWorkspaceRecovery(spaceId, issueId, fingerprint);
+    await insertOperatorWorkspaceRecovery(spaceId, issueId, fingerprint);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "forward",
@@ -3120,7 +3120,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       assigneeAgentId: agentId,
     });
     await insertRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, projectWorkspaceId, issueId, worktreePath);
-    await insertBoardWorkspaceRecovery(spaceId, issueId, fingerprint);
+    await insertOperatorWorkspaceRecovery(spaceId, issueId, fingerprint);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "quarantine_restore",
@@ -3389,7 +3389,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     });
     await insertRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, projectWorkspaceId, issueId, worktreePath);
-    await insertBoardWorkspaceRecovery(spaceId, issueId, fingerprint);
+    await insertOperatorWorkspaceRecovery(spaceId, issueId, fingerprint);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "quarantine_restore",

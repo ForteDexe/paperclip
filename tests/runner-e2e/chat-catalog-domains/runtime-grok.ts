@@ -48,7 +48,7 @@ export const runtimeGrokCases = [runtimeDefinition("agents.existing-grok-bot", a
   const webhook = new URL(selected.values.endpoint); if (webhook.protocol !== "https:" || webhook.username || webhook.password || webhook.hash) throw new Error("Existing Bot webhook must be its actual owned HTTPS routine endpoint");
   const key = selected.reference(selected.values.credentialEnvName); if (!ctx.input.privateSecrets) throw new Error("Grok routine requires the private value sink"); ctx.input.privateSecrets.push(key, selected.values.endpoint);
   await ctx.input.api.patch("/api/instance/settings/experimental", { enableGrokBot: true, enablePublicMcp: true, enableNativeRunner: true });
-  await ctx.input.api.patch(`/api/spaces/${ctx.input.fixtures.space.id}`, { requireBoardApprovalForNewAgents: false });
+  await ctx.input.api.patch(`/api/spaces/${ctx.input.fixtures.space.id}`, { requireOperatorApprovalForNewAgents: false });
   const actual = await ctx.input.api.get<{ enableGrokBot?: boolean; enablePublicMcp?: boolean; enableNativeRunner?: boolean }>("/api/instance/settings/experimental");
   const metadata = await ctx.input.api.get<{ resource?: string; authorization_servers?: string[] }>("/.well-known/oauth-protected-resource/mcp/runner");
   if (!actual.enableGrokBot || !actual.enablePublicMcp || !actual.enableNativeRunner || !metadata.resource?.startsWith("https://") || !metadata.authorization_servers?.every(url => url.startsWith("https://"))) throw new Error("Concrete external prerequisite: actual authenticated publicly reachable HTTPS Runner/MCP instance is required for the owned existing Grok Bot; loopback HTTP or an imitation Bot cannot qualify");

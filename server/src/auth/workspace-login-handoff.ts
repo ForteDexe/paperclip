@@ -1,7 +1,7 @@
 /**
  * Signed workspace login handoff (PAP-17572).
  *
- * A operator user opening a managed workspace must not have to know which cloned
+ * An operator user opening a managed workspace must not have to know which cloned
  * password is current. The authenticated main control plane mints a short-lived,
  * single-use ticket; the isolated workspace verifies it against its own copy of
  * the signing key and creates its own instance-scoped session.

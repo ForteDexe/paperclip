@@ -25,7 +25,7 @@ Never print or paste API keys. The helper reads credentials from environment var
 
 ## Create a Bridge Key
 
-Create the key from a operator-authenticated Outpost API session and store the returned token once:
+Create the key from an operator-authenticated Outpost API session and store the returned token once:
 
 ```sh
 curl -X POST "$OUTPOST_API_URL/api/agents/$HERMES_AGENT_ID/keys" \

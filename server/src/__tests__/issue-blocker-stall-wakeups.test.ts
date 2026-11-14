@@ -14,7 +14,7 @@ import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database
 const external = resolveExternalTestDatabaseUrl("OUTPOST_RECOVERY_ACTION_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
-// Restart chaos w-20261108T181313-s9701 t05: a child blocked on a operator-owned
+// Restart chaos w-20261108T181313-s9701 t05: a child blocked on an operator-owned
 // recovery action (retries exhausted), and its parent sat silently blocked for
 // 50+ minutes because only completion or resolution wakes a parent.
 (support.supported ? describe : describe.skip)("issue_blocker_stalled wakes", () => {

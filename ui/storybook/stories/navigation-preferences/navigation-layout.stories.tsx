@@ -221,7 +221,7 @@ function CommandEmptySurface() {
 function NavigationLayoutStories() {
   return (
     <div className="outpost-story">
-      <RouteSetter to="/PAP/projects/board-ui/issues" />
+      <RouteSetter to="/PAP/projects/operator-ui/issues" />
       <main className="outpost-story__inner max-w-[1320px] space-y-6">
         <section className="outpost-story__frame p-6">
           <div className="flex flex-wrap items-start justify-between gap-5">
@@ -276,7 +276,7 @@ function NavigationLayoutStories() {
             <BreadcrumbSnapshot
               breadcrumbs={[
                 { label: "Projects", href: "/projects" },
-                { label: "Board UI", href: "/projects/board-ui/issues" },
+                { label: "Board UI", href: "/projects/operator-ui/issues" },
                 { label: "PAP-1641" },
               ]}
             />
@@ -367,7 +367,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const BoardChromeMatrix: Story = {};
+export const OperatorChromeMatrix: Story = {};
 
 // PAP-10676 verification harness: renders the real Sidebar at a fixed width so a
 // screenshot of the expanded state and a screenshot of the pinned-collapsed rail
@@ -378,7 +378,7 @@ function SidebarIconAlignmentHarness() {
   return (
     <PluginLauncherProvider>
       <div className="outpost-story">
-        <RouteSetter to="/PAP/projects/board-ui/issues" />
+        <RouteSetter to="/PAP/projects/operator-ui/issues" />
         <div className="flex min-h-[760px] items-start justify-center bg-muted/30 p-8">
           <div
             data-testid="sidebar-align-frame"

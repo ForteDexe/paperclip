@@ -367,13 +367,13 @@ edits retain existing execution. Verify explicit runner changes preserve compati
 saved settings; the general creation/access policy above still applies. This is
 source-only evidence at the scoped commit, not a live provisioning result.
 
-## `primary-agent`
+## `default-agent`
 
-Capability ID: `agents/primary-agent`.
+Capability ID: `agents/default-agent`.
 
 Review: `baseline`.
 
-API: `present` — GET and PUT /api/spaces/{spaceId}/primary-agent/me.
+API: `present` — GET and PUT /api/spaces/{spaceId}/default-agent/me.
 
 Agent access: `restricted` — this is the authenticated human's personal
 preference. Agent keys and native call_api use agent identity and are denied by
@@ -391,10 +391,10 @@ choice. Initialization stays recorded so clearing does not silently replace it.
 
 Evidence: `source-only` — reviewed on 2026-10-13 at
 `60bc0d5fee9a6e48db08fc016521fee3d9f57d67`:
-[routes](../../server/src/routes/primary-agent.ts),
-[service](../../server/src/services/primary-agent.ts),
-[provider](../../ui/src/context/PrimaryAgentProvider.tsx), and
-[route tests](../../server/src/__tests__/primary-agent.test.ts).
+[routes](../../server/src/routes/default-agent.ts),
+[service](../../server/src/services/default-agent.ts),
+[provider](../../ui/src/context/DefaultAgentProvider.tsx), and
+[route tests](../../server/src/__tests__/default-agent.test.ts).
 
 Verification: `not-run` — select and read the preference as two space users;
 assert isolation, wrong-space/unreadable targets, pending/terminated agent

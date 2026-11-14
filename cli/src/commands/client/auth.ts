@@ -1,9 +1,9 @@
 import type { Command } from "commander";
 import {
-  getStoredBoardCredential,
-  loginBoardCli,
-  removeStoredBoardCredential,
-  revokeStoredBoardCredential,
+  getStoredOperatorCredential,
+  loginOperatorCli,
+  removeStoredOperatorCredential,
+  revokeStoredOperatorCredential,
 } from "../../client/operator-auth.js";
 import {
   addCommonClientOptions,
@@ -37,7 +37,7 @@ export function registerClientAuthCommands(auth: Command): void {
       .action(async (opts: AuthLoginOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
-          const login = await loginBoardCli({
+          const login = await loginOperatorCli({
             apiBase: ctx.api.apiBase,
             requestedAccess: opts.instanceAdmin ? "instance_admin_required" : "operator",
             requestedSpaceId: ctx.spaceId ?? null,
@@ -67,14 +67,14 @@ export function registerClientAuthCommands(auth: Command): void {
       .action(async (opts: AuthLogoutOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
-          const credential = getStoredBoardCredential(ctx.api.apiBase);
+          const credential = getStoredOperatorCredential(ctx.api.apiBase);
           if (!credential) {
             printOutput({ ok: true, apiBase: ctx.api.apiBase, revoked: false, removedLocalCredential: false }, { json: ctx.json });
             return;
           }
           let revoked = false;
           try {
-            await revokeStoredBoardCredential({
+            await revokeStoredOperatorCredential({
               apiBase: ctx.api.apiBase,
               token: credential.token,
             });
@@ -82,7 +82,7 @@ export function registerClientAuthCommands(auth: Command): void {
           } catch {
             // Remove the local credential even if the server-side revoke fails.
           }
-          const removedLocalCredential = removeStoredBoardCredential(ctx.api.apiBase);
+          const removedLocalCredential = removeStoredOperatorCredential(ctx.api.apiBase);
           printOutput(
             {
               ok: true,

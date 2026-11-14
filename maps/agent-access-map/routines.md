@@ -73,7 +73,7 @@ mutation receipts rather than shared response assets.
 
 Sentry alerts use the ordinary `POST /api/routine-triggers/public/{publicId}/fire`
 endpoint and its trigger authentication. Configure filtering and loop prevention
-in Sentry; see the [Sentry repair tutorial](../../docs/guides/board-operator/sentry-run-failure-repairs.md).
+in Sentry; see the [Sentry repair tutorial](../../docs/guides/operator/sentry-run-failure-repairs.md).
 
 The host-only `GET /api/instance/task-drain?idleSleepSafety=1&scheduledWake=1`
 extension reports the earliest supported future routine deadline under an owned

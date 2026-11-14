@@ -21,7 +21,7 @@ describe("stale owner completion policy", () => {
   });
   it.each([
     ["another agent", { ...owner, assigneeAgentId: "agent-b" }],
-    ["a operator user", { ...owner, assigneeAgentId: null, assigneeUserId: "user-1" }],
+    ["an operator user", { ...owner, assigneeAgentId: null, assigneeUserId: "user-1" }],
     ["nobody", { ...owner, assigneeAgentId: null }],
   ])("preserves status when the task now belongs to %s", (_label, issue) => {
     expect(supersedeStaleOwnerCompletion(done, issue, "agent-a")).toEqual({ ...done, statusAction: "preserve",

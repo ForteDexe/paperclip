@@ -142,7 +142,7 @@ export function runtimeConnectionIntentRoutes(db: Db) {
 type Heartbeat = ReturnType<typeof heartbeatService>;
 
 export { wakeConnectionIntentAfterResolution } from "../services/connection-intent-delivery.js";
-export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
+export function connectionIntentOperatorRoutes(db: Db, heartbeat: Heartbeat) {
   const router = Router();
   const service = connectionIntentService(db);
   const access = accessService(db);

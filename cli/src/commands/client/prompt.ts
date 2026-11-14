@@ -86,7 +86,7 @@ export function registerPromptCommands(program: Command): void {
       }),
   );
 
-  const operator = program.command("operator").description("Operator operator operations");
+  const operator = program.command("operator").description("Operator operations");
   addCommonClientOptions(
     operator
       .command("prompt")
@@ -99,7 +99,7 @@ export function registerPromptCommands(program: Command): void {
       .argument("<prompt...>", "Prompt text")
       .action(async (promptParts: string[], opts: PromptOptions) => {
         try {
-          const result = await runBoardPrompt(opts.agent ?? "", promptParts.join(" "), opts);
+          const result = await runOperatorPrompt(opts.agent ?? "", promptParts.join(" "), opts);
           printOutput(result, { json: opts.json });
         } catch (err) {
           handleCommandError(err);
@@ -137,14 +137,14 @@ export async function runAgentPrompt(
   return result;
 }
 
-export async function runBoardPrompt(
+export async function runOperatorPrompt(
   agentRef: string,
   prompt: string,
   opts: PromptOptions,
 ): Promise<PromptResult> {
   const ctx = resolveCommandContext(opts, { requireSpace: true });
   if (ctx.profile.persona && ctx.profile.persona !== "operator") {
-    throw new Error(`Profile '${ctx.profileName}' is persona=${ctx.profile.persona}; use an agent prompt command or a operator profile.`);
+    throw new Error(`Profile '${ctx.profileName}' is persona=${ctx.profile.persona}; use an agent prompt command or an operator profile.`);
   }
   const body = normalizePrompt(prompt);
   const query = new URLSearchParams({ spaceId: ctx.spaceId ?? "" });
@@ -255,7 +255,7 @@ function assertAgentMatchesReference(agent: Agent, reference: string): void {
   ].some((value) => value?.toLowerCase() === normalized);
   if (!matches) {
     throw new Error(
-      `Agent key belongs to ${agent.name} (${agent.id}), not '${reference}'. Use the matching agent or a operator prompt.`,
+      `Agent key belongs to ${agent.name} (${agent.id}), not '${reference}'. Use the matching agent or an operator prompt.`,
     );
   }
 }

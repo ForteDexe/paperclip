@@ -22,7 +22,7 @@ import { inspectMuseConnectionCredential, assertMuseSubjectCredential } from "..
 import { sql } from "drizzle-orm";
 import { museIdentity, museCredentialHash } from "../services/muse-identity.js";
 import * as museIdentityModule from "../services/muse-identity.js";
-import { museTransportRoutes, museBoardRoutes } from "../routes/muse.js";
+import { museTransportRoutes, museOperatorRoutes } from "../routes/muse.js";
 import { projectRoutes } from "../routes/projects.js";
 import { activityRoutes } from "../routes/activity.js";
 import * as activityLogModule from "../services/activity-log.js";
@@ -918,9 +918,9 @@ describe("personal Muse control plane",()=>{
     const input={bindingId:binding.id,generation:binding.generation,expectedRevision:binding.revision,qualificationId,hookScript:`~/hooks/scripts/outpost-muse-${binding.id}.sh`,detectorRemoved:true as const,
       observation:{method:"hooks.list" as const,includeDisabled:true as const,hookId:"outpost-synthetic-hook",outcome:"exact_hook_absent" as const,observedAt:new Date().toISOString(),sha256:"d".repeat(64)}};
     const app=express();app.use(express.json());app.use(async(req,_res,next)=>{
-      const access=await operatorAuthService(db).resolveBoardAccess(f.operatorId);
+      const access=await operatorAuthService(db).resolveOperatorAccess(f.operatorId);
       Object.assign(req,{actor:{type:"operator",source:"session",userId:access.user?.id,userName:access.user?.name??null,userEmail:access.user?.email??null,spaceIds:access.spaceIds,memberships:access.memberships,isInstanceAdmin:access.isInstanceAdmin}});next();
-    });app.use(museBoardRoutes(db,oauthOrigin));app.use(activityRoutes(db));app.use(errorHandler);
+    });app.use(museOperatorRoutes(db,oauthOrigin));app.use(activityRoutes(db));app.use(errorHandler);
     const path=`/spaces/${f.space.id}/agents/${f.agent.id}/muse-binding/attest-detector-cleanup`;
     return {...f,binding,input,app,path};
   }

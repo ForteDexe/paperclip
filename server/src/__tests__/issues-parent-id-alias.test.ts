@@ -7,7 +7,7 @@ import {
   describeEmbeddedPostgres,
   resetSpaceIssueFixtures,
   routeApp,
-  seedSpaceWithBoardAccess,
+  seedSpaceWithOperatorAccess,
   useEmbeddedPostgres,
 } from "./helpers/route-test-harness.js";
 
@@ -17,7 +17,7 @@ describeEmbeddedPostgres("issue list parentIssueId query alias", () => {
   });
 
   async function seed() {
-    const space = await seedSpaceWithBoardAccess(ctx.db, "Parent alias");
+    const space = await seedSpaceWithOperatorAccess(ctx.db, "Parent alias");
     const spaceId = space.spaceId;
     const parentId = randomUUID();
     const otherParentId = randomUUID();

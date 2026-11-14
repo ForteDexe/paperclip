@@ -18,13 +18,13 @@ const mockOperatorAuthService = vi.hoisted(() => ({
   describeCliAuthChallenge: vi.fn(),
   approveCliAuthChallenge: vi.fn(),
   cancelCliAuthChallenge: vi.fn(),
-  resolveBoardAccess: vi.fn(),
-  resolveBoardActivitySpaceIds: vi.fn(),
-  assertCurrentBoardKey: vi.fn(),
-  revokeBoardApiKey: vi.fn(),
-  listBoardApiKeys: vi.fn(),
-  createNamedBoardApiKey: vi.fn(),
-  getBoardApiKeyForUser: vi.fn(),
+  resolveOperatorAccess: vi.fn(),
+  resolveOperatorActivitySpaceIds: vi.fn(),
+  assertCurrentOperatorKey: vi.fn(),
+  revokeOperatorApiKey: vi.fn(),
+  listOperatorApiKeys: vi.fn(),
+  createNamedOperatorApiKey: vi.fn(),
+  getOperatorApiKeyForUser: vi.fn(),
 }));
 
 const mockLogActivity = vi.hoisted(() => vi.fn());
@@ -113,7 +113,7 @@ describe("cli auth routes", () => {
         expiresAt: new Date("2026-03-23T13:00:00.000Z"),
       },
       challengeSecret: "pcp_cli_auth_secret",
-      pendingBoardToken: "pcp_board_token",
+      pendingOperatorToken: "outpost_operator_token",
     });
 
     const app = await createApp({ type: "none", source: "none" });
@@ -133,7 +133,7 @@ describe("cli auth routes", () => {
       pollPath: "/cli-auth/challenges/12345678-1234-4123-8123-123456789abc",
       expiresAt: "2026-03-23T13:00:00.000Z",
     });
-    expect(res.body.operatorApiToken).toBe("pcp_board_token");
+    expect(res.body.operatorApiToken).toBe("outpost_operator_token");
     expect(res.body.approvalUrl).toContain("/cli-auth/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret");
   });
 
@@ -144,7 +144,7 @@ describe("cli auth routes", () => {
         expiresAt: new Date(Date.now() + 60_000),
       },
       challengeSecret: "pcp_cli_auth_secret",
-      pendingBoardToken: "pcp_board_token",
+      pendingOperatorToken: "outpost_operator_token",
     });
     const app = await createApp({ type: "none", source: "none" }, {}, {
       authPublicBaseUrl: "https://workspace.example.com/",
@@ -166,7 +166,7 @@ describe("cli auth routes", () => {
     let now = 1_000;
     mockOperatorAuthService.createCliAuthChallenge.mockResolvedValue({
       challenge: { id: "12345678-1234-4123-8123-123456789abc", expiresAt: new Date(Date.now() + 60_000) },
-      challengeSecret: "pcp_cli_auth_secret", pendingBoardToken: "pcp_board_token",
+      challengeSecret: "pcp_cli_auth_secret", pendingOperatorToken: "outpost_operator_token",
     });
     mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "operator" });
     const app = await createApp({ type: "none", source: "none" }, {}, {
@@ -208,7 +208,7 @@ describe("cli auth routes", () => {
   it("keeps challenge capabilities out of HTTP caches and referrers", async () => {
     mockOperatorAuthService.createCliAuthChallenge.mockResolvedValue({
       challenge: { id: "12345678-1234-4123-8123-123456789abc", expiresAt: new Date(Date.now() + 60_000) },
-      challengeSecret: "pcp_cli_auth_secret", pendingBoardToken: "pcp_board_token",
+      challengeSecret: "pcp_cli_auth_secret", pendingOperatorToken: "outpost_operator_token",
     });
     mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "operator" });
     const app = await createApp({ type: "none", source: "none" });
@@ -239,7 +239,7 @@ describe("cli auth routes", () => {
       status: "approved", created: false,
       challenge: { id: "12345678-1234-4123-8123-123456789abc", operatorApiKeyId: "operator-key-1", requestedAccess: "operator", expiresAt: new Date(Date.now() + 60_000) },
     });
-    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-1"]);
+    mockOperatorAuthService.resolveOperatorActivitySpaceIds.mockResolvedValue(["space-1"]);
     const app = await createApp({ type: "operator", source: "session", userId: "user-1" });
     const response = await request(app).post("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc/approve").send({ token: "pcp_cli_auth_secret" });
     expect(response.status).toBe(200);
@@ -286,7 +286,7 @@ describe("cli auth routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/markdown");
-    expect(res.text).toContain("# Outpost Skill");
+    expect(res.text).toContain("# Outpost Task");
   });
 
   it("marks challenge status as requiring sign-in for anonymous viewers", async () => {
@@ -387,12 +387,12 @@ describe("cli auth routes", () => {
         expiresAt: new Date("2026-03-23T13:00:00.000Z"),
       },
     });
-    mockOperatorAuthService.resolveBoardAccess.mockResolvedValue({
+    mockOperatorAuthService.resolveOperatorAccess.mockResolvedValue({
       user: { id: "user-1", name: "User One", email: "user@example.com" },
       spaceIds: ["space-1"],
       isInstanceAdmin: false,
     });
-    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-1"]);
+    mockOperatorAuthService.resolveOperatorActivitySpaceIds.mockResolvedValue(["space-1"]);
 
     const app = await createApp({
       type: "operator",
@@ -411,7 +411,7 @@ describe("cli auth routes", () => {
       "pcp_cli_auth_secret",
       "user-1",
     );
-    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveOperatorActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
@@ -426,7 +426,7 @@ describe("cli auth routes", () => {
         expiresAt: new Date("2026-03-23T13:00:00.000Z"),
       },
     });
-    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-a", "space-b"]);
+    mockOperatorAuthService.resolveOperatorActivitySpaceIds.mockResolvedValue(["space-a", "space-b"]);
 
     const app = await createApp({
       type: "operator",
@@ -443,16 +443,16 @@ describe("cli auth routes", () => {
     expect(mockOperatorAuthService.approveCliAuthChallenge).toHaveBeenCalledWith(
       "12345678-1234-4123-8123-123456789def", "pcp_cli_auth_secret", "admin-1",
     );
-    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveOperatorActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
   it("delegates owner-bound revocation and atomic audit to the service", async () => {
-    mockOperatorAuthService.assertCurrentBoardKey.mockResolvedValue({
+    mockOperatorAuthService.assertCurrentOperatorKey.mockResolvedValue({
       id: "operator-key-3",
       userId: "admin-2",
     });
-    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-z"]);
+    mockOperatorAuthService.resolveOperatorActivitySpaceIds.mockResolvedValue(["space-z"]);
 
     const app = await createApp({
       type: "operator",
@@ -465,24 +465,24 @@ describe("cli auth routes", () => {
     const res = await request(app).post("/api/cli-auth/revoke-current").send({});
 
     expect(res.status).toBe(200);
-    expect(mockOperatorAuthService.revokeBoardApiKey).toHaveBeenCalledWith("operator-key-3", {
+    expect(mockOperatorAuthService.revokeOperatorApiKey).toHaveBeenCalledWith("operator-key-3", {
       userId: "admin-2", revokedVia: "cli_auth_logout",
     });
-    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveOperatorActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
   it("creates a named operator API key and logs audit activity", async () => {
-    mockOperatorAuthService.createNamedBoardApiKey.mockResolvedValue({
+    mockOperatorAuthService.createNamedOperatorApiKey.mockResolvedValue({
       id: "operator-key-4",
       name: "external-admin",
-      token: "pcp_board_plaintext",
+      token: "outpost_operator_plaintext",
       createdAt: new Date("2026-05-23T12:00:00.000Z"),
       lastUsedAt: null,
       revokedAt: null,
       expiresAt: new Date("2026-06-23T12:00:00.000Z"),
     });
-    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["11111111-1111-4111-8111-111111111111"]);
+    mockOperatorAuthService.resolveOperatorActivitySpaceIds.mockResolvedValue(["11111111-1111-4111-8111-111111111111"]);
 
     const app = await createApp({
       type: "operator",
@@ -503,10 +503,10 @@ describe("cli auth routes", () => {
     expect(res.body).toMatchObject({
       id: "operator-key-4",
       name: "external-admin",
-      token: "pcp_board_plaintext",
+      token: "outpost_operator_plaintext",
       expiresAt: "2026-06-23T12:00:00.000Z",
     });
-    expect(mockOperatorAuthService.createNamedBoardApiKey).toHaveBeenCalledWith({
+    expect(mockOperatorAuthService.createNamedOperatorApiKey).toHaveBeenCalledWith({
       userId: "user-1",
       name: "external-admin",
       expiresAt: new Date("2026-06-23T12:00:00.000Z"),
@@ -523,7 +523,7 @@ describe("cli auth routes", () => {
 
   it("lists and revokes named operator API keys for the current operator user", async () => {
     const keyId = "55555555-5555-4555-8555-555555555555";
-    mockOperatorAuthService.listBoardApiKeys.mockResolvedValue([
+    mockOperatorAuthService.listOperatorApiKeys.mockResolvedValue([
       {
         id: keyId,
         name: "external-admin",
@@ -533,17 +533,17 @@ describe("cli auth routes", () => {
         expiresAt: null,
       },
     ]);
-    mockOperatorAuthService.getBoardApiKeyForUser.mockResolvedValue({
+    mockOperatorAuthService.getOperatorApiKeyForUser.mockResolvedValue({
       id: keyId,
       userId: "user-1",
       name: "external-admin",
     });
-    mockOperatorAuthService.revokeBoardApiKey.mockResolvedValue({
+    mockOperatorAuthService.revokeOperatorApiKey.mockResolvedValue({
       id: keyId,
       userId: "user-1",
       name: "external-admin",
     });
-    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-1"]);
+    mockOperatorAuthService.resolveOperatorActivitySpaceIds.mockResolvedValue(["space-1"]);
 
     const app = await createApp({
       type: "operator",
@@ -556,7 +556,7 @@ describe("cli auth routes", () => {
     const listRes = await request(app).get("/api/operator-api-keys");
     expect(listRes.status).toBe(200);
     expect(listRes.body[0]).toMatchObject({ id: keyId, name: "external-admin" });
-    expect(mockOperatorAuthService.listBoardApiKeys).toHaveBeenCalledWith(
+    expect(mockOperatorAuthService.listOperatorApiKeys).toHaveBeenCalledWith(
       "user-1",
       { includeInactive: false },
     );
@@ -564,10 +564,10 @@ describe("cli auth routes", () => {
     const revokeRes = await request(app).delete(`/api/operator-api-keys/${keyId}`);
     expect(revokeRes.status).toBe(200);
     expect(revokeRes.body).toEqual({ ok: true, keyId });
-    expect(mockOperatorAuthService.revokeBoardApiKey).toHaveBeenCalledWith(keyId, {
+    expect(mockOperatorAuthService.revokeOperatorApiKey).toHaveBeenCalledWith(keyId, {
       userId: "user-1", revokedVia: "operator_api_key_lifecycle",
     });
-    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveOperatorActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
@@ -583,7 +583,7 @@ describe("cli auth routes", () => {
     const res = await request(app).delete("/api/operator-api-keys/not-a-uuid");
 
     expect(res.status).toBe(400);
-    expect(mockOperatorAuthService.getBoardApiKeyForUser).not.toHaveBeenCalled();
-    expect(mockOperatorAuthService.revokeBoardApiKey).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.getOperatorApiKeyForUser).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.revokeOperatorApiKey).not.toHaveBeenCalled();
   });
 });

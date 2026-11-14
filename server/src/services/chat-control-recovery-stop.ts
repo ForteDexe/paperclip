@@ -229,7 +229,7 @@ export async function readChatControlRecoveryStop(
           )
           .limit(1)
       : [];
-    const [freshBoardCause] = await db
+    const [freshOperatorCause] = await db
       .select({ id: agentWakeupRequests.id })
       .from(agentWakeupRequests)
       .where(
@@ -244,7 +244,7 @@ export async function readChatControlRecoveryStop(
         ),
       )
       .limit(1);
-    if (freshBoardCause) return { kind: "clear" };
+    if (freshOperatorCause) return { kind: "clear" };
     const [action] = run.wakeupRequestId
       ? await db
           .select()

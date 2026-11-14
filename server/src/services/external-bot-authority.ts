@@ -29,7 +29,7 @@ export async function authorizeExternalBotBinding(db: Db, principal: McpPrincipa
   if (!await externalBotEnabled(db, binding.providerKind)) throw new McpOAuthError("access_denied", "This external provider is disabled.", 409);
   const [grant] = await db.select().from(mcpOauthGrants).where(and(eq(mcpOauthGrants.id, principal.grant.id), isNull(mcpOauthGrants.revokedAt)));
   const [agent] = await db.select().from(agents).where(and(eq(agents.id, binding.agentId), eq(agents.spaceId, binding.spaceId)));
-  const access = grant ? await operatorAuthService(db).resolveBoardAccess(grant.userId) : null;
+  const access = grant ? await operatorAuthService(db).resolveOperatorAccess(grant.userId) : null;
   const membership = access?.memberships.find(m => m.spaceId === binding.spaceId && m.status === "active");
   if (!access?.user || !membership || membership.membershipRole === "viewer" || !grant || grant.agentId !== binding.agentId || !agent
       || agent.adapterType !== "outpost_runner" || agent.adapterConfig.provider !== binding.providerKind
@@ -43,7 +43,7 @@ export async function authorizeExternalBotBinding(db: Db, principal: McpPrincipa
 }
 
 export async function authorizeExternalBotOperator(db: Db, spaceId: string, operatorId: string) {
-  const access = await operatorAuthService(db).resolveBoardAccess(operatorId);
+  const access = await operatorAuthService(db).resolveOperatorAccess(operatorId);
   const membership = access.memberships.find(m => m.spaceId === spaceId && m.status === "active");
   if (!access.user || !membership || membership.membershipRole === "viewer") throw new McpOAuthError("access_denied", "Sign in with permission to manage this agent.", 403);
   const decision = await accessService(db).decide({ actor: { type: "operator", source: "session", userId: operatorId,

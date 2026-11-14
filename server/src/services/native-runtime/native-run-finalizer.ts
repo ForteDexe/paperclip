@@ -82,8 +82,8 @@ import { publishChatPublicationCommitSignal } from "../chat-publication-reconcil
 import { nativeSha256 } from "./canonical.js";
 import { beginRunPhase, measureRunPhase, withRunResponsePresentationTiming } from "../execution-preparation-timing.js";
 import {
-  readNativeBoardResponseWaitOrigin,
-  readNativeBoardResponseWaitSource,
+  readNativeOperatorResponseWaitOrigin,
+  readNativeOperatorResponseWaitSource,
 } from "./native-operator-response-wait.js";
 import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import { isNewTerminalRunFailure, reportRunFailure } from "../run-failure-report.js";
@@ -1574,7 +1574,7 @@ export async function finalizeNativeRun(input: {
       assessment.reportedDisposition === "yielded" &&
       assessment.continuation?.kind === "response_wake" &&
       !policyGate
-        ? await readNativeBoardResponseWaitOrigin(input.db, {
+        ? await readNativeOperatorResponseWaitOrigin(input.db, {
             spaceId: run.spaceId,
             issueId: authoritativeIssue.id,
             runId: run.id,
@@ -1582,7 +1582,7 @@ export async function finalizeNativeRun(input: {
           })
         : null;
     const operatorResponseWait = operatorResponseWaitOrigin
-      ? await readNativeBoardResponseWaitSource(
+      ? await readNativeOperatorResponseWaitSource(
           input.db,
           operatorResponseWaitOrigin,
         )
@@ -1787,7 +1787,7 @@ export async function finalizeNativeRun(input: {
         ),
       );
     try {
-      const repairBoardResponseWait =
+      const repairOperatorResponseWait =
         operatorResponseWait !== null &&
         assessment.hasBlockingRemainingWork &&
         ["completion_evidence_incomplete", "prior_status_preserved_no_live_path"].includes(decision.reasonCode ?? "");
@@ -1824,14 +1824,14 @@ export async function finalizeNativeRun(input: {
         requireProviderFailureOwner: decision.reasonCode?.startsWith("native_provider_overloaded")
           || decision.reasonCode === "native_run_failed_continuation_exhausted"
           ? { agentId: run.agentId, reviewContext } : undefined,
-        requireBoardResponseWaitSource:
-          decision.reasonCode === "operator_response_waiting" || repairBoardResponseWait
+        requireOperatorResponseWaitSource:
+          decision.reasonCode === "operator_response_waiting" || repairOperatorResponseWait
             ? operatorResponseWait?.source
             : undefined,
-        requireBoardResponseWaitOrigin:
+        requireOperatorResponseWaitOrigin:
           decision.reasonCode === "operator_response_waiting" ||
           decision.reasonCode === "operator_response_wait_superseded" ||
-          repairBoardResponseWait
+          repairOperatorResponseWait
             ? (operatorResponseWaitOrigin ?? undefined)
             : undefined,
         requireExternalChatResponseWaitAuthorization:

@@ -30,8 +30,8 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 /** A server-issued decision receipt, never a caller/context-supplied grant. */
-export interface NativeBoardResponseWaitSource extends Binding {
-  schema: "outpost.native_board_response_wait.v1";
+export interface NativeOperatorResponseWaitSource extends Binding {
+  schema: "outpost.native_operator_response_wait.v1";
   wakeupRequestId: string;
   sourceCommentId: string;
   sourceUserId: string;
@@ -42,11 +42,11 @@ export interface NativeBoardResponseWaitSource extends Binding {
   contractSha256: string;
 }
 
-export type NativeBoardResponseWaitOrigin = Omit<
-  NativeBoardResponseWaitSource,
+export type NativeOperatorResponseWaitOrigin = Omit<
+  NativeOperatorResponseWaitSource,
   "schema" | "sourceSha256"
 > & {
-  schema: "outpost.native_board_response_wait_origin.v1";
+  schema: "outpost.native_operator_response_wait_origin.v1";
 };
 
 /**
@@ -55,11 +55,11 @@ export type NativeBoardResponseWaitOrigin = Omit<
  * source was edited/deleted/superseded. This never authorizes presentation or
  * a new run; those still need current source/assignment checks.
  */
-export async function readNativeBoardResponseWaitOrigin(
+export async function readNativeOperatorResponseWaitOrigin(
   db: Db,
   binding: Binding,
   locked = false,
-): Promise<NativeBoardResponseWaitOrigin | null> {
+): Promise<NativeOperatorResponseWaitOrigin | null> {
   const query = db
     .select({
       run: heartbeatRuns,
@@ -151,7 +151,7 @@ export async function readNativeBoardResponseWaitOrigin(
   )
     return null;
   return {
-    schema: "outpost.native_board_response_wait_origin.v1",
+    schema: "outpost.native_operator_response_wait_origin.v1",
     spaceId: binding.spaceId,
     issueId: binding.issueId,
     runId: binding.runId,
@@ -172,11 +172,11 @@ export async function readNativeBoardResponseWaitOrigin(
  * not grant this exception. In the committer the issue is already locked; use
  * NOWAIT for child rows to avoid reversing a concurrent wake/comment lock order.
  */
-export async function readNativeBoardResponseWaitSource(
+export async function readNativeOperatorResponseWaitSource(
   db: Db,
   binding: Binding,
   locked = false,
-): Promise<{ source: NativeBoardResponseWaitSource; summary: string } | null> {
+): Promise<{ source: NativeOperatorResponseWaitSource; summary: string } | null> {
   const runQuery = db
     .select()
     .from(heartbeatRuns)
@@ -357,7 +357,7 @@ export async function readNativeBoardResponseWaitSource(
     return null;
   return {
     source: {
-      schema: "outpost.native_board_response_wait.v1",
+      schema: "outpost.native_operator_response_wait.v1",
       spaceId: binding.spaceId,
       issueId: binding.issueId,
       runId: binding.runId,
@@ -380,7 +380,7 @@ export async function readNativeBoardResponseWaitSource(
 }
 
 /** Recovery suppresses only this exact applied passive wait, never another run. */
-export async function hasCommittedNativeBoardResponseWait(
+export async function hasCommittedNativeOperatorResponseWait(
   db: Db,
   binding: Binding,
 ): Promise<boolean> {
@@ -436,7 +436,7 @@ export async function hasCommittedNativeBoardResponseWait(
     )
     .limit(1);
   if (!decision) return false;
-  const origin = await readNativeBoardResponseWaitOrigin(db, binding);
+  const origin = await readNativeOperatorResponseWaitOrigin(db, binding);
   // A new comment cannot grant a replay of the old response. New independent
   // wakes are admitted normally and their new run ID is not this receipt.
   const bound =
@@ -455,7 +455,7 @@ export async function hasCommittedNativeBoardResponseWait(
   ) {
     // Old policy accepted contradictory waits. Let normal recovery handle the
     // still-current work, but never replay a response to an obsolete comment.
-    return (await readNativeBoardResponseWaitSource(db, binding)) === null;
+    return (await readNativeOperatorResponseWaitSource(db, binding)) === null;
   }
   return true;
 }

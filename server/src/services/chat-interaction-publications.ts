@@ -1,6 +1,6 @@
 import { notifyChatContinuationWork } from "./chat-continuation-notifications.js";
 import { chatInteractionForm } from "./chat-interaction-forms.js";
-import { slackInteractionRequiresBoard } from "./chat-channels/slack/cards.js";
+import { slackInteractionRequiresOperator } from "./chat-channels/slack/cards.js";
 import { answeredChatQuestionBody, chatInteractionPresentation } from "./chat-interaction-presentation.js";
 import { notifyChatPublicationWork } from "./chat-work-notifications.js";
 import { nativePhotonInteraction } from "./photon/interactions.js";
@@ -316,15 +316,15 @@ export async function enqueueIssueInteractionChatPublications(
     const inlineSelection = endpoint.provider === "slack" && question && (multipleQuestion !== null || question.options.length > 5);
     const multipleActionId = multipleQuestion ? createChatQuestionOptionActionToken() : null;
     const presentation = chatInteractionPresentation(interaction, { compactChoices: Boolean(inlineSelection || checklist || suggestedOptions.length > 1), nativeCustomAnswer: Boolean(customQuestion) });
-    const requiresBoard = endpoint.provider === "slack" && slackInteractionRequiresBoard(presentation.body);
-    if (requiresBoard) {
+    const requiresOperator = endpoint.provider === "slack" && slackInteractionRequiresOperator(presentation.body);
+    if (requiresOperator) {
       connectionDecline = null;
       suggestions = null;
       checklist = null;
     }
     const formInteraction = chatInteractionForm(interaction, endpoint.provider);
     const formDraft =
-      !requiresBoard && (!inlineSelection || customQuestion) && formInteraction &&
+      !requiresOperator && (!inlineSelection || customQuestion) && formInteraction &&
       (endpoint.provider === "slack" ||
         endpoint.provider === "discord" ||
         endpoint.provider === "microsoft-teams") &&
@@ -338,7 +338,7 @@ export async function enqueueIssueInteractionChatPublications(
           )
         : null;
     const supportsCallbacks =
-      !requiresBoard && endpoint.provider !== "imessage-photon" &&
+      !requiresOperator && endpoint.provider !== "imessage-photon" &&
       (formDraft === null || customQuestion !== null) &&
       question !== null &&
       endpoint.capabilities.actions === true;
@@ -349,7 +349,7 @@ export async function enqueueIssueInteractionChatPublications(
         }))
       : [];
     const confirmation =
-      !requiresBoard && (endpoint.provider === "telegram" || endpoint.provider === "slack") && endpoint.capabilities.actions === true
+      !requiresOperator && (endpoint.provider === "telegram" || endpoint.provider === "slack") && endpoint.capabilities.actions === true
         ? nativeChatConfirmation(interaction) ?? checklist
         : null;
     const confirmationActionTokens = confirmation || suggestions || connectionDecline

@@ -440,7 +440,7 @@ describe("issue tree control routes", () => {
     expect(res.status).toBe(201);
     expect(mockHeartbeatService.cancelRun).toHaveBeenCalledWith(
       "44444444-4444-4444-8444-444444444444",
-      "Cancelled by a operator operator's subtree pause",
+      "Cancelled by an operator's subtree pause",
       { resultJson: { cancelledByActorType: "user", cancelledByUserId: "user-1" } },
     );
     expect(mockTreeControlService.cancelUnclaimedWakeupsForTree).toHaveBeenCalledWith(
@@ -544,7 +544,7 @@ describe("issue tree control routes", () => {
     expect(res.status).toBe(201);
     expect(mockHeartbeatService.cancelRun).toHaveBeenCalledWith(
       "44444444-4444-4444-8444-444444444444",
-      "Cancelled by a operator operator's subtree cancel",
+      "Cancelled by an operator's subtree cancel",
       { resultJson: { cancelledByActorType: "user", cancelledByUserId: "user-1" } },
     );
     expect(mockTreeControlService.cancelIssueStatusesForHold).toHaveBeenCalledWith(

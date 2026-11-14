@@ -61,7 +61,7 @@ export function approvalRecords(db: Db) {
         .returning()
         .then((rows) => rows[0])),
 
-    // Cancel an open (pending/revision_requested) approval without a operator
+    // Cancel an open (pending/revision_requested) approval without an operator
     // decision — e.g. when its paired agent is terminated during duplicate
     // cleanup. Idempotent: a no-op on already-resolved approvals.
     cancel: async (id: string, reason?: string | null) => {

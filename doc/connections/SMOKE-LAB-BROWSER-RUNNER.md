@@ -66,8 +66,8 @@ JWT is NOT accepted by a separate worktree instance's DB** — cross-instance to
 
 | Endpoint group | Authz | Actor that works here |
 |---|---|---|
-| `services/start`, `services/stop`, `install-fixtures`, `reset`, `services` (GET) | `assertBoard` | board only (local_trusted implicit board, or session cookie) |
-| `runs`, `runs/:id`, `runs/:id/steps`, `runs/:id` (PATCH) | `assertBoardOrAgent` | board **or** an agent run JWT |
+| `services/start`, `services/stop`, `install-fixtures`, `reset`, `services` (GET) | `assertOperator` | board only (local_trusted implicit board, or session cookie) |
+| `runs`, `runs/:id`, `runs/:id/steps`, `runs/:id` (PATCH) | `assertOperatorOrAgent` | board **or** an agent run JWT |
 | `oauth/authorize|token|userinfo|revoke` | flag+deployment gated, unauthenticated | the fake provider itself |
 
 So the hybrid the ticket asks for: **start services / install fixtures through

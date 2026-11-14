@@ -196,11 +196,11 @@ describePostgres("agent action audit routes", () => {
     expect(operatorResponse.status).toBe(403);
     expect(operatorResponse.body.error).toContain("audit:view_agent_actions");
 
-    const invalidBoardResponse = await request(await createApp(db, {
+    const invalidOperatorResponse = await request(await createApp(db, {
       type: "operator", userId: "reader", spaceIds: [space.id], source: "session", isInstanceAdmin: false,
     })).get(`/api/spaces/${space.id}/audit/agent-actions?limit=invalid`);
-    expect(invalidBoardResponse.status).toBe(403);
-    expect(invalidBoardResponse.body.error).toContain("audit:view_agent_actions");
+    expect(invalidOperatorResponse.status).toBe(403);
+    expect(invalidOperatorResponse.body.error).toContain("audit:view_agent_actions");
   }, 30_000);
 
   it("lets a space member read basic all-actor rows without attribution", async () => {

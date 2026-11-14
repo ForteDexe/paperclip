@@ -7,7 +7,7 @@ import { createPostgresWakeQueueAdapter } from "./postgres.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 
-// A operator Retry receipt stores only `{ issueId, taskRetry }`, with no saved
+// An operator Retry receipt stores only `{ issueId, taskRetry }`, with no saved
 // wake context. Its promoted run takes the issue's execution lock, so it must
 // stay issue-scoped for workspace and trust-boundary preparation.
 describe.skipIf(!support.supported)("promoted Retry receipt scope", () => {

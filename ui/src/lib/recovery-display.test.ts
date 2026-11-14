@@ -74,7 +74,7 @@ describe("deriveRecoveryDisplayState", () => {
   const waitBase = { ...base, kind: "deliberate_wait_without_target" as const };
 
   it.each([null, "delegated"] as const)(
-    "shows a operator-owned watchdog as needing recovery, not observing work (%s)",
+    "shows an operator-owned watchdog as needing recovery, not observing work (%s)",
     (outcome) => {
       const action = {
         ...base,
@@ -104,7 +104,7 @@ describe("deriveRecoveryDisplayState", () => {
     ["cancelled", "resolved"],
     ["escalated", "escalated"],
   ] as const)(
-    "keeps %s precedence for a operator-owned watchdog",
+    "keeps %s precedence for an operator-owned watchdog",
     (status, expected) => {
       expect(
         deriveRecoveryDisplayState({
@@ -171,7 +171,7 @@ describe("deriveRecoveryDisplayState", () => {
       },
     );
 
-    it.each(["active", "escalated"] as const)("shows a operator-admitted export as progress despite prior %s repair ownership", (status) => {
+    it.each(["active", "escalated"] as const)("shows an operator-admitted export as progress despite prior %s repair ownership", (status) => {
       expect(deriveRecoveryDisplayState({
         ...action, status, ownerType: "operator", attemptCount: 3,
         nativeRunActivity: { runId: "finalizing-run", status: "running", workspaceOperationId: "export-operation" },

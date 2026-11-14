@@ -23,7 +23,7 @@ type Executor = Pick<Db, "select" | "insert">;
 
 /** Called only for an authenticated Operator comment, in its insert transaction.
  * Provider ingress and agent-authored comments never enter this path. */
-export async function mirrorSlackBoardComment(
+export async function mirrorSlackOperatorComment(
   db: Executor,
   comment: {
     id: string;
@@ -102,14 +102,14 @@ export async function mirrorSlackBoardComment(
     if (!principal) {
       throw forbidden("Link your Slack account to this connection before sending a message to its Slack thread");
     }
-    if (options.wakeAgent) await notifyChatActionWork(db, "slack_board_message");
+    if (options.wakeAgent) await notifyChatActionWork(db, "slack_operator_message");
     const [receipt] = await db
       .insert(chatActions)
       .values({
         spaceId: comment.spaceId,
         endpointId: endpoint.id,
         conversationId: conversation.id,
-        kind: "slack_board_message",
+        kind: "slack_operator_message",
         providerActionId: `operator-comment:${comment.id}`,
         status: options.wakeAgent ? "received" : "processed",
         payload: {
@@ -137,7 +137,7 @@ export async function mirrorSlackBoardComment(
           `operator-comment:${comment.id}:${endpoint.id}`,
         payload: projectSafeChatPublication({
           classification: "external",
-          source: "explicit_board_send",
+          source: "explicit_operator_send",
           text: `**${author} (via Outpost)**\n\n${comment.body}`,
         }),
         state: "pending",
@@ -176,7 +176,7 @@ export async function mirrorSlackBoardComment(
           idempotencyKey: `${options.publicationKey ?? `operator-comment:${comment.id}:${endpoint.id}`}:attachment:${file.id}`,
           payload: projectSafeChatPublication({
             classification: "external",
-            source: "explicit_board_send",
+            source: "explicit_operator_send",
             text: `Shared ${file.name ?? "a file"}.`,
             attachmentIds: [file.id],
           }),
@@ -204,7 +204,7 @@ export async function mirrorSlackBoardComment(
 }
 
 /** A durable mirror receipt, not task text or a context field, proves the return path. */
-export async function slackBoardReplyBindings(
+export async function slackOperatorReplyBindings(
   db: Executor,
   input: {
     spaceId: string;
@@ -261,7 +261,7 @@ export async function slackBoardReplyBindings(
     .where(
       and(
         eq(chatActions.spaceId, input.spaceId),
-        eq(chatActions.kind, "slack_board_message"),
+        eq(chatActions.kind, "slack_operator_message"),
         eq(sql<string>`${chatActions.payload}->>'userId'`, input.userId),
         eq(sql<string>`${chatActions.payload}->>'agentId'`, input.agentId),
         eq(issueComments.authorType, "user"),

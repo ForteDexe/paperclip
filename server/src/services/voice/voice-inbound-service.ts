@@ -27,7 +27,7 @@ const eventSchema = z.object({ type: z.enum(["call.pre_call", "call.status", "ca
 const projection = (row: Admission): VoiceInboundCall => ({ id: row.id, state: row.state, approvalCode: row.approvalCode, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString(), sessionId: row.sessionId, intakeIssueId: row.intakeIssueId });
 /** No phone number or caller-ID lookup can impersonate an authenticated user. */
 export function voiceInboundService(db: Db, options: {
-  allowLocalBoard: boolean;
+  allowLocalOperator: boolean;
   credentials(endpoint: Endpoint, expectedFingerprint?: string): Promise<Record<string, string>>;
   provider?: typeof createSpekoProvider;
   start(input: { spaceId: string; endpointId: string; issueId?: string; caller: VoiceCaller; idempotencyKey: string; maxDurationSeconds: number; mode: "inbound_phone"; providerSessionId: string; toolToken: string }): Promise<{session: VoiceSession}>;
@@ -52,7 +52,7 @@ export function voiceInboundService(db: Db, options: {
   async function manager(spaceId: string, caller: VoiceCaller, transaction?: VoiceTransaction) {
     const check = async (tx: VoiceTransaction) => {
       await store.authorizeCaller(tx, spaceId, caller);
-      if (caller.authority === "local_board" || caller.authority === "instance_admin" || (await authorizationService(tx).decidePrincipalGrant({spaceId, principalType: "user", principalId: caller.id, permissionKey: "tools:manage_connections", action: "tools:manage_connections"})).allowed) return;
+      if (caller.authority === "local_operator" || caller.authority === "instance_admin" || (await authorizationService(tx).decidePrincipalGrant({spaceId, principalType: "user", principalId: caller.id, permissionKey: "tools:manage_connections", action: "tools:manage_connections"})).allowed) return;
       throw forbidden("Missing permission: tools:manage_connections");
     };
     return transaction ? check(transaction) : db.transaction(check);

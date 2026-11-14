@@ -17,14 +17,14 @@ import type { DbTransaction } from "../runtime-types.js";
 type SpekoSetupOptions = {
   fetchImpl: typeof globalThis.fetch;
   getWebhookPublicBaseUrl: () => string | null;
-  allowLocalVoiceBoard?: boolean;
+  allowLocalVoiceOperator?: boolean;
 };
 export function createSpekoSetup(db: Db, options: SpekoSetupOptions) {
   const { fetchImpl, getWebhookPublicBaseUrl } = options;
 
   async function installSpekoVoiceTools(tx: DbTransaction, endpoint: EndpointRow, actorUserId?: string | null) {
           if (!actorUserId) throw forbidden("An authenticated connection owner is required to install phone tools");
-          await syncSpekoVoiceTools(tx, endpoint, actorUserId, true, options.allowLocalVoiceBoard === true);
+          await syncSpekoVoiceTools(tx, endpoint, actorUserId, true, options.allowLocalVoiceOperator === true);
         }
 
   async function configureSpekoTools(endpoint: EndpointRow, credentials: Record<string, string>, credentialLease: CredentialMutationLeaseGuard, previousSpekoSigningSecret: string | undefined) {

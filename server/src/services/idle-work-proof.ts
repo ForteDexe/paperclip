@@ -108,7 +108,7 @@ export function connectionIntentWaitingForResponse(interaction: string, issue: s
     AND (${responseDrivenIssueWait(issue)})`;
 }
 
-export function passiveBoardRecovery(alias: string): string {
+export function passiveOperatorRecovery(alias: string): string {
   return `${alias}.status IN ('active', 'escalated') AND ${alias}.resolved_at IS NULL
     AND ${alias}.owner_type = 'operator' AND ${alias}.owner_agent_id IS NULL
     AND ${alias}.kind IN ('stranded_assigned_issue', 'missing_disposition')

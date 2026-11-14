@@ -34,7 +34,7 @@ const mockIssuesApi = vi.hoisted(() => ({
   listLabels: vi.fn(),
 }));
 
-const mockKanbanBoard = vi.hoisted(() => vi.fn());
+const mockKanbanOperator = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 
 const mockAuthApi = vi.hoisted(() => ({
@@ -196,7 +196,7 @@ vi.mock("./KanbanBoard", () => ({
     initialVisibleCount?: number;
     revealIncrement?: number;
   }) => {
-    mockKanbanBoard(props);
+    mockKanbanOperator(props);
     return (
       <div data-testid="kanban-board">
         {props.issues.map((issue) => (
@@ -348,7 +348,7 @@ describe("IssuesList", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     dialogState.openNewIssue.mockReset();
-    mockKanbanBoard.mockReset();
+    mockKanbanOperator.mockReset();
     mockNavigate.mockReset();
     mockIssuesApi.list.mockReset();
     mockIssuesApi.listLabels.mockReset();
@@ -1564,7 +1564,7 @@ describe("IssuesList", () => {
         includeRoutineExecutions: true,
         includeAgentCreatedTasks: false,
       }), { signal: expect.any(AbortSignal) });
-      expect(mockKanbanBoard).toHaveBeenLastCalledWith(expect.objectContaining({
+      expect(mockKanbanOperator).toHaveBeenLastCalledWith(expect.objectContaining({
         issues: expect.arrayContaining([
           expect.objectContaining({ id: "issue-backlog" }),
           expect.objectContaining({ id: "issue-done" }),
@@ -1612,7 +1612,7 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(mockKanbanBoard).toHaveBeenLastCalledWith(expect.objectContaining({
+      expect(mockKanbanOperator).toHaveBeenLastCalledWith(expect.objectContaining({
         compactCards: true,
         collapsedStatuses: expect.arrayContaining(["backlog", "done", "cancelled"]),
         initialVisibleCount: 10,
@@ -1643,7 +1643,7 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(mockKanbanBoard).toHaveBeenLastCalledWith(expect.objectContaining({
+      expect(mockKanbanOperator).toHaveBeenLastCalledWith(expect.objectContaining({
         initialVisibleCount: 10,
         revealIncrement: 10,
       }));
@@ -1671,7 +1671,7 @@ describe("IssuesList", () => {
     });
 
     await waitForAssertion(() => {
-      expect(mockKanbanBoard).toHaveBeenLastCalledWith(expect.objectContaining({
+      expect(mockKanbanOperator).toHaveBeenLastCalledWith(expect.objectContaining({
         initialVisibleCount: 25,
         revealIncrement: 25,
       }));

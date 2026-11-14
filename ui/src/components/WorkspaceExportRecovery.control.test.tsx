@@ -39,7 +39,7 @@ describe("controlled retained-file recovery", () => {
     api.recover.mockResolvedValue({ actionId: action.id, status: "queued" });
     client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
     client.setQueryData(queryKeys.auth.session, { user: { id: "operator-1" } });
-    client.setQueryData(queryKeys.access.currentBoardAccess, {
+    client.setQueryData(queryKeys.access.currentOperatorAccess, {
       userId: "operator-1", spaceIds: ["space-1"], source: "session", isInstanceAdmin: false,
       memberships: [{ spaceId: "space-1", membershipRole: "operator", status: "active" }],
     });
@@ -79,7 +79,7 @@ describe("controlled retained-file recovery", () => {
 
   it.each(["access", "source"])("retains loaded recovery controls through a transient %s refresh failure", async kind => {
     await mount();
-    const key = kind === "access" ? queryKeys.access.currentBoardAccess
+    const key = kind === "access" ? queryKeys.access.currentOperatorAccess
       : queryKeys.issues.recoveryActions("issue-1", "action-1", "run-1");
     await act(async () => {
       await client.fetchQuery({ queryKey: key, staleTime: 0, queryFn: async () => { throw new ApiError("Restarting", 503, { error: "tenant_app_unavailable" }); }, retry: false }).catch(() => {});
@@ -93,7 +93,7 @@ describe("controlled retained-file recovery", () => {
 
   it.each(["access", "source"])("hides cached recovery controls after definitive %s denial", async kind => {
     await mount();
-    const key = kind === "access" ? queryKeys.access.currentBoardAccess
+    const key = kind === "access" ? queryKeys.access.currentOperatorAccess
       : queryKeys.issues.recoveryActions("issue-1", "action-1", "run-1");
     await act(async () => {
       await client.fetchQuery({ queryKey: key, staleTime: 0, queryFn: async () => { throw new ApiError("Forbidden", 403, null); }, retry: false }).catch(() => {});
@@ -118,7 +118,7 @@ describe("controlled retained-file recovery", () => {
   });
 
   it.each(["viewer", "suspended", "foreign-space", "other-account"])("does not offer mutation with %s access", async kind => {
-    client.setQueryData(queryKeys.access.currentBoardAccess, {
+    client.setQueryData(queryKeys.access.currentOperatorAccess, {
       userId: kind === "other-account" ? "operator-2" : "operator-1", source: "session", isInstanceAdmin: false,
       spaceIds: kind === "foreign-space" ? ["space-2"] : ["space-1"],
       memberships: [{ spaceId: kind === "foreign-space" ? "space-2" : "space-1",
@@ -157,7 +157,7 @@ describe("controlled retained-file recovery", () => {
     expect(container.textContent).toContain("can’t verify the saved files’ recorded source (source_binding_invalid)");
   });
 
-  // Recovery saved by an older release: a operator-owned hold whose
+  // Recovery saved by an older release: an operator-owned hold whose
   // sandbox predates ownership receipts. The server still records a retryable
   // blocked recovery, but the read-only source probe cannot verify ownership.
   const legacyHold = { ...action, id: "legacy-hold", ownerType: "operator", evidence: { runId: "run-1",
@@ -432,7 +432,7 @@ describe("controlled retained-file recovery", () => {
     ["operator-owned status", { ...action, cause: "native_workspace_finalization_owner_unverified", ownerType: "operator",
       evidence: { runId: "run-1" } } as unknown as IssueRecoveryAction, inspection(action), operatorAccess],
   ] as const)("renders no manual sandbox or administrator copy: %s", async (_name, value, response, access) => {
-    client.setQueryData(queryKeys.access.currentBoardAccess, access);
+    client.setQueryData(queryKeys.access.currentOperatorAccess, access);
     api.inspect.mockResolvedValue(response);
     await mount(value);
     expect(container.textContent).not.toMatch(manualCopy);
@@ -445,7 +445,7 @@ describe("controlled retained-file recovery", () => {
 
     it("offers one operator action that resumes the saved result with the operator's stop evidence", async () => {
       api.resume.mockResolvedValue({ runId: "run-1", resultId: "result-1", status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       await mount(ownerAction);
       expect(container.textContent).toContain("can’t verify that it stopped");
@@ -468,7 +468,7 @@ describe("controlled retained-file recovery", () => {
 
     it("offers the same action for retained saved-work recovery held by a stopped copyback owner", async () => {
       api.resume.mockResolvedValue({ runId: "run-1", resultId: null, status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "admin", status: "active" }] });
       const held = { ...action, evidence: { ...action.evidence,
         workspaceOwnerRecovery: { state: "operator_required", owner: { token: "retained-token", hostname: "secret-host", pid: 9 } } } } as IssueRecoveryAction;
@@ -494,7 +494,7 @@ describe("controlled retained-file recovery", () => {
 
     it("confirms a pre-upgrade controller an ephemeral server cannot verify", async () => {
       api.confirmController.mockResolvedValue({ runId: "run-1", status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       const controllerAction = { ...action, cause: "native_controller_host_unverified", ownerType: "operator",
         evidence: { runId: "run-1", controller: { bootId: "boot", pid: 7 } } } as unknown as IssueRecoveryAction;
@@ -522,7 +522,7 @@ describe("controlled retained-file recovery", () => {
       await mount(ownerGoneAction);
       expect(container.textContent).toContain("before Outpost stored which server held it");
       expect(button("Confirm the previous server stopped")).toBeUndefined();
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       await mount(ownerGoneAction);
       await click("Confirm the previous server stopped");
@@ -540,7 +540,7 @@ describe("controlled retained-file recovery", () => {
 
     it("resets an open confirmation when the request is refreshed to a newer record version", async () => {
       api.confirmOwnerGone.mockResolvedValue({ recordId: "run-1", status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       const at = (version: string) => ({ ...action, cause: "ownership_owner_unprovable", ownerType: "operator",
         evidence: { kind: "legacy_controller_lease", recordId: "run-1", runId: "run-1", recordUpdatedAt: version } }) as unknown as IssueRecoveryAction;
@@ -563,7 +563,7 @@ describe("controlled retained-file recovery", () => {
     });
 
     it("names the stuck record for a kind confirmed by record version, and a generic resource otherwise", async () => {
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       const ownerGone = (kind: string) => ({ ...action, cause: "ownership_owner_unprovable", ownerType: "operator",
         evidence: { kind, recordId: "run-1", runId: "run-1", recordUpdatedAt: "2026-11-08T10:00:00.000Z" } }) as unknown as IssueRecoveryAction;
@@ -578,7 +578,7 @@ describe("controlled retained-file recovery", () => {
       // The default fixture is an operator: it may resolve other recovery but not attest a controller stop.
       await mount({ ...ownerAction, evidence: { ...ownerAction.evidence, workspaceOwnerRecovery: { state: "resuming" } } } as IssueRecoveryAction);
       expect(button("Confirm the previous server stopped")).toBeUndefined();
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+      client.setQueryData(queryKeys.access.currentOperatorAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
         spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "operator", status: "active" }] });
       await mount(ownerAction);
       expect(button("Confirm the previous server stopped")).toBeUndefined();

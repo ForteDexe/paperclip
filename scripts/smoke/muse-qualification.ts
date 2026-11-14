@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { getStoredBoardCredential } from "../../cli/src/client/operator-auth.js";
+import { getStoredOperatorCredential } from "../../cli/src/client/operator-auth.js";
 import type { MuseConnection, MuseQualificationEvidence } from "@outpost/shared";
 import { qualificationReport, qualificationCadence } from "./muse-qualification-report.mjs";
 
@@ -38,7 +38,7 @@ function origin(input: string) {
   return url.origin;
 }
 async function request<T>(state: Pick<State, "apiBase">, method: string, path: string, body?: unknown): Promise<T> {
-  const credential = getStoredBoardCredential(state.apiBase);
+  const credential = getStoredOperatorCredential(state.apiBase);
   if (!credential) throw new Error("Run outpost auth login for the selected API origin first");
   const response = await fetch(state.apiBase + "/api" + path, { method,
     headers: { Authorization: `Bearer ${credential.token}`, "Content-Type": "application/json", Accept: "application/json", Origin: state.apiBase },

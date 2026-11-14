@@ -20,9 +20,9 @@ function registerModuleMocks() {
     }),
     operatorAuthService: () => ({
       createChallenge: vi.fn(),
-      resolveBoardAccess: vi.fn(),
-      assertCurrentBoardKey: vi.fn(),
-      revokeBoardApiKey: vi.fn(),
+      resolveOperatorAccess: vi.fn(),
+      assertCurrentOperatorKey: vi.fn(),
+      revokeOperatorApiKey: vi.fn(),
     }),
     deduplicateAgentName: vi.fn(),
     logActivity: (...args: unknown[]) => logActivityMock(...args),

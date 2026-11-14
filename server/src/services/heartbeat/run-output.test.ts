@@ -140,7 +140,7 @@ describe("claiming the run log during a storage outage (storage chaos ST1)", () 
   it("stops waiting as soon as the run is stopped", async () => {
     const stop = new AbortController();
     const begin = vi.fn(async () => outage());
-    setTimeout(() => stop.abort(new Error("Stopped by a operator operator")), 100);
+    setTimeout(() => stop.abort(new Error("Stopped by an operator")), 100);
     const startedAt = Date.now();
     await expect(output(begin, stop.signal).begin({ ...newRunRow } as Run)).rejects.toBeTruthy();
     expect(Date.now() - startedAt).toBeLessThan(1_500);

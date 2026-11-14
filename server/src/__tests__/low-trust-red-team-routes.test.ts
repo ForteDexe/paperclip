@@ -1006,7 +1006,7 @@ describeEmbeddedPostgres(
 
     });
 
-    it("retains a operator backlog assignment and rejects plugin-attributed wakes with forged operator payloads", async () => {
+    it("retains an operator backlog assignment and rejects plugin-attributed wakes with forged operator payloads", async () => {
       const fixture = await seedLowTrustFixture(db);
       await db.update(agents).set({ runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } })
         .where(eq(agents.id, fixture.agents.lowTrust.id));

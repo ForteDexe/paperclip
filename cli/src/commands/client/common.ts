@@ -1,6 +1,6 @@
 import pc from "picocolors";
 import type { Command } from "commander";
-import { getStoredBoardCredential, loginBoardCli } from "../../client/operator-auth.js";
+import { getStoredOperatorCredential, loginOperatorCli } from "../../client/operator-auth.js";
 import { buildCliCommandLabel } from "../../client/command-label.js";
 import { readConfig } from "../../config/store.js";
 import { readContext, resolveProfile, type ClientContextProfile } from "../../client/context.js";
@@ -24,7 +24,7 @@ export interface ResolvedClientContext {
   profileName: string;
   profile: ClientContextProfile;
   json: boolean;
-  authSource: "explicit" | "env" | "profile_env" | "stored_board" | "none";
+  authSource: "explicit" | "env" | "profile_env" | "stored_operator" | "none";
 }
 
 export function addCommonClientOptions(command: Command, opts?: { includeSpace?: boolean }): Command {
@@ -56,8 +56,8 @@ export function resolveCommandContext(
 
   const resolvedApiKey = resolveApiKey(options, profile);
   const explicitApiKey = resolvedApiKey.value;
-  const storedBoardCredential = explicitApiKey ? null : getStoredBoardCredential(apiBase);
-  const apiKey = explicitApiKey || storedBoardCredential?.token;
+  const storedOperatorCredential = explicitApiKey ? null : getStoredOperatorCredential(apiBase);
+  const apiKey = explicitApiKey || storedOperatorCredential?.token;
 
   const spaceId =
     options.spaceId?.trim() ||
@@ -66,7 +66,7 @@ export function resolveCommandContext(
 
   if (opts?.requireSpace && !spaceId) {
     throw new Error(
-      "Outpost ID is required. Pass --space-id, set OUTPOST_SPACE_ID, or set context profile spaceId via `outpost context set`.",
+      "Space ID is required. Pass --space-id, set OUTPOST_SPACE_ID, or set context profile spaceId via `outpost context set`.",
     );
   }
 
@@ -89,7 +89,7 @@ export function resolveCommandContext(
           if (!shouldRecoverOperatorAuth(error)) {
             return null;
           }
-          const login = await loginBoardCli({
+          const login = await loginOperatorCli({
             apiBase,
             requestedAccess,
             requestedSpaceId: spaceId ?? null,
@@ -104,7 +104,7 @@ export function resolveCommandContext(
     profileName,
     profile,
     json: Boolean(options.json),
-    authSource: explicitApiKey ? resolvedApiKey.source : storedBoardCredential ? "stored_board" : "none",
+    authSource: explicitApiKey ? resolvedApiKey.source : storedOperatorCredential ? "stored_operator" : "none",
   };
 }
 

@@ -29,7 +29,7 @@ export interface Space {
   spentMonthlyCents: number;
   defaultResponsibleUserId: string | null;
   /** Space-wide routing preference; authority still comes from permissions. */
-  primaryAgentId: string | null;
+  defaultAgentId: string | null;
   requireOperatorApprovalForNewAgents: boolean;
   interactionResolverPolicy: InteractionResolverPolicy;
   feedbackDataSharingEnabled: boolean;

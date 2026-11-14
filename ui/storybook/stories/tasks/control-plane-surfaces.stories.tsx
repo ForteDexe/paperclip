@@ -275,4 +275,4 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const BoardStateMatrix: Story = {};
+export const OperatorStateMatrix: Story = {};

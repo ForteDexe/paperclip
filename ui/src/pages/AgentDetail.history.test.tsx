@@ -13,7 +13,7 @@ import { PanelProvider } from "../context/PanelContext";
 const { get, mobile } = vi.hoisted(() => ({ get: vi.fn(), mobile: { value: false } }));
 vi.mock("../api/heartbeats", () => ({ heartbeatsApi: { get, events: async () => [], workspaceOperations: async () => [] } }));
 vi.mock("../api/client", () => ({ api: { get: async () => [] } }));
-vi.mock("../api/access", () => ({ accessApi: { getCurrentBoardAccess: async () => ({ spaceIds: ["space-1"], memberships: [] }) } }));
+vi.mock("../api/access", () => ({ accessApi: { getCurrentOperatorAccess: async () => ({ spaceIds: ["space-1"], memberships: [] }) } }));
 vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: mobile.value }) }));
 vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space-1", selectedSpace: { id: "space-1", issuePrefix: "TEST" }, spaces: [] }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

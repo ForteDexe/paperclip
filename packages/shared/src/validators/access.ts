@@ -85,13 +85,13 @@ export const resolveCliAuthChallengeSchema = z.object({
 
 export type ResolveCliAuthChallenge = z.infer<typeof resolveCliAuthChallengeSchema>;
 
-export const createBoardApiKeySchema = z.object({
+export const createOperatorApiKeySchema = z.object({
   name: z.string().trim().min(1).max(120).default("outpost cli"),
   expiresAt: z.coerce.date().optional().nullable(),
   requestedSpaceId: z.string().guid().optional().nullable(),
 });
 
-export type CreateBoardApiKey = z.infer<typeof createBoardApiKeySchema>;
+export type CreateOperatorApiKey = z.infer<typeof createOperatorApiKeySchema>;
 
 export const updateMemberPermissionsSchema = z.object({
   grants: z.array(

@@ -63,7 +63,7 @@ function Section({
 
 function FoundationsMatrix() {
   const [autoMode, setAutoMode] = useState(true);
-  const [boardApproval, setBoardApproval] = useState(true);
+  const [boardApproval, setOperatorApproval] = useState(true);
 
   return (
     <div className="outpost-story">
@@ -186,7 +186,7 @@ function FoundationsMatrix() {
                   <ToggleSwitch checked={autoMode} onCheckedChange={setAutoMode} />
                 </div>
                 <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
-                  <Checkbox checked={boardApproval} onCheckedChange={(value) => setBoardApproval(value === true)} />
+                  <Checkbox checked={boardApproval} onCheckedChange={(value) => setOperatorApproval(value === true)} />
                   <span>
                     <span className="font-medium">Require board approval for new agents</span>
                     <span className="mt-1 block text-xs text-muted-foreground">

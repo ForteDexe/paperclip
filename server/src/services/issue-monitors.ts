@@ -55,7 +55,7 @@ export async function assertCanManageIssueMonitor(
   )
     return;
   throw forbidden(
-    "Only the assignee agent or a operator user can manage issue monitors",
+    "Only the assignee agent or an operator user can manage issue monitors",
   );
 }
 

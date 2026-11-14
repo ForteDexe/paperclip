@@ -123,7 +123,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
 
   async function actorForGrant(grant: typeof mcpOauthGrants.$inferSelect, queryDb: Db = db): Promise<Request["actor"]> {
     if (grant.revokedAt || grant.resource !== config.resource) throw invalidGrant();
-    const access = await operatorAuthService(queryDb).resolveBoardAccess(grant.userId);
+    const access = await operatorAuthService(queryDb).resolveOperatorAccess(grant.userId);
     const membership = access.memberships.find((m) => m.spaceId === grant.spaceId && m.status === "active");
     const [space] = await queryDb.select({ status: spaces.status }).from(spaces).where(eq(spaces.id, grant.spaceId));
     if (!access.user || !membership || !space || space.status === "archived") throw invalidGrant();
@@ -250,7 +250,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
 
   async function consentContext(actor: Request["actor"], requestedSpaceId: string | null) {
     const signedIn = actor.type === "operator" && !!actor.userId && ["session", "cloud_tenant"].includes(actor.source ?? "");
-    const access = signedIn ? await operatorAuth.resolveBoardAccess(actor.userId!) : null;
+    const access = signedIn ? await operatorAuth.resolveOperatorAccess(actor.userId!) : null;
     const available = access?.user && access.spaceIds.length ? await db.select({ id: spaces.id, name: spaces.name, status: spaces.status, logoAssetId: spaceLogos.assetId })
       .from(spaces).leftJoin(spaceLogos, eq(spaceLogos.spaceId, spaces.id)).where(inArray(spaces.id, access.spaceIds)) : [];
     return { requiresSignIn: !access?.user, spaces: available.flatMap((space) => {
@@ -263,7 +263,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
 
   async function approveGrant(tx: Db, actor: Request["actor"], request: { requestedSpaceId: string | null; clientId: string; resource: string; scopes: string[] }, input: { spaceId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
     if (actor.type !== "operator" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) throw new McpOAuthError("access_denied", "Sign in to approve an assistant connection.", 401);
-    const access = await operatorAuthService(tx).resolveBoardAccess(actor.userId);
+    const access = await operatorAuthService(tx).resolveOperatorAccess(actor.userId);
     const membership = access.memberships.find(m => m.spaceId === input.spaceId && m.status === "active");
     if (!access.user || !membership || (request.requestedSpaceId && request.requestedSpaceId !== input.spaceId)) throw new McpOAuthError("access_denied", "Choose an available organization for this request.", 403);
     const [space] = await tx.select({ status: spaces.status }).from(spaces).where(eq(spaces.id, input.spaceId!));
@@ -583,7 +583,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
       if (actor.type !== "operator" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) {
         throw new McpOAuthError("access_denied", "Sign in to approve an assistant connection.", 401);
       }
-      const access = await operatorAuth.resolveBoardAccess(actor.userId);
+      const access = await operatorAuth.resolveOperatorAccess(actor.userId);
       const membership = access.memberships.find((m) => m.spaceId === input.spaceId && m.status === "active");
       if (!access.user || (input.decision === "approve" && !membership)) {
         throw new McpOAuthError("access_denied", "Choose a space you belong to.", 403);
@@ -615,7 +615,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     async describeDotPairing(id: string, pairingCode: string): Promise<McpDotPairingPreview> {
       return db.transaction(async tx => {
         const { binding, agent } = await dotPairingContext(tx as unknown as Db, id, pairingCode);
-        const access = await operatorAuthService(tx as unknown as Db).resolveBoardAccess(binding.operatorId);
+        const access = await operatorAuthService(tx as unknown as Db).resolveOperatorAccess(binding.operatorId);
         const membership = access.memberships.find(m => m.spaceId === binding.spaceId && m.status === "active");
         const [space] = await tx.select().from(spaces).where(eq(spaces.id, binding.spaceId));
         if (!access.user || !membership || membership.membershipRole === "viewer" || !space || space.status === "archived") throw invalidGrant();
@@ -627,7 +627,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
       });
     },
     // Pair Dot records the operator's approval in an expiring capability. It
-    // conveys only agent access, never a operator session or personal MCP access.
+    // conveys only agent access, never an operator session or personal MCP access.
     async consentDotPairing(id: string, pairingCode: string) {
       await assertEnabled();
       if (!dotAgentConnection) throw new McpOAuthError("access_denied", "Use the dedicated Dot agent connection.", 403);

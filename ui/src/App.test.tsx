@@ -18,7 +18,7 @@ const mockAuthApi = vi.hoisted(() => ({
 }));
 
 const mockAccessApi = vi.hoisted(() => ({
-  getCurrentBoardAccess: vi.fn(),
+  getCurrentOperatorAccess: vi.fn(),
   claimBootstrapAdmin: vi.fn(),
 }));
 const beginCloudSignInMock = vi.hoisted(() => vi.fn());
@@ -148,7 +148,7 @@ describe("CloudAccessGate", () => {
       session: { id: "session-1", userId: "user-1" },
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
     });
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({
+    mockAccessApi.getCurrentOperatorAccess.mockResolvedValue({
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
       userId: "user-1",
       isInstanceAdmin: false,
@@ -168,7 +168,7 @@ describe("CloudAccessGate", () => {
 
   it("admits signed-in nonmembers only for the private invitation landing page", async () => {
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "invitee" } });
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "invitee", isInstanceAdmin: false, spaceIds: [] });
+    mockAccessApi.getCurrentOperatorAccess.mockResolvedValue({ userId: "invitee", isInstanceAdmin: false, spaceIds: [] });
     const root = renderGate(container, true);
     await waitForText(container, "Outlet content");
     unmountRoot(root);
@@ -193,7 +193,7 @@ describe("CloudAccessGate", () => {
 
   it("keeps invitation pages closed when cloud access checks fail", async () => {
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "invitee" } });
-    mockAccessApi.getCurrentBoardAccess.mockRejectedValueOnce(new Error("Access check unavailable"));
+    mockAccessApi.getCurrentOperatorAccess.mockRejectedValueOnce(new Error("Access check unavailable"));
     const root = renderGate(container, true);
     await waitForText(container, "Unable to load Outpost");
     expect(container.querySelector("button")?.textContent).toBe("Try again");
@@ -206,7 +206,7 @@ describe("CloudAccessGate", () => {
       session: { id: "session-1", userId: "user-1" },
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
     });
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({
+    mockAccessApi.getCurrentOperatorAccess.mockResolvedValue({
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
       userId: "user-1",
       isInstanceAdmin: false,
@@ -240,7 +240,7 @@ describe("CloudAccessGate", () => {
     expect(container.textContent).toContain("Finish setting up this Outpost");
     expect(container.textContent).toContain("Sign in / Create account");
     expect(container.textContent).toContain("npx @outpost/cli auth bootstrap-lead");
-    expect(mockAccessApi.getCurrentBoardAccess).not.toHaveBeenCalled();
+    expect(mockAccessApi.getCurrentOperatorAccess).not.toHaveBeenCalled();
 
     unmountRoot(root);
   });
@@ -264,7 +264,7 @@ describe("CloudAccessGate", () => {
 
     expect(container.textContent).toContain("Claim this instance");
     expect(container.textContent).toContain("Signed in as user@example.com");
-    expect(mockAccessApi.getCurrentBoardAccess).not.toHaveBeenCalled();
+    expect(mockAccessApi.getCurrentOperatorAccess).not.toHaveBeenCalled();
 
     const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
       candidate.textContent?.includes("Claim this instance"),

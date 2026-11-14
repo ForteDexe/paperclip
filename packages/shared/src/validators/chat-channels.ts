@@ -180,7 +180,7 @@ export const publishChatCommentSchema = z
   })
   .strict();
 
-export const publishChatBoardMessageSchema = z
+export const publishChatOperatorMessageSchema = z
   .object({
     body: multilineTextSchema.pipe(z.string().trim().min(1).max(100_000)),
     idempotencyKey: z.string().trim().min(16).max(200),
@@ -196,7 +196,7 @@ export const publishChatBoardMessageSchema = z
 
 export const publishChatPublicationSchema = z.union([
   publishChatCommentSchema,
-  publishChatBoardMessageSchema,
+  publishChatOperatorMessageSchema,
 ]);
 
 export const resolveChatPublicationSchema = z

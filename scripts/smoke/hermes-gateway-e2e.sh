@@ -304,7 +304,7 @@ wait_http_ready() {
 
 require_board_auth() {
   if [[ ${#AUTH_HEADERS[@]} -eq 0 ]]; then
-    fail "operator/operator auth required. Set OUTPOST_COOKIE, OUTPOST_AUTH_HEADER, or a operator-capable OUTPOST_API_KEY."
+    fail "operator auth required. Set OUTPOST_COOKIE, OUTPOST_AUTH_HEADER, or an operator-capable OUTPOST_API_KEY."
   fi
   api_request "GET" "/spaces"
   if [[ "$RESPONSE_CODE" != "200" ]]; then

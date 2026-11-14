@@ -230,7 +230,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
   it("honors dismissal timestamps and resurfaces approvals with newer activity", async () => {
     const spaceId = randomUUID();
     const userId = "operator-user";
-    const primaryAgentId = randomUUID();
+    const defaultAgentId = randomUUID();
     const secondaryAgentId = randomUUID();
     const hiddenApprovalId = randomUUID();
     const resurfacedApprovalId = randomUUID();
@@ -248,7 +248,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
 
     await db.insert(agents).values([
       {
-        id: primaryAgentId,
+        id: defaultAgentId,
         spaceId,
         name: "Primary",
         role: "engineer",
@@ -314,7 +314,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
       {
         id: hiddenRunId,
         spaceId,
-        agentId: primaryAgentId,
+        agentId: defaultAgentId,
         invocationSource: "assignment",
         status: "failed",
         createdAt: new Date("2026-03-11T01:00:00.000Z"),

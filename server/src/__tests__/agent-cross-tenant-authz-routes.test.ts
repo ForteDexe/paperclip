@@ -774,7 +774,7 @@ vi.mock("../services/agent-lifecycle.js", async (importOriginal) => {
 describe("agent lifecycle retry authorization", () => {
   beforeEach(resetMockDefaults);
 
-  it("retries and audits a operator-authorized agent in its space", async () => {
+  it("retries and audits an operator-authorized agent in its space", async () => {
     const app = await createApp({ type: "operator", userId: "operator", source: "local_implicit" });
     const res = await requestApp(app, base => request(base).post(`/api/agents/${agentId}/lifecycle/retry`).send({}));
     expect(res.status).toBe(200);

@@ -297,7 +297,7 @@ export function registerAccessCommands(program: Command): void {
   addCommonClientOptions(
     operatorClaim
       .command("show")
-      .description("Inspect a operator claim token")
+      .description("Inspect an operator claim token")
       .argument("<token>", "Claim token")
       .action(async (token: string, opts: BaseClientOptions) => {
         try {
@@ -311,7 +311,7 @@ export function registerAccessCommands(program: Command): void {
   addCommonClientOptions(
     operatorClaim
       .command("claim")
-      .description("Claim a operator claim token")
+      .description("Claim an operator claim token")
       .argument("<token>", "Claim token")
       .option("--payload-json <json>", "Claim JSON payload", "{}")
       .action(async (token: string, opts: JsonPayloadOptions) => {

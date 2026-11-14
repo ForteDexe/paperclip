@@ -1146,7 +1146,7 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
                 issueId: approval.linkedIssueId ?? null,
               },
             },
-            whyNow: "Approval is pending a operator decision.",
+            whyNow: "Approval is pending an operator decision.",
             decisionVerbs: decisionVerbs(
               { id: "approve", label: "Approve", description: "Approve the request." },
               { id: "reject", label: "Reject", description: "Reject the request." },
@@ -1323,7 +1323,7 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
             href: `/${prefix}/decisions?decisionId=${decision.id}`,
             metadata: { originIssueId: decision.originIssueId, originAgentId: decision.originAgentId, bundleId: decision.bundleId,
               bundleTitle: decision.bundleId ? bundleTitleMap.get(decision.bundleId) ?? null : null } },
-          whyNow: "An agent decision is waiting for a operator response.",
+          whyNow: "An agent decision is waiting for an operator response.",
           decisionVerbs: decisionVerbs({ id: "decide", label: "Review", description: "Review and choose an option." }),
           inlineResolvable: true,
           entryRule: "decisions.status = 'open'",

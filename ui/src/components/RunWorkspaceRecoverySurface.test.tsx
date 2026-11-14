@@ -43,7 +43,7 @@ vi.mock("../api/execution-workspaces", () => ({
 
 vi.mock("../api/access", () => ({
   accessApi: {
-    getCurrentBoardAccess: operatorAccessMock,
+    getCurrentOperatorAccess: operatorAccessMock,
   },
 }));
 

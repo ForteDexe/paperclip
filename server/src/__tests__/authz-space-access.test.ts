@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { describe, expect, it } from "vitest";
 import { HttpError } from "../errors.js";
-import { assertOperatorOrgAccess, assertSpaceAccess, hasBoardOrgAccess, hasSpaceAccess } from "../routes/authz.js";
+import { assertOperatorOrgAccess, assertSpaceAccess, hasOperatorOrgAccess, hasSpaceAccess } from "../routes/authz.js";
 
 function makeReq(input: {
   method?: string;
@@ -280,7 +280,7 @@ describe("assertOperatorOrgAccess", () => {
       },
     });
 
-    expect(hasBoardOrgAccess(req)).toBe(true);
+    expect(hasOperatorOrgAccess(req)).toBe(true);
     expect(() => assertOperatorOrgAccess(req)).not.toThrow();
   });
 
@@ -296,7 +296,7 @@ describe("assertOperatorOrgAccess", () => {
       },
     });
 
-    expect(hasBoardOrgAccess(req)).toBe(true);
+    expect(hasOperatorOrgAccess(req)).toBe(true);
     expect(() => assertOperatorOrgAccess(req)).not.toThrow();
   });
 
@@ -312,7 +312,7 @@ describe("assertOperatorOrgAccess", () => {
       },
     });
 
-    expect(hasBoardOrgAccess(req)).toBe(false);
+    expect(hasOperatorOrgAccess(req)).toBe(false);
     expect(() => assertOperatorOrgAccess(req)).toThrow("Space membership or instance admin access required");
   });
 });

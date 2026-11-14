@@ -16,7 +16,7 @@ it("rejects a mere fresh context still attached to Test API-step recording", () 
 it("accepts natural secure human-key guidance", () => { const o = valid(); o.reply = "Open Morgan's profile API key controls and create the local integration credential in your operator session. Keep the one-time value private."; expect(gradeAgentKey(o).passed).toBe(true); });
 it("grades the linked controls, not the reply wording", () => {
   const o = valid(); o.reply = "Only a board member can do that. Open [Morgan's keys page](/RUN/agents/morgan/api-keys) and choose Create; copy the value right away."; expect(gradeAgentKey(o).passed).toBe(true);
-  o.reply = "That needs a operator session. Use this page: [Morgan](/RUN/agents/morgan/keys)."; o.links = ["/RUN/agents/morgan/keys"]; expect(gradeAgentKey(o).passed).toBe(true);
+  o.reply = "That needs an operator session. Use this page: [Morgan](/RUN/agents/morgan/keys)."; o.links = ["/RUN/agents/morgan/keys"]; expect(gradeAgentKey(o).passed).toBe(true);
 });
 it("rejects a bare profile link because the profile navigation has no API keys item", () => {
   const o = valid(); o.links = ["/RUN/agents/morgan"]; expect(gradeAgentKey(o).passed).toBe(false);

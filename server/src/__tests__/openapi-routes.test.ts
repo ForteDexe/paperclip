@@ -83,7 +83,7 @@ const apiPrefixes: Record<string, string> = {
   "plugin-ui-static.ts": "/api",
   "plugins.ts": "/api",
   "projects.ts": "/api",
-  "primary-agent.ts": "/api",
+  "default-agent.ts": "/api",
   "public-mcp.ts": "/api",
   "project-tools.ts": "/api",
   "resource-memberships.ts": "/api",
@@ -1085,7 +1085,7 @@ describe("openapi routes", () => {
     expect(operatorSend.responses["409"]).toBeDefined();
     expect(operatorSend.responses["422"]).toBeDefined();
     expect(operatorSend.description).toContain(
-      "chat_board_send_attachments_already_bound",
+      "chat_operator_send_attachments_already_bound",
     );
     expect(operatorSend.description).toContain(
       "Other errors do not establish non-delivery",
@@ -1261,20 +1261,20 @@ describe("openapi routes", () => {
     expect(path.post.responses["409"]).toBeDefined();
   });
 
-  it("documents the authenticated personal primary-agent contract", () => {
+  it("documents the authenticated personal default-agent contract", () => {
     const { spec } = loadSpecRoutes();
-    const path = spec.paths["/api/spaces/{spaceId}/primary-agent/me"];
+    const path = spec.paths["/api/spaces/{spaceId}/default-agent/me"];
     for (const operation of [path.get, path.put]) {
       expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
       expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
       expect(operation.responses["200"].content["application/json"].schema.required).toEqual([
-        "spaceId", "userId", "primaryAgentId", "initialized",
+        "spaceId", "userId", "defaultAgentId", "initialized",
       ]);
     }
     expect(path.put.requestBody.content["application/json"].schema).toMatchObject({
       additionalProperties: false,
-      required: ["primaryAgentId"],
-      properties: { primaryAgentId: { type: "string", format: "uuid" } },
+      required: ["defaultAgentId"],
+      properties: { defaultAgentId: { type: "string", format: "uuid" } },
     });
     expect(path.put.responses["422"]).toBeDefined();
   });

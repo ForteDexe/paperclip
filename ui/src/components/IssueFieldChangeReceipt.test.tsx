@@ -93,14 +93,14 @@ describe("IssueFieldChangeReceipt", () => {
     expect(html).toContain("preview");
   });
 
-  it("renders a operator edit's receipt the same way as an agent's", () => {
+  it("renders an operator edit's receipt the same way as an agent's", () => {
     // Plan §3b: audit is required for human PATCHes too, not only agent ones.
     const html = renderToStaticMarkup(
       <IssueFieldChangeReceipt
         event={event({
           details: {
             changes: { title: { from: "Old title", to: "New title" } },
-            authorizationReason: "allow_board_actor",
+            authorizationReason: "allow_operator_actor",
           },
         })}
       />,

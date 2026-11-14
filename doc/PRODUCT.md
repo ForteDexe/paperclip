@@ -228,8 +228,8 @@ subtasks retain their full history.
 Mine contains personal work. Channel tasks, routine tasks, and agent-created tasks
 stay outside Mine by default. This includes routines that a person starts manually.
 Linked accounts, creator IDs, responsible-user IDs, synchronized provider comments,
-and read markers do not establish participation in automatic work. Direct board or
-human API comments, human assignment, and deliberate user mutations do establish
+and read markers do not establish participation in automatic work. Direct operator
+API comments, human assignment, and deliberate user mutations do establish
 participation. Open requests addressed to the person also admit the task until
 resolution. Ordinary human-created tasks keep their creator's participation.
 These rules apply to existing tasks, Mine, unread counts, badges, and task toasts.
@@ -247,7 +247,7 @@ and requests without that review evidence remain unchanged.
 
 New inbound comments retain their provider in `metadata.sourceChannel`. Historical
 imports use inbound message links or the stored provider-sender metadata. These
-checks preserve direct board comments on channel tasks. If both historical
+checks preserve direct operator comments on channel tasks. If both historical
 records are absent, the comment remains unclassified and keeps its previous
 behavior. A task origin alone cannot prove the source of an old comment.
 
@@ -462,7 +462,7 @@ Confirmed project creation appears as a durable card in the shared task transcri
 
 ### In-app announcements
 
-An optional announcement card shares product news with board users on opening
+An optional announcement card shares product news with operators on opening
 or returning to Outpost. Dismissals persist per user across Spaces and
 browsers within an instance. Operators can disable fetching independently of
 telemetry. See [Announcements](ANNOUNCEMENTS.md).

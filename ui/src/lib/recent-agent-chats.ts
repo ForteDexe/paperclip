@@ -2,10 +2,10 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { Agent } from "@outpost/shared";
 const eventName = "outpost:recent-agent-chats";
 const key = (space: string, user?: string | null) =>
-  `outpost.recentAgentChats:${space}:${user ?? "__local_board__"}`;
+  `outpost.recentAgentChats:${space}:${user ?? "__local_operator__"}`;
 const memory = new Map<string, string>();
 const issueKey = (space: string, user: string | null | undefined, agentId: string) =>
-  `outpost.recentAgentChatIssue:${space}:${user ?? "__local_board__"}:${agentId}`;
+  `outpost.recentAgentChatIssue:${space}:${user ?? "__local_operator__"}:${agentId}`;
 const rememberedIssues = new Map<string, string>();
 function read(storageKey: string): string {
   try {

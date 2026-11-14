@@ -32,7 +32,7 @@ export function OperatorClaimPage() {
   const statusView = useQueryView(statusQuery);
 
   const claimMutation = useMutation({
-    mutationFn: () => accessApi.claimBoard(token, code),
+    mutationFn: () => accessApi.claimOperator(token, code),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
       await queryClient.invalidateQueries({ queryKey: queryKeys.health });

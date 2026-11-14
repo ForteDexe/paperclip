@@ -28,7 +28,7 @@ function setup() {
   handles.push(() => { handle.dispose(); client.clear(); });
   client.setQueryData(queryKeys.auth.session, { session: { id: "session-alice", userId: "alice" }, user: { id: "alice" } });
   client.setQueryData(queryKeys.spaces.list("alice"), { spaces: [{ id: "space-one", name: "Example" }], unauthorized: false });
-  client.setQueryData([...queryKeys.access.currentBoardAccess, "alice"], { userId: "alice", spaceIds: ["space-one"], isInstanceAdmin: false });
+  client.setQueryData([...queryKeys.access.currentOperatorAccess, "alice"], { userId: "alice", spaceIds: ["space-one"], isInstanceAdmin: false });
   return client;
 }
 afterEach(() => { for (const dispose of handles.splice(0)) dispose(); vi.clearAllMocks(); });

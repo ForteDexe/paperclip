@@ -1633,12 +1633,12 @@ describe("worktree helpers", () => {
         const targetDb = createDb(
           `postgres://outpost:outpost@127.0.0.1:${targetConfig.database.embeddedPostgresPort}/outpost`,
         );
-        const [seededLocalBoard] = await targetDb
+        const [seededLocalOperator] = await targetDb
           .select({ id: authUsers.id })
           .from(authUsers)
           .where(eq(authUsers.id, "local-operator"));
         const seededAccounts = await targetDb.select().from(authAccounts);
-        expect(seededLocalBoard?.id).toBe("local-operator");
+        expect(seededLocalOperator?.id).toBe("local-operator");
         expect(seededAccounts).toHaveLength(0);
         await targetDb.$client.end({ timeout: 5 });
       } catch (error) {

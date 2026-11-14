@@ -148,12 +148,12 @@ describePostgres("agent task hierarchy depth through the issue routes", () => {
       parentAdjusted: expectedAdjustment,
     });
 
-    const byBoard = await request(app(operatorActor))
+    const byOperator = await request(app(operatorActor))
       .patch(`/api/issues/${operatorMoved}`)
       .send({ parentId: childId });
-    expect(byBoard.status, JSON.stringify(byBoard.body)).toBe(200);
-    expect(byBoard.body.parentId).toBe(childId);
-    expect(byBoard.body).not.toHaveProperty("parentAdjusted");
+    expect(byOperator.status, JSON.stringify(byOperator.body)).toBe(200);
+    expect(byOperator.body.parentId).toBe(childId);
+    expect(byOperator.body).not.toHaveProperty("parentAdjusted");
   });
 
   it("records a top-level placement when an agent moves under a legacy conversation child", async () => {

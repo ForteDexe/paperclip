@@ -32,7 +32,7 @@ agent identity; it does not establish human membership-role policy.
 The secondary credential belongs to a disposable HTTP-adapter agent paused
 before key creation. It has no model connection, no model budget and no scheduled
 heartbeat. The case requires zero task and secondary-agent heartbeat runs. It
-compares complete, settled primary-agent history snapshots and rejects any new
+compares complete, settled default-agent history snapshots and rejects any new
 primary run, including work outside the owned tasks. A busy or incomplete
 primary baseline cannot qualify. The list API omits native retry state, so each
 historical run must also have a readable detail receipt with a settled native

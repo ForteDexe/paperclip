@@ -143,7 +143,7 @@ const activityKindLabels: Record<ChatActivityItem["kind"], string> = {
 };
 
 const replayableFailureStates = new Set(["failed"]);
-// Provider callbacks do not necessarily emit a Operator activity event. Refresh
+// Provider callbacks do not necessarily emit an Operator activity event. Refresh
 // only mounted operational views, and stop polling when the browser is hidden.
 const liveChatQueryOptions = {
   staleTime: 0,

@@ -1297,7 +1297,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           inArray(heartbeatRuns.status, cancellableStatuses))).returning();
         if (options.expectedStatus && !fenced) return false;
         if (fenced) run = fenced;
-        // A operator terminal request deliberately has no source run. It belongs
+        // An operator terminal request deliberately has no source run. It belongs
         // to the current task execution, not whichever historical run is stopped.
         // Queue admission may bind execution before adopting an old checkout.
         const ownsTask = issue && issue.assigneeAgentId === currentRun.agentId && !issue.assigneeUserId &&

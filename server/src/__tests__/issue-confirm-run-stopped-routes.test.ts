@@ -79,13 +79,13 @@ describe.skipIf(!support.supported)("confirming that an unidentified local run s
     return { spaceId, agentId, issueId, runId, wakeId: wake!.id };
   }
 
-  it("shows a operator action instead of an endless wait, then records the confirmed stop (storage chaos ST1)", async () => {
+  it("shows an operator action instead of an endless wait, then records the confirmed stop (storage chaos ST1)", async () => {
     const f = await seed();
     const [issue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     const before = (await taskInterruptionPresentations(db, f.spaceId, [issue!])).get(f.issueId);
     expect(before).toMatchObject({ responsibility: "user", state: "waiting_for_user", canRetry: false,
       userAction: "confirm_run_stopped", observedRunId: f.runId, retryWait: { reason: "process_identity_missing" } });
-    expect(before?.retryWait?.message).toContain("a operator operator can confirm");
+    expect(before?.retryWait?.message).toContain("an operator can confirm");
 
     const accountingWakes: string[] = [];
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.accounting, event => { accountingWakes.push(event); });
@@ -151,7 +151,7 @@ describe.skipIf(!support.supported)("confirming that an unidentified local run s
     const [issue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     const presentation = (await taskInterruptionPresentations(db, f.spaceId, [issue!])).get(f.issueId);
     expect(presentation).toMatchObject({ userAction: null, canRetry: true, retryWait: { reason: "process_identity_missing" } });
-    expect(presentation?.retryWait?.message).not.toContain("a operator operator can confirm");
+    expect(presentation?.retryWait?.message).not.toContain("an operator can confirm");
     const res = await request(app(operator(f.spaceId))).post(`/api/issues/${f.issueId}/recovery-actions/confirm-run-stopped`)
       .send({ runId: f.runId, stopEvidence: "No codex process for this task is running on the server host." });
     expect(res.status, JSON.stringify(res.body)).toBe(409);
@@ -180,7 +180,7 @@ describe.skipIf(!support.supported)("confirming that an unidentified local run s
       eq(heartbeatRunEvents.eventType, LOCAL_PROCESS_STOPPED)))).toHaveLength(1);
   });
 
-  it("lets only a operator member with change access confirm the stop", async () => {
+  it("lets only an operator member with change access confirm the stop", async () => {
     const f = await seed();
     const body = { runId: f.runId, stopEvidence: "No codex process for this task is running on the server host." };
     const agent: Express.Request["actor"] = { type: "agent", agentId: f.agentId, spaceId: f.spaceId, runId: randomUUID(), source: "agent_jwt" };

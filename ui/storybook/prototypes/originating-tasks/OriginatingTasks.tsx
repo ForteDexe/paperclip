@@ -160,7 +160,7 @@ function TaskPageData({ children, scenario, withAncestors }: { children: React.R
       }
     }
     client.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "local_trusted", bootstrapStatus: "ready" });
-    client.setQueryData(queryKeys.access.currentBoardAccess, { spaceIds: [] });
+    client.setQueryData(queryKeys.access.currentOperatorAccess, { spaceIds: [] });
     client.setQueryData(queryKeys.issues.listCreatedFromIssue(sourceTask.spaceId, sourceTask.id), taskCandidates.filter((row) => row.originRunId && runSources.get(row.originRunId) === sourceTask.id));
     client.setQueryData(queryKeys.issues.listByDescendantRoot(sourceTask.spaceId, sourceTask.id), taskCandidates.filter((row) => row.parentId === sourceTask.id));
     const userId = storybookAuthSession.user.id;

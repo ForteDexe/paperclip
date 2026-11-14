@@ -15,7 +15,7 @@ import { getLastProjectId, trackRecentProject } from "../lib/recent-projects";
 import { rememberComposerEffort } from "../lib/recent-composer-effort";
 import { addStagedFilesToIssue, NewIssueDialog } from "./NewIssueDialog";
 
-const primaryState = vi.hoisted(() => ({ primaryAgentId: null as string | null, loading: false }));
+const primaryState = vi.hoisted(() => ({ defaultAgentId: null as string | null, loading: false }));
 const storedFiles = vi.hoisted(() => new Map<string, import("../lib/staged-issue-files").StagedIssueFile[]>());
 vi.mock("../lib/staged-issue-files", () => ({
   readStagedIssueFiles: vi.fn(async (key: string) => storedFiles.get(key) ?? []),
@@ -23,7 +23,7 @@ vi.mock("../lib/staged-issue-files", () => ({
     storedFiles.set(key, files);
   }),
 }));
-vi.mock("./primary-agent/PrimaryAgentPresentation", () => ({ usePrimaryAgentPresentation: () => primaryState }));
+vi.mock("./default-agent/DefaultAgentPresentation", () => ({ useDefaultAgentPresentation: () => primaryState }));
 const coordinatorState = vi.hoisted(() => ({ enabled: false }));
 vi.mock("../hooks/useCoordinatorWorkspaceEnabled", () => ({ useCoordinatorWorkspaceEnabled: () => coordinatorState }));
 
@@ -368,7 +368,7 @@ describe("NewIssueDialog", () => {
 
   beforeEach(() => {
     coordinatorState.enabled = false;
-    primaryState.primaryAgentId = "lead";
+    primaryState.defaultAgentId = "lead";
     primaryState.loading = false;
     vi.useRealTimers();
     originalResizeObserver = globalThis.ResizeObserver;
@@ -478,7 +478,7 @@ describe("NewIssueDialog", () => {
     { recent: null, explicit: null, draft: null, primary: "missing", expected: "Worker" },
   ])("preserves task selection precedence ($recent, $explicit, $draft, $primary)", async ({ recent, explicit, draft, primary, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
-    primaryState.primaryAgentId = primary;
+    primaryState.defaultAgentId = primary;
     if (recent) trackRecentAssignee(recent, "space-1");
     if (explicit) dialogState.newIssueDefaults = { assigneeAgentId: explicit };
     if (draft) localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({ title: "Saved request", description: "", assigneeValue: `agent:${draft}`, projectId: "" }));

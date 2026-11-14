@@ -5,7 +5,7 @@ import { operatorAccessQueryOptions } from "./operator-access-query";
 import { queryKeys } from "../lib/queryKeys";
 
 const readAccess = vi.hoisted(() => vi.fn());
-vi.mock("./access", () => ({ accessApi: { getCurrentBoardAccess: readAccess } }));
+vi.mock("./access", () => ({ accessApi: { getCurrentOperatorAccess: readAccess } }));
 afterEach(() => readAccess.mockReset());
 
 const bootstrap = (userId: string): OperatorBootstrap => ({
@@ -18,7 +18,7 @@ describe("account-scoped operator bootstrap", () => {
     const options = operatorAccessQueryOptions("one", bootstrap("one"), Date.now(), vi.fn());
     expect(await client.fetchQuery({ ...options, staleTime: 30_000 })).toEqual(bootstrap("one").operatorAccess);
     expect(readAccess).not.toHaveBeenCalled();
-    await client.invalidateQueries({ queryKey: queryKeys.access.currentBoardAccess });
+    await client.invalidateQueries({ queryKey: queryKeys.access.currentOperatorAccess });
     readAccess.mockResolvedValue({ userId: "one", isInstanceAdmin: false, spaceIds: [] });
     expect(await client.fetchQuery(options)).toEqual({ userId: "one", isInstanceAdmin: false, spaceIds: [] });
     expect(readAccess).toHaveBeenCalledTimes(1);

@@ -58,7 +58,7 @@ export const MUSE_PUBLIC_ROUTES = [
 export const MUSE_RESOURCE_PATH = "/api/muse/v1" as const;
 export const MUSE_OAUTH_PATH = "/api/muse/v1/oauth" as const;
 export const MUSE_OAUTH_SCOPES = ["outpost:agent", "offline_access"] as const;
-/** Dedicated machine identity, never a operator actor or Dot grant. */
+/** Dedicated machine identity, never an operator actor or Dot grant. */
 interface MuseSubjectIdentity {
   provider: "muse";
   spaceId: string; agentId: string; bindingId: string; generation: number;

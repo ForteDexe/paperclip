@@ -17,7 +17,7 @@ import * as lifecycle from "../modules/agent-lifecycle/index.js";
 import { withAccountingTransaction } from "./accounting-transaction.js";
 import { budgetServiceInTransaction, policyBlocks, type BudgetServiceHooks } from "./budgets.js";
 import { recordAgentStatusEvent, recordResourceCreationEvent } from "./resource-lifecycle-events.js";
-import { clearPrimaryAgent } from "./primary-agent.js";
+import { clearDefaultAgent } from "./default-agent.js";
 import { deleteAgentDependencies } from "./agent-deletion.js";
 import { lockAgentConfigurationInteractions, prepareAgentConfiguration, completeAgentConfiguration } from "./agent-configuration.js";
 import { prepareAgentCreation, initializeAgentCreation, prepareAgentCreationApproval, completeAgentCreationApproval } from "./agent-creation.js";
@@ -85,7 +85,7 @@ export function createAgentLifecycleEffects(_hooks: BudgetServiceHooks = {}): li
       }, userId),
     recordCreation: (db, spaceId, agentId) => recordResourceCreationEvent(db, spaceId, "agent", agentId),
     recordStatus: recordAgentStatusEvent,
-    clearPrimary: clearPrimaryAgent,
+    clearPrimary: clearDefaultAgent,
     lockConfigurationInteractions: lockAgentConfigurationInteractions,
     prepareConfiguration: prepareAgentConfiguration,
     completeConfiguration: completeAgentConfiguration,

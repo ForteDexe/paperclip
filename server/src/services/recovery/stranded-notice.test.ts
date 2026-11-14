@@ -148,7 +148,7 @@ describe("buildStrandedRecoveryEscalationNotice", () => {
     expect(notice.body).toContain("before the agent started");
     expect(JSON.stringify(notice.metadata)).toContain("worker status");
   });
-  it("asks for Retry, not a operator decision, when the environment provider stayed unavailable", () => {
+  it("asks for Retry, not an operator decision, when the environment provider stayed unavailable", () => {
     const notice = buildStrandedRecoveryEscalationNotice({
       seed: buildImmediateExecutionPathRecoveryNoticeSeed({ status: "in_progress" }),
       recoveryCause: ENVIRONMENT_PROVIDER_UNAVAILABLE_CODE,

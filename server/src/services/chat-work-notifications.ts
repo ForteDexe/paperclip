@@ -29,7 +29,7 @@ export const CHAT_ACTION_QUEUES = {
   failed_run_retry: DELIVERY_QUEUES.chatFailedRunRetries,
   telegram_maintenance: DELIVERY_QUEUES.chatTelegramMaintenance,
   slack_session_sync: DELIVERY_QUEUES.chatSessionSyncs,
-  slack_board_message: DELIVERY_QUEUES.chatBoardMessages,
+  slack_operator_message: DELIVERY_QUEUES.chatOperatorMessages,
   slash_task_start: DELIVERY_QUEUES.chatTaskStarts,
   receipt_reaction: DELIVERY_QUEUES.chatReceiptReactions,
   slack_session_stop: DELIVERY_QUEUES.chatSessionStops,

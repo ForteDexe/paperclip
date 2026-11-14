@@ -55,7 +55,7 @@ export function CloudAccessError({
   );
 }
 
-function NoBoardAccessPage() {
+function NoOperatorAccessPage() {
   return (
     <div className="mx-auto max-w-xl py-10">
       <Card className="block p-6">
@@ -76,7 +76,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
   const location = useLocation();
   const queryClient = useQueryClient();
   const connectivity = useConnectivityStore();
-  const [hasOpenedBoard, setHasOpenedBoard] = useState(false);
+  const [hasOpenedOperator, setHasOpenedOperator] = useState(false);
   // The operator cannot open without these checks, so transient failures retry
   // until they succeed (never a 401/403). During an outage the retries pause
   // and the connectivity store's single probe loop decides when to resume.
@@ -130,7 +130,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
       await queryClient.invalidateQueries({ queryKey: queryKeys.health });
       await queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all });
       await queryClient.invalidateQueries({ queryKey: queryKeys.spaces.stats });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.access.currentBoardAccess });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.access.currentOperatorAccess });
     },
   });
 
@@ -151,14 +151,14 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
     healthQuery.isLoading ||
     (isAuthenticatedMode && sessionQuery.isLoading) ||
     (isAuthenticatedMode && !isBootstrapPending && !!sessionQuery.data && operatorAccessQuery.isLoading);
-  const hasBoardAccess = allowMembershipRequest || !isAuthenticatedMode
+  const hasOperatorAccess = allowMembershipRequest || !isAuthenticatedMode
     || !!operatorAccessQuery.data?.isInstanceAdmin || (operatorAccessQuery.data?.spaceIds.length ?? 0) > 0;
-  const canAccessBoard = !isLoading && !blockingError && !isBootstrapPending
-    && (!isAuthenticatedMode || !!sessionQuery.data) && hasBoardAccess;
+  const canAccessOperator = !isLoading && !blockingError && !isBootstrapPending
+    && (!isAuthenticatedMode || !!sessionQuery.data) && hasOperatorAccess;
   useEffect(() => {
-    if (!canAccessBoard) setHasOpenedBoard(false);
-    else if (healthQuery.data?.status === "ok") setHasOpenedBoard(true);
-  }, [canAccessBoard, healthQuery.data?.status]);
+    if (!canAccessOperator) setHasOpenedOperator(false);
+    else if (healthQuery.data?.status === "ok") setHasOpenedOperator(true);
+  }, [canAccessOperator, healthQuery.data?.status]);
   // A restarting server answers health with `starting`. Hand that to the
   // connectivity store so the app-level banner shows and its probe loop
   // refreshes everything once health reports `ok`.
@@ -166,7 +166,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
     if (isServerStarting) connectivity.reportServerStarting();
   }, [isServerStarting, connectivity]);
 
-  if (blockingError || isWaitingForConnection || (isServerStarting && !hasOpenedBoard)) {
+  if (blockingError || isWaitingForConnection || (isServerStarting && !hasOpenedOperator)) {
     return (
       <CloudAccessError
         temporary={!blockingError}
@@ -223,8 +223,8 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
 
   // Private invitation pages may let signed-in nonmembers request access.
   // Their token APIs still enforce membership before granting any authority.
-  if (!hasBoardAccess) {
-    return <NoBoardAccessPage />;
+  if (!hasOperatorAccess) {
+    return <NoOperatorAccessPage />;
   }
 
   // Outages after the operator opened are shown by the app-level

@@ -61,7 +61,7 @@ export const pipelineCases = pgTable(
     retiredAt: timestamp("retired_at", { withTimezone: true }),
     retiredByAttemptId: uuid("retired_by_attempt_id"),
     retiredReason: text("retired_reason"),
-    hiddenFromBoardAt: timestamp("hidden_from_board_at", { withTimezone: true }),
+    hiddenFromOperatorAt: timestamp("hidden_from_board_at", { withTimezone: true }),
     childCount: integer("child_count").notNull().default(0),
     terminalChildCount: integer("terminal_child_count").notNull().default(0),
     createdByUserId: text("created_by_user_id"),

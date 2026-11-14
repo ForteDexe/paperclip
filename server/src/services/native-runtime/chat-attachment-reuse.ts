@@ -404,7 +404,7 @@ async function principalAuthorized(
   if (!principal) return false;
   if (endpoint.provider === "speko") {
     try {
-      await voiceSessionStore(tx, { allowLocalBoard: loadConfig().deploymentMode === "local_trusted", nonblockingAuthority: lockMode === "nonblocking" })
+      await voiceSessionStore(tx, { allowLocalOperator: loadConfig().deploymentMode === "local_trusted", nonblockingAuthority: lockMode === "nonblocking" })
         .authorizePrincipal(tx as unknown as VoiceTransaction, endpoint.spaceId, endpoint.id, principal.externalId);
       return true;
     } catch (error) {

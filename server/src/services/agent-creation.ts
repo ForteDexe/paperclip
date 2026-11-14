@@ -17,7 +17,7 @@ import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { secretService, assertClaudeOAuthBindingInvariant } from "./secrets.js";
 import { agentCredentialService } from "./agent-credentials.js";
 import { agentIdentityService } from "./agent-identity.js";
-import { initializePrimaryAgent } from "./primary-agent.js";
+import { initializeDefaultAgent } from "./default-agent.js";
 import { resolveAgentRunnerTaskDriverForSpace, resolveNewAgentRunnerForSpace } from "./agent-runner-selection.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { assertProviderApiPlacementPolicy, isProviderApiSetupDraft, resolveProviderApiPlacement } from "./native-runtime/provider-api-placement.js";
@@ -106,7 +106,7 @@ export async function initializeAgentCreation(txDb: Db, created: AgentCreationRe
   }
   await agentCredentialService(txDb).syncAgentSecretBindings(created, txDb);
   if (!options?.setupOnly && options?.createdByUserId && !readBuiltInAgentMarker(created.metadata)) {
-    await initializePrimaryAgent(txDb, spaceId, options.createdByUserId, created.id);
+    await initializeDefaultAgent(txDb, spaceId, options.createdByUserId, created.id);
   }
 }
 

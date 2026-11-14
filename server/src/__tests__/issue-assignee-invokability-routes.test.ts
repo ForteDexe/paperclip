@@ -273,7 +273,7 @@ describe("issue assignee invokability guard", () => {
     expect(mockIssueService.update).toHaveBeenCalled();
   });
 
-  it("allows a operator user to assign to a paused agent deliberately", async () => {
+  it("allows an operator user to assign to a paused agent deliberately", async () => {
     const existing = makeIssue({ assigneeAgentId: null });
     const updated = makeIssue({ assigneeAgentId: PAUSED_AGENT_ID });
     mockIssueService.getById.mockResolvedValue(existing);

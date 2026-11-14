@@ -1713,7 +1713,7 @@ describe("instance settings routes", () => {
       expect(liveState.draining).toBe(false);
     });
 
-    it("rejects a operator actor without instance admin rights", async () => {
+    it("rejects an operator actor without instance admin rights", async () => {
       const app = await createApp(nonAdminActor);
 
       const res = await request(app).post("/api/instance/task-drain").send({});

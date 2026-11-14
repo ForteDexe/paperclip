@@ -1689,7 +1689,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
   async function selectTaskWorkspace(input: { spaceId: string; issueId: string; actor: AuthorizationActor;
     selection: TaskWorkspaceSelection; expectedBindingRevision: number; requestKey: string; source?: "recovery" }) {
-    if (input.source === "recovery" && input.actor.type !== "operator") throw forbidden("Workspace recovery requires a operator actor");
+    if (input.source === "recovery" && input.actor.type !== "operator") throw forbidden("Workspace recovery requires an operator actor");
     return db.transaction(async tx => {
       const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
         await issueReadSqlCondition(tx, input.actor))).for("update");

@@ -10,7 +10,7 @@ import { ISSUE_SUMMARIES_MAX_IDS } from "@outpost/shared";
 import { issueRoutes } from "../routes/issues.js";
 import * as issueServices from "../services/issues.js";
 import { errorHandler } from "../middleware/index.js";
-import { describeEmbeddedPostgres, seedSpaceWithBoardAccess, useEmbeddedPostgres, type OperatorActor } from "./helpers/route-test-harness.js";
+import { describeEmbeddedPostgres, seedSpaceWithOperatorAccess, useEmbeddedPostgres, type OperatorActor } from "./helpers/route-test-harness.js";
 
 describeEmbeddedPostgres("bounded issue summaries", () => {
   const ctx = useEmbeddedPostgres("outpost-issue-summaries-");
@@ -22,7 +22,7 @@ describeEmbeddedPostgres("bounded issue summaries", () => {
   });
 
   async function fixture() {
-    const space = await seedSpaceWithBoardAccess(ctx.db, "Summaries");
+    const space = await seedSpaceWithOperatorAccess(ctx.db, "Summaries");
     const rows = await ctx.db.insert(issues).values([
       { spaceId: space.spaceId, title: "First", description: "Do not serialize this".repeat(100), status: "todo" },
       { spaceId: space.spaceId, title: "Second", status: "done" },

@@ -118,7 +118,7 @@ describe("readRecoveryRetryLineage", () => {
     expect(lineage!.hasDurablePath).toBe(true);
   });
 
-  it("treats a operator escalation from this contract as an exhausted lane", () => {
+  it("treats an operator escalation from this contract as an exhausted lane", () => {
     const lineage = readRecoveryRetryLineage({
       wakePolicy: {
         type: "operator_escalation",

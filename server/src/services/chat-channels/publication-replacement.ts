@@ -576,7 +576,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       return queued.commentId === publication.commentId
         ? queued.providerMessageId
         : null;
-    // A deferred owner can be a Operator wake into which the exact external
+    // A deferred owner can be an Operator wake into which the exact external
     // comment coalesced. The run must actually contain that source comment;
     // wake ID alone cannot authorize a different successor's edit lane.
     return runContext &&

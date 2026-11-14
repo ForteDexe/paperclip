@@ -937,7 +937,7 @@ describe("durable same-task case handoffs", () => {
     const userId = randomUUID(), credentialId = randomUUID();
     const key = reason.startsWith("operator_key");
     const f = await delayedTransfer(async f => {
-      await db.insert(authUsers).values({ id: userId, name: "Operator operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
+      await db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
       await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
       if (key) await db.insert(operatorApiKeys).values({ id: credentialId, userId, name: "CLI operator", keyHash: randomUUID(), expiresAt: new Date(Date.now() + 60_000) });
       else await db.insert(authSessions).values({ id: credentialId, userId, token: randomUUID(), createdAt: new Date(), updatedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) });

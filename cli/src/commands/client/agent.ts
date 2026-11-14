@@ -276,7 +276,7 @@ export function registerAgentCommands(program: Command): void {
   addCommonClientOptions(
     agent
       .command("inbox-mine")
-      .description("List current agent inbox items touched or archived by a operator user")
+      .description("List current agent inbox items touched or archived by an operator user")
       .requiredOption("--user-id <id>", "Operator user ID")
       .option("--status <csv>", "Comma-separated issue statuses")
       .action(async (opts: AgentInboxMineOptions) => {

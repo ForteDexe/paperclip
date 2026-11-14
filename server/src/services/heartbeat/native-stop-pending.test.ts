@@ -39,7 +39,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("native Stop while the pro
     const deps = callbacks(db);
     vi.mocked(cancelNativeSession).mockRejectedValueOnce(failure());
     const error = await createHeartbeatRunControl(db, deps)
-      .cancelRunInternal(run.id, "Cancelled by a operator operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: "user-1" } })
+      .cancelRunInternal(run.id, "Cancelled by an operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: "user-1" } })
       .catch((err: unknown) => err);
     expect(error).toBeInstanceOf(HttpError);
     expect(error).toMatchObject({ status: 409, details: { code: "native_stop_pending", runId: run.id } });

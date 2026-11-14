@@ -253,7 +253,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0].status).toBe(status);
   });
 
-  it("keeps a operator manual wake under its caller even when it adopts someone else's queue", async () => {
+  it("keeps an operator manual wake under its caller even when it adopts someone else's queue", async () => {
     const { spaceId, agentId, ownerUserId } = await seedSpace();
     const operatorId = `operator-${randomUUID()}`, issueId = randomUUID(), commentId = randomUUID(), queueId = randomUUID();
     await db.insert(authUsers).values({

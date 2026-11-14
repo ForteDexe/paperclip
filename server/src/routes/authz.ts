@@ -44,7 +44,7 @@ const AGENT_PROFILE_TABS: Record<string, [string, string]> = {
   "runtime-state": ["harness settings", "runtime"],
 };
 
-/** A operator page as [label, path], where the path keeps <prefix> for the agent to fill. */
+/** An operator page as [label, path], where the path keeps <prefix> for the agent to fill. */
 export type OperatorControlPage = [label: string, path: string];
 
 /** Budgets are operator-only. These pages hold the budget controls behind any route that writes one. */
@@ -55,7 +55,7 @@ export function agentBudgetPage(agentId: string): OperatorControlPage {
   return [`the agent's ${AGENT_PROFILE_TABS.budgets![0]}`, `/<prefix>/agents/${agentId}/${AGENT_PROFILE_TABS.budgets![1]}`];
 }
 
-// The operator page that holds the control behind a operator-only API route, when one
+// The operator page that holds the control behind an operator-only API route, when one
 // is known. Paths keep <prefix> for the agent to fill from its own task identifier.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -125,7 +125,7 @@ function operatorControlPage(req: Request) {
 }
 
 /**
- * A operator-only denial. Agents get a final, actionable remediation so they hand the
+ * An operator-only denial. Agents get a final, actionable remediation so they hand the
  * action to the person instead of searching other routes for one that does not exist.
  */
 export function operatorAccessRequired(req: Request, controlPage?: OperatorControlPage) {
@@ -139,7 +139,7 @@ export function operatorAccessRequired(req: Request, controlPage?: OperatorContr
     : "They can do it in the Outpost web app or with their own operator credentials. Link a page only if you already know its route; do not search for one.";
   return forbidden("Operator access required", {
     code: OPERATOR_ACCESS_REQUIRED_CODE,
-    remediation: `This action is operator-only by design and this denial is final: no agent credential, tool or other API route can do it, so do not search for one. Stop working on this step and reply now: tell the person that a operator user must do it. ${scope}${where}`,
+    remediation: `This action is operator-only by design and this denial is final: no agent credential, tool or other API route can do it, so do not search for one. Stop working on this step and reply now: tell the person that an operator user must do it. ${scope}${where}`,
   });
 }
 
@@ -170,7 +170,7 @@ export function assertOperator(req: Request, controlPage?: OperatorControlPage) 
   }
 }
 
-export function hasBoardOrgAccess(req: Request) {
+export function hasOperatorOrgAccess(req: Request) {
   if (req.actor.type !== "operator") {
     return false;
   }
@@ -182,7 +182,7 @@ export function hasBoardOrgAccess(req: Request) {
 
 export function assertOperatorOrgAccess(req: Request) {
   assertOperator(req);
-  if (hasBoardOrgAccess(req)) {
+  if (hasOperatorOrgAccess(req)) {
     return;
   }
   throw forbidden("Outpost membership or instance admin access required");

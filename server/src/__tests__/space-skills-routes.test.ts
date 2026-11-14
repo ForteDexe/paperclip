@@ -744,7 +744,7 @@ describe("space skill mutation permissions", () => {
     expect(where).toHaveBeenCalledTimes(2);
   });
 
-  it("allows local operator operators to mutate space skills", async () => {
+  it("allows local operators to mutate space skills", async () => {
     const res = await request(await createApp(operatorActor()))
       .post("/api/spaces/space-1/skills/import")
       .send({ source: "https://github.com/vercel-labs/agent-browser" });

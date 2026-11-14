@@ -444,7 +444,7 @@ export async function buildExecutionContinuation(input: {
       eq(agentWakeupRequests.reason, "retry_failed_run"), eq(agentWakeupRequests.requestedByActorType, "user"),
       sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
     )) : [];
-    // Admission records the operator operator's authority separately from the
+    // Admission records the operator's authority separately from the
     // message author. At dispatch, prove that exact queue was adopted by this
     // run; caller-supplied continuation context cannot grant this authority.
     const queueIntentId = z.string().guid().safeParse(explicitContinuation.queuedCommentInterruptId);

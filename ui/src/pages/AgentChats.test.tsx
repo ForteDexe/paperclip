@@ -7,7 +7,7 @@ import { recordAgentChatVisit } from "@/lib/recent-agent-chats";
 import { AgentChats } from "./AgentChats";
 
 const state = vi.hoisted(() => ({
-  primaryAgentId: null as string | null,
+  defaultAgentId: null as string | null,
   primaryLoading: false,
   spaceId: "space-a",
   userId: "user-a",
@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(),
 }));
 
-vi.mock("@/components/primary-agent/PrimaryAgentPresentation", () => ({ usePrimaryAgentPresentation: () => ({ primaryAgentId: state.primaryAgentId, loading: state.primaryLoading }) }));
+vi.mock("@/components/default-agent/DefaultAgentPresentation", () => ({ useDefaultAgentPresentation: () => ({ defaultAgentId: state.defaultAgentId, loading: state.primaryLoading }) }));
 
 vi.mock("@/context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: vi.fn() }) }));
 vi.mock("@/hooks/useAgentChatNavigation", () => ({
@@ -52,7 +52,7 @@ async function render() {
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  state.primaryAgentId = null;
+  state.defaultAgentId = null;
   state.primaryLoading = false;
   state.spaceId = "space-a";
   state.userId = "user-a";
@@ -80,7 +80,7 @@ afterEach(async () => {
 
 describe("Chat landing", () => {
   it("uses the primary only when there is no valid recent conversation", async () => {
-    state.primaryAgentId = "alice";
+    state.defaultAgentId = "alice";
     recordAgentChatVisit("space-a", "user-a", "removed");
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
@@ -96,7 +96,7 @@ describe("Chat landing", () => {
     expect(state.navigate).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Opening chat");
     state.primaryLoading = false;
-    state.primaryAgentId = "removed";
+    state.defaultAgentId = "removed";
     await render();
     expect(state.navigate).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Who would you like to talk to?");

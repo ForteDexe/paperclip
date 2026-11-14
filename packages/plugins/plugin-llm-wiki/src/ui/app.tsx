@@ -209,7 +209,7 @@ type OutpostIngestionSourceScope =
   | { kind: "active_projects"; limit: number; statuses?: Array<"in_progress" | "todo" | "done"> }
   | { kind: "selected_projects"; projectIds: string[] }
   | { kind: "root_issues"; issueIds: string[] }
-  | { kind: "space_all"; requiresBoardConfirmation: true };
+  | { kind: "space_all"; requiresOperatorConfirmation: true };
 
 type OutpostIngestionProfile = {
   version: 1;

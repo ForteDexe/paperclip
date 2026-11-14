@@ -78,7 +78,7 @@ describe("chat identity-link preview authority", () => {
     f.previewIdentityLink.mockResolvedValue({ ...preview, provider: "github" } as unknown as typeof preview);
     await request(f.app).get("/api/chat-identity-links/preview").query({ token }).expect(403);
   });
-  it("returns the preview to a Operator member of its exact space", async () => {
+  it("returns the preview to an Operator member of its exact space", async () => {
     const { app, previewIdentityLink } = fixture();
     const response = await request(app)
       .get("/api/chat-identity-links/preview")

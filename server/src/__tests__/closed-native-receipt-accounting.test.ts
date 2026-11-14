@@ -565,7 +565,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(charge).toMatchObject({ costStatus: "unpriced" });
     expect(charge.pricingProvenance).toMatchObject({ evidence: expect.stringContaining("closure evidence never arrived") });
     expect((await recent.readRun()).usageJson).toMatchObject({ accountingClosureTimedOut: true });
-    // A operator-visible notice names the run.
+    // An operator-visible notice names the run.
     expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, recent.spaceId),
       eq(activityLog.action, "cost.accounting_closure_timed_out"), eq(activityLog.entityId, recent.run.id)))).toHaveLength(1);
     expect(await recent.block()).toBeNull();

@@ -13,7 +13,7 @@ import {
   subscribeDatabaseWork,
 } from "@outpost/db";
 import {
-  claimBoardOwnership,
+  claimOperatorOwnership,
   getOperatorClaimWarningUrl,
   initializeOperatorClaimChallenge,
   inspectOperatorClaimChallenge,
@@ -97,7 +97,7 @@ describeEmbeddedPostgres("operator claim", () => {
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.chatRunMilestones, event => events.push(event));
     try {
       await db.transaction(async tx => {
-        await expect(claimBoardOwnership(tx as unknown as typeof db, { token, code, userId }))
+        await expect(claimOperatorOwnership(tx as unknown as typeof db, { token, code, userId }))
           .resolves.toEqual({ status: "claimed", claimedByUserId: userId });
         expect(events).toEqual(prior === "active" ? [] : ["intent"]);
         // A nested claim must not publish a commit before its caller settles.

@@ -215,7 +215,7 @@ export function ProjectProperties({ project, repositories, onUpdate, onFieldUpda
   const { visible: workspaceIsolationControlsVisible } = useWorkspaceIsolationControls();
   const { selectedSpaceId } = useSpace();
   const { data: privacySession } = useQuery({ queryKey: queryKeys.auth.session, queryFn: () => authApi.getSession() });
-  const { data: privacyAccess } = useQuery({ queryKey: queryKeys.access.currentBoardAccess, queryFn: () => accessApi.getCurrentBoardAccess() });
+  const { data: privacyAccess } = useQuery({ queryKey: queryKeys.access.currentOperatorAccess, queryFn: () => accessApi.getCurrentOperatorAccess() });
   const canManagePrivacy = canManageProjectPrivacy(project, privacySession?.user?.id ?? privacySession?.session?.userId ?? null, privacyAccess);
   const queryClient = useQueryClient();
   const [openProjectConfirmation, setOpenProjectConfirmation] = useState(false);

@@ -65,7 +65,7 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 
 | Feature ID | Recipe | Capability IDs |
 | --- | --- | --- |
-| `agents` | [Hiring, configuration, and organization](agents.md) | `agents/hire`, `agents/grok-bot`, `agents/instructions`, `agents/organization`, `agents/primary-agent`, `agents/lifecycle`, `agents/built-in`, `agents/api-keys`, `agents/managed-agent-setup` |
+| `agents` | [Hiring, configuration, and organization](agents.md) | `agents/hire`, `agents/grok-bot`, `agents/instructions`, `agents/organization`, `agents/default-agent`, `agents/lifecycle`, `agents/built-in`, `agents/api-keys`, `agents/managed-agent-setup` |
 | `runs-adapters` | [Runs, harnesses, and model accounts](runs-adapters.md) | `runs-adapters/availability`, `runs-adapters/validation`, `runs-adapters/runs`, `runs-adapters/session` |
 | `skills` | [Skills and Skill Studio](skills.md) | `skills/discovery`, `skills/authoring`, `skills/versions`, `skills/policy`, `skills/testing` |
 | `teams` | [Team packages and installation](teams.md) | `teams/discovery`, `teams/preview`, `teams/install`, `teams/configuration` |

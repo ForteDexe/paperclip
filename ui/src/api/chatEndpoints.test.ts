@@ -30,7 +30,7 @@ describe("chatEndpointsApi", () => {
     );
   });
 
-  it("publishes a operator message with a stable idempotency key", async () => {
+  it("publishes an operator message with a stable idempotency key", async () => {
     mockApi.post.mockResolvedValue({
       id: "publication-1",
       state: "retry",
@@ -39,7 +39,7 @@ describe("chatEndpointsApi", () => {
       nextAttemptAt: "2026-09-06T12:01:00.000Z",
     });
     await expect(
-      chatEndpointsApi.publishBoardMessage(
+      chatEndpointsApi.publishOperatorMessage(
         "endpoint-1",
         "conversation-1",
         "Visible update",
@@ -81,13 +81,13 @@ describe("chatEndpointsApi", () => {
     expect(mockApi.post).not.toHaveBeenCalled();
   });
 
-  it("sends only explicitly selected attachment ids with a operator message", async () => {
+  it("sends only explicitly selected attachment ids with an operator message", async () => {
     mockApi.post.mockResolvedValue({
       id: "publication-file",
       state: "published",
       attempts: 1,
     });
-    await chatEndpointsApi.publishBoardMessage(
+    await chatEndpointsApi.publishOperatorMessage(
       "endpoint-1",
       "conversation-1",
       "Visible update with file",

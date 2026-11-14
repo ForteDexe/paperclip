@@ -19,7 +19,7 @@ Agent access: [companion](../agent-access-map/agents.md).
 - `grok-bot`: `agents/grok-bot` — experimental existing-Bot agent setup through remote OAuth, routine credentials, and an authenticated two-way challenge; current contact, stop and explicit recovery.
 - `instructions`: `agents/instructions` — edit agent configuration and instruction files with durable revisions.
 - `organization`: `agents/organization` — inspect and change reporting relationships through supported controls.
-- `primary-agent`: `agents/primary-agent` — choose a personal primary agent for the space, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
+- `default-agent`: `agents/default-agent` — choose a personal default agent for the space, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
 - `lifecycle`: `agents/lifecycle` — pause/resume or retire an agent while preserving history.
 - `built-in`: `agents/built-in` — configure required agents without treating them as ordinary removable hires.
 - `api-keys`: `agents/api-keys` — create and inspect named agent credentials, copy a new token once, and revoke it without changing agent identity.
@@ -149,7 +149,7 @@ adoption can require an explicit reset of existing sessions.
 
 Use the roster’s organization view; `/org` redirects to the roster in the streamlined shell.
 
-### `personal-primary-agent`
+### `personal-default-agent`
 
 Native API discovery explains this human-only profile/crown control and the
 replacement confirmation. The Chat agent picker opens a conversation; it does
@@ -282,10 +282,10 @@ Automated: [org chart](../../ui/src/pages/OrgChart.test.tsx) is component eviden
 
 Manual: Inspect a manager and report, change the relationship through the offered controls, and reload both views. Exercise a rejected invalid relationship. Configure a built-in agent and verify it retains its required identity and restrictions.
 
-### `personal-primary-agent`
+### `personal-default-agent`
 
-Automated: [primary-agent context](../../ui/src/context/PrimaryAgentProvider.test.tsx)
-and [primary-agent routes](../../server/src/__tests__/primary-agent.test.ts)
+Automated: [default-agent context](../../ui/src/context/DefaultAgentProvider.test.tsx)
+and [default-agent routes](../../server/src/__tests__/default-agent.test.ts)
 cover selection, space/user scope, and request contracts.
 
 Manual: Select an available agent, reload, and inspect the retained personal choice.
@@ -320,8 +320,8 @@ Sources: [Managed-agent CLI](../../cli/src/commands/managed-agent.ts), [profile 
 - A roster entry is not proof of an authenticated or invokable adapter.
 - Pending hires may live in approval/task surfaces rather than the active roster.
 - Skill and tool grants are separate: see [skills](./skills.md) and [app permissions](./app-permissions.md).
-- A personal primary agent is a per-user/space preference. It does not change
-  reporting lines, stars, permissions, or another person's primary agent.
+- A personal default agent is a per-user/space preference. It does not change
+  reporting lines, stars, permissions, or another person's default agent.
 
 ### `connect-grok-bot`
 

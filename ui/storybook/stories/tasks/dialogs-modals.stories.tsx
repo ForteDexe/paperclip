@@ -351,8 +351,8 @@ function hydrateDialogQueries(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.setQueryData(queryKeys.executionWorkspaces.closeReadiness("execution-workspace-blocked"), closeReadinessBlocked);
   queryClient.setQueryData(
     queryKeys.executionWorkspaces.list(SPACE_ID, {
-      projectId: "project-board-ui",
-      projectWorkspaceId: "workspace-board-ui",
+      projectId: "project-operator-ui",
+      projectWorkspaceId: "workspace-operator-ui",
       reuseEligible: true,
     }),
     storybookExecutionWorkspaces,
@@ -518,8 +518,8 @@ function IssueDialogOpener({
             ].join("\n"),
             status: "todo",
             priority: "high",
-            projectId: "project-board-ui",
-            projectWorkspaceId: "workspace-board-ui",
+            projectId: "project-operator-ui",
+            projectWorkspaceId: "workspace-operator-ui",
             assigneeAgentId: "agent-codex",
             executionWorkspaceMode: "isolated_workspace",
           },

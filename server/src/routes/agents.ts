@@ -1427,7 +1427,7 @@ export function agentRoutes(
       // An agent denied creation otherwise searches other routes for an override.
       // Say the denial is final and where a person can act instead.
       const explanation = options?.creation && req.actor.type === "agent" && decision.reason === "deny_missing_grant"
-        ? `${decision.explanation} This agent cannot create or create agents, and no other route overrides this denial. A operator user can create the agent directly, or turn on creation for this agent on its permissions page.`
+        ? `${decision.explanation} This agent cannot create or create agents, and no other route overrides this denial. An operator user can create the agent directly, or turn on creation for this agent on its permissions page.`
         : decision.explanation;
       throw forbidden(explanation, authorizationDeniedDetails(decision));
     }
@@ -1777,7 +1777,7 @@ export function agentRoutes(
   }
 
   /**
-   * Terminating an agent is a operator-only controlled action. The denial gives
+   * Terminating an agent is an operator-only controlled action. The denial gives
    * other actors a ready profile link, so they can send a person to the control.
    */
   async function assertOperatorCanTerminateAgent(req: Request, target: { id: string; spaceId: string }) {
@@ -1785,7 +1785,7 @@ export function agentRoutes(
     const [space] = await db.select({ issuePrefix: spaces.issuePrefix }).from(spaces)
       .where(eq(spaces.id, target.spaceId));
     const profile = space?.issuePrefix ? `[the agent's profile](/${space.issuePrefix}/agents/${target.id})` : "the agent's profile";
-    throw forbidden(`Operator access required: only a operator user can terminate an agent. Ask a person with operator access to open ${profile} and choose Terminate from its actions menu.`);
+    throw forbidden(`Operator access required: only an operator user can terminate an agent. Ask a person with operator access to open ${profile} and choose Terminate from its actions menu.`);
   }
 
   async function assertCanUpdateAgent(req: Request, targetAgent: { id: string; spaceId: string }) {
@@ -3687,7 +3687,7 @@ export function agentRoutes(
 
   // Start a space-scoped adapter device login. The create form has no agent
   // identifier, so the route keys on the space and the adapter. The owner
-  // helper requires a operator actor with the configuration permission, and it
+  // helper requires an operator actor with the configuration permission, and it
   // returns the immutable owner identifier that the service persists on the row.
   router.post(
     "/spaces/:spaceId/adapters/:type/login-sessions", managementGuard("connections:configure", "POST /spaces/:spaceId/adapters/:type/login-sessions", { personal: true }),
@@ -6635,7 +6635,7 @@ export function agentRoutes(
 
   /**
    * Derives the immutable owner of a setup-token login session from the actor.
-   * Only a operator user owns a login session. It returns the owner id, or it
+   * Only an operator user owns a login session. It returns the owner id, or it
    * throws a forbidden error. The owner is never a client field; it comes only
    * from the authenticated actor.
    */
@@ -7305,7 +7305,7 @@ export function agentRoutes(
     // Stamp the cancellation as operator-initiated (this route is operator-only).
     // Recovery reads this to stand down instead of classifying the cancelled
     // run as agent stranding and re-waking the agent the operator just stopped.
-    const run = await heartbeat.cancelRun(runId, "Cancelled by a operator operator", {
+    const run = await heartbeat.cancelRun(runId, "Cancelled by an operator", {
       ...(requestId ? { cancellationRequestId: requestId, cancellationRequestedByUserId: req.actor.userId ?? null } : {}),
       resultJson: {
         cancelledByActorType: "user",

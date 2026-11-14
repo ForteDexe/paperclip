@@ -314,7 +314,7 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
     if (!updated) return false;
     const [settledRun] = await tx.update(heartbeatRuns).set({ nativePhase: "terminal_failure", nativePhaseUpdatedAt: now, updatedAt: now,
       ...(release.kind === "operator_containment" ? { status: "failed", finishedAt: now,
-        errorCode: failureCode, error: "The original controller and provider were contained by a operator operator. Review the recorded action outcomes before explicitly retrying.",
+        errorCode: failureCode, error: "The original controller and provider were contained by an operator. Review the recorded action outcomes before explicitly retrying.",
         processPid: null, processGroupId: null, processStartedAt: null, executionControlDeadlineAt: null } : {}),
     }).where(eq(heartbeatRuns.id, run.id)).returning();
     if (release.kind === "operator_containment" && settledRun) {

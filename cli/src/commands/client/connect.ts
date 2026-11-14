@@ -2,8 +2,8 @@ import { Command } from "commander";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import type { Agent, Space } from "@outpost/shared";
-import { createAgentKeySchema, createBoardApiKeySchema } from "@outpost/shared";
-import { loginBoardCli } from "../../client/operator-auth.js";
+import { createAgentKeySchema, createOperatorApiKeySchema } from "@outpost/shared";
+import { loginOperatorCli } from "../../client/operator-auth.js";
 import { OutpostApiClient } from "../../client/http.js";
 import { resolveProfile, readContext, setCurrentProfile, upsertProfile } from "../../client/context.js";
 import {
@@ -30,7 +30,7 @@ interface CreatedAgentKey {
   createdAt: string;
 }
 
-interface CreatedBoardKey extends CreatedAgentKey {
+interface CreatedOperatorKey extends CreatedAgentKey {
   expiresAt: string | null;
 }
 
@@ -38,7 +38,7 @@ export function registerConnectCommand(program: Command): void {
   addCommonClientOptions(
     program
       .command("connect")
-      .description("Interactively connect the CLI as a operator operator or agent")
+      .description("Interactively connect the CLI as an operator or agent")
       .option("--persona <persona>", "Persona to configure: operator or agent")
       .option("--api-key-env-var-name <name>", "Env var name to store in the profile", "OUTPOST_API_KEY")
       .option("--token-name <name>", "Token label to create")
@@ -73,7 +73,7 @@ async function connectWizard(opts: ConnectOptions) {
   console.log(pc.dim(`Checking ${apiBase}/api/health ...`));
   await verifyHealth(apiBase);
 
-  const operatorLogin = await loginBoardCli({
+  const operatorLogin = await loginOperatorCli({
     apiBase,
     requestedAccess: "operator",
     requestedSpaceId: opts.spaceId ?? resolvedProfile.profile.spaceId ?? null,
@@ -91,7 +91,7 @@ async function connectWizard(opts: ConnectOptions) {
       optional: true,
     });
     const tokenName = opts.tokenName?.trim() || `cli-operator-${new Date().toISOString()}`;
-    const key = await operatorApi.post<CreatedBoardKey>("/api/operator-api-keys", createBoardApiKeySchema.parse({
+    const key = await operatorApi.post<CreatedOperatorKey>("/api/operator-api-keys", createOperatorApiKeySchema.parse({
       name: tokenName,
       requestedSpaceId: space?.id ?? null,
     }));
@@ -166,7 +166,7 @@ async function choosePersona(input: string | undefined): Promise<"operator" | "a
   const selected = await p.select({
     message: "Connect as",
     options: [
-      { value: "operator", label: "Operator operator" },
+      { value: "operator", label: "Operator" },
       { value: "agent", label: "Agent in a space" },
     ],
   });
@@ -247,7 +247,7 @@ function buildExports(input: {
   ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
-function publicKeyResult(key: CreatedAgentKey | CreatedBoardKey) {
+function publicKeyResult(key: CreatedAgentKey | CreatedOperatorKey) {
   return {
     id: key.id,
     name: key.name,

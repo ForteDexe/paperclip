@@ -512,7 +512,7 @@ describeEmbeddedPostgres("created agent provider credential inheritance", () => 
     expect(Object.keys(childEnvOf(res))).toHaveLength(0);
   });
 
-  it("rejects native runtime inheritance for a operator actor", async () => {
+  it("rejects native runtime inheritance for an operator actor", async () => {
     const spaceId = await seedSpace();
     const parent = await seedParentAgent(spaceId, "outpost_runner", {});
     const res = await create(userActor(), spaceId, {

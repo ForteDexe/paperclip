@@ -10,7 +10,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Production Layout, AgentChat, IssueDetail, transcript and side-panel components run against in-memory routes. The landing page is a local ChatEntryLanding composition; first-use/default-agent behavior is not production acceptance. Sends append locally. Some unhandled API paths return empty fixture data, so this suite does not verify API contracts or primary-agent preference behavior.",
+          "Production Layout, AgentChat, IssueDetail, transcript and side-panel components run against in-memory routes. The landing page is a local ChatEntryLanding composition; first-use/default-agent behavior is not production acceptance. Sends append locally. Some unhandled API paths return empty fixture data, so this suite does not verify API contracts or default-agent preference behavior.",
       },
     },
     outpost: {

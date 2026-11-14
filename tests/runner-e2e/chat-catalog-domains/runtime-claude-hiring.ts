@@ -43,8 +43,8 @@ export const runtimeClaudeHiringCases = [runtimeDefinition("agents.hire-claude-c
   if (!matchesClaudeFixtureTarget({ space: authority, expectedSpaceId: spaceId, fixtureEnvironmentId: ctx.input.fixtures.environment.id, detail: environment, listed: inventory })) throw new Error("Setup blocker: selected Claude target must be the exact owned active local fixture, independently qualified below");
   const before = await ctx.input.api.get<RuntimeAgent[]>(`/api/spaces/${spaceId}/agents`);
   if (before.some(row => row.name === "Morgan")) throw new Error("Claude hire setup requires Morgan to be absent");
-  await ctx.input.api.patch(`/api/spaces/${spaceId}`, { requireBoardApprovalForNewAgents: false });
-  const space = await ctx.input.api.get<{ requireBoardApprovalForNewAgents: boolean }>(`/api/spaces/${spaceId}`);
+  await ctx.input.api.patch(`/api/spaces/${spaceId}`, { requireOperatorApprovalForNewAgents: false });
+  const space = await ctx.input.api.get<{ requireOperatorApprovalForNewAgents: boolean }>(`/api/spaces/${spaceId}`);
   if (!ctx.input.privateSecrets) throw new Error("Selected Claude prerequisite requires the owned private redaction sink");
   const credential = selected.credentials.ANTHROPIC_API_KEY!; ctx.input.privateSecrets.push(credential);
   const account = await privateClaudeOperation({ operation: "prepare-account", baseURL: ctx.input.api.baseURL, spaceId: spaceId, environmentId: environment.id,
@@ -53,7 +53,7 @@ export const runtimeClaudeHiringCases = [runtimeDefinition("agents.hire-claude-c
   const connections = await ctx.input.api.get<AiConnectionList>(`/api/spaces/${spaceId}/ai-connections`);
   const connection = connections.connections.find(row => row.id === account.connectionId && row.grantId === account.grantId);
   if (!connection || connection.provider !== "anthropic" || connection.status !== "connected" || !connection.isDefault) throw new Error("Actual selected Claude account is not a usable responsible-user default");
-  return { connectionId: account.connectionId, grantId: account.grantId, selectedEnvironmentId: environment.id, prerequisiteProbePassed: true, providerProbes: [{ phase: "setup", operation: account.operation, publicProbeCount: 2, status: account.probeStatus, usage: "unavailable", cost: "unavailable" }], noApprovalPolicy: !space.requireBoardApprovalForNewAgents };
+  return { connectionId: account.connectionId, grantId: account.grantId, selectedEnvironmentId: environment.id, prerequisiteProbePassed: true, providerProbes: [{ phase: "setup", operation: account.operation, publicProbeCount: 2, status: account.probeStatus, usage: "unavailable", cost: "unavailable" }], noApprovalPolicy: !space.requireOperatorApprovalForNewAgents };
 }, gradeClaudeHire, {
   ...runtimePrivateSpec("agents.hire-claude-code"), authentication: "human-session", expectedRunCount: 1, attemptTimeoutMs: 600000,
   sourceFiles: ["chat-catalog-domains/runtime-claude-hiring.ts", "chat-catalog-domains/runtime-claude-private.ts", "chat-catalog-domains/runtime-claude-private-worker.ts", "chat-catalog-domains/runtime-private.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],

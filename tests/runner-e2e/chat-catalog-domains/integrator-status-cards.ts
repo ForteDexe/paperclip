@@ -99,12 +99,12 @@ function spacePrefix(o: InternalObservation) {
   return prefixes.size === 1 ? [...prefixes][0]! : undefined;
 }
 /** A same-origin link to this space's status cards page (where archived cards are listed with Restore). */
-function statusBoardHref(o: InternalObservation) {
+function statusOperatorHref(o: InternalObservation) {
   const prefix = spacePrefix(o); if (!prefix) return undefined;
   return o.links.find(href => { try { const url = new URL(href, o.origin); const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     return url.origin === new URL(o.origin).origin && parts.length === 2 && parts[0] === prefix && parts[1] === "status"; } catch { return false; } });
 }
-const statusBoardLinked = (o: InternalObservation) => !!statusBoardHref(o);
+const statusOperatorLinked = (o: InternalObservation) => !!statusOperatorHref(o);
 function freshSummary(o: CardsObservation, card: StatusCard) {
   return !!card.lastGeneratedAt && !!card.summaryBody && o.updates[card.id]?.some(row => row.kind !== "compile" && row.status === "ok" && !!row.runId
     && o.runs.some(run => run.id === row.runId && run.status === "succeeded") && row.generationIssueId != null)
@@ -143,7 +143,7 @@ export function gradeIntegratorCards(value: unknown) {
     // The restore explanation is model output, so its wording is not pattern-matched (a truthful "archived,
     // not deleted" failed the old phrase check). The saved state above proves archive-not-delete; this grades
     // that the reply gives the person a usable route to where the archived card is viewed and restored.
-    c.add("restore-route-linked", !!card && card.archivedAt != null && (!!cardLink(o, card.id) || statusBoardLinked(o)),
+    c.add("restore-route-linked", !!card && card.archivedAt != null && (!!cardLink(o, card.id) || statusOperatorLinked(o)),
       "The reply links the archived card or the space's status cards page, where the card is viewed and restored.");
   } else if (o.scenarioId === "status-cards.explain-card") {
     const source = originals[0];
@@ -220,7 +220,7 @@ export function gradeIntegratorCards(value: unknown) {
 }
 async function verifyCard(ctx: ChatCatalogContext, _state: Record<string, unknown>, value: unknown) {
   const o = cardsObservation(value); const card = o && (o.state.card ? o.cards.find(row => row.id === (o.state.card as StatusCard).id) : o.cards[0]); if (!card) throw new Error("Missing saved card");
-  const href = cardLink(o!, card.id), board = !href ? statusBoardHref(o!) : undefined;
+  const href = cardLink(o!, card.id), board = !href ? statusOperatorHref(o!) : undefined;
   if (board) {
     // The reply linked only the board: follow that rendered link to this space's status page.
     const source = ctx.input.page.url(), link = ctx.input.page.locator(`[id^="comment-"] a[href=${JSON.stringify(board)}]`).first();

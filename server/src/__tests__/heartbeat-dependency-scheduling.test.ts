@@ -935,7 +935,7 @@ describeEmbeddedPostgres("heartbeat dependency-aware queued run selection", () =
   });
 
   it("admits an issue_blocker_stalled wake while a blocker is unresolved", async () => {
-    // The waiter's blocker stalled on a operator-owned recovery action. Parking
+    // The waiter's blocker stalled on an operator-owned recovery action. Parking
     // this wake until the blocker resolves would hide the stall again.
     const spaceId = randomUUID();
     const agentId = randomUUID();

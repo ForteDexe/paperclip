@@ -167,14 +167,14 @@ export function readIssueChangeReceipt(
 const AUTHORIZATION_REASON_LABELS: Record<string, string> = {
   allow_visible_issue_write: "default-open write on a visible task",
   allow_scoped_agent_write: "scoped agent write",
-  allow_board_actor: "operator actor",
+  allow_operator_actor: "operator actor",
   allow_self: "own task",
   allow_issue_mention_grant: "mention grant",
   allow_direct_parent_report: "direct parent report",
   allow_low_trust_boundary: "low-trust boundary allowance",
   allow_explicit_grant: "explicit permission grant",
   allow_instance_admin: "instance admin",
-  allow_local_board: "local operator",
+  allow_local_operator: "local operator",
   internal_agent_write: "internal agent write",
 };
 

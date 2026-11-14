@@ -245,7 +245,7 @@ For app-webhook triggers, the sender's JSON is also copied into the execution
 task. Normal webhook intake does not apply a provider-specific field allowlist
 or a general payload scrubber. Send only data suitable for space-readable
 routine history; authentication and creation provenance do not certify the
-payload's privacy. See the [Sentry tutorial](../guides/board-operator/sentry-run-failure-repairs.md)
+payload's privacy. See the [Sentry tutorial](../guides/operator/sentry-run-failure-repairs.md)
 for source-side scrubbing and setup checks.
 
 For bearer, GitHub HMAC, and unsigned triggers, send a stable `Idempotency-Key`
@@ -295,7 +295,7 @@ routine-scope request with `400`. Setup checks create no routine runs; their
 content-free test receipts remain associated with the setup trigger.
 
 For a worked example that uses the normal webhook with Sentry, see
-[Repair Failed Runs from Sentry](../guides/board-operator/sentry-run-failure-repairs.md).
+[Repair Failed Runs from Sentry](../guides/operator/sentry-run-failure-repairs.md).
 
 ## List Runs
 

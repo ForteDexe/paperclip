@@ -3946,7 +3946,7 @@ export function spaceSkillService(db: Db, options: { actor?: AuthorizationActor;
   function assertCanMutateComment(comment: SpaceSkillComment, actor: SkillActor) {
     if (actor.type === "user") return;
     if (actor.type === "agent" && actor.agentId && comment.authorAgentId === actor.agentId) return;
-    throw unprocessable("Only the comment author or a operator user can modify this skill comment.");
+    throw unprocessable("Only the comment author or an operator user can modify this skill comment.");
   }
 
   async function updateComment(

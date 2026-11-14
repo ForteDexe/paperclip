@@ -28,9 +28,9 @@ const mockOperatorAuthService = vi.hoisted(() => ({
   describeCliAuthChallenge: vi.fn(),
   approveCliAuthChallenge: vi.fn(),
   cancelCliAuthChallenge: vi.fn(),
-  resolveBoardAccess: vi.fn(),
-  assertCurrentBoardKey: vi.fn(),
-  revokeBoardApiKey: vi.fn(),
+  resolveOperatorAccess: vi.fn(),
+  assertCurrentOperatorKey: vi.fn(),
+  revokeOperatorApiKey: vi.fn(),
 }));
 
 const mockLogActivity = vi.hoisted(() => vi.fn());

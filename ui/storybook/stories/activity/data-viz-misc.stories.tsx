@@ -195,7 +195,7 @@ const packageFiles: Record<string, string> = {
   "COMPANY.md": "---\nname: Outpost Storybook\nkind: space\n---\nFixture space package for UI review.",
   "agents/codexcoder/AGENTS.md": "---\nname: CodexCoder\nskills:\n  - frontend-design\n  - outpost\n---\nShips product UI and verifies changes.",
   "agents/qachecker/AGENTS.md": "---\nname: QAChecker\nskills:\n  - web-design-guidelines\n---\nReviews browser behavior and acceptance criteria.",
-  "projects/board-ui/PROJECT.md": "---\ntitle: Board UI\nstatus: in_progress\n---\nStorybook and operator control-plane surfaces.",
+  "projects/operator-ui/PROJECT.md": "---\ntitle: Board UI\nstatus: in_progress\n---\nStorybook and operator control-plane surfaces.",
   "tasks/PAP-1641.md": "---\ntitle: Create super-detailed storybooks\npriority: high\n---\nParent issue for Storybook coverage.",
   "tasks/PAP-1677.md": "---\ntitle: Data Visualization & Misc stories\npriority: medium\n---\nFixture task for this story file.",
   "skills/frontend-design/SKILL.md": "---\nname: frontend-design\n---\nDesign quality guidance.",
@@ -234,7 +234,7 @@ function ActivityChartsMatrix({ empty = false }: { empty?: boolean }) {
   );
 }
 
-function KanbanBoardDemo({ empty = false }: { empty?: boolean }) {
+function KanbanOperatorDemo({ empty = false }: { empty?: boolean }) {
   const [issues, setIssues] = useState<Issue[]>(empty ? [] : kanbanIssues);
   const liveIssueIds = useMemo(() => new Set(["issue-storybook-1", "issue-kanban-backlog"]), []);
 
@@ -675,14 +675,14 @@ export const ActivityChartsEmpty: Story = {
   render: () => <ActivityChartsMatrix empty />,
 };
 
-export const KanbanBoardPopulated: Story = {
+export const KanbanOperatorPopulated: Story = {
   name: "KanbanBoard / Populated",
-  render: () => <KanbanBoardDemo />,
+  render: () => <KanbanOperatorDemo />,
 };
 
-export const KanbanBoardEmpty: Story = {
+export const KanbanOperatorEmpty: Story = {
   name: "KanbanBoard / Empty",
-  render: () => <KanbanBoardDemo empty />,
+  render: () => <KanbanOperatorDemo empty />,
 };
 
 export const FilterBarPopulated: Story = {

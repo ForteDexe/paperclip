@@ -229,7 +229,7 @@ export interface HeartbeatLifecycleDependencies extends Pick<ReturnType<typeof c
   emitTerminalAgentTaskRun: (run: HeartbeatRun, previousStatus: string | null, failureReport?: RunFailureReportOptions) => void;
 }
 
-export function redactDetectedSuccessfulRunProgressSummaryForBoard(
+export function redactDetectedSuccessfulRunProgressSummaryForOperator(
   summary: string,
   currentUserRedactionOptions?: CurrentUserRedactionOptions,
 ) {
@@ -1732,7 +1732,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     ].filter((value): value is string => Boolean(value));
     const summary = candidates[0];
     if (!summary) return null;
-    return redactDetectedSuccessfulRunProgressSummaryForBoard(
+    return redactDetectedSuccessfulRunProgressSummaryForOperator(
       summary,
       currentUserRedactionOptions,
     );

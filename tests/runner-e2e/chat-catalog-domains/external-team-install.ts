@@ -286,7 +286,7 @@ export const teamInstallExternalCases = [
         { canCreateAgents: true, canAssignTasks: beforePermissions.access.canAssignTasks },
       );
       await ctx.input.api.patch(root(ctx), {
-        requireBoardApprovalForNewAgents: false,
+        requireOperatorApprovalForNewAgents: false,
       });
       const actor = await ctx.input.api.get<AgentDetail>(
         `/api/agents/${ctx.input.fixtures.agent.id}`,

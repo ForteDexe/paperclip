@@ -241,7 +241,7 @@ describe("journey driver", () => {
     const askedFault: ScheduledFault = { kind: "K1", holdMs: 0, atMs: 0, trigger: "asked", delayMs: 0 };
     expect(await driver.step({ sample: sample(), now: 1_000, quiet: true, pendingFaults: [askedFault] })).toBe(true);
     expect(driver.armedAt("asked")).toBe(1_000);
-    expect(driver.awaitingBoard()).toBe(true);
+    expect(driver.awaitingOperator()).toBe(true);
     expect(await driver.step({ sample: sample(), now: 2_000, quiet: true, pendingFaults: [askedFault] })).toBe(false);
     expect(calls.some(call => call.includes("/respond"))).toBe(false);
     record.faultIds.push("f1");
@@ -264,10 +264,10 @@ describe("journey driver", () => {
     // The answered fault is still pending: the turn is observed, the prerequisite stays until the fault fired.
     expect(await driver.step({ sample: sample(), now: 4_000, quiet: true, pendingFaults: [answeredFault] })).toBe(false);
     expect(record.journey!.answerTurn).toMatchObject({ issueStatus: "blocked", blockerKept: true });
-    expect(driver.awaitingBoard()).toBe(true);
+    expect(driver.awaitingOperator()).toBe(true);
     expect(await driver.step({ sample: sample(), now: 5_000, quiet: true, pendingFaults: [] })).toBe(true);
     expect(calls.at(-1)).toBe('PATCH /api/issues/blocker-1 {"status":"done"}');
-    expect(driver.awaitingBoard()).toBe(false);
+    expect(driver.awaitingOperator()).toBe(false);
   });
 
   it("Q2: counts the answer only from a comment or an accepted run result, never a rejected one", async () => {

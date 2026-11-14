@@ -654,7 +654,7 @@ POST /api/spaces/{spaceId}/logo     — upload logo (multipart, field: "file")
 
 **CEO-allowed fields:** `name`, `description`, `brandColor` (hex e.g. `#FF5733` or null), `logoAssetId` (UUID or null).
 
-**Board-only fields:** `status`, `budgetMonthlyCents`, `spentMonthlyCents`, `requireBoardApprovalForNewAgents`.
+**Board-only fields:** `status`, `budgetMonthlyCents`, `spentMonthlyCents`, `requireOperatorApprovalForNewAgents`.
 
 **Not updateable:** `issuePrefix` (used as space slug/identifier — protected from changes).
 

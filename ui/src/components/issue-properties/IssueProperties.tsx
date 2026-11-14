@@ -1756,7 +1756,7 @@ export function IssueProperties({
     <span className="text-sm text-muted-foreground">Unassigned</span>
   );
 
-  // Grouped picker options (design surface 2): a operator-users section and an
+  // Grouped picker options (design surface 2): an operator-users section and an
   // agents section, plus the "No assignee" reset. Agents stay recency-sorted
   // within their group via `sortedAgents`.
   const userAssigneeOptions = [

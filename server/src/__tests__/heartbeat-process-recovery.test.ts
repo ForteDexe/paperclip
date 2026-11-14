@@ -140,9 +140,9 @@ import {
 } from "../services/chat-control-recovery-stop.js";
 import { prepareNativeHeartbeatRun } from "../services/native-runtime/prepare-native-run.js";
 import {
-  hasCommittedNativeBoardResponseWait,
-  readNativeBoardResponseWaitOrigin,
-  readNativeBoardResponseWaitSource,
+  hasCommittedNativeOperatorResponseWait,
+  readNativeOperatorResponseWaitOrigin,
+  readNativeOperatorResponseWaitSource,
 } from "../services/native-runtime/native-operator-response-wait.js";
 import {
   commitNativeStatusDecision,
@@ -251,7 +251,7 @@ import {
   INTERACTION_CONTINUATION_INFRA_WAKE_REASON,
   heartbeatService,
   parseSandboxProviderPluginNotReadyFailureMessage,
-  redactDetectedSuccessfulRunProgressSummaryForBoard,
+  redactDetectedSuccessfulRunProgressSummaryForOperator,
   redactSuccessfulRunHandoffEvidence,
 } from "../services/heartbeat.ts";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.ts";
@@ -1507,7 +1507,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       expect(action.nextAction).toContain(
         input.kind === "deliberate_wait_without_target" ? "repair, retry the original owner" : input.kind === "missing_disposition"
           ? "valid issue disposition"
-          : "Operator operator",
+          : "Operator",
       );
     }
 
@@ -5287,7 +5287,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       await selectRecoveryRunsByAgent(agentId),
     ).toHaveLength(1);
     // A spent budget is no longer left to sit: the sweeper escalates the
-    // issue to a operator-owned recovery action instead of skipping it on
+    // issue to an operator-owned recovery action instead of skipping it on
     // every tick with no live path. The action spawns no run of its own.
     expect(reconciled.escalated).toBe(1);
     const recoveryActions = await selectRecoveryActionsForIssue(issueId);
@@ -6078,7 +6078,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       }
     }, 60_000);
 
-    it("rests a provider deadline that never clears on a working Retry, never on a operator recovery action", async () => {
+    it("rests a provider deadline that never clears on a working Retry, never on an operator recovery action", async () => {
       const { spaceId, agentId, issueId } = await seedQueuedIssueRunFixture();
       const lease = failLeaseAcquisition(BOUNDED_TRANSIENT_HEARTBEAT_RETRY_MAX_ATTEMPTS + 1, daytonaAcquisitionDeadline);
       try {
@@ -6844,7 +6844,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(validationComment).toBeTruthy();
   });
 
-  it("keeps an explicit local-path/worktree conflict blocked with a operator action and no Sentry event", async () => {
+  it("keeps an explicit local-path/worktree conflict blocked with an operator action and no Sentry event", async () => {
     const { spaceId, agentId, runId, issueId } = await seedQueuedIssueRunFixture();
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-local-workspace-policy-"));
     const projectId = randomUUID();
@@ -7430,7 +7430,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const bearerSecret = "live-bearer-token-value";
     const apiKeySecret = "sk-testsuccessfulhandoffsecret";
     const redactedDetectedSummary =
-      redactDetectedSuccessfulRunProgressSummaryForBoard(
+      redactDetectedSuccessfulRunProgressSummaryForOperator(
         `Next action noted: Authorization: Bearer ${bearerSecret} OPENAI_API_KEY=${apiKeySecret}`,
         { enabled: false },
       );
@@ -7610,7 +7610,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     // A graceful server shutdown (a deploy restart) interrupted the single
     // corrective run before the agent could choose a disposition. That is
     // not a finished attempt, so the sweeper must give it the bounded
-    // transient retry any interrupted run gets, not a operator escalation.
+    // transient retry any interrupted run gets, not an operator escalation.
     const { agentId, runId, issueId } = await seedStrandedIssueFixture({
       status: "in_progress",
       runStatus: "failed",
@@ -10558,7 +10558,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     },
   );
 
-  it("creates a operator recovery action for budget-blocked assigned work and continues the sweep", async () => {
+  it("creates an operator recovery action for budget-blocked assigned work and continues the sweep", async () => {
     const blocked = await seedAssignedTodoNoRunFixture();
     const unblocked = await seedAssignedTodoNoRunFixture();
     await db.insert(budgetPolicies).values({
@@ -14951,7 +14951,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(recoveryAction.ownerType).toBe("operator");
   });
 
-  async function seedNativePassiveBoardResponse(
+  async function seedNativePassiveOperatorResponse(
     continuationKind:
       "response_wake" | "same_agent" | "retry" = "response_wake",
     options: { blockingWork?: boolean; repairUsed?: boolean; assignmentWake?: boolean } = {},
@@ -15084,7 +15084,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   }
 
   it.each(["issue_commented", "issue_reopened_via_comment"])("commits a native passive Operator response without manufacturing immediate work (%s)", async (reason) => {
-    const fixture = await seedNativePassiveBoardResponse();
+    const fixture = await seedNativePassiveOperatorResponse();
     await db.update(agentWakeupRequests).set({ reason }).where(eq(agentWakeupRequests.id, fixture.wakeupRequestId));
     await finalizeNativeRun({
       db,
@@ -15134,8 +15134,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("parks a native response_wake that no response admitted instead of waking the same agent again", async () => {
-    const fixture = await seedNativePassiveBoardResponse("response_wake", { assignmentWake: true });
-    expect(await readNativeBoardResponseWaitSource(db, fixture)).toBeNull();
+    const fixture = await seedNativePassiveOperatorResponse("response_wake", { assignmentWake: true });
+    expect(await readNativeOperatorResponseWaitSource(db, fixture)).toBeNull();
     await finalizeNativeRun({ db, runId: fixture.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const heartbeat = heartbeatService(db);
     for (let sweep = 0; sweep < 3; sweep += 1) {
@@ -15161,7 +15161,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("delays a no-progress native continuation until the rewake cooldown instead of dropping it", async () => {
-    const fixture = await seedNativePassiveBoardResponse("same_agent", { assignmentWake: true });
+    const fixture = await seedNativePassiveOperatorResponse("same_agent", { assignmentWake: true });
     const finishedAt = new Date(Date.now() - 30_000);
     const priorRunId = randomUUID();
     await db.insert(heartbeatRuns).values({ id: priorRunId, spaceId: fixture.spaceId, agentId: fixture.agentId,
@@ -15202,7 +15202,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("rejects an unfinished native response wait while the finish report is still correctable", async () => {
-    const fixture = await seedNativePassiveBoardResponse("response_wake", { blockingWork: true });
+    const fixture = await seedNativePassiveOperatorResponse("response_wake", { blockingWork: true });
     const [stored] = await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, fixture.runId));
     const result = stored!.resultJson.result as PrpStructuredRunResult;
     await expect(nativeCompletionFeedback(db, fixture.runId, result)).rejects.toThrow("blocking remaining work without a pending wait condition");
@@ -15213,7 +15213,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it.each([false, true])("bounds unfinished native response wait repair across repeated finalization (used=%s)", async (repairUsed) => {
-    const fixture = await seedNativePassiveBoardResponse("response_wake", { blockingWork: true, repairUsed });
+    const fixture = await seedNativePassiveOperatorResponse("response_wake", { blockingWork: true, repairUsed });
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await finalizeNativeRun({ db, runId: fixture.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     }
@@ -15232,13 +15232,13 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     });
     const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, fixture.issueId));
     expect(actions).toHaveLength(repairUsed ? 1 : 0);
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(false);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(false);
   });
 
   it.each(["question", "approval", "dependency", "pause", "conversation"] as const)(
     "preserves a real wait when an unfinished native response reports %s",
     async (gate) => {
-      const fixture = await seedNativePassiveBoardResponse("response_wake", { blockingWork: true });
+      const fixture = await seedNativePassiveOperatorResponse("response_wake", { blockingWork: true });
       if (gate === "question") await db.insert(issueThreadInteractions).values({
         spaceId: fixture.spaceId, issueId: fixture.issueId, kind: "ask_user_questions", status: "pending",
         sourceRunId: fixture.runId, createdByUserId: "responsible-user", payload: { version: 1, questions: [{ id: "account", prompt: "Which account should I use?", selectionMode: "single", required: true, options: [{ id: "primary", label: "Primary account" }] }] },
@@ -15266,9 +15266,9 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   );
 
   it.each([false, true])("reconsiders a legacy committed unfinished Operator wait (superseded=%s)", async (superseded) => {
-    const fixture = await seedNativePassiveBoardResponse("response_wake", { blockingWork: true });
-    const source = await readNativeBoardResponseWaitSource(db, fixture);
-    const origin = await readNativeBoardResponseWaitOrigin(db, fixture);
+    const fixture = await seedNativePassiveOperatorResponse("response_wake", { blockingWork: true });
+    const source = await readNativeOperatorResponseWaitSource(db, fixture);
+    const origin = await readNativeOperatorResponseWaitOrigin(db, fixture);
     // Build the assessment, then emulate the old policy's accepted passive wait.
     await finalizeNativeRun({ db, runId: fixture.runId, workspaceFinalizeStatus: "succeeded", failpoint: "status_projection" });
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, fixture.runId));
@@ -15278,12 +15278,12 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       priorDecisionId: issue!.lastStatusDecisionId,
       decision: { policyVersion: "phase6-v14", statusAction: "in_progress", toStatus: "in_progress",
         reasonCode: "operator_response_waiting", unblockDescriptor: null, effects: [] },
-      requireBoardResponseWaitSource: source!.source, requireBoardResponseWaitOrigin: origin!,
+      requireOperatorResponseWaitSource: source!.source, requireOperatorResponseWaitOrigin: origin!,
     });
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(false);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(false);
     if (superseded) {
       await db.update(issueComments).set({ body: "Stop; I changed the request", updatedAt: new Date() }).where(eq(issueComments.id, fixture.commentId));
-      expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+      expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
     } else {
       const recovery = await heartbeatService(db).reconcileStrandedAssignedIssues();
       expect(recovery.escalated + recovery.continuationRequeued).toBe(1);
@@ -15291,18 +15291,18 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("does not repair unfinished native work after its Operator comment is superseded", async () => {
-    const fixture = await seedNativePassiveBoardResponse("response_wake", { blockingWork: true });
+    const fixture = await seedNativePassiveOperatorResponse("response_wake", { blockingWork: true });
     await db.update(issueComments).set({ body: "Stop; scope changed", updatedAt: new Date() }).where(eq(issueComments.id, fixture.commentId));
     await finalizeNativeRun({ db, runId: fixture.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const [decision] = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, fixture.runId));
     expect(decision?.reasonCode).toBe("operator_response_wait_superseded");
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, fixture.spaceId))).toHaveLength(1);
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
   });
 
   describe("paused maintenance over committed native passive waits", () => {
     async function seedPassive(kind: "operator" | "chat") {
-      const fixture = await seedNativePassiveBoardResponse();
+      const fixture = await seedNativePassiveOperatorResponse();
       let chat: Awaited<ReturnType<typeof bindChatConversation>> | undefined;
       if (kind === "chat") {
         chat = await bindChatConversation({ ...fixture, state: "active" });
@@ -15653,7 +15653,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("materializes the accepted native passive Operator answer privately in the decision commit", async () => {
-    const fixture = await seedNativePassiveBoardResponse();
+    const fixture = await seedNativePassiveOperatorResponse();
     await bindChatConversation({ ...fixture, state: "active" });
     await finalizeNativeRun({
       db,
@@ -15695,7 +15695,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("rolls the native passive Operator answer back with its rejected decision, then recovers once", async () => {
-    const fixture = await seedNativePassiveBoardResponse();
+    const fixture = await seedNativePassiveOperatorResponse();
     expect(
       await finalizeNativeRun({
         db,
@@ -15716,14 +15716,14 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         .from(statusDecisions)
         .where(eq(statusDecisions.runId, fixture.runId)),
     ).toHaveLength(0);
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(false);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(false);
     await finalizeNativeRun({
       db,
       runId: fixture.runId,
       workspaceFinalizeStatus: "succeeded",
       projectRunStatus: true,
     });
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
     expect(
       await db
         .select()
@@ -15746,9 +15746,9 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   ] as const)(
     "does not use stale native passive Operator authority after %s",
     async (change) => {
-      const fixture = await seedNativePassiveBoardResponse();
+      const fixture = await seedNativePassiveOperatorResponse();
       expect(
-        await readNativeBoardResponseWaitSource(db, fixture),
+        await readNativeOperatorResponseWaitSource(db, fixture),
       ).not.toBeNull();
       if (change === "wake_reason")
         await db.update(agentWakeupRequests).set({ reason: "issue_continuation_needed" }).where(eq(agentWakeupRequests.id, fixture.wakeupRequestId));
@@ -15781,7 +15781,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         // Accepted results FK-bind nativeIssueId, so test a foreign claimed
         // issue instead of manufacturing a database state PostgreSQL rejects.
         expect(
-          await readNativeBoardResponseWaitSource(db, {
+          await readNativeOperatorResponseWaitSource(db, {
             ...fixture,
             issueId: randomUUID(),
           }),
@@ -15811,15 +15811,15 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
           continuationPolicy: "wake_assignee",
           payload: { version: 1, questions: [] },
         });
-      expect(await readNativeBoardResponseWaitSource(db, fixture)).toBeNull();
+      expect(await readNativeOperatorResponseWaitSource(db, fixture)).toBeNull();
     },
   );
 
   it.each(["same_agent", "retry"] as const)(
     "preserves productive native Operator %s continuations",
     async (kind) => {
-      const fixture = await seedNativePassiveBoardResponse(kind);
-      expect(await readNativeBoardResponseWaitSource(db, fixture)).toBeNull();
+      const fixture = await seedNativePassiveOperatorResponse(kind);
+      expect(await readNativeOperatorResponseWaitSource(db, fixture)).toBeNull();
       await finalizeNativeRun({
         db,
         runId: fixture.runId,
@@ -15834,7 +15834,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       ).toEqual([
         expect.objectContaining({ reasonCode: "live_continuation_registered" }),
       ]);
-      expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(
+      expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(
         false,
       );
       expect(
@@ -15856,11 +15856,11 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       .flatMap((reasonCode) => (["edited", "deleted", "newer_comment", "wake_actor"] as const)
         .map((change) => ({ reasonCode, change }))),
   )("rechecks native Operator source inside the status transaction ($reasonCode, $change)", async ({ reasonCode, change }) => {
-    const fixture = await seedNativePassiveBoardResponse("response_wake", {
+    const fixture = await seedNativePassiveOperatorResponse("response_wake", {
       blockingWork: reasonCode !== "operator_response_waiting",
     });
-    const expected = await readNativeBoardResponseWaitSource(db, fixture);
-    const origin = await readNativeBoardResponseWaitOrigin(db, fixture);
+    const expected = await readNativeOperatorResponseWaitSource(db, fixture);
+    const origin = await readNativeOperatorResponseWaitOrigin(db, fixture);
     await finalizeNativeRun({
       db,
       runId: fixture.runId,
@@ -15913,8 +15913,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
             nextAction: "Bind a durable continuation", agentId: fixture.agentId,
           }],
         },
-        requireBoardResponseWaitSource: expected!.source,
-        requireBoardResponseWaitOrigin: origin!,
+        requireOperatorResponseWaitSource: expected!.source,
+        requireOperatorResponseWaitOrigin: origin!,
       }),
     ).rejects.toBeInstanceOf(NativeStatusRaceError);
     expect(
@@ -15936,14 +15936,14 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("does not let a native passive Operator wait suppress a fresh request or reassignment", async () => {
-    const fixture = await seedNativePassiveBoardResponse();
+    const fixture = await seedNativePassiveOperatorResponse();
     await finalizeNativeRun({
       db,
       runId: fixture.runId,
       workspaceFinalizeStatus: "succeeded",
       projectRunStatus: true,
     });
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
     await db.insert(issueComments).values({
       spaceId: fixture.spaceId,
       issueId: fixture.issueId,
@@ -15952,15 +15952,15 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       body: "Continue with this genuinely new request.",
     });
     // A fresh request is not permission to replay the previous passive run.
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
     expect(
-      await hasCommittedNativeBoardResponseWait(db, {
+      await hasCommittedNativeOperatorResponseWait(db, {
         ...fixture,
         agentId: randomUUID(),
       }),
     ).toBe(false);
     expect(
-      await hasCommittedNativeBoardResponseWait(db, {
+      await hasCommittedNativeOperatorResponseWait(db, {
         ...fixture,
         runId: randomUUID(),
       }),
@@ -15970,7 +15970,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it.each(["edited", "deleted", "newer_comment"] as const)(
     "preserves the native passive Operator origin after %s without presenting a stale answer",
     async (change) => {
-      const fixture = await seedNativePassiveBoardResponse();
+      const fixture = await seedNativePassiveOperatorResponse();
       if (change === "edited")
         await db
           .update(issueComments)
@@ -16012,7 +16012,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
           .from(issueComments)
           .where(eq(issueComments.createdByRunId, fixture.runId)),
       ).toHaveLength(0);
-      expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+      expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
       const heartbeat = heartbeatService(db);
       expect(
         (await heartbeat.reconcileStrandedAssignedIssues())
@@ -16035,7 +16035,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   it.each(["same_agent", "reassigned_agent"] as const)(
     "admits a genuine new Operator wake for %s after a native passive Operator wait",
     async (target) => {
-      const fixture = await seedNativePassiveBoardResponse();
+      const fixture = await seedNativePassiveOperatorResponse();
       await finalizeNativeRun({
         db,
         runId: fixture.runId,
@@ -16102,7 +16102,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       expect(admitted!.contextSnapshot?.wakeCommentIds).toContain(commentId);
       expect(mockAdapterExecute).toHaveBeenCalledTimes(1);
       expect(
-        await hasCommittedNativeBoardResponseWait(db, {
+        await hasCommittedNativeOperatorResponseWait(db, {
           ...fixture,
           agentId,
           runId: next!.id,
@@ -16112,7 +16112,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   );
 
   it("defers a native passive Operator decision under a held source lock without partial presentation", async () => {
-    const fixture = await seedNativePassiveBoardResponse();
+    const fixture = await seedNativePassiveOperatorResponse();
     let release!: () => void;
     let acquired!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -16164,7 +16164,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       workspaceFinalizeStatus: "succeeded",
       projectRunStatus: true,
     });
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
     expect(
       await db
         .select()
@@ -16174,7 +16174,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("recovers the native passive Operator wait from its receipt, not mutable result or wake presentation", async () => {
-    const fixture = await seedNativePassiveBoardResponse();
+    const fixture = await seedNativePassiveOperatorResponse();
     await finalizeNativeRun({
       db,
       runId: fixture.runId,
@@ -16191,7 +16191,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         },
       })
       .where(eq(heartbeatRuns.id, fixture.runId));
-    expect(await hasCommittedNativeBoardResponseWait(db, fixture)).toBe(true);
+    expect(await hasCommittedNativeOperatorResponseWait(db, fixture)).toBe(true);
     expect(
       (await heartbeatService(db).reconcileStrandedAssignedIssues())
         .continuationRequeued,
@@ -16204,7 +16204,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     ).toHaveLength(1);
   });
 
-  async function seedNativeBlockedBoardRequest() {
+  async function seedNativeBlockedOperatorRequest() {
     const { spaceId, agentId, issueId, runId } =
       await seedStrandedIssueFixture({
         status: "in_progress",
@@ -16340,7 +16340,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       context,
       request,
       unblockAction,
-    } = await seedNativeBlockedBoardRequest();
+    } = await seedNativeBlockedOperatorRequest();
     const heartbeat = heartbeatService(db);
     const result = await heartbeat.reconcileStrandedAssignedIssues();
     expect(result.continuationRequeued).toBe(0);
@@ -16403,7 +16403,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     "does not clobber a newer %s while native blocker repair waits on the issue lock",
     async (change) => {
       const { spaceId, agentId, issueId, runId } =
-        await seedNativeBlockedBoardRequest();
+        await seedNativeBlockedOperatorRequest();
       let release!: () => void;
       let acquired!: (pid: number) => void;
       const held = new Promise<void>((resolve) => {
@@ -16530,7 +16530,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
   it("preserves a later routed native attention decision after its wake was coalesced", async () => {
     const { spaceId, issueId, runId, contractId } =
-      await seedNativeBlockedBoardRequest();
+      await seedNativeBlockedOperatorRequest();
     const [result] = await db
       .select()
       .from(nativeRunResults)
@@ -16634,7 +16634,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
 
   it("rolls back the native blocked wait when its durable notice cannot be persisted", async () => {
-    const { spaceId, issueId } = await seedNativeBlockedBoardRequest();
+    const { spaceId, issueId } = await seedNativeBlockedOperatorRequest();
     const before = await db.select().from(issues).where(eq(issues.id, issueId));
     await db.execute(
       sql.raw(

@@ -7,7 +7,7 @@ import { executionWorkspaceService } from "./execution-workspaces.js";
 
 /** The channel composer has no restore/workspace confirmation UI. Require the
  * ordinary task flow for those transitions instead of bypassing its guards. */
-export async function assertSlackBoardWorkAllowed(db: Db, issue: typeof issues.$inferSelect) {
+export async function assertSlackOperatorWorkAllowed(db: Db, issue: typeof issues.$inferSelect) {
   if (issue.status === "cancelled") {
     throw conflict("Restore this task in Outpost before sending work to Slack");
   }

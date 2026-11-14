@@ -16,9 +16,9 @@ export type AuthorizationTarget =
 export function resolveAuthorizationTarget(value: string | null | undefined): AuthorizationTarget {
   const servedOverHttp = typeof window !== "undefined" && window.location.protocol === "http:";
   const check = checkOAuthEndpointUrl(value ?? null, {
-    // A operator served over plaintext HTTP is a local-development operator, where a
+    // An operator served over plaintext HTTP is a local-development operator, where a
     // loopback authorization server is exactly what someone is testing against.
-    // A operator served over HTTPS requires HTTPS.
+    // An operator served over HTTPS requires HTTPS.
     allowInsecureLoopback: servedOverHttp,
     // Outpost's own origin: a first-party authorization endpoint (the smoke-lab
     // fixture) is served however the operator is, and going to the page you are

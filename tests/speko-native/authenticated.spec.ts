@@ -25,7 +25,7 @@ test("E03/E14: real signed-in callers cannot substitute spaces, private tasks or
       await request(api, "POST", `/invites/${token}/accept`, { requestType: "human" });
     };
     await invite(memberContext.request, space.id); await invite(outsiderContext.request, other.id);
-    await request(page.request, "PATCH", `/spaces/${space.id}`, { requireBoardApprovalForNewAgents: false });
+    await request(page.request, "PATCH", `/spaces/${space.id}`, { requireOperatorApprovalForNewAgents: false });
     const agent = await request(page.request, "POST", `/spaces/${space.id}/agents`, { name: "Voice worker", role: "general", adapterType: "process", adapterConfig: { command: "fixture" }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/agents/${agent.id}`)).json()).status).toBe("idle");
     const endpoint = await request(memberContext.request, "POST", `/spaces/${space.id}/chat-endpoints`, { provider: "speko", assignedAgentId: agent.id });

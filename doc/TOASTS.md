@@ -24,7 +24,7 @@ only mention removes that qualification unless another participation rule holds.
 Historical comment lookup uses an exact viewer-link regex backed by the existing
 comment-body trigram index and returns at most one body for the shared parser.
 
-Agent ownership, primary-agent preference, task/run `responsibleUserId`, space
+Agent ownership, default-agent preference, task/run `responsibleUserId`, space
 membership, and involvement in a parent task do not qualify on their own.
 Activity by any person or agent can notify a qualifying viewer. These rules do
 not change Mine membership, task permissions, assignment, or inbox archive state.

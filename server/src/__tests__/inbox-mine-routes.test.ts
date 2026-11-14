@@ -11,13 +11,13 @@ import { agentRoutes } from "../routes/agents.js";
 import { issueRoutes } from "../routes/issues.js";
 import * as issueServices from "../services/issues.js";
 import * as heartbeatServices from "../services/heartbeat.js";
-import { describeEmbeddedPostgres, seedSpaceWithBoardAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
+import { describeEmbeddedPostgres, seedSpaceWithOperatorAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
 
 describeEmbeddedPostgres("Mine inbox snapshot routes", () => {
   const ctx = useEmbeddedPostgres("inbox-mine-routes-");
 
   async function seed(name: string) {
-    const fixture = await seedSpaceWithBoardAccess(ctx.db, name);
+    const fixture = await seedSpaceWithOperatorAccess(ctx.db, name);
     await ctx.db.insert(authUsers).values({
       id: fixture.userId, name, email: `${fixture.userId}@example.test`,
       emailVerified: true, createdAt: new Date(), updatedAt: new Date(),

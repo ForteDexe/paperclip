@@ -38,7 +38,7 @@ if (!rawUrl) {
 }
 
 // --- Auth ----------------------------------------------------------------
-function loadBoardToken() {
+function loadOperatorToken() {
   const authPath = path.resolve(os.homedir(), ".outpost/auth.json");
   try {
     const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
@@ -51,7 +51,7 @@ function loadBoardToken() {
   return null;
 }
 
-const cred = loadBoardToken();
+const cred = loadOperatorToken();
 if (!cred) {
   console.error("No operator token found in ~/.outpost/auth.json");
   process.exit(1);

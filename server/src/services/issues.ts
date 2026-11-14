@@ -46,7 +46,7 @@ import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
 import { requestRestorePointDeletion } from "./git-restore-point-ledger.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { recordChatHandoff, recordAcceptedChatHandoff, lockAcceptedChatHandoffSource, recordChatCompletion, existingChatCompletionReply, acknowledgeChatCompletionReply } from "./chat-completion-delivery.js";
-import { mirrorSlackBoardComment, slackBoardReplyBindings } from "./slack-operator-messages.js";
+import { mirrorSlackOperatorComment, slackOperatorReplyBindings } from "./slack-operator-messages.js";
 import { agentRunWritesRevoked, assertAgentRunWriteAllowed } from "../agent-run-cancellation.js";
 import { assertHandedOffRunTaskOwnership } from "../run-task-ownership.js";
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
@@ -1200,7 +1200,7 @@ export async function resolveChatOriginPublicationBindings(
       readStringFromRecord(snapshot, "taskId");
     if (snapshotIssueId && snapshotIssueId !== issueId) return [];
 
-    const operatorBindings = await slackBoardReplyBindings(dbOrTx, {
+    const operatorBindings = await slackOperatorReplyBindings(dbOrTx, {
       spaceId, issueId, agentId: lineageAgentId!,
       commentIds: readChatWakeCommentIds(snapshot), userId: run.responsibleUserId,
     });
@@ -11848,7 +11848,7 @@ export function issueService(db: Db) {
             requestedStatus: "todo",
             requestedAssigneePatch: {},
             actor: { agentId: actorAgentId ?? null, userId: actorUserId ?? null },
-            allowBoardOverride: workspaceSelectionActor?.type === "operator" && workspaceSelectionActor.source !== "mcp_oauth",
+            allowOperatorOverride: workspaceSelectionActor?.type === "operator" && workspaceSelectionActor.source !== "mcp_oauth",
           });
           if (transition.decision ||
             (transition.patch.status !== undefined && transition.patch.status !== "todo") ||
@@ -13946,7 +13946,7 @@ export function issueService(db: Db) {
         await dbOrTx.update(issues).set({ conversationState: "active" }).where(eq(issues.id, issueId));
       }
       if (options?.mirrorToSlack && actor.userId && authorType === "user") {
-        await mirrorSlackBoardComment(dbOrTx, comment, { attachmentIds: options.attachmentIds });
+        await mirrorSlackOperatorComment(dbOrTx, comment, { attachmentIds: options.attachmentIds });
       }
       if (authorType === "user" || actor.userId) {
         await resumeSlackConversation(dbOrTx, issue.spaceId, issueId);

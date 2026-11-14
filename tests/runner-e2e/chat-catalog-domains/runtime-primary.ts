@@ -4,10 +4,10 @@ import { createAuthenticatedPerson, enrollPrerequisitePerson } from "./identity-
 import { probeAgentPermission, waitForReply, remainingIdentityObservationBudget } from "./identity-support.js";
 import { runtimeDefinition, runtimeWorker, runtimeObservation, observeRuntime, openRuntimeAgentProfile, verifyRuntimeResult, agentLink, type RuntimeAgent } from "./runtime-support.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
-interface Primary { spaceId: string; userId: string; primaryAgentId: string | null }
+interface Primary { spaceId: string; userId: string; defaultAgentId: string | null }
 type Person = Awaited<ReturnType<typeof createAuthenticatedPerson>>;
 const people = new WeakMap<ChatCatalogContext, Person>();
-const endpoint = (spaceId: string) => `/api/spaces/${spaceId}/primary-agent/me`;
+const endpoint = (spaceId: string) => `/api/spaces/${spaceId}/default-agent/me`;
 async function personPrimary(person: Person, spaceId: string): Promise<Primary> {
   const response = await person.request(endpoint(spaceId));
   if (!response.ok) { await response.body?.cancel(); throw new Error(`Secondary primary read returned ${response.status}`); }
@@ -19,9 +19,9 @@ export function gradePrimary(value: unknown) {
   const worker = o.state.worker as RuntimeAgent; const before = o.state.primaryBefore as Primary;
   const after = o.state.primaryAfter as Primary | undefined; const otherBefore = o.state.otherPersonBefore as Primary;
   const otherAfter = o.state.otherPersonAfter as Primary | undefined;
-  c.add("only-human-replaces-existing-primary", !!before && before.primaryAgentId === o.leadId
+  c.add("only-human-replaces-existing-primary", !!before && before.defaultAgentId === o.leadId
     && o.state.beforeHumanPrimary === o.leadId && o.state.replacementConfirmed === true
-    && after?.primaryAgentId === worker.id && after.spaceId === o.spaceId && after.userId === before.userId,
+    && after?.defaultAgentId === worker.id && after.spaceId === o.spaceId && after.userId === before.userId,
     "The original primary survives the chat response and is replaced only after the visible human confirmation.");
   c.add("agent-preference-write-denied", o.state.agentWriteStatus === 403, "The preference endpoint rejects the real CEO agent bearer.");
   c.add("other-person-space-unaffected", !!otherAfter && !!otherBefore && otherAfter.userId !== before.userId
@@ -69,19 +69,19 @@ export async function verifyReadyPrimaryChat(ctx: ChatCatalogContext, state: Rec
   const primary = await ctx.input.api.get<Primary>(endpoint(o.spaceId), { timeout: budget() }); budget();
   const chats = await ctx.input.api.get<Entity[]>(`/api/spaces/${o.spaceId}/chats`, { timeout: budget() }); budget();
   const runs = await ctx.allRuns(); budget();
-  if (ctx.issue()?.id !== sourceId || primary.spaceId !== o.spaceId || primary.userId !== before.userId || primary.primaryAgentId !== worker.id
+  if (ctx.issue()?.id !== sourceId || primary.spaceId !== o.spaceId || primary.userId !== before.userId || primary.defaultAgentId !== worker.id
     || chats.length !== state.chatCountBeforeNavigation || chats.filter(row => row.id === sourceId).length !== 1
     || runs.length !== 1 || runs[0]?.id !== nativeIds[0] || runs[0].agentId !== o.leadId || runs[0].status !== "succeeded")
     throw new Error("Settled Chat changed the primary preference, conversation or native work");
   state.reopenedRecentAgent = o.leadId; state.runsAfterNavigation = runs.length; state.chatCountAfterNavigation = chats.length;
   await ctx.input.evidence("chat-primary-ready-conversation.json", { spaceId: o.spaceId, agentId: o.leadId, sourceId, userId: before.userId,
-    primaryAgentId: primary.primaryAgentId, originalNativeIds: nativeIds, chatCount: chats.length, composerReady: true, originalConversationVisible: true, noExtraWork: true }); budget();
+    defaultAgentId: primary.defaultAgentId, originalNativeIds: nativeIds, chatCount: chats.length, composerReady: true, originalConversationVisible: true, noExtraWork: true }); budget();
 }
 export const runtimePrimaryCases = [runtimeDefinition("agents.choose-primary", async ctx => {
   const secrets = ctx.input.privateSecrets; if (!secrets) throw new Error("Primary fixture requires private credential sink");
   const browser = ctx.input.page.context().browser(); if (!browser) throw new Error("Real browser required");
   const primaryBefore = await ctx.input.api.get<Primary>(endpoint(ctx.input.fixtures.space.id));
-  if (primaryBefore.primaryAgentId !== ctx.input.fixtures.agent.id) throw new Error("Catalog requires an existing primary agent");
+  if (primaryBefore.defaultAgentId !== ctx.input.fixtures.agent.id) throw new Error("Catalog requires an existing default agent");
   const worker = await runtimeWorker(ctx);
   const person = await createAuthenticatedPerson({ api: ctx.input.api, browser, secrets, name: "Second primary reader" }); people.set(ctx, person);
   await enrollPrerequisitePerson(ctx, person, "operator");
@@ -96,8 +96,8 @@ export const runtimePrimaryCases = [runtimeDefinition("agents.choose-primary", a
     await waitForReply(ctx, ctx.observationDeadlineAt);
     remainingIdentityObservationBudget(ctx);
     const worker = state.worker as RuntimeAgent;
-    state.beforeHumanPrimary = (await ctx.input.api.get<Primary>(endpoint(ctx.input.fixtures.space.id))).primaryAgentId;
-    state.agentWriteStatus = await probeAgentPermission(ctx, endpoint(ctx.input.fixtures.space.id), "PUT", { primaryAgentId: worker.id });
+    state.beforeHumanPrimary = (await ctx.input.api.get<Primary>(endpoint(ctx.input.fixtures.space.id))).defaultAgentId;
+    state.agentWriteStatus = await probeAgentPermission(ctx, endpoint(ctx.input.fixtures.space.id), "PUT", { defaultAgentId: worker.id });
     const o = await observeRuntime(ctx, state);
     const source = ctx.input.page.url();
     const href = agentLink(o, worker);
@@ -106,9 +106,9 @@ export const runtimePrimaryCases = [runtimeDefinition("agents.choose-primary", a
     state.profileLinkFollowed = href;
     await ctx.input.page.getByRole("button", { name: "Set as my primary", exact: true }).click();
     const dialog = ctx.input.page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Change your primary agent?"); await expect(dialog).toContainText("Morgan");
+    await expect(dialog).toContainText("Change your default agent?"); await expect(dialog).toContainText("Morgan");
     await dialog.getByRole("button", { name: "Set as my primary", exact: true }).click();
-    await expect(ctx.input.page.getByRole("img", { name: "My primary agent", exact: true }).first()).toBeVisible();
+    await expect(ctx.input.page.getByRole("img", { name: "My default agent", exact: true }).first()).toBeVisible();
     state.replacementConfirmed = true;
     // Revisit the valid recent source before opening the normal Chat landing.
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });

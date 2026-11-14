@@ -246,7 +246,7 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
 
     // Public MCP gateway protocol requests carry a pcgw_* bearer that is
     // validated by the gateway service itself. Do not interpret that bearer as
-    // a operator key or agent JWT here: doing so rejects the MCP handshake before
+    // an operator key or agent JWT here: doing so rejects the MCP handshake before
     // the protocol route can verify its run-scoped credential. Keep this bypass
     // restricted to the unguessable public gateway path; all /api routes retain
     // the normal actor authentication path below.
@@ -314,11 +314,11 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
       return;
     }
 
-    const operatorKey = await operatorAuth.findBoardApiKeyByToken(token);
+    const operatorKey = await operatorAuth.findOperatorApiKeyByToken(token);
     if (operatorKey) {
-      const access = await operatorAuth.resolveBoardAccess(operatorKey.userId);
+      const access = await operatorAuth.resolveOperatorAccess(operatorKey.userId);
       if (access.user) {
-        await operatorAuth.touchBoardApiKey(operatorKey.id);
+        await operatorAuth.touchOperatorApiKey(operatorKey.id);
         req.actor = {
           type: "operator",
           userId: operatorKey.userId,
@@ -1032,6 +1032,6 @@ async function repairCloudTenantSpaceProvisionDefaults(
   }
 }
 
-export function requireBoard(req: Express.Request) {
+export function requireOperator(req: Express.Request) {
   return req.actor.type === "operator";
 }

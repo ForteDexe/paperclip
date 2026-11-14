@@ -7,7 +7,7 @@ import {
   describeEmbeddedPostgres,
   resetSpaceIssueFixtures,
   routeApp,
-  seedSpaceWithBoardAccess,
+  seedSpaceWithOperatorAccess,
   useEmbeddedPostgres,
 } from "./helpers/route-test-harness.js";
 
@@ -23,7 +23,7 @@ describeEmbeddedPostgres("issue list status query parsing", () => {
   });
 
   async function listStatuses(query: string) {
-    const space = await seedSpaceWithBoardAccess(ctx.db, "Status parsing");
+    const space = await seedSpaceWithOperatorAccess(ctx.db, "Status parsing");
     const spaceId = space.spaceId;
     await ctx.db.insert(issues).values([
       { id: randomUUID(), spaceId, title: "Todo", status: "todo", priority: "medium" },
@@ -57,14 +57,14 @@ describeEmbeddedPostgres("issue list status query parsing", () => {
     expect(await listStatuses("")).toEqual(["done", "in_progress", "todo"]);
   });
   it.each(["", "&view=compact", "&view=compact&projection=index"])("rejects unsupported creation sorting for blocked attention (%s)", async projection => {
-    const { spaceId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Blocked sorting");
+    const { spaceId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Blocked sorting");
     await request(routeApp(ctx.db, actor, issueRoutes))
       .get(`/api/spaces/${spaceId}/issues?attention=blocked&sortField=created&sortDir=asc${projection}`)
       .expect(422);
   });
 
   it.each(["", "&view=compact", "&view=compact&projection=index"])("sorts routine tasks by creation time before pagination (%s)", async (projection) => {
-    const { spaceId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Creation sorting");
+    const { spaceId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Creation sorting");
     const ids = Array.from({ length: 4 }, (_, index) => `00000000-0000-4000-8000-00000000000${index}`);
     await ctx.db.insert(issues).values([
       ...ids.map((id, index) => ({ id, spaceId, title: "Routine sorting", originKind: "routine_execution", status: "todo",
@@ -83,7 +83,7 @@ describeEmbeddedPostgres("issue list status query parsing", () => {
   });
 
   it.each(["", "&view=compact", "&view=index", "&view=rows"])("reports a capped page and how to fetch the rest (%s)", async (projection) => {
-    const { spaceId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Capped pages");
+    const { spaceId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Capped pages");
     const ids = Array.from({ length: 5 }, (_, index) => `00000000-0000-4000-8000-00000000001${index}`);
     await ctx.db.insert(issues).values(ids.map((id) => ({ id, spaceId, title: "Launch task", status: "todo", priority: "medium" })));
     const app = routeApp(ctx.db, actor, issueRoutes);
@@ -115,7 +115,7 @@ describeEmbeddedPostgres("issue list status query parsing", () => {
   });
 
   it("pages one-child-per-parent lists by offset, not an id cursor", async () => {
-    const { spaceId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Grouped pages");
+    const { spaceId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Grouped pages");
     const parentIds = ["00000000-0000-4000-8000-000000000021", "00000000-0000-4000-8000-000000000022"];
     await ctx.db.insert(issues).values(parentIds.map((id) => ({ id, spaceId, title: "Parent", status: "todo", priority: "medium" })));
     // The first parent's child has the larger id, so an id cursor would skip the second parent.
@@ -133,7 +133,7 @@ describeEmbeddedPostgres("issue list status query parsing", () => {
   });
 
   it("keeps the default response an array and marks a full-default page as capped", async () => {
-    const { spaceId, actor } = await seedSpaceWithBoardAccess(ctx.db, "Default cap");
+    const { spaceId, actor } = await seedSpaceWithOperatorAccess(ctx.db, "Default cap");
     await ctx.db.insert(issues).values(Array.from({ length: 501 }, (_, index) => ({ spaceId, title: `RUN-${index + 1}`, status: "todo", priority: "medium" })));
     const res = await request(routeApp(ctx.db, actor, issueRoutes))
       .get(`/api/spaces/${spaceId}/issues?status=todo&view=index`)

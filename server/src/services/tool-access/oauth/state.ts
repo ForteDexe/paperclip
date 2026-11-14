@@ -118,7 +118,7 @@ async function consumeOAuthState(
    * operator keeps offering an authorization link for a flow the user just refused
    * and the requesting agent never learns the answer.
    *
-   * Scoped to a still-`pending` row: a operator user who already answered the card
+   * Scoped to a still-`pending` row: an operator user who already answered the card
    * directly keeps their own answer.
    */
 async function rejectPendingOAuthInteraction(

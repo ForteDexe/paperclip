@@ -1,6 +1,6 @@
 # Capability Outpost-style issue-thread UI
 
-Capability renders the mock Outpost issue as a native issue thread. A operator
+Capability renders the mock Outpost issue as a native issue thread. An operator
 reads the thread, answers typed interactions inline, and inspects the evidence
 behind every mock mutation. The implementation follows the binding
 [Capability issue-thread UX contract](design/capability-issue-thread-ux-contract.md).

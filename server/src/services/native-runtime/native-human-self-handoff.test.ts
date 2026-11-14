@@ -115,7 +115,7 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
     await handOffToPerson(recorded);
     await expect(assertCurrentWakeCommentsRead(db, binding(recorded), null)).resolves.toBeUndefined();
 
-    // Without the run's record (for example a operator reassignment), the fence still refuses.
+    // Without the run's record (for example an operator reassignment), the fence still refuses.
     const unrecorded = await runningNativeTask();
     await handOffToPerson(unrecorded, { record: false });
     await expect(assertCurrentWakeCommentsRead(db, binding(unrecorded), null)).rejects.toThrow("native_current_wake_comments_binding_changed");

@@ -418,7 +418,7 @@ export function healthRoutes(
         ...(redactedWarnings ? { warnings: redactedWarnings } : {}),
         ...(devServer ? { devServer } : {}),
         // Token-authorized probe on an otherwise redacted response: the control
-        // plane needs readiness without a operator session, and nothing else about
+        // plane needs readiness without an operator session, and nothing else about
         // this instance becomes visible.
         ...(workspaceReadiness ? { workspace: workspaceReadiness } : {}),
         ...(cloud ? { cloud } : {}),

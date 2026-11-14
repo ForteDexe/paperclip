@@ -108,12 +108,12 @@ export function writeOperatorAuthStore(store: OperatorAuthStore, storePath?: str
   fs.writeFileSync(filePath, `${JSON.stringify(store, null, 2)}\n`, { mode: 0o600 });
 }
 
-export function getStoredBoardCredential(apiBase: string, storePath?: string): OperatorAuthCredential | null {
+export function getStoredOperatorCredential(apiBase: string, storePath?: string): OperatorAuthCredential | null {
   const store = readOperatorAuthStore(storePath);
   return store.credentials[normalizeApiBase(apiBase)] ?? null;
 }
 
-export function setStoredBoardCredential(input: {
+export function setStoredOperatorCredential(input: {
   apiBase: string;
   token: string;
   userId?: string | null;
@@ -135,7 +135,7 @@ export function setStoredBoardCredential(input: {
   return credential;
 }
 
-export function removeStoredBoardCredential(apiBase: string, storePath?: string): boolean {
+export function removeStoredOperatorCredential(apiBase: string, storePath?: string): boolean {
   const normalizedApiBase = normalizeApiBase(apiBase);
   const store = readOperatorAuthStore(storePath);
   if (!store.credentials[normalizedApiBase]) return false;
@@ -205,7 +205,7 @@ export async function openUrl(url: string): Promise<boolean> {
   });
 }
 
-export async function loginBoardCli(params: {
+export async function loginOperatorCli(params: {
   apiBase: string;
   requestedAccess: RequestedAccess;
   requestedSpaceId?: string | null;
@@ -278,7 +278,7 @@ export async function loginBoardCli(params: {
           },
         },
       );
-      setStoredBoardCredential({
+      setStoredOperatorCredential({
         apiBase,
         token: challenge.operatorApiToken,
         userId: me.userId ?? me.user?.id ?? null,
@@ -304,7 +304,7 @@ export async function loginBoardCli(params: {
   throw new Error("CLI auth challenge expired before approval.");
 }
 
-export async function revokeStoredBoardCredential(params: {
+export async function revokeStoredOperatorCredential(params: {
   apiBase: string;
   token: string;
 }): Promise<void> {
