@@ -152,3 +152,34 @@ workspace validation, heartbeat recovery, and the Hermes-only canonical session
 algorithm are removed as well. Remaining names in historical migrations and
 retired gateway test fixtures are compatibility-cleanup work, not retained
 product behavior.
+
+### LLM Wiki Plugin
+
+The LLM Wiki was a separate knowledge-management product rather than part of
+Outpost's retained Space, task, decision, artifact, case, North Star, chat, or
+runtime workflow. Its package, database migrations, managed agent and skill
+bundle, UI, bundled-plugin registration, Docker/release wiring, and
+feature-specific tests are removed. Generic plugin database and UI-slot tests
+remain, and the plugin SDK stays because Campfire depends on it.
+
+### Packaged Fake Sandbox Plugin
+
+The fake sandbox provider was a packaged test fixture, not a runtime product.
+Its package and Docker/lockfile wiring are removed. Environment service tests
+retain self-contained in-memory fake manifests, so they continue testing the
+generic plugin contracts without shipping a fake provider package.
+
+### Plugin Project Scaffolder
+
+Outpost retains its plugin host and SDK for Campfire, but it no longer ships a
+general-purpose plugin project generator or the `outpost plugin init` command.
+Generic plugin installation tests now create their minimal disposable package
+directly. Plugin lifecycle commands, local package installation, the plugin
+SDK, and Campfire remain supported.
+
+## Scope guard
+
+`scripts/check-retained-product-scope.mjs` verifies that the required Codex,
+Claude, Campfire, runner, database, shared, and plugin-SDK package roots remain
+present while retired package roots and registrations stay absent. Add each
+package-level retirement to that guard as its removal is completed.

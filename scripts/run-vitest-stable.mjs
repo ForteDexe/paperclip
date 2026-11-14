@@ -30,7 +30,6 @@ const nonServerProjects = [
   "@outpost/adapter-claude-local",
   "@outpost/adapter-codex-local",
   "@outpost/plugin-sdk",
-  "@outpost/create-outpost-plugin",
   "@outpost/ui",
   "@outpost/cli",
 ];

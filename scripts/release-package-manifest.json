@@ -50,11 +50,6 @@
     "publishFromCi": true
   },
   {
-    "dir": "packages/plugins/create-outpost-plugin",
-    "name": "@outpost/create-outpost-plugin",
-    "publishFromCi": true
-  },
-  {
     "dir": "ui",
     "name": "@outpost/ui",
     "publishFromCi": true

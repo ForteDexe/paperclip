@@ -6,7 +6,7 @@
   "model": "openrouter/deepseek/deepseek-v4.1-flash-1017",
   "source": {
     "descriptorPath": "tests/runner-e2e/chat-catalog-descriptors.json",
-    "descriptorSha256": "0e16a7b41602cf2b2e99ab2a80babb7712165666beb6cba663211255c71dcd24",
+    "descriptorSha256": "379c42a70c01c004ad668b3574ab1734f941aa02c085a947a9109d3a0c7f5775",
     "scenarioFiles": [
       {
         "path": "tests/runner-e2e/chat-scenarios/access.yaml",
@@ -148,8 +148,8 @@
     "timeoutPolicy": "expanded task turnTimeoutMs=0; descriptor turn limit retained as declaredTurnTimeoutMs; legacy tasks retain120000",
     "sourceCounts": {
       "areas": 34,
-      "scenarios": 240,
-      "descriptorRows": 238,
+      "scenarios": 235,
+      "descriptorRows": 233,
       "legacyRows": 2,
       "declaredGapRows": 5,
       "requiredCredentialRows": 18,
@@ -168,7 +168,7 @@
       "baseTargetSha": "3b66c3c144360ddf32714a0742fd774b8ceafb16",
       "previousTargetSha": "ab2019e976076ec0eb60b026844f3d9211cb0208",
       "definitionSourceSha": "de0941835cc8f0d01c982574ee258e110babdbeb",
-      "candidateDescriptorSha256": "a145191bca600edd855cb68381423bd0d7fcd5b08536be023322d6af436a5dec",
+      "candidateDescriptorSha256": "a5c63f17b7dd3d8f7332af316dc440dd2834a1026b95716a6270bbbc370f9d3c",
       "changedDefinitionFiles": [
         {
           "path": "tests/runner-e2e/chat-scenarios/spaces.yaml",
@@ -9413,7 +9413,6 @@
         "chat-catalog-domains/identity-support.ts",
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "../../cli/src/index.ts",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/plugins.yaml"
@@ -9463,7 +9462,6 @@
         "chat-catalog-domains/identity-support.ts",
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "../../cli/src/index.ts",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/plugins.yaml"
@@ -9512,7 +9510,6 @@
         "chat-catalog-domains/identity-support.ts",
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "../../cli/src/index.ts",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/plugins.yaml"
@@ -9563,7 +9560,6 @@
         "chat-flow.ts",
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "../../cli/src/index.ts",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/plugins.yaml"
@@ -10227,7 +10223,7 @@
       "externalInput": null,
       "installedSource": null,
       "originalQuery": "Change the proposed create to the cheaper model and send it back for approval.",
-      "expectedOutcome": "The agent revises the proposed configuration through the allowed proposal path and resubmits it with inspectable history. The new proposal remains unapproved until the board decides. It does not treat a request for revisions as approval of either the old or new agent.",
+      "expectedOutcome": "The agent revises the proposed configuration through the allowed proposal path and resubmits it with inspectable history. The new proposal remains unapproved until the board decides. It does not treat a request for revisions as approval of either the old or new create.",
       "originalContext": "A creation proposal is pending board review and the board asks for a lower-cost configuration.",
       "capabilities": [
         "questions-and-approvals/governance",
@@ -11034,7 +11030,6 @@
         "chat-catalog-domains/integrator-support.ts",
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "../../cli/src/index.ts",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/routines.yaml"
@@ -11594,7 +11589,6 @@
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "chat-catalog-domains/external-plugin-sdk-mirror.ts",
         "../../packages/plugins/sdk/package.json",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/secrets.yaml"
@@ -12112,224 +12106,6 @@
         "chat-catalog-domains/internal-support.ts",
         "chat-catalog-domains/internal-definition.ts",
         "chat-scenarios/skills.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "status-cards.archive-card",
-      "scenario": "status-cards.archive-card",
-      "canonicalScenario": "status-cards.archive-card",
-      "name": "status-cards.archive-card",
-      "title": "status-cards.archive-card",
-      "area": "status-cards",
-      "executionId": "chat-features.runner-opencode.local.status-cards.archive-card",
-      "fullName": "outpost.Product E2E.chat-features.status-cards.archive-card",
-      "aliases": [],
-      "minimumRuns": 3,
-      "maximumRuns": 3,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 720000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Archive this launch card; we will reuse it next quarter.",
-      "expectedOutcome": "The saved card receives the supported archive state without deleting its history. Chat explains the available restore path and that restored content may need refresh. Other cards and source tasks remain unchanged.",
-      "originalContext": "The CEO authored a card and may archive and restore it.",
-      "capabilities": [
-        "status-cards/archive"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.integrator.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/integrator-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/integrator-status-cards.ts",
-        "chat-scenarios/status-cards.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "status-cards.create-card",
-      "scenario": "status-cards.create-card",
-      "canonicalScenario": "status-cards.create-card",
-      "name": "status-cards.create-card",
-      "title": "status-cards.create-card",
-      "area": "status-cards",
-      "executionId": "chat-features.runner-opencode.local.status-cards.create-card",
-      "fullName": "outpost.Product E2E.chat-features.status-cards.create-card",
-      "aliases": [],
-      "minimumRuns": 2,
-      "maximumRuns": 2,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 540000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Make me a status card showing the launch's biggest blockers.",
-      "expectedOutcome": "One card is saved with the requested purpose, watched work, supported refresh behavior and valid summarizer. Chat links to it and distinguishes its configuration from an actual generated summary. Required source visibility is retained rather than broadening access to make compilation succeed.",
-      "originalContext": "Status cards are enabled, the CEO may assign the summarizer task and no matching card exists.",
-      "capabilities": [
-        "status-cards/authoring"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.integrator.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/integrator-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/integrator-status-cards.ts",
-        "chat-scenarios/status-cards.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "status-cards.explain-card",
-      "scenario": "status-cards.explain-card",
-      "canonicalScenario": "status-cards.explain-card",
-      "name": "status-cards.explain-card",
-      "title": "status-cards.explain-card",
-      "area": "status-cards",
-      "executionId": "chat-features.runner-opencode.local.status-cards.explain-card",
-      "fullName": "outpost.Product E2E.chat-features.status-cards.explain-card",
-      "aliases": [],
-      "minimumRuns": 3,
-      "maximumRuns": 3,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 720000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Why does this card say the launch is blocked?",
-      "expectedOutcome": "The agent explains the saved summary using its accessible source tasks and generation context, with links. It distinguishes the card's last observation from newer live task state. If the summary is stale or source access is missing, it says so rather than inventing supporting evidence.",
-      "originalContext": "A card shows a blocker and has inspectable source work, generation time and history.",
-      "capabilities": [
-        "status-cards/inspection"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.integrator.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/integrator-status-cards.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-catalog-domains/internal-definition.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/integrator-support.ts",
-        "chat-scenarios/status-cards.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "status-cards.other-authors-card",
-      "scenario": "status-cards.other-authors-card",
-      "canonicalScenario": "status-cards.other-authors-card",
-      "name": "status-cards.other-authors-card",
-      "title": "status-cards.other-authors-card",
-      "area": "status-cards",
-      "executionId": "chat-features.runner-opencode.local.status-cards.other-authors-card",
-      "fullName": "outpost.Product E2E.chat-features.status-cards.other-authors-card",
-      "aliases": [],
-      "minimumRuns": 2,
-      "maximumRuns": 2,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 540000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Change Morgan's status card to update every hour.",
-      "expectedOutcome": "The agent respects author-specific management policy and identifies the supported owner or human path. It does not claim a saved change or archive and recreate the card under its own identity to evade ownership restrictions.",
-      "originalContext": "Morgan authored the card; the CEO can see it but cannot manage another agent's card.",
-      "capabilities": [
-        "status-cards/authoring",
-        "status-cards/archive"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.integrator.v1",
-      "sourceFiles": [
-        "chat-catalog-domains/integrator-support.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/integrator-status-cards.ts",
-        "chat-scenarios/status-cards.yaml"
-      ],
-      "screenshot": "final-state.png",
-      "evidenceKind": "private-final-state-png",
-      "evidenceReadiness": "original-private-evidence-validation-required",
-      "boundaryTarget": null
-    },
-    {
-      "key": "status-cards.refresh-card",
-      "scenario": "status-cards.refresh-card",
-      "canonicalScenario": "status-cards.refresh-card",
-      "name": "status-cards.refresh-card",
-      "title": "status-cards.refresh-card",
-      "area": "status-cards",
-      "executionId": "chat-features.runner-opencode.local.status-cards.refresh-card",
-      "fullName": "outpost.Product E2E.chat-features.status-cards.refresh-card",
-      "aliases": [],
-      "minimumRuns": 7,
-      "maximumRuns": 7,
-      "turnTimeoutMs": 0,
-      "declaredTurnTimeoutMs": 120000,
-      "attemptTimeoutMs": 1200000,
-      "journeyKind": "agent-chat",
-      "surface": [
-        "agent-chat"
-      ],
-      "coverageGaps": [],
-      "requiredCredentials": [],
-      "externalInput": null,
-      "installedSource": null,
-      "originalQuery": "Refresh the launch status card now.",
-      "expectedOutcome": "One authorized refresh creates observable generation work and the card updates only from the resulting saved output. Failure remains visible alongside the prior summary's age. The response does not describe stale content as freshly compiled just because refresh was requested.",
-      "originalContext": "The CEO authored the card; its source tasks changed since the previous summary.",
-      "capabilities": [
-        "status-cards/generation"
-      ],
-      "checks": null,
-      "oracleVersion": "outpost.chat-catalog.status-card.required-work-failure.v2",
-      "sourceFiles": [
-        "chat-catalog-domains/integrator-status-cards.ts",
-        "chat-catalog-domains/status-card-work-failure.ts",
-        "chat-catalog-domains/external-provider.ts",
-        "chat-catalog-domains/runtime-support.ts",
-        "chat-catalog-domains/identity-support.ts",
-        "chat-catalog-domains/internal-definition.ts",
-        "chat-catalog-domains/internal-support.ts",
-        "chat-catalog-domains/integrator-support.ts",
-        "chat-scenarios/status-cards.yaml"
       ],
       "screenshot": "final-state.png",
       "evidenceKind": "private-final-state-png",

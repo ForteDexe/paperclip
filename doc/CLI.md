@@ -1033,7 +1033,7 @@ npx @outpost/cli project-workspace runtime-command <project-id> <workspace-id> r
 
 ## Plugin Commands
 
-Existing plugin lifecycle commands remain available: `plugin init`, `list`, `install`, `uninstall`, `enable`, `disable`, `inspect`, and `examples`.
+Existing plugin lifecycle commands remain available: `plugin list`, `install`, `uninstall`, `enable`, `disable`, `inspect`, and `examples`.
 
 ```sh
 npx @outpost/cli plugin ui-contributions

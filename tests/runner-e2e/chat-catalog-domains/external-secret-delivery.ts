@@ -312,7 +312,6 @@ export const secretDeliveryExternalCases = [
         "../../cli/node_modules/tsx/dist/loader.mjs",
         "chat-catalog-domains/external-plugin-sdk-mirror.ts",
         "../../packages/plugins/sdk/package.json",
-        "../../packages/plugins/create-outpost-plugin/src/index.ts",
         "../../packages/plugins/sdk/src/index.ts",
         "../../packages/plugins/sdk/dist/index.js",
         "chat-scenarios/secrets.yaml",

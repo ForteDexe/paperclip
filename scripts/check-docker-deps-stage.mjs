@@ -37,8 +37,7 @@ function parseWorkspaceRoots(workspaceText) {
     .filter((entry) => !entry.startsWith("!"))
     .map((entry) => entry.replace(/\*+$/, ""))
     .filter((entry) => entry.length > 0)
-    .filter((entry) => !entry.includes("examples"))
-    .filter((entry) => !entry.includes("create-outpost-plugin"));
+    .filter((entry) => !entry.includes("examples"));
 }
 
 function walkPackageJsonFiles(rootRelative, maxDepth) {
@@ -63,8 +62,7 @@ function walkPackageJsonFiles(rootRelative, maxDepth) {
 
       if (
         entry.name === "package.json" &&
-        !relative.includes("/examples/") &&
-        !relative.includes("/create-outpost-plugin/")
+        !relative.includes("/examples/")
       ) {
         results.push(relative);
       }

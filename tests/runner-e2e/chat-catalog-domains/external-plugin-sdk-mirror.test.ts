@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { mirrorPreviewSdk } from "./external-plugin-sdk-mirror.js";
 
-it("retains exact public SDK bytes in a separately owned scaffold workspace", async () => {
+it("retains exact public SDK bytes in a separately owned disposable workspace", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "sdk-custody-control-"));
   try {
     const source = path.join(root, "source"); await mkdir(path.join(source, "dist"), { recursive: true });
@@ -22,8 +22,10 @@ it("retains exact public SDK bytes in a separately owned scaffold workspace", as
       expect(file.sha256).toBe(createHash("sha256").update(original).digest("hex"));
     }
     await expect(mirrorPreviewSdk(source, owned)).rejects.toThrow();
-    const other = path.join(root, "other"); await mkdir(other);
-    await symlink(path.join(source, "package.json"), path.join(source, "dist/escape.js"));
-    await expect(mirrorPreviewSdk(source, other)).rejects.toThrow("symbolic links");
+    if (process.platform !== "win32") {
+      const other = path.join(root, "other"); await mkdir(other);
+      await symlink(path.join(source, "package.json"), path.join(source, "dist/escape.js"));
+      await expect(mirrorPreviewSdk(source, other)).rejects.toThrow("symbolic links");
+    }
   } finally { await rm(root, { recursive: true, force: true }); }
 });

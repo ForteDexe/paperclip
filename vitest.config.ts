@@ -16,8 +16,6 @@ export default defineConfig({
       "packages/adapters/claude-local",
       "packages/adapters/codex-local",
       "packages/plugins/sdk",
-      "packages/plugins/create-outpost-plugin",
-      "packages/plugins/sandbox-providers/daytona",
       "server",
       "ui",
       "cli",

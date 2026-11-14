@@ -23,6 +23,10 @@ const retiredPackages = [
     name: "@outpost/plugin-fake-sandbox",
     root: "packages/plugins/outpost-plugin-fake-sandbox",
   },
+  {
+    name: "@outpost/create-outpost-plugin",
+    root: "packages/plugins/create-outpost-plugin",
+  },
 ];
 
 const registrationFiles = [

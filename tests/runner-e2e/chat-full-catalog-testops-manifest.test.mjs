@@ -10,15 +10,15 @@ const bytes = readFileSync(new URL('./chat-full-catalog-testops-manifest.json', 
 const manifest = JSON.parse(bytes);
 const row = id => fullCatalogCases.find(value => value.key === id);
 
-test('the manifest joins all244 source YAML scenarios without importing a domain or fabricating a result', () => {
+test('the manifest joins every retained source YAML scenario without importing a domain or fabricating a result', () => {
   const directory = new URL('./chat-scenarios/', import.meta.url);
   const scenarios = readdirSync(directory).filter(file => file.endsWith('.yaml') && file !== 'defaults.yaml').flatMap(file => {
     const parsed = parseDocument(readFileSync(new URL(file, directory), 'utf8'), { uniqueKeys: true });
     assert.deepEqual(parsed.errors, []);
     return parsed.toJS().scenarios;
   });
-  assert.equal(scenarios.length, 240);
-  assert.equal(fullCatalogCases.length, 240);
+  assert.equal(scenarios.length, 235);
+  assert.equal(fullCatalogCases.length, 235);
   assert.deepEqual(fullCatalogCases.map(value => value.key).sort(), scenarios.map(value => value.id).sort());
   for (const scenario of scenarios) {
     const actual = row(scenario.id);
@@ -55,7 +55,7 @@ test('source bounds retain legacy and pilot runs, native zero turn policy and or
   }
   assert.equal(row('access.sign-in').maximumRuns, 0);
   assert.equal(row('assistant-connections.use-scoped-client').maximumRuns, 0);
-  assert.equal(fullCatalogCases.filter(value => value.turnTimeoutMs === 0).length, 238);
+  assert.equal(fullCatalogCases.filter(value => value.turnTimeoutMs === 0).length, 233);
 });
 
 test('definition gaps and private prerequisites remain explicit instead of inferred runnable passes', () => {
@@ -81,7 +81,7 @@ test('source identities and descriptor provenance are stable, deeply frozen and 
   assert.equal(catalogTargetSha, manifest.targetSha);
   assert.equal(catalogManifestSha256, createHash('sha256').update(bytes).digest('hex'));
   assert.equal(fullCatalogPlanName, 'Chat feature catalog — OpenCode 1017 (candidate)');
-  assert.equal(new Set(fullCatalogCases.map(value => value.fullName)).size, 240);
+  assert.equal(new Set(fullCatalogCases.map(value => value.fullName)).size, 235);
   assert.equal(manifest.source.scenarioFiles.length, 34);
   assert.equal(manifest.metadataSourceSha, 'de0941835cc8f0d01c982574ee258e110babdbeb');
   assert.throws(() => { fullCatalogCases[0].coverageGaps.push('changed'); }, TypeError);
@@ -110,8 +110,8 @@ test('repair source metadata binds the corrected candidate and explicit changed 
   const descriptorBytes = readFileSync(new URL(repair.candidateDescriptorSnapshot, import.meta.url));
   assert.equal(createHash('sha256').update(descriptorBytes).digest('hex'), repair.candidateDescriptorSha256);
   const declarations = JSON.parse(descriptorBytes);
-  assert.equal(declarations.length, 238);
-  assert.equal(new Set(declarations.map(value => value.scenarioId)).size, 238);
+  assert.equal(declarations.length, 233);
+  assert.equal(new Set(declarations.map(value => value.scenarioId)).size, 233);
   assert.deepEqual(repair.changedFields.map(value => [value.key, value.field]), [
   [
     "activity.work-timeline",
@@ -443,7 +443,10 @@ test('repair source metadata binds the corrected candidate and explicit changed 
   ]
 ]);
   for (const change of repair.changedFields) {
-    assert.deepEqual(row(change.key)[change.field], change.current);
+    const current = row(change.key);
+    // Retain historical repair metadata for scenarios removed from the active catalog.
+    if (!current) continue;
+    assert.deepEqual(current[change.field], change.current);
     assert.notDeepEqual(change.current, change.previous);
   }
   assert.deepEqual(repair.changedFields.filter(change => change.key === 'questions-and-approvals.multi-part-question' && change.field === 'originalQuery'), [{ key: 'questions-and-approvals.multi-part-question', field: 'originalQuery', previous: "Help me choose the details for the launch page before you build it.", current: "Walk me through the launch-page question form so I can choose the audience and tone and enter my own headline before you build anything." }]);
@@ -457,6 +460,8 @@ test('repair source metadata binds the corrected candidate and explicit changed 
   for (const change of repair.descriptorChanges) {
     assert.notDeepEqual(change.current, change.previous);
     const declaration = declarations.find(value => value.scenarioId === change.key);
+    // Retired scenario changes remain provenance only and have no active declaration.
+    if (!declaration) continue;
     assert.ok(declaration);
     assert.deepEqual(change.current, declaration[change.field]);
     if (Object.hasOwn(row(change.key), change.field)) assert.deepEqual(row(change.key)[change.field], change.current);

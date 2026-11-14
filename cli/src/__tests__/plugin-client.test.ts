@@ -1,31 +1,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  scaffoldPluginProject: vi.fn((options: { outputDir: string }) => options.outputDir),
-}));
-
-vi.mock("../../../packages/plugins/create-outpost-plugin/src/index.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("../../../packages/plugins/create-outpost-plugin/src/index.js")>(
-      "../../../packages/plugins/create-outpost-plugin/src/index.js",
-    );
-  return {
-    ...actual,
-    scaffoldPluginProject: mocks.scaffoldPluginProject,
-  };
-});
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildPluginInstallRequest,
-  buildPluginInitNextCommands,
-  buildPluginInitScaffoldOptions,
   formatTargetDiagnostics,
   probeTargetDiagnostics,
-  registerPluginCommands,
 } from "../commands/client/plugin.js";
 
 const tempDirs: string[] = [];
@@ -41,91 +22,6 @@ afterEach(() => {
     const dir = tempDirs.pop();
     if (dir) fs.rmSync(dir, { recursive: true, force: true });
   }
-});
-
-describe("plugin init", () => {
-  beforeEach(() => {
-    mocks.scaffoldPluginProject.mockClear();
-  });
-
-  it("maps package name and flags to scaffolder options", () => {
-    const cwd = path.resolve("/tmp/outpost-cli-test");
-    const options = buildPluginInitScaffoldOptions(
-      "@acme/plugin-linear",
-      {
-        output: "plugins",
-        template: "connector",
-        category: "automation",
-        displayName: "Linear Bridge",
-        description: "Syncs Linear issues",
-        author: "Acme",
-        sdkPath: "../outpost/packages/plugins/sdk",
-      },
-      cwd,
-    );
-
-    expect(options).toEqual({
-      pluginName: "@acme/plugin-linear",
-      outputDir: path.resolve(cwd, "plugins", "plugin-linear"),
-      template: "connector",
-      category: "automation",
-      displayName: "Linear Bridge",
-      description: "Syncs Linear issues",
-      author: "Acme",
-      sdkPath: "../outpost/packages/plugins/sdk",
-    });
-  });
-
-  it("builds exact next commands using the scaffold path", () => {
-    expect(buildPluginInitNextCommands("/tmp/acme plugin")).toEqual([
-      "cd '/tmp/acme plugin'",
-      "pnpm install",
-      "pnpm dev",
-      "outpost plugin install '/tmp/acme plugin'",
-    ]);
-  });
-
-  it("registers the CLI wrapper and invokes the existing scaffolder", async () => {
-    const program = new Command();
-    program.exitOverride();
-    program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
-    registerPluginCommands(program);
-
-    await program.parseAsync(
-      [
-        "plugin",
-        "init",
-        "demo-plugin",
-        "--output",
-        "/tmp/outpost-init-output",
-        "--template",
-        "workspace",
-        "--category",
-        "workspace",
-        "--display-name",
-        "Demo Plugin",
-        "--description",
-        "Demo description",
-        "--author",
-        "Outpost",
-        "--sdk-path",
-        "/repo/packages/plugins/sdk",
-      ],
-      { from: "user" },
-    );
-
-    expect(mocks.scaffoldPluginProject).toHaveBeenCalledTimes(1);
-    expect(mocks.scaffoldPluginProject).toHaveBeenCalledWith({
-      pluginName: "demo-plugin",
-      outputDir: path.resolve("/tmp/outpost-init-output", "demo-plugin"),
-      template: "workspace",
-      category: "workspace",
-      displayName: "Demo Plugin",
-      description: "Demo description",
-      author: "Outpost",
-      sdkPath: "/repo/packages/plugins/sdk",
-    });
-  });
 });
 
 describe("plugin install", () => {

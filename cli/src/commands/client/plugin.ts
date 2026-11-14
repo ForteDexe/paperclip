@@ -1,11 +1,6 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { Command, Option } from "commander";
-import {
-  scaffoldPluginProject,
-  shellQuote,
-  type ScaffoldPluginOptions,
-} from "../../../../packages/plugins/create-outpost-plugin/src/index.js";
+import { Command } from "commander";
 import pc from "picocolors";
 import {
   addCommonClientOptions,
@@ -73,16 +68,6 @@ interface PluginUninstallOptions extends BaseClientOptions {
   force?: boolean;
 }
 
-interface PluginInitOptions extends BaseClientOptions {
-  output?: string;
-  template?: ScaffoldPluginOptions["template"];
-  category?: ScaffoldPluginOptions["category"];
-  displayName?: string;
-  description?: string;
-  author?: string;
-  sdkPath?: string;
-}
-
 interface PluginJsonOptions extends BaseClientOptions {
   payloadJson?: string;
 }
@@ -102,11 +87,6 @@ function requireSpaceId(ctx: { spaceId?: string }): string {
     );
   }
   return ctx.spaceId;
-}
-
-interface PluginInitResult {
-  outputDir: string;
-  nextCommands: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -262,101 +242,12 @@ function formatPlugin(p: PluginRecord): string {
   return parts.join("  ");
 }
 
-function packageToDirName(pluginName: string): string {
-  return pluginName.replace(/^@[^/]+\//, "");
-}
-
-export function buildPluginInitScaffoldOptions(
-  packageName: string,
-  opts: PluginInitOptions,
-  cwd = process.cwd(),
-): ScaffoldPluginOptions {
-  const outputRoot = path.resolve(cwd, opts.output ?? ".");
-  const outputDir = path.resolve(outputRoot, packageToDirName(packageName));
-
-  return {
-    pluginName: packageName,
-    outputDir,
-    template: opts.template,
-    category: opts.category,
-    displayName: opts.displayName,
-    description: opts.description,
-    author: opts.author,
-    sdkPath: opts.sdkPath,
-  };
-}
-
-export function buildPluginInitNextCommands(outputDir: string): string[] {
-  const quotedOutputDir = shellQuote(outputDir);
-  return [
-    `cd ${quotedOutputDir}`,
-    "pnpm install",
-    "pnpm dev",
-    `outpost plugin install ${quotedOutputDir}`,
-  ];
-}
-
-export function renderPluginInitSuccess(result: PluginInitResult): string {
-  return [
-    pc.green(`✓ Created plugin scaffold at ${result.outputDir}`),
-    "",
-    "Next commands:",
-    ...result.nextCommands.map((command) => `  ${pc.cyan(command)}`),
-  ].join("\n");
-}
-
-export function runPluginInitCommand(packageName: string, opts: PluginInitOptions): PluginInitResult {
-  const scaffoldOptions = buildPluginInitScaffoldOptions(packageName, opts);
-  const outputDir = scaffoldPluginProject(scaffoldOptions);
-  return {
-    outputDir,
-    nextCommands: buildPluginInitNextCommands(outputDir),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Command registration
 // ---------------------------------------------------------------------------
 
 export function registerPluginCommands(program: Command): void {
   const plugin = program.command("plugin").description("Plugin lifecycle management");
-
-  // -------------------------------------------------------------------------
-  // plugin init <package-name>
-  // -------------------------------------------------------------------------
-  addCommonClientOptions(
-    plugin
-      .command("init <packageName>")
-      .description("Scaffold a local Outpost plugin project")
-      .option("--output <dir>", "Directory to create the plugin folder in")
-      .addOption(
-        new Option("--template <template>", "Starter template")
-          .choices(["default", "connector", "workspace", "environment"])
-          .default("default"),
-      )
-      .addOption(
-        new Option("--category <category>", "Manifest category")
-          .choices(["connector", "workspace", "automation", "ui", "environment"]),
-      )
-      .option("--display-name <name>", "Manifest display name")
-      .option("--description <description>", "Manifest description")
-      .option("--author <author>", "Manifest author")
-      .option("--sdk-path <path>", "Local @outpost/plugin-sdk package path")
-      .action((packageName: string, opts: PluginInitOptions) => {
-        try {
-          const result = runPluginInitCommand(packageName, opts);
-
-          if (opts.json) {
-            printOutput(result, { json: true });
-            return;
-          }
-
-          console.log(renderPluginInitSuccess(result));
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-  );
 
   // -------------------------------------------------------------------------
   // plugin list

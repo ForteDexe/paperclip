@@ -4,8 +4,6 @@ This guide describes the current, implemented way to create a Outpost plugin in 
 
 It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec includes future ideas; this guide only covers the alpha surface that exists now.
 
-> **New to plugins?** Start with the short [Local Plugin Development guide](./LOCAL_PLUGIN_DEVELOPMENT.md) — it walks the CLI happy path (`plugin init` → `pnpm dev` → `plugin install <path>`) end to end. Come back here for the full manifest surface, worker capabilities, and UI components.
-
 ## Current reality
 
 - Treat plugin workers and plugin UI as trusted code.
@@ -204,30 +202,20 @@ candidates and return provider-stable identities. Implement
 Outpost owns inline markdown rendering; plugins must not return React, HTML,
 or `dangerouslySetInnerHTML` content for inline references.
 
-## Scaffold a plugin
-
-Use the CLI scaffold command:
-
-```bash
-outpost plugin init @yourscope/plugin-name --output /absolute/path/to/plugin-repos
-```
-
-That creates `<output>/plugin-name/` with:
-
-- `src/manifest.ts`
-- `src/worker.ts`
-- `src/ui/index.tsx`
-- `tests/plugin.spec.ts`
-- `esbuild.config.mjs`
-- `rollup.config.mjs`
-
-Inside this monorepo, the scaffold uses `workspace:*` for `@outpost/plugin-sdk`.
-
-Outside this monorepo, the scaffold snapshots `@outpost/plugin-sdk` from the local Outpost checkout into a `.outpost-sdk/` tarball so you can build and test a plugin without publishing anything to npm first. Pass `--sdk-path /absolute/path/to/outpost/packages/plugins/sdk` if you have more than one Outpost checkout.
-
 ## Local development workflow
 
-See the short [Local Plugin Development guide](./LOCAL_PLUGIN_DEVELOPMENT.md) for the full happy path (`pnpm dev` → `outpost plugin install <absolute-path>` → `outpost plugin list`) and reload semantics.
+Outpost retains plugin installation and lifecycle support for maintained plugins
+such as Campfire. From an existing plugin package, run its build or watch script,
+then install the package by absolute path:
+
+```bash
+pnpm dev
+outpost plugin install /absolute/path/to/plugin
+outpost plugin list
+```
+
+Outpost no longer generates new plugin projects. Create packages deliberately
+from a retained in-repository plugin when another first-party plugin is needed.
 
 Minimum verification from the generated plugin folder:
 
