@@ -132,5 +132,8 @@ gateways rather than Outpost's retained local Codex and Claude runtime. Their
 Docker fixtures, shell harnesses, package commands, smoke-specific guides, and
 focused script tests are removed. Their provider-specific onboarding prompt,
 CLI and OpenAPI surface, static configuration document, and focused route tests
-are also removed. Hidden gateway runtime compatibility remains a separate
-dependency-guided removal slice and is not considered retained.
+are also removed. Agent-invite acceptance no longer normalizes gateway URLs or
+credentials, generates OpenClaw device keys, stores Hermes secrets, or permits
+gateway-only replay of accepted invites. Remaining gateway branches in agent
+runtime services and shared compatibility contracts are tracked as subsequent
+dependency-guided removal work and are not considered retained.
