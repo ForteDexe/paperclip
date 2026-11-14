@@ -110,17 +110,6 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     description: "Kimi Code CLI harness",
     icon: Moon,
   },
-  hermes_gateway: {
-    label: "Hermes Gateway",
-    description: "Remote Hermes API server",
-    icon: Bot,
-    hideFromVisualSelection: true,
-  },
-  hermes_local: {
-    label: "Hermes",
-    description: "Hermes harness",
-    icon: Bot,
-  },
   opencode_local: {
     label: "OpenCode",
     description: "OpenCode multi-provider harness",
@@ -155,14 +144,6 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     description: "Managed remote Cursor agent",
     icon: MousePointer2,
   },
-  openclaw_gateway: {
-    label: "OpenClaw Gateway",
-    description: "External gateway adapter",
-    icon: Bot,
-    comingSoon: true,
-    disabledLabel: "Invite external agents from the add-agent modal",
-    hideFromVisualSelection: true,
-  },
   process: {
     label: "Process",
     description: "Internal process adapter",
@@ -194,9 +175,7 @@ function humanizeType(type: string): string {
 }
 
 export function getAdapterLabel(type: string): string {
-  // Known labels are final — only unknown (plugin) types get a derived
-  // suffix, so labels like "OpenClaw Gateway" don't become
-  // "OpenClaw Gateway (gateway)".
+  // Known labels are final; only unknown plugin types get a derived suffix.
   const known = adapterDisplayMap[type];
   if (known) return known.label;
   return withSuffix(humanizeType(type), getTypeSuffix(type));

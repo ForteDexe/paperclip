@@ -169,13 +169,12 @@ function Setup({
     brandType === "opencode_local" || brandType === "pi_local";
   const usesHostLogin = usesExistingProviderLogin(brandType);
   const providerKeys = setupProviderKeys(brandType);
-  const chooseProvider = multiProvider || brandType === "hermes_local";
+  const chooseProvider = multiProvider;
   const hasCredentialField =
     !usesHostLogin && (isKimi || chooseProvider || Boolean(SETUP_CREDENTIAL_KEYS[adapterType]));
   const nativeCursorCloud = adapterType === "cursor_cloud" && runner === "outpost";
-  const showModel = !isDot && adapterType !== "hermes_gateway" && (adapterType !== "cursor_cloud" || nativeCursorCloud);
+  const showModel = !isDot && (adapterType !== "cursor_cloud" || nativeCursorCloud);
   const [allowUnmeteredProvider, setAllowUnmeteredProvider] = useState(false);
-  const [gatewayUrl, setGatewayUrl] = useState("");
   const [kimiModel, setKimiModel] = useState("");
   const [kimiBaseUrl, setKimiBaseUrl] = useState("");
   const [kimiProtocol, setKimiProtocol] = useState("kimi");
@@ -536,17 +535,13 @@ function Setup({
       config.model = model;
       config.env = { ...((saved.env as object) ?? {}), ...((config.env as object) ?? {}) };
     }
-    if (!aiBinding && !nextConnection?.aiConnection && hasCredentialField && binding) {
-      if (adapterType === "hermes_gateway") config.apiKey = binding;
-      else
-        config.env = { ...((config.env as object) ?? {}), [envKey]: binding };
-    }
+    if (!aiBinding && !nextConnection?.aiConnection && hasCredentialField && binding)
+      config.env = { ...((config.env as object) ?? {}), [envKey]: binding };
     if (adapterType === "cursor_cloud")
       Object.assign(config, {
         repoUrl: repository.trim(),
         ...(branch.trim() ? { repoStartingRef: branch.trim() } : {}),
       });
-    if (adapterType === "hermes_gateway") config.apiBaseUrl = gatewayUrl.trim();
     if (usingKimiApi) {
       // --model overrides Kimi's environment-defined model. Let KIMI_MODEL_NAME win.
       delete config.model;
@@ -581,23 +576,13 @@ function Setup({
     )
       throw new Error("Enter a GitHub repository URL.");
     if (
-      ["cursor_cloud", "hermes_gateway"].includes(adapterType) &&
+      adapterType === "cursor_cloud" &&
       !apiKey.trim() &&
       !selectedBinding
     )
       throw new Error(
-        adapterType === "cursor_cloud"
-          ? "Enter a Cursor API key."
-          : `Enter ${envKey} or select an Outpost secret.`,
+        "Enter a Cursor API key.",
       );
-    if (adapterType === "hermes_gateway") {
-      try {
-        const url = new URL(gatewayUrl.trim());
-        if (!["https:", "http:"].includes(url.protocol)) throw new Error();
-      } catch {
-        throw new Error("Enter the Hermes API base URL.");
-      }
-    }
     if (usingKimiApi && !kimiModel.trim())
       throw new Error("Enter the Kimi API model name.");
     return buildConfig(nextConnection, selectedBinding, setupRunner);
@@ -651,7 +636,6 @@ function Setup({
     setEnvironmentOverride(agent.defaultEnvironmentId ?? "");
     setRepository(typeof config.repoUrl === "string" ? config.repoUrl : "");
     setBranch(typeof config.repoRef === "string" ? config.repoRef : typeof config.repoStartingRef === "string" ? config.repoStartingRef : "");
-    setGatewayUrl(typeof config.apiBaseUrl === "string" ? config.apiBaseUrl : "");
     setAllowUnmeteredProvider(config.allowUnmeteredProvider === true);
     const kimiApi = config.kimiApi as { model?: string; protocol?: string; baseUrl?: string } | undefined;
     setKimiModel(kimiApi?.model ?? "");
@@ -660,7 +644,7 @@ function Setup({
     const env = typeof config.env === "object" && config.env !== null ? config.env as Record<string, unknown> : {};
     const providerEntry = Object.entries(providerKeys).find(([, key]) => env[key]);
     if (providerEntry) setProvider(providerEntry[0]);
-    const credential = config.apiKey ?? env[providerEntry?.[1] ?? envKey];
+    const credential = env[providerEntry?.[1] ?? envKey];
     if (credential && typeof credential === "object" && "type" in credential
       && ["secret_ref", "user_secret_ref"].includes(String(credential.type))) setProviderBinding(credential as EnvBinding);
     const binding = agent.runtimeConfig.aiConnection as AiConnectionBinding | undefined;
@@ -679,14 +663,13 @@ function Setup({
     const rememberCredentials = () => {
       if (!staged.length) return;
       setApiKey("");
-      setProviderBinding((adapterType === "hermes_gateway" ? config.apiKey : (config.env as Record<string, EnvBinding>)?.[envKey]) as EnvBinding);
+      setProviderBinding((config.env as Record<string, EnvBinding>)?.[envKey] as EnvBinding);
     };
     try {
       for (const [key, value] of Object.entries(pendingCredentials(nextConnection))) {
         const secret = await (connectionAdapter ? storeProviderApiKey : storeOrganizationApiKey)(spaceId, key, value);
         staged.push(secret);
-        if (adapterType === "hermes_gateway" && key === "API_SERVER_KEY") config.apiKey = secret.binding;
-        else config.env = { ...((config.env as object) ?? {}), [key]: secret.binding };
+        config.env = { ...((config.env as object) ?? {}), [key]: secret.binding };
       }
       submitted = true;
       const agent = await agentsApi.update(created.id, {
@@ -933,11 +916,9 @@ function Setup({
   const environmentLabel =
     adapterType === "cursor_cloud"
       ? "Cursor Cloud"
-      : adapterType === "hermes_gateway"
-        ? "Hermes Gateway"
-        : confirmationEnvironment
-          ? environmentDisplayLabel(confirmationEnvironment)
-          : "Local machine";
+      : confirmationEnvironment
+        ? environmentDisplayLabel(confirmationEnvironment)
+        : "Local machine";
   const setupError =
     adapters.error ??
     adapterInventory.error ??
@@ -1338,10 +1319,7 @@ function Setup({
                                     placeholder={
                                       selectedBinding
                                         ? "Using saved key"
-                                        : (isKimi || [
-                                              "cursor_cloud",
-                                              "hermes_gateway",
-                                            ].includes(adapterType))
+                                        : (isKimi || adapterType === "cursor_cloud")
                                           ? "Required"
                                           : "Optional if already configured"
                                     }
@@ -1396,19 +1374,6 @@ function Setup({
                               {multiProvider && ` Use a ${provider}/model ID.`}
                             </p>
                           </div>
-                        )}
-                        {adapterType === "hermes_gateway" && (
-                          <Field label="Hermes API base URL">
-                            <Input
-                              aria-label="Hermes API base URL"
-                              value={gatewayUrl}
-                              onChange={(event) => {
-                                setGatewayUrl(event.target.value);
-                                resetTest();
-                              }}
-                              placeholder="https://hermes.example.com"
-                            />
-                          </Field>
                         )}
                         {usingKimiApi && (
                           <div className="grid gap-5 sm:grid-cols-2">
@@ -1486,7 +1451,7 @@ function Setup({
                           </>
                         )}
                       </section>
-                      {!spaceBound && adapterType !== "hermes_gateway" && adapterType !== "cursor_cloud" && (
+                      {!spaceBound && adapterType !== "cursor_cloud" && (
                         <section className="space-y-5">
                           <h3 className="text-sm font-semibold">Environment</h3>
                           <select

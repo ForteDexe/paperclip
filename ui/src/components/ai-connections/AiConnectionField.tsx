@@ -41,7 +41,6 @@ export function aiProviderForAdapter(
       copilot_runtime: "github",
       antigravity_runtime: "google",
       gemini_local: "google",
-      hermes_local: "openrouter",
     } as Record<string, AiProvider>
   )[adapterType];
 }

@@ -49,7 +49,7 @@ async function mount(accounts: AiManagedConnectionSummary[] = [account], harness
   await render(value);
 }
 
-it.each(["opencode_local", "pi_local", "codex_local", "claude_local", "hermes_local"])("automatically discovers an empty OpenRouter connection's models for %s", async harness => {
+it.each(["opencode_local", "pi_local", "codex_local", "claude_local"])("automatically discovers an empty OpenRouter connection's models for %s", async harness => {
   await mount([account], harness);
   await vi.waitFor(() => expect(result?.models).toHaveLength(3));
   expect(agentsApi.adapterModels).toHaveBeenCalledWith("space", "opencode_local", { provider: "openrouter" });

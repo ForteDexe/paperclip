@@ -47,9 +47,7 @@ const HARNESS_LABELS: Record<string, string> = {
   claude_local: "Claude Code", codex_local: "Codex", opencode_local: "OpenCode",
   pi_local: "Pi", kimi_local: "Kimi Code", gemini_local: "Gemini CLI",
   cursor: "Cursor", cursor_cloud: "Cursor Cloud", grok_local: "Grok CLI",
-  hermes_local: "Hermes CLI", outpost_runner: "Outpost Runner",
-  process: "Process", http: "HTTP", openclaw_gateway: "OpenClaw Gateway",
-  hermes_gateway: "Hermes Gateway",
+  outpost_runner: "Outpost Runner", process: "Process", http: "HTTP",
 };
 
 function harnessLabel(agent: Agent | undefined): string {

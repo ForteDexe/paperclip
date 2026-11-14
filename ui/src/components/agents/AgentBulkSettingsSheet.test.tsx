@@ -16,7 +16,7 @@ vi.mock("@/api/ai-connections", () => ({ aiConnectionsApi: { list: api.accounts 
 let root: Root;
 let client: QueryClient;
 const onClose = vi.fn();
-const agent = (id: string, adapterType: Agent["adapterType"] = "hermes_local"): Agent => ({
+const agent = (id: string, adapterType: Agent["adapterType"] = "codex_local"): Agent => ({
   ...storybookAgents[0], id, name: id, spaceId: "space-1", adapterType,
   adapterConfig: { model: "old-model" }, runtimeConfig: {},
 });
@@ -119,15 +119,15 @@ describe("bulk model editing", () => {
     }), "space-1");
   });
 
-  it("saves a manual Hermes model when the local adapter has no catalog", async () => {
-    const hermes = agent("Hermes");
-    api.update.mockResolvedValue({ ...hermes, adapterConfig: { model: "provider/custom-model" } });
-    await render([hermes]);
+  it("saves a manual Codex model when the local adapter has no catalog", async () => {
+    const codex = agent("Codex");
+    api.update.mockResolvedValue({ ...codex, adapterConfig: { model: "provider/custom-model" } });
+    await render([codex]);
     await chooseModel("provider/custom-model", true);
     await vi.waitFor(() => expect(button("Update 1 agent").disabled).toBe(false));
     await act(async () => button("Update 1 agent").click());
-    await vi.waitFor(() => expect(onClose).toHaveBeenCalledWith(["Hermes"], true));
-    expect(api.update).toHaveBeenCalledWith("Hermes", expect.objectContaining({ model: "provider/custom-model", harness: "hermes_local" }), "space-1");
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalledWith(["Codex"], true));
+    expect(api.update).toHaveBeenCalledWith("Codex", expect.objectContaining({ model: "provider/custom-model", harness: "codex_local" }), "space-1");
   });
 
   it("does not offer manual entry for a restricted connection catalog", async () => {

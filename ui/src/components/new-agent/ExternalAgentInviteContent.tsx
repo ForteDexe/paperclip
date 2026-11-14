@@ -9,7 +9,7 @@ import { Button } from "../ui/button";
 import { DialogDescription, DialogTitle } from "../ui/dialog";
 import { cn } from "@/lib/utils";
 
-export type ExternalAgentPreset = "dot" | "grok_bot" | "muse" | "hermes" | "other";
+export type ExternalAgentPreset = "dot" | "grok_bot" | "muse" | "other";
 export type DotConnectionState = {
   phase: "waiting" | "connected" | "subscribed" | "testing" | "finishing" | "ready";
   problem?: "event_timeout" | "prompt_unavailable" | "offline" | "agent_unavailable";
@@ -19,7 +19,6 @@ const presets = [
   { id: "dot", name: "Dot", adapter: "openai_dot", description: "Your Dot in ChatGPT" },
   { id: "grok_bot", name: "Grok Bot", adapter: "grok_bot", description: "An existing Bot in Grok" },
   { id: "muse", name: "Muse — Personal agent", adapter: "muse", description: "Your personal Muse at muse.ai" },
-  { id: "hermes", name: "Hermes", adapter: "hermes_gateway", description: "An existing Hermes agent" },
   { id: "other", name: "Other", adapter: "http", description: "Any agent that can connect to Outpost" },
 ] as const;
 
@@ -178,7 +177,7 @@ export function ExternalAgentInviteContent({
         {provider && <AdapterMark type={provider.adapter} className="size-10" />}
         <div className="space-y-2">
           <DialogTitle className="text-xl font-semibold tracking-tight">
-            {!provider ? "Invite an external agent" : muse ? ready ? "Muse is connected" : museDetails || museAwaitingInvitation ? "Invite your Muse" : "Connect your Muse" : dot ? ready ? "Your Dot is connected" : "Connect your Dot" : preset === "hermes" ? "Invite your Hermes agent" : "Invite your agent"}
+            {!provider ? "Invite an external agent" : muse ? ready ? "Muse is connected" : museDetails || museAwaitingInvitation ? "Invite your Muse" : "Connect your Muse" : dot ? ready ? "Your Dot is connected" : "Connect your Dot" : "Invite your agent"}
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
             {!provider ? `Bring an agent you already use into ${spaceName}.`
@@ -192,7 +191,7 @@ export function ExternalAgentInviteContent({
               : connection.phase === "finishing" ? "Your Dot has connected and confirmed task updates. Outpost is preparing it for assignments."
               : connecting ? "Your Dot has connected. We’re checking that task updates can travel both ways."
               : dot ? "Copy the setup prompt and send it to your Dot in ChatGPT. Your Dot will connect itself; we’ll watch for it here."
-              : `Copy the invitation prompt and send it to your ${preset === "hermes" ? "Hermes " : ""}agent. Approve its join request in Outpost when it’s ready.`}
+              : "Copy the invitation prompt and send it to your agent. Approve its join request in Outpost when it’s ready."}
           </DialogDescription>
         </div>
       </div>

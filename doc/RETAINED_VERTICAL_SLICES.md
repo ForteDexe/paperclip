@@ -143,6 +143,7 @@ silently excluded. Top-level adapter-schema secret normalization and runtime
 resolution are removed because the retained Codex and Claude adapters use local
 authentication plus explicit environment-variable bindings; environment secret
 bindings remain supported. Space portability also no longer injects OpenClaw
-defaults. Remaining gateway branches in UI registries and shared compatibility
-contracts are tracked as subsequent dependency-guided removal work and are not
-considered retained.
+defaults. Gateway-specific display metadata, onboarding fields, credentials,
+external-agent presets, model ordering, and chat labels are removed from the
+UI. Remaining gateway branches in shared compatibility contracts are tracked
+as subsequent dependency-guided removal work and are not considered retained.

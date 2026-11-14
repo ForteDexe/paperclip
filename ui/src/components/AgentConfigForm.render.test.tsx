@@ -127,22 +127,20 @@ vi.mock("../context/SpaceContext", () => ({
 vi.mock("../adapters", () => ({
   getUIAdapter: (type: string) => ({
     type,
-    label: type === "hermes_gateway" ? "Hermes Gateway" : "Codex",
+    label: "Codex",
     // The stand-in also records the two gates the form resolves for every
     // adapter, so a test can assert the plumbing without rendering a real
     // adapter's fields.
     ConfigFields: (props: AdapterConfigFieldsProps) => {
       if (type === "outpost_runner") return <CodexLocalConfigFields {...props} />;
-      const { adapterType, hideInstructionsFile, managedSandboxOnly } = props;
-      return adapterType === "hermes_gateway"
-        ? <div data-testid="hermes-gateway-config-fields">Hermes Gateway fields</div>
-        : (
-          <div
-            data-testid="adapter-config-fields"
-            data-hide-instructions-file={String(hideInstructionsFile === true)}
-            data-managed-sandbox-only={String(managedSandboxOnly === true)}
-          />
-        );
+      const { hideInstructionsFile, managedSandboxOnly } = props;
+      return (
+        <div
+          data-testid="adapter-config-fields"
+          data-hide-instructions-file={String(hideInstructionsFile === true)}
+          data-managed-sandbox-only={String(managedSandboxOnly === true)}
+        />
+      );
     },
     buildAdapterConfig: (values: { model?: string }) => ({
       model: values.model || undefined,
@@ -173,22 +171,14 @@ const mockLoginProjections = vi.hoisted(
 vi.mock("../adapters/use-adapter-capabilities", () => ({
   useAdapterCapabilities: () => (adapterType: string) => {
     const login = mockLoginProjections.get(adapterType);
-    return adapterType === "hermes_gateway"
-      ? {
-          supportsInstructionsBundle: false,
-          supportsSkills: false,
-          supportsLocalAgentJwt: false,
-          requiresMaterializedRuntimeSkills: false,
-          supportsAcp: false,
-        }
-      : {
-          supportsInstructionsBundle: true,
-          supportsSkills: true,
-          supportsLocalAgentJwt: true,
-          requiresMaterializedRuntimeSkills: false,
-          supportsAcp: true,
-          ...(login ? { login } : {}),
-        };
+    return {
+      supportsInstructionsBundle: true,
+      supportsSkills: true,
+      supportsLocalAgentJwt: true,
+      requiresMaterializedRuntimeSkills: false,
+      supportsAcp: true,
+      ...(login ? { login } : {}),
+    };
   },
 }));
 
@@ -1020,8 +1010,8 @@ describe("AgentConfigForm environment selector", () => {
     }
   });
 
-  it.each(["codex", "claude", "grok"].flatMap(harness => ["modelReasoningEffort", "reasoningEffort", "effort"].map(key => ({ harness, key }))))("hydrates saved effort and clears explicit Auto for $harness ($key)", async ({ harness, key }) => {
-    const profile = harness === "codex" ? { provider: "codex", model: "gpt-5.6-sol" } : { provider: "acpx", acpxAgent: harness, model: harness === "grok" ? "grok-4.7" : "claude-opus-5-5" };
+  it.each(["codex", "claude"].flatMap(harness => ["modelReasoningEffort", "reasoningEffort", "effort"].map(key => ({ harness, key }))))("hydrates saved effort and clears explicit Auto for $harness ($key)", async ({ harness, key }) => {
+    const profile = harness === "codex" ? { provider: "codex", model: "gpt-5.6-sol" } : { provider: "acpx", acpxAgent: harness, model: "claude-opus-5-5" };
     const result = await renderForm([], { adapterType: "outpost_runner", adapterConfig: { ...profile, [key]: "high" } });
     roots.push(result.root);
     const effort = result.container.querySelector('[aria-label="Thinking effort"]');
@@ -1312,23 +1302,6 @@ describe("AgentConfigForm environment selector", () => {
     } finally {
       accountList.mockRestore();
     }
-  });
-
-  it.each(["grok_local", "outpost_runner"])("saves Grok 4.7 reasoning effort using the runtime key on %s", async adapterType => {
-    const result = await renderForm([], { adapterType, adapterConfig: { ...(adapterType === "outpost_runner" ? { provider: "acpx", acpxAgent: "grok" } : {}), model: "grok-4.7", reasoningEffort: "high" } });
-    roots.push(result.root);
-    const effort = [...result.container.querySelectorAll("button")].find(button => button.textContent?.trim() === "High")!;
-    expect(effort).toBeTruthy();
-    await act(async () => effort.click());
-    await flushReact();
-    const xhigh = [...document.querySelectorAll("button")].find(button => button.textContent?.trim() === "X-Highxhigh")!;
-    expect(xhigh).toBeTruthy();
-    await act(async () => xhigh.click());
-    await flushReact();
-    const save = [...result.container.querySelectorAll("button")].find(button => button.textContent?.trim() === "Save")!;
-    await act(async () => save.click());
-    expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({ adapterConfig: expect.objectContaining({ reasoningEffort: "xhigh" }) }));
-    expect(result.onSave.mock.calls[0][0].adapterConfig.effort).toBeUndefined();
   });
 
   it("hides the environment override when Local is the only configured environment", async () => {
@@ -1674,23 +1647,6 @@ describe("AgentConfigForm environment selector", () => {
     const selector = await environmentOptions(result.container);
     expect(selector?.textContent).toContain("Default: Outpost Sandbox");
     expect(selector?.textContent).not.toContain("Outpost Computer");
-  });
-
-  it("renders non-local adapter config fields in the Adapter card", async () => {
-    const result = await renderForm(
-      [makeEnvironment({ id: "local-1", name: "Local", driver: "local" })],
-      {
-        adapterType: "hermes_gateway",
-        adapterConfig: {
-          apiBaseUrl: "http://127.0.0.1:8642",
-          apiKey: { type: "secret_ref", secretId: "11111111-1111-4111-8111-111111111111" },
-        },
-      },
-    );
-    roots.push(result.root);
-
-    expect(result.container.querySelector('[data-testid="hermes-gateway-config-fields"]')).toBeTruthy();
-    expect(result.container.textContent).toContain("Hermes Gateway fields");
   });
 
   it("tests a Codex agent after clearing the primary model to the adapter default", async () => {
