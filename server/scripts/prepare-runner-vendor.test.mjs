@@ -58,7 +58,6 @@ function makeRepo() {
     "packages/outpost-runner/dist/testing.js": "export {};\n",
     "packages/outpost-runner/dist/cli/acpx-runtime-sidecar.cjs": "module.exports = {};\n",
     [`packages/outpost-runner/dist/bin/${executable}`]: "binary\n",
-    "packages/outpost-eval-kernel/src/index.ts": "export const kernel = 1;\n",
   });
   const packageRoot = path.join(repoRoot, "packages", "outpost-runner");
   return { repoRoot, packageRoot };

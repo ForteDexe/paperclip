@@ -87,14 +87,12 @@ async function makeRepo() {
     "packages/outpost-runner/dist-browser/index.js": "browser\n",
     "packages/outpost-runner/node_modules/dep/index.js": "dep\n",
     "packages/outpost-runner/.vite/cache.json": "{}\n",
-    "packages/outpost-eval-kernel/src/index.ts": "export const kernel = 1;\n",
-    "packages/outpost-eval-kernel/dist/index.js": "export const kernel = 1;\n",
   });
   const packageRoot = path.join(repoRoot, "packages", "outpost-runner");
   return { repoRoot, packageRoot };
 }
 
-const INPUT_FILE_COUNT = 10;
+const INPUT_FILE_COUNT = 9;
 const OUTPUT_FILE_COUNT = 5;
 
 async function withRepo(action) {
@@ -107,17 +105,16 @@ async function withRepo(action) {
 }
 
 /** A complete, undisturbed build: begin, (nothing changes), finish. */
-function recordCurrentBuild({ repoRoot, packageRoot, platform, arch, now }) {
+function recordCurrentBuild({ repoRoot, packageRoot, platform = "linux", arch = "x64", now }) {
   beginRunnerBuild({ repoRoot, packageRoot, platform, arch, now });
   return recordRunnerBuild({ repoRoot, packageRoot, platform, arch, now });
 }
 
-test("the input set covers sources, the eval kernel, root patches and root config, and skips outputs and caches", async () => {
+test("the input set covers sources, root patches and root config, and skips outputs and caches", async () => {
   await withRepo(async ({ repoRoot }) => {
     const files = collectBuildInputFiles(repoRoot);
     assert.deepEqual(files, [
       "package.json",
-      "packages/outpost-eval-kernel/src/index.ts",
       "packages/outpost-runner/package.json",
       "packages/outpost-runner/runner/src/main.rs",
       "packages/outpost-runner/src/index.ts",
@@ -161,11 +158,10 @@ test("the digest is stable, ignores outputs and caches, and tracks every kind of
       "packages/outpost-runner/.vite/cache.json": '{"changed":true}\n',
       "packages/outpost-runner/runner/target/release/outpost-runnerd": "rebuilt\n",
       "packages/outpost-runner/provider-assets/copilot/copilot": "installed by the build\n",
-      "packages/outpost-eval-kernel/dist/index.js": "changed\n",
     });
     assert.equal(computeBuildInputsDigest(repoRoot).digest, before.digest, "an output changed the digest");
 
-    // Every input kind changes it: TypeScript, Rust, the eval kernel, a root
+    // Every input kind changes it: TypeScript, Rust, a root
     // patch, root config, a new file, a rename.
     const seen = new Set([before.digest]);
     const expectChange = async (label, files) => {
@@ -176,7 +172,6 @@ test("the digest is stable, ignores outputs and caches, and tracks every kind of
     };
     await expectChange("a Runner source", { "packages/outpost-runner/src/index.ts": "export const one = 2;\n" });
     await expectChange("a Rust source", { "packages/outpost-runner/runner/src/main.rs": "fn main() { }\n" });
-    await expectChange("an eval-kernel source", { "packages/outpost-eval-kernel/src/index.ts": "export const kernel = 2;\n" });
     await expectChange("the pi-acp patch the build copies into dist", { "patches/pi-acp@0.0.33.patch": "--- c\n+++ d\n+e\n" });
     await expectChange("the acpx patch the profile check hashes", { "patches/acpx@0.22.0.patch": "--- a\n+++ b\n+c\n" });
     await expectChange("a new patch", { "patches/brace-expansion@5.0.9.patch": "--- x\n+++ y\n" });
@@ -191,7 +186,8 @@ test("the digest is stable, ignores outputs and caches, and tracks every kind of
 test("a symlink is hashed as its target path, not followed", async () => {
   await withRepo(async ({ repoRoot, packageRoot }) => {
     const before = computeBuildInputsDigest(repoRoot);
-    await symlink("../node_modules/dep", path.join(packageRoot, "src", "linked"), "dir");
+    const dependency = path.join(packageRoot, "node_modules", "dep");
+    await symlink(dependency, path.join(packageRoot, "src", "linked"), process.platform === "win32" ? "junction" : "dir");
     const linked = computeBuildInputsDigest(repoRoot);
     assert.notEqual(linked.digest, before.digest, "the link itself is an input");
     assert.equal(linked.fileCount, before.fileCount + 1, "the link target's files were followed");
@@ -226,7 +222,7 @@ test("a build is current only with a matching stamp and every recorded output in
     const current = assess();
     assert.equal(current.current, true, current.detail);
     assert.equal(current.code, "inputs_unchanged");
-    assert.match(current.detail, /10 files and 5 outputs checked/);
+    assert.match(current.detail, /9 files and 5 outputs checked/);
 
     assert.equal(assessRunnerBuild({ repoRoot, packageRoot, platform: "win32", arch }).code, "platform_mismatch");
     assert.equal(assessRunnerBuild({ repoRoot, packageRoot, platform, arch: "arm64" }).code, "platform_mismatch");
@@ -355,7 +351,7 @@ test("a build that did not begin, or that left a required output missing, cannot
   });
 });
 
-test("record-build-inputs.mjs brackets the build for the package it is pointed at", async () => {
+test("record-build-inputs.mjs brackets the build for the package it is pointed at", { skip: process.platform === "win32" }, async () => {
   await withRepo(async ({ repoRoot, packageRoot }) => {
     const run = (...args) => execFileAsync(process.execPath, [recordScript, ...args, "--package-root", packageRoot]);
     const expected = computeBuildInputsDigest(repoRoot);

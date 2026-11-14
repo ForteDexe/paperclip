@@ -87,7 +87,6 @@ test("the patched Codex ACP executable digest stays aligned across launch bounda
 
 test("the package exposes only the reviewed runner CLI binaries", () => {
   assert.deepEqual(runnerPackage.bin, {
-    "outpost-runner-eval-session": "./dist/cli/eval-session.js",
     "outpost-runner-codex-proxy": "./dist/cli/codex-app-server-unix-proxy.js",
     "outpost-runner-acpx-sidecar": "./dist/cli/acpx-runtime-sidecar.js",
     "outpost-runner-copilot-metadata-probe": "./dist/cli/copilot-metadata-probe.js",

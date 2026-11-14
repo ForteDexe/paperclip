@@ -44,7 +44,7 @@ const lifecycleRequirements = [
   ["bounds", "bounded queues, logs, frames, and retries", "src/live/turn-stream.test.ts; runner/crates/runner-core/src/durable/runner.rs"],
   ["cleanup", "process-group cleanup with no abandoned provider", "runner/crates/runner-core/tests/process_supervisor.rs"],
   ["secrets", "secret isolation and network restrictions", "src/live/clean-room-server.test.ts; runner/crates/runner-core/src/durable/runner.rs"],
-  ["transcript-accounting", "assistant transcript capture, token usage, and cost inputs", "src/live/live-session.test.ts; src/cli/eval-session.ts"],
+  ["transcript-accounting", "assistant transcript capture and token usage", "src/live/live-session.test.ts"],
   ["state-reconstruction", "fixture and post-run state reconstruction", "src/scenarios/scenario-explorer.test.ts; src/live/live-session.test.ts"],
   ["outpost-adapter-selection", "outpost_runner is selectable without changing legacy adapter behavior", "server/src/services/native-runtime/runtime-mode.test.ts"],
   ["real-control-plane-binding", "advertised runner tools re-authorize the live space, issue, agent, and run before using real Outpost services", "server/src/services/native-runtime/outpost-runner-tool-authority.test.ts; server/src/services/native-runtime/outpost-runner-real-server.integration.test.ts"],

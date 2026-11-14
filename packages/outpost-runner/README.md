@@ -156,15 +156,7 @@ usage projection; the shared driver and sidecar consume those hooks.
 - `@outpost/outpost-runner/testing` — deterministic mocks plus ORP and
   semantic conformance kits. Tests and external conformance consumers import
   this explicitly.
-- `@outpost/outpost-runner/evals` — versioned native-attempt metadata,
-  fail-closed package/binary compatibility checks, and explicit runnerd
-  artifact resolution for eval consumers.
-
-The package root has no mock or scenario exports. Generic credential-free
-matrix orchestration lives in the workspace-private
-`@outpost/outpost-eval-kernel`; scenario content and provider-backed eval
-campaigns remain outside the runtime package.
-See [ADR 0001](docs/adr/0001-runner-testing-eval-package-boundaries.md).
+The package root has no mock or scenario exports.
 
 The two conformance surfaces intentionally prove different contracts. The
 existing `runControlPlanePortConformance` suite checks narrow ORP run/event
@@ -764,60 +756,7 @@ JSON file and omit `CODEX_NOTIFICATION_SANDBOX_COMMAND`; that only exports a
 synthetic producer fixture for a separately controlled Linux sandbox. Exporting
 the fixture does not execute or verify the sandbox.
 
-## Direct live protocol qualification
-
-The canonical direct live protocol suite lives in the separate
-`outpost-evals` repository under `evals/outpost-runner/`. Its
-`live-mini.json` roster is the complete 35-case Codex qualification lane. Build
-this package's TypeScript output, release `outpost-runnerd`, package tarball,
-and `dist-issue-thread` viewer, then use the roster runner documented in that
-repository. The package ships the required orchestration entry point as
-`outpost-runner-eval-session` (`dist/cli/eval-session.js`). Evalbook owns the
-consistent HTML matrix and read-only attempt drill-down pages.
-
-This direct protocol qualification is separate from the stress-derived Runner
-workflow schedule below and from the full-stack browser model E2E suite.
-
-## Stress-derived workflow, chaos, and AWS AgentCore operations
-
-The deterministic workflow scorer and the chaos schedule do not require
-provider credentials:
-
-```sh
-pnpm --filter @outpost/outpost-runner test:runner-workflow-evals
-pnpm --filter @outpost/outpost-runner report:runner-chaos-evals
-```
-
-`report:runner-live-evals` is a paid, provider-backed command. Native Codex
-requires `OPENAI_API_KEY`; ACPX Claude requires
-`ANTHROPIC_API_KEY`; OpenCode candidates require `OPENROUTER_API_KEY`. The live
-matrix remains qualified-only and does not persist credential values. Candidate
-qualification uses `eval-session --candidate-profile <pi|cursor|copilot>` with an
-explicit model and a separately materialized pinned candidate pack. This option
-is a constructor-bound diagnostic opt-in; session JSON cannot enable a candidate.
-Missing credentials or unverifiable spend block paid qualification. Set
-`OUTPOST_EVAL_MAX_CAMPAIGN_COST_USD` to a positive finite number to bound
-additional scheduling after the observed campaign total reaches that value:
-
-```sh
-OUTPOST_EVAL_MAX_CAMPAIGN_COST_USD=12 \
-  OUTPOST_EVALS_ROOT=/path/to/outpost-evals \
-  pnpm --filter @outpost/outpost-runner report:runner-live-evals
-
-# Run two scheduled native Codex executions only.
-OUTPOST_EVALS_ROOT=/path/to/outpost-evals \
-  pnpm --filter @outpost/outpost-runner report:runner-live-evals -- \
-  --candidate codex-luna --limit 2
-```
-
-GitHub-hosted live campaigns additionally require the default branch, an
-allowlisted numeric actor ID, the protected `runner-e2e-paid` environment, and
-an explicit repository variable before scheduled runs are enabled. Manual
-dispatches accept the same candidate, case, and execution-limit selectors. The
-paid job uses the reviewed RunsOn Fleet label when `RUNNER_E2E_AWS_ENABLED=true`
-and otherwise stays on `ubuntu-latest`. Uploaded reports contain redacted
-observations and trace digests, not raw provider
-frames, prompts, credentials, tool arguments, or hidden reasoning.
+## AWS AgentCore operations
 
 The AgentCore proof-of-concept uses an AWS CLI v2 profile to provision a
 dedicated invocation role and scoped resources. Its local mode-`0600` metadata
@@ -871,10 +810,6 @@ recorded lab unless `--force` is also supplied.
 | `check:package-boundaries`                              | Enforce the acyclic runtime/testing/eval dependency and manifest boundary.                                                                  |
 | `check:clean-consumers`                                 | Pack the runner and install its root, evals, and testing exports in a clean consumer.                                                       |
 | `test:eval-slice`                                       | Run the credential-free eval bundle, scoring, and behavior/fault slice.                                                                     |
-| `test:runner-workflow-evals`                            | Run the deterministic provider-neutral workflow matrix.                                                                                     |
-| `report:runner-workflow-evals`                          | Validate deterministic fail-closed results and write JSON, Markdown, JUnit, and GitHub-safe reports.                                        |
-| `report:runner-live-evals`                              | Execute the paid provider schedule and render its immutable attempts with the canonical `outpost-evals` HTML grid.                        |
-| `report:runner-chaos-evals`                             | Write the credential-free eight-scenario chaos schedule.                                                                                    |
 | `test:aws-agentcore-provisioning`                       | Validate the AgentCore template and wrapper safety contracts without provisioning.                                                          |
 | `aws-agentcore:provision` / `probe` / `lab` / `destroy` | Manage the scoped AgentCore proof-of-concept lifecycle.                                                                                     |
 | `smoke:capability:aws-agentcore`                        | Exercise the qualified AgentCore profile through the capability harness.                                                                    |

@@ -33,8 +33,6 @@
 //
 // Inputs: every file under packages/outpost-runner except its build outputs
 // (dist, dist-browser, runner/target, provider-assets), node_modules and dot-directories (tool
-// caches); every file under packages/outpost-eval-kernel except dist and
-// node_modules, because build:typescript builds that package first; every
 // file under the root patches directory, because check:acpx-profiles hashes
 // the acpx patch and build-verified-provider-entrypoints.mjs copies the pi-acp
 // and brace-expansion patches into dist; and the root files the Runner's
@@ -66,7 +64,6 @@ import { fileURLToPath } from "node:url";
 export const BUILD_INPUTS_SCHEMA = "outpost.runner-build-inputs.v2";
 
 const RUNNER_PACKAGE_RELATIVE = "packages/outpost-runner";
-const EVAL_KERNEL_PACKAGE_RELATIVE = "packages/outpost-eval-kernel";
 const ROOT_INPUT_DIRECTORIES = ["patches"];
 const ROOT_INPUT_FILES = [
   "package.json",
@@ -200,7 +197,6 @@ const INPUT_WALK = {
 export function collectBuildInputFiles(repoRoot) {
   const files = [];
   walk(repoRoot, RUNNER_PACKAGE_RELATIVE, { ...INPUT_WALK, skippedDirectories: RUNNER_SKIPPED_DIRECTORIES }, files);
-  walk(repoRoot, EVAL_KERNEL_PACKAGE_RELATIVE, INPUT_WALK, files);
   for (const directory of ROOT_INPUT_DIRECTORIES) walk(repoRoot, directory, INPUT_WALK, files);
   for (const name of ROOT_INPUT_FILES) {
     if (existsSync(path.join(repoRoot, name))) files.push(name);

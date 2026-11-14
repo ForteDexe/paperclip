@@ -47,24 +47,6 @@ The manually configured Outpost MCP server also advertises `connections_search` 
 
 Legacy `request_confirmation.payload.connectionAuthorization` interactions remain readable and resolvable. New agent requests use `connection_intent` exclusively.
 
-## Model evaluations
-
-The companion `outpost-evals` repository owns the connection cases in
-`evals/runner-api-tools/connection-cases.json`. They use the existing real-server
-API-tool eval controller and `scripts/runner-api-eval-worker.ts`, with this
-checkout's production tool definitions, connection guidance, and authority.
-Natural prompts measure discovery and request selection; explicit contract probes
-measure deduplication, readiness, and denied targets. The fixture helper supplies
-isolated space records and retains initial and final connection interaction
-state. Scoring requires observed calls/results and persisted state, not an
-assistant's claim of having connected.
-
-These tool evals do not perform live provider OAuth or establish browser quality.
-The native and legacy connection browser suites separately cover setup and
-continuation, while the live-provider journey report records actual authorization
-and data-read coverage.
-
-
 ## Custom targets, readiness and recovery
 
 Catalog slugs remain stable. Search also returns `connection:<uuid>` for configured custom connections whose active identity grants authorize the responsible person, their space, or the requesting agent. Identifiers are never interpreted as URLs. Configured metadata and tool descriptions, including catalog-provider descriptions, are read only after the space and identity audience checks. Setup choices expose only display and selection metadata; they never include connection configuration, transport settings, or credential fields. Discovery reads the stored index without refreshing providers. Search is ranked with exact provider matches first and capped at 20 results.

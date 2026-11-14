@@ -155,7 +155,7 @@ its trusted-publisher identity.
 Before enabling the switch, deploy the separate Fleet and restrict its GitHub
 runner group to repository ID `1170821064` and these workflows at
 `refs/heads/master`: `cloud-readiness.yml`,
-`release-verify.yml`, `runner-chaos-evals.yml`, `release.yml`, and `docker.yml`.
+`release-verify.yml`, `release.yml`, and `docker.yml`.
 The Docker workflow uses this group for its exact-source monitor and proof wait. Do not authorize
 PR-controlled workflow versions. The direct migrator producer always uses
 GitHub-hosted runners and needs no AWS runner-group authorization. PR placement retains its independent pinned

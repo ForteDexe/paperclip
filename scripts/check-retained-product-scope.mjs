@@ -27,6 +27,10 @@ const retiredPackages = [
     name: "@outpost/create-outpost-plugin",
     root: "packages/plugins/create-outpost-plugin",
   },
+  {
+    name: "@outpost/outpost-eval-kernel",
+    root: "packages/outpost-eval-kernel",
+  },
 ];
 
 const registrationFiles = [
@@ -43,10 +47,15 @@ const retiredInfrastructure = [
   ".github/workflows/chat-feature-testops-retained-verification.yml",
   ".github/workflows/runner-e2e-testops-registration.yml",
   ".github/workflows/runner-protocol-live-evals.yml",
+  ".github/workflows/runner-live-evals.yml",
+  ".github/workflows/runner-chaos-evals.yml",
   "packages/outpost-runner/scripts/runner-protocol-testops.mjs",
   "tests/runner-e2e/chat-full-catalog-testops-manifest.json",
   "tests/runner-e2e/testops-chat-admission.ts",
   "tests/runner-e2e/chat-remote-host.ts",
+  "packages/outpost-runner/src/eval",
+  "packages/outpost-runner/src/evals",
+  "packages/outpost-runner/src/cli/eval-session.ts",
 ];
 
 async function exists(relativePath) {

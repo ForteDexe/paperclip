@@ -152,10 +152,7 @@ describe("server package build script", () => {
 
     expect(wrapped.filter(compiles)).toEqual(["build:typescript"]);
     expect(steps).toContain("node scripts/generate-semantic-contracts.mjs --check");
-    expect(steps).toContain("node scripts/check-runner-workflow-traceability.mjs");
     expect(steps.indexOf("node scripts/generate-semantic-contracts.mjs --check"))
-      .toBeGreaterThan(steps.indexOf("pnpm run build:typescript"));
-    expect(steps.indexOf("node scripts/check-runner-workflow-traceability.mjs"))
       .toBeGreaterThan(steps.indexOf("pnpm run build:typescript"));
   });
 

@@ -13,8 +13,7 @@ const expectedJobs = {
   "docker.yml": ["source_verification", "publication_verification"],
   "cloud-readiness.yml": ["admission", "source_verified"],
   "cloud-migrator-artifacts.yml": [],
-  "release-verify.yml": ["typecheck", "general_tests", "serialized_tests", "runner_workflow_evals", "verify_outpost_runner", "build"],
-  "runner-chaos-evals.yml": ["chaos_and_recovery"],
+  "release-verify.yml": ["typecheck", "general_tests", "serialized_tests", "verify_outpost_runner", "build"],
   "release.yml": ["plan_preview", "package_preview"],
 };
 for (const [file, expectedNames] of Object.entries(expectedJobs)) {
@@ -28,7 +27,7 @@ for (const [file, expectedNames] of Object.entries(expectedJobs)) {
     const expression = body.match(/^    runs-on: \$\{\{ (.+) \}\}$/m)?.[1];
     assert.ok(expression, `${file}/${job} must use an explicit runner expression`);
     const release = file === "release.yml";
-    const checkRef = release || file === "release-verify.yml" || file === "runner-chaos-evals.yml";
+    const checkRef = release || file === "release-verify.yml";
     const inputs = { ref: sha, source_ref: sha, channel: "cloud-migrator" };
     const defaultContext = { ...base, event_name: release ? "workflow_dispatch" : "push" };
     const cases = [

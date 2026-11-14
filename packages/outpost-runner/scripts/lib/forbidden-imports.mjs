@@ -10,8 +10,6 @@ const RUST_IMPORT_PATTERNS = [
   /\b(?:include|include_str|include_bytes)!\s*\(\s*["']([^"']+)["']\s*\)/g,
   /#\[path\s*=\s*["']([^"']+)["']\]/g,
 ];
-const REVIEWED_EVAL_KERNEL = "@outpost/outpost-eval-kernel";
-const REVIEWED_EVAL_HARNESS = "src/eval/workflow-harness.ts";
 
 const libraryDirectory = dirname(fileURLToPath(import.meta.url));
 export const defaultPackageRoot = resolve(libraryDirectory, "../..");
@@ -106,42 +104,8 @@ function declaredPublicImports(manifest) {
     .map(([key]) => `@outpost/outpost-runner/${key.slice(2)}`));
 }
 
-function publicSourceGraph(packageRoot, manifest, specifiers) {
-  const known = new Set(specifiers.keys());
-  const sourceCandidates = (path) => {
-    const source = path.replace(/\/dist\//, "/src/");
-    const stem = source.replace(/(?:\.d)?\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/, "");
-    // Follow every matching source candidate conservatively, including barrels
-    // and extensionless imports. A public graph must never hide the dev harness.
-    return [source, ...[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.tsx", "/index.js"]
-      .map((suffix) => `${stem}${suffix}`)].filter((candidate) => known.has(candidate));
-  };
-  const targets = (value) => typeof value === "string" ? [value] : value && typeof value === "object" ? Object.values(value).flatMap(targets) : [];
-  const exportSources = (value) => targets(value).flatMap((target) => {
-    // Wildcard exports can expose the development harness. Until this gate
-    // resolves their full mapping, conservatively treat all sources as public.
-    if (target.includes("*")) return [...known];
-    return sourceCandidates(resolve(packageRoot, target));
-  });
-  const queue = exportSources(manifest.exports);
-  const reachable = new Set();
-  while (queue.length > 0) {
-    const file = queue.pop();
-    if (reachable.has(file)) continue;
-    reachable.add(file);
-    for (const { specifier } of specifiers.get(file) ?? []) {
-      if (specifier.startsWith(".")) queue.push(...sourceCandidates(resolve(dirname(file), specifier)));
-      else if (specifier.startsWith("@outpost/outpost-runner/")) {
-        queue.push(...exportSources(manifest.exports?.[`./${specifier.slice("@outpost/outpost-runner/".length)}`]));
-      }
-    }
-  }
-  return reachable;
-}
-
-// The Live console component decision record adapts shadcn/ui and AI Elements
-// source rather than adopting their runtimes. These packages would reintroduce
-// a second message model or a Tailwind/radix dependency for the demo app.
+// The Live console adapts component source rather than adopting these UI
+// runtimes and their competing message or styling models.
 const BROWSER_FORBIDDEN_PACKAGES = [
   "ai",
   "@ai-sdk",
@@ -163,7 +127,7 @@ function isForbiddenBrowserPackage(specifier) {
   );
 }
 
-function violationReason({ file, packageRoot, specifier, publicRunnerImports, reviewedEvalHarness }) {
+function violationReason({ file, packageRoot, specifier, publicRunnerImports }) {
   const relativeFile = relative(packageRoot, file).split(/[\\/]/).join("/");
   const isExampleConsumer = relativeFile.startsWith("examples/");
   if (
@@ -178,8 +142,7 @@ function violationReason({ file, packageRoot, specifier, publicRunnerImports, re
   if (
     specifier.startsWith("@outpost/") &&
     specifier !== "@outpost/outpost-runner" &&
-    !publicRunnerImports.has(specifier) &&
-    !(specifier === REVIEWED_EVAL_KERNEL && reviewedEvalHarness && relativeFile === REVIEWED_EVAL_HARNESS)
+    !publicRunnerImports.has(specifier)
   ) {
     return "Outpost workspace packages are outside the standalone boundary";
   }
@@ -229,9 +192,7 @@ async function manifestViolations(packageRoot) {
   );
   const unreviewedDevelopmentDependencies = Object.keys(
     manifest.devDependencies ?? {},
-  ).filter(
-    (name) => name.startsWith("@outpost/") && !(name === REVIEWED_EVAL_KERNEL && manifest.devDependencies[name] === "workspace:*"),
-  );
+  ).filter((name) => name.startsWith("@outpost/"));
   return [...runtimeDependencies, ...unreviewedDevelopmentDependencies]
     .filter(
       (name) => name.startsWith("@outpost/") && name !== "@outpost/outpost-runner",
@@ -303,14 +264,9 @@ export async function checkForbiddenImports({
   const sources = await Promise.all(files.sort().map(async (file) => ({ file, source: await readFile(file, "utf8") })));
   const specifiers = findSpecifiersInFiles(sources);
   const publicRunnerImports = declaredPublicImports(manifest);
-  const publicSources = publicSourceGraph(packageRoot, manifest, specifiers);
-  // ADR0001 permits only this private development harness to use the kernel.
-  // A public export reaching it revokes the exception, including through barrels.
-  const reviewedEvalHarness = manifest.devDependencies?.[REVIEWED_EVAL_KERNEL] === "workspace:*"
-    && !publicSources.has(resolve(packageRoot, REVIEWED_EVAL_HARNESS));
   for (const { file, source } of sources) {
     for (const { specifier, offset } of specifiers.get(file)) {
-      const reason = violationReason({ file, packageRoot, specifier, publicRunnerImports, reviewedEvalHarness });
+      const reason = violationReason({ file, packageRoot, specifier, publicRunnerImports });
       if (reason === null) continue;
       violations.push({ file, line: source.slice(0, offset).split("\n").length, specifier, reason });
     }

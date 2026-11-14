@@ -94,27 +94,6 @@ test("source proof gates publication without occupying a publication runner", ()
   }
 });
 
-test("chaos verification isolates callers that verify the same source commit", () => {
-  const chaosWorkflow = readWorkflow("runner-chaos-evals.yml");
-  const group = chaosWorkflow.match(/^  group: (.+)$/m)?.[1];
-  assert.ok(group, "chaos verification must define its concurrency group");
-
-  // GitHub supplies the top-level caller's workflow name to reusable calls.
-  const resolveGroup = (caller, ref) => group
-    .replaceAll("${{ github.workflow }}", readWorkflow(caller).match(/^name: (.+)$/m)[1])
-    .replaceAll("${{ inputs.ref || github.ref }}", ref)
-    .toLowerCase();
-  const sha = "a".repeat(40);
-  const callers = ["cloud-readiness.yml", "release.yml", "runner-chaos-evals.yml"];
-  const groups = callers.map((caller) => resolveGroup(caller, sha));
-  assert.equal(new Set(groups).size, callers.length,
-    "Cloud readiness, Release, and standalone evals must not cancel each other");
-  assert.ok(groups.every((value) => !value.includes("${{")), "resolve every group input");
-  assert.notEqual(resolveGroup("cloud-readiness.yml", sha),
-    resolveGroup("cloud-readiness.yml", "b".repeat(40)), "different sources remain independent");
-  assert.match(chaosWorkflow, /cancel-in-progress: true/);
-});
-
 test("canary can admit deferred exact-source checks while stable keeps full verification", () => {
   const releaseWorkflow = readWorkflow("release.yml");
   const canary = releaseWorkflow.match(/  verify_canary:\n[\s\S]*?(?=\n  [a-z_]+:)/)[0];
@@ -537,17 +516,6 @@ test("release verify workflow covers the same split test surface as stable PR ve
   assert.deepEqual(runnerChecks, runnerScripts["check:all"].split(" && ")
     .map((command) => command.replace(/^pnpm run /, "")));
   assert.match(verifyWorkflow, /pnpm --filter @outpost\/outpost-runner "\$check"/);
-  assert.match(verifyWorkflow, /runner_workflow_evals:/);
-  assert.match(verifyWorkflow, /runner_chaos_evals:/);
-  assert.match(
-    verifyWorkflow,
-    /uses: \.\/\.github\/workflows\/runner-chaos-evals\.yml/,
-  );
-  assert.match(
-    verifyWorkflow,
-    /runner_workflow_evals:[\s\S]*?Install dependencies\n\s+run: pnpm install --no-frozen-lockfile[\s\S]*?Run deterministic Runner workflow scorer tests/,
-  );
-  assert.match(verifyWorkflow, /pnpm test:runner-workflow-evals/);
 
   const buildJob = verifyWorkflow.match(/  build:\n[\s\S]*?(?=\n  [A-Za-z0-9_-]+:|$)/)?.[0] ?? "";
   assert.match(buildJob, /persist-credentials: false/);
@@ -604,18 +572,6 @@ test("release verification builds native test binaries in a required Rust-cached
   assert.doesNotMatch(cloud, /continue-on-error|always\(\)/);
 });
 
-test("chaos verification prepares native Runner binaries before fault suites", () => {
-  const workflow = readWorkflow("runner-chaos-evals.yml");
-  const steps = workflow.split(/\n(?=      - )/);
-  const install = steps.find(step => /run:\s*pnpm install\b/.test(step));
-  const prepare = steps.find(step => /run:\s*pnpm --filter @outpost\/outpost-runner build:rust\b/.test(step));
-  const faults = steps.find(step => /src\/native-session-runtime\.test\.ts/.test(step));
-  assert.ok(install && prepare && faults, "the real Runner fault suite needs its native build prerequisite");
-  assert.ok(steps.indexOf(install) < steps.indexOf(prepare));
-  assert.ok(steps.indexOf(prepare) < steps.indexOf(faults));
-  assert.doesNotMatch(prepare, /^\s+(?:if|continue-on-error):/m);
-});
-
 test("release daemon production uses exact-source native hosts and no publisher or provider permissions", () => {
   const workflow = readWorkflow("release-verify.yml");
   const producer = workflow.split("  runner_binaries:\n")[1];
@@ -640,7 +596,7 @@ test("release daemon production uses exact-source native hosts and no publisher 
   assert.match(runner.scripts['build:binary'], /cargo build --release --manifest-path runner\/Cargo.toml --locked/);
   assert.match(runner.scripts['build:binary'], /&& node scripts\/stage-runner-binary.mjs$/);
   assert.match(producer, /stage-release-runner-binaries.mjs record/);
-  for (const job of ["runner_chaos_evals", "typecheck", "general_tests", "serialized_tests", "runner_workflow_evals", "verify_outpost_runner", "build"]) {
+  for (const job of ["typecheck", "general_tests", "serialized_tests", "verify_outpost_runner", "build"]) {
     assert.ok(workflow.includes(`${job}:\n    if: \${{ !inputs.runner_binaries_only }}`));
   }
   const release = readWorkflow("release.yml");

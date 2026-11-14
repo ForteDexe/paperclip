@@ -28,13 +28,7 @@ recorded in [ADR 0001](adr/0001-runner-testing-eval-package-boundaries.md).
 
 - The package root is runtime-only: ORP, runner/client contracts, normalized
   backends, catalog/dispatcher, and compatibility preflight.
-- `./evals` exposes the stable native-attempt/build-metadata join and explicit
-  digest-verified runnerd artifact resolution.
 - `./testing` contains deterministic mocks and conformance kits.
-- The workspace-private `@outpost/outpost-eval-kernel` contains generic
-  structural matrix orchestration and is a development-only dependency.
-  Runner-specific cases, scorers, and reports remain package-local; paid
-  campaigns remain external.
 
 ## Core contracts
 

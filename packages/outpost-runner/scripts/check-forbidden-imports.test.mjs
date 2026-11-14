@@ -121,83 +121,26 @@ async function fixtureBoundary(t, { manifest = {}, files = {} } = {}) {
   return checkForbiddenImports({ packageRoot: root, scanRoots: ["src"], cargoRoots: [] });
 }
 
-const kernel = "@outpost/outpost-eval-kernel";
-const harness = "src/eval/workflow-harness.ts";
-const reviewedManifest = {
-  exports: { "./evals": "./dist/evals.js" },
-  devDependencies: { [kernel]: "workspace:*" },
-};
+const publicManifest = { exports: { "./testing": "./dist/testing.js" } };
 
 test("only exact declared public subpaths are admitted", async (t) => {
   const violations = await fixtureBoundary(t, {
-    manifest: reviewedManifest,
+    manifest: publicManifest,
     files: { "src/consumer.ts": [
-      'import "@outpost/outpost-runner/evals";',
-      'import "@outpost/outpost-runner/evals/private";',
+      'import "@outpost/outpost-runner/testing";',
+      'import "@outpost/outpost-runner/testing/private";',
       'import "@outpost/outpost-runner/undeclared";',
     ].join("\n") },
   });
   assert.deepEqual(violations.map(({ specifier }) => specifier), [
-    "@outpost/outpost-runner/evals/private", "@outpost/outpost-runner/undeclared",
+    "@outpost/outpost-runner/testing/private", "@outpost/outpost-runner/undeclared",
   ]);
 });
 
-test("ADR0001 permits only the private development harness and reviewed package", async (t) => {
-  assert.deepEqual(await fixtureBoundary(t, {
-    manifest: reviewedManifest,
-    files: { [harness]: `import { scenario } from "${kernel}";`, "src/evals.ts": "export const publicApi = true;" },
-  }), []);
-  for (const [file, specifier] of [
-    ["src/other.ts", kernel], [harness, `${kernel}/private`], [harness, "@outpost/other"],
-  ]) {
-    const violations = await fixtureBoundary(t, {
-      manifest: reviewedManifest, files: { [file]: `import "${specifier}";` },
-    });
-    assert.equal(violations.length, 1);
-    assert.equal(violations[0].specifier, specifier);
-  }
-  assert.equal((await fixtureBoundary(t, {
-    files: { [harness]: `import "${kernel}";` },
-  })).length, 1, "the exception requires the reviewed devDependency declaration");
-});
-
-test("the reviewed kernel is still forbidden in every production dependency group", async (t) => {
-  for (const group of ["dependencies", "optionalDependencies", "peerDependencies"]) {
-    const violations = await fixtureBoundary(t, {
-      manifest: { ...reviewedManifest, [group]: { [kernel]: "workspace:*" } },
-    });
-    assert.equal(violations.length, 1, group);
-    assert.equal(violations[0].specifier, kernel);
-  }
-});
-
-test("direct or transitive public harness exposure revokes the dev-only exception", async (t) => {
-  for (const entry of [
-    "./dist/eval/workflow-harness.js",
-    "./dist/evals.js",
-  ]) {
-    for (const imported of ["./eval/workflow-harness.js", "./eval/workflow-harness"]) {
-      const violations = await fixtureBoundary(t, {
-        manifest: { ...reviewedManifest, exports: { "./evals": { types: "./dist/evals.d.ts", import: entry } } },
-        files: {
-          [harness]: `import "${kernel}";`,
-          "src/evals.ts": 'export * from "./barrel.js";',
-          "src/barrel.ts": `export * from "${imported}";`,
-        },
-      });
-      assert.equal(violations.length, 1, `${entry} via ${imported}`);
-      assert.equal(violations[0].specifier, kernel);
-    }
-  }
-});
-
-
-test("unexpanded wildcard exports cannot expose the reviewed development harness", async (t) => {
+test("workspace development dependencies require explicit review", async (t) => {
   const violations = await fixtureBoundary(t, {
-    manifest: { ...reviewedManifest, exports: { "./eval/*": "./dist/eval/*.js" } },
-    files: { [harness]: `import "${kernel}";` },
+    manifest: { ...publicManifest, devDependencies: { "@outpost/private-helper": "workspace:*" } },
   });
   assert.equal(violations.length, 1);
-  assert.equal(violations[0].specifier, kernel);
-  assert.match(violations[0].reason, /outside the standalone boundary/);
+  assert.equal(violations[0].specifier, "@outpost/private-helper");
 });

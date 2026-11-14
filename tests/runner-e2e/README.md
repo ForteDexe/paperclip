@@ -1296,8 +1296,8 @@ fails before installation. Build from a clean checkout of the source revision
 so the content ID, provenance, and lockfile digest describe the same tree.
 
 The content ID hashes the audited image inputs, including the Dockerfile,
-platform, root package/lock/build configuration, dependency patches,
-`outpost-eval-kernel`, and `outpost-runner`. Changes elsewhere in the
+platform, root package/lock/build configuration, dependency patches, and
+`outpost-runner`. Changes elsewhere in the
 repository keep the same tag and reuse the already signed image. The Git SHA is
 stored separately as image provenance. CI reads that provenance back from a
 reused image when it builds the controller-side provider pack, preserving the

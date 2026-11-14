@@ -8,7 +8,7 @@
 //   cargo-seed/<key>         a cargo target directory with only third-party
 //                            crates in it, keyed by the lockfile, manifests and
 //                            compiler. A fresh worktree starts from a clone.
-//   runner-dist/<key>        the Runner's and the eval kernel's `dist`, keyed by
+//   runner-dist/<key>        the Runner's `dist`, keyed by
 //                            the Runner build-input digest and the toolchain
 //   runner-debug-bins/<key>  the Runner's debug executables, keyed by every
 //                            file the Rust build reads and the toolchain
@@ -46,7 +46,6 @@ import path from "node:path";
 
 export const CACHE_SCHEMA = "outpost.agent-build-cache.v1";
 export const RUNNER_PACKAGE = "packages/outpost-runner";
-export const EVAL_KERNEL_PACKAGE = "packages/outpost-eval-kernel";
 // Entries are touched on every hit, so these keep the most recently used ones.
 // A seed is about 2 GB of mostly shared clone blocks; the others are 30-100 MB.
 const KEEP_ENTRIES = { "cargo-seed": 2, "runner-dist": 12, "runner-debug-bins": 12 };

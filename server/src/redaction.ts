@@ -153,8 +153,6 @@ export const OUTPOST_PUBLIC_SCHEMA_IDS = new Set([
   "outpost.runner.eval-scorecard.v2",
   "outpost.runner.eval-slice-report.v1",
   "outpost.runner.live-console.conformance.v1",
-  "outpost.runner.live-eval-candidate.v1",
-  "outpost.runner.live-eval-schedule.v1",
   "outpost.runner.local-acpx-authority.v1",
   "outpost.runner.local-runner.metadata.v1",
   "outpost.runner.local-runner.summary.v1",

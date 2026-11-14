@@ -1525,8 +1525,7 @@ build. It used to run the Runner's full `build` every time. Now the Runner's
 `build` brackets itself with `scripts/record-build-inputs.mjs`: `--begin`, its
 first step, forgets the previous stamp and records a digest of the build's
 inputs (every file under `packages/outpost-runner` except `dist`,
-`dist-browser`, `runner/target`, `provider-assets` (written by the build), `node_modules` and dot-directories; every
-file under `packages/outpost-eval-kernel` except `dist` and `node_modules`;
+`dist-browser`, `runner/target`, `provider-assets` (written by the build), `node_modules` and dot-directories;
 every file under the root `patches` directory, which the acpx profile check
 hashes and the provider entrypoint bundler copies into `dist`; and the root
 `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and
@@ -4815,7 +4814,7 @@ export NODE24=/absolute/path/to/node-v24.22.2/bin/node
 export PNPM9=/absolute/path/to/pnpm-9.15.4/bin/pnpm
 export PATH="$(dirname "$NODE24"):$(dirname "$PNPM9"):$PATH"
 "$PNPM9" --filter @outpost/server... install --frozen-lockfile --ignore-scripts
-for package in packages/shared packages/plugins/sdk packages/outpost-eval-kernel packages/outpost-runner; do
+for package in packages/shared packages/plugins/sdk packages/outpost-runner; do
   (cd "$package" && "$NODE24" node_modules/typescript/bin/tsc -p tsconfig.json)
 done
 (cd packages/outpost-runner && "$NODE24" node_modules/typescript/bin/tsc -p tsconfig.surfaces.json)
