@@ -2,7 +2,6 @@ import { appendPrivateAttemptDiagnostic, readPrivateAttemptObservation, type Pri
 import { withholdPrivateScreenshots } from "./screenshot-privacy.js";
 import { copyHealthHelloDetail } from "./chat-readiness-detail.js";
 import { copyRetainedSourceSdk } from "./source-sdk-evidence.js";
-import { prepareChatRemoteHost } from "./chat-remote-host.js";
 import { POSTGRES_ARTIFACT_ENV, POSTGRES_IMAGE_ID_ENV } from "./docker-postgres.js";
 import { prepareOwnedPublicOrigin, PublicOriginCleanupError, PUBLIC_ORIGIN_CONTROL_ENV, PUBLIC_ORIGIN_RECEIPT_ENV } from "./chat-public-origin.js";
 import { DATABASE_LANE_ENV, DOCKER_DATABASE_ENV, dockerDatabaseLaunchState, publicDockerDatabaseIdentity, selectedDatabaseLane, startOwnedDockerDatabase } from "./docker-postgres.js";
@@ -1267,14 +1266,6 @@ async function main() {
   await loadLocalEnvironment(process.env);
   resultsRoot = manualPrivateHandoff ? path.join(manualPrivateHandoff.root, "results") : resolveRunnerE2EResultsRoot(repositoryRoot);
   const summaryDir = await prepareRunnerE2ECampaignDirectory(resultsRoot, campaignId);
-  const remoteChat = await prepareChatRemoteHost({ executions, env: process.env, repositoryRoot, outputDirectory: summaryDir });
-  if (remoteChat) {
-    process.env[DATABASE_LANE_ENV] = remoteChat.databaseLane;
-    delete process.env[POSTGRES_ARTIFACT_ENV];
-    delete process.env[POSTGRES_IMAGE_ID_ENV];
-    options.maxAutomaticRetries = remoteChat.maxAutomaticRetries;
-    options.maxParallel = Math.min(options.maxParallel, remoteChat.maxParallel);
-  }
   if (executions.some(execution => execution.suite.id === "native-completion")) {
     process.env[NATIVE_COMPLETION_PREFLIGHT_ENV] = prepareNativeCompletionPreflight(summaryDir);
   }

@@ -3,8 +3,8 @@ import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from ".
 import { everydayReliabilityFacadeProfileIds, runnerMatrix } from "./catalog.js";
 import { scheduledSelection } from "./scheduled-operations.js";
 import {
-  EVERYDAY_RELIABILITY_GROUP, RELIABILITY_PLAN_PROFILE_ID, everydayReliabilityCaseIds, everydayReliabilityExecutionIds,
-  everydayReliabilitySignatures, everydayReliabilityTasks, isEverydayReliabilityCase, reliabilityPlanCells,
+  EVERYDAY_RELIABILITY_GROUP, RELIABILITY_CANDIDATE_PROFILE_ID, everydayReliabilityCaseIds, everydayReliabilityExecutionIds,
+  everydayReliabilitySignatures, everydayReliabilityTasks, isEverydayReliabilityCase, reliabilityCandidateCells,
 } from "./everyday-reliability-cases.js";
 import {
   completeStepLines, concurrentExecutors, recoveredRunIds, gradeInterruptRedirect, gradeLongSilentCommand, gradeQueueSteer,
@@ -36,7 +36,7 @@ describe("reliability selection stays explicit", () => {
       .toEqual(everydayReliabilityExecutionIds("everyday-workflows", everydayReliabilityFacadeProfileIds).sort());
     expect(selected).toHaveLength(reliabilityCellCount);
     expect(selected.filter(execution => execution.environment.id !== "daytona").every(execution =>
-      execution.profile.id === RELIABILITY_PLAN_PROFILE_ID && reliabilityPlanCells[execution.task.id as keyof typeof reliabilityPlanCells].environment === "local")).toBe(true);
+      execution.profile.id === RELIABILITY_CANDIDATE_PROFILE_ID && reliabilityCandidateCells[execution.task.id as keyof typeof reliabilityCandidateCells].environment === "local")).toBe(true);
   });
 
   it("is excluded from --all, the plain suite, generic selectors and scheduled campaigns", () => {
@@ -52,7 +52,7 @@ describe("reliability selection stays explicit", () => {
 
   it("allows a single case or exact ID and keeps the cells discoverable in --list", () => {
     expect(selectRunnerExecutions(parseRunnerSelectors(["--suite", "everyday-workflows", "--case", "long-silent-command"]))
-      .map(execution => execution.profile.id).sort()).toEqual(["runner-codex", RELIABILITY_PLAN_PROFILE_ID, ...everydayReliabilityFacadeProfileIds].sort());
+      .map(execution => execution.profile.id).sort()).toEqual(["runner-codex", RELIABILITY_CANDIDATE_PROFILE_ID, ...everydayReliabilityFacadeProfileIds].sort());
     expect(selectRunnerExecutions(parseRunnerSelectors(["--id", "everyday-workflows.runner-codex.daytona.queue-steer"]))).toHaveLength(1);
     expect(reliable(selectRunnerExecutions(parseRunnerSelectors(["--list"])))).toHaveLength(reliabilityCellCount);
     expect(selectRunnerExecutions(parseRunnerSelectors(["--suite", "everyday-workflows", "--group", "slow"]))
@@ -66,7 +66,7 @@ describe("reliability selection stays explicit", () => {
       const profiles = cells.filter(execution => execution.task.id === caseId).map(execution => execution.profile.id);
       expect(profiles).toContain("runner-codex");
       const deepSeek = caseId === "queue-steer" ? 0 : 1;
-      expect(profiles.filter(profile => profile === RELIABILITY_PLAN_PROFILE_ID)).toHaveLength(deepSeek);
+      expect(profiles.filter(profile => profile === RELIABILITY_CANDIDATE_PROFILE_ID)).toHaveLength(deepSeek);
       expect(profiles.length).toBe(1 + deepSeek + (caseId === "long-silent-command" ? everydayReliabilityFacadeProfileIds.length : 0));
     }
     expect(runnerMatrix.filter(execution => execution.suite.id === "everyday-workflows"

@@ -116,10 +116,10 @@ export const RELIABILITY_NATIVE_PROFILE_ID = "runner-codex";
 export const RELIABILITY_FACADE_PROFILE_IDS = ["runner-acpx-grok", "runner-acpx-kimi", "runner-acpx-pi"] as const;
 
 /**
- * The TestOps Reliability plan profile: native OpenCode with DeepSeek 1017
+ * The legacy reliability candidate profile: native OpenCode with DeepSeek 1017
  * through OpenRouter, the cheapest native profile with a Daytona-capable driver.
  */
-export const RELIABILITY_PLAN_PROFILE_ID = "runner-opencode-deepseek-1017";
+export const RELIABILITY_CANDIDATE_PROFILE_ID = "runner-opencode-deepseek-1017";
 
 /**
  * One plan cell per case. Daytona only where the soak failure was a sandbox
@@ -133,32 +133,32 @@ export const RELIABILITY_PLAN_PROFILE_ID = "runner-opencode-deepseek-1017";
  * route answers `steering_unsupported`. The plan uses the existing native Codex
  * Daytona cell for it, which supports steering.
  */
-export const reliabilityPlanCells: Readonly<Record<EverydayReliabilityCaseId,
-  { profile: typeof RELIABILITY_PLAN_PROFILE_ID | typeof RELIABILITY_NATIVE_PROFILE_ID; environment: "local" | "daytona" }>> = {
-  "interrupt-redirect": { profile: RELIABILITY_PLAN_PROFILE_ID, environment: "local" },
-  "reassign-midrun": { profile: RELIABILITY_PLAN_PROFILE_ID, environment: "local" },
-  "three-turn-revise": { profile: RELIABILITY_PLAN_PROFILE_ID, environment: "daytona" },
-  "long-silent-command": { profile: RELIABILITY_PLAN_PROFILE_ID, environment: "daytona" },
-  "tree-pause-release": { profile: RELIABILITY_PLAN_PROFILE_ID, environment: "local" },
+export const reliabilityCandidateCells: Readonly<Record<EverydayReliabilityCaseId,
+  { profile: typeof RELIABILITY_CANDIDATE_PROFILE_ID | typeof RELIABILITY_NATIVE_PROFILE_ID; environment: "local" | "daytona" }>> = {
+  "interrupt-redirect": { profile: RELIABILITY_CANDIDATE_PROFILE_ID, environment: "local" },
+  "reassign-midrun": { profile: RELIABILITY_CANDIDATE_PROFILE_ID, environment: "local" },
+  "three-turn-revise": { profile: RELIABILITY_CANDIDATE_PROFILE_ID, environment: "daytona" },
+  "long-silent-command": { profile: RELIABILITY_CANDIDATE_PROFILE_ID, environment: "daytona" },
+  "tree-pause-release": { profile: RELIABILITY_CANDIDATE_PROFILE_ID, environment: "local" },
   "queue-steer": { profile: RELIABILITY_NATIVE_PROFILE_ID, environment: "daytona" },
-  "queued-across-restart": { profile: RELIABILITY_PLAN_PROFILE_ID, environment: "daytona" },
+  "queued-across-restart": { profile: RELIABILITY_CANDIDATE_PROFILE_ID, environment: "daytona" },
 };
 
-/** The seven TestOps Reliability plan cells, in case order. */
-export function reliabilityPlanExecutionIds(suiteId: string): string[] {
+/** The seven legacy reliability candidate cells, in case order. */
+export function reliabilityCandidateExecutionIds(suiteId: string): string[] {
   return everydayReliabilityCaseIds.map(caseId =>
-    `${suiteId}.${reliabilityPlanCells[caseId].profile}.${reliabilityPlanCells[caseId].environment}.${caseId}`);
+    `${suiteId}.${reliabilityCandidateCells[caseId].profile}.${reliabilityCandidateCells[caseId].environment}.${caseId}`);
 }
 
 /**
  * The deliberately small paid matrix: the seven plan cells, plus the
  * explicit-only extras (the native Codex Daytona cell for every other case and
- * the ACPX facades for long-silent-command). Only the plan cells belong to TestOps.
+ * the ACPX facades for long-silent-command).
  */
 export function everydayReliabilityExecutionIds(suiteId: string,
   facadeProfileIds: readonly string[] = RELIABILITY_FACADE_PROFILE_IDS): string[] {
   return [...new Set([
-    ...reliabilityPlanExecutionIds(suiteId),
+    ...reliabilityCandidateExecutionIds(suiteId),
     ...everydayReliabilityCaseIds.map(caseId => `${suiteId}.${RELIABILITY_NATIVE_PROFILE_ID}.daytona.${caseId}`),
     ...facadeProfileIds.map(profileId => `${suiteId}.${profileId}.daytona.long-silent-command`),
   ])];

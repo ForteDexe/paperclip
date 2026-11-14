@@ -188,7 +188,7 @@ test('the committed defaults admit the full 41-case Claude plan within their spe
   const manifestFor = cells => {
     const policy = hostedPolicy(defaults, { cellCount: cells, now, projectId, controllerLockSha256: 'e'.repeat(64) });
     const attempts = Array.from({ length: cells }, (_, index) => ({ ...policy.allocations[0],
-      executionId: `protocol-live-testops-claude--case-${index}`, attemptId: `attempt-${index}`, requestSha256: 'a'.repeat(64) }));
+      executionId: `protocol-live-claude--case-${index}`, attemptId: `attempt-${index}`, requestSha256: 'a'.repeat(64) }));
     return { schema: 'outpost.runner-eval.controller/v1', campaignId: 'gha-1-1', maxUsd: policy.maxUsd,
       deadlineAt: new Date(now + policy.durationMs).toISOString(), pricingVerifiedAt: policy.pricingVerifiedAt, pricingExpiresAt: policy.pricingExpiresAt,
       route: policy.route, projectId: policy.projectId, models: policy.models, overhead: policy.overhead, observability: policy.observability,

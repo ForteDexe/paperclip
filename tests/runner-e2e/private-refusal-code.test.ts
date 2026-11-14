@@ -18,9 +18,9 @@ it("never returns the text of a dynamic or system message", () => {
   for (const value of [new Error(`x ${leaked}`), new TypeError(leaked), leaked]) expect(privateRefusalCode(value)).not.toContain("secret");
 });
 
-it("names refusals from the dispatch-authority and admission modules the transfer calls", () => {
+it("names refusals from the dispatch-authority module the transfer calls", () => {
   const fixed = fixedRefusalMessages();
-  for (const file of ["manual-dispatch-authority.ts", "testops-chat-admission.ts"]) {
+  for (const file of ["manual-dispatch-authority.ts"]) {
     const literals = [...readFileSync(new URL(`./${file}`, import.meta.url), "utf8").matchAll(/new Error\("([^"$`\\]+)"\)/g)].map(match => match[1]!);
     expect(literals.length, file).toBeGreaterThan(0);
     for (const message of literals) expect(privateRefusalCode(new Error(message), fixed), message).not.toBe("dynamic");

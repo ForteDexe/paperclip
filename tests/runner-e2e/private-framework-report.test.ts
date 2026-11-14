@@ -1,6 +1,3 @@
-import { catalogTargetSha, fullCatalogCases } from "./chat-full-catalog-testops-manifest.mjs";
-import { exportCompletionPilot } from "./chat-completion-testops-export.js";
-import { exportPilotAllure } from "./chat-completion-testops-results.mjs";
 import type { ManualPrivateHandoff } from "./manual-private-handoff.js";
 import { afterAll, expect, it } from "vitest";
 import { createHash } from "node:crypto";
@@ -12,6 +9,7 @@ import os from "node:os";
 import { promisify } from "node:util";
 import { copyPrivateFrameworkReport, inspectPrivateFrameworkMetadata, PRIVATE_FRAMEWORK_ORIGINAL_REPORT, PRIVATE_FRAMEWORK_REPORT, referenceSealedFrameworkAttachments, validatePrivateFrameworkReport } from "./private-framework-report.js";
 const roots: string[] = [];
+const catalogTargetSha = "b".repeat(40);
 afterAll(async () => { for (const root of roots) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
   const root = await mkdtemp(path.join(await realpath(os.tmpdir()), "framework-json-control-")); roots.push(root);
@@ -98,10 +96,9 @@ it("keeps the unchanged 256MiB packaging/archive caps with one canonical large a
   await copyPrivateFrameworkReport(f.source, f.cell, []);
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=", "base64");
   await writeFile(path.join(f.cell, "final-state.png"), png);
-  const descriptor = fullCatalogCases.find(row => row.executionId === id)!;
   await writeFile(path.join(f.cell, "result.json"), JSON.stringify({ schema: "outpost.runner-e2e.result/v2", executionId: id, suiteId: "chat-features", suiteDefinitionHash: "c".repeat(64),
     source: { sha: catalogTargetSha, ref: "refs/heads/master", workflowRunUrl: "https://github.com/paperclipai/paperclip/actions/runs/123" }, attempt: 1, status: "failed", error: "original failed assertion", cleanup: "passed", evidenceValid: false,
-    runIds: [], profileId: "runner-opencode", environmentId: "local", caseId: descriptor.scenario, provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", runtimeMode: "native",
+    runIds: [], profileId: "runner-opencode", environmentId: "local", caseId: "activity.agent-feedback", provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", runtimeMode: "native",
     startedAt: "2026-11-01T00:00:00Z", finishedAt: "2026-11-01T00:00:01Z", durationMs: 1000, matcherResults: [], screenshots: [] }));
   const rawFramework = await readFile(path.join(f.cell, "snapshots/playwright-framework-original.txt"));
   const { redactText } = await import("./redaction.js"); expect(redactText(rawFramework.toString("utf8"), [])).not.toBe(rawFramework.toString("utf8"));
@@ -136,13 +133,6 @@ it("keeps the unchanged 256MiB packaging/archive caps with one canonical large a
     OUTPOST_RUNNER_E2E_REPORT_ROOT: selected, OUTPOST_RUNNER_E2E_REPORT_OUT: report, OUTPOST_RUNNER_E2E_EXPECTED_IDS: JSON.stringify([id]),
     OUTPOST_E2E_CAMPAIGN_ID: "gha-123-1", OUTPOST_RUNNER_E2E_SOURCE_SHA: catalogTargetSha, OUTPOST_RUNNER_E2E_SOURCE_REF: "refs/heads/master" } }).then(() => 0, error => error.code);
   expect(reportProcess).toBe(1);
-  const binding = { runId: "123", attempt: "1", workflowSha: "a".repeat(40), targetSha: catalogTargetSha, catalog: "full" as const };
-  const projection = path.join(f.root, "projection");
-  const exported = await exportCompletionPilot(report, projection, binding, [id]);
-  expect(exported.privateEvidence[0]!.finalScreenshot!.sha256).toBe(createHash("sha256").update(png).digest("hex"));
-  const allure = await exportPilotAllure(projection, path.join(f.root, "allure"), binding, { schema: "outpost.chat-completion-testops-selection/v1", ...binding, projectId: 1, planId: 10, jobId: 11, launchId: 12, allureJobRunId: "77", cases: [{ ...descriptor, caseId: 100 }] });
-  expect(allure[0]!.status).toBe("failed");
-  expect(JSON.parse(await readFile(path.join(projection, "normalized-results.json"), "utf8")).results[0].status).toBe("failed");
 }, 120_000);
 
 it.each(["literal", "escaped", "base64-body", "escaped-json-body"])("deep-scans registered immutable raw JSON text: %s", async kind => {

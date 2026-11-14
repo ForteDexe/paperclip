@@ -90,7 +90,7 @@ limit of eight cells is unchanged.
 
 ### Stored approval records
 
-The TestOps catalog case workflow still passes a protected approval record as
+Manual private runs may pass a protected approval record as
 `MANUAL_PRIVATE_APPROVALS_JSON`. That record has this closed shape (all values
 below are placeholders):
 

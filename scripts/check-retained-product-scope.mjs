@@ -37,6 +37,18 @@ const registrationFiles = [
   "pnpm-workspace.yaml",
 ];
 
+const retiredInfrastructure = [
+  ".github/workflows/chat-catalog-testops.yml",
+  ".github/workflows/chat-catalog-testops-case.yml",
+  ".github/workflows/chat-feature-testops-retained-verification.yml",
+  ".github/workflows/runner-e2e-testops-registration.yml",
+  ".github/workflows/runner-protocol-live-evals.yml",
+  "packages/outpost-runner/scripts/runner-protocol-testops.mjs",
+  "tests/runner-e2e/chat-full-catalog-testops-manifest.json",
+  "tests/runner-e2e/testops-chat-admission.ts",
+  "tests/runner-e2e/chat-remote-host.ts",
+];
+
 async function exists(relativePath) {
   return access(path.join(repoRoot, relativePath)).then(() => true, () => false);
 }
@@ -59,6 +71,12 @@ for (const retired of retiredPackages) {
     if (content.includes(retired.name) || content.includes(retired.root)) {
       failures.push(`retired package is registered in ${registrationFile}: ${retired.name}`);
     }
+  }
+}
+
+for (const retiredPath of retiredInfrastructure) {
+  if (await exists(retiredPath)) {
+    failures.push(`retired infrastructure exists: ${retiredPath}`);
   }
 }
 

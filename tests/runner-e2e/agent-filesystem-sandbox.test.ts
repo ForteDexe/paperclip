@@ -244,13 +244,6 @@ describe("selected cell outside the command line", () => {
     expect(selectorArgumentsWithEnvironment(["--", "--id", "x"], {})).toEqual(["--", "--id", "x"]);
   });
 
-  it("is what CI passes instead of --id", async () => {
-    for (const workflow of ["runner-full-stack-e2e.yml", "chat-catalog-testops-case.yml"]) {
-      const source = await readFile(path.join(import.meta.dirname, "../../.github/workflows", workflow), "utf8");
-      expect(source).toContain(`${RUNNER_SELECTED_ID_ENV}: \${{`);
-      expect(source).not.toMatch(/test:e2e:runner -- --id "\$\{\{/);
-    }
-  });
 });
 
 describe("runnerd launch rewriting", () => {

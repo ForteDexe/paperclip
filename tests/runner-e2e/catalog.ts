@@ -45,7 +45,7 @@ import { lifecycleLiveTasks, lifecycleLiveDefinitionDigest } from "./lifecycle-l
 import { publicMcpTasks, publicMcpExpandedDigest, publicMcpSetupDigest, publicMcpWorkflowDigest, publicMcpWorkerInstructions, publicMcpWorkerSkillDigest } from "./public-mcp-cases.js";
 import { graderVersion as publicMcpGraderVersion } from "./public-mcp-grading.js";
 import { everydayTasks, productionStoryProfile } from "./everyday-cases.js";
-import { EVERYDAY_RELIABILITY_GROUP, EVERYDAY_RELIABILITY_SLOW_GROUP, RELIABILITY_FACADE_PROFILE_IDS, RELIABILITY_PLAN_PROFILE_ID, everydayReliabilityExecutionIds, reliabilityPlanCells, everydayReliabilitySignatures, everydayReliabilityTasks } from "./everyday-reliability-cases.js";
+import { EVERYDAY_RELIABILITY_GROUP, EVERYDAY_RELIABILITY_SLOW_GROUP, RELIABILITY_FACADE_PROFILE_IDS, RELIABILITY_CANDIDATE_PROFILE_ID, everydayReliabilityExecutionIds, everydayReliabilitySignatures, everydayReliabilityTasks } from "./everyday-reliability-cases.js";
 import { REMOTE_WORKSPACE_STORAGE_SUITE, remoteWorkspaceStoragePrompt } from "./remote-workspace-storage.js";
 import { CONNECTION_GUIDANCE_SUITE, CONNECTION_GUIDANCE_BUDGET_CENTS, connectionGuidanceTasks, connectionGuidanceDefinitionDigest } from "./connection-guidance-cases.js";
 
@@ -1240,13 +1240,13 @@ const everydayFacadeProfiles = RELIABILITY_FACADE_PROFILE_IDS
 export const everydayReliabilityFacadeProfileIds = everydayFacadeProfiles.map(profile => profile.id);
 /**
  * Native OpenCode with DeepSeek 1017 through OpenRouter. It is the chat-feature
- * candidate and the TestOps Reliability plan profile. The OpenCode server driver
+ * legacy reliability candidate. The OpenCode server driver
  * runs this model on Daytona exactly as it runs the qualified runner-opencode
  * model there; only the configured model differs.
  */
-const runnerOpenCodeDeepSeek1017Profile = nativeProfile({ id: RELIABILITY_PLAN_PROFILE_ID, label: "Native OpenCode DeepSeek 1017",
+const runnerOpenCodeDeepSeek1017Profile = nativeProfile({ id: RELIABILITY_CANDIDATE_PROFILE_ID, label: "Native OpenCode DeepSeek 1017",
   provider: "opencode", model: CHAT_FEATURE_OPENCODE_MODEL, credential: "OPENROUTER_API_KEY", supportedEnvironments: ["local", "daytona"],
-  modelQualification: { source: "candidate_runner_profile", qualificationId: "chat-feature-testops:deepseek-v4.1-flash-1017" } });
+  modelQualification: { source: "candidate_runner_profile", qualificationId: "reliability-candidate:deepseek-v4.1-flash-1017" } });
 const everydayWorkflowProfiles = [...everydayProfiles,
   productionStoryProfile(runnerProfiles.find(profile => profile.id === "runner-opencode")!),
   productionStoryProfile(runnerOpenCodeDeepSeek1017Profile),
@@ -1748,9 +1748,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     ],
     definitionMetadata: { version: 12, instructions: "production", grading: "outcome-and-invariants", scheduling: "explicit-only",
       reliability: { group: EVERYDAY_RELIABILITY_GROUP, selection: "explicit-group-only", signatures: everydayReliabilitySignatures,
-        productRule: "interrupted-work-resumes-automatically-or-offers-a-working-first-retry", spaceAndLeadBudgetCents: 1_000,
-        testOpsPlan: { profile: RELIABILITY_PLAN_PROFILE_ID, cells: reliabilityPlanCells,
-          cadence: "testops-launch-or-manual-dispatch", extras: "explicit-only-codex-and-acpx-cells" } },
+        productRule: "interrupted-work-resumes-automatically-or-offers-a-working-first-retry", spaceAndLeadBudgetCents: 1_000 },
       controllerDowntimeMs: 125_000,
       remoteCodexRestart: "bounded-main-server-outage-receipt-empty-cache-same-active-process-and-finalization",
       procedureCases: { ids: ["create-reuse", "delegate-feedback"], maximumAttemptsPerCell: 1, spaceAndLeadBudgetCents: 1_000 } },

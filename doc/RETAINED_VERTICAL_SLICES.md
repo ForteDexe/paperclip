@@ -187,6 +187,16 @@ command and trace types. Its scenario, implementation, focused assertions, and
 active catalog records are removed. Historical campaign results remain as
 archived measurement data rather than executable product coverage.
 
+### External TestOps Campaign
+
+Outpost's retained local Codex and Claude workflow does not publish evaluation
+catalogs to Allure TestOps or operate a paid remote-provider campaign. The
+TestOps adapters, catalog manifests, projection and upload utilities, dedicated
+GitHub workflows, protocol publication scripts, remote AWS chat qualification,
+and their workflow-security tests are removed. Focused local runner tests,
+runtime typechecking, Playwright evidence validation, and ordinary CI remain;
+external campaign reporting is not part of the product boundary.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

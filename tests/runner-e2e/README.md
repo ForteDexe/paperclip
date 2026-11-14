@@ -498,11 +498,9 @@ The [public MCP suite](PUBLIC-MCP.md) adds explicit paid assistant/plugin journe
 with authenticated browser consent, real MCP tool use and independently graded
 team execution. Select `--suite public-mcp`; it is excluded from `--all`.
 
-For family selection, ownership, provenance, history, and failure taxonomy,
-see the [Outpost evaluation guide](../../doc/evals.md). This README is the
-authoritative runbook for Product E2E runner cells; the separate Runner Evals
-protocol guide lives at
-`packages/outpost-runner/docs/runner-protocol-live-evals.md`.
+This README is the authoritative runbook for the retained local Product E2E
+runner cells. The removed hosted campaign system is recorded in
+[the retained product boundary](../../doc/RETAINED_VERTICAL_SLICES.md).
 
 This is the billable browser acceptance campaign system for Outpost runner
 profiles. It is deliberately separate from `tests/e2e`: every independently
@@ -832,10 +830,8 @@ inputs, or a tracked env file.
 
 ## Private framework evidence
 
-The protected TestOps reporter (`OUTPOST_CHAT_COMPLETION_TESTOPS=v1`) uses
-Playwright's official JSON and JUnit reporters only with an approved private-cell
-preflight. Other runs, including generic private full-stack runs, keep the existing
-HTML and blob reporters. A setup failure can retain its SDK audit without a
+Private runs use Playwright's official JSON and JUnit reporters alongside the
+existing HTML and blob reporters. A setup failure can retain its SDK audit without a
 framework report; a malformed present framework report still fails closed. The immutable
 JSON source is retained in `snapshots/playwright-framework-original.txt` and is
 parsed and deeply inspected as registered Playwright JSON, including decoded
@@ -1621,165 +1617,10 @@ The explicit-only [planning comparison](PLAN-TASK-GUIDANCE.md) tests current, sh
 and disabled planning skills across four saved business outcomes on native Codex.
 It adds twelve single-attempt cells and does not expand `--all`.
 
-## GitHub Actions
+## Retired external campaigns
 
-`Runner Full-Stack E2E` has only `schedule` and `workflow_dispatch` triggers; it
-never runs for a pull request or ordinary push. Start the trusted workflow from
-the default branch. A CODEOWNER can set the optional `target_branch` input to
-any branch in `paperclipai/paperclip`. The authorization job resolves that
-branch to one immutable commit before any checkout. A separate credential-free
-job checks out the resolved commit and regenerates `pnpm-lock.yaml` once with
-`--ignore-scripts --no-frozen-lockfile --lockfile-only`. It uploads that exact
-lockfile under a run-attempt-scoped artifact ID and records its SHA-256.
-Catalog, image, shared-build, provider-pack, and paid test jobs download the
-artifact by ID, verify its digest, and restore it before setup or a frozen
-install. The shared-build, provider-pack, and paid test jobs all disable
-dependency lifecycle scripts, and provider secrets are introduced only in the
-final test step. This permits an authorized target branch to exercise an
-intentionally uncommitted workspace patch while keeping every target job on one
-identical dependency resolution. The shared-build job compiles the selected
-campaign's TypeScript outputs and native binaries once, then each paid cell
-verifies and extracts the immutable bundle. Remote native cells similarly reuse
-one verified provider pack. Report sanitization and AWS history publication
-explicitly check out the trusted workflow commit. The report applies the
-reviewed, hash-pinned `report-lock.patch` to the committed lock before its
-frozen install. It does not resolve registry versions at run time or accept a
-worker target lock. The patch changes existing package patch identities and
-links the already declared yaml dependency; existing package tarball integrity entries
-stay unchanged. The correction adds exactly yaml@2.9.1 with pinned integrity. The
-trusted authorization job rejects unknown locks before paid work. Manual history
-publication uses the same reviewed correction. Qualification image builds apply
-it only to a target equal to the workflow revision; other targets keep their own
-lock. An already-reviewed output lock is used unchanged. Unknown lock contents fail before installation. The
-workflow definition, runner-group permission, and protected-environment
-deployment still come from the default branch. Do not select the target branch
-in GitHub's **Use workflow from** control.
-
-Because this repository is public, manual campaigns fail before checkout unless
-the trusted workflow runs from the default branch and both the original actor
-and rerun actor have numeric GitHub user IDs in the non-empty JSON-array
-repository variable `RUNNER_E2E_ALLOWED_ACTOR_IDS`. Keep this stable-ID list in
-sync with the owners of `.github/**` in `.github/CODEOWNERS`. Usernames are
-intentionally not trusted. The first scheduled attempt is trusted automation;
-any human rerun of a scheduled campaign must pass the triggering-actor
-allowlist.
-
-For example, this command runs one branch cell through the trusted default-branch
-workflow:
-
-```bash
-gh workflow run runner-full-stack-e2e.yml \
-  --ref master \
-  -f target_branch=fix/example \
-  -f all=false \
-  -f id=core-compatibility.runner-codex.local.message-marker
-```
-
-The same trusted workflow can run the standing **Product regression — core
-workflows** TestOps plan. Bootstrap one actual case with `-f testops_case=66`
-(message-marker), or select the complete plan with `-f testops_case=all`.
-Leave the ordinary `id`, `suite`, `group`, `profile`, `environment` and `case`
-selectors empty in this mode. TestOps dispatch supplies `ALLURE_JOB_RUN_ID` and
-`ALLURE_USERNAME`; the requested test-plan selection overrides the bootstrap
-case. All 20 imported case IDs and full names remain stable. The lane uses the
-existing native Codex/local cells and the existing native OpenCode/local
-task-workspaces cell. It does not qualify the historical 355-result snapshot.
-
-The sibling **Reliability — staging soak** plan runs the seven staging-soak
-reliability cases through this same lane: six on native OpenCode with DeepSeek
-1017, and `queue-steer` on steering-capable native Codex.
-Bootstrap it with `-f testops_plan=reliability -f testops_case=all` (or one case);
-a TestOps launch names its plan through its case IDs. A launch never mixes the
-two plans, and each keeps its own full-plan denominator. Its TestOps identities
-come from the trusted `runner-e2e-testops-registration.yml` workflow; until they
-are committed, selection fails closed. See
-[the Reliability plan](EVERYDAY-WORKFLOWS.md#testops-reliability-plan).
-
-The protected `runner-e2e-testops-reporting` environment supplies `ALLURE_TOKEN`.
-Only default-branch selection and reporting code receives this token. The
-ordinary paid provider jobs, their authorization and their evidence paths stay
-the same. Selection binds the job run, launch, source and workflow revisions.
-Reporting parses the retained normalized campaign, publishes original attempts
-and assertions, and makes an absent result explicitly broken. It verifies the
-uploaded case IDs and verdicts before finishing the original TestOps job run.
-No bootstrap or synthetic control result contributes to the pass count. Tag
-only a complete 20-case attempt `full-run` and `test-plan-2`; omit `full-run`
-from focused reruns. Inspect the linked launch and the retained report for
-acceptance. A local projection test does not establish a live product pass.
-
-Create a protected `runner-e2e-paid` GitHub environment, restrict it to the
-default branch, limit environment administration to trusted maintainers, and
-store the four provider secrets there. This is a second authorization boundary:
-the pre-check prevents unauthorized scheduling, while the environment prevents
-secret release if the workflow gate is accidentally weakened. Also restrict
-Actions to approved actions and require review of `.github/workflows/**` and
-`tests/runner-e2e/**` through CODEOWNERS and branch protection. Manual inputs
-accept comma-separated values for repeatable dimensions.
-
-The nightly cron is `08:47 UTC`, but scheduled execution is intentionally gated
-by the repository variable `RUNNER_FULL_STACK_E2E_NIGHTLY_ENABLED=true`. Set it
-only after the live acceptance ladder in the architecture plan is green.
-Set `RUNNER_E2E_AWS_ENABLED=true` to route paid cells to the repository-scoped
-ephemeral AWS RunsOn fleet selected by
-`runs-on/fleet=outpost-public-pr-x64/env=public-ci`. Any other value uses the
-proven GitHub-hosted `ubuntu-latest` target. Set `RUNNER_E2E_MAX_PARALLEL` to an
-integer from 1–100 on AWS (default 100). The 171-cell default selection takes more than
-one wave at that limit; use suite selectors for smaller campaigns. The fallback runner retains its 1–57 limit and
-default of 32. Multi-turn steps are sequential inside their cell while
-independent cells overlap. Artifacts and merged HTML/JUnit/normalized reports
-are retained for 30 days.
-
-Restrict the RunsOn fleet to this repository and independently trusted
-workflows. Do not let untrusted pull-request or fork-triggered workflows target
-it, and require a fresh ephemeral instance for each job so one paid cell cannot
-leave state for the next. Provider secrets remain protected by the stable-ID
-authorization checks and the default-branch-only `runner-e2e-paid` environment;
-the fleet itself is not an authorization boundary. These external fleet controls
-are as important as the workflow checks in a public repository. A CODEOWNER
-dispatch is an explicit authorization to execute the selected repository branch
-with the cell's scoped provider credential.
-
-Development branch campaigns share a concurrency key per target branch and
-cancel an older run when a replacement is dispatched. Default-branch target
-campaigns are retained and are never auto-cancelled, preserving their audit
-trail.
-
-GitHub Actions artifacts are access-controlled 30-day operational copies, not
-the permanent public history. They retain packaged PNG/WebM and generated
-reports for debugging. Create a second protected `runner-e2e-history`
-environment, restricted to the default branch and trusted environment
-administrators, then configure these repository variables:
-
-- `RUNNER_E2E_HISTORY_AWS_ROLE_ARN`
-- `RUNNER_E2E_HISTORY_AWS_REGION`
-- `RUNNER_E2E_HISTORY_S3_BUCKET`
-- `RUNNER_E2E_HISTORY_PUBLIC_BASE_URL`
-- optional `RUNNER_E2E_HISTORY_PREFIX` (default `runner-e2e`)
-
-The job exchanges GitHub OIDC for short-lived AWS credentials; never add AWS
-access-key secrets. Its IAM role must trust only
-`repo:paperclipai/paperclip:environment:runner-e2e-history`, and permit only
-Get/List/Put under the configured prefix—never Delete. Enable S3 versioning and
-Block Public Access. CloudFront reads the private bucket through Origin Access
-Control. Immutable campaign bundles live under `campaigns/<run-id>-<attempt>/`;
-mutable `history.json`, `latest.json`, and `latest-green.json` are updated by a
-globally serialized publisher. An existing campaign key with a different
-bundle digest fails closed.
-
-GitHub Pages remains the stable latest dashboard. Enable Pages with GitHub
-Actions as its source and set `RUNNER_FULL_STACK_E2E_PUBLISH_PAGES=true`.
-The publisher creates an S3 stage with the trusted synthetic summary PNG and a
-separate Pages stage. Both surfaces publish only per-result PNG screenshots
-with the explicit `public-runner-fixture` marker alongside sanitized structured
-evidence. The runner capture helper refuses to mark a screenshot outside the
-exact live fixture issue route. Neither surface publishes video, archives,
-SVG/active content, databases, Outpost homes, workspaces, raw/unallowlisted
-logs, or credentials.
-
-See [FIXTURES.md](./FIXTURES.md) before adding or changing a profile,
-environment, task, matcher, or future Outpost object fixture.
-See [SECURITY.md](./SECURITY.md) before enabling paid dispatch, the runner
-group, or permanent public history in this public repository.
+Hosted paid campaigns and their third-party reporting bridge were removed from
+Outpost. Local runner coverage remains the supported path.
 
 ## Automatic task titles
 
@@ -3596,48 +3437,6 @@ qualify browser reconnects, active-agent continuity, distinct packaged releases
 or Railway. Keep failed receipts alongside successful attempts; the private
 server logs and config files may contain credentials and are not shareable evidence.
 
-### Report a terminal catalog run from retained evidence
-
-A missing cell projection makes the normal strict aggregate fail. It must not
-silently discard authentic sibling results or turn unavailable evidence into an
-original failed evaluation. For an operator recovery, authenticate the original
-selection, terminal GitHub jobs and exact retained archive keys first. Recover
-available originals through the existing sealed-inventory reader and exporter.
-Do not run agents again or change the original grades.
-
-The aggregate owner has an explicit offline data preparation mode:
-
-```sh
-node --import ./cli/node_modules/tsx/dist/loader.mjs tests/runner-e2e/chat-full-catalog-testops-merge.ts retained-reporting \
-  <safe-singleton-projection-root> <new-output-directory> \
-  <authenticated-original-selection.json> <retained-disposition.json> <executor-commit-sha>
-```
-
-`RetainedDisposition` in that module defines the closed input contract. It binds
-its origin to the selection, its selection digest to the exact two-space JSON
-serialization, and its terminal-job and custody observations to SHA-256 digests.
-Every missing execution needs an explicit `not_found` observation at its exact
-source-derived archive key. This input records an operator's authenticated
-observations; the offline command does not grant read or publish authority.
-Active jobs, unexplained omissions, duplicates and foreign identities fail.
-
-The command reuses the unchanged strict original exporter. It emits one frozen
-Allure bundle and `reporting-manifest.json`. The coverage count separates graded
-originals from reporting gaps. Gaps are separate DTOs with UNKNOWN original grade,
-checks, native-run count and cleanup. Their TestOps outcome is `broken`, not an
-inferred feature failure or pass. They have no fabricated duration or test steps.
-Only the flat `allure/` JSON files are transport files; the manifest stays outside
-any upload archive. Private originals, screenshots and traces stay private.
-
-Review the immutable payload and its file hashes before an authorized upload to
-the original jobrun. Persist a once-intent before transmission. After an ambiguous
-response, reconcile with manual GET requests or an independently reviewed,
-gap-aware read-only check; do not resend or regenerate UUIDs. The existing
-`verify-upload` CLI accepts strict original outcomes only. It cannot verify the
-separate BROKEN gap shape and must not be used for this recovery bundle. Final
-coverage must match all selected case IDs and preserve the separate gap count.
-This mode prepares data only. It does not upload, start jobs, reopen launches,
-change credentials, or change evaluation and evidence limits.
 # Legacy workspace migration
 
 `legacy-workspace-migration` and `legacy-workspace-migration-warm` are explicit,
@@ -3664,7 +3463,7 @@ compact Playwright JSON representation. It validates both sealed inventories and
 all compact attachment hashes against the original tree. After those checks, it
 materializes exact referenced files only in the derived `selected-runner-e2e`
 tree. The sealed original and final inventories remain unchanged. The existing
-normalizer and TestOps exporter consume the derived files. Registered raw JSON
+normalizer and local report consumer use the derived files. Registered raw JSON
 remains subject to deep JSON and decoded-body privacy checks regardless of its
 text suffix. No existing physical byte, entry, ZIP, time, or archive bound changes.
 

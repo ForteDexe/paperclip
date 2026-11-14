@@ -25,11 +25,8 @@ for (const [name, command] of [
   ["Plugin build dependencies", ["scripts/ensure-plugin-build-deps.mjs"]],
   ["Vitest", [vitest, "run", "--config", "tests/runner-e2e/vitest.config.ts", ...args]],
   // The wrapper adds the CI profiling reporter when OUTPOST_CI_PROFILE is set.
-  ["Node tests", ["scripts/ci-profile/node-test.mjs", "tests/runner-e2e/product-regression-testops.test.mjs", "tests/runner-e2e/reliability-testops.test.mjs", "tests/runner-e2e/artifact-budget.test.mjs", "tests/runner-e2e/native-completion-checks.test.mjs",
-    "tests/runner-e2e/native-completion-git-source.test.mjs", "tests/runner-e2e/native-completion-source-contract.test.mjs",
-    "tests/runner-e2e/chat-feature-testops-api.test.mjs", "tests/runner-e2e/chat-feature-testops-cli.test.mjs", "tests/runner-e2e/chat-feature-testops-results.test.mjs", "tests/runner-e2e/testops-chat-reporter.test.mjs", "tests/runner-e2e/chat-feature-testops-retained-verification.node-test.mjs",
-    "tests/runner-e2e/chat-completion-testops-api.test.mjs", "tests/runner-e2e/chat-completion-testops-contract.test.mjs",
-    "tests/runner-e2e/chat-full-catalog-testops-manifest.test.mjs", "tests/runner-e2e/chat-full-catalog-testops-reconcile.test.mjs", "tests/runner-e2e/chat-full-catalog-testops-adapter.test.mjs", "tests/runner-e2e/chat-catalog-testops-streaming.test.mjs"]],
+  ["Node tests", ["scripts/ci-profile/node-test.mjs", "tests/runner-e2e/artifact-budget.test.mjs", "tests/runner-e2e/native-completion-checks.test.mjs",
+    "tests/runner-e2e/native-completion-git-source.test.mjs", "tests/runner-e2e/native-completion-source-contract.test.mjs"]],
 ]) {
   const result = spawnSync(process.execPath, command, {
     cwd: root, env: name === "Vitest" ? invocationEnv("vitest", env) : env, stdio: "inherit",

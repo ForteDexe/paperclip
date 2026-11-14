@@ -477,7 +477,7 @@ configuration are never copied into a journey.
 
 The private QA adapter keeps candidate cases available for manual qualification.
 A candidate's presence in this source catalog is not qualification. It enters the
-saved daily TestOps plan only after an inspected real QA Cloud pass including
+saved daily qualification set only after an inspected real QA Cloud pass including
 usage, artifact/decision evidence and cleanup. The daily driver runs that saved
 plan against the registered QA tenant; it does not substitute a local instance.
 

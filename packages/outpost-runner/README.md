@@ -775,10 +775,6 @@ repository. The package ships the required orchestration entry point as
 `outpost-runner-eval-session` (`dist/cli/eval-session.js`). Evalbook owns the
 consistent HTML matrix and read-only attempt drill-down pages.
 
-The hosted full-campaign workflow, parallel matrix, credential boundaries,
-canonical report merge, and versioned S3 index are documented in
-[`docs/runner-protocol-live-evals.md`](docs/runner-protocol-live-evals.md).
-
 This direct protocol qualification is separate from the stress-derived Runner
 workflow schedule below and from the full-stack browser model E2E suite.
 

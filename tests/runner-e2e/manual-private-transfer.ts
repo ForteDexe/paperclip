@@ -11,7 +11,6 @@ import { isStandardEvidenceFile } from "./evidence.js";
 import { BoundedHistoryPublisher } from "./history-budget.js";
 import { privateArtifactKey, retainPrivateTransfer, transferPrivateArtifact, verifyPrivateHistory, type PrivateEvidenceCompleteness } from "./private-history.js";
 import { authorizeManualPrivateEvidence, MANUAL_PRIVATE_PROTOCOL, manualCellKind, manualPrivateSessionPolicy } from "./manual-private-retention.js";
-import { shippedChatEvidenceAuthority } from "./testops-chat-admission.js";
 import { manualDispatchEvidenceAuthority } from "./manual-dispatch-authority.js";
 import { privateRefusalCode } from "./private-refusal-code.js";
 
@@ -20,10 +19,9 @@ function request(env: NodeJS.ProcessEnv) {
   const ids = JSON.parse(env.MANUAL_PRIVATE_IDS ?? "null") as string[];
   const approval: { workflowSha: string; targetSha: string; runId: string; attempt: string; executionIds: readonly string[]; approvalSha256: string;
     launchSha256?: string; launchBinding?: "dispatcher" } =
-    env.OUTPOST_TESTOPS_CHAT_MAIN_ADMISSION !== undefined ? shippedChatEvidenceAuthority(env)
-      : env.OUTPOST_MANUAL_DISPATCH_AUTHORITY !== undefined ? manualDispatchEvidenceAuthority(env)
-        : authorizeManualPrivateEvidence({ workflowSha: env.GITHUB_SHA ?? "", targetSha: env.TARGET_SHA ?? "",
-          runId: env.GITHUB_RUN_ID ?? "", attempt: env.GITHUB_RUN_ATTEMPT ?? "", executionIds: ids }, env.MANUAL_PRIVATE_APPROVALS_JSON ?? "");
+    env.OUTPOST_MANUAL_DISPATCH_AUTHORITY !== undefined ? manualDispatchEvidenceAuthority(env)
+      : authorizeManualPrivateEvidence({ workflowSha: env.GITHUB_SHA ?? "", targetSha: env.TARGET_SHA ?? "",
+        runId: env.GITHUB_RUN_ID ?? "", attempt: env.GITHUB_RUN_ATTEMPT ?? "", executionIds: ids }, env.MANUAL_PRIVATE_APPROVALS_JSON ?? "");
   return { ids, approval, bucket: env.RUNNER_E2E_PRIVATE_HISTORY_S3_BUCKET ?? "" };
 }
 async function output(name: string, value: string) {

@@ -42,7 +42,7 @@ export const chatSetupHealthTask: RunnerTaskFixture = {
   buildMatchers: () => [],
 };
 export const chatSetupHealthDigest = createHash("sha256").update([
-  "chat-setup-health.ts", "chat-setup-credential.ts", "chat-readiness-observer.ts", "server-entry.ts", "runner.spec.ts", "live-fixtures.ts", "chat-remote-host.ts", "server.ts",
+  "chat-setup-health.ts", "chat-setup-credential.ts", "chat-readiness-observer.ts", "server-entry.ts", "runner.spec.ts", "live-fixtures.ts", "server.ts",
 ].map(file => readFileSync(new URL(`./${file}`, import.meta.url), "utf8")).join("\n")).digest("hex");
 interface HealthAgent { id: string; spaceId: string; lifecycleState?: string; lifecycleError?: string | null; status: string;
   defaultEnvironmentId?: string | null; adapterType: string; adapterConfig?: Record<string, unknown> }
