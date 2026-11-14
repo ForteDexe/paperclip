@@ -51,10 +51,8 @@ async function main(): Promise<void> {
       JSON.stringify({
         nativeRunnerRequired: localOutpostRunnerSupported()
           || experimental.enableNativeRunner === true
-          || experimental.enableOpenAiDot === true
           || persistedNativeRun,
         rolloutEnabled: experimental.enableNativeRunner === true,
-        dotRolloutEnabled: experimental.enableOpenAiDot === true,
         persistedNativeRun,
         persistedActiveNativeRun,
         persistedRetryableFailedNativeRun,

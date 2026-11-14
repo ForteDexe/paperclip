@@ -253,10 +253,6 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
       // continuing to accept the compatibility key in stored settings.
       enableApps: true,
       enableMcpAggregators: true,
-      enablePublicMcp: parsed.data.enablePublicMcp ?? false,
-      enableOpenAiDot: parsed.data.enableOpenAiDot ?? false,
-      enableMuse: parsed.data.enableMuse ?? false,
-      enableGrokBot: parsed.data.enableGrokBot ?? false,
       enableChatConnectors: parsed.data.enableChatConnectors ?? false,
       enableGitHubReviewBots: parsed.data.enableGitHubReviewBots ?? false,
       enableMemoryConnectors: parsed.data.enableMemoryConnectors ?? false,
@@ -308,10 +304,6 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
     enableStreamlinedUi: true,
     enableApps: true,
     enableMcpAggregators: true,
-    enablePublicMcp: false,
-    enableOpenAiDot: false,
-    enableMuse: false,
-    enableGrokBot: false,
     enableChatConnectors: false,
     enableGitHubReviewBots: false,
     enableMemoryConnectors: false,
@@ -640,9 +632,6 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpIngressHandoffs);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpClientMirror);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpRevocationIndex, "*");
-        await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpEvents, "*");
-        await notifyDeliveryWork(tx, DELIVERY_QUEUES.dotEvents, "*");
-        await notifyDeliveryWork(tx, DELIVERY_QUEUES.grokDispatch);
         if (patch.enableExternalObjects !== undefined) await notifyExternalObjectRefresh(tx);
         if (chatBecameEnabled) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAssignments, "*");
         if (patch.enableWorktreeRunExecution !== undefined) await notifyScheduledRetryCancellation(tx);

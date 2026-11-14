@@ -171,7 +171,7 @@ describeDatabase("connection assignment synchronization", () => {
     const before = (await events()).length;
     await db.update(instanceSettings).set({ experimental: { enableChatConnectors: true } });
     expect(await events()).toHaveLength(before + 2);
-    expect((await pluginAgentRuntimeState(db, pluginId, spaceId, agentId))!.connectionAssignments.features).toEqual({ publicMcp: false, chatConnectors: true });
+    expect((await pluginAgentRuntimeState(db, pluginId, spaceId, agentId))!.connectionAssignments.features).toEqual({ chatConnectors: true });
   });
   it("refreshes acknowledged runtime state after managed feature overlays change across restarts", async () => {
     await pluginAgentRuntimeState(db, pluginId, spaceId, agentId);
@@ -179,9 +179,9 @@ describeDatabase("connection assignment synchronization", () => {
     const inbox = pluginLifecycleInbox(db, pluginId);
     for (const event of await events()) await inbox.acknowledge(spaceId, String(event.id));
     for (const enabled of [true, false]) {
-      vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "2026.720.0", features: { enablePublicMcp: enabled, enableChatConnectors: enabled }, plugins: { autoInstall: [] } }));
+      vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "2026.720.0", features: { enableChatConnectors: enabled }, plugins: { autoInstall: [] } }));
       const before = (await events()).length;
-      const snapshots: Array<{ publicMcp: boolean; chatConnectors: boolean }> = [];
+      const snapshots: Array<{ chatConnectors: boolean }> = [];
       const call = vi.fn(async (_plugin, _method, event) => {
         const state = await pluginAgentRuntimeState(db, pluginId, spaceId, event.resourceId);
         snapshots.push(state!.connectionAssignments.features);
@@ -191,7 +191,7 @@ describeDatabase("connection assignment synchronization", () => {
       const delivery = registerPluginLifecycleDelivery(coordinator, db, { call, isRunning: () => true, onConfigApplied: () => () => {} } as never, new EventEmitter() as never);
       try {
         await delivery.ready;
-        await vi.waitFor(() => expect(snapshots).toEqual(Array(2).fill({ publicMcp: enabled, chatConnectors: enabled })), { timeout: 5000 });
+        await vi.waitFor(() => expect(snapshots).toEqual(Array(2).fill({ chatConnectors: enabled })), { timeout: 5000 });
         await vi.waitFor(async () => expect(await inbox.list(spaceId, 100, undefined, ["agent_runtime"])).toEqual([]), { timeout: 5000 });
         expect(await events()).toHaveLength(before + 2);
       } finally { await delivery.dispose(); await coordinator.stop(); }

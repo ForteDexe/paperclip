@@ -119,38 +119,12 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: true,
     selfHostedDefault: true,
   },
-  enablePublicMcp: {
-    title: "Assistant connections (MCP)",
-    description: "Let external assistants connect as a person to review work, delegate tasks, add feedback, and follow results.",
-    tier: "managed",
-    cloudDefault: false,
-    selfHostedDefault: false,
-  },
   enableGitHubReviewBots: {
     title: "GitHub review bots",
     description: "Show GitHub review bot setup and management independently of chat connectors. Existing bots keep running when hidden; GitHub tool connections are unaffected.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
-  },
-  enableOpenAiDot: {
-    title: "OpenAI Dot",
-    description: "Add OpenAI Dot as a standalone agent choice with its own experimental opt-in. Requires Assistant connections (MCP) and an authenticated instance with a public HTTPS URL.",
-    tier: "managed",
-    cloudDefault: false,
-    selfHostedDefault: false,
-  },
-  enableGrokBot: {
-    title: "Grok Bot",
-    description: "Connect an existing Grok Bot as an experimental Outpost agent. Requires Assistant connections (MCP), Outpost Runner, and an authenticated public HTTPS instance. Provider spending is not reported.",
-    tier: "managed",
-    cloudDefault: false,
-    selfHostedDefault: false,
-  },
-  enableMuse: {
-    title: "Muse — Personal agent",
-    description: "Connect your personal Meta Muse through its managed background receiver and the external Outpost Runner. Experimental; requires authenticated public HTTPS and Outpost Runner.",
-    tier: "managed", cloudDefault: false, selfHostedDefault: false,
   },
   enableChatConnectors: {
     title: "Chat connectors",

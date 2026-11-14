@@ -13,7 +13,7 @@ const databasePackages = ["@outpost/db", "drizzle-orm", "embedded-postgres", "po
 const configurationTransactionCallers = new Set([
   "modules/external-agents/muse.ts", "modules/external-agents/dot.ts",
   "services/secret-proposals.ts", "services/connection-intents.ts", "services/dot-runner-broker.ts",
-  "services/public-mcp/oauth.ts", "services/agent-profile-avatar.ts", "services/agent-instruction-revisions.ts", "services/space-skills.ts",
+  "services/agent-profile-avatar.ts", "services/agent-instruction-revisions.ts", "services/space-skills.ts",
 ]);
 
 function normalizedRelative(from, to) {

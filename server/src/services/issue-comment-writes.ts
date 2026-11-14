@@ -9,7 +9,6 @@ export function insertIssueComment(db: WriteDb, input: PgInsertValue<typeof issu
   return db.transaction(async tx => {
     await notifyIssueRecovery(tx, { spaceId: input.spaceId,
       issueId: typeof input.issueId === "string" ? input.issueId : undefined });
-    await notifyDeliveryWork(tx, DELIVERY_QUEUES.dotEvents, `space:${input.spaceId}`);
     return tx.insert(issueComments).values(input).returning();
   });
 }

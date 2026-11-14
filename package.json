@@ -15,8 +15,6 @@
     "dev:ui": "corepack pnpm --filter @outpost/ui dev",
     "dev:mobile": "corepack pnpm --filter @outpost/ui build && corepack pnpm --filter @outpost/ui preview",
     "dev:both": "node scripts/dev-both.mjs",
-    "prototype:dot": "pnpm --filter @outpost/server exec tsx scripts/dot-runner-demo.ts",
-    "prototype:dot:live": "pnpm --filter @outpost/server exec tsx scripts/dot-runner-live.ts",
     "storybook": "pnpm --filter @outpost/ui storybook",
     "build-storybook": "pnpm --filter @outpost/ui build-storybook",
     "build": "corepack pnpm run preflight:workspace-links && corepack pnpm -r build",

@@ -182,7 +182,6 @@ export async function persistActivity(db: Db, input: LogActivityInput, receipt?:
   }).returning({ id: activityLog.id });
   const [activity] = input.entityType === "issue"
     ? await db.transaction(async tx => {
-      await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpEvents, `task:${input.entityId}`);
       if (input.runId && input.action === "issue.updated" && ["done", "cancelled"].includes(String(input.details?.status)))
         await notifyActiveRunSilence(tx, { spaceId: input.spaceId, runId: input.runId });
       return insert(tx as unknown as Db);

@@ -1,7 +1,6 @@
 import { assertAgentInteraction } from "../services/agent-interaction-policy.js";
 import { assertQueuedCommentInteractionDelivery, recheckQueuedCommentInteractionDelivery } from "../services/agent-interaction-delivery.js";
 import { listStalledDependencies } from "../services/recovery/blocker-stall-wakeups.js";
-import { confirmMcpAttachmentCleanup, recordMcpAttachmentCleanup, type McpAttachmentCleanup } from "../services/public-mcp/upload-cleanup.js";
 import { notifyDeferredExecutionWork } from "../services/deferred-execution-notifications.js";
 import { notifyNativeRecoveryNotices } from "../services/native-recovery-notice-notifications.js";
 import { notifyNativeStatusReassessment } from "../services/native-status-reassessment-notifications.js";
@@ -17182,7 +17181,6 @@ export function issueRoutes(
     for (const attachment of attachments) {
       try {
         await storage.deleteObject(attachment.spaceId, attachment.objectKey);
-        await recordMcpAttachmentCleanup(db, await confirmMcpAttachmentCleanup(db, storage, attachment));
       } catch (err) {
         logger.warn(
           { err, issueId: id, attachmentId: attachment.id },
@@ -21014,10 +21012,8 @@ export function issueRoutes(
     if (!(await assertDeliverableMutationAllowedByRunContext(req, res, issue)))
       return;
 
-    let mcpCleanup: McpAttachmentCleanup | null = null;
     try {
       await storage.deleteObject(attachment.spaceId, attachment.objectKey);
-      mcpCleanup = await confirmMcpAttachmentCleanup(db, storage, attachment);
     } catch (err) {
       logger.warn(
         { err, attachmentId },
@@ -21025,7 +21021,7 @@ export function issueRoutes(
       );
     }
 
-    const removed = await svc.removeAttachment(attachmentId, { mcpCleanup, actorAgentId: req.actor.type === "agent" ? req.actor.agentId : null });
+    const removed = await svc.removeAttachment(attachmentId, { actorAgentId: req.actor.type === "agent" ? req.actor.agentId : null });
     if (!removed) {
       res.status(404).json({ error: "Attachment not found" });
       return;

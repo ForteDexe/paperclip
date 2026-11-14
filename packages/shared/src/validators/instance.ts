@@ -54,10 +54,6 @@ export const instanceExperimentalSettingsSchema = z.object({
   // always enabled; this remains accepted so older stored rows and managed
   // configs continue to load during upgrades.
   enableApps: z.boolean().default(true),
-  enablePublicMcp: z.boolean().default(false),
-  enableOpenAiDot: z.boolean().default(false),
-  enableGrokBot: z.boolean().default(false),
-  enableMuse: z.boolean().default(false),
   enableChatConnectors: z.boolean().default(false),
   enableGitHubReviewBots: z.boolean().default(false),
   // Compatibility only: old stored and managed values must still parse.

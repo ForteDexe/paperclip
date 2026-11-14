@@ -1,4 +1,3 @@
-import { recordMcpAttachmentCleanup, type McpAttachmentCleanup } from "./public-mcp/upload-cleanup.js";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
 import type { IssueDisplayStatus } from "@outpost/shared";
@@ -14366,7 +14365,7 @@ export function issueService(db: Db) {
         .where(eq(issueAttachments.id, id))
         .then((rows) => rows[0] ?? null),
 
-    removeAttachment: async (id: string, options?: { mcpCleanup?: McpAttachmentCleanup | null; actorAgentId?: string | null }) =>
+    removeAttachment: async (id: string, options?: { actorAgentId?: string | null }) =>
       db.transaction(async (tx) => {
         const existing = await tx
           .select({
@@ -14398,11 +14397,6 @@ export function issueService(db: Db) {
         await notifyIssueRecovery(tx, { spaceId: existing.spaceId });
         await tx.delete(issueAttachments).where(eq(issueAttachments.id, id));
         await tx.delete(assets).where(eq(assets.id, existing.assetId));
-        if (options?.mcpCleanup?.id === existing.id && options.mcpCleanup.spaceId === existing.spaceId
-          && options.mcpCleanup.issueId === existing.issueId && options.mcpCleanup.provider === existing.provider
-          && options.mcpCleanup.objectKey === existing.objectKey) {
-          await recordMcpAttachmentCleanup(tx, options.mcpCleanup);
-        }
         return existing;
       }),
 

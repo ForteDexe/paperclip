@@ -76,14 +76,6 @@ describe("instance settings service", () => {
     const disabled = applyExperimentalSettingsPatch(restored, { enableOutpostNotebook: false });
     expect(normalizeExperimentalSettings(JSON.parse(JSON.stringify(disabled))).enableOutpostNotebook).toBe(false);
   });
-  it("keeps OpenAI Dot opt-in and persists its setting independently of its prerequisites", () => {
-    expect(normalizeExperimentalSettings({}).enableOpenAiDot).toBe(false);
-    const enabled = applyExperimentalSettingsPatch({}, { enableOpenAiDot: true });
-    expect(normalizeExperimentalSettings(JSON.parse(JSON.stringify(enabled)))).toMatchObject({
-      enableOpenAiDot: true, enablePublicMcp: false,
-    });
-    expect(applyExperimentalSettingsPatch(enabled, { enableOpenAiDot: false }).enableOpenAiDot).toBe(false);
-  });
   it("keeps chat connectors opt-in across legacy storage and patches without disabling Apps", () => {
     for (const stored of [undefined, {}, { enableApps: true }]) {
       expect(normalizeExperimentalSettings(stored).enableChatConnectors).toBe(false);
@@ -128,10 +120,6 @@ describe("instance settings service", () => {
       enableApps: true,
     enableMcpAggregators: true,
       enableAgentChat: true,
-      enablePublicMcp: false,
-      enableOpenAiDot: false,
-      enableMuse: false,
-      enableGrokBot: false,
       enableCombinedInboxTasks: false,
       enableArtifactsV1: true,
       enableChatConnectors: false,

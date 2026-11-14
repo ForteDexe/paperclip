@@ -1716,7 +1716,7 @@ export interface PluginAgentRuntimeSkill {
 }
 
 export interface PluginAgentConnectionAssignments {
-  features: { publicMcp: boolean; chatConnectors: boolean };
+  features: { chatConnectors: boolean };
   connections: Array<{ id: string; name: string; transport: string; enabled: boolean; status: string }>;
   profileIds: string[];
 }

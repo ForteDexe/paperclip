@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { agents, applyPendingMigrations, authUsers, closeRegisteredClients, spaces, spaceSecrets, createDb,
-  heartbeatRuns, issues, mcpOauthClients, nativeRunFinalizations,
+  heartbeatRuns, issues, nativeRunFinalizations,
   type Db } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
@@ -75,7 +75,6 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     await db.delete(issues);
     await db.delete(agents);
     await db.delete(spaces);
-    await db.delete(mcpOauthClients);
     await db.delete(authUsers);
   });
 
