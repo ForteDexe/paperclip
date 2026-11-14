@@ -206,6 +206,13 @@ Outpost's local agent runtime. They are removed together with release and build
 dependencies on the evaluation package. Runtime protocol, Codex and Claude
 execution, deterministic conformance checks, and local diagnostics remain.
 
+### Merged Review Evidence
+
+Historical pull-request screenshots are not product assets and are not retained
+in the repository. Review evidence belongs in the pull request or review thread,
+as required by `CONTRIBUTING.md`; keeping it in `docs/pr-screenshots/` adds clone
+weight without supporting a retained runtime or user-facing feature.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,
