@@ -8,7 +8,7 @@
   ],
   "counts": {
     "actions": 70,
-    "legacyRequirements": 106
+    "legacyRequirements": 105
   },
   "actions": [
     {
@@ -947,7 +947,6 @@
         "rf-case-lifecycle-link-01",
         "rf-case-upsert-doc-01",
         "rf-cskill-audit-01",
-        "rf-cskill-install-attach-01",
         "rf-cskill-self-sync-01",
         "rf-iws-start-url-01",
         "rf-iws-target-restart-01",
@@ -1056,7 +1055,6 @@
         "rf-case-lifecycle-link-01",
         "rf-case-upsert-doc-01",
         "rf-cskill-audit-01",
-        "rf-cskill-install-attach-01",
         "rf-cskill-self-sync-01",
         "rf-iws-start-url-01",
         "rf-iws-target-restart-01",
@@ -1310,13 +1308,11 @@
       "contractOwner": "src/catalog/protocol-action-contracts.test.ts::list_space_skills has a schema-valid canonical example and every declared projection",
       "legacyBehavioralCases": [
         "rf-cskill-audit-01",
-        "rf-cskill-install-attach-01",
         "rf-cskill-self-sync-01"
       ],
       "deterministicCases": [
         "protocol-action:list_space_skills",
         "rf-cskill-audit-01",
-        "rf-cskill-install-attach-01",
         "rf-cskill-self-sync-01"
       ],
       "legacyRequirementCases": [],
@@ -3294,25 +3290,6 @@
       "deterministicOwner": "src/scenarios/scenario-explorer.test.ts::renders every scenario with exposure, control plane, authorization, diff, and parity"
     },
     {
-      "id": "rf-cskill-install-attach-01",
-      "title": "Catalog install is followed by an agent skills sync — install ≠ attach",
-      "fixture": "baseline",
-      "operations": [
-        "append_audit_record",
-        "checkout_task",
-        "get_task_context",
-        "list_space_skills",
-        "persist_run",
-        "route_wake"
-      ],
-      "sourceAnchor": "outpost-evals/outpost-skill-optimization/skills/outpost/tests/cases/rf-cskill-install-attach-01.yaml",
-      "assertionClasses": [
-        "authorization_policy",
-        "combined_multi_hop"
-      ],
-      "deterministicOwner": "src/scenarios/scenario-explorer.test.ts::renders every scenario with exposure, control plane, authorization, diff, and parity"
-    },
-    {
       "id": "rf-cskill-self-sync-01",
       "title": "Skills sync replaces the whole desired set — existing skills are preserved",
       "fixture": "baseline",
@@ -4115,8 +4092,8 @@
     },
     {
       "id": "transcript-accounting",
-      "requirement": "assistant transcript capture, token usage, and cost inputs",
-      "deterministicOwner": "src/live/live-session.test.ts; src/cli/eval-session.ts"
+      "requirement": "assistant transcript capture and token usage",
+      "deterministicOwner": "src/live/live-session.test.ts"
     },
     {
       "id": "state-reconstruction",

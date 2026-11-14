@@ -1,11 +1,11 @@
-// Retain normal build/pack outputs for installed Product E2E and Runner evals.
+// Retain normal build/pack outputs for installed Product E2E and Runner qualification.
 // This runs only after the clean public installation and Pi admission pass.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 export function retainRunnerQualificationPackages({ repo, output, sourceRevision, releaseVersion, publicArchives, env = process.env }) {
   assert.match(sourceRevision, /^[a-f0-9]{40}$/);
@@ -28,7 +28,12 @@ export function retainRunnerQualificationPackages({ repo, output, sourceRevision
   };
   const pack = (directory, name, ignoreScripts) => {
     const previous = new Set(readdirSync(staging));
-    execFileSync('npm', ['pack', ...(ignoreScripts ? ['--ignore-scripts'] : []), '--pack-destination', staging], {
+    const npmArgs = ['pack', ...(ignoreScripts ? ['--ignore-scripts'] : []), '--pack-destination', staging];
+    const command = process.platform === 'win32' ? process.execPath : 'npm';
+    const args = process.platform === 'win32'
+      ? [join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'), ...npmArgs]
+      : npmArgs;
+    execFileSync(command, args, {
       cwd: directory, env: { ...env, npm_config_cache: join(staging, 'npm-cache'), npm_config_ignore_scripts: String(ignoreScripts) }, maxBuffer: 32 * 1024 * 1024,
     });
     const files = readdirSync(staging).filter(file => file.endsWith('.tgz') && !previous.has(file));
@@ -37,8 +42,8 @@ export function retainRunnerQualificationPackages({ repo, output, sourceRevision
   };
   try {
     for (const archive of publicArchives) retain(archive.name, archive.file);
-    // The separate private eval SDK is already built by pnpm build. Packing
-    // it does not substitute for the public server's packaged runner.
+    // Preserve the runner exactly as it would be packaged after the clean
+    // public installation and Pi admission checks.
     const runner = join(staging, 'runner');
     mkdirSync(runner);
     const runnerManifest = JSON.parse(readFileSync(join(repo, 'packages/outpost-runner/package.json')));
@@ -46,7 +51,7 @@ export function retainRunnerQualificationPackages({ repo, output, sourceRevision
       const input = join(repo, 'packages/outpost-runner', file);
       if (existsSync(input)) cpSync(input, join(runner, file), { recursive: true });
     }
-    assert.ok(existsSync(join(runner, 'dist/cli/eval-session.js')));
+    assert.ok(existsSync(join(runner, 'dist/index.js')));
     writeFileSync(join(runner, 'package.json'), JSON.stringify(runnerManifest));
     pack(runner, runnerManifest.name, true);
     assert.equal(new Set(archives.map(a => a.name)).size, archives.length);

@@ -42,6 +42,7 @@ const registrationFiles = [
 ];
 
 const retiredInfrastructure = [
+  "evals",
   "docs/pr-screenshots",
   "packages/plugins/examples",
   "packages/plugins/plugin-workspace-diff",
@@ -56,6 +57,7 @@ const retiredInfrastructure = [
   "tests/runner-e2e/chat-full-catalog-testops-manifest.json",
   "tests/runner-e2e/testops-chat-admission.ts",
   "tests/runner-e2e/chat-remote-host.ts",
+  "tests/runner-e2e/runner-eval-observability.test.ts",
   "packages/outpost-runner/src/eval",
   "packages/outpost-runner/src/evals",
   "packages/outpost-runner/src/cli/eval-session.ts",

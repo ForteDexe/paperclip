@@ -807,9 +807,8 @@ recorded lab unless `--force` is also supplied.
 | `check:forbidden-imports`                               | Reject TypeScript imports and Cargo path dependencies that cross into Outpost core.                                                       |
 | `check:tracked-imports`                                 | Reject tracked imports and `package.json` entry points that only resolve against untracked files, so a clean checkout of any commit builds. |
 | `check:numbered-milestones`                             | Reject numbered construction-milestone names in tracked package paths and source.                                                           |
-| `check:package-boundaries`                              | Enforce the acyclic runtime/testing/eval dependency and manifest boundary.                                                                  |
-| `check:clean-consumers`                                 | Pack the runner and install its root, evals, and testing exports in a clean consumer.                                                       |
-| `test:eval-slice`                                       | Run the credential-free eval bundle, scoring, and behavior/fault slice.                                                                     |
+| `check:package-boundaries`                              | Enforce the runtime/testing dependency and manifest boundary.                                                                               |
+| `check:clean-consumers`                                 | Pack the runner and install its root, release, and testing exports in a clean consumer.                                                     |
 | `test:aws-agentcore-provisioning`                       | Validate the AgentCore template and wrapper safety contracts without provisioning.                                                          |
 | `aws-agentcore:provision` / `probe` / `lab` / `destroy` | Manage the scoped AgentCore proof-of-concept lifecycle.                                                                                     |
 | `smoke:capability:aws-agentcore`                        | Exercise the qualified AgentCore profile through the capability harness.                                                                    |

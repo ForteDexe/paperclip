@@ -203,8 +203,10 @@ The standalone evaluation-matrix kernel, paid and controlled evaluation
 campaigns, Evalbook/report publication, evaluation CLI session, chaos/live
 evaluation workflows, and their dedicated schemas and fixtures are not part of
 Outpost's local agent runtime. They are removed together with release and build
-dependencies on the evaluation package. Runtime protocol, Codex and Claude
-execution, deterministic conformance checks, and local diagnostics remain.
+dependencies on the evaluation package, the standalone Promptfoo smoke suite,
+and evaluation-only release qualification contracts. Runtime protocol, Codex
+and Claude execution, deterministic conformance checks, and local diagnostics
+remain.
 
 ### Merged Review Evidence
 

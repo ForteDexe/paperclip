@@ -70,7 +70,7 @@ try {
     await publishArtifacts({ publicationRoot, runnerTarball, runnerdArtifact, conformanceRecord });
     process.stdout.write(`Published clean-consumer artifacts at ${publicationRoot}\n`);
   }
-  process.stdout.write("Clean-consumer pack/install checks passed for the runner root, evals, and testing exports.\n");
+  process.stdout.write("Clean-consumer pack/install checks passed for the runner root, release, and testing exports.\n");
 } finally {
   if (process.env.OUTPOST_KEEP_PACKAGE_CONSUMERS !== "1") {
     await rm(scratchRoot, { recursive: true, force: true });
