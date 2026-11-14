@@ -20,10 +20,8 @@ import { assertNoCaseHandoffMutation } from "../heartbeat/case-handoff-lifecycle
 import { handoffCaseSchema } from "@outpost/shared";
 import { skillAccessService } from "../skill-access.js";
 import { SKILL_LIBRARY_SCHEMAS, SKILL_LIBRARY_TOOL_DEFINITIONS, SkillLibraryReadCache, executeSkillLibraryTool } from "./native-skill-library-tools.js";
-import { withExternalExecutionAdmission, type ExternalAdmissionTransaction } from "../../modules/external-agents/index.js";
 import { callTaskWorkspaceTool, pendingTaskRepositoryContinuation } from "../task-workspace-tools.js";
-import { TaskAttachmentReadCache, TASK_ATTACHMENT_DEFINITIONS, TASK_ATTACHMENT_SCHEMAS, listTaskAttachments, readTaskAttachment } from "./runner-task-attachments.js";
-import { RUNNER_BRIDGE_READ_OPERATIONS, RUNNER_BRIDGE_SCHEMAS, runnerBridgeDefinitions, readAssignedSkill, executeWorkspaceTool, readWorkspaceUploadFile, settleRunnerBridgeRead, assertRunnerWorkspacePathAllowed } from "./runner-bridge-tools.js";
+import { RUNNER_BRIDGE_READ_OPERATIONS, RUNNER_BRIDGE_SCHEMAS, runnerBridgeDefinitions, readAssignedSkill, executeWorkspaceTool, settleRunnerBridgeRead, assertRunnerWorkspacePathAllowed } from "./runner-bridge-tools.js";
 import type { NativeRuntimeContextSnapshot } from "../../vendor/outpost-runner/index.js";
 import { assertCanManageIssueMonitor, eligibleIssueMonitorWait, prepareIssueMonitorUpdate, setTaskMonitorSchema, summarizeIssueMonitor } from "../issue-monitors.js";
 import { readTaskQuestionContext } from "../issue-question-context.js";
@@ -94,7 +92,6 @@ import {
   heartbeatRuns,
   issueApprovals,
   issueComments,
-  issueAttachments,
   issueDocuments,
   issues,
   projects,
@@ -137,7 +134,6 @@ import {
   type NativeChatAttachmentReadScope,
 } from "./chat-attachment-read.js";
 
-const EXTERNAL_WORKSPACE_OPERATIONS = new Set(["get_workspace", "list_workspaces", "select_workspace", "prepare_repository", "register_deliverable"]);
 const IMPLEMENTED_OPERATIONS = new Set([
   "send_chat_message",
   "submit_complaint", "submit_suggestion",
@@ -148,14 +144,6 @@ const IMPLEMENTED_OPERATIONS = new Set([
   "get_workspace", "list_workspaces", "select_workspace", "prepare_repository", "create_skill", "update_skill", "create_task", "reassign_task", "set_dependencies", "create_project", "list_project_repositories", "list_projects", "register_deliverable",
   "list_documents", "read_document", "list_document_revisions", "write_document",
   "list_agents", "get_agent", "list_approvals", "get_approval", "get_approval_context",
-]);
-
-/** Closed first-party native Muse profile. No connector, generic API, credential or workspace grants. */
-export const MUSE_NATIVE_OPERATIONS = new Set([
-  "get_identity", "list_people",
-  "submit_complaint", "submit_suggestion", "get_task_context", "get_task_history", "search_tasks", "report_progress", "set_task_title", "set_task_monitor",
-  "create_task", "handoff_case", ...NATIVE_CASE_OPERATIONS, "reassign_task", "set_dependencies", "create_project", "list_projects", "list_documents", "read_document", "list_document_revisions", "write_document",
-  "list_agents", "get_agent", "list_approvals", "get_approval", "get_approval_context", "read_current_wake_comments", "resolve_review",
 ]);
 
 const NATIVE_REVIEW_READ_TOOLS = new Set([
@@ -170,7 +158,6 @@ const RECOVERABLE_READ_OPERATIONS = new Set([
     .map(tool => tool.operationId),
   ...RUNNER_BRIDGE_READ_OPERATIONS,
   ...SKILL_LIBRARY_SCHEMAS.keys(),
-  ...Object.keys(TASK_ATTACHMENT_SCHEMAS),
   READ_CURRENT_WAKE_COMMENTS_TOOL_NAME, LIST_CHAT_ATTACHMENTS_TOOL_NAME, READ_CHAT_ATTACHMENT_TOOL_NAME,
   READ_TOOL_RESULT, "connections_search",
 ]);
@@ -203,10 +190,6 @@ const readOnlyApiMethod = (method: string) => ["GET", "HEAD", "OPTIONS"].include
 const toolCallKey = (callId: string) => createHash("sha256").update(callId).digest("hex");
 const toolInputDigest = (value: unknown) => createHash("sha256").update(canonicalJson(value)).digest("hex");
 
-type NativeIssueDocument = NonNullable<Awaited<ReturnType<ReturnType<typeof documentService>["getIssueDocumentByKey"]>>>;
-type NativeDocumentContent = { id: string | null; documentId: string; body: string; changeSummary?: string | null };
-const UNKNOWN_DOCUMENT_REVISION_BODY = "[Document revision content omitted: historical source trust could not be established.]";
-
 type Binding = {
   /** Server-derived scope for one addressed native completion review. */
   nativeReview?: NativeReviewAssignmentContext;
@@ -227,16 +210,7 @@ type Binding = {
   casesEnabled?: boolean;
   workspaceRoot?: string;
   workspaceBridge?: boolean;
-  /** Pinned provider identity; configuration edits cannot remove API file guards. */
-  dotRuntime?: boolean;
-  museRuntime?: boolean;
-  externalAuthorizingUserId?: string;
-  /** Grok retains its provider apps; this release exposes first-party Outpost tools only. */
-  firstPartyOnly?: boolean;
-  /** Operator-approved Dot attachment access, pinned when the turn opens. */
-  taskAttachmentRead?: boolean;
   runtimeContext?: NativeRuntimeContextSnapshot;
-  assertBridgeAuthority?: (database?: Db) => Promise<void>;
   executionTargetKind?: "local" | "remote";
   readRemoteWorkspaceFile?: RemoteWorkspaceFileReader;
   readRemoteTaskFile?: RemoteWorkspaceFileReader;
@@ -337,14 +311,13 @@ function createAgentApiRequest(input: Record<string, unknown>, binding: Pick<Bin
   return { operationId: "POST /api/spaces/{spaceId}/agent-creations", pathParams: { spaceId: binding.spaceId }, body };
 }
 
-function createAgentResult(value: unknown, provider: unknown) {
-  return { ...apiToolResult(value), ...(provider === "openai_dot" ? { setupRequired: "This creates a separate Outpost Dot agent. Its operator must pair a separate OpenAI Dot before it can run. The existing Dot binding and workspace permission are never inherited." } : {}) };
+function createAgentResult(value: unknown) {
+  return apiToolResult(value);
 }
 
 export class OutpostRunnerToolAuthority {
-  #taskAttachmentCache = new TaskAttachmentReadCache();
   #skillLibraryCache = new SkillLibraryReadCache();
-  close() { this.#taskAttachmentCache.close(); this.#skillLibraryCache.close(); }
+  close() { this.#skillLibraryCache.close(); }
   constructor(readonly db: Db, readonly binding: Binding) {}
 
   definitions(): Array<Record<string, unknown>> {
@@ -375,7 +348,6 @@ export class OutpostRunnerToolAuthority {
         (descriptor) =>
           IMPLEMENTED_OPERATIONS.has(descriptor.operationId) &&
           (!(descriptor.operationId === "handoff_case" || NATIVE_CASE_OPERATIONS.has(descriptor.operationId)) || this.binding.casesEnabled === true) &&
-          (!this.binding.firstPartyOnly || !EXTERNAL_WORKSPACE_OPERATIONS.has(descriptor.operationId)) &&
           (runnerApiToolsEnabled(
             this.binding.spaceId,
             this.binding.apiToolsEnabled,
@@ -421,7 +393,7 @@ export class OutpostRunnerToolAuthority {
     // and truncated external-chat turns: Codex thread/resume cannot add tools,
     // so a reader missing at thread/start stays missing. Execution still fails
     // closed unless this exact run carries the server-verified binding/scope.
-    if (!this.binding.firstPartyOnly && !this.binding.museRuntime && !this.binding.dotRuntime && workMode === "standard"
+    if (workMode === "standard"
       && this.binding.workspaceRoot && runnerApiToolsEnabled(this.binding.spaceId, this.binding.apiToolsEnabled)
       && (this.binding.executionTargetKind === "remote" ? this.binding.installRemoteArtifact : process.platform === "linux")) definitions.push(DOWNLOAD_ARTIFACT_DEFINITION);
     if (this.#imageGenerationAdvertised(workMode)) definitions.push(GENERATE_IMAGE_DEFINITION);
@@ -429,22 +401,20 @@ export class OutpostRunnerToolAuthority {
     definitions.push(LIST_CHAT_ATTACHMENTS_TOOL_DEFINITION);
     definitions.push(REUSE_CHAT_ATTACHMENT_TOOL_DEFINITION);
     definitions.push(READ_CHAT_ATTACHMENT_TOOL_DEFINITION);
-    if (this.binding.taskAttachmentRead) definitions.push(...TASK_ATTACHMENT_DEFINITIONS);
     definitions.push(...SKILL_LIBRARY_TOOL_DEFINITIONS);
-    definitions.push(...runnerBridgeDefinitions({ workspace: !this.binding.firstPartyOnly && !!this.binding.workspaceRoot && this.binding.workspaceBridge === true, skills: !!this.binding.runtimeContext, api: runnerApiToolsEnabled(this.binding.spaceId, this.binding.apiToolsEnabled), mode: workMode }));
-    const connectionTools = this.binding.firstPartyOnly ? [] : [...RUNTIME_CONNECTION_TOOL_DEFINITIONS,
+    definitions.push(...runnerBridgeDefinitions({ workspace: !!this.binding.workspaceRoot && this.binding.workspaceBridge === true, skills: !!this.binding.runtimeContext, api: runnerApiToolsEnabled(this.binding.spaceId, this.binding.apiToolsEnabled), mode: workMode }));
+    const connectionTools = [...RUNTIME_CONNECTION_TOOL_DEFINITIONS,
       ...(this.binding.connectorAssignments ?? []).flatMap((assignment) => assignment.tools)];
-    if (!this.binding.firstPartyOnly && this.binding.assignedMcpTools) definitions.push(READ_TOOL_RESULT_DEFINITION);
-    const assignedTools = this.binding.firstPartyOnly ? [] : this.binding.assignedMcpTools?.definitions((tools) =>
+    if (this.binding.assignedMcpTools) definitions.push(READ_TOOL_RESULT_DEFINITION);
+    const assignedTools = this.binding.assignedMcpTools?.definitions((tools) =>
       runnerCodexDynamicToolsFit([...connectionTools, ...tools, ...definitions])) ?? [];
     const all = [...connectionTools, ...assignedTools, ...definitions]
       .filter(tool => workMode !== "skill_test" || nativeSkillTestToolAllowed(String(tool.name)));
-    return this.binding.museRuntime ? all.filter(definition => MUSE_NATIVE_OPERATIONS.has(String(definition.name))) : all;
+    return all;
   }
 
   async recover(call: Parameters<OutpostRunnerToolAuthority["execute"]>[0]): Promise<{ result: unknown; isError?: boolean } | null> {
     await this.#assertToolScope(call.tool);
-    if (!this.binding.museRuntime) await this.binding.assertBridgeAuthority?.();
     const context = await this.#boundContext({ tool: call.tool });
     const { run } = context;
     if (call.tool === GENERATE_IMAGE) {
@@ -532,7 +502,7 @@ export class OutpostRunnerToolAuthority {
       if (readOnlyApiMethod(operation.method)) return this.#recoverRead(call);
       const result = await this.#completedApiReceipt(run.resultJson?.apiToolReceipts, call.callId, apiInput);
       if (result === undefined) return null;
-      return { result: call.tool === "create_agent" ? createAgentResult(result, context.actor.adapterConfig?.provider) : apiToolResult(result) };
+      return { result: call.tool === "create_agent" ? createAgentResult(result) : apiToolResult(result) };
     }
     if (call.tool === "workspace_write" || call.tool === "workspace_run") {
       const bridge = record(record(run.resultJson?.bridgeToolReceipts)[callKey]);
@@ -589,7 +559,6 @@ export class OutpostRunnerToolAuthority {
       // authorization, uncertain effects, and unexpected storage errors fatal.
       if (!(error instanceof Error && (RECOVERABLE_READ_ERRORS.has(error.message.split(":")[0]!)
         || (error instanceof HttpError && [400, 404, 422].includes(error.status))))) throw error;
-      await this.binding.assertBridgeAuthority?.();
       await this.#boundContext();
       return { isError: true, result: {
         success: false, contentItems: [{ type: "inputText", text: error.message }],
@@ -611,11 +580,6 @@ export class OutpostRunnerToolAuthority {
   }
 
   async #assertToolScope(tool: string): Promise<void> {
-    if (this.binding.museRuntime) {
-      await this.binding.assertBridgeAuthority?.();
-      if (!MUSE_NATIVE_OPERATIONS.has(tool)) throw forbidden("This operation is outside the Muse first-party runtime profile");
-    }
-    if (this.binding.firstPartyOnly && (EXTERNAL_WORKSPACE_OPERATIONS.has(tool) || tool.startsWith("workspace_"))) throw forbidden("Outpost workspace access is unavailable to this Grok Bot session.");
     if (this.binding.nativeReview && tool !== "resolve_review" && !NATIVE_REVIEW_READ_TOOLS.has(tool)) {
       throw forbidden("This review run may only inspect the assigned task and resolve its review.");
     }
@@ -630,7 +594,6 @@ export class OutpostRunnerToolAuthority {
       if (this.binding.workMode && this.binding.workMode !== "standard") throw forbidden("Case tools require standard work mode");
       const create = call.tool === "create_case" ? createNativeCaseSchema.parse(call.arguments) : null;
       if (this.binding.casesEnabled !== true) throw casesDisabledError({ inlineRemediation: true });
-      if (this.binding.museRuntime) await this.binding.assertBridgeAuthority?.();
       // Both operations use the principal-scoped handoff ledger. A committed
       // receipt stays replayable after ownership moved; fresh work reauthorizes.
       const [run] = await this.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, this.binding.runId),
@@ -655,25 +618,6 @@ export class OutpostRunnerToolAuthority {
     }
     await this.#assertToolScope(call.tool);
     if (this.binding.nativeReview && call.tool === "resolve_review") return this.#resolveReview(call.arguments);
-    if (Object.hasOwn(TASK_ATTACHMENT_SCHEMAS, call.tool)) {
-      const authorize = async () => {
-        const current = await this.#boundContext({ tool: call.tool });
-        if (!this.binding.taskAttachmentRead || current.actor.adapterType !== "outpost_runner"
-          || current.actor.adapterConfig?.provider !== "openai_dot" || current.actor.adapterConfig?.dotAttachmentAccess !== true)
-          throw forbidden("Dot task attachment reading was not enabled or was disabled");
-        await this.binding.assertBridgeAuthority?.();
-      };
-      await authorize();
-      const schema = TASK_ATTACHMENT_SCHEMAS[call.tool as keyof typeof TASK_ATTACHMENT_SCHEMAS];
-      const parsed = schema.safeParse(call.arguments);
-      if (!parsed.success) return { outcome: "failed", code: "runner_attachment_invalid_arguments", message: "Arguments do not match this tool's advertised schema." };
-      return settleRunnerBridgeRead(async () => {
-        if (call.tool === "read_task_attachment") return readTaskAttachment({ db: this.db, binding: this.binding, arguments: parsed.data, storage: this.binding.storage, cache: this.#taskAttachmentCache, authorize });
-        const result = await listTaskAttachments(this.db, this.binding, (parsed.data as { after?: string }).after);
-        await authorize();
-        return result;
-      });
-    }
     if (SKILL_LIBRARY_SCHEMAS.has(call.tool)) {
       if (!this.definitions().some(definition => definition.name === call.tool)) throw forbidden("Tool is not available to this run");
       return executeSkillLibraryTool({ db: this.db, spaceId: this.binding.spaceId, tool: call.tool, arguments: call.arguments, cache: this.#skillLibraryCache,
@@ -687,8 +631,6 @@ export class OutpostRunnerToolAuthority {
       const input = parsed.data as Record<string, any>;
       if (call.tool.startsWith("workspace_")) {
         const authorize = async () => { const current = await this.#boundContext({ tool: call.tool });
-          if (current.actor.adapterConfig?.dotWorkspaceAccess !== true) throw forbidden("Dot workspace access was disabled");
-          await this.binding.assertBridgeAuthority?.();
           if (["workspace_write", "workspace_run"].includes(call.tool) && current.issue.workMode !== "standard") throw forbidden("This work mode cannot change files or run commands");
         };
         await authorize();
@@ -719,8 +661,6 @@ export class OutpostRunnerToolAuthority {
       }
       return apiToolResult(await this.#callApi(call.callId, taskBridgeApiRequest(call.tool, input)));
     }
-    if (this.binding.firstPartyOnly && (call.tool === READ_TOOL_RESULT || this.binding.assignedMcpTools?.has(call.tool) || isConnectorTool(call.tool)
-      || RUNTIME_CONNECTION_TOOL_DEFINITIONS.some(tool => tool.name === call.tool))) throw forbidden("This Grok Bot connection exposes first-party Outpost operations. Use your own provider apps under their existing permissions.");
     if (call.tool === DOWNLOAD_ARTIFACT) return this.#downloadArtifact(call.arguments);
     if (call.tool === GENERATE_IMAGE) return this.#generateImage(call.callId, call.arguments);
     if (call.tool === READ_TOOL_RESULT) {
@@ -909,7 +849,7 @@ export class OutpostRunnerToolAuthority {
       }
       case "search_api": return searchRunnerApi(call.arguments);
       case "create_agent": {
-        return createAgentResult(await this.#callApi(call.callId, createAgentApiRequest(input, this.binding)), context.actor.adapterConfig?.provider);
+        return createAgentResult(await this.#callApi(call.callId, createAgentApiRequest(input, this.binding)));
       }
       case "call_api": {
         // ORP reserves operationId/callId for semantic result identity. The
@@ -935,9 +875,6 @@ export class OutpostRunnerToolAuthority {
           ))
           .orderBy(desc(issues.createdAt), desc(issues.id))
           .limit(101);
-        const readableChildren = this.binding.museRuntime
-          ? await this.#readableMuseTaskIds(context.run, childTasks.map(task => task.id)) : null;
-        const visibleChildTasks = readableChildren ? childTasks.filter(task => readableChildren.has(task.id)) : childTasks;
         return {
           space: { id: this.binding.spaceId },
           actor: redactedActor(context.actor),
@@ -954,7 +891,7 @@ export class OutpostRunnerToolAuthority {
                 runId: this.binding.runId, workspaceId: context.issue.executionWorkspaceId })
               ?? await readPublishedGitHubReviewCompletionContinuation({ db: this.db, binding: this.binding })
             : null,
-          childTasks: visibleChildTasks.slice(0, 100).map(redactedTask),
+          childTasks: childTasks.slice(0, 100).map(redactedTask),
           childTasksTruncated: childTasks.length > 100,
           delegationGuidance: "Reuse existing child tasks for delegated work. Inspect a completed child's comments and documents before creating another task for the same deliverable. Use search_tasks if the child task list is truncated.",
           run: {
@@ -963,7 +900,7 @@ export class OutpostRunnerToolAuthority {
             invocationSource: context.run.invocationSource,
           },
           connectionGuidance: CONNECTION_INTENT_AGENT_GUIDANCE,
-          acceptedPlan: await this.#acceptedPlan(context.run.contextSnapshot, context.issue),
+          acceptedPlan: await this.#acceptedPlan(context.run.contextSnapshot),
           sourcePlanApproval: await this.#sourcePlanApproval(context),
           childReviewOutcomes: await this.#readableChildReviewOutcomes(context.run),
           ...(this.binding.nativeReview ? {
@@ -1007,12 +944,11 @@ export class OutpostRunnerToolAuthority {
           (!query || `${task.identifier} ${task.title} ${task.description ?? ""}`.toLowerCase().includes(query))
           && (!statuses || statuses.size === 0 || statuses.has(task.status))
         );
-        const readable = this.binding.museRuntime ? await this.#readableMuseTaskIds(context.run, matching.map(task => task.id)) : null;
         const limit = boundedLimit(input.limit, 50, 200);
         const cursor = input.cursor === undefined ? null : requiredUuid(input.cursor).toLowerCase();
         // IDs keep page order stable when task activity or status changes. Every
-        // page still applies current space, privacy and Muse read authority.
-        const remaining = matching.filter(task => (!readable || readable.has(task.id)) && (!cursor || task.id > cursor))
+        // page still applies current space and privacy authority.
+        const remaining = matching.filter(task => !cursor || task.id > cursor)
           .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
         const page = remaining.slice(0, limit);
         const hasMore = remaining.length > limit;
@@ -1025,21 +961,17 @@ export class OutpostRunnerToolAuthority {
         };
       }
       case "list_documents":
-        return { documents: await this.#visibleMuseDocuments(context.issue,
-          await documentService(this.db).listIssueDocuments(this.binding.issueId)) };
+        return { documents: await documentService(this.db).listIssueDocuments(this.binding.issueId) };
       case "read_document": {
         const document = await documentService(this.db).getIssueDocumentByKey(this.binding.issueId, requiredString(input.key));
         if (!document) throw new Error("outpost_runner_document_not_found");
-        const [visible] = await this.#visibleMuseDocuments(context.issue, [document]);
-        return { document: visible };
+        return { document };
       }
       case "list_document_revisions": {
         const key = requiredString(input.key);
         const service = documentService(this.db);
         const revisions = await service.listIssueDocumentRevisions(this.binding.issueId, key);
-        if (!this.binding.museRuntime || revisions.length === 0) return { revisions };
-        const document = await service.getIssueDocumentByKey(this.binding.issueId, key);
-        return { revisions: await this.#projectMuseDocumentContent(context.issue, revisions, document ? [document] : []) };
+        return { revisions };
       }
       case "write_document": return this.#writeDocument(input);
       case "list_agents":
@@ -1066,8 +998,7 @@ export class OutpostRunnerToolAuthority {
             eq(issues.spaceId, this.binding.spaceId),
             await issueReadSqlCondition(this.db, this.#privacyActor(context.run)),
           ));
-        const readable = this.binding.museRuntime ? await this.#readableMuseTaskIds(context.run, tasks.map(row => row.issue.id)) : null;
-        return { approval, tasks: tasks.filter(row => !readable || readable.has(row.issue.id)).map(row => row.issue) };
+        return { approval, tasks: tasks.map(row => row.issue) };
       }
       case "report_progress": return this.#reportProgress(input);
       case "send_chat_message": return this.#sendChatMessage(input, this.#privacyActor(context.run));
@@ -1142,7 +1073,7 @@ export class OutpostRunnerToolAuthority {
     run: { responsibleUserId: string | null; contextSnapshot: unknown };
   }) {
     return createLocalAgentJwt(this.binding.agentId, this.binding.spaceId, context.actor.adapterType,
-      this.binding.runId, context.run.responsibleUserId, this.#apiScope(context), this.binding.externalAuthorizingUserId);
+      this.binding.runId, context.run.responsibleUserId, this.#apiScope(context));
   }
 
   async #callApi(callId: string, value: unknown, options?: { dedicatedCaseTool: string; caseId?: string; receiptOnly?: true }): Promise<unknown> {
@@ -1163,9 +1094,7 @@ export class OutpostRunnerToolAuthority {
     };
     const caseCaptureId = dedicatedCaseRoute ? options!.caseId
       : await caseIdForApiCapture(this.db, this.binding.spaceId, operation.path, input.pathParams);
-    if (this.binding.firstPartyOnly && /\/(?:workspaces|workspace-runtime|repositories|tool-gateway|tool-connections|tool-profiles|tools|connection-intents|connections|plugins)(?:\/|$)/.test(operation.path)) throw forbidden("Third-party tools through Outpost are unavailable for this Grok Bot connection.");
     const sensitiveResponse = runnerApiSensitiveResponse(operation.method, operation.path);
-    await this.#assertDotApiFileAccess(operation.path, input);
     if (options?.receiptOnly) {
       assertAvailable(bound.issue.workMode);
       return this.#completedApiReceipt(bound.run.resultJson?.apiToolReceipts, callId, input);
@@ -1183,12 +1112,10 @@ export class OutpostRunnerToolAuthority {
           const fresh = await this.#boundContext();
           assertAvailable(fresh.issue.workMode);
           validateRunnerApiCall(input, { ...context, workMode: fresh.issue.workMode });
-          await this.#assertDotApiFileAccess(operation.path, input);
         },
         readFile: (file) => this.#readApiFile(file),
         ...this.#responseCaptureIo("runner.call_api", caseCaptureId),
       });
-      await this.#assertDotApiFileAccess(operation.path, input);
       return result;
     };
     if (readOnlyApiMethod(operation.method)) return execute();
@@ -1284,7 +1211,7 @@ export class OutpostRunnerToolAuthority {
   }
 
   #imageGenerationAdvertised(workMode: string) {
-    return Boolean(this.binding.imageGeneration) && !this.binding.firstPartyOnly && !this.binding.museRuntime && !this.binding.dotRuntime
+    return Boolean(this.binding.imageGeneration)
       && !this.binding.nativeReview && workMode === "standard" && Boolean(this.binding.workspaceRoot)
       && (this.binding.executionTargetKind !== "remote" || Boolean(this.binding.installRemoteArtifact));
   }
@@ -1589,54 +1516,7 @@ export class OutpostRunnerToolAuthority {
     } };
   }
 
-  async #dotOwnsApiAsset(assetId: string): Promise<boolean> {
-    const [capture] = await this.db.select({ id: runnerApiResponseReservations.id }).from(runnerApiResponseReservations).where(and(
-      eq(runnerApiResponseReservations.spaceId, this.binding.spaceId), eq(runnerApiResponseReservations.runId, this.binding.runId),
-      eq(runnerApiResponseReservations.assetId, assetId),
-    )).limit(1);
-    if (capture) return true;
-    const current = await this.#boundContext();
-    if (!this.binding.workspaceBridge || current.actor.adapterConfig?.dotWorkspaceAccess !== true) return false;
-    const [output] = await this.db.select({ id: issueAttachments.id }).from(issueAttachments).where(and(
-      eq(issueAttachments.spaceId, this.binding.spaceId), eq(issueAttachments.issueId, this.binding.issueId),
-      eq(issueAttachments.originatingRunId, this.binding.runId), eq(issueAttachments.assetId, assetId),
-    )).limit(1);
-    return !!output;
-  }
-
-  async #assertDotApiFileAccess(path: string, input: { pathParams?: Record<string, string>; files?: RunnerApiFile[] }) {
-    if (this.binding.firstPartyOnly && (input.files?.length || /\/(?:attachments|assets)\/[^/]+\/content$/.test(path) || /\/file-resources\/content$/.test(path))) {
-      throw forbidden("Use this Grok work session's bounded upload or download grant; direct file API access is unavailable.");
-    }
-    if (!this.binding.dotRuntime) return;
-    const current = await this.#boundContext();
-    await this.binding.assertBridgeAuthority?.();
-    if (/^\/api\/attachments\/\{[^}]+\}\/content$/.test(path))
-      throw forbidden("Dot must use read_task_attachment for verified contents of its current assigned task; direct attachment API downloads are disabled.");
-    if (/^\/api\/issues\/\{[^}]+\}\/file-resources\/content$/.test(path))
-      throw forbidden("Dot must use workspace_read with its separate workspace grant; direct workspace API downloads are disabled.");
-    if (/^\/api\/assets\/\{[^}]+\}\/content$/.test(path)) {
-      const assetId = input.pathParams?.assetId;
-      if (!assetId || !/^[0-9a-f-]{36}$/i.test(assetId) || !await this.#dotOwnsApiAsset(assetId))
-        throw forbidden("Dot may read API captures and outputs from this run only. Use read_task_attachment for assigned input files.");
-    }
-    for (const file of input.files ?? []) {
-      if (file.path && (!this.binding.workspaceBridge || !this.binding.workspaceRoot || current.actor.adapterConfig?.dotWorkspaceAccess !== true))
-        throw forbidden("Dot workspace access is required for API file uploads.");
-      if (file.artifactId && (!/^[0-9a-f-]{36}$/i.test(file.artifactId) || !await this.#dotOwnsApiAsset(file.artifactId)))
-        throw forbidden("Dot may upload API captures and outputs from this run only.");
-    }
-  }
-
   async #readApiFile(file: RunnerApiFile): Promise<{ bytes: Buffer; filename: string; contentType: string }> {
-    if (this.binding.dotRuntime) {
-      await this.#assertDotApiFileAccess("", { files: [file] });
-      if (file.path) {
-        const bytes = await readWorkspaceUploadFile(this.binding.workspaceRoot!, file.path);
-        await this.#assertDotApiFileAccess("", { files: [file] });
-        return { bytes, filename: basename(file.path), contentType: "application/octet-stream" };
-      }
-    }
     if (file.artifactId) {
       const asset = await assetService(this.db).getById(file.artifactId);
       if (!asset || asset.spaceId !== this.binding.spaceId) throw forbidden("Artifact is not available in this space");
@@ -1707,33 +1587,17 @@ export class OutpostRunnerToolAuthority {
     return approval;
   }
 
-  async #readableMuseTaskIds(run: { responsibleUserId: string | null }, taskIds: string[]): Promise<Set<string>> {
-    const ids = [...new Set(taskIds)];
-    if (!ids.length) return new Set();
-    const decisions = await authorizationService(this.db).decideReads(this.#privacyActor(run),
-      ids.map(issueId => ({ type: "issue", spaceId: this.binding.spaceId, issueId })));
-    return new Set(ids.filter((_id, index) => decisions[index]?.allowed));
-  }
-
   async #readableChildReviewOutcomes(run: { responsibleUserId: string | null }) {
-    const outcomes = await childReviewOutcomes(this.db, this.binding.spaceId, this.binding.issueId, this.#privacyActor(run));
-    if (!this.binding.museRuntime) return outcomes;
-    const taskId = (outcome: (typeof outcomes)[number]) => record(outcome.result).childTaskId;
-    const readable = await this.#readableMuseTaskIds(run, outcomes.flatMap(outcome => {
-      const id = taskId(outcome); return typeof id === "string" ? [id] : [];
-    }));
-    return outcomes.filter(outcome => { const id = taskId(outcome); return typeof id === "string" && readable.has(id); });
+    return childReviewOutcomes(this.db, this.binding.spaceId, this.binding.issueId, this.#privacyActor(run));
   }
 
   #privacyActor(run: { responsibleUserId: string | null; contextSnapshot?: unknown }): AuthorizationActor {
     return { type: "agent", agentId: this.binding.agentId, spaceId: this.binding.spaceId,
       runId: this.binding.runId, source: "agent_jwt", onBehalfOfUserId: run.responsibleUserId,
-      keyScope: nativeRunKeyScope({ ...this.binding, contextSnapshot: run.contextSnapshot }),
-      ...(this.binding.museRuntime ? { authorizingUserId: this.binding.externalAuthorizingUserId } : {}) };
+      keyScope: nativeRunKeyScope({ ...this.binding, contextSnapshot: run.contextSnapshot }) };
   }
 
   async #boundContext(options: { includeChatWake?: boolean; tool?: string } = {}) {
-    if (this.binding.museRuntime && !this.binding.externalAuthorizingUserId) throw forbidden("Muse authorizer is unavailable");
     const [row] = await this.db.select({ issue: issues, actor: agents, run: {
       id: heartbeatRuns.id,
       spaceId: heartbeatRuns.spaceId,
@@ -1853,13 +1717,11 @@ export class OutpostRunnerToolAuthority {
       idempotencyKey,
       input,
       async (tx, context) => {
-        const sourceTrust = this.binding.museRuntime ? await resolveActorSourceTrustForIssue({ db: tx, issue: context.issue,
-          actor: { actorType: "agent", actorId: this.binding.agentId, agentId: this.binding.agentId, runId: this.binding.runId } }) : undefined;
         const comment = await issueService(tx).addComment(
           this.binding.issueId,
           body,
           { agentId: this.binding.agentId, runId: this.binding.runId },
-          { authorizationReason: "outpost_runner_protocol", sourceTrust },
+          { authorizationReason: "outpost_runner_protocol" },
           tx,
         );
         const result = { commentId: comment.id, issueId: this.binding.issueId, disposition: "applied" };
@@ -1900,8 +1762,6 @@ export class OutpostRunnerToolAuthority {
       if (recovering && !nativeToolAllowedInMode("write_document", context.issue.workMode)) {
         throw new Error("outpost_runner_tool_mode_denied");
       }
-      const sourceTrust = this.binding.museRuntime ? await resolveActorSourceTrustForIssue({ db: tx, issue: context.issue,
-        actor: { actorType: "agent", actorId: this.binding.agentId, agentId: this.binding.agentId, runId: this.binding.runId } }) : undefined;
       const write = await documentService(tx).upsertIssueDocument({
         issueId: this.binding.issueId,
         key: requiredString(input.key),
@@ -1914,7 +1774,6 @@ export class OutpostRunnerToolAuthority {
           : requiredString(input.changeSummary),
         createdByAgentId: this.binding.agentId,
         createdByRunId: this.binding.runId,
-        sourceTrust,
       });
       const activity = await persistActivity(tx, {
         spaceId: this.binding.spaceId,
@@ -2053,11 +1912,6 @@ export class OutpostRunnerToolAuthority {
         }
       }
       const projectId = nullableProviderId(input.projectId) ?? parentProjectId;
-      if (this.binding.museRuntime && projectId) {
-        const access = await authorizationService(tx).decide({ actor: this.#privacyActor(context.run), action: "project:read",
-          resource: { type: "project", spaceId: this.binding.spaceId, projectId } });
-        if (!access.allowed) throw forbidden("Project is unavailable to this Muse run");
-      }
       const scope = { projectId, parentIssueId: placedParentId, assigneeAgentId, assigneeUserId };
       const decision = await authorizationService(tx).decide({
         actor: this.#privacyActor(context.run),
@@ -2264,16 +2118,9 @@ export class OutpostRunnerToolAuthority {
       return record(prior.details?.receipt);
     };
     const authorize = async (tx: Db, run: typeof heartbeatRuns.$inferSelect) => {
-      // Muse idle comments lock this target before admission. Never wait for
-      // their target while holding the caller's admission lock.
       const [target] = await tx.select().from(issues).where(and(
         eq(issues.id, taskId), eq(issues.spaceId, this.binding.spaceId),
-      )).for("update", this.binding.museRuntime ? { noWait: true } : undefined).catch((error: unknown) => {
-        if (this.binding.museRuntime && (record(error).code === "55P03" || record(record(error).cause).code === "55P03")) {
-          throw new HttpError(409, "outpost_runner_reassignment_conflict: target is busy; retry after current work settles");
-        }
-        throw error;
-      });
+      )).for("update");
       if (!target) throw new Error("outpost_runner_task_not_found");
       const actor = this.#privacyActor(run);
       for (const action of ["issue:read", "tasks:assign"] as const) {
@@ -2546,11 +2393,6 @@ export class OutpostRunnerToolAuthority {
     }
     const blockedByIssueIds = input.blockedByTaskIds.map(requiredString);
     return this.#withMutationReceipt("set_dependencies", idempotencyKey, input, async (tx, context) => {
-      if (this.binding.museRuntime) for (const issueId of blockedByIssueIds) {
-        const decision = await authorizationService(tx).decide({ actor: this.#privacyActor(context.run), action: "issue:read",
-          resource: { type: "issue", spaceId: this.binding.spaceId, issueId } });
-        if (!decision.allowed) throw forbidden("Dependency task is unavailable");
-      }
       const updated = await issueService(tx).update(this.binding.issueId, {
         blockedByIssueIds,
         actorAgentId: this.binding.agentId,
@@ -2573,16 +2415,8 @@ export class OutpostRunnerToolAuthority {
     if (!workspaceRoot) {
       throw new Error("outpost_runner_file_handoff_workspace_unavailable");
     }
+    assertRunnerWorkspacePathAllowed(typeof input.contentRef === "string" ? input.contentRef : "");
     const current = await this.#boundContext();
-    const authorizeWorkspace = async (actor: typeof agents.$inferSelect) => {
-      if (this.binding.dotRuntime) {
-        if (!this.binding.workspaceBridge || actor.adapterConfig?.dotWorkspaceAccess !== true)
-          throw forbidden("Dot workspace access is required to publish workspace files.");
-        assertRunnerWorkspacePathAllowed(typeof input.contentRef === "string" ? input.contentRef : "");
-        await this.binding.assertBridgeAuthority?.();
-      }
-    };
-    await authorizeWorkspace(current.actor);
     const fileBinding = {
       spaceId: this.binding.spaceId,
       issueId: this.binding.issueId,
@@ -2610,7 +2444,6 @@ export class OutpostRunnerToolAuthority {
       idempotencyKey,
       input,
       async (tx, context) => {
-        await authorizeWorkspace(context.actor);
         if (!verifiedFile) throw new Error("outpost_runner_file_handoff_receipt_changed");
         const prepared = await prepareNativeRunnerFileHandoff({
           db: tx,
@@ -2751,80 +2584,11 @@ export class OutpostRunnerToolAuthority {
     return result;
   }
 
-  async #visibleMuseDocuments(issue: typeof issues.$inferSelect, documents: NativeIssueDocument[]) {
-    if (!this.binding.museRuntime) return documents;
-    const visible = await this.#projectMuseDocumentContent(issue, documents.map(document => ({
-      id: document.latestRevisionId, documentId: document.id, body: document.body ?? "",
-    })), documents);
-    return documents.map((document, index) => ({ ...document, body: visible[index]!.body }));
-  }
-
-  async #projectMuseDocumentContent<T extends NativeDocumentContent>(
-    readerIssue: typeof issues.$inferSelect,
-    entries: T[],
-    currentDocuments: NativeIssueDocument[],
-    sourceIssueId = this.binding.issueId,
-  ): Promise<T[]> {
-    if (!this.binding.museRuntime || entries.length === 0) return entries;
-    const readerSourceTrust = await resolveActorSourceTrustForIssue({ db: this.db, issue: readerIssue,
-      actor: { actorType: "agent", actorId: this.binding.agentId, agentId: this.binding.agentId, runId: this.binding.runId } });
-    if (isLowTrustQuarantined(readerSourceTrust)) return entries;
-    const ids = entries.flatMap(entry => entry.id ? [entry.id] : []);
-    const provenance = ids.length === 0 ? [] : await this.db.select({
-      id: documentRevisions.id, documentId: documentRevisions.documentId,
-      createdByAgentId: documentRevisions.createdByAgentId, createdByUserId: documentRevisions.createdByUserId,
-      createdByRunId: documentRevisions.createdByRunId, userId: authUsers.id, writerSpaceId: agents.spaceId,
-      runId: heartbeatRuns.id, runSpaceId: heartbeatRuns.spaceId, runAgentId: heartbeatRuns.agentId,
-      runIssueId: heartbeatRuns.nativeIssueId, runExecutionPolicy: sql<unknown>`${heartbeatRuns.contextSnapshot}->'executionPolicy'`,
-    }).from(documentRevisions)
-      .leftJoin(authUsers, eq(authUsers.id, documentRevisions.createdByUserId))
-      .leftJoin(agents, and(eq(agents.id, documentRevisions.createdByAgentId), eq(agents.spaceId, this.binding.spaceId)))
-      .leftJoin(heartbeatRuns, and(eq(heartbeatRuns.id, documentRevisions.createdByRunId), eq(heartbeatRuns.spaceId, this.binding.spaceId)))
-      .where(and(eq(documentRevisions.spaceId, this.binding.spaceId), inArray(documentRevisions.id, ids)));
-    const byRevision = new Map(provenance.map(row => [row.id, row]));
-    const byDocument = new Map(currentDocuments.filter(document => document.spaceId === this.binding.spaceId
-      && document.issueId === sourceIssueId).map(document => [document.id, document]));
-    const withhold = (entry: T, body: string): T => ({ ...entry, body,
-      ...("changeSummary" in entry ? { changeSummary: null } : {}) });
-    return entries.map(entry => {
-      const document = byDocument.get(entry.documentId);
-      const original = entry.id ? byRevision.get(entry.id) : undefined;
-      if (!document || !original || original.documentId !== document.id) return withhold(entry, UNKNOWN_DOCUMENT_REVISION_BODY);
-      const current = document.latestRevisionId === entry.id;
-      if (current && isLowTrustQuarantined(document.sourceTrust)) return withhold(entry, LOW_TRUST_QUARANTINED_BODY);
-      if (current && document.sourceTrust?.disposition === "promoted"
-        && document.sourceTrust.promotedFrom?.artifactKind === "document"
-        && document.sourceTrust.promotedFrom.artifactId === document.id) return entry;
-      if (original.createdByUserId && original.userId === original.createdByUserId
-        && !original.createdByAgentId && !original.createdByRunId) return entry;
-      if (!original.createdByAgentId || !original.createdByRunId || original.runId !== original.createdByRunId
-        || original.writerSpaceId !== this.binding.spaceId || original.runSpaceId !== this.binding.spaceId
-        || original.runAgentId !== original.createdByAgentId
-        || original.runIssueId !== sourceIssueId) return withhold(entry, UNKNOWN_DOCUMENT_REVISION_BODY);
-      const policy = original.runExecutionPolicy;
-      if (policy !== null && policy !== undefined && (typeof policy !== "object" || Array.isArray(policy))) {
-        return withhold(entry, UNKNOWN_DOCUMENT_REVISION_BODY);
-      }
-      const trust = resolveCoreTrustPreset({ spaceId: this.binding.spaceId,
-        run: { spaceId: original.runSpaceId, executionPolicy: policy } });
-      if (trust.kind === "low_trust_review") return withhold(entry, LOW_TRUST_QUARANTINED_BODY);
-      if (trust.kind === "standard" && ((current && document.sourceTrust === null)
-        || trust.sourcePresets.run === trust.preset)) return entry;
-      return withhold(entry, UNKNOWN_DOCUMENT_REVISION_BODY);
-    });
-  }
-
   async #sourcePlanApproval(context: { issue: typeof issues.$inferSelect; run: Pick<typeof heartbeatRuns.$inferSelect, "responsibleUserId"> }) {
-    const plan = await handoffPlanContext(this.db, context.issue, this.#privacyActor(context.run));
-    if (!plan || !this.binding.museRuntime) return plan;
-    const document = await documentService(this.db).getIssueDocumentByKey(plan.sourceIssueId, "plan");
-    const [visible] = await this.#projectMuseDocumentContent(context.issue, [{
-      id: plan.revisionId, documentId: document?.id ?? "", body: plan.markdown,
-    }], document ? [document] : [], plan.sourceIssueId);
-    return { ...plan, markdown: visible!.body };
+    return handoffPlanContext(this.db, context.issue, this.#privacyActor(context.run));
   }
 
-  async #acceptedPlan(contextSnapshot: unknown, issue: typeof issues.$inferSelect): Promise<{
+  async #acceptedPlan(contextSnapshot: unknown): Promise<{
     documentId: string;
     revisionId: string;
     revisionNumber: number;
@@ -2860,13 +2624,7 @@ export class OutpostRunnerToolAuthority {
       ))
       .limit(1);
     if (!revision) return null;
-    const acceptedRevision = { ...revision, ...(approval?.approvedOptions ? { approvedOptions: approval.approvedOptions } : {}) };
-    if (!this.binding.museRuntime) return acceptedRevision;
-    const document = await documentService(this.db).getIssueDocumentByKey(this.binding.issueId, "plan");
-    const [visible] = await this.#projectMuseDocumentContent(issue, [{
-      id: revision.revisionId, documentId: revision.documentId, body: revision.markdown,
-    }], document ? [document] : []);
-    return { ...acceptedRevision, markdown: visible!.body };
+    return { ...revision, ...(approval?.approvedOptions ? { approvedOptions: approval.approvedOptions } : {}) };
   }
 
   async #latestAcceptedPlanApproval(revisionId: string | null): Promise<{
@@ -3032,10 +2790,10 @@ export class OutpostRunnerToolAuthority {
       ) => Promise<void>;
     } = {},
   ): Promise<unknown> {
-    const mutate = async (tx: ExternalAdmissionTransaction) => {
+    const mutate = async (tx: Db) => {
       try {
         const context = await this.#lockAuthorizedMutationContext(
-          tx as unknown as Db,
+          tx,
         );
         assertNativeSkillTestTool(this.#apiScope(context), operationId);
         const isFilePreparation =
@@ -3059,7 +2817,7 @@ export class OutpostRunnerToolAuthority {
           // chain and current reach/principal before effects or receipt replay;
           // a marker alone never supplies the provider or new authority.
           const authorized = await authorizeChatConversationForBoundRun(
-            tx as unknown as Db,
+            tx,
             this.binding,
             context.run.contextSnapshot,
             "nonblocking",
@@ -3132,7 +2890,7 @@ export class OutpostRunnerToolAuthority {
         await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, this.binding.spaceId)).for("no key update");
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`issue-privacy-tree:${this.binding.spaceId}`}, 0))`);
       }
-      return mutate(tx);
+      return mutate(tx as unknown as Db);
     });
   }
 
@@ -3141,10 +2899,6 @@ export class OutpostRunnerToolAuthority {
     issue: typeof issues.$inferSelect;
     actor: typeof agents.$inferSelect;
   }> {
-    if (this.binding.museRuntime) {
-      await withExternalExecutionAdmission(tx as unknown as ExternalAdmissionTransaction,
-        this.binding.spaceId, this.binding.agentId, this.binding.runId, async () => {});
-    }
     // Match identity activation and queue mutations before locking the run.
     await tx.select({ id: issues.id }).from(issues).where(and(
       eq(issues.id, this.binding.issueId), eq(issues.spaceId, this.binding.spaceId),
@@ -3185,16 +2939,6 @@ export class OutpostRunnerToolAuthority {
       || ["paused", "terminated", "pending_approval", "error"].includes(context.actor.status)
     ) {
       throw new Error("outpost_runner_tool_binding_not_authorized");
-    }
-    if (this.binding.museRuntime) {
-      const decision = await authorizationService(tx).decide({
-        actor: this.#privacyActor(context.run), action: "issue:mutate",
-        resource: { type: "issue", spaceId: this.binding.spaceId, issueId: context.issue.id,
-          projectId: context.issue.projectId, parentIssueId: context.issue.parentId,
-          status: context.issue.status, assigneeAgentId: context.issue.assigneeAgentId, assigneeUserId: context.issue.assigneeUserId },
-      });
-      if (!decision.allowed) throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
-      await this.binding.assertBridgeAuthority?.(tx);
     }
     await assertNoCaseHandoffMutation(tx, this.binding.runId, this.binding.issueId);
     return context;

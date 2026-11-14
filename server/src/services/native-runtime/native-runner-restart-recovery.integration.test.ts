@@ -975,9 +975,8 @@ process.on("SIGTERM", () => child.kill("SIGTERM"));
       { spaceId, principalType: "user", principalId: personId, status: "active", membershipRole: "member" },
       { spaceId: foreignSpaceId, principalType: "user", principalId: foreignPersonId, status: "active", membershipRole: "member" },
     ]);
-    const assertBridgeAuthority = vi.fn(async () => {});
     const authority = new OutpostRunnerToolAuthority(fixture.db, { ...binding,
-      workspaceRoot, workspaceBridge: true, runtimeContext: nativeRuntimeContextFixture(), assertBridgeAuthority });
+      workspaceRoot, workspaceBridge: true, runtimeContext: nativeRuntimeContextFixture() });
     const read = (tool: string, args: unknown = {}) => authority.recover({ tool, callId: `saved-${tool}`, arguments: args });
     try {
       await expect(read("get_identity")).resolves.toMatchObject({ result: { agent: { id: agentId } } });
@@ -989,13 +988,9 @@ process.on("SIGTERM", () => child.kill("SIGTERM"));
       await expect(read("workspace_read", { path: "deleted.txt" })).resolves.toMatchObject({ result: { outcome: "failed", code: "runner_bridge_file_not_found" } });
       for (const tool of ["workspace_write", "workspace_run", "connection_request", "unknown_external_write"])
         await expect(read(tool)).resolves.toBeNull();
-      await fixture.db.update(agents).set({ adapterConfig: originalAgent.adapterConfig }).where(eq(agents.id, agentId));
-      await expect(read("workspace_read", { path: "note.txt" })).rejects.toThrow("Dot workspace access was disabled");
       const unavailable = new OutpostRunnerToolAuthority(fixture.db, binding);
       await expect(unavailable.recover({ tool: "read_assigned_skill", callId: "unadvertised", arguments: { skill: "missing" } }))
         .rejects.toThrow("Tool is not available to this run");
-      assertBridgeAuthority.mockRejectedValueOnce(new Error("controller lease lost"));
-      await expect(read("get_identity")).rejects.toThrow("controller lease lost");
       await fixture.db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, fixture.runId));
       await expect(read("list_people")).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
     } finally {
@@ -1011,7 +1006,7 @@ process.on("SIGTERM", () => child.kill("SIGTERM"));
     const execute = vi.spyOn(authority, "execute").mockResolvedValue("current authorized result");
     try {
       for (const tool of [...RUNNER_BRIDGE_READ_OPERATIONS, "search_api", "get_workspace", "list_workspaces",
-        "list_project_repositories", "connections_search", "list_task_attachments", "read_task_attachment",
+        "list_project_repositories", "connections_search",
         "read_current_wake_comments", "list_chat_attachments", "read_chat_attachment", "read_tool_result"]) {
         const call = { tool, callId: `saved-${tool}`, arguments: {} };
         await expect(authority.recover(call), tool).resolves.toEqual({ result: "current authorized result" });
@@ -1022,10 +1017,9 @@ process.on("SIGTERM", () => child.kill("SIGTERM"));
 
   it("recovers missing-document reads as tool errors while fencing lost authority and unknown failures", async () => {
     const fixture = await seedRun("READ-RECOVERY");
-    const assertBridgeAuthority = vi.fn(async () => {});
     const authority = new OutpostRunnerToolAuthority(fixture.db, {
       spaceId, issueId: fixture.issueId, agentId, runId: fixture.runId,
-      apiToolsEnabled: true, assertBridgeAuthority,
+      apiToolsEnabled: true,
     });
     const read = { tool: "read_document", callId: "missing-document", arguments: { key: "deleted" } };
     await expect(authority.recover(read)).resolves.toEqual({ isError: true, result: {
@@ -1048,8 +1042,6 @@ process.on("SIGTERM", () => child.kill("SIGTERM"));
     });
     await expect(authority.recover(read)).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
     execute.mockRestore();
-    assertBridgeAuthority.mockRejectedValueOnce(new Error("controller lease lost"));
-    await expect(authority.recover(read)).rejects.toThrow("controller lease lost");
   });
 
   it("restores encrypted controller authority from Postgres and fences a stale writer", async () => {

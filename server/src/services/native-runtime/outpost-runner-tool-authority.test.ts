@@ -1041,20 +1041,14 @@ describe("OutpostRunnerToolAuthority", () => {
     ).resolves.toMatchObject({ approval: { id: approvalId }, tasks: [] });
   });
 
-  it("rejects Dot artifact publication from instance state before reading a file", async () => {
-    const [actor] = await db.select().from(agents).where(eq(agents.id, agentId));
-    await db.update(agents).set({ adapterConfig: { ...actor.adapterConfig, dotWorkspaceAccess: true } }).where(eq(agents.id, agentId));
+  it("rejects artifact publication from instance state before reading a file", async () => {
     const authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId,
-      dotRuntime: true, workspaceBridge: true, workspaceRoot: "/tmp/fixture-workspace" });
-    try {
-      for (const contentRef of [".outpost/.env", "nested/.OuTpOsT/config.json"]) {
-        await expect(authority.execute({ tool: "register_deliverable", callId: contentRef, arguments: {
-          idempotencyKey: contentRef, filename: "config.txt", title: "Config", contentType: "text/plain",
-          byteSize: 10, sha256: "0".repeat(64), contentRef,
-        } })).rejects.toThrow("runner_workspace_instance_state_denied");
-      }
-    } finally {
-      await db.update(agents).set({ adapterConfig: actor.adapterConfig }).where(eq(agents.id, agentId));
+      workspaceBridge: true, workspaceRoot: "/tmp/fixture-workspace" });
+    for (const contentRef of [".outpost/.env", "nested/.OuTpOsT/config.json"]) {
+      await expect(authority.execute({ tool: "register_deliverable", callId: contentRef, arguments: {
+        idempotencyKey: contentRef, filename: "config.txt", title: "Config", contentType: "text/plain",
+        byteSize: 10, sha256: "0".repeat(64), contentRef,
+      } })).rejects.toThrow("runner_workspace_instance_state_denied");
     }
   });
 
